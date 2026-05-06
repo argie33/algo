@@ -42,11 +42,10 @@ jobs:
     timeout-minutes: 5
     strategy:
       matrix:
-        test-module: [
-          'tests/unit/test_position_sizer.py',
-          'tests/unit/test_circuit_breaker.py',
-          'tests/unit/test_filter_pipeline.py'
-        ]
+        test-module:
+          - 'tests/unit/test_position_sizer.py'
+          - 'tests/unit/test_circuit_breaker.py'
+          - 'tests/unit/test_filter_pipeline.py'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
