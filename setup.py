@@ -20,11 +20,11 @@ def print_header(text):
 
 def print_success(text):
     """Print success message."""
-    print(f"  ✓ {text}")
+    print(f"  [OK] {text}")
 
 def print_error(text):
     """Print error message."""
-    print(f"  ✗ {text}")
+    print(f"  [ERROR] {text}")
 
 def prompt(question, default=None, secret=False):
     """Prompt user for input."""

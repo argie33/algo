@@ -69,7 +69,7 @@ class PositionMonitor:
         self.connect()
         try:
             self.cur.execute("""
-                SELECT trade_id, symbol, entry_price, quantity, created_at
+                SELECT trade_id, symbol, entry_price, entry_quantity, created_at
                 FROM algo_trades
                 WHERE status = 'pending'
                   AND created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'

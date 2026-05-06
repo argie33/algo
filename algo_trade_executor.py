@@ -218,15 +218,21 @@ class TradeExecutor:
             execution_mode = self.config.get('execution_mode', 'paper')
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
 
+            import logging
+            logger = logging.getLogger('algo_trade_executor')
+
             if execution_mode in ('paper', 'dry'):
+                logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
                 alpaca_order_id = f'LOCAL-{trade_id}'
                 order_status = 'filled'
                 executed_price = entry_price
             elif execution_mode == 'review':
+                logger.info(f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}")
                 alpaca_order_id = f'PENDING-{trade_id}'
                 order_status = 'pending_review'
                 executed_price = entry_price
             else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
+                logger.info(f"[ENTRY] {symbol}: AUTO mode - sending to Alpaca")
                 order_result = self._send_alpaca_order(
                     symbol, shares, entry_price,
                     stop_loss_price=stop_loss_price,
@@ -736,8 +742,14 @@ class TradeExecutor:
 
         Falls back to simple limit order if bracket can't be sent (no stop).
         """
+        import logging
+        logger = logging.getLogger('algo_trade_executor')
+
         if not self.alpaca_key or not self.alpaca_secret:
+            logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {'success': False, 'message': 'Alpaca credentials not configured'}
+
+        logger.info(f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f}")
         try:
             # Build order payload
             order_data = {
@@ -770,6 +782,8 @@ class TradeExecutor:
                             'limit_price': str(round(tp, 2)),
                         }
 
+            logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")
+
             response = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
                 json=order_data,
@@ -777,10 +791,14 @@ class TradeExecutor:
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
                 timeout=10,
             )
+            logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with status {response.status_code}")
+
             if response.status_code in (200, 201):
                 data = response.json()
+                logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
                 # Validate response has required fields
                 if not data.get('id'):
+                    logger.error(f"[SEND_ORDER] {symbol}: Response missing order ID")
                     return {'success': False, 'message': 'Alpaca response missing order ID'}
                 order_status = data.get('status', 'pending')
                 # Only return actual fill price if order is filled; for pending orders, return None
@@ -789,11 +807,12 @@ class TradeExecutor:
                     try:
                         executed_price = float(data['filled_avg_price'])
                     except (ValueError, TypeError) as e:
-                        print(f"Warning: Could not parse fill price: {e}")
+                        logger.warning(f"[SEND_ORDER] {symbol}: Could not parse fill price: {e}")
                         executed_price = None
                 elif order_status in ('pending', 'partially_filled'):
                     # For pending/partial orders, actual fill price unknown yet
                     executed_price = None
+                logger.info(f"[SEND_ORDER] {symbol}: Order {data.get('id')} created - status={order_status}, fill=${executed_price}")
                 return {
                     'success': True,
                     'order_id': data.get('id'),
@@ -802,8 +821,10 @@ class TradeExecutor:
                     'executed_price': executed_price,
                     'legs': data.get('legs', []),  # bracket child orders
                 }
+            logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} - {response.text[:200]}")
             return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
         except Exception as e:
+            logger.exception(f"[SEND_ORDER] {symbol}: Exception during request")
             return {'success': False, 'message': f'Request failed: {e}'}
 
     def _cancel_bracket_orders(self, alpaca_order_id):
@@ -944,9 +965,13 @@ class TradeExecutor:
         For auto mode: sends market order and waits briefly for fill.
         For paper mode: returns synthetic fill at current price.
         """
+        import logging
+        logger = logging.getLogger('algo_trade_executor')
+
         execution_mode = self.config.get('execution_mode', 'paper')
 
         if execution_mode in ('paper', 'dry', 'review'):
+            logger.info(f"[SEND_EXIT] {symbol}: Paper mode exit - {shares}sh")
             return {
                 'success': True,
                 'order_id': f'PAPER-{uuid.uuid4().hex[:10].upper()}',
@@ -955,9 +980,11 @@ class TradeExecutor:
             }
 
         if not self.alpaca_key or not self.alpaca_secret:
+            logger.error(f"[SEND_EXIT] {symbol}: Alpaca credentials not configured")
             return {'success': False, 'order_id': None, 'filled_price': None,
                     'message': 'Alpaca credentials not configured'}
 
+        logger.info(f"[SEND_EXIT] {symbol}: Sending exit order - {shares}sh market sell")
         try:
             resp = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
@@ -972,11 +999,13 @@ class TradeExecutor:
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
                 timeout=10,
             )
+            logger.info(f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code}")
             if resp.status_code in (200, 201):
                 data = resp.json()
                 order_id = data.get('id')
                 # Best effort to get fill; if not filled yet, return None and we'll use market price
                 filled_price = float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None
+                logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
                 return {
                     'success': True,
                     'order_id': order_id,
@@ -984,9 +1013,11 @@ class TradeExecutor:
                     'message': f'Order sent: {order_id}',
                 }
             else:
+                logger.error(f"[SEND_EXIT] {symbol}: Alpaca {resp.status_code} - {resp.text[:200]}")
                 return {'success': False, 'order_id': None, 'filled_price': None,
                         'message': f'Alpaca rejected order: {resp.status_code}'}
         except Exception as e:
+            logger.exception(f"[SEND_EXIT] {symbol}: Exception during request")
             return {'success': False, 'order_id': None, 'filled_price': None,
                     'message': f'Error sending order: {str(e)}'}
 
