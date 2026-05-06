@@ -9,9 +9,9 @@
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Data infrastructure stack - RDS PostgreSQL (public), Secrets Manager (DB creds),
-  ECS cluster, and ECS task execution role.
-  Updated: 2025-10-12 - Reduced max autoscaling to 40GB to optimize costs
+  Data infrastructure stack - RDS PostgreSQL (private, accessed via ECS/Bastion),
+  Secrets Manager (DB creds), ECS cluster, and ECS task execution role.
+  Updated: 2026-05-06 - Moved RDS to private subnets for security
 
 Parameters:
   RDSUsername:
@@ -33,28 +33,33 @@ Parameters:
 
 Resources:
 
-  ### 1) RDS Subnet Group (public) ### 
+  ### 1) RDS Subnet Group (private) ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      DBSubnetGroupDescription: Public subnet group for RDS
+      DBSubnetGroupDescription: Private subnet group for RDS
       SubnetIds:
-        - !ImportValue StocksCore-PublicSubnet1Id
-        - !ImportValue StocksCore-PublicSubnet2Id
+        - !ImportValue StocksCore-PrivateSubnet1Id
+        - !ImportValue StocksCore-PrivateSubnet2Id
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access
+      GroupDescription: Allow Postgres access from ECS tasks and Bastion
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: "0.0.0.0/0"
-          Description: "Allow Postgres traffic from anywhere"
+          SourceSecurityGroupId: !Ref EcsTasksSecurityGroup
+          Description: "Allow Postgres from ECS tasks"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !ImportValue StocksCore-BastionSecurityGroupId
+          Description: "Allow Postgres from Bastion host"
 
   ### 3) RDS Instance ###
   # NOTE: Current DB has 61GB allocated. Cannot reduce storage in RDS.
@@ -81,7 +86,7 @@ Resources:
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
-      PubliclyAccessible: true
+      PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false
       Tags:
