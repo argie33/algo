@@ -38,3 +38,8 @@ variable "notification_email" {
 variable "common_tags" {
   type = map(string)
 }
+
+variable "create_ecr_repository" {
+  type    = bool
+  default = false
+}

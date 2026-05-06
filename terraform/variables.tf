@@ -176,6 +176,13 @@ variable "deploy_algo" {
   default     = true
 }
 
+# Resource Control Flags
+variable "create_ecr_repository" {
+  description = "Whether to create ECR repository (set to false if already exists)"
+  type        = bool
+  default     = false
+}
+
 # Tags
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"

@@ -10,6 +10,9 @@
  * - S3 buckets (CloudFormation templates, code, algo artifacts)
  */
 
+# Get current AWS region
+data "aws_region" "current" {}
+
 # ============================================================
 # VPC and Networking
 # ============================================================
@@ -419,6 +422,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "algo_artifacts" {
 # ============================================================
 
 resource "aws_ecr_repository" "main" {
+  count                = var.create_ecr_repository ? 1 : 0
   name                 = "${var.project_name}-app-registry-${var.aws_account_id}"
   image_tag_mutability = "MUTABLE"
 
@@ -435,7 +439,8 @@ resource "aws_ecr_repository" "main" {
 }
 
 resource "aws_ecr_lifecycle_policy" "main" {
-  repository = aws_ecr_repository.main.name
+  count      = var.create_ecr_repository ? 1 : 0
+  repository = aws_ecr_repository.main[0].name
 
   policy = jsonencode({
     rules = [

@@ -47,6 +47,7 @@ module "core" {
   availability_zones     = local.azs
   aws_account_id         = var.aws_account_id
   notification_email     = var.notification_email
+  create_ecr_repository  = var.create_ecr_repository
 
   common_tags = local.common_tags
 
