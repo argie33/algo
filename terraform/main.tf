@@ -47,8 +47,7 @@ module "core" {
 
   common_tags = local.common_tags
 
-  # Conditional dependency on bootstrap
-  depends_on = var.deploy_bootstrap ? [module.bootstrap[0]] : []
+  # Implicit dependency through variable references
 }
 
 # ============================================================
