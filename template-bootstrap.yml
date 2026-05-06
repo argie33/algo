@@ -32,11 +32,9 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref GitHubOidcProvider
+              Federated: !GetAtt GitHubOidcProvider.Arn
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
-              StringEquals:
-                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
               StringLike:
                 "token.actions.githubusercontent.com:sub": "repo:argeropolos/algo:*"
       ManagedPolicyArns:
