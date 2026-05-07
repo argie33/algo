@@ -36,108 +36,14 @@ jobs:
         with:
           terraform_version: 1.5.0
 
-      - name: Bootstrap OIDC and IAM role (one-time setup)
+      - name: Bootstrap prerequisites
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        shell: bash
         run: |
-          set -e
-          echo "🔧 Pre-flight: Ensuring OIDC provider and github-actions-role exist..."
-
-          # Create OIDC provider if missing
-          EXISTING=$(aws iam list-open-id-connect-providers --region ${{ env.AWS_REGION }} --query 'OpenIDConnectProviderList[?contains(OpenIDConnectProviderArn, `github`)]' --output text 2>/dev/null || true)
-
-          if [ -z "$EXISTING" ]; then
-            echo "Creating GitHub OIDC Provider..."
-            aws iam create-open-id-connect-provider \
-              --url https://token.actions.githubusercontent.com \
-              --client-id-list sts.amazonaws.com \
-              --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03
-            sleep 3
-          else
-            echo "✅ OIDC Provider already exists"
-          fi
-
-          # Get OIDC provider ARN
-          OIDC_ARN=$(aws iam list-open-id-connect-providers --region ${{ env.AWS_REGION }} --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
-          echo "OIDC ARN: $OIDC_ARN"
-
-          # Create github-actions-role if missing
-          if ! aws iam get-role --role-name github-actions-role 2>/dev/null >/dev/null; then
-            echo "Creating github-actions-role with OIDC trust..."
-
-            cat > /tmp/trust-policy.json <<TRUST_EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "${OIDC_ARN}"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:argie33/algo:*"
-        }
-      }
-    }
-  ]
-}
-TRUST_EOF
-
-            aws iam create-role \
-              --role-name github-actions-role \
-              --assume-role-policy-document file:///tmp/trust-policy.json
-            sleep 2
-
-            # Attach comprehensive permissions for Terraform
-            cat > /tmp/terraform-policy.json <<POLICY_EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "iam:*",
-        "ec2:*",
-        "rds:*",
-        "ecs:*",
-        "ecr:*",
-        "lambda:*",
-        "apigateway:*",
-        "cloudfront:*",
-        "cognito-idp:*",
-        "s3:*",
-        "dynamodb:*",
-        "secretsmanager:*",
-        "cloudwatch:*",
-        "logs:*",
-        "events:*",
-        "scheduler:*",
-        "sns:*",
-        "kms:*",
-        "cloudformation:*",
-        "autoscaling:*"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-POLICY_EOF
-
-            aws iam put-role-policy \
-              --role-name github-actions-role \
-              --policy-name terraform-deployment \
-              --policy-document file:///tmp/terraform-policy.json
-
-            echo "✅ github-actions-role created with Terraform permissions"
-          else
-            echo "✅ github-actions-role already exists"
-          fi
+          echo "Bootstrap: Checking OIDC provider..."
+          aws iam list-open-id-connect-providers || echo "OIDC check done"
 
       - name: Create Terraform backend infrastructure
         env:
