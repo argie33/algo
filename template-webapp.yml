@@ -175,6 +175,45 @@ Resources:
         AllowCredentials: "'true'"
         MaxAge: "'86400'"
 
+  # Lambda Security Group for RDS access
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for webapp Lambda (RDS egress only)
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !ImportValue StocksApp-DBSecurityGroupId
+          Description: "Allow PostgreSQL to RDS"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: "Allow HTTPS for external API calls and VPC endpoints"
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS resolution"
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: "Allow DNS resolution"
+
+  # Allow Lambda to connect to RDS
+  RDSIngressFromWebappLambda:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !ImportValue StocksApp-DBSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      Description: "Allow PostgreSQL from webapp Lambda"
+
   # Main API Lambda function (handles all routes)
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -188,6 +227,12 @@ Resources:
       Timeout: 300
       # SnapStart is not supported for Node.js (only Java/Python/.NET).
       # ARM64 already gives ~20% cost reduction; Node cold starts are short anyway.
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PrivateSubnet1Id
+          - !ImportValue StocksCore-PrivateSubnet2Id
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn

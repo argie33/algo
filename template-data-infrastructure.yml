@@ -382,6 +382,12 @@ Outputs:
     Export:
       Name: StocksApp-EcsTasksSecurityGroupId
 
+  DBSecurityGroupId:
+    Description: ID of Security Group for RDS Database
+    Value: !GetAtt StocksDBSecurityGroup.GroupId
+    Export:
+      Name: StocksApp-DBSecurityGroupId
+
   LogArchiveBucketName:
     Description: Name of S3 bucket for long-term log archival
     Value: !Ref LogArchiveBucket
