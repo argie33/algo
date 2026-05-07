@@ -191,7 +191,7 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
   integration_type = "AWS_PROXY"
   integration_method = "POST"
   payload_format_version = "2.0"
-  uri = aws_lambda_function.api.invoke_arn
+  target = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${aws_lambda_function.api.function_name}"
 }
 
 resource "aws_apigatewayv2_route" "api_default" {
