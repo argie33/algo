@@ -47,6 +47,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
   rule {
     id     = "DeleteOldArtifacts"
     status = "Enabled"
+    filter {}
 
     expiration {
       days = var.code_bucket_expiration_days
@@ -140,6 +141,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
   rule {
     id     = "DeleteOldArtifacts"
     status = "Enabled"
+    filter {}
 
     expiration {
       days = 90
@@ -187,6 +189,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
   rule {
     id     = "DeleteOldData"
     status = "Enabled"
+    filter {}
 
     expiration {
       days = var.data_bucket_expiration_days

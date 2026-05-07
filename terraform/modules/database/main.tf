@@ -38,7 +38,7 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.rds_security_group_id]
 
   # Backup & Recovery
-  backup_retention_period = var.db_backup_retention_period
+  backup_retention_period = var.db_backup_retention_days
   backup_window          = "03:00-04:00"        # UTC (10 PM - 11 PM EST)
   maintenance_window     = "mon:04:00-mon:05:00" # UTC
   copy_tags_to_snapshot  = true
@@ -229,7 +229,7 @@ resource "aws_cloudwatch_log_group" "rds_postgresql" {
 # 9. CloudWatch Alarms - RDS Monitoring
 # ============================================================
 
-resource "aws_cloudwatch_alarm" "rds_cpu" {
+resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   count               = var.enable_rds_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-cpu-high-${var.environment}"
   alarm_description   = "Alert when RDS CPU exceeds ${var.rds_cpu_alarm_threshold}%"
@@ -250,7 +250,7 @@ resource "aws_cloudwatch_alarm" "rds_cpu" {
   tags = var.common_tags
 }
 
-resource "aws_cloudwatch_alarm" "rds_storage" {
+resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   count               = var.enable_rds_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-storage-low-${var.environment}"
   alarm_description   = "Alert when RDS free storage drops below 10GB"
@@ -271,7 +271,7 @@ resource "aws_cloudwatch_alarm" "rds_storage" {
   tags = var.common_tags
 }
 
-resource "aws_cloudwatch_alarm" "rds_connections" {
+resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   count               = var.enable_rds_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-connections-high-${var.environment}"
   alarm_description   = "Alert when RDS active connections exceed ${var.rds_connections_alarm_threshold}"
