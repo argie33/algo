@@ -39,7 +39,6 @@ class PositionReconciler:
             self.trading_client = TradingClient(
                 api_key=os.getenv('APCA_API_KEY_ID'),
                 secret_key=os.getenv('APCA_API_SECRET_KEY'),
-                base_url=os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
             )
         except Exception as e:
             print(f"  [WARN] Alpaca client init failed: {e}")

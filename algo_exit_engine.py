@@ -20,8 +20,8 @@ import os
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
-from trade_performance_auditor import TradePerformanceAuditor, date as _date
+from datetime import datetime, timedelta, date as _date
+from trade_performance_auditor import TradePerformanceAuditor
 from algo_trade_executor import TradeExecutor
 from algo_signals import SignalComputer
 

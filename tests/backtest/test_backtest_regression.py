@@ -17,6 +17,7 @@ USAGE:
 
 import pytest
 import json
+import os
 from pathlib import Path
 from datetime import date
 
@@ -52,7 +53,7 @@ class TestBacktestRegression:
             return bt.run()
         except Exception as e:
             # In local development without test DB, skip
-            if "local" in str(test_config):
+            if os.getenv('ENVIRONMENT', 'local') == 'local':
                 pytest.skip(f"Backtest requires test database: {e}")
             raise
 

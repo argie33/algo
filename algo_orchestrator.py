@@ -1192,12 +1192,31 @@ class Orchestrator:
             print(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
         print(f"{'#'*70}\n")
 
-        return {
+        result = {
             'run_id': self.run_id,
             'run_date': self.run_date.isoformat(),
             'phases': self.phase_results,
             'success': all(p['status'] in ('success', 'halt') for p in self.phase_results.values()),
         }
+
+        # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
+        try:
+            import boto3
+            cw = boto3.client('cloudwatch', region_name='us-east-1')
+            metric_name = 'AlgoRunCompleted' if result['success'] else 'AlgoRunFailed'
+            cw.put_metric_data(
+                Namespace='AlgoTrading',
+                MetricData=[{
+                    'MetricName': metric_name,
+                    'Value': 1,
+                    'Unit': 'Count',
+                }]
+            )
+        except Exception as e:
+            # Silently continue — metrics publishing must never fail the trading system
+            print(f"  (CloudWatch metric publish failed: {e})")
+
+        return result
 
 
 if __name__ == "__main__":
