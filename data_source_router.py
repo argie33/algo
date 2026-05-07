@@ -207,7 +207,9 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        hist = yf.Ticker(symbol).history(start=start, end=end, auto_adjust=False, timeout=30)
+        # yfinance uses dashes for class shares (BRK.B -> BRK-B)
+        yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+        hist = yf.Ticker(yf_symbol).history(start=start, end=end, auto_adjust=False, timeout=30)
         if hist.empty:
             return None
         return [
@@ -269,7 +271,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -286,7 +289,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -303,7 +307,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -329,7 +334,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.earnings_dates
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -356,7 +362,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.eps_revisions
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -380,7 +387,8 @@ class DataSourceRouter:
             return None
         try:
             def fetch():
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 return ticker.eps_trend
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:

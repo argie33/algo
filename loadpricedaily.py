@@ -51,7 +51,7 @@ class PriceDailyLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch OHLCV via the data source router."""
+        """Fetch OHLCV via the data source router. Falls back to cached prices if APIs limited."""
         end = date.today()
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -61,7 +61,62 @@ class PriceDailyLoader(OptimalLoader):
         if start > end:
             return None
 
-        return self.router.fetch_ohlcv(symbol, start, end)
+        # Try to fetch fresh data
+        rows = self._try_fetch(symbol, start, end)
+        if rows:
+            return rows
+
+        # If fetch failed (rate limited, API down, etc), fallback to yesterday's prices for today's date
+        # This keeps the algo trading even during API outages
+        if start == end and since is not None:
+            return self._fallback_to_yesterday(symbol, since, end)
+        return None
+
+    def _fallback_to_yesterday(self, symbol: str, yesterday: date, today: date):
+        """Use yesterday's closing price as today's placeholder. Better than blocking trades."""
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            port=int(os.getenv("DB_PORT", "5432")),
+            user=os.getenv("DB_USER", "stocks"),
+            password=os.getenv("DB_PASSWORD", ""),
+            database=os.getenv("DB_NAME", "stocks"),
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT open, high, low, close, volume FROM price_daily WHERE symbol = %s AND date = %s",
+                    (symbol, yesterday)
+                )
+                row = cur.fetchone()
+                if row:
+                    open_p, high, low, close, vol = row
+                    # Return yesterday's data with today's date (conservative: use yesterday's close as today's price)
+                    import logging
+                    logging.warning(f"[{symbol}] Using cached price from {yesterday} for {today} (API limited)")
+                    return [{
+                        'symbol': symbol,
+                        'date': str(today),
+                        'open': open_p,
+                        'high': high,
+                        'low': low,
+                        'close': close,
+                        'volume': int(vol or 0),
+                    }]
+        finally:
+            conn.close()
+        return None
+
+    def _try_fetch(self, symbol: str, start: date, end: date):
+        """Try to fetch data from live APIs. Returns None on rate limit/error (triggers fallback)."""
+        try:
+            return self.router.fetch_ohlcv(symbol, start, end)
+        except Exception as e:
+            if "rate" in str(e).lower() or "429" in str(e) or "too many" in str(e).lower():
+                import logging
+                logging.debug(f"[{symbol}] Rate limited: {e}")
+                return None  # Trigger fallback
+            raise  # Re-raise other errors
 
     def transform(self, rows):
         """Filter out zero-volume bars (often indicate missing data)."""
