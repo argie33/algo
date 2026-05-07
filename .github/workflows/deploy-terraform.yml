@@ -115,7 +115,7 @@ jobs:
           # Import other pre-existing resources
           terraform import module.data_infrastructure[0].aws_db_subnet_group.main stocks-db-subnet-group 2>/dev/null || echo "⚠ DB subnet group not found or already in state (OK)"
           terraform import module.data_infrastructure[0].aws_iam_role.ecs_task_execution_role stocks-ecs-task-execution-role 2>/dev/null || echo "⚠ ECS task role not found or already in state (OK)"
-          terraform import module.data_infrastructure[0].aws_sns_topic.alerts arn:aws:sns:us-east-1:626216981288:stocks-alerts 2>/dev/null || echo "⚠ SNS topic not found or already in state (OK)"
+          terraform import module.data_infrastructure[0].aws_sns_topic.alerts arn:aws:sns:us-east-1:${{ env.AWS_ACCOUNT_ID }}:stocks-alerts 2>/dev/null || echo "⚠ SNS topic not found or already in state (OK)"
 
           echo "✓ Import phase complete (existing resources now managed by Terraform)"
 
