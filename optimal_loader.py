@@ -1,10 +1,10 @@
 """
-Optimal loader â€” the synthesis of every Tier 1 + Tier 2 optimization.
+Optimal loader €” the synthesis of every Tier 1 + Tier 2 optimization.
 
 A loader subclass written against this base gets, automatically:
     1. Watermark-based incremental fetches (only fetch what's new)
     2. Bloom-filter dedup (skip already-loaded rows pre-DB)
-    3. Multi-source data with auto-fallback (Alpaca â†’ yfinance, etc.)
+    3. Multi-source data with auto-fallback (Alpaca †’ yfinance, etc.)
     4. Polars-backed transformation (5-10x faster than pandas)
     5. PostgreSQL COPY for bulk inserts (10x faster than INSERT)
     6. Source-health awareness (auto-skip flaky providers)
@@ -17,7 +17,7 @@ Migration path:
     Existing loader: 200-400 lines of repetitive fetch/clean/insert code.
     New loader:      30-50 lines, just the bits that are domain-specific.
 
-Example â€” full price_daily loader:
+Example €” full price_daily loader:
 
     class PriceDailyLoader(OptimalLoader):
         table_name = "price_daily"
@@ -123,7 +123,7 @@ class OptimalLoader(ABC):
             from bloom_dedup import LoadDedup
             self._dedup = LoadDedup(namespace=self.table_name)
         except Exception as e:
-            log.debug("Dedup unavailable (%s) â€” using DB-only dedup", e)
+            log.debug("Dedup unavailable (%s) €” using DB-only dedup", e)
             self._dedup = False  # sentinel for "tried and failed"
         return self._dedup if self._dedup else None
 
@@ -134,7 +134,7 @@ class OptimalLoader(ABC):
             from watermark_loader import Watermark
             self._watermark = Watermark(self.table_name)
         except Exception as e:
-            log.warning("Watermark unavailable (%s) â€” running full refresh", e)
+            log.warning("Watermark unavailable (%s) €” running full refresh", e)
             self._watermark = False
         return self._watermark if self._watermark else None
 
@@ -152,7 +152,7 @@ class OptimalLoader(ABC):
             database=os.getenv("DB_NAME", "stocks"),
         )
         self._tls.conn = conn
-        # Track for close() â€” keep most recent for the main thread fallback.
+        # Track for close() €” keep most recent for the main thread fallback.
         self._conn = conn
         return conn
 
