@@ -73,50 +73,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Clean up orphaned resources
-        run: |
-          echo "Cleaning up orphaned resources..."
-
-          # Delete IAM role if it exists
-          if aws iam get-role --role-name stocks-ecs-task-execution-role 2>/dev/null; then
-            echo "Deleting IAM role: stocks-ecs-task-execution-role"
-            aws iam delete-role-policy --role-name stocks-ecs-task-execution-role --policy-name stocks-ecs-task-secrets 2>/dev/null || true
-            aws iam detach-role-policy --role-name stocks-ecs-task-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy 2>/dev/null || true
-            aws iam delete-role --role-name stocks-ecs-task-execution-role
-            echo "✓ IAM role deleted"
-          fi
-
-          # Delete DB subnet group if it exists
-          if aws rds describe-db-subnet-groups --db-subnet-group-name stocks-db-subnet-group 2>/dev/null; then
-            echo "Deleting DB subnet group: stocks-db-subnet-group"
-            aws rds delete-db-subnet-group --db-subnet-group-name stocks-db-subnet-group
-            echo "✓ DB subnet group deleted"
-          fi
-
-          # Delete SNS topic if it exists
-          TOPIC_ARN=$(aws sns list-topics --query "Topics[?TopicArn contains 'stocks-alerts'].TopicArn" --output text 2>/dev/null || echo "")
-          if [ ! -z "$TOPIC_ARN" ]; then
-            echo "Deleting SNS topic: $TOPIC_ARN"
-            aws sns delete-topic --topic-arn "$TOPIC_ARN"
-            echo "✓ SNS topic deleted"
-          fi
-
-          echo "✓ Cleanup complete"
-
-      - name: Clean up stuck VPCs
-        run: |
-          echo "Checking for stuck VPCs with 10.1.0.0/16 CIDR..."
-          VPC_IDS=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=cidr,Values=10.1.0.0/16" --query "Vpcs[].VpcId" --output text)
-
-          if [ ! -z "$VPC_IDS" ]; then
-            echo "WARNING: Found stuck VPCs. Attempting cleanup..."
-            for VPC_ID in $VPC_IDS; do
-              echo "Cleaning up $VPC_ID..."
-              aws ec2 delete-vpc --region us-east-1 --vpc-id $VPC_ID 2>/dev/null || echo "  Could not delete - has dependencies"
-            done
-          else
-            echo "No stuck VPCs found - account is clean!"
-          fi
 
       - name: Terraform init
         working-directory: terraform
