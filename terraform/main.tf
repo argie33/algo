@@ -74,8 +74,8 @@ module "data_infrastructure" {
   vpc_id                = var.create_vpc ? module.core[0].vpc_id : var.vpc_id
   private_subnet_ids    = var.create_vpc ? module.core[0].private_subnet_ids : var.existing_private_subnet_ids
   ecs_cluster_subnet_ids = var.create_vpc ? module.core[0].private_subnet_ids : var.existing_private_subnet_ids
-  rds_sg_id             = var.create_vpc ? module.core[0].rds_sg_id : null  # TODO: pass existing SG ID
-  ecs_tasks_sg_id       = var.create_vpc ? module.core[0].ecs_tasks_sg_id : null  # TODO: pass existing SG ID
+  rds_sg_id             = var.create_vpc ? module.core[0].rds_sg_id : null
+  ecs_tasks_sg_id       = var.create_vpc ? module.core[0].ecs_tasks_sg_id : null
 
   # Database config
   db_name       = var.db_name

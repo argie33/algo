@@ -10,7 +10,6 @@
  * Reference: template-algo.yml
  */
 
-# TODO: Implement Lambda function and EventBridge scheduling
 
 # IAM role for Lambda
 resource "aws_iam_role" "lambda_role" {

@@ -21,10 +21,6 @@ resource "aws_iam_openid_connect_provider" "github" {
       Name = "${var.project_name}-github-oidc"
     }
   )
-
-  lifecycle {
-    ignore_changes = [tags]
-  }
 }
 
 # GitHub Actions deployment role - limited to this repository

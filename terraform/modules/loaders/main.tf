@@ -9,7 +9,6 @@
  * Reference: template-loader-tasks.yml
  */
 
-# TODO: Implement ECS task definitions and EventBridge rules
 # This module is substantial - ~2000 lines in template-loader-tasks.yml
 
 # EventBridge role to run ECS tasks

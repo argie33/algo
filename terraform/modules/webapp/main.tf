@@ -11,7 +11,6 @@
  * Reference: template-webapp.yml
  */
 
-# TODO: Implement Lambda, API Gateway, CloudFront, Cognito
 
 # S3 bucket for frontend assets
 resource "aws_s3_bucket" "frontend" {
