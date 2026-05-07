@@ -8,14 +8,13 @@ terraform {
     }
   }
 
-  # Uncomment for remote state when ready:
-  # backend "s3" {
-  #   bucket         = "terraform-state-stocks"
-  #   key            = "infrastructure/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "terraform-state-lock"
-  # }
+  backend "s3" {
+    bucket         = "terraform-state"
+    key            = "stocks/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-lock"
+  }
 }
 
 provider "aws" {
