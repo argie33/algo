@@ -91,7 +91,7 @@ module "data_infrastructure" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.core[0]]
+  depends_on = var.create_vpc ? [module.core[0]] : []
 }
 
 # ============================================================
@@ -121,7 +121,7 @@ module "loaders" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.data_infrastructure[0]]
+  depends_on = var.deploy_data_infrastructure ? [module.data_infrastructure[0]] : []
 }
 
 # ============================================================
@@ -149,7 +149,7 @@ module "webapp" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.data_infrastructure[0]]
+  depends_on = var.deploy_data_infrastructure ? [module.data_infrastructure[0]] : []
 }
 
 # ============================================================
@@ -176,5 +176,5 @@ module "algo" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.data_infrastructure[0]]
+  depends_on = var.deploy_data_infrastructure ? [module.data_infrastructure[0]] : []
 }

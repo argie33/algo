@@ -7,8 +7,14 @@ variable "aws_account_id" {
 variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "ecs_cluster_subnet_ids" { type = list(string) }
-variable "rds_sg_id" { type = string }
-variable "ecs_tasks_sg_id" { type = string }
+variable "rds_sg_id" {
+  type = optional(string)
+  default = null
+}
+variable "ecs_tasks_sg_id" {
+  type = optional(string)
+  default = null
+}
 variable "db_name" { type = string }
 variable "db_user" { type = string }
 variable "db_password" {
