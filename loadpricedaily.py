@@ -58,7 +58,7 @@ class PriceDailyLoader(OptimalLoader):
         else:
             start = since + timedelta(days=1)
 
-        if start >= end:
+        if start > end:
             return None
 
         return self.router.fetch_ohlcv(symbol, start, end)

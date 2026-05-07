@@ -81,6 +81,7 @@ class AlgoConfig:
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
         'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100'),
         'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
+        'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
         'max_stop_distance_pct': ('8.0', 'float', 'Max stop distance % from entry'),
         'max_positions_per_sector': ('3', 'int', 'Max concurrent positions in one sector'),
