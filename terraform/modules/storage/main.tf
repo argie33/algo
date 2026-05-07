@@ -252,6 +252,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "log_archive" {
   rule {
     id     = "TransitionToGlacier"
     status = "Enabled"
+    filter {}
 
     transition {
       days          = var.log_archive_transition_ia_days
