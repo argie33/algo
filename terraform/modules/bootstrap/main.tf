@@ -7,13 +7,7 @@
  */
 
 # Create OIDC provider for GitHub Actions (one-time bootstrap)
-# Uses data source to reference existing provider if present
-data "aws_iam_openid_connect_provider" "github_existing" {
-  url = "https://token.actions.githubusercontent.com"
-}
-
 resource "aws_iam_openid_connect_provider" "github" {
-  count           = try(data.aws_iam_openid_connect_provider.github_existing.arn, null) == null ? 1 : 0
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
@@ -27,10 +21,10 @@ resource "aws_iam_openid_connect_provider" "github" {
       Name = "${var.project_name}-github-oidc"
     }
   )
-}
 
-locals {
-  github_oidc_arn = try(data.aws_iam_openid_connect_provider.github_existing.arn, aws_iam_openid_connect_provider.github[0].arn)
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 # GitHub Actions deployment role - limited to this repository
@@ -43,7 +37,7 @@ resource "aws_iam_role" "github_actions" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.github_oidc_arn
+          Federated = aws_iam_openid_connect_provider.github.arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
