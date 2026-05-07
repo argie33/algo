@@ -44,6 +44,19 @@ jobs:
             echo "✅ $STACK: $STATUS"
           done
 
+      - name: Verify required CloudFormation exports
+        run: |
+          for EXPORT in StocksCore-DataLoadingBucketName StocksCore-ContainerRepositoryUri StocksApp-SecretArn StocksApp-DBEndpoint StocksApp-DBPort StocksApp-DBName StocksApp-EcsTaskExecutionRoleArn StocksApp-EcsTasksSecurityGroupId; do
+            VALUE=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='$EXPORT'].Value" \
+              --output text 2>/dev/null || echo "")
+            if [ -z "$VALUE" ] || [ "$VALUE" = "None" ]; then
+              echo "ERROR: Export $EXPORT not found"
+              exit 1
+            fi
+            echo "✅ $EXPORT: $VALUE"
+          done
+
   deploy:
     name: Deploy Loaders Stack
     needs: pre-flight

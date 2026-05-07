@@ -49,7 +49,7 @@ jobs:
 
       - name: Verify core exports exist
         run: |
-          for EXPORT in StocksCore-PublicSubnet1Id StocksCore-PublicSubnet2Id StocksCore-VpcId; do
+          for EXPORT in StocksCore-VpcId StocksCore-PrivateSubnet1Id StocksCore-PrivateSubnet2Id; do
             VALUE=$(aws cloudformation list-exports \
               --query "Exports[?Name=='$EXPORT'].Value" \
               --output text 2>/dev/null || echo "")
@@ -57,7 +57,7 @@ jobs:
               echo "ERROR: Export $EXPORT not found in stocks-core"
               exit 1
             fi
-            echo "✅ $EXPORT"
+            echo "✅ $EXPORT: $VALUE"
           done
 
   deploy:
