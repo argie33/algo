@@ -229,6 +229,231 @@ Modify `.github/workflows/deploy-*.yml` files, then:
 
 ---
 
-**Last Updated:** 2026-05-06
+## Available Tools & Access
+
+### What Tools Are Available
+
+This project has access to multiple CLI tools for deployment, cleanup, and operations:
+
+| Tool | Location | Purpose | How to Access |
+|------|----------|---------|---------------|
+| **AWS CLI** | Local system + GitHub Actions | AWS resource management, queries | Installed locally (see "Finding AWS CLI" below) |
+| **GitHub CLI (gh)** | Local system + GitHub Actions | GitHub repository operations, workflow control | `gh` command (part of GitHub setup) |
+| **Git** | Local system + GitHub Actions | Version control | `git` command |
+| **Bash/PowerShell** | Local system (Bash via WSL) + GitHub Actions | Script execution, automation | `bash` in Linux environments; `PowerShell` on Windows |
+| **Docker** | Local system (via Docker Desktop) | Container building and testing | `docker` command (for local dev) |
+
+### Finding AWS CLI Locally
+
+AWS CLI may not be in the standard `PATH`. If `which aws` returns nothing, search thoroughly:
+
+```bash
+# Search in common locations (not just /usr/bin)
+find ~ -name "aws" -o -name "aws.exe" 2>/dev/null | head -20
+
+# Check Python installations (AWS CLI often installed via pip)
+find ~/AppData/Local/Programs/Python -name "aws*" 2>/dev/null
+
+# Check Windows Program Files
+ls -la "/c/Program Files/Amazon/AWSCLI/bin/" 2>/dev/null
+
+# Check environment PATH more thoroughly
+echo $PATH | tr ':' '\n'
+
+# Try different shells
+which aws
+bash -c "which aws"
+pwsh -c "where.exe aws"
+```
+
+Once found, test it works:
+```bash
+aws --version
+aws sts get-caller-identity --region us-east-1
+```
+
+### Credentials & Authentication
+
+**GitHub Secrets (for workflows):**
+- `AWS_ACCESS_KEY_ID` — Set via GitHub repository settings
+- `AWS_SECRET_ACCESS_KEY` — Set via GitHub repository settings
+- `AWS_ACCOUNT_ID` — Set via GitHub repository settings
+
+These are automatically available in all GitHub Actions workflows via `${{ secrets.SECRET_NAME }}`.
+
+**Local AWS CLI (for manual commands):**
+Export credentials before running commands:
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_DEFAULT_REGION="us-east-1"
+
+# Then run AWS CLI commands normally
+aws ec2 describe-vpcs --region us-east-1
+aws cloudformation list-stacks --region us-east-1
+```
+
+**In workflows:**
+GitHub Actions automatically configures credentials when using `configure-aws-credentials` action:
+```yaml
+- uses: aws-actions/configure-aws-credentials@v4
+  with:
+    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    aws-region: us-east-1
+```
+
+### AWS CLI Syntax Patterns & Common Mistakes
+
+**Filtering Syntax — The Most Common Error:**
+
+WRONG (multiple filters with --filters):
+```bash
+# ❌ ERROR: This will fail with "Unknown options: --filters"
+aws ec2 describe-nat-gateways --filters Name=vpc-id,Values=$VPC_ID Name=state,Values=available
+```
+
+CORRECT (use --filter once per filter, OR chain filters with Name= pairs):
+```bash
+# ✅ CORRECT — using single --filter with multiple Name= pairs
+aws ec2 describe-nat-gateways --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available,pending"
+
+# ✅ ALSO CORRECT — multiple --filter flags
+aws ec2 describe-nat-gateways --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --filter "Name=state,Values=available,pending"
+
+# ✅ ALSO CORRECT — in subshell for simpler syntax
+VPC_ID="vpc-12345"
+aws ec2 describe-nat-gateways \
+  --region us-east-1 \
+  --filter "Name=vpc-id,Values=$VPC_ID" \
+  --filter "Name=state,Values=available,pending" \
+  --query 'NatGateways[*].NatGatewayId' \
+  --output text
+```
+
+**JMESPath Queries (the --query parameter):**
+
+Common patterns:
+```bash
+# Get all VPC IDs
+aws ec2 describe-vpcs --query 'Vpcs[*].VpcId' --output text
+
+# Get specific attributes
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name]' --output table
+
+# Conditional selection
+aws rds describe-db-instances --query 'DBInstances[?Engine==`postgres`].DBInstanceIdentifier' --output text
+
+# Get length (count)
+aws ec2 describe-vpcs --filters Name=isDefault,Values=false --query 'length(Vpcs)' --output text
+```
+
+**Error Handling in Bash Scripts:**
+
+Always suppress errors and check status:
+```bash
+# ❌ WRONG — script stops on error, masks real issues
+set -e
+aws ec2 delete-nat-gateway --nat-gateway-id $NGW
+
+# ✅ CORRECT — continue on error, check status
+aws ec2 delete-nat-gateway --nat-gateway-id $NGW 2>/dev/null || true
+
+# ✅ ALSO CORRECT — capture error and handle
+if ! output=$(aws ec2 delete-vpc --vpc-id $VPC_ID 2>&1); then
+  echo "ERROR: $output"
+  exit 1
+fi
+```
+
+### AWS CLI Commands Used in This Project
+
+**VPC Management:**
+```bash
+# List all VPCs
+aws ec2 describe-vpcs --region $REGION --query 'Vpcs[*].VpcId' --output text
+
+# Delete a VPC
+aws ec2 delete-vpc --vpc-id $VPC_ID --region $REGION
+
+# Count VPCs
+aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text
+```
+
+**EC2 Instances:**
+```bash
+# List instances in a VPC
+aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --output json
+
+# Terminate instance
+aws ec2 terminate-instances --instance-ids $INST_ID --region $REGION
+```
+
+**RDS Databases:**
+```bash
+# List databases
+aws rds describe-db-instances --region $REGION --query 'DBInstances[*].DBInstanceIdentifier' --output text
+
+# Delete database (skip final snapshot)
+aws rds delete-db-instance --db-instance-identifier $DB_ID --skip-final-snapshot --region $REGION
+```
+
+**ECS Clusters & Tasks:**
+```bash
+# List clusters
+aws ecs list-clusters --region $REGION --query 'clusterArns' --output text
+
+# List services in cluster
+aws ecs list-services --cluster $CLUSTER_ARN --region $REGION --query 'serviceArns' --output text
+
+# Delete service
+aws ecs delete-service --cluster $CLUSTER_ARN --service $SERVICE_ARN --force --region $REGION
+```
+
+**Security Groups:**
+```bash
+# Describe security group with rules
+aws ec2 describe-security-groups --group-ids $SG_ID --region $REGION --output json
+
+# Revoke all ingress rules (use output from describe command)
+aws ec2 revoke-security-group-ingress --group-id $SG_ID --region $REGION --cli-input-json "{\"IpPermissions\":$RULES}"
+
+# Delete security group
+aws ec2 delete-security-group --group-id $SG_ID --region $REGION
+```
+
+**CloudFormation:**
+```bash
+# Describe stack
+aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION --query 'Stacks[0].StackStatus' --output text
+
+# List stacks
+aws cloudformation list-stacks --region $REGION --query 'StackSummaries[?StackStatus!=`DELETE_COMPLETE`].StackName' --output text
+
+# Get stack outputs/exports
+aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ExportName`].OutputValue' --output text
+```
+
+**Secrets Manager:**
+```bash
+# Get secret value
+aws secretsmanager get-secret-value --secret-id $SECRET_ID --region $REGION --query 'SecretString' --output text
+
+# Parse JSON secret
+aws secretsmanager get-secret-value --secret-id $SECRET_ID --region $REGION --query 'SecretString' --output text | jq '.username'
+```
+
+**EventBridge:**
+```bash
+# List rules
+aws events list-rules --name-prefix stocks --region $REGION --query 'Rules[*].[Name,State]' --output table
+
+# List targets for rule
+aws events list-targets-by-rule --rule $RULE_NAME --region $REGION --query 'Targets[*].[Id,Arn]' --output table
+```
+
+---
+
+**Last Updated:** 2026-05-07
 **Maintainer:** Claude Code
-**Status:** Production-Ready with Security Hardening
+**Status:** Production-Ready with Security Hardening & Tool Documentation

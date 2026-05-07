@@ -31,7 +31,7 @@ jobs:
           echo ""
 
           # Get all non-default VPCs
-          VPC_IDS=$(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'Vpcs[*].VpcId' --output text)
+          VPC_IDS=$(aws ec2 describe-vpcs --region $REGION --filter "Name=isDefault,Values=false" --query 'Vpcs[*].VpcId' --output text)
 
           if [ -z "$VPC_IDS" ]; then
             echo "✅ No VPCs to clean"
@@ -48,7 +48,7 @@ jobs:
 
             # Step 1: Terminate EC2 instances
             echo "[1/16] Terminating EC2 instances..."
-            INSTANCES=$(aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" "Name=instance-state-name,Values=running,stopped,pending,stopping" --query 'Reservations[*].Instances[*].InstanceId' --output text)
+            INSTANCES=$(aws ec2 describe-instances --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --filter "Name=instance-state-name,Values=running,stopped,pending,stopping" --query 'Reservations[*].Instances[*].InstanceId' --output text)
             if [ -n "$INSTANCES" ]; then
               for INST in $INSTANCES; do
                 aws ec2 terminate-instances --instance-ids $INST --region $REGION 2>/dev/null || true
@@ -140,7 +140,7 @@ jobs:
 
             # Step 8: Delete NAT Gateways
             echo "[8/16] Deleting NAT Gateways..."
-            NGWS=$(aws ec2 describe-nat-gateways --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available,pending" --query 'NatGateways[*].NatGatewayId' --output text)
+            NGWS=$(aws ec2 describe-nat-gateways --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available,pending" --query 'NatGateways[*].NatGatewayId' --output text)
             if [ -n "$NGWS" ]; then
               for NGW in $NGWS; do
                 aws ec2 delete-nat-gateway --nat-gateway-id $NGW --region $REGION 2>/dev/null || true
@@ -151,7 +151,7 @@ jobs:
 
             # Step 9: Delete VPN Gateways (detach first)
             echo "[9/16] Deleting VPN Gateways..."
-            VGWS=$(aws ec2 describe-vpn-gateways --region $REGION --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query 'VpnGateways[*].VpnGatewayId' --output text)
+            VGWS=$(aws ec2 describe-vpn-gateways --region $REGION --filter "Name=attachment.vpc-id,Values=$VPC_ID" --query 'VpnGateways[*].VpnGatewayId' --output text)
             if [ -n "$VGWS" ]; then
               for VGW in $VGWS; do
                 aws ec2 detach-vpn-gateway --vpn-gateway-id $VGW --vpc-id $VPC_ID --region $REGION 2>/dev/null || true
@@ -162,7 +162,7 @@ jobs:
 
             # Step 10: Delete VPC Endpoints
             echo "[10/16] Deleting VPC Endpoints..."
-            VPCE=$(aws ec2 describe-vpc-endpoints --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'VpcEndpoints[*].VpcEndpointId' --output text)
+            VPCE=$(aws ec2 describe-vpc-endpoints --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'VpcEndpoints[*].VpcEndpointId' --output text)
             if [ -n "$VPCE" ]; then
               for VPE in $VPCE; do
                 aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $VPE --region $REGION 2>/dev/null || true
@@ -172,7 +172,7 @@ jobs:
 
             # Step 11: Delete VPC Peering Connections
             echo "[11/16] Deleting VPC Peering..."
-            PEERS=$(aws ec2 describe-vpc-peering-connections --region $REGION --filters "Name=requester-vpc-info.vpc-id,Values=$VPC_ID" "Name=status-code,Values=active,pending-acceptance" --query 'VpcPeeringConnections[*].VpcPeeringConnectionId' --output text)
+            PEERS=$(aws ec2 describe-vpc-peering-connections --region $REGION --filter "Name=requester-vpc-info.vpc-id,Values=$VPC_ID" --filter "Name=status-code,Values=active,pending-acceptance" --query 'VpcPeeringConnections[*].VpcPeeringConnectionId' --output text)
             if [ -n "$PEERS" ]; then
               for PEER in $PEERS; do
                 aws ec2 delete-vpc-peering-connection --vpc-peering-connection-id $PEER --region $REGION 2>/dev/null || true
@@ -182,7 +182,7 @@ jobs:
 
             # Step 12: Delete Internet Gateways (detach first)
             echo "[12/16] Deleting Internet Gateways..."
-            IGWS=$(aws ec2 describe-internet-gateways --region $REGION --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query 'InternetGateways[*].InternetGatewayId' --output text)
+            IGWS=$(aws ec2 describe-internet-gateways --region $REGION --filter "Name=attachment.vpc-id,Values=$VPC_ID" --query 'InternetGateways[*].InternetGatewayId' --output text)
             if [ -n "$IGWS" ]; then
               for IGW in $IGWS; do
                 aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $VPC_ID --region $REGION 2>/dev/null || true
@@ -193,7 +193,7 @@ jobs:
 
             # Step 13: Delete Route Tables (non-default)
             echo "[13/16] Deleting Route Tables..."
-            RTS=$(aws ec2 describe-route-tables --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'RouteTables[?Associations[0].Main==`false`].RouteTableId' --output text)
+            RTS=$(aws ec2 describe-route-tables --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'RouteTables[?Associations[0].Main==`false`].RouteTableId' --output text)
             if [ -n "$RTS" ]; then
               for RT in $RTS; do
                 aws ec2 delete-route-table --route-table-id $RT --region $REGION 2>/dev/null || true
@@ -203,7 +203,7 @@ jobs:
 
             # Step 14: Delete Network Interfaces (detach first)
             echo "[14/16] Deleting Network Interfaces..."
-            ENIS=$(aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'NetworkInterfaces[?Description!=`Primary network interface`].NetworkInterfaceId' --output text)
+            ENIS=$(aws ec2 describe-network-interfaces --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'NetworkInterfaces[?Description!=`Primary network interface`].NetworkInterfaceId' --output text)
             if [ -n "$ENIS" ]; then
               for ENI in $ENIS; do
                 ATTACHMENTS=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --region $REGION --query 'NetworkInterfaces[0].Attachment.AttachmentId' --output text 2>/dev/null || echo "")
@@ -218,7 +218,7 @@ jobs:
 
             # Step 15: Delete Subnets
             echo "[15/16] Deleting Subnets..."
-            SUBNETS=$(aws ec2 describe-subnets --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[*].SubnetId' --output text)
+            SUBNETS=$(aws ec2 describe-subnets --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[*].SubnetId' --output text)
             if [ -n "$SUBNETS" ]; then
               for SUBNET in $SUBNETS; do
                 aws ec2 delete-subnet --subnet-id $SUBNET --region $REGION 2>/dev/null || true
@@ -229,7 +229,7 @@ jobs:
 
             # Step 16: Delete Security Groups and clear rules
             echo "[16/16] Deleting Security Groups..."
-            SGs=$(aws ec2 describe-security-groups --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=!default" --query 'SecurityGroups[*].GroupId' --output text)
+            SGs=$(aws ec2 describe-security-groups --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --filter "Name=group-name,Values=!default" --query 'SecurityGroups[*].GroupId' --output text)
             if [ -n "$SGs" ]; then
               # First revoke all rules
               for SG in $SGs; do
@@ -267,13 +267,13 @@ jobs:
               echo "❌ FAILED TO DELETE: $VPC_ID"
               echo "   Checking for remaining resources..."
 
-              REMAINING=$(aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
+              REMAINING=$(aws ec2 describe-instances --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
               [ -n "$REMAINING" ] && echo "     EC2 Instances: $REMAINING"
 
-              REMAINING=$(aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text)
+              REMAINING=$(aws ec2 describe-network-interfaces --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text)
               [ -n "$REMAINING" ] && echo "     Network Interfaces: $REMAINING"
 
-              REMAINING=$(aws ec2 describe-security-groups --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[*].GroupId' --output text)
+              REMAINING=$(aws ec2 describe-security-groups --region $REGION --filter "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[*].GroupId' --output text)
               [ -n "$REMAINING" ] && echo "     Security Groups: $REMAINING"
             fi
 
@@ -285,7 +285,7 @@ jobs:
           echo "=========================================="
           echo "FINAL VERIFICATION"
           echo "=========================================="
-          VPC_COUNT=$(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text)
+          VPC_COUNT=$(aws ec2 describe-vpcs --region $REGION --filter "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text)
           echo "Remaining non-default VPCs: $VPC_COUNT"
 
           if [ "$VPC_COUNT" -eq 0 ]; then
@@ -293,6 +293,6 @@ jobs:
             exit 0
           else
             echo "❌ Some VPCs still remain. Listing..."
-            aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'Vpcs[*].[VpcId,CidrBlock]' --output table
+            aws ec2 describe-vpcs --region $REGION --filter "Name=isDefault,Values=false" --query 'Vpcs[*].[VpcId,CidrBlock]' --output table
             exit 1
           fi
