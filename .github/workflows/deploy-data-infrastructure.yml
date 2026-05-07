@@ -237,9 +237,19 @@ jobs:
       - name: Path D — Wait for DELETE to complete, then CREATE fresh
         if: steps.state.outputs.stack_status == 'DELETE_IN_PROGRESS' || steps.state.outputs.stack_status == 'DELETE_FAILED'
         run: |
-          echo "Stack is in DELETE state. Waiting for deletion to complete..."
-          # Wait up to 10 minutes for deletion
-          for i in {1..120}; do
+          echo "Stack is in DELETE state. Handling deletion..."
+
+          # If in DELETE_FAILED, retry deletion once (in case template fixes enable success)
+          if [ "${{ steps.state.outputs.stack_status }}" = "DELETE_FAILED" ]; then
+            echo "Stack in DELETE_FAILED. Retrying delete with updated template..."
+            aws cloudformation delete-stack \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" 2>&1 || true
+            sleep 3
+          fi
+
+          # Wait up to 15 minutes for deletion to complete or stabilize
+          for i in {1..180}; do
             STATUS=$(aws cloudformation describe-stacks \
               --stack-name "$STACK_NAME" \
               --region "$AWS_REGION" \
@@ -263,14 +273,14 @@ jobs:
               echo "Stack creation complete."
               exit 0
             elif [[ "$STATUS" == *"DELETE"* ]]; then
-              echo "[$i/120] Still deleting (status: $STATUS)... waiting 5s"
+              echo "[$i/180] Still deleting (status: $STATUS)... waiting 5s"
               sleep 5
             else
               echo "ERROR: Unexpected status during deletion wait: $STATUS"
               exit 1
             fi
           done
-          echo "ERROR: Stack deletion did not complete within timeout"
+          echo "ERROR: Stack deletion did not complete within timeout (DELETE_FAILED persists - may need manual intervention)"
           exit 1
 
       - name: Diagnose stack events on failure
