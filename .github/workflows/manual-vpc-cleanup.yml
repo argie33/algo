@@ -1,0 +1,201 @@
+name: Manual VPC Cleanup (One by One)
+
+on:
+  workflow_dispatch:
+    inputs:
+      vpc_id:
+        description: 'VPC ID to delete (leave empty to list all)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete VPC
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: List VPCs or delete specified one
+        env:
+          TARGET_VPC: ${{ inputs.vpc_id }}
+        run: |
+          REGION="us-east-1"
+
+          if [ -z "$TARGET_VPC" ]; then
+            echo "=== Non-Default VPCs ==="
+            aws ec2 describe-vpcs --filter "Name=isDefault,Values=false" \
+              --query 'Vpcs[*].[VpcId,CidrBlock]' --output table --region $REGION
+            echo ""
+            echo "To delete a VPC, re-run this workflow with vpc_id parameter"
+            exit 0
+          fi
+
+          echo "=== Deleting VPC: $TARGET_VPC ==="
+          echo ""
+
+          # Step 1: Terminate EC2 instances
+          echo "[1] Terminating EC2 instances..."
+          INSTANCES=$(aws ec2 describe-instances --region $REGION \
+            --filter "Name=vpc-id,Values=$TARGET_VPC" \
+            --filter "Name=instance-state-name,Values=running,stopped" \
+            --query 'Reservations[*].Instances[*].InstanceId' --output text)
+
+          if [ -n "$INSTANCES" ]; then
+            for INST in $INSTANCES; do
+              aws ec2 terminate-instances --instance-ids $INST --region $REGION 2>/dev/null || true
+              echo "  → Terminated: $INST"
+            done
+            echo "  Waiting for termination..."
+            sleep 15
+          else
+            echo "  No instances to terminate"
+          fi
+
+          # Step 2: Delete Network Interfaces (non-primary)
+          echo "[2] Deleting network interfaces..."
+          ENIS=$(aws ec2 describe-network-interfaces --region $REGION \
+            --filter "Name=vpc-id,Values=$TARGET_VPC" \
+            --query 'NetworkInterfaces[?Description!=`Primary network interface`].NetworkInterfaceId' \
+            --output text)
+
+          if [ -n "$ENIS" ]; then
+            for ENI in $ENIS; do
+              ATTACH=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI \
+                --region $REGION --query 'NetworkInterfaces[0].Attachment.AttachmentId' \
+                --output text 2>/dev/null || echo "")
+              if [ -n "$ATTACH" ] && [ "$ATTACH" != "None" ]; then
+                aws ec2 detach-network-interface --attachment-id $ATTACH --region $REGION 2>/dev/null || true
+                sleep 2
+              fi
+              aws ec2 delete-network-interface --network-interface-id $ENI --region $REGION 2>/dev/null || true
+              echo "  → Deleted: $ENI"
+            done
+          else
+            echo "  No extra network interfaces to delete"
+          fi
+
+          # Step 3: Delete Subnets
+          echo "[3] Deleting subnets..."
+          SUBNETS=$(aws ec2 describe-subnets --region $REGION \
+            --filter "Name=vpc-id,Values=$TARGET_VPC" \
+            --query 'Subnets[*].SubnetId' --output text)
+
+          if [ -n "$SUBNETS" ]; then
+            for SUBNET in $SUBNETS; do
+              aws ec2 delete-subnet --subnet-id $SUBNET --region $REGION 2>/dev/null || true
+              echo "  → Deleted: $SUBNET"
+            done
+            sleep 5
+          else
+            echo "  No subnets to delete"
+          fi
+
+          # Step 4: Delete Internet Gateways
+          echo "[4] Deleting internet gateways..."
+          IGWS=$(aws ec2 describe-internet-gateways --region $REGION \
+            --filter "Name=attachment.vpc-id,Values=$TARGET_VPC" \
+            --query 'InternetGateways[*].InternetGatewayId' --output text)
+
+          if [ -n "$IGWS" ]; then
+            for IGW in $IGWS; do
+              aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $TARGET_VPC --region $REGION 2>/dev/null || true
+              aws ec2 delete-internet-gateway --internet-gateway-id $IGW --region $REGION 2>/dev/null || true
+              echo "  → Deleted: $IGW"
+            done
+          else
+            echo "  No IGWs to delete"
+          fi
+
+          # Step 5: Delete Route Tables (non-default)
+          echo "[5] Deleting route tables..."
+          RTS=$(aws ec2 describe-route-tables --region $REGION \
+            --filter "Name=vpc-id,Values=$TARGET_VPC" \
+            --query 'RouteTables[?Associations[0].Main==`false`].RouteTableId' --output text)
+
+          if [ -n "$RTS" ]; then
+            for RT in $RTS; do
+              aws ec2 delete-route-table --route-table-id $RT --region $REGION 2>/dev/null || true
+              echo "  → Deleted: $RT"
+            done
+          else
+            echo "  No extra route tables to delete"
+          fi
+
+          # Step 6: Delete Security Groups (non-default)
+          echo "[6] Deleting security groups..."
+          SGs=$(aws ec2 describe-security-groups --region $REGION \
+            --filter "Name=vpc-id,Values=$TARGET_VPC" \
+            --filter "Name=group-name,Values=!default" \
+            --query 'SecurityGroups[*].GroupId' --output text)
+
+          if [ -n "$SGs" ]; then
+            # Revoke all rules first
+            for SG in $SGs; do
+              # Revoke ingress
+              RULES=$(aws ec2 describe-security-groups --group-ids $SG --region $REGION \
+                --query 'SecurityGroups[0].IpPermissions' --output json 2>/dev/null || echo "[]")
+              if [ "$RULES" != "[]" ]; then
+                aws ec2 revoke-security-group-ingress --group-id $SG --region $REGION \
+                  --cli-input-json "{\"IpPermissions\":$RULES}" 2>/dev/null || true
+              fi
+
+              # Revoke egress
+              RULES=$(aws ec2 describe-security-groups --group-ids $SG --region $REGION \
+                --query 'SecurityGroups[0].IpPermissionsEgress' --output json 2>/dev/null || echo "[]")
+              if [ "$RULES" != "[]" ]; then
+                aws ec2 revoke-security-group-egress --group-id $SG --region $REGION \
+                  --cli-input-json "{\"IpPermissions\":$RULES}" 2>/dev/null || true
+              fi
+            done
+
+            # Delete security groups
+            for SG in $SGs; do
+              aws ec2 delete-security-group --group-id $SG --region $REGION 2>/dev/null || true
+              echo "  → Deleted: $SG"
+            done
+            sleep 2
+          else
+            echo "  No extra security groups to delete"
+          fi
+
+          # Step 7: Delete the VPC
+          echo "[7] Deleting VPC: $TARGET_VPC"
+          if aws ec2 delete-vpc --vpc-id $TARGET_VPC --region $REGION 2>/dev/null; then
+            echo "✅ SUCCESSFULLY DELETED: $TARGET_VPC"
+          else
+            echo "❌ FAILED TO DELETE: $TARGET_VPC"
+            echo "   Checking what's still blocking deletion..."
+
+            REMAINING=$(aws ec2 describe-instances --region $REGION \
+              --filter "Name=vpc-id,Values=$TARGET_VPC" \
+              --query 'Reservations[*].Instances[*].InstanceId' --output text)
+            [ -n "$REMAINING" ] && echo "     EC2 Instances: $REMAINING"
+
+            REMAINING=$(aws ec2 describe-network-interfaces --region $REGION \
+              --filter "Name=vpc-id,Values=$TARGET_VPC" \
+              --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text)
+            [ -n "$REMAINING" ] && echo "     Network Interfaces: $REMAINING"
+
+            REMAINING=$(aws ec2 describe-security-groups --region $REGION \
+              --filter "Name=vpc-id,Values=$TARGET_VPC" \
+              --query 'SecurityGroups[*].GroupId' --output text)
+            [ -n "$REMAINING" ] && echo "     Security Groups: $REMAINING"
+
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Verification ==="
+          REMAINING=$(aws ec2 describe-vpcs --region $REGION \
+            --filter "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text)
+          echo "Remaining non-default VPCs: $REMAINING"

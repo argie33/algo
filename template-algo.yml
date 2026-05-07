@@ -45,11 +45,16 @@ Parameters:
     Default: 'dev'
     AllowedValues: ['dev', 'staging', 'prod']
     Description: Deployment environment
+  AlertEmailAddress:
+    Type: String
+    Default: ''
+    Description: Email address for SNS alert notifications (empty = no email subscription)
 
 Conditions:
   IsProd: !Equals [!Ref Environment, 'prod']
   IsLive: !Equals [!Ref ExecutionMode, 'live']
   HasAlgoSecrets: !Not [!Equals [!Ref AlgoSecretsArn, '']]
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmailAddress, '']]
 
 Resources:
   # SNS Topic for alerts
@@ -61,6 +66,15 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+
+  # Email subscription for alerts
+  AlgoAlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlgoAlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmailAddress
 
   # Lambda execution role
   LambdaExecutionRole:
@@ -288,6 +302,69 @@ Resources:
       AlarmActions:
         - !Ref AlgoAlertTopic
       TreatMissingData: breaching  # If no metric data, algo didn't run
+
+  # CloudWatch Dashboard for monitoring
+  AlgoMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'algo-orchestrator-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AlgoTrading", "AlgoRunCompleted", {"stat": "Sum", "label": "Successful Runs (24h)"}],
+                  [".", "AlgoRunFailed", {"stat": "Sum", "label": "Failed Runs (24h)"}]
+                ],
+                "period": 3600,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Algo Orchestrator Health",
+                "yAxis": {"left": {"min": 0}}
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Errors", {"dimensions": {"FunctionName": "algo-orchestrator"}}],
+                  [".", "Duration", {"stat": "Average", "dimensions": {"FunctionName": "algo-orchestrator"}}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Lambda Performance"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", {"dimensions": {"DBInstanceIdentifier": "stocks"}}],
+                  [".", "DatabaseConnections", {"dimensions": {"DBInstanceIdentifier": "stocks"}}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "RDS Database Health"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/SQS", "ApproximateNumberOfMessagesVisible", {"dimensions": {"QueueName": !GetAtt AlgoEventDLQ.QueueName}}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Dead Letter Queue Depth"
+              }
+            }
+          ]
+        }
 
 Outputs:
   LambdaFunctionArn:

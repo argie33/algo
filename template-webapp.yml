@@ -33,9 +33,14 @@ Parameters:
     Default: 0
     Description: "Number of pre-warmed Lambda instances (cost ~$5/month per instance, 0=disabled)"
     AllowedValues: [0, 1, 2, 5, 10]
+  AlertTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN for alarm notifications (empty = no notifications)
 
 Conditions:
   HasProvisionedConcurrency: !Not [!Equals [!Ref ProvisionedConcurrency, 0]]
+  HasAlertTopic: !Not [!Equals [!Ref AlertTopicArn, '']]
 
 Globals:
   Function:
@@ -296,6 +301,7 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref ApiFunction
+      AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
 
   # CloudWatch Alarm for API Gateway performance
   ApiGatewayPerformanceAlarm:
@@ -314,6 +320,7 @@ Resources:
       Dimensions:
         - Name: ApiName
           Value: !Ref ServerlessRestApi
+      AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
 
   # IAM Role for API Gateway CloudWatch Logs
   ApiGatewayCloudWatchLogsRole:
