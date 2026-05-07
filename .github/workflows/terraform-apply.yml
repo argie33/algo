@@ -36,6 +36,112 @@ jobs:
         with:
           terraform_version: 1.5.0
 
+      - name: Bootstrap OIDC and IAM role (one-time setup)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "🔧 Pre-flight: Ensuring OIDC provider and github-actions-role exist..."
+
+          # Create OIDC provider if missing
+          EXISTING=$(aws iam list-open-id-connect-providers --region ${{ env.AWS_REGION }} --query 'OpenIDConnectProviderList[?contains(OpenIDConnectProviderArn, `github`)]' --output text 2>/dev/null || true)
+
+          if [ -z "$EXISTING" ]; then
+            echo "Creating GitHub OIDC Provider..."
+            aws iam create-open-id-connect-provider \
+              --url https://token.actions.githubusercontent.com \
+              --client-id-list sts.amazonaws.com \
+              --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03
+            sleep 3
+          else
+            echo "✅ OIDC Provider already exists"
+          fi
+
+          # Get OIDC provider ARN
+          OIDC_ARN=$(aws iam list-open-id-connect-providers --region ${{ env.AWS_REGION }} --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
+          echo "OIDC ARN: $OIDC_ARN"
+
+          # Create github-actions-role if missing
+          if ! aws iam get-role --role-name github-actions-role 2>/dev/null >/dev/null; then
+            echo "Creating github-actions-role with OIDC trust..."
+
+            TRUST=$(cat <<EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Federated": "$OIDC_ARN"
+                },
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringEquals": {
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+                  },
+                  "StringLike": {
+                    "token.actions.githubusercontent.com:sub": "repo:argie33/algo:*"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+            )
+
+            echo "$TRUST" > /tmp/trust.json
+            aws iam create-role \
+              --role-name github-actions-role \
+              --assume-role-policy-document file:///tmp/trust.json
+            sleep 2
+
+            # Attach comprehensive permissions for Terraform
+            POLICY=$(cat <<'POLICY'
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "iam:*",
+                  "ec2:*",
+                  "rds:*",
+                  "ecs:*",
+                  "ecr:*",
+                  "lambda:*",
+                  "apigateway:*",
+                  "cloudfront:*",
+                  "cognito-idp:*",
+                  "s3:*",
+                  "dynamodb:*",
+                  "secretsmanager:*",
+                  "cloudwatch:*",
+                  "logs:*",
+                  "events:*",
+                  "scheduler:*",
+                  "sns:*",
+                  "kms:*",
+                  "cloudformation:*",
+                  "autoscaling:*"
+                ],
+                "Resource": "*"
+              }
+            ]
+          }
+          POLICY
+            )
+
+            echo "$POLICY" > /tmp/policy.json
+            aws iam put-role-policy \
+              --role-name github-actions-role \
+              --policy-name terraform-deployment \
+              --policy-document file:///tmp/policy.json
+
+            echo "✅ github-actions-role created with Terraform permissions"
+          else
+            echo "✅ github-actions-role already exists"
+          fi
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
