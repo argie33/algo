@@ -126,18 +126,19 @@ jobs:
         working-directory: terraform
         run: terraform init -backend-config=backend-config.hcl
 
-      - name: Import existing resources into Terraform state
+      - name: Import existing resources into Terraform state (with lock bypass for stale locks)
         working-directory: terraform
         run: |
           echo "Importing pre-existing AWS resources into Terraform state..."
 
+          # Use -lock=false to bypass state locks (imports are idempotent metadata operations)
           # Import OIDC Provider (if it exists, import succeeds; if not, error is harmless for apply)
-          terraform import module.bootstrap[0].aws_iam_openid_connect_provider.github https://token.actions.githubusercontent.com 2>/dev/null || echo "⚠ OIDC provider not found or already in state (OK)"
+          terraform import -lock=false module.bootstrap[0].aws_iam_openid_connect_provider.github https://token.actions.githubusercontent.com 2>/dev/null || echo "⚠ OIDC provider not found or already in state (OK)"
 
           # Import other pre-existing resources
-          terraform import module.data_infrastructure[0].aws_db_subnet_group.main stocks-db-subnet-group 2>/dev/null || echo "⚠ DB subnet group not found or already in state (OK)"
-          terraform import module.data_infrastructure[0].aws_iam_role.ecs_task_execution_role stocks-ecs-task-execution-role 2>/dev/null || echo "⚠ ECS task role not found or already in state (OK)"
-          terraform import module.data_infrastructure[0].aws_sns_topic.alerts arn:aws:sns:us-east-1:${{ env.AWS_ACCOUNT_ID }}:stocks-alerts 2>/dev/null || echo "⚠ SNS topic not found or already in state (OK)"
+          terraform import -lock=false module.data_infrastructure[0].aws_db_subnet_group.main stocks-db-subnet-group 2>/dev/null || echo "⚠ DB subnet group not found or already in state (OK)"
+          terraform import -lock=false module.data_infrastructure[0].aws_iam_role.ecs_task_execution_role stocks-ecs-task-execution-role 2>/dev/null || echo "⚠ ECS task role not found or already in state (OK)"
+          terraform import -lock=false module.data_infrastructure[0].aws_sns_topic.alerts arn:aws:sns:us-east-1:${{ env.AWS_ACCOUNT_ID }}:stocks-alerts 2>/dev/null || echo "⚠ SNS topic not found or already in state (OK)"
 
           echo "✓ Import phase complete (existing resources now managed by Terraform)"
 
