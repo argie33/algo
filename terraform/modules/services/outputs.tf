@@ -29,7 +29,7 @@ output "api_gateway_stage_name" {
 
 output "api_url" {
   description = "Full URL for API Gateway (without path)"
-  value       = "\/\"
+  value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
 output "cloudfront_distribution_id" {
