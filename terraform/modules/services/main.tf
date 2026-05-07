@@ -5,11 +5,9 @@
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
-  
-  api_cors_origins = concat(
-    var.api_cors_allowed_origins,
-    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : []
-  )
+
+  # Note: CloudFront domain is added to CORS post-deployment to avoid circular dependency
+  api_cors_origins = var.api_cors_allowed_origins
 }
 
 # ============================================================
