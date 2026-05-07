@@ -12,14 +12,9 @@
 # TODO: Implement RDS, ECS cluster, Secrets Manager
 # Reference: template-data-infrastructure.yml
 
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = var.private_subnet_ids
-
-  tags = merge(
-    var.common_tags,
-    { Name = "${var.project_name}-db-subnet-group" }
-  )
+# Reference existing DB Subnet Group
+data "aws_db_subnet_group" "main" {
+  name = "${var.project_name}-db-subnet-group"
 }
 
 resource "aws_db_instance" "main" {
@@ -104,32 +99,9 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# ECS Task Execution Role
-resource "aws_iam_role" "ecs_task_execution_role" {
+# Reference existing ECS Task Execution Role
+data "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.project_name}-ecs-task-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(
-    var.common_tags,
-    { Name = "${var.project_name}-ecs-task-execution-role" }
-  )
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # Allow task to read from Secrets Manager
@@ -170,13 +142,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   }
 }
 
-resource "aws_sns_topic" "alerts" {
+# Reference existing SNS topic (created in previous deployments)
+data "aws_sns_topic" "alerts" {
   name = "${var.project_name}-alerts"
-
-  tags = merge(
-    var.common_tags,
-    { Name = "${var.project_name}-alerts" }
-  )
 }
 
 resource "aws_sns_topic_subscription" "alerts" {

@@ -6,21 +6,9 @@
  * - GitHub Actions deployment role with least-privilege CloudFormation/IaC permissions
  */
 
-# Create OIDC provider for GitHub Actions
-resource "aws_iam_openid_connect_provider" "github" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1b511abead59c6ce207077c0bf4113469e1f0b03"
-  ]
+# Reference existing OIDC provider (created one-time during bootstrap)
+data "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "${var.project_name}-github-oidc"
-    }
-  )
 }
 
 # GitHub Actions deployment role - limited to this repository
