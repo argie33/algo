@@ -23,7 +23,15 @@ output "private_subnet_ids" {
 
 output "vpc_endpoint_ids" {
   description = "VPC endpoint IDs"
-  value       = module.vpc.vpc_endpoint_ids
+  value = {
+    s3               = module.vpc.s3_endpoint_id
+    dynamodb         = module.vpc.dynamodb_endpoint_id
+    secretsmanager   = module.vpc.secretsmanager_endpoint_id
+    ecr_api          = module.vpc.ecr_api_endpoint_id
+    ecr_dkr          = module.vpc.ecr_dkr_endpoint_id
+    logs             = module.vpc.logs_endpoint_id
+    sns              = module.vpc.sns_endpoint_id
+  }
 }
 
 # ============================================================
