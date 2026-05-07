@@ -146,6 +146,14 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 4
+        - CapacityProvider: FARGATE
+          Weight: 1
 
   ### 5.1) ECS Tasks Security Group ###
   EcsTasksSecurityGroup:
