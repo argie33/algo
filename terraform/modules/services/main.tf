@@ -191,7 +191,7 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
   integration_type = "AWS_PROXY"
   integration_method = "POST"
   payload_format_version = "2.0"
-  target = aws_lambda_function.api.arn
+  target = aws_lambda_function.api.invoke_arn
 }
 
 resource "aws_apigatewayv2_route" "api_default" {
@@ -309,9 +309,6 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-      headers {
-        header_names = ["Authorization", "Content-Type"]
-      }
       cookies {
         forward = "all"
       }
@@ -734,5 +731,5 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.algo.function_name
   principal     = "scheduler.amazonaws.com"
-  source_arn    = "arn:aws:scheduler:*:*:schedule/*/*"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${data.aws_caller_identity.current.account_id}:schedule/*/*"
 }
