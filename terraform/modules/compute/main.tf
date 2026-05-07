@@ -150,9 +150,39 @@ resource "aws_launch_template" "bastion" {
   }
 
   # No SSH key pair (use SSM Session Manager instead)
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    region = var.aws_region
-  }))
+  user_data = base64encode(<<-EOF
+              #!/bin/bash
+              set -e
+              # Enable CloudWatch agent and SSM agent
+              yum update -y
+              yum install -y amazon-cloudwatch-agent amazon-ssm-agent
+              systemctl enable amazon-ssm-agent
+              systemctl start amazon-ssm-agent
+              # Configure CloudWatch Logs for SSM sessions
+              cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWCONFIG'
+              {
+                "logs": {
+                  "logs_collected": {
+                    "files": {
+                      "collect_list": [
+                        {
+                          "file_path": "/var/log/secure",
+                          "log_group_name": "/aws/ssm/sessions",
+                          "log_stream_name": "{instance_id}"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+              CWCONFIG
+              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                -a fetch-config \
+                -m ec2 \
+                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+                -s
+              EOF
+  )
 
   monitoring {
     enabled = true
