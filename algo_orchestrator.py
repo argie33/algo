@@ -78,7 +78,7 @@ DB_CONFIG = {
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True):
+    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
         from algo_config import get_config
         self.config = config or get_config()
         self.run_date = run_date or _date.today()
@@ -91,6 +91,9 @@ class Orchestrator:
         self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
+
+        if init_db:
+            self._ensure_schema_initialized()
 
     # ---------- Database health monitoring (B4) ----------
 
@@ -125,6 +128,39 @@ class Orchestrator:
             if self.db_failure_counter_file.exists():
                 self.db_failure_counter_file.unlink()
         except Exception:
+            pass
+
+    def _ensure_schema_initialized(self):
+        """Initialize database schema if not already present. Idempotent."""
+        try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name IN ('stock_symbols', 'algo_positions', 'algo_trades')
+            """)
+            table_count = cur.fetchone()[0]
+            cur.close()
+            conn.close()
+
+            if table_count >= 3:
+                if self.verbose:
+                    print("  [SCHEMA] Database schema already initialized")
+                return
+
+            if self.verbose:
+                print("  [SCHEMA] Initializing database schema...")
+
+            import init_database
+            init_database.main()
+
+            if self.verbose:
+                print("  [SCHEMA] Database schema initialized successfully")
+        except Exception as e:
+            if self.verbose:
+                print(f"  [WARN] Schema initialization check failed: {e}")
             pass
 
     def _check_data_patrol(self, cur):
@@ -339,6 +375,12 @@ class Orchestrator:
             if stale_items:
                 cur.close()
                 conn.close()
+                self.alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_HALT',
+                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
+                    {'stale_items': stale_items, 'max_age_days': max_stale}
+                )
                 self.log_phase_result(1, 'data_freshness', 'fail',
                                       f'Stale: {"; ".join(stale_items)}')
                 return False
@@ -381,6 +423,12 @@ class Orchestrator:
                     halt_reason = cb_result.get('reason', 'circuit breaker triggered')
                     if self.verbose:
                         print(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                    self.alerts.send_position_alert(
+                        'PORTFOLIO',
+                        'MARKET_CIRCUIT_BREAKER',
+                        f'Market circuit breaker L{halt_level} triggered: {halt_reason}',
+                        {'level': halt_level, 'reason': halt_reason}
+                    )
                     self.log_phase_result(2, 'market_circuit_breaker', 'halt',
                                         f'L{halt_level} breaker active: {halt_reason}')
                     return False
@@ -388,8 +436,15 @@ class Orchestrator:
                 self.log_phase_result(2, 'market_circuit_breaker', 'warn', f'check failed: {e}')
 
             if result['halted']:
+                halt_reasons = result.get("halt_reasons", ["unknown"])
+                self.alerts.send_position_alert(
+                    'PORTFOLIO',
+                    'ACCOUNT_CIRCUIT_BREAKER',
+                    f'Account circuit breaker triggered: {"; ".join(halt_reasons)}',
+                    {'halt_reasons': halt_reasons}
+                )
                 self.log_phase_result(2, 'circuit_breakers', 'halt',
-                                      f'Halted: {"; ".join(result["halt_reasons"])}')
+                                      f'Halted: {"; ".join(halt_reasons)}')
                 return False
             self.log_phase_result(2, 'circuit_breakers', 'success', 'all clear')
             return True

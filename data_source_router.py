@@ -40,8 +40,19 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Deque, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 log = logging.getLogger(__name__)
+
+
+def _call_with_timeout(fn: Callable, timeout_sec: float = 30) -> Any:
+    """Call a function with timeout protection. Raises TimeoutError if it takes too long."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(fn)
+        try:
+            return future.result(timeout=timeout_sec)
+        except FuturesTimeoutError:
+            raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout")
 
 
 @dataclass
@@ -196,7 +207,7 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        hist = yf.Ticker(symbol).history(start=start, end=end, auto_adjust=False)
+        hist = yf.Ticker(symbol).history(start=start, end=end, auto_adjust=False, timeout=30)
         if hist.empty:
             return None
         return [
@@ -256,33 +267,51 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df.to_dict(orient="index")
+        except TimeoutError:
+            log.warning("yfinance balance_sheet timeout for %s", symbol)
             return None
-        return df.to_dict(orient="index")
 
     def _yf_income(self, symbol: str, period: str):
         try:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df.to_dict(orient="index")
+        except TimeoutError:
+            log.warning("yfinance income_stmt timeout for %s", symbol)
             return None
-        return df.to_dict(orient="index")
 
     def _yf_cash_flow(self, symbol: str, period: str):
         try:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df.to_dict(orient="index")
+        except TimeoutError:
+            log.warning("yfinance cashflow timeout for %s", symbol)
             return None
-        return df.to_dict(orient="index")
 
     # ============== EARNINGS ==============
 
@@ -298,11 +327,17 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.earnings_dates
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.earnings_dates
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df.to_dict(orient="index")
+        except TimeoutError:
+            log.warning("yfinance earnings_dates timeout for %s", symbol)
             return None
-        return df.to_dict(orient="index")
 
     def _sec_eps(self, symbol: str):
         return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
@@ -319,11 +354,17 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.eps_revisions
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.eps_revisions
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df
+        except TimeoutError:
+            log.warning("yfinance eps_revisions timeout for %s", symbol)
             return None
-        return df
 
     def fetch_eps_trend(self, symbol: str):
         """Fetch estimate trends (historical estimate changes). yfinance only (no fallback)."""
@@ -337,11 +378,17 @@ class DataSourceRouter:
             import yfinance as yf
         except ImportError:
             return None
-        ticker = yf.Ticker(symbol)
-        df = ticker.eps_trend
-        if df is None or df.empty:
+        try:
+            def fetch():
+                ticker = yf.Ticker(symbol)
+                return ticker.eps_trend
+            df = _call_with_timeout(fetch, timeout_sec=30)
+            if df is None or df.empty:
+                return None
+            return df
+        except TimeoutError:
+            log.warning("yfinance eps_trend timeout for %s", symbol)
             return None
-        return df
 
     # ============== HEALTH REPORT ==============
 
