@@ -1,0 +1,137 @@
+# ============================================================
+# GitHub Actions Workflow - Terraform Apply
+# ============================================================
+
+name: Terraform Apply
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "terraform/**"
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VAR_github_repository: ${{ github.repository }}
+  TF_VAR_github_ref_path: ${{ github.ref }}
+
+jobs:
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        run: |
+          cd terraform
+          terraform init -upgrade
+
+      - name: Terraform validate
+        run: |
+          cd terraform
+          terraform validate
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          cd terraform
+          terraform plan -no-color -input=false -out=tfplan.bin
+
+      - name: Terraform apply
+        id: apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve -no-color tfplan.bin
+
+      - name: Capture outputs
+        id: outputs
+        run: |
+          cd terraform
+          terraform output -json > /tmp/outputs.json
+          cat /tmp/outputs.json
+
+      - name: Create deployment summary
+        run: |
+          echo "✅ Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- Region: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Backup state
+        if: success()
+        run: |
+          aws s3 cp \
+            s3://stocks-terraform-state/dev/terraform.tfstate \
+            s3://stocks-terraform-state/backups/terraform.tfstate.$(date +%s).backup \
+            --region ${{ env.AWS_REGION }}
+
+  rollback-on-failure:
+    name: Rollback on failure
+    needs: [ apply ]
+    if: failure()
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check last successful state
+        run: |
+          echo "❌ Terraform Apply Failed"
+          echo ""
+          echo "To rollback:"
+          echo "1. Review the error logs above"
+          echo "2. Fix the Terraform code"
+          echo "3. Re-run the workflow manually via: gh workflow run terraform-apply.yml"
+          echo ""
+          echo "If you need to revert to the last known good state:"
+          echo "aws s3 cp s3://stocks-terraform-state/backups/terraform.tfstate.XXX.backup s3://stocks-terraform-state/dev/terraform.tfstate"
+
+      - name: Notify on Slack
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "🚨 Terraform Apply Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Terraform Apply Failed*\nRepository: ${{ github.repository }}\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }

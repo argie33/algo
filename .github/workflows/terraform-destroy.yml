@@ -1,0 +1,119 @@
+# ============================================================
+# GitHub Actions Workflow - Terraform Destroy
+# ============================================================
+
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "destroy all" to confirm destruction'
+        required: true
+
+concurrency:
+  group: terraform-destroy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VAR_github_repository: ${{ github.repository }}
+  TF_VAR_github_ref_path: ${{ github.ref }}
+
+jobs:
+  confirm:
+    name: Confirm Destruction
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirmation }}" != "destroy all" ]]; then
+            echo "❌ Destruction cancelled - confirmation text incorrect"
+            echo "Please re-run workflow with exact text: 'destroy all'"
+            exit 1
+          fi
+          echo "✅ Destruction confirmed"
+
+  destroy:
+    name: Terraform Destroy
+    needs: [ confirm ]
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create state backup before destroy
+        run: |
+          echo "Creating backup of current state..."
+          aws s3 cp \
+            s3://stocks-terraform-state/dev/terraform.tfstate \
+            s3://stocks-terraform-state/backups/pre-destroy.tfstate.$(date +%s) \
+            --region ${{ env.AWS_REGION }} || true
+
+      - name: Terraform init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform plan destroy
+        run: |
+          cd terraform
+          terraform plan -destroy -no-color -input=false -out=tfplan.bin
+
+      - name: Terraform destroy
+        run: |
+          cd terraform
+          terraform apply -auto-approve -no-color tfplan.bin
+
+      - name: Cleanup S3 state bucket
+        run: |
+          echo "State has been destroyed in Terraform"
+          echo "S3 state bucket will NOT be deleted (contains backups)"
+          
+      - name: Report completion
+        if: success()
+        run: |
+          echo "✅ Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All AWS resources have been destroyed except:" >> $GITHUB_STEP_SUMMARY
+          echo "- S3 state bucket (stocks-terraform-state) - contains backups" >> $GITHUB_STEP_SUMMARY
+          echo "- DynamoDB lock table (stocks-terraform-locks)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To clean these up manually:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "aws s3 rb s3://stocks-terraform-state --force --region us-east-1" >> $GITHUB_STEP_SUMMARY
+          echo "aws dynamodb delete-table --table-name stocks-terraform-locks --region us-east-1" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Slack
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "🗑️ Infrastructure Destroyed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Infrastructure Destroyed*\nRepository: ${{ github.repository }}\nInitiated by: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }

@@ -1,0 +1,79 @@
+# ============================================================
+# GitHub Actions Workflow - Terraform State Backup
+# ============================================================
+
+name: Terraform State Backup
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC (10 PM ET)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  backup:
+    name: Backup Terraform State
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Backup state file
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          echo "Creating backup: terraform.tfstate.${TIMESTAMP}.backup"
+          
+          aws s3 cp \
+            s3://stocks-terraform-state/dev/terraform.tfstate \
+            s3://stocks-terraform-state/backups/terraform.tfstate.${TIMESTAMP}.backup \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "✅ State file backed up"
+
+      - name: List recent backups
+        run: |
+          echo "Recent backups (last 10):"
+          aws s3 ls s3://stocks-terraform-state/backups/ \
+            --region ${{ env.AWS_REGION }} \
+            --recursive \
+            | tail -10
+
+      - name: Cleanup old backups
+        run: |
+          # Delete backups older than 30 days
+          CUTOFF_DATE=$(date -d "30 days ago" +%Y-%m-%d)
+          echo "Removing backups before: $CUTOFF_DATE"
+          
+          aws s3api list-objects-v2 \
+            --bucket stocks-terraform-state \
+            --prefix backups/ \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Contents[?LastModified<=`'${CUTOFF_DATE}'`].[Key]' \
+            --output text \
+            | xargs -I {} aws s3 rm s3://stocks-terraform-state/{} --region ${{ env.AWS_REGION }} || true
+          
+          echo "✅ Old backups cleaned up"
+
+      - name: Report backup status
+        run: |
+          echo "#### Terraform State Backup" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Backup completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          BACKUP_SIZE=$(aws s3api head-object --bucket stocks-terraform-state --key dev/terraform.tfstate --region ${{ env.AWS_REGION }} --query 'ContentLength' --output text 2>/dev/null || echo "unknown")
+          echo "**State file size:** ${BACKUP_SIZE} bytes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          BACKUP_COUNT=$(aws s3 ls s3://stocks-terraform-state/backups/ --region ${{ env.AWS_REGION }} --recursive | wc -l)
+          echo "**Total backups:** ${BACKUP_COUNT}" >> $GITHUB_STEP_SUMMARY
