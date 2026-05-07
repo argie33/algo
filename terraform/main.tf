@@ -5,13 +5,13 @@
 module "iam" {
   source = "./modules/iam"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  aws_region            = var.aws_region
-  aws_account_id        = data.aws_caller_identity.current.account_id
-  github_repository     = var.github_repository
-  github_ref_path       = var.github_ref_path
-  common_tags           = local.common_tags
+  project_name   = var.project_name
+  environment    = var.environment
+  aws_region     = var.aws_region
+  aws_account_id = data.aws_caller_identity.current.account_id
+  github_org     = local.github_org
+  github_repo    = local.github_repo
+  common_tags    = local.common_tags
 }
 
 module "vpc" {
