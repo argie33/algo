@@ -53,13 +53,13 @@ resource "aws_db_instance" "main" {
   # Encryption
   storage_encrypted            = true
   kms_key_id                   = null # Use default AWS managed key
-  enable_iam_database_authentication = true
+  iam_database_authentication_enabled = true
 
   # Monitoring & Logs
   enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
   monitoring_interval             = 60
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
-  enable_performance_insights      = false # Additional cost, disable for dev
+  performance_insights_enabled     = false # Additional cost, disable for dev
 
   # Deletion Protection
   deletion_protection = false # Allow deletion, but backup is retained

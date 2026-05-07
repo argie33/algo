@@ -25,10 +25,10 @@ output "loader_log_group_names" {
 output "eventbridge_rules" {
   description = "EventBridge rule names for scheduled loaders"
   value = {
-    econdata        = var.enable_scheduled_loaders ? aws_cloudwatch_event_rule.econdata_evening[0].name : null
-    feargreed       = var.enable_scheduled_loaders ? aws_cloudwatch_event_rule.feargreed_evening[0].name : null
-    market_indices  = var.enable_scheduled_loaders ? aws_cloudwatch_event_rule.market_indices[0].name : null
-    sector_ranking  = var.enable_scheduled_loaders ? aws_cloudwatch_event_rule.sector_ranking[0].name : null
+    econdata       = aws_cloudwatch_event_rule.econdata_schedule.name
+    feargreed      = aws_cloudwatch_event_rule.fear_greed_schedule.name
+    market_indices = aws_cloudwatch_event_rule.market_indices_schedule.name
+    sector_ranking = aws_cloudwatch_event_rule.sector_ranking_schedule.name
   }
 }
 

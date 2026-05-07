@@ -47,7 +47,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
       values   = ["repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"]
     }
 
-    action = "sts:AssumeRoleWithWebIdentity"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
   }
 }
 
