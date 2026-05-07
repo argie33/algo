@@ -74,6 +74,7 @@ module "compute" {
   project_name                      = var.project_name
   environment                       = var.environment
   aws_region                        = var.aws_region
+  aws_account_id                    = data.aws_caller_identity.current.account_id
   vpc_id                            = module.vpc.vpc_id
   public_subnet_ids                 = module.vpc.public_subnet_ids
   private_subnet_ids                = module.vpc.private_subnet_ids
