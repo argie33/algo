@@ -48,7 +48,7 @@ def test_db():
     conn.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_config():
     """Provide test configuration with institutional defaults."""
     from algo_config import AlgoConfig

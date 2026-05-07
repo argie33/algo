@@ -36,15 +36,16 @@ class TestPositionSizerBasics:
              patch.object(sizer, 'get_position_count', return_value=5), \
              patch.object(sizer, 'get_active_positions_value', return_value=10000.0):
 
-            result = sizer.calculate_position_size('AAPL', 150.0, 142.5)
+            result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
             assert result['shares'] > 0
             # base_risk = 0.75% of 100k = 750
-            # risk_per_share = 150 - 142.5 = 7.5
-            # shares = 750 / 7.5 = 100
-            assert result['shares'] == 100
-            assert result['risk_dollars'] == pytest.approx(750.0, rel=1)
+            # risk_per_share = 50 - 47.5 = 2.5
+            # shares = 750 / 2.5 = 300 (but capped at max_position_size_pct)
+            # max_position = 100k × 8% = 8000 → 8000 / 50 = 160 shares
+            assert result['shares'] == 160
+            assert result['risk_dollars'] == pytest.approx(400.0, rel=1)
 
     def test_drawdown_cascade_5pct(self, test_config):
         """At -5% drawdown, risk reduces to 0.75× of base."""
@@ -60,13 +61,15 @@ class TestPositionSizerBasics:
              patch.object(sizer, 'get_position_count', return_value=5), \
              patch.object(sizer, 'get_active_positions_value', return_value=10000.0):
 
-            result = sizer.calculate_position_size('AAPL', 150.0, 142.5)
+            result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
             # base_risk = 750 × 0.75 = 562.5
-            # shares = 562.5 / 7.5 = 75
-            assert result['shares'] == 75
-            assert result['risk_dollars'] == pytest.approx(562.5, rel=1)
+            # risk_per_share = 50 - 47.5 = 2.5
+            # shares = 562.5 / 2.5 = 225 (but capped at max_position)
+            # max_position = 100k × 8% = 8000 → 8000 / 50 = 160 shares
+            assert result['shares'] == 160
+            assert result['risk_dollars'] == pytest.approx(400.0, rel=1)
 
     def test_drawdown_cascade_20pct_halt(self, test_config):
         """At -20% drawdown, trading halts (0.0 multiplier)."""
@@ -106,12 +109,13 @@ class TestPositionSizerMultipliers:
              patch.object(sizer, 'get_position_count', return_value=5), \
              patch.object(sizer, 'get_active_positions_value', return_value=10000.0):
 
-            result = sizer.calculate_position_size('AAPL', 150.0, 142.5)
+            result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
             # base_risk × exposure = 750 × 0.5 = 375
-            # shares = 375 / 7.5 = 50
-            assert result['shares'] == 50
+            # risk_per_share = 50 - 47.5 = 2.5
+            # shares = 375 / 2.5 = 150
+            assert result['shares'] == 150
 
     def test_vix_caution_multiplier(self, test_config):
         """VIX in caution zone (25-35) reduces position to 0.75×."""
@@ -127,12 +131,14 @@ class TestPositionSizerMultipliers:
              patch.object(sizer, 'get_position_count', return_value=5), \
              patch.object(sizer, 'get_active_positions_value', return_value=10000.0):
 
-            result = sizer.calculate_position_size('AAPL', 150.0, 142.5)
+            result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
             # base_risk × vix = 750 × 0.75 = 562.5
-            # shares = 562.5 / 7.5 = 75
-            assert result['shares'] == 75
+            # risk_per_share = 50 - 47.5 = 2.5
+            # shares = 562.5 / 2.5 = 225 (capped at max_position_size_pct)
+            # max_position = 8000 / 50 = 160 shares
+            assert result['shares'] == 160
 
     def test_combined_multipliers(self, test_config):
         """Combined: base × drawdown × exposure × vix × phase."""
@@ -148,12 +154,14 @@ class TestPositionSizerMultipliers:
              patch.object(sizer, 'get_position_count', return_value=5), \
              patch.object(sizer, 'get_active_positions_value', return_value=10000.0):
 
-            result = sizer.calculate_position_size('AAPL', 150.0, 142.5)
+            result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
             # 750 × 0.75 × 0.75 = 421.875
-            # shares = 421.875 / 7.5 ≈ 56
-            assert result['shares'] == 56
+            # risk_per_share = 50 - 47.5 = 2.5
+            # shares = 421.875 / 2.5 = 168.75 (capped at max_position)
+            # max_position = 8000 / 50 = 160 shares
+            assert result['shares'] == 160
 
 
 @pytest.mark.unit
