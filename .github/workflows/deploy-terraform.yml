@@ -61,22 +61,26 @@ jobs:
           echo "✓ DB password configured"
           echo "✓ Notification email configured"
 
-          # Check VPC limit (AWS allows max 5 VPCs per region)
-          VPC_COUNT=$(aws ec2 describe-vpcs --region us-east-1 --query 'length(Vpcs)' --output text)
-          echo "✓ Current VPC count in us-east-1: $VPC_COUNT/5"
+          # Check for existing stocks-vpc to reuse (if at VPC limit)
+          STOCKS_VPC=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=stocks-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "")
 
-          if [ "$VPC_COUNT" -ge 5 ]; then
-            echo ""
-            echo "❌ ACCOUNT LIMIT REACHED: Cannot deploy — account has 5/5 VPCs"
-            echo ""
-            echo "ACTION REQUIRED:"
-            echo "1. Go to AWS Console → VPC → Your VPCs (region: us-east-1)"
-            echo "2. Delete unused/old VPCs until count < 5"
-            echo "3. Re-run this workflow"
-            echo ""
-            echo "To find VPC IDs:"
-            aws ec2 describe-vpcs --region us-east-1 --query 'Vpcs[*].[VpcId,CidrBlock,Tags[?Key==`Name`].Value|[0]]' --output table
-            exit 1
+          if [ -n "$STOCKS_VPC" ] && [ "$STOCKS_VPC" != "None" ]; then
+            echo "✓ Found existing stocks-vpc to reuse: $STOCKS_VPC"
+          else
+            # Check VPC limit only if no existing stocks-vpc
+            VPC_COUNT=$(aws ec2 describe-vpcs --region us-east-1 --query 'length(Vpcs)' --output text)
+            echo "✓ Current VPC count in us-east-1: $VPC_COUNT/5"
+
+            if [ "$VPC_COUNT" -ge 5 ]; then
+              echo ""
+              echo "⚠ At VPC limit (5/5). Checking for existing stocks-vpc to reuse..."
+              STOCKS_VPCS=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=cidr,Values=10.*" --query 'Vpcs[*].[VpcId,CidrBlock]' --output text)
+              if [ -z "$STOCKS_VPCS" ]; then
+                echo "❌ No reusable VPCs found. Manual action required."
+                exit 1
+              fi
+              echo "✓ Will reuse existing VPC"
+            fi
           fi
 
   # Plan Terraform changes
@@ -128,6 +132,27 @@ jobs:
 
           echo "✓ Import phase complete (existing resources now managed by Terraform)"
 
+      - name: Detect existing VPC for reuse
+        id: vpc-detection
+        run: |
+          # Try to find an existing stocks-vpc to reuse if at limit
+          STOCKS_VPC=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=stocks-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "")
+          VPC_COUNT=$(aws ec2 describe-vpcs --region us-east-1 --query 'length(Vpcs)' --output text)
+
+          if [ "$VPC_COUNT" -ge 5 ] && [ -n "$STOCKS_VPC" ] && [ "$STOCKS_VPC" != "None" ]; then
+            echo "create_vpc=false" >> $GITHUB_OUTPUT
+            echo "vpc_id=$STOCKS_VPC" >> $GITHUB_OUTPUT
+            # Get subnets from existing VPC
+            PRIVATE_SUBNETS=$(aws ec2 describe-subnets --region us-east-1 --filters "Name=vpc-id,Values=$STOCKS_VPC" "Name=cidr-block,Values=10.1.1*" --query 'Subnets[*].SubnetId' --output text)
+            echo "private_subnets=$PRIVATE_SUBNETS" >> $GITHUB_OUTPUT
+            echo "✓ Will reuse existing VPC: $STOCKS_VPC"
+          else
+            echo "create_vpc=true" >> $GITHUB_OUTPUT
+            echo "vpc_id=" >> $GITHUB_OUTPUT
+            echo "private_subnets=" >> $GITHUB_OUTPUT
+            echo "✓ Will create new VPC"
+          fi
+
       - name: Terraform validate
         working-directory: terraform
         run: terraform validate
@@ -140,6 +165,9 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
+          TF_VAR_create_vpc: ${{ steps.vpc-detection.outputs.create_vpc }}
+          TF_VAR_vpc_id: ${{ steps.vpc-detection.outputs.vpc_id }}
+          TF_VAR_existing_private_subnet_ids: ${{ steps.vpc-detection.outputs.private_subnets }}
           TF_VAR_deploy_bootstrap: true
           TF_VAR_deploy_core: true
           TF_VAR_deploy_data_infrastructure: true
@@ -190,6 +218,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Detect existing VPC for apply
+        id: vpc-detection-apply
+        run: |
+          STOCKS_VPC=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=stocks-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "")
+          VPC_COUNT=$(aws ec2 describe-vpcs --region us-east-1 --query 'length(Vpcs)' --output text)
+
+          if [ "$VPC_COUNT" -ge 5 ] && [ -n "$STOCKS_VPC" ] && [ "$STOCKS_VPC" != "None" ]; then
+            echo "create_vpc=false" >> $GITHUB_OUTPUT
+            echo "vpc_id=$STOCKS_VPC" >> $GITHUB_OUTPUT
+            PRIVATE_SUBNETS=$(aws ec2 describe-subnets --region us-east-1 --filters "Name=vpc-id,Values=$STOCKS_VPC" "Name=cidr-block,Values=10.1.1*" --query 'Subnets[*].SubnetId' --output text)
+            echo "private_subnets=$PRIVATE_SUBNETS" >> $GITHUB_OUTPUT
+          else
+            echo "create_vpc=true" >> $GITHUB_OUTPUT
+            echo "vpc_id=" >> $GITHUB_OUTPUT
+            echo "private_subnets=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Terraform init
         working-directory: terraform
         run: terraform init -backend-config=backend-config.hcl
@@ -208,6 +253,9 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
+          TF_VAR_create_vpc: ${{ steps.vpc-detection-apply.outputs.create_vpc }}
+          TF_VAR_vpc_id: ${{ steps.vpc-detection-apply.outputs.vpc_id }}
+          TF_VAR_existing_private_subnet_ids: ${{ steps.vpc-detection-apply.outputs.private_subnets }}
           TF_VAR_deploy_bootstrap: true
           TF_VAR_deploy_core: true
           TF_VAR_deploy_data_infrastructure: true
