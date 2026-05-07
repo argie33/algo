@@ -278,7 +278,7 @@ class PortfolioRisk:
             positions_list = []
 
             for symbol, qty, cur_price, entry_price in positions:
-                position_value = qty * (cur_price or entry_price)
+                position_value = float(qty) * float(cur_price or entry_price)
                 position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
                 # Simplified beta: assume growth stocks = 1.2 beta, value = 0.8 beta
@@ -348,7 +348,7 @@ class PortfolioRisk:
             industry_exposure = {}
 
             for symbol, qty, cur_price, entry_price, sector, industry in positions:
-                position_value = qty * (cur_price or entry_price)
+                position_value = float(qty) * float(cur_price or entry_price)
                 position_pct = position_value / portfolio_value * 100 if portfolio_value > 0 else 0
 
                 top_holdings.append({

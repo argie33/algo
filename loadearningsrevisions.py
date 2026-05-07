@@ -2,7 +2,7 @@
 """
 Earnings Estimate Revisions Loader
 Tracks how analyst consensus estimates are changing over time
-Source: yfinance eps_trend and eps_revisions
+Source: yfinance eps_trend and eps_revisions (via DataSourceRouter)
 
 FEATURES:
 - Loads ALL symbols (not limited)
@@ -10,14 +10,15 @@ FEATURES:
 - Proper error handling and retry logic
 - Progress tracking and detailed logging
 - Clears stale data before reloading
+- Uses DataSourceRouter for health-aware data fetching
 """
 import os
 import sys
 import logging
 import time
 from datetime import datetime
-import yfinance as yf
 import psycopg2
+from data_source_router import DataSourceRouter
 from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 
@@ -167,6 +168,7 @@ def fetch_and_load_revisions():
     """Fetch estimate trends and revisions for ALL symbols with batching and rate limiting"""
     conn = get_db_connection()
     today = datetime.now().date()
+    router = DataSourceRouter()
 
     try:
         # Clear old data before reloading
@@ -178,7 +180,7 @@ def fetch_and_load_revisions():
             symbols = [row[0] for row in cur.fetchall()]
 
         logger.info(f" Processing {len(symbols)} total symbols...")
-        logger.warning("  NOTE: yfinance eps_trend/eps_revisions endpoints are frequently rate-limited by yfinance.")
+        logger.warning("  NOTE: yfinance eps_trend/eps_revisions endpoints are frequently rate-limited.")
         logger.info(f"⏱  Estimated time: {len(symbols) * 1 / 60:.1f} minutes (with aggressive rate limiting)")
 
         # Batch parameters - MUCH MORE AGGRESSIVE rate limiting after discovery of batch 10-26 failure
@@ -207,12 +209,11 @@ def fetch_and_load_revisions():
 
             for symbol in batch_symbols:
                 try:
-                    ticker = yf.Ticker(symbol)
                     has_data = False
 
                     # Try EPS trend data (with separate error handling)
                     try:
-                        eps_trend = ticker.eps_trend
+                        eps_trend = router.fetch_eps_trend(symbol)
                         if eps_trend is not None and not eps_trend.empty:
                             has_data = True
                             for period in eps_trend.index:
@@ -232,7 +233,7 @@ def fetch_and_load_revisions():
 
                     # Try EPS revisions data (with separate error handling)
                     try:
-                        eps_revisions = ticker.eps_revisions
+                        eps_revisions = router.fetch_eps_revisions(symbol)
                         if eps_revisions is not None and not eps_revisions.empty:
                             has_data = True
                             for period in eps_revisions.index:

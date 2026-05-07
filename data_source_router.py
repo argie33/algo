@@ -104,7 +104,7 @@ class DataSourceRouter:
     ) -> Optional[Any]:
         """Try sources in order, skipping paused ones, recording outcomes."""
         last_exc = None
-        for name, fn in sources:
+        for i, (name, fn) in enumerate(sources):
             health = self._get_health(name)
             if health.is_paused:
                 log.debug("Skipping paused source '%s' for %s", name, request_desc)
@@ -121,7 +121,11 @@ class DataSourceRouter:
             except Exception as e:
                 health.record(False, str(e))
                 last_exc = e
-                log.debug("Source '%s' failed for %s: %s", name, request_desc, e)
+                if i < len(sources) - 1:
+                    next_source = sources[i + 1][0]
+                    log.warning("[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.", name, request_desc, e, next_source)
+                else:
+                    log.debug("Source '%s' failed for %s: %s", name, request_desc, e)
                 continue
         if last_exc:
             log.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
@@ -301,6 +305,42 @@ class DataSourceRouter:
 
     def _sec_eps(self, symbol: str):
         return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
+
+    def fetch_eps_revisions(self, symbol: str):
+        """Fetch estimate revisions (up/down counts). yfinance only (no fallback)."""
+        sources = [
+            ("yfinance", lambda: self._fetch_yfinance_eps_revisions(symbol)),
+        ]
+        return self._try_chain(sources, f"EpsRevisions[{symbol}]")
+
+    def _fetch_yfinance_eps_revisions(self, symbol: str):
+        try:
+            import yfinance as yf
+        except ImportError:
+            return None
+        ticker = yf.Ticker(symbol)
+        df = ticker.eps_revisions
+        if df is None or df.empty:
+            return None
+        return df
+
+    def fetch_eps_trend(self, symbol: str):
+        """Fetch estimate trends (historical estimate changes). yfinance only (no fallback)."""
+        sources = [
+            ("yfinance", lambda: self._fetch_yfinance_eps_trend(symbol)),
+        ]
+        return self._try_chain(sources, f"EpsTrend[{symbol}]")
+
+    def _fetch_yfinance_eps_trend(self, symbol: str):
+        try:
+            import yfinance as yf
+        except ImportError:
+            return None
+        ticker = yf.Ticker(symbol)
+        df = ticker.eps_trend
+        if df is None or df.empty:
+            return None
+        return df
 
     # ============== HEALTH REPORT ==============
 

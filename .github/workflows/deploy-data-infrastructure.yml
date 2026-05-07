@@ -76,6 +76,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Look up SNS topic ARN from algo stack
+        id: sns
+        run: |
+          ALERT_TOPIC=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksAlgo-AlertTopicArn'].Value" \
+            --output text 2>/dev/null || echo "")
+          echo "alert_topic=$ALERT_TOPIC" >> $GITHUB_OUTPUT
+
       - name: Inspect current state (stack + orphan RDS)
         id: state
         run: |
@@ -175,6 +183,7 @@ jobs:
             --parameters \
               ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
               ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+              ParameterKey=AlertTopicArn,ParameterValue="${{ steps.sns.outputs.alert_topic }}" \
             --region "$AWS_REGION"
 
           aws cloudformation wait stack-update-complete \
@@ -192,6 +201,7 @@ jobs:
             --parameters \
               ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
               ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+              ParameterKey=AlertTopicArn,ParameterValue="${{ steps.sns.outputs.alert_topic }}" \
             --region "$AWS_REGION"
 
           aws cloudformation wait stack-create-complete \
@@ -209,6 +219,7 @@ jobs:
               ParameterKey=RDSUsername,UsePreviousValue=true \
               ParameterKey=RDSPassword,UsePreviousValue=true \
               ParameterKey=LogRetentionDays,UsePreviousValue=true \
+              ParameterKey=AlertTopicArn,ParameterValue="${{ steps.sns.outputs.alert_topic }}" \
             --region "$AWS_REGION" 2>&1) || true
 
           if echo "$UPDATE_OUTPUT" | grep -iq "No updates are to be performed"; then

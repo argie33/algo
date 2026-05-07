@@ -50,7 +50,7 @@ DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
 
 # Alpaca configuration
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
-ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
+ALPACA_SECRET_KEY = os.getenv('ALPACA_API_SECRET') or os.getenv('ALPACA_SECRET_KEY', '')
 ALPACA_BASE_URL = os.getenv('ALPACA_BASE_URL', 'https://paper-api.alpaca.markets')
 PAPER_TRADING = os.getenv('ALPACA_PAPER_TRADING', 'true').lower() == 'true'
 

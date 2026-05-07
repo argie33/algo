@@ -152,6 +152,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Look up SNS topic ARN from algo stack
+        id: sns
+        run: |
+          ALERT_TOPIC=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksAlgo-AlertTopicArn'].Value" \
+            --output text 2>/dev/null || echo "")
+          echo "alert_topic=$ALERT_TOPIC" >> $GITHUB_OUTPUT
+
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
@@ -336,6 +344,7 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
+              "AlertTopicArn=${{ steps.sns.outputs.alert_topic }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset; then
             

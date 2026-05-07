@@ -3612,7 +3612,11 @@ Resources:
           RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref AlgoOrchestratorTaskDefinition
-            LaunchType: FARGATE
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
@@ -3630,6 +3634,151 @@ Resources:
               }]
             }
 
+  # Daily EOD: price_daily loader (23:00 UTC = 18:00-19:00 ET)
+  PriceDailyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-price-daily-eod"
+      Description: "Run price-daily loader at 23:00 UTC (after market close) weekdays only"
+      ScheduleExpression: "cron(0 23 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "PriceDailyTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref PriceTaskDefinition
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Daily EOD: technicals_daily loader (23:30 UTC = 18:30-19:30 ET)
+  TechnicalsDailyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-technicals-daily-eod"
+      Description: "Run technicals-daily loader at 23:30 UTC after price-daily completes"
+      ScheduleExpression: "cron(30 23 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "TechnicalsDailyTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref TechnicalsDailyTaskDefinition
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Daily EOD: buy_sell_daily loader (00:00 UTC = 19:00-20:00 ET prior day)
+  BuySellDailyScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-buy-sell-daily-eod"
+      Description: "Run buy-sell-daily loader at 00:00 UTC after technicals-daily completes"
+      ScheduleExpression: "cron(0 0 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "BuySellDailyTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref BuySellDailyTaskDefinition
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Daily EOD: stock_scores loader (00:30 UTC = 19:30-20:30 ET prior day)
+  StockScoresScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-stock-scores-eod"
+      Description: "Run stock-scores loader at 00:30 UTC after buy-sell-daily completes"
+      ScheduleExpression: "cron(30 0 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "StockScoresTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref StockScoresTaskDefinition
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Daily EOD: factor_metrics loader (01:00 UTC = 20:00-21:00 ET prior day)
+  FactorMetricsScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-factor-metrics-eod"
+      Description: "Run factor-metrics loader at 01:00 UTC after stock-scores completes"
+      ScheduleExpression: "cron(0 1 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "FactorMetricsTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref FactormetricsTaskDefinition
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
   # Post-EOD: trend template loader (after price_daily refreshes overnight)
   TrendTemplateScheduleRule:
     Type: AWS::Events::Rule
@@ -3644,7 +3793,11 @@ Resources:
           RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref TrendTemplateTaskDefinition
-            LaunchType: FARGATE
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
@@ -3669,7 +3822,11 @@ Resources:
           RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref MarketHealthTaskDefinition
-            LaunchType: FARGATE
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:
@@ -3694,7 +3851,11 @@ Resources:
           RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref AlgoMetricsTaskDefinition
-            LaunchType: FARGATE
+            CapacityProviderStrategy:
+              - CapacityProvider: FARGATE_SPOT
+                Weight: 4
+              - CapacityProvider: FARGATE
+                Weight: 1
             NetworkConfiguration:
               AwsVpcConfiguration:
                 Subnets:

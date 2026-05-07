@@ -1086,9 +1086,15 @@ class Orchestrator:
                 print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
                 self.log_phase_result(1, 'freshness_bypassed', 'override',
                                      '--skip-freshness flag used — data freshness check skipped')
-            elif not self.phase_1_data_freshness():
-                print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
-                return self._final_report()
+            else:
+                try:
+                    if not self.phase_1_data_freshness():
+                        print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                        return self._final_report()
+                except Exception as e:
+                    print(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
+                    self.log_phase_result(1, 'data_freshness', 'error', str(e))
+                    return self._final_report()
 
             if not self.phase_2_circuit_breakers():
                 print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
