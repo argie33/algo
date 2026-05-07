@@ -36,11 +36,21 @@ jobs:
         with:
           terraform_version: 1.5.0
 
+      - name: Install AWS CLI v2
+        run: |
+          set -e
+          echo "Installing AWS CLI v2..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+          aws --version
+
       - name: Bootstrap OIDC and IAM role (one-time setup)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
+          set -e
           echo "🔧 Pre-flight: Ensuring OIDC provider and github-actions-role exist..."
 
           # Create OIDC provider if missing
@@ -65,77 +75,73 @@ jobs:
           if ! aws iam get-role --role-name github-actions-role 2>/dev/null >/dev/null; then
             echo "Creating github-actions-role with OIDC trust..."
 
-            TRUST=$(cat <<EOF
-          {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Principal": {
-                  "Federated": "$OIDC_ARN"
-                },
-                "Action": "sts:AssumeRoleWithWebIdentity",
-                "Condition": {
-                  "StringEquals": {
-                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-                  },
-                  "StringLike": {
-                    "token.actions.githubusercontent.com:sub": "repo:argie33/algo:*"
-                  }
-                }
-              }
-            ]
-          }
-          EOF
-            )
+            cat > /tmp/trust-policy.json <<TRUST_EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "${OIDC_ARN}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:argie33/algo:*"
+        }
+      }
+    }
+  ]
+}
+TRUST_EOF
 
-            echo "$TRUST" > /tmp/trust.json
             aws iam create-role \
               --role-name github-actions-role \
-              --assume-role-policy-document file:///tmp/trust.json
+              --assume-role-policy-document file:///tmp/trust-policy.json
             sleep 2
 
             # Attach comprehensive permissions for Terraform
-            POLICY=$(cat <<'POLICY'
-          {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "iam:*",
-                  "ec2:*",
-                  "rds:*",
-                  "ecs:*",
-                  "ecr:*",
-                  "lambda:*",
-                  "apigateway:*",
-                  "cloudfront:*",
-                  "cognito-idp:*",
-                  "s3:*",
-                  "dynamodb:*",
-                  "secretsmanager:*",
-                  "cloudwatch:*",
-                  "logs:*",
-                  "events:*",
-                  "scheduler:*",
-                  "sns:*",
-                  "kms:*",
-                  "cloudformation:*",
-                  "autoscaling:*"
-                ],
-                "Resource": "*"
-              }
-            ]
-          }
-          POLICY
-            )
+            cat > /tmp/terraform-policy.json <<POLICY_EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:*",
+        "ec2:*",
+        "rds:*",
+        "ecs:*",
+        "ecr:*",
+        "lambda:*",
+        "apigateway:*",
+        "cloudfront:*",
+        "cognito-idp:*",
+        "s3:*",
+        "dynamodb:*",
+        "secretsmanager:*",
+        "cloudwatch:*",
+        "logs:*",
+        "events:*",
+        "scheduler:*",
+        "sns:*",
+        "kms:*",
+        "cloudformation:*",
+        "autoscaling:*"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+POLICY_EOF
 
-            echo "$POLICY" > /tmp/policy.json
             aws iam put-role-policy \
               --role-name github-actions-role \
               --policy-name terraform-deployment \
-              --policy-document file:///tmp/policy.json
+              --policy-document file:///tmp/terraform-policy.json
 
             echo "✅ github-actions-role created with Terraform permissions"
           else
