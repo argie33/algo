@@ -255,7 +255,7 @@ Resources:
   RDSCPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: stocks-rds-cpu-high
+      AlarmName: !Sub '${AWS::StackName}-rds-cpu-high'
       AlarmDescription: Alert when RDS CPU exceeds 80%
       MetricName: CPUUtilization
       Namespace: AWS/RDS
@@ -273,7 +273,7 @@ Resources:
   RDSStorageAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: stocks-rds-storage-low
+      AlarmName: !Sub '${AWS::StackName}-rds-storage-low'
       AlarmDescription: Alert when RDS free storage space drops below 10GB
       MetricName: FreeStorageSpace
       Namespace: AWS/RDS
@@ -291,7 +291,7 @@ Resources:
   RDSConnectionsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: stocks-rds-connections-high
+      AlarmName: !Sub '${AWS::StackName}-rds-connections-high'
       AlarmDescription: Alert when RDS active connections exceed 50
       MetricName: DatabaseConnections
       Namespace: AWS/RDS
