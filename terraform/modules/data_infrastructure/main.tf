@@ -20,6 +20,10 @@ resource "aws_db_subnet_group" "main" {
     var.common_tags,
     { Name = "${var.project_name}-db-subnet-group" }
   )
+
+  lifecycle {
+    ignore_changes = [tags, subnet_ids]
+  }
 }
 
 resource "aws_db_instance" "main" {
@@ -125,6 +129,10 @@ resource "aws_iam_role" "ecs_task_execution_role" {
     var.common_tags,
     { Name = "${var.project_name}-ecs-task-execution-role" }
   )
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
@@ -177,6 +185,10 @@ resource "aws_sns_topic" "alerts" {
     var.common_tags,
     { Name = "${var.project_name}-alerts" }
   )
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "aws_sns_topic_subscription" "alerts" {
