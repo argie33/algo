@@ -49,7 +49,7 @@ output "cloudfront_distribution_arn" {
 
 output "website_url" {
   description = "Full website URL via CloudFront"
-  value       = var.cloudfront_enabled ? "https://\" : null
+  value       = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : null
 }
 
 output "cognito_user_pool_id" {
