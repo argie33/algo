@@ -17,15 +17,15 @@ module "iam" {
 module "vpc" {
   source = "./modules/vpc"
 
-  project_name                    = var.project_name
-  environment                     = var.environment
-  aws_region                      = var.aws_region
-  vpc_cidr                        = var.vpc_cidr
-  public_subnet_cidrs             = var.public_subnet_cidrs
-  private_subnet_cidrs            = var.private_subnet_cidrs
-  availability_zones              = var.availability_zones
-  enable_vpc_endpoints            = var.enable_vpc_endpoints
-  common_tags                     = local.common_tags
+  project_name         = var.project_name
+  environment          = var.environment
+  aws_region           = var.aws_region
+  aws_account_id       = data.aws_caller_identity.current.account_id
+  vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
+  availability_zones   = var.availability_zones
+  common_tags          = local.common_tags
 }
 
 module "storage" {
