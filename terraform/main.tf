@@ -91,7 +91,7 @@ module "data_infrastructure" {
 
   common_tags = local.common_tags
 
-  depends_on = var.create_vpc ? [module.core[0]] : []
+  depends_on = [module.core[0]]
 }
 
 # ============================================================
