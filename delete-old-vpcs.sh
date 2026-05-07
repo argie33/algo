@@ -59,7 +59,7 @@ for VPC_ID in $VPC_IDS; do
 
   # Delete NAT Gateways
   echo "  Deleting NAT Gateways..."
-  NGW_IDS=$(aws ec2 describe-nat-gateways --filters "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" --region $REGION --query 'NatGateways[*].NatGatewayId' --output text)
+  NGW_IDS=$(aws ec2 describe-nat-gateways --region $REGION --query "NatGateways[?VpcId=='$VPC_ID' && State=='available'].NatGatewayId" --output text)
   for NGW_ID in $NGW_IDS; do
     aws ec2 delete-nat-gateway --nat-gateway-id $NGW_ID --region $REGION 2>/dev/null || true
   done
@@ -67,7 +67,7 @@ for VPC_ID in $VPC_IDS; do
 
   # Delete network interfaces (except system ones)
   echo "  Deleting network interfaces..."
-  ENI_IDS=$(aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'NetworkInterfaces[?!Association.IpOwnerId].NetworkInterfaceId' --output text)
+  ENI_IDS=$(aws ec2 describe-network-interfaces --region $REGION --query "NetworkInterfaces[?VpcId=='$VPC_ID' && !Association.IpOwnerId].NetworkInterfaceId" --output text)
   for ENI_ID in $ENI_IDS; do
     aws ec2 delete-network-interface --network-interface-id $ENI_ID --region $REGION 2>/dev/null || true
   done
