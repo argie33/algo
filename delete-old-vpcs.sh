@@ -43,6 +43,35 @@ for VPC_ID in $VPC_IDS; do
   echo ""
   echo "Deleting VPC: $VPC_ID"
 
+  # Delete VPC endpoints first
+  echo "  Deleting VPC endpoints..."
+  VPCE_IDS=$(aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'VpcEndpoints[*].VpcEndpointId' --output text)
+  for VPCE_ID in $VPCE_IDS; do
+    aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $VPCE_ID --region $REGION 2>/dev/null || true
+  done
+
+  # Release Elastic IPs (from NAT Gateways, etc)
+  echo "  Releasing Elastic IPs..."
+  EIP_IDS=$(aws ec2 describe-addresses --filters "Name=domain,Values=vpc" --region $REGION --query 'Addresses[*].AllocationId' --output text)
+  for EIP_ID in $EIP_IDS; do
+    aws ec2 release-address --allocation-id $EIP_ID --region $REGION 2>/dev/null || true
+  done
+
+  # Delete NAT Gateways
+  echo "  Deleting NAT Gateways..."
+  NGW_IDS=$(aws ec2 describe-nat-gateways --filters "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" --region $REGION --query 'NatGateways[*].NatGatewayId' --output text)
+  for NGW_ID in $NGW_IDS; do
+    aws ec2 delete-nat-gateway --nat-gateway-id $NGW_ID --region $REGION 2>/dev/null || true
+  done
+  sleep 5  # Wait for NAT Gateways to fully delete
+
+  # Delete network interfaces (except system ones)
+  echo "  Deleting network interfaces..."
+  ENI_IDS=$(aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'NetworkInterfaces[?!Association.IpOwnerId].NetworkInterfaceId' --output text)
+  for ENI_ID in $ENI_IDS; do
+    aws ec2 delete-network-interface --network-interface-id $ENI_ID --region $REGION 2>/dev/null || true
+  done
+
   # Delete subnets
   echo "  Deleting subnets..."
   SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'Subnets[*].SubnetId' --output text)
