@@ -182,21 +182,30 @@ EOFPYTHON
     aws ec2 delete-security-group --group-id $SG_ID --region $REGION 2>/dev/null || true
   done
 
-  # Finally delete the VPC
+  # Finally delete the VPC (with detailed error info)
   echo "  Deleting VPC..."
-  if aws ec2 delete-vpc --vpc-id $VPC_ID --region $REGION 2>/dev/null; then
+  VPC_DELETE_ERROR=$(aws ec2 delete-vpc --vpc-id $VPC_ID --region $REGION 2>&1)
+  if [ $? -eq 0 ]; then
     echo "  ✅ Deleted $VPC_ID"
   else
     echo "  ❌ FAILED to delete $VPC_ID"
+    echo "    Error: $VPC_DELETE_ERROR"
     FAILED_VPCS="$FAILED_VPCS $VPC_ID"
+
     # Show remaining resources in this VPC
-    echo "    Remaining resources:"
-    aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "Reservations[*].Instances[*].[InstanceId,State.Name]" --output text 2>/dev/null | while read INST STATE; do
-      [ -n "$INST" ] && echo "      EC2: $INST ($STATE)"
-    done
-    aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "NetworkInterfaces[*].[NetworkInterfaceId,Status]" --output text 2>/dev/null | while read ENI STATUS; do
-      [ -n "$ENI" ] && echo "      ENI: $ENI ($STATUS)"
-    done
+    echo "    Diagnosing blocking resources..."
+
+    INST_COUNT=$(aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" "Name=instance-state-name,Values=running,stopped,pending,stopping" --query "length(Reservations[*].Instances[*][])" --output text 2>/dev/null || echo "0")
+    [ "$INST_COUNT" -gt 0 ] && echo "      ⚠️  $INST_COUNT EC2 instances still running/stopped"
+
+    ENI_COUNT=$(aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "length(NetworkInterfaces)" --output text 2>/dev/null || echo "0")
+    [ "$ENI_COUNT" -gt 0 ] && echo "      ⚠️  $ENI_COUNT network interfaces still attached"
+
+    SG_COUNT=$(aws ec2 describe-security-groups --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "length(SecurityGroups)" --output text 2>/dev/null || echo "0")
+    [ "$SG_COUNT" -gt 0 ] && echo "      ⚠️  $SG_COUNT security groups still exist"
+
+    SUBNET_COUNT=$(aws ec2 describe-subnets --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "length(Subnets)" --output text 2>/dev/null || echo "0")
+    [ "$SUBNET_COUNT" -gt 0 ] && echo "      ⚠️  $SUBNET_COUNT subnets still exist"
   fi
 done
 
