@@ -1,73 +1,120 @@
 # Stock Analytics Platform — Deployment & Operations Guide
 
-## Quick Start
+## Quick Start (Terraform)
 
 ### Prerequisites
-1. GitHub secrets configured in repository settings:
-   - `AWS_ACCESS_KEY_ID` — AWS IAM access key (must have CloudFormation, EC2, RDS, Lambda, ECS, ECR permissions)
-   - `AWS_SECRET_ACCESS_KEY` — AWS IAM secret key
-   - `AWS_ACCOUNT_ID` — AWS account ID (12 digits)
+1. Install Terraform (v1.5.0+):
+   ```bash
+   terraform -version
+   ```
 
-2. Ensure you're on the `main` branch:
+2. GitHub OIDC configured (one-time):
+   ```bash
+   aws cloudformation deploy \
+     --template-file terraform/bootstrap/oidc.yml \
+     --stack-name stocks-oidc \
+     --region us-east-1 \
+     --no-fail-on-empty-changeset \
+     --capabilities CAPABILITY_NAMED_IAM
+   ```
+
+3. Terraform state backend (one-time):
+   ```bash
+   # Create S3 state bucket and DynamoDB lock table
+   aws s3 mb s3://stocks-terraform-state --region us-east-1
+   aws dynamodb create-table \
+     --table-name stocks-terraform-locks \
+     --attribute-definitions AttributeName=LockID,AttributeType=S \
+     --key-schema AttributeName=LockID,KeyType=HASH \
+     --billing-mode PAY_PER_REQUEST \
+     --region us-east-1
+   ```
+
+4. Ensure you're on the `main` branch:
    ```bash
    git checkout main
    git pull origin main
    ```
 
-### Deploy All Infrastructure
-Trigger the master orchestrator workflow:
+### Deploy Infrastructure with Terraform
+
+#### Option 1: Automatic via GitHub Actions (Recommended)
 ```bash
-gh workflow run deploy-all-infrastructure.yml --repo argie33/algo
+# Plan changes (creates PR comment with diff)
+gh pr create -t "Deploy infrastructure" -b "Automatic deployment"
+
+# Apply changes when PR merges
+git push origin main
 ```
 
-This deploys in dependency order:
-1. Bootstrap OIDC Provider (optional, skip if already done)
-2. Core Infrastructure (VPC, subnets, ECR, S3, Bastion)
-3. Data Infrastructure (RDS, ECS cluster, Secrets Manager)
-4. Webapp (Lambda API, CloudFront, Cognito)
-5. Loaders (ECS tasks, EventBridge scheduled rules)
-6. Algo Orchestrator (Lambda scheduler, EventBridge)
-
-**Deployment time:** ~20-30 minutes total
-
-### Manual Deployment (if needed)
-Deploy individual stacks:
+#### Option 2: Manual Terraform Commands
 ```bash
-# 1. Core infrastructure (foundation for all others)
-gh workflow run deploy-core.yml
+cd terraform
 
-# 2. Data infrastructure (RDS, ECS)
-gh workflow run deploy-data-infrastructure.yml
+# Initialize Terraform
+terraform init
 
-# 3. Dependent stacks (can run in parallel)
-gh workflow run deploy-loaders.yml &
-gh workflow run deploy-webapp.yml &
-gh workflow run deploy-algo.yml &
-wait
+# Plan changes
+terraform plan -out=tfplan
+
+# Review plan output
+
+# Apply changes
+terraform apply tfplan
+
+# View outputs
+terraform output
 ```
+
+**Deployment time:** ~15-20 minutes total (Terraform is faster than CloudFormation)
 
 ## Architecture Overview
 
-### Stack Dependency Chain
+### Terraform Module Structure
 ```
-stocks-oidc (OIDC provider - one-time setup)
-    ↓
-stocks-core (VPC, subnets, ECR, S3, Bastion)
-    ↓
-stocks-data (RDS PostgreSQL, ECS cluster, Secrets Manager)
-    ├─→ stocks-loaders (ECS task definitions, EventBridge rules)
-    ├─→ stocks-webapp-dev (Lambda API, CloudFront, Cognito)
-    └─→ stocks-algo-dev (Algorithm orchestrator Lambda, Scheduler)
+terraform/
+├── main.tf                    # Root module orchestration
+├── variables.tf               # Input variables (all services)
+├── outputs.tf                 # Aggregated outputs
+├── locals.tf                  # Common tags and naming
+├── versions.tf                # Terraform & provider versions
+├── backend.tf                 # S3 state backend
+├── terraform.tfvars           # Variable values (dev environment)
+└── modules/
+    ├── iam/                   # IAM roles & policies (github-actions, bastion, ecs, lambda, eventbridge)
+    ├── vpc/                   # VPC, subnets, security groups, 7 VPC endpoints
+    ├── storage/               # S3 buckets (code, templates, lambda, data, logs, frontend)
+    ├── database/              # RDS PostgreSQL, Secrets Manager, CloudWatch alarms
+    ├── compute/               # ECS cluster, ECR, Bastion, auto-shutdown Lambda
+    ├── loaders/               # ECS task definitions (18 loaders), EventBridge scheduled rules
+    └── services/              # REST API Lambda, API Gateway, CloudFront, Cognito, Algo Lambda, SNS, EventBridge Scheduler
 ```
 
-### CloudFormation Stacks
-| Stack | Template | Purpose | Exports |
-|-------|----------|---------|---------|
-| `stocks-core` | `template-core.yml` | Foundation networking, ECR, S3 | 9 VPC/network exports |
-| `stocks-data` | `template-data-infrastructure.yml` | Database, ECS cluster, secrets | 8 database/cluster exports |
-| `stocks-loaders` | `template-loader-tasks.yml` | Data ingestion pipelines | 1 state machine ARN |
-| `stocks-webapp-dev` | `template-webapp.yml` | REST API, frontend CDN, auth | 3 endpoint exports |
-| `stocks-algo-dev` | `template-algo.yml` | Trading algorithm orchestrator | 1 Lambda ARN |
+### Terraform Module Dependencies
+```
+iam (no dependencies)
+    ↓
+vpc (uses IAM roles)
+    ↓
+storage (no dependencies)
+    ↓
+database (uses VPC, IAM roles, storage)
+    ├─→ compute (uses VPC, IAM roles)
+    │   └─→ loaders (uses compute, database, storage)
+    │
+    └─→ services (uses VPC, database, storage)
+```
+
+### CloudFormation Stacks (Legacy)
+| Stack | Template | Purpose |
+|-------|----------|---------|
+| `stocks-core` | `template-core.yml` | Foundation networking, ECR, S3 |
+| `stocks-data` | `template-data-infrastructure.yml` | Database, ECS cluster, secrets |
+| `stocks-loaders` | `template-loader-tasks.yml` | Data ingestion pipelines |
+| `stocks-webapp-dev` | `template-webapp.yml` | REST API, frontend CDN, auth |
+| `stocks-algo-dev` | `template-algo.yml` | Trading algorithm orchestrator |
+
+**Note:** CloudFormation templates are superseded by Terraform. Use Terraform for new deployments.
 
 ## Security Architecture
 
@@ -109,62 +156,186 @@ psql -h stocks-data-RDS-endpoint.region.rds.amazonaws.com -U stocks -d stocks
 
 ## Troubleshooting
 
-### Deployment Fails with CloudFormation Error
+### Terraform Plan/Apply Issues
+
+#### State Lock Stuck
+```bash
+cd terraform
+# Force unlock (use only if you're sure no other apply is running)
+terraform force-unlock <lock-id>
+
+# Check lock status in DynamoDB
+aws dynamodb scan --table-name stocks-terraform-locks --region us-east-1
+```
+
+#### Module Not Found
+```bash
+# Re-initialize Terraform (pulls module sources)
+cd terraform
+terraform init -upgrade
+```
+
+#### Drift Detection
+```bash
+# Refresh state from AWS and show differences
+cd terraform
+terraform refresh
+terraform plan
+
+# If resources were changed outside Terraform:
+terraform import <resource_type.name> <resource_id>
+```
+
+#### State Corruption
+```bash
+# View current state
+terraform state list
+terraform state show <resource>
+
+# Restore from backup
+aws s3 cp s3://stocks-terraform-state/backups/terraform.tfstate.TIMESTAMP.backup \
+  s3://stocks-terraform-state/dev/terraform.tfstate --region us-east-1
+
+# Re-apply
+terraform apply
+```
+
+### Deployment Fails with Terraform Error
 1. Check the workflow logs: https://github.com/argie33/algo/actions
-2. Look for the first error message in "Deploy" or "Diagnose" steps
+2. Look for the validation error or apply error message
 3. Common issues:
-   - **Secrets not set:** Verify `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID` in GitHub Secrets
-   - **Insufficient permissions:** Ensure IAM user has CloudFormation, EC2, RDS, Lambda, ECS, ECR permissions
-   - **Stack already exists in bad state:** The workflow auto-cleans up, but check AWS Console if stuck
+   - **OIDC role not found:** Run bootstrap OIDC stack first (see Quick Start Prerequisites)
+   - **State backend not accessible:** Verify S3 and DynamoDB exist
+   - **Variable validation failed:** Check `terraform.tfvars` values match constraints in `variables.tf`
 
 ### RDS Connection Issues
-1. Verify RDS is in private subnets: `aws ec2 describe-subnets --region us-east-1`
-2. Check security group allows port 5432: `aws ec2 describe-security-groups --region us-east-1`
-3. Test from Bastion via Systems Manager Session Manager
-4. Verify database credentials in Secrets Manager: `aws secretsmanager get-secret-value --secret-id stocks-db-secrets-*`
+1. Verify RDS is in private subnets:
+   ```bash
+   aws ec2 describe-subnets --region us-east-1 --query 'Subnets[?Tags[?Key==`Name`]].{Name:Tags[?Key==`Name`]|[0].Value,CIDR:CidrBlock}'
+   ```
+2. Check security group allows port 5432:
+   ```bash
+   aws ec2 describe-security-groups --region us-east-1 | grep -A5 "rds"
+   ```
+3. Test from Bastion via Session Manager:
+   ```bash
+   aws ssm start-session --target i-xxxxx --region us-east-1
+   psql -h $(terraform output -raw rds_address) -U stocks -d stocks
+   ```
 
 ### Lambda Functions Not Triggering
-1. Check EventBridge rules: `aws events list-rules --name-prefix stocks`
-2. Verify Lambda execution role has required permissions
-3. Check CloudWatch logs: `/aws/lambda/stocks-*`
-4. Verify input/output bindings in EventBridge targets
+1. Check EventBridge Scheduler rules:
+   ```bash
+   aws scheduler list-schedules --group-name default --region us-east-1
+   ```
+2. Verify Lambda execution role permissions:
+   ```bash
+   aws iam get-role-policy --role-name stocks-algo-dev-role --policy-name stocks-algo-dev-sns
+   ```
+3. Check CloudWatch logs:
+   ```bash
+   aws logs tail /aws/lambda/stocks-algo-dev --follow --region us-east-1
+   ```
 
 ## Development Workflow
 
-### Making Changes to Templates
-1. Edit template in local checkout
-2. Validate syntax: `aws cloudformation validate-template --template-body file://template-NAME.yml`
-3. Commit changes: `git add template-NAME.yml && git commit -m "Description"`
-4. Push to main: `git push origin main`
-5. Workflow auto-triggers on template changes
+### Making Changes to Terraform Code
 
-### Making Changes to Workflows
-Modify `.github/workflows/deploy-*.yml` files, then:
-1. Commit: `git add .github/workflows/ && git commit -m "Description"`
+#### Local Testing
+```bash
+cd terraform
+
+# Validate syntax
+terraform fmt -recursive       # Format code
+terraform validate            # Validate HCL
+
+# Plan changes (no AWS access needed with -backend=false)
+terraform init -backend=false
+terraform plan
+
+# Apply with AWS access
+terraform init                # Initialize with S3 backend
+terraform plan -out=tfplan
+terraform apply tfplan        # Auto-approve for testing
+```
+
+#### Creating a Pull Request
+```bash
+git checkout -b feature/add-new-resource
+# Edit terraform files...
+git add terraform/
+git commit -m "Add: new ECS task definition for data loader"
+git push origin feature/add-new-resource
+
+# Create PR (triggers terraform-validate and terraform-plan workflows)
+gh pr create --title "Add new data loader task" \
+  --body "Adds ECS task definition for market indices loader"
+```
+
+#### Merging and Deploying
+```bash
+# Review the terraform-plan output posted to the PR
+# Click "Merge and deploy" (or use CLI)
+gh pr merge <number> --merge
+
+# GitHub Actions will auto-run terraform-apply on main branch push
+```
+
+### Making Changes to Terraform Workflows
+Modify `.github/workflows/terraform-*.yml` files, then:
+1. Commit: `git add .github/workflows/terraform-*.yml && git commit -m "Update workflow"`
 2. Push: `git push origin main`
-3. Re-run workflow: `gh workflow run deploy-STACKNAME.yml`
+3. Workflow changes take effect on next push
 
-### Adding New Resources
-1. Add to appropriate template (core, data-infrastructure, etc.)
-2. Follow naming convention: `stocks-{component}-{resource}`
-3. Add standard tags:
-   ```yaml
-   Tags:
-     - Key: Project
-       Value: stocks-analytics
-     - Key: ManagedBy
-       Value: cloudformation
-     - Key: Stack
-       Value: !Ref AWS::StackName
+### Adding New Resources to Terraform
+
+#### Adding to Existing Module
+1. Edit the module's `main.tf` file
+2. Add resource block following naming convention: `${var.project_name}-${var.environment}-${resource_type}`
+3. Add outputs to module's `outputs.tf`
+4. Add any new variables to module's `variables.tf`
+
+Example: Adding an SNS topic to the services module:
+```hcl
+# terraform/modules/services/main.tf
+resource "aws_sns_topic" "notifications" {
+  name = "${var.project_name}-notifications-${var.environment}"
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-notifications"
+  })
+}
+
+# terraform/modules/services/outputs.tf
+output "notifications_topic_arn" {
+  value = aws_sns_topic.notifications.arn
+}
+
+# terraform/modules/services/variables.tf
+# (add any input variables needed)
+```
+
+5. Export from root module's `outputs.tf` if needed by other components
+6. Commit and push to trigger workflow
+
+#### Creating a New Module
+1. Create directory: `terraform/modules/new-service/`
+2. Add files:
+   ```bash
+   mkdir -p terraform/modules/new-service
+   touch terraform/modules/new-service/{main,variables,outputs}.tf
    ```
-4. Export important resource identifiers:
-   ```yaml
-   Outputs:
-     ResourceName:
-       Value: !Ref Resource
-       Export:
-         Name: StocksCore-ResourceName
+3. Reference in root `main.tf`:
+   ```hcl
+   module "new_service" {
+     source = "./modules/new-service"
+     
+     # Pass required variables
+     project_name = var.project_name
+     environment = var.environment
+     # ... other variables
+   }
    ```
+4. Add module outputs to root `outputs.tf`
 
 ## Cost Optimization
 
@@ -450,10 +621,50 @@ aws events list-rules --name-prefix stocks --region $REGION --query 'Rules[*].[N
 
 # List targets for rule
 aws events list-targets-by-rule --rule $RULE_NAME --region $REGION --query 'Targets[*].[Id,Arn]' --output table
+
+# List EventBridge Scheduler schedules
+aws scheduler list-schedules --region $REGION --query 'Schedules[*].[Name,State]' --output table
+```
+
+**Terraform State Management:**
+```bash
+# List all resources in state
+terraform state list
+
+# Show specific resource details
+terraform state show aws_rds_instance.main
+
+# Import AWS resource into Terraform state
+terraform import aws_rds_instance.main stocks-postgres
+
+# Remove resource from state (doesn't delete AWS resource)
+terraform state rm aws_rds_instance.main
+
+# Validate state consistency
+terraform refresh
+
+# Show state outputs
+terraform output
+terraform output api_url
+```
+
+**Terraform Debugging:**
+```bash
+# Enable detailed logging
+export TF_LOG=DEBUG
+terraform plan  # Produces verbose output
+
+# Log to file
+export TF_LOG_PATH=/tmp/terraform.log
+terraform plan
+
+# Show resource attributes in state
+terraform console  # Interactive REPL
+# Inside console: aws_rds_instance.main.endpoint
 ```
 
 ---
 
 **Last Updated:** 2026-05-07
 **Maintainer:** Claude Code
-**Status:** Production-Ready with Security Hardening & Tool Documentation
+**Status:** Terraform Migration Complete - Infrastructure as Code v2
