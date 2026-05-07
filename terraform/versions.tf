@@ -30,3 +30,4 @@ provider "aws" {
 # Fixed Terraform syntax errors
 # All Terraform HCL syntax fixed
 # VPC module arguments fixed
+# Compute module aws_account_id added
