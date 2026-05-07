@@ -28,3 +28,4 @@ provider "aws" {
 # test
 # Testing fixed bootstrap
 # Fixed Terraform syntax errors
+# All Terraform HCL syntax fixed
