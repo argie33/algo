@@ -661,7 +661,6 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
   name                 = "${var.project_name}-algo-schedule-${var.environment}"
   description          = "Trigger algo orchestrator Lambda at scheduled time"
   schedule_expression  = var.algo_schedule_expression
-  timezone             = var.algo_schedule_timezone
   state                = "ENABLED"
 
   flexible_time_window {
