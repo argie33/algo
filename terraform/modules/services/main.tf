@@ -191,7 +191,6 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
   integration_type = "AWS_PROXY"
   integration_method = "POST"
   payload_format_version = "2.0"
-  target = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${aws_lambda_function.api.function_name}"
 }
 
 resource "aws_apigatewayv2_route" "api_default" {
@@ -662,7 +661,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
   name                 = "${var.project_name}-algo-schedule-${var.environment}"
   description          = "Trigger algo orchestrator Lambda at scheduled time"
   schedule_expression  = var.algo_schedule_expression
-  timezone_or_offset   = var.algo_schedule_timezone
+  timezone             = var.algo_schedule_timezone
   state                = "ENABLED"
 
   flexible_time_window {
