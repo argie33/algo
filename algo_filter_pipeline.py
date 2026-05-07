@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, date as _date
 from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
+from filter_rejection_tracker import RejectionTracker
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -103,6 +104,9 @@ class FilterPipeline:
             advanced_blocked = 0
             passed_all_tiers = []
 
+            # NEW: Initialize rejection tracker (Phase 3 integration)
+            tracker = RejectionTracker()
+
             for symbol, signal_date, _signal, entry_price in signals:
                 if entry_price is None or not entry_price:
                     continue
@@ -163,6 +167,17 @@ class FilterPipeline:
                     else:
                         advanced_blocked += 1
                         result['advanced_block_reason'] = adv['reason']
+
+                # NEW: Log rejection if not passed (Phase 3 integration)
+                if not result.get('passed_all_tiers', False):
+                    tier_results = {}
+                    for t in [1, 2, 3, 4, 5]:
+                        tier_results[t] = {
+                            'pass': result['tiers'][t].get('pass', False),
+                            'reason': result['tiers'][t].get('reason', '')
+                        }
+                    adv_result = {'reason': result.get('advanced_block_reason', '')} if 'advanced_block_reason' in result else None
+                    tracker.log_rejection(eval_date, symbol, float(entry_price), tier_results, adv_result)
 
                 self._log_signal_evaluation(result)
                 self._persist_signal_evaluation(result, eval_date)

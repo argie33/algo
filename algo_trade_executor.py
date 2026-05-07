@@ -54,6 +54,10 @@ class TradeExecutor:
         from algo_pretrade_checks import PreTradeChecks
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
+        # Wire order execution tracker (Phase 4 integration)
+        from order_execution_tracker import OrderExecutionTracker
+        self.order_tracker = OrderExecutionTracker(config)
+
         # Hard live-trading safety guard. Prevents accidental real-money trading
         # from a single env-var typo. Live mode requires THREE explicit confirmations:
         #   1) ALGO_LIVE_TRADING=I_UNDERSTAND_REAL_MONEY (env, manual ack)
@@ -280,6 +284,12 @@ class TradeExecutor:
                 order_status = order_result.get('status', 'pending')
                 # For pending orders, executed_price will be None; use entry_price as placeholder
                 executed_price = order_result.get('executed_price') or entry_price
+
+                # NEW: Log order attempt (Phase 4 integration)
+                self.order_tracker.log_order_attempt(
+                    trade_id, symbol, 'entry', 'BUY',
+                    shares, entry_price, alpaca_order_id
+                )
 
                 # Verify bracket legs were created successfully
                 legs = order_result.get('legs', [])

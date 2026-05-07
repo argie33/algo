@@ -1558,4 +1558,301 @@ router.get('/sector-rotation', async (req, res) => {
   }
 });
 
+// ============================================================
+// PHASE 1-4 INTEGRATION: Data Quality, Signal Performance, Rejections, Orders
+// ============================================================
+
+/**
+ * GET /api/algo/data-quality
+ * Loader SLA status - check data freshness
+ */
+router.get('/data-quality', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT
+        loader_name,
+        table_name,
+        latest_data_date,
+        EXTRACT(EPOCH FROM (NOW() - TO_TIMESTAMP(latest_data_date, 'YYYY-MM-DD'))) / 3600 as age_hours,
+        max_age_hours,
+        row_count_today,
+        status,
+        error_message
+      FROM loader_sla_status
+      ORDER BY status ASC, last_check_at DESC
+    `);
+
+    const checks = result.rows.map(r => ({
+      loader: r.loader_name,
+      table: r.table_name,
+      latest_date: r.latest_data_date,
+      age_hours: Math.round(r.age_hours * 10) / 10,
+      max_age_hours: r.max_age_hours,
+      row_count: r.row_count_today,
+      status: r.status,
+      error_message: r.error_message,
+    }));
+
+    const overall_status = checks.some(c => c.status === 'CRITICAL') ? 'critical'
+                        : checks.some(c => c.status === 'WARNING') ? 'warning'
+                        : 'ok';
+
+    return res.json({
+      success: true,
+      status: overall_status,
+      checks,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error in /algo/data-quality:', error);
+    return res.json({
+      success: true,
+      status: 'unknown',
+      checks: [],
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
+/**
+ * GET /api/algo/rejection-funnel?date=2026-05-06
+ * Signal rejection funnel analysis
+ */
+router.get('/rejection-funnel', async (req, res) => {
+  try {
+    const pool = getPool();
+    const eval_date = req.query.date || new Date().toISOString().split('T')[0];
+
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN tier_1_pass THEN 1 ELSE 0 END) as t1_pass,
+        SUM(CASE WHEN tier_2_pass THEN 1 ELSE 0 END) as t2_pass,
+        SUM(CASE WHEN tier_3_pass THEN 1 ELSE 0 END) as t3_pass,
+        SUM(CASE WHEN tier_4_pass THEN 1 ELSE 0 END) as t4_pass,
+        SUM(CASE WHEN tier_5_pass THEN 1 ELSE 0 END) as t5_pass
+      FROM filter_rejection_log
+      WHERE eval_date = $1::DATE
+    `, [eval_date]);
+
+    const row = result.rows[0] || {
+      total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0
+    };
+
+    const { total, t1_pass, t2_pass, t3_pass, t4_pass, t5_pass } = row;
+    const t1 = t1_pass || 0;
+    const t2 = t2_pass || 0;
+    const t3 = t3_pass || 0;
+    const t4 = t4_pass || 0;
+    const t5 = t5_pass || 0;
+
+    return res.json({
+      success: true,
+      date: eval_date,
+      total_signals: total || 0,
+      tiers: [
+        { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
+        { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
+        { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
+        { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
+        { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
+      ],
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error in /algo/rejection-funnel:', error);
+    return res.json({
+      success: true,
+      total_signals: 0,
+      tiers: [],
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
+/**
+ * GET /api/algo/signal-performance?days=90&base_type=Cup
+ * Trade performance analysis by signal attributes
+ */
+router.get('/signal-performance', async (req, res) => {
+  try {
+    const pool = getPool();
+    const days = parseInt(req.query.days) || 90;
+    const base_type_filter = req.query.base_type;
+
+    let query = `
+      SELECT
+        id, trade_id, symbol, signal_date, base_type, sqs, swing_score, swing_grade,
+        entry_price, exit_price, realized_pnl, realized_pnl_pct, r_multiple, win,
+        target_1_hit, target_2_hit, hold_days
+      FROM signal_trade_performance
+      WHERE exit_date >= NOW()::DATE - INTERVAL $1
+    `;
+    const params = [`${days} days`];
+
+    if (base_type_filter) {
+      query += ` AND base_type = $${params.length + 1}`;
+      params.push(base_type_filter);
+    }
+
+    query += ` ORDER BY exit_date DESC LIMIT 100`;
+
+    const tradesResult = await pool.query(query, params);
+    const trades = tradesResult.rows.map(r => ({
+      trade_id: r.trade_id,
+      symbol: r.symbol,
+      signal_date: r.signal_date,
+      base_type: r.base_type,
+      sqs: r.sqs,
+      swing_grade: r.swing_grade,
+      entry_price: parseFloat(r.entry_price || 0),
+      exit_price: parseFloat(r.exit_price || 0),
+      realized_pnl: parseFloat(r.realized_pnl || 0),
+      realized_pnl_pct: parseFloat(r.realized_pnl_pct || 0),
+      r_multiple: parseFloat(r.r_multiple || 0),
+      win: r.win,
+      target_1_hit: r.target_1_hit,
+      target_2_hit: r.target_2_hit,
+      hold_days: r.hold_days,
+    }));
+
+    // Compute summary stats
+    const win_count = trades.filter(t => t.win).length;
+    const win_rate_pct = trades.length > 0 ? (win_count / trades.length * 100).toFixed(1) : 0;
+    const avg_r = trades.length > 0
+      ? (trades.reduce((s, t) => s + t.r_multiple, 0) / trades.length).toFixed(2)
+      : 0;
+
+    return res.json({
+      success: true,
+      period: `last ${days} days`,
+      filters: { base_type: base_type_filter || 'all' },
+      trades,
+      summary: {
+        total_trades: trades.length,
+        wins: win_count,
+        losses: trades.length - win_count,
+        win_rate_pct: parseFloat(win_rate_pct),
+        avg_r_multiple: parseFloat(avg_r),
+      },
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error in /algo/signal-performance:', error);
+    return res.json({
+      success: true,
+      trades: [],
+      summary: {},
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
+/**
+ * GET /api/algo/orders/pending
+ * Pre-execution order review
+ */
+router.get('/orders/pending', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT
+        id, trade_id, symbol, order_type, side, requested_shares, requested_price,
+        order_timestamp
+      FROM order_execution_log
+      WHERE order_status IN ('pending', 'submitted')
+      ORDER BY order_timestamp DESC
+      LIMIT 20
+    `);
+
+    const pending_orders = result.rows.map(r => ({
+      order_id: r.id,
+      trade_id: r.trade_id,
+      symbol: r.symbol,
+      order_type: r.order_type,
+      side: r.side,
+      requested_shares: r.requested_shares,
+      requested_price: parseFloat(r.requested_price || 0),
+      order_timestamp: r.order_timestamp,
+    }));
+
+    const total_pending_value = pending_orders
+      .filter(o => o.side === 'BUY')
+      .reduce((s, o) => s + (o.requested_shares * o.requested_price), 0);
+
+    return res.json({
+      success: true,
+      pending_orders,
+      total_pending_value: Math.round(total_pending_value * 100) / 100,
+      approval_required: pending_orders.length > 0,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error in /algo/orders/pending:', error);
+    return res.json({
+      success: true,
+      pending_orders: [],
+      approval_required: false,
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
+/**
+ * GET /api/algo/execution-quality?days=30
+ * Execution metrics: fill rate, slippage, etc.
+ */
+router.get('/execution-quality', async (req, res) => {
+  try {
+    const pool = getPool();
+    const days = parseInt(req.query.days) || 30;
+
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) as total_orders,
+        SUM(CASE WHEN order_status = 'filled' THEN 1 ELSE 0 END) as filled,
+        SUM(CASE WHEN order_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+        SUM(CASE WHEN order_status = 'partial' THEN 1 ELSE 0 END) as partial,
+        AVG(fill_rate_pct) as avg_fill_rate,
+        AVG(ABS(slippage_bps)) as avg_slippage_bps,
+        MAX(ABS(slippage_bps)) as max_slippage_bps
+      FROM order_execution_log
+      WHERE order_timestamp >= NOW() - INTERVAL $1
+    `, [`${days} days`]);
+
+    const row = result.rows[0] || {};
+
+    const metrics = {
+      period: `last ${days} days`,
+      total_orders: parseInt(row.total_orders || 0),
+      filled: parseInt(row.filled || 0),
+      rejected: parseInt(row.rejected || 0),
+      partial: parseInt(row.partial || 0),
+      fill_rate_pct: parseFloat(row.avg_fill_rate || 0).toFixed(2),
+      avg_slippage_bps: parseFloat(row.avg_slippage_bps || 0).toFixed(2),
+      max_slippage_bps: parseFloat(row.max_slippage_bps || 0).toFixed(2),
+      slippage_alert: parseFloat(row.avg_slippage_bps || 0) > 100,
+    };
+
+    return res.json({
+      success: true,
+      metrics,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error in /algo/execution-quality:', error);
+    return res.json({
+      success: true,
+      metrics: {},
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
 module.exports = router;

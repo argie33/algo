@@ -35,6 +35,7 @@ from algo_position_sizer import PositionSizer
 from algo_trade_executor import TradeExecutor
 from algo_exit_engine import ExitEngine
 from algo_daily_reconciliation import DailyReconciliation
+from data_quality_validator import DataQualityValidator
 
 def run_algo_workflow(eval_date=None):
     """Run complete daily algo workflow."""
@@ -57,6 +58,19 @@ def run_algo_workflow(eval_date=None):
     print(f"Execution Mode: {execution_mode}\n")
 
     try:
+        # PHASE 0: Data Quality Validation (NEW)
+        print(f"PHASE 0: DATA QUALITY VALIDATION")
+        print(f"-" * 70)
+        validator = DataQualityValidator(config)
+        all_pass, failures, warnings = validator.validate_all(eval_date)
+        if not all_pass:
+            print(f"\nDATA SLA VIOLATIONS - Algo blocked:")
+            for msg in failures:
+                print(f"  - {msg}")
+            print()
+            return {'status': 'data_sla_blocked', 'failures': failures}
+        print(f"\nAll data freshness checks PASSED\n")
+
         # Step 1: Evaluate signals
         print(f"STEP 1: SIGNAL EVALUATION")
         print(f"-" * 70)
