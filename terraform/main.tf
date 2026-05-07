@@ -100,7 +100,7 @@ module "data_infrastructure" {
 module "loaders" {
   source = "./modules/loaders"
 
-  count = var.deploy_loaders ? 1 : 0
+  count = (var.deploy_loaders && var.deploy_data_infrastructure) ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment
@@ -130,7 +130,7 @@ module "loaders" {
 module "webapp" {
   source = "./modules/webapp"
 
-  count = var.deploy_webapp ? 1 : 0
+  count = (var.deploy_webapp && var.deploy_data_infrastructure) ? 1 : 0
 
   project_name   = var.project_name
   environment    = var.environment
@@ -158,7 +158,7 @@ module "webapp" {
 module "algo" {
   source = "./modules/algo"
 
-  count = var.deploy_algo ? 1 : 0
+  count = (var.deploy_algo && var.deploy_data_infrastructure) ? 1 : 0
 
   project_name             = var.project_name
   environment              = var.environment
