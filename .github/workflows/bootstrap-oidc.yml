@@ -1,116 +1,85 @@
-name: Bootstrap OIDC Provider & Deploy Role
+﻿name: Bootstrap OIDC
 
 on:
   workflow_dispatch:
-  workflow_call:
-
-
-permissions:
-  id-token: write
-  contents: read
-
+  
 env:
   AWS_REGION: us-east-1
 
 jobs:
-  create_oidc_and_role:
+  bootstrap:
+    name: Create OIDC Provider & Role
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo (for the CFN template)
-        uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (static keys for bootstrap)
-        uses: aws-actions/configure-aws-credentials@v4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Delete CloudFormation validation hooks (if any)
+      - name: Create OIDC Provider
         run: |
-          echo "=== Removing validation hooks ==="
-          HOOKS=$(aws cloudformation list-hooks --region us-east-1 --query 'Hooks[*].HookId' --output text 2>/dev/null || echo "")
-
-          if [[ ! -z "$HOOKS" ]]; then
-            echo "Found hooks: $HOOKS"
-            for HOOK_ID in $HOOKS; do
-              echo "Deactivating hook: $HOOK_ID"
-              aws cloudformation deactivate-hook --hook-id "$HOOK_ID" --region us-east-1 2>/dev/null || echo "Could not deactivate (may already be inactive)"
-            done
+          echo "Creating GitHub OIDC Provider..."
+          
+          PROVIDER=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text 2>/dev/null || echo "NONE")
+          
+          if [ "$PROVIDER" = "NONE" ]; then
+            aws iam create-open-id-connect-provider \
+              --url https://token.actions.githubusercontent.com \
+              --client-id-list sts.amazonaws.com \
+              --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03
+            echo "✅ OIDC Provider created"
           else
-            echo "No active hooks found"
+            echo "✅ OIDC Provider exists: $PROVIDER"
           fi
 
-      - name: Delete old bootstrap stacks if they exist
+      - name: Create GitHub Actions Role
         run: |
-          echo "=== Cleaning up old/stuck stacks ==="
-          for STACK_NAME in stocks-oidc-bootstrap stocks-oidc; do
-            STATUS=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --region us-east-1 \
-              --query 'Stacks[0].StackStatus' \
-              --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          echo "Creating github-actions-role..."
+          
+          if aws iam get-role --role-name github-actions-role 2>/dev/null; then
+            echo "✅ Role already exists"
+          else
+            OIDC_ARN=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
+            
+            TRUST='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"'$OIDC_ARN'"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},"StringLike":{"token.actions.githubusercontent.com:sub":"repo:argie33/algo:*"}}}]}'
+            
+            echo "$TRUST" > /tmp/trust.json
+            
+            aws iam create-role \
+              --role-name github-actions-role \
+              --assume-role-policy-document file:///tmp/trust.json
+            
+            echo "✅ Role created"
+          fi
 
-            echo "Stack $STACK_NAME status: $STATUS"
-
-            if [[ "$STATUS" != "DOES_NOT_EXIST" ]]; then
-              echo "Deleting stack: $STACK_NAME"
-              aws cloudformation delete-stack \
-                --stack-name "$STACK_NAME" \
-                --region us-east-1 2>/dev/null || echo "Could not initiate deletion"
-
-              echo "Waiting for deletion..."
-              aws cloudformation wait stack-delete-complete \
-                --stack-name "$STACK_NAME" \
-                --region us-east-1 2>/dev/null || echo "Deletion in progress or timed out"
-            fi
-          done
-          echo "Cleanup complete"
-
-      - name: Deploy bootstrap CloudFormation
+      - name: Attach Permissions
         run: |
-          set -x  # Debug output
+          POLICY='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iam:*","ec2:*","rds:*","ecs:*","ecr:*","lambda:*","apigateway:*","cloudfront:*","cognito-idp:*","s3:*","dynamodb:*","secretsmanager:*","cloudwatch:*","logs:*","events:*","scheduler:*","sns:*","kms:*","cloudformation:*","autoscaling:*"],"Resource":"*"}]}'
+          
+          echo "$POLICY" > /tmp/policy.json
+          
+          aws iam put-role-policy \
+            --role-name github-actions-role \
+            --policy-name terraform-deployment \
+            --policy-document file:///tmp/policy.json
+          
+          echo "✅ Permissions attached"
 
-          echo "=== AWS Setup ==="
-          aws --version
-          echo "Region: us-east-1"
-          echo "Account:"
-          aws sts get-caller-identity
-
+      - name: Verify
+        run: |
+          echo "OIDC ARN:"
+          aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text
           echo ""
-          echo "=== Template Validation ==="
-          if ! aws cloudformation validate-template \
-            --template-body file://template-bootstrap.yml \
-            --region us-east-1; then
-            echo "ERROR: Template validation failed"
-            exit 1
-          fi
-
+          echo "Role ARN:"
+          aws iam get-role --role-name github-actions-role --query 'Role.Arn' --output text
           echo ""
-          echo "=== CloudFormation Deploy ==="
-          if ! aws cloudformation deploy \
-            --stack-name stocks-oidc \
-            --template-file template-bootstrap.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset \
-            --region us-east-1; then
-            echo ""
-            echo "ERROR: CloudFormation deploy failed"
-            echo "Getting detailed stack events..."
-            echo ""
-            aws cloudformation describe-stack-events \
-              --stack-name stocks-oidc \
-              --region us-east-1 \
-              --query 'StackEvents[*].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]' \
-              --output table 2>&1 || echo "Could not retrieve events"
-            echo ""
-            echo "Stack status:"
-            aws cloudformation describe-stacks \
-              --stack-name stocks-oidc \
-              --region us-east-1 \
-              --query 'Stacks[0].[StackStatus,StackStatusReason]' \
-              --output table 2>&1 || echo "Stack may not exist"
-            exit 1
-          fi
+          echo "✅ OIDC Bootstrap Ready!"
 
-          echo "✅ Bootstrap deployment complete"
+      - name: Summary
+        run: |
+          echo "## ✅ OIDC Bootstrap Complete" >> $GITHUB_STEP_SUMMARY
+          echo "OIDC provider and github-actions-role ready for Terraform!" >> $GITHUB_STEP_SUMMARY
