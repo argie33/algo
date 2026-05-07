@@ -208,7 +208,7 @@ jobs:
             --stack-name "$STACK_NAME" --region "$AWS_REGION"
 
       - name: Path C — UPDATE existing stack
-        if: steps.state.outputs.stack_status != 'NOT_FOUND' && steps.state.outputs.stack_status != 'CREATE_FAILED' && steps.state.outputs.stack_status != 'ROLLBACK_COMPLETE'
+        if: steps.state.outputs.stack_status != 'NOT_FOUND' && steps.state.outputs.stack_status != 'CREATE_FAILED' && steps.state.outputs.stack_status != 'ROLLBACK_COMPLETE' && steps.state.outputs.stack_status != 'DELETE_IN_PROGRESS' && steps.state.outputs.stack_status != 'DELETE_FAILED'
         run: |
           echo "Stack exists (status=${{ steps.state.outputs.stack_status }}). Running update."
           UPDATE_OUTPUT=$(aws cloudformation update-stack \
@@ -233,6 +233,45 @@ jobs:
             echo "$UPDATE_OUTPUT"
             exit 1
           fi
+
+      - name: Path D — Wait for DELETE to complete, then CREATE fresh
+        if: steps.state.outputs.stack_status == 'DELETE_IN_PROGRESS' || steps.state.outputs.stack_status == 'DELETE_FAILED'
+        run: |
+          echo "Stack is in DELETE state. Waiting for deletion to complete..."
+          # Wait up to 10 minutes for deletion
+          for i in {1..120}; do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$STATUS" = "NOT_FOUND" ]; then
+              echo "✓ Stack deletion complete. Creating fresh stack..."
+              aws cloudformation create-stack \
+                --stack-name "$STACK_NAME" \
+                --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-data-infrastructure.yml" \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+                --parameters \
+                  ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
+                  ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+                  ParameterKey=AlertTopicArn,ParameterValue="${{ steps.sns.outputs.alert_topic }}" \
+                --region "$AWS_REGION"
+
+              aws cloudformation wait stack-create-complete \
+                --stack-name "$STACK_NAME" --region "$AWS_REGION"
+              echo "Stack creation complete."
+              exit 0
+            elif [[ "$STATUS" == *"DELETE"* ]]; then
+              echo "[$i/120] Still deleting (status: $STATUS)... waiting 5s"
+              sleep 5
+            else
+              echo "ERROR: Unexpected status during deletion wait: $STATUS"
+              exit 1
+            fi
+          done
+          echo "ERROR: Stack deletion did not complete within timeout"
+          exit 1
 
       - name: Diagnose stack events on failure
         if: failure()
