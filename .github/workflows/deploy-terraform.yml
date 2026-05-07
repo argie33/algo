@@ -174,12 +174,12 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
-          TF_VAR_deploy_bootstrap: false
-          TF_VAR_deploy_core: false
-          TF_VAR_deploy_data_infrastructure: false
-          TF_VAR_deploy_loaders: false
-          TF_VAR_deploy_webapp: false
-          TF_VAR_deploy_algo: false
+          TF_VAR_deploy_bootstrap: true
+          TF_VAR_deploy_core: true
+          TF_VAR_deploy_data_infrastructure: true
+          TF_VAR_deploy_loaders: true
+          TF_VAR_deploy_webapp: true
+          TF_VAR_deploy_algo: true
         run: terraform plan -out=tfplan -no-color
 
       - name: Upload plan artifact
@@ -242,12 +242,12 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
-          TF_VAR_deploy_bootstrap: false
-          TF_VAR_deploy_core: false
-          TF_VAR_deploy_data_infrastructure: false
-          TF_VAR_deploy_loaders: false
-          TF_VAR_deploy_webapp: false
-          TF_VAR_deploy_algo: false
+          TF_VAR_deploy_bootstrap: true
+          TF_VAR_deploy_core: true
+          TF_VAR_deploy_data_infrastructure: true
+          TF_VAR_deploy_loaders: true
+          TF_VAR_deploy_webapp: true
+          TF_VAR_deploy_algo: true
         run: |
           echo "Applying Terraform changes..."
           terraform apply -no-color tfplan
