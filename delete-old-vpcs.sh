@@ -1,7 +1,8 @@
 #!/bin/bash
-set -e
+set -u
 
 REGION="us-east-1"
+FAILED_VPCS=""
 echo "Deleting orphaned VPCs in $REGION..."
 
 VPC_IDS=$(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'Vpcs[*].VpcId' --output text 2>/dev/null || echo "")
@@ -12,11 +13,16 @@ if [ -z "$VPC_IDS" ]; then
 fi
 
 echo "Found VPCs: $VPC_IDS"
-read -p "Type 'DELETE' to confirm: " CONFIRM
 
-if [ "$CONFIRM" != "DELETE" ]; then
-  echo "Cancelled"
-  exit 0
+# In CI environment (GitHub Actions), skip confirmation prompt
+if [ -z "${GITHUB_ACTIONS:-}" ]; then
+  read -p "Type 'DELETE' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "DELETE" ]; then
+    echo "Cancelled"
+    exit 0
+  fi
+else
+  echo "Running in GitHub Actions - proceeding with deletion"
 fi
 
 for VPC_ID in $VPC_IDS; do
@@ -29,27 +35,39 @@ for VPC_ID in $VPC_IDS; do
     [ -n "$ARN" ] && aws elbv2 delete-load-balancer --load-balancer-arn $ARN --region $REGION 2>/dev/null || true
   done
 
-  # Delete RDS instances
+  # Delete RDS instances (filter by VPC)
   echo "  Deleting RDS instances..."
-  aws rds describe-db-instances --region $REGION --query "DBInstances[*].DBInstanceIdentifier" --output text 2>/dev/null | while read DB; do
+  aws rds describe-db-instances --region $REGION --query "DBInstances[?DBSubnetGroup.VpcId=='$VPC_ID'].DBInstanceIdentifier" --output text 2>/dev/null | while read DB; do
     [ -n "$DB" ] && aws rds delete-db-instance --db-instance-identifier $DB --skip-final-snapshot --region $REGION 2>/dev/null || true
   done
 
-  # Delete ElastiCache
+  # Delete ElastiCache (filter by VPC)
   echo "  Deleting ElastiCache..."
-  aws elasticache describe-cache-clusters --region $REGION --query "CacheClusters[*].CacheClusterId" --output text 2>/dev/null | while read CC; do
-    [ -n "$CC" ] && aws elasticache delete-cache-cluster --cache-cluster-id $CC --region $REGION 2>/dev/null || true
+  aws elasticache describe-cache-clusters --region $REGION --query "CacheClusters[?CacheSubnetGroupName].CacheClusterId" --output text 2>/dev/null | while read CC; do
+    if [ -n "$CC" ]; then
+      SUBNET_GROUP=$(aws elasticache describe-cache-clusters --cache-cluster-id $CC --region $REGION --query "CacheClusters[0].CacheSubnetGroupName" --output text 2>/dev/null)
+      if [ -n "$SUBNET_GROUP" ]; then
+        SG_VPC=$(aws elasticache describe-cache-subnet-groups --cache-subnet-group-name "$SUBNET_GROUP" --region $REGION --query "CacheSubnetGroups[0].VpcId" --output text 2>/dev/null)
+        [ "$SG_VPC" = "$VPC_ID" ] && aws elasticache delete-cache-cluster --cache-cluster-id $CC --region $REGION 2>/dev/null || true
+      fi
+    fi
   done
 
-  # Delete VPC peering
+  # Delete VPC peering (filter by target VPC)
   echo "  Deleting VPC peering..."
-  aws ec2 describe-vpc-peering-connections --region $REGION --query "VpcPeeringConnections[*].VpcPeeringConnectionId" --output text 2>/dev/null | while read PEER; do
+  aws ec2 describe-vpc-peering-connections --region $REGION --query "VpcPeeringConnections[?RequesterVpcInfo.VpcId=='$VPC_ID' || AccepterVpcInfo.VpcId=='$VPC_ID'].VpcPeeringConnectionId" --output text 2>/dev/null | while read PEER; do
     [ -n "$PEER" ] && aws ec2 delete-vpc-peering-connection --vpc-peering-connection-id $PEER --region $REGION 2>/dev/null || true
   done
 
-  # Delete VPN connections
+  # Delete VPN connections (filter by target VPC)
   echo "  Deleting VPN connections..."
-  aws ec2 describe-vpn-connections --region $REGION --query "VpnConnections[*].VpnConnectionId" --output text 2>/dev/null | while read VPN; do
+  aws ec2 describe-vpn-gateways --region $REGION --query "VpnGateways[?VpcAttachments[?VpcId=='$VPC_ID']].VpnGatewayId" --output text 2>/dev/null | while read VGW; do
+    if [ -n "$VGW" ]; then
+      aws ec2 detach-vpn-gateway --vpn-gateway-id $VGW --vpc-id $VPC_ID --region $REGION 2>/dev/null || true
+      aws ec2 delete-vpn-gateway --vpn-gateway-id $VGW --region $REGION 2>/dev/null || true
+    fi
+  done
+  aws ec2 describe-vpn-connections --region $REGION --filters "Name=type,Values=ipsec.1" --query "VpnConnections[*].VpnConnectionId" --output text 2>/dev/null | while read VPN; do
     [ -n "$VPN" ] && aws ec2 delete-vpn-connection --vpn-connection-id $VPN --region $REGION 2>/dev/null || true
   done
 
@@ -66,10 +84,19 @@ for VPC_ID in $VPC_IDS; do
   done
   sleep 5
 
-  # Release EIPs
+  # Release EIPs (filter by VPC)
   echo "  Releasing Elastic IPs..."
-  aws ec2 describe-addresses --region $REGION --query "Addresses[?Domain=='vpc'].AllocationId" --output text 2>/dev/null | while read EIP; do
-    [ -n "$EIP" ] && aws ec2 release-address --allocation-id $EIP --region $REGION 2>/dev/null || true
+  aws ec2 describe-addresses --region $REGION --query "Addresses[?Domain=='vpc' && AssociationId!=null && NetworkInterfaceOwnerId!=null].AllocationId" --output text 2>/dev/null | while read EIP; do
+    if [ -n "$EIP" ]; then
+      # Check if EIP is in target VPC
+      ENI=$(aws ec2 describe-addresses --region $REGION --allocation-ids $EIP --query "Addresses[0].NetworkInterfaceId" --output text 2>/dev/null)
+      if [ -n "$ENI" ] && [ "$ENI" != "None" ]; then
+        ENI_VPC=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --region $REGION --query "NetworkInterfaces[0].VpcId" --output text 2>/dev/null)
+        if [ "$ENI_VPC" = "$VPC_ID" ]; then
+          aws ec2 release-address --allocation-id $EIP --region $REGION 2>/dev/null || true
+        fi
+      fi
+    fi
   done
 
   # Delete NAT Gateways
@@ -111,23 +138,44 @@ for VPC_ID in $VPC_IDS; do
     [ -n "$RT" ] && aws ec2 delete-route-table --route-table-id $RT --region $REGION 2>/dev/null || true
   done
 
-  # THIS IS THE KEY FIX: Delete SG rules FIRST, then SGs
-  echo "  Deleting security group rules..."
+  # Delete SG rules FIRST using a Python script (handles all rule types safely)
+  echo "  Clearing security group rules..."
   SG_IDS=$(aws ec2 describe-security-groups --region $REGION --query "SecurityGroups[?VpcId=='$VPC_ID' && GroupName!='default'].GroupId" --output text 2>/dev/null || echo "")
-  for SG_ID in $SG_IDS; do
-    # Revoke all ingress rules
-    aws ec2 describe-security-groups --group-ids $SG_ID --region $REGION --query "SecurityGroups[0].IpPermissions[*].[IpProtocol,FromPort,ToPort]" --output text 2>/dev/null | while read PROTO FROM TO; do
-      if [ -n "$PROTO" ]; then
-        aws ec2 revoke-security-group-ingress --group-id $SG_ID --ip-protocol "$PROTO" --from-port "$FROM" --to-port "$TO" --region $REGION 2>/dev/null || true
-      fi
-    done
-    # Revoke all egress rules
-    aws ec2 describe-security-groups --group-ids $SG_ID --region $REGION --query "SecurityGroups[0].IpPermissionsEgress[*].[IpProtocol,FromPort,ToPort]" --output text 2>/dev/null | while read PROTO FROM TO; do
-      if [ -n "$PROTO" ]; then
-        aws ec2 revoke-security-group-egress --group-id $SG_ID --ip-protocol "$PROTO" --from-port "$FROM" --to-port "$TO" --region $REGION 2>/dev/null || true
-      fi
-    done
-  done
+
+  python3 << EOFPYTHON
+import json, subprocess, sys, os
+region = os.environ.get('REGION', 'us-east-1')
+sg_ids = "$SG_IDS".split()
+
+for sg_id in sg_ids:
+    if not sg_id:
+        continue
+
+    try:
+        result = subprocess.run(['aws', 'ec2', 'describe-security-groups',
+                                '--group-ids', sg_id, '--region', region, '--output', 'json'],
+                               capture_output=True, text=True, check=True)
+        sg_data = json.loads(result.stdout)
+
+        # Revoke all ingress rules
+        ingress_rules = sg_data['SecurityGroups'][0].get('IpPermissions', [])
+        if ingress_rules:
+            subprocess.run(['aws', 'ec2', 'revoke-security-group-ingress',
+                           '--group-id', sg_id, '--region', region,
+                           '--cli-input-json', json.dumps({'IpPermissions': ingress_rules})],
+                          capture_output=True)
+
+        # Revoke all egress rules
+        egress_rules = sg_data['SecurityGroups'][0].get('IpPermissionsEgress', [])
+        if egress_rules:
+            subprocess.run(['aws', 'ec2', 'revoke-security-group-egress',
+                           '--group-id', sg_id, '--region', region,
+                           '--cli-input-json', json.dumps({'IpPermissions': egress_rules})],
+                          capture_output=True)
+    except Exception as e:
+        print(f"  Skipping SG {sg_id}: {e}", file=sys.stderr)
+EOFPYTHON
+
 
   echo "  Deleting security groups..."
   for SG_ID in $SG_IDS; do
@@ -139,12 +187,32 @@ for VPC_ID in $VPC_IDS; do
   if aws ec2 delete-vpc --vpc-id $VPC_ID --region $REGION 2>/dev/null; then
     echo "  ✅ Deleted $VPC_ID"
   else
-    echo "  ❌ FAILED $VPC_ID"
+    echo "  ❌ FAILED to delete $VPC_ID"
+    FAILED_VPCS="$FAILED_VPCS $VPC_ID"
+    # Show remaining resources in this VPC
+    echo "    Remaining resources:"
+    aws ec2 describe-instances --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "Reservations[*].Instances[*].[InstanceId,State.Name]" --output text 2>/dev/null | while read INST STATE; do
+      [ -n "$INST" ] && echo "      EC2: $INST ($STATE)"
+    done
+    aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$VPC_ID" --query "NetworkInterfaces[*].[NetworkInterfaceId,Status]" --output text 2>/dev/null | while read ENI STATUS; do
+      [ -n "$ENI" ] && echo "      ENI: $ENI ($STATUS)"
+    done
   fi
 done
 
 echo ""
 VPC_COUNT=$(aws ec2 describe-vpcs --region $REGION --query 'length(Vpcs)' --output text 2>/dev/null || echo "unknown")
 echo "Final VPC count: $VPC_COUNT/5"
-[ "$VPC_COUNT" -lt 5 ] && echo "✅ Ready for deployment" && exit 0
-exit 1
+
+if [ -n "$FAILED_VPCS" ]; then
+  echo "❌ Failed to delete VPCs:$FAILED_VPCS"
+  exit 1
+fi
+
+if [ "$VPC_COUNT" -lt 5 ]; then
+  echo "✅ Ready for deployment"
+  exit 0
+else
+  echo "❌ Still at VPC limit ($VPC_COUNT/5)"
+  exit 1
+fi
