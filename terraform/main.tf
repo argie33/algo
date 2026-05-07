@@ -31,41 +31,32 @@ module "vpc" {
 module "storage" {
   source = "./modules/storage"
 
-  project_name                    = var.project_name
-  environment                     = var.environment
-  aws_region                      = var.aws_region
-  enable_versioning               = var.enable_s3_versioning
-  code_bucket_lifecycle           = var.code_bucket_lifecycle
-  cf_templates_bucket_lifecycle   = var.cf_templates_bucket_lifecycle
-  lambda_artifacts_bucket_lifecycle = var.lambda_artifacts_bucket_lifecycle
-  data_loading_bucket_lifecycle   = var.data_loading_bucket_lifecycle
-  log_archive_bucket_lifecycle    = var.log_archive_bucket_lifecycle
-  common_tags                     = local.common_tags
+  project_name  = var.project_name
+  environment   = var.environment
+  aws_region    = var.aws_region
+  aws_account_id = data.aws_caller_identity.current.account_id
+  enable_versioning = var.enable_s3_versioning
+  common_tags   = local.common_tags
 }
 
 module "database" {
   source = "./modules/database"
 
-  project_name                      = var.project_name
-  environment                       = var.environment
-  aws_region                        = var.aws_region
-  vpc_id                            = module.vpc.vpc_id
-  private_subnet_ids                = module.vpc.private_subnet_ids
-  rds_security_group_id             = module.vpc.rds_security_group_id
-  rds_instance_class                = var.rds_instance_class
-  rds_allocated_storage             = var.rds_allocated_storage
-  rds_max_allocated_storage         = var.rds_max_allocated_storage
-  rds_backup_retention_period       = var.rds_backup_retention_period
-  rds_backup_window                 = var.rds_backup_window
-  rds_maintenance_window            = var.rds_maintenance_window
-  rds_username                      = var.rds_username
-  rds_db_name                       = var.rds_db_name
-  enable_rds_cloudwatch_logs        = var.enable_rds_cloudwatch_logs
-  rds_log_retention_days            = var.rds_log_retention_days
-  notification_email                = var.notification_email
-  iam_bastion_role_arn              = module.iam.bastion_role_arn
-  iam_ecs_task_execution_role_arn   = module.iam.ecs_task_execution_role_arn
-  common_tags                       = local.common_tags
+  project_name              = var.project_name
+  environment               = var.environment
+  aws_region                = var.aws_region
+  aws_account_id            = data.aws_caller_identity.current.account_id
+  vpc_id                    = module.vpc.vpc_id
+  private_subnet_ids        = module.vpc.private_subnet_ids
+  rds_security_group_id     = module.vpc.rds_security_group_id
+  db_instance_class         = var.rds_instance_class
+  db_allocated_storage      = var.rds_allocated_storage
+  db_max_allocated_storage  = var.rds_max_allocated_storage
+  db_backup_retention_days  = var.rds_backup_retention_period
+  db_master_username        = var.rds_username
+  db_master_password        = "changeme"
+  notification_email        = var.notification_email
+  common_tags               = local.common_tags
 }
 
 module "compute" {
@@ -100,23 +91,19 @@ module "compute" {
 module "loaders" {
   source = "./modules/loaders"
 
-  project_name                      = var.project_name
-  environment                       = var.environment
-  aws_region                        = var.aws_region
-  ecs_cluster_name                  = module.compute.ecs_cluster_name
-  ecs_cluster_arn                   = module.compute.ecs_cluster_arn
-  ecs_task_execution_role_arn       = module.iam.ecs_task_execution_role_arn
-  private_subnet_ids                = module.vpc.private_subnet_ids
-  ecs_tasks_security_group_id       = module.vpc.ecs_tasks_security_group_id
-  rds_credentials_secret_arn        = module.database.rds_credentials_secret_arn
-  rds_endpoint                      = module.database.rds_endpoint
-  rds_database_name                 = module.database.rds_database_name
-  data_loading_bucket_name          = module.storage.data_loading_bucket_name
-  ecr_repository_url                = module.compute.ecr_repository_url
-  cloudwatch_log_retention_days     = var.cloudwatch_log_retention_days
-  loader_manifest                   = var.loader_manifest
-  enable_scheduled_loaders          = var.enable_scheduled_loaders
-  common_tags                       = local.common_tags
+  project_name                = var.project_name
+  environment                 = var.environment
+  aws_region                  = var.aws_region
+  aws_account_id              = data.aws_caller_identity.current.account_id
+  ecs_cluster_name            = module.compute.ecs_cluster_name
+  ecs_cluster_arn             = module.compute.ecs_cluster_arn
+  task_execution_role_arn     = module.iam.ecs_task_execution_role_arn
+  private_subnet_ids          = module.vpc.private_subnet_ids
+  ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
+  db_secret_arn               = module.database.rds_credentials_secret_arn
+  ecr_repository_uri          = module.compute.ecr_repository_url
+  vpc_id                      = module.vpc.vpc_id
+  common_tags                 = local.common_tags
 }
 
 module "services" {
