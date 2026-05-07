@@ -207,26 +207,25 @@ Resources:
             # configure AWS region
             aws configure set region ${AWS::Region}
 
-            # fetch DB creds from data infrastructure stack
-            # Note: stack name is "stocks-app" (will be "stocks-data" after Phase 3 rename)
-            STACK_NAME="stocks-app"
-            SECRET_ARN=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --query "Stacks[0].Outputs[?OutputKey=='SecretArn'].OutputValue" \
+            # fetch DB creds from CloudFormation exports (not hardcoded stack name)
+            SECRET_ARN=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
               --output text)
+            if [ -z "$SECRET_ARN" ]; then
+              echo "ERROR: StocksApp-SecretArn export not found - data stack may not be deployed"
+              exit 1
+            fi
             CREDS=$(aws secretsmanager get-secret-value \
               --secret-id "$SECRET_ARN" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
-            DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
+            DB_HOST=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
               --output text)
-            DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
+            DB_PORT=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='StocksApp-DBPort'].Value" \
               --output text)
             cat <<EOF > /home/ec2-user/.pgpass
             $DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASSWORD
@@ -407,6 +406,29 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
+  ### 9c) Data Loading Bucket (for loaders to stage results) ###
+  DataLoadingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'stocks-app-data-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLoaderData
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpirationInDays: 7
+
   ### 10) VPC ENDPOINTS — Cost Optimization (eliminates NAT Gateway ~$20/month) ###
   VpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -537,6 +559,10 @@ Outputs:
     Value: !Ref AlgoArtifactsBucket
     Export:
       Name: StocksCore-AlgoArtifactsBucketName
+  DataLoadingBucketName:
+    Value: !Ref DataLoadingBucket
+    Export:
+      Name: StocksCore-DataLoadingBucketName
   BastionSecurityGroupId:
     Value: !Ref BastionSecurityGroup
     Export:

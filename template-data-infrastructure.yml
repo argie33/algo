@@ -159,6 +159,7 @@ Resources:
   ### 5.1) ECS Tasks Security Group ###
   EcsTasksSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DependsOn: StocksDBSecurityGroup
     Properties:
       GroupDescription: Security group for ECS tasks
       VpcId: !ImportValue StocksCore-VpcId
