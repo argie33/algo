@@ -12,7 +12,7 @@
 # This module is substantial - ~2000 lines in template-loader-tasks.yml
 
 # EventBridge role to run ECS tasks
-resource "aws_iam_role" "eventbridge_run_task_role" {
+resource "aws_iam_role" "eventbridge_run_task" {
   name = "${var.project_name}-eventbridge-run-task-role"
 
   assume_role_policy = jsonencode({
@@ -31,7 +31,7 @@ resource "aws_iam_role" "eventbridge_run_task_role" {
 
 resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
   name = "${var.project_name}-eventbridge-run-task-policy"
-  role = aws_iam_role.eventbridge_run_task_role.id
+  role = aws_iam_role.eventbridge_run_task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
