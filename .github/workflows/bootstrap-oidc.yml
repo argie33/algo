@@ -24,30 +24,61 @@ jobs:
         run: |
           echo "Creating GitHub OIDC Provider..."
           
-          PROVIDER=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text 2>/dev/null || echo "NONE")
+          EXISTING=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[?contains(OpenIDConnectProviderArn, `github`)]' --output text || true)
           
-          if [ "$PROVIDER" = "NONE" ]; then
+          if [ -z "$EXISTING" ]; then
             aws iam create-open-id-connect-provider \
               --url https://token.actions.githubusercontent.com \
               --client-id-list sts.amazonaws.com \
               --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03
             echo "✅ OIDC Provider created"
+            sleep 3
           else
-            echo "✅ OIDC Provider exists: $PROVIDER"
+            echo "✅ OIDC Provider already exists"
           fi
+
+      - name: Get OIDC Provider ARN
+        id: oidc
+        run: |
+          ARN=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
+          echo "arn=$ARN" >> $GITHUB_OUTPUT
+          echo "OIDC ARN: $ARN"
 
       - name: Create GitHub Actions Role
         run: |
-          echo "Creating github-actions-role..."
+          echo "Creating github-actions-role with OIDC trust..."
           
-          if aws iam get-role --role-name github-actions-role 2>/dev/null; then
+          if aws iam get-role --role-name github-actions-role 2>/dev/null >/dev/null; then
             echo "✅ Role already exists"
           else
-            OIDC_ARN=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
+            OIDC_ARN="${{ steps.oidc.outputs.arn }}"
             
-            TRUST='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"'$OIDC_ARN'"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},"StringLike":{"token.actions.githubusercontent.com:sub":"repo:argie33/algo:*"}}}]}'
+            TRUST=$(cat <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "$OIDC_ARN"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:argie33/algo:*"
+        }
+      }
+    }
+  ]
+}
+EOF
+            )
             
             echo "$TRUST" > /tmp/trust.json
+            cat /tmp/trust.json
             
             aws iam create-role \
               --role-name github-actions-role \
@@ -56,9 +87,42 @@ jobs:
             echo "✅ Role created"
           fi
 
-      - name: Attach Permissions
+      - name: Attach Terraform Permissions
         run: |
-          POLICY='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iam:*","ec2:*","rds:*","ecs:*","ecr:*","lambda:*","apigateway:*","cloudfront:*","cognito-idp:*","s3:*","dynamodb:*","secretsmanager:*","cloudwatch:*","logs:*","events:*","scheduler:*","sns:*","kms:*","cloudformation:*","autoscaling:*"],"Resource":"*"}]}'
+          POLICY=$(cat <<'POLICY'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:*",
+        "ec2:*",
+        "rds:*",
+        "ecs:*",
+        "ecr:*",
+        "lambda:*",
+        "apigateway:*",
+        "cloudfront:*",
+        "cognito-idp:*",
+        "s3:*",
+        "dynamodb:*",
+        "secretsmanager:*",
+        "cloudwatch:*",
+        "logs:*",
+        "events:*",
+        "scheduler:*",
+        "sns:*",
+        "kms:*",
+        "cloudformation:*",
+        "autoscaling:*"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+POLICY
+          )
           
           echo "$POLICY" > /tmp/policy.json
           
@@ -67,19 +131,28 @@ jobs:
             --policy-name terraform-deployment \
             --policy-document file:///tmp/policy.json
           
-          echo "✅ Permissions attached"
+          echo "✅ Terraform permissions attached"
 
-      - name: Verify
+      - name: Verify Setup
         run: |
-          echo "OIDC ARN:"
-          aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text
+          echo "Verifying OIDC setup..."
           echo ""
-          echo "Role ARN:"
+          echo "OIDC Provider:"
+          aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].[OpenIDConnectProviderArn]' --output text
+          
+          echo ""
+          echo "GitHub Actions Role:"
           aws iam get-role --role-name github-actions-role --query 'Role.Arn' --output text
+          
           echo ""
-          echo "✅ OIDC Bootstrap Ready!"
+          echo "✅ OIDC Bootstrap Complete!"
 
       - name: Summary
         run: |
           echo "## ✅ OIDC Bootstrap Complete" >> $GITHUB_STEP_SUMMARY
-          echo "OIDC provider and github-actions-role ready for Terraform!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ OIDC Provider created and configured" >> $GITHUB_STEP_SUMMARY
+          echo "✅ github-actions-role created with proper trust policy" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Terraform deployment permissions attached" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Ready for Terraform deployment!**" >> $GITHUB_STEP_SUMMARY
