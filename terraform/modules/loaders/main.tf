@@ -145,8 +145,8 @@ resource "aws_ecs_task_definition" "loader" {
 
   requires_compatibilities = ["FARGATE"]
   network_mode            = "awsvpc"
-  cpu                     = each.value.cpu
-  memory                  = each.value.memory
+  cpu                     = "256"
+  memory                  = "512"
   execution_role_arn      = var.task_execution_role_arn
 
   tags = var.common_tags
