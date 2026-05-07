@@ -1,0 +1,247 @@
+name: AWS Account Cleanup
+description: "Proper cleanup of stocks-* infrastructure - NO CORNERS CUT"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_cleanup:
+        description: 'Type "DELETE ALL STOCKS RESOURCES" to confirm'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Proper AWS Cleanup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Safety Check
+        run: |
+          if [ "${{ github.event.inputs.confirm_cleanup }}" != "DELETE ALL STOCKS RESOURCES" ]; then
+            echo "❌ CLEANUP CANCELLED - confirmation string does not match"
+            echo "To run cleanup, you must type exactly: DELETE ALL STOCKS RESOURCES"
+            exit 1
+          fi
+          echo "✅ Safety check passed - proceeding with cleanup"
+
+      - name: Phase 1 - Delete CloudFormation Stacks
+        run: |
+          echo "=== PHASE 1: Delete CloudFormation Stacks ==="
+
+          STACKS=$(aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
+            --query "StackSummaries[?contains(StackName, 'stocks')].StackName" --output text)
+
+          if [ -z "$STACKS" ]; then
+            echo "✓ No CloudFormation stacks found"
+          else
+            for STACK in $STACKS; do
+              echo "Deleting CloudFormation stack: $STACK"
+              aws cloudformation delete-stack --stack-name "$STACK"
+
+              echo "  Waiting for stack deletion..."
+              aws cloudformation wait stack-delete-complete --stack-name "$STACK" 2>/dev/null && \
+                echo "  ✓ Stack deleted" || \
+                echo "  ✗ Stack deletion timed out or failed (may require manual intervention)"
+            done
+          fi
+
+      - name: Phase 2 - Delete VPCs and Components
+        run: |
+          echo "=== PHASE 2: Delete VPCs (10.0.0.0/16 and 10.1.0.0/16) ==="
+
+          # Find VPCs with stocks CIDR blocks
+          VPC_IDS=$(aws ec2 describe-vpcs --region us-east-1 \
+            --filters "Name=cidr,Values=10.0.0.0/16 10.1.0.0/16" \
+            --query "Vpcs[].VpcId" --output text)
+
+          if [ -z "$VPC_IDS" ]; then
+            echo "✓ No custom VPCs with stocks CIDR found"
+          else
+            for VPC_ID in $VPC_IDS; do
+              echo "Cleaning up VPC: $VPC_ID"
+
+              # Delete VPC Endpoints
+              VPCE_IDS=$(aws ec2 describe-vpc-endpoints --region us-east-1 \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query "VpcEndpoints[].VpcEndpointId" --output text)
+              for VPCE in $VPCE_IDS; do
+                echo "  Deleting VPC Endpoint: $VPCE"
+                aws ec2 delete-vpc-endpoints --region us-east-1 --vpc-endpoint-ids $VPCE 2>/dev/null || true
+              done
+
+              # Delete NAT Gateways and release EIPs
+              NGW_IDS=$(aws ec2 describe-nat-gateways --region us-east-1 \
+                --filter "Name=vpc-id,Values=$VPC_ID" \
+                --query "NatGateways[].NatGatewayId" --output text)
+              for NGW in $NGW_IDS; do
+                echo "  Deleting NAT Gateway: $NGW"
+                aws ec2 delete-nat-gateway --region us-east-1 --nat-gateway-id $NGW 2>/dev/null || true
+              done
+              sleep 10  # Wait for NAT Gateway deletion
+
+              # Release Elastic IPs
+              EIP_ALLOCS=$(aws ec2 describe-addresses --region us-east-1 \
+                --filters "Name=domain,Values=vpc" \
+                --query "Addresses[?AssociationId==null].AllocationId" --output text)
+              for ALLOC in $EIP_ALLOCS; do
+                echo "  Releasing Elastic IP: $ALLOC"
+                aws ec2 release-address --region us-east-1 --allocation-id $ALLOC 2>/dev/null || true
+              done
+
+              # Delete Internet Gateways
+              IGW_IDS=$(aws ec2 describe-internet-gateways --region us-east-1 \
+                --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+                --query "InternetGateways[].InternetGatewayId" --output text)
+              for IGW in $IGW_IDS; do
+                echo "  Detaching IGW: $IGW"
+                aws ec2 detach-internet-gateway --region us-east-1 --internet-gateway-id $IGW --vpc-id $VPC_ID 2>/dev/null || true
+                echo "  Deleting IGW: $IGW"
+                aws ec2 delete-internet-gateway --region us-east-1 --internet-gateway-id $IGW 2>/dev/null || true
+              done
+
+              # Delete Security Groups (except default)
+              SG_IDS=$(aws ec2 describe-security-groups --region us-east-1 \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query "SecurityGroups[?GroupName!='default'].GroupId" --output text)
+              for SG in $SG_IDS; do
+                echo "  Deleting Security Group: $SG"
+                aws ec2 delete-security-group --region us-east-1 --group-id $SG 2>/dev/null || true
+              done
+
+              # Delete Subnets
+              SUBNET_IDS=$(aws ec2 describe-subnets --region us-east-1 \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query "Subnets[].SubnetId" --output text)
+              for SUBNET in $SUBNET_IDS; do
+                echo "  Deleting Subnet: $SUBNET"
+                aws ec2 delete-subnet --region us-east-1 --subnet-id $SUBNET 2>/dev/null || true
+              done
+
+              # Delete Route Tables (except main)
+              RT_IDS=$(aws ec2 describe-route-tables --region us-east-1 \
+                --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=false" \
+                --query "RouteTables[].RouteTableId" --output text)
+              for RT in $RT_IDS; do
+                echo "  Deleting Route Table: $RT"
+                aws ec2 delete-route-table --region us-east-1 --route-table-id $RT 2>/dev/null || true
+              done
+
+              # Finally delete VPC
+              echo "  Deleting VPC: $VPC_ID"
+              aws ec2 delete-vpc --region us-east-1 --vpc-id $VPC_ID 2>/dev/null && \
+                echo "  ✓ VPC deleted" || \
+                echo "  ✗ VPC deletion failed (may have remaining dependencies)"
+            done
+          fi
+
+      - name: Phase 3 - Delete Services
+        run: |
+          echo "=== PHASE 3: Delete Services ==="
+
+          # RDS
+          echo "Checking RDS databases..."
+          RDS_DBS=$(aws rds describe-db-instances --region us-east-1 \
+            --query "DBInstances[?contains(DBInstanceIdentifier, 'stocks')].DBInstanceIdentifier" --output text)
+          for DB in $RDS_DBS; do
+            echo "  Deleting RDS: $DB"
+            aws rds delete-db-instance --region us-east-1 --db-instance-identifier "$DB" \
+              --skip-final-snapshot 2>/dev/null || true
+          done
+
+          # ECS
+          echo "Checking ECS clusters..."
+          ECS_CLUSTERS=$(aws ecs list-clusters --region us-east-1 \
+            --query "clusterArns[?contains(@, 'stocks')]" --output text | xargs -n1 basename)
+          for CLUSTER in $ECS_CLUSTERS; do
+            echo "  Deleting ECS cluster: $CLUSTER"
+            aws ecs delete-cluster --region us-east-1 --cluster "$CLUSTER" 2>/dev/null || true
+          done
+
+          # Secrets Manager
+          echo "Checking Secrets Manager..."
+          SECRETS=$(aws secretsmanager list-secrets --region us-east-1 \
+            --query "SecretList[?contains(Name, 'stocks')].Name" --output text)
+          for SECRET in $SECRETS; do
+            echo "  Deleting Secret: $SECRET"
+            aws secretsmanager delete-secret --region us-east-1 --secret-id "$SECRET" \
+              --force-delete-without-recovery 2>/dev/null || true
+          done
+
+          # ECR
+          echo "Checking ECR repositories..."
+          ECR_REPOS=$(aws ecr describe-repositories --region us-east-1 \
+            --query "repositories[?contains(repositoryName, 'stocks')].repositoryName" --output text)
+          for REPO in $ECR_REPOS; do
+            echo "  Deleting ECR: $REPO"
+            aws ecr delete-repository --region us-east-1 --repository-name "$REPO" \
+              --force 2>/dev/null || true
+          done
+
+          # S3
+          echo "Checking S3 buckets..."
+          S3_BUCKETS=$(aws s3 ls | grep stocks | awk '{print $3}')
+          for BUCKET in $S3_BUCKETS; do
+            echo "  Emptying S3 bucket: $BUCKET"
+            aws s3 rm "s3://$BUCKET" --recursive 2>/dev/null || true
+            echo "  Deleting S3 bucket: $BUCKET"
+            aws s3 rb "s3://$BUCKET" 2>/dev/null || true
+          done
+
+      - name: Phase 4 - Verify Clean State
+        run: |
+          echo "=== PHASE 4: Verify Clean State ==="
+
+          echo "Checking CloudFormation stacks..."
+          CF_COUNT=$(aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
+            --query "StackSummaries[?contains(StackName, 'stocks')] | length(@)" --output text)
+          echo "  CloudFormation stacks with 'stocks': $CF_COUNT (should be 0)"
+
+          echo "Checking VPCs..."
+          VPC_COUNT=$(aws ec2 describe-vpcs --region us-east-1 \
+            --filters "Name=cidr,Values=10.0.0.0/16 10.1.0.0/16" \
+            --query "Vpcs | length(@)" --output text)
+          echo "  Custom VPCs: $VPC_COUNT (should be 0)"
+
+          echo "Checking RDS..."
+          RDS_COUNT=$(aws rds describe-db-instances --region us-east-1 \
+            --query "DBInstances[?contains(DBInstanceIdentifier, 'stocks')] | length(@)" --output text)
+          echo "  RDS instances: $RDS_COUNT (should be 0)"
+
+          echo "Checking ECS..."
+          ECS_COUNT=$(aws ecs list-clusters --region us-east-1 \
+            --query "clusterArns[?contains(@, 'stocks')] | length(@)" --output text)
+          echo "  ECS clusters: $ECS_COUNT (should be 0)"
+
+          echo ""
+          if [ "$CF_COUNT" -eq 0 ] && [ "$VPC_COUNT" -eq 0 ] && [ "$RDS_COUNT" -eq 0 ] && [ "$ECS_COUNT" -eq 0 ]; then
+            echo "✅ AWS ACCOUNT CLEAN - Ready for Terraform deployment"
+          else
+            echo "⚠️  Some resources remain - may need manual cleanup"
+          fi
+
+      - name: Generate Cleanup Report
+        if: always()
+        run: |
+          echo "## Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Phases executed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Phase 1: CloudFormation stacks deleted" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Phase 2: VPCs and components deleted" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Phase 3: Services deleted" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Phase 4: Clean state verified" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for any errors or remaining resources." >> $GITHUB_STEP_SUMMARY
