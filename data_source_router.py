@@ -112,7 +112,8 @@ class DataSourceRouter:
             try:
                 result = fn()
                 if result is None or (hasattr(result, "__len__") and len(result) == 0):
-                    health.record(False, "empty result")
+                    # Empty result = symbol doesn't exist or has no data (not a source problem)
+                    # Don't count as source failure — skip gracefully without affecting health
                     continue
                 health.record(True)
                 self.last_source = name
