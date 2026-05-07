@@ -53,6 +53,7 @@ Resources:
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Retain
     Properties:
       GroupDescription: Allow Postgres access from ECS tasks and Bastion
       VpcId: !ImportValue StocksCore-VpcId
