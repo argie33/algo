@@ -82,6 +82,86 @@ resource "aws_cloudwatch_event_rule" "sector_ranking_schedule" {
 }
 
 # Example scheduled rule - Fear&Greed Loader (7pm ET)
+# TODO: Implement remaining loaders from template-loader-tasks.yml
+# This is a stub module - needs 65 total ECS task definitions
+
+# Default loaders manifest (stub - to be populated from template-loader-tasks.yml)
+locals {
+  default_loaders = {
+    # Stock data loaders
+    "stock_symbols"          = { cpu = 256, memory = 512 }
+    "stock_prices"           = { cpu = 256, memory = 512 }
+    "company_fundamentals"   = { cpu = 256, memory = 512 }
+    "market_indices"         = { cpu = 256, memory = 512 }
+    "econdata"               = { cpu = 256, memory = 512 }
+    "feargreed"              = { cpu = 256, memory = 512 }
+    "sector_ranking"         = { cpu = 256, memory = 512 }
+
+    # TODO: Add remaining 58 loaders here
+  }
+}
+
+# Placeholder task definitions (stub - to be expanded)
+resource "aws_ecs_task_definition" "loader" {
+  for_each = local.default_loaders
+
+  family = "${var.project_name}-${each.key}-loader"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-${each.key}"
+      image     = "${var.ecr_repository_uri}:latest"
+      cpu       = each.value.cpu
+      memory    = each.value.memory
+      essential = true
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.loader[each.key].name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        {
+          name      = "DB_PASSWORD"
+          valueFrom = "${var.db_secret_arn}:password::"
+        },
+        {
+          name      = "DB_USER"
+          valueFrom = "${var.db_secret_arn}:username::"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "LOADER_TYPE"
+          value = each.key
+        }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode            = "awsvpc"
+  cpu                     = each.value.cpu
+  memory                  = each.value.memory
+  execution_role_arn      = var.task_execution_role_arn
+
+  tags = var.common_tags
+}
+
+# Placeholder log groups for loaders (stub)
+resource "aws_cloudwatch_log_group" "loader" {
+  for_each = local.default_loaders
+
+  name              = "/ecs/${var.project_name}-${each.key}-loader"
+  retention_in_days = 30
+
+  tags = var.common_tags
+}
+
 resource "aws_cloudwatch_event_rule" "fear_greed_schedule" {
   name                = "${var.project_name}-fear-greed-evening-schedule"
   description         = "Run fear&greed loader at 7pm ET (11pm UTC)"
