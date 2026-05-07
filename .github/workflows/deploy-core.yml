@@ -84,9 +84,9 @@ jobs:
             --filters "Name=cidr,Values=10.0.0.0/16" \
             --region "${{ env.AWS_REGION }}" \
             --query 'Vpcs[0].VpcId' \
-            --output text 2>/dev/null || echo "none")
+            --output text 2>/dev/null || echo "")
 
-          if [[ "$VPC_EXISTS" != "none" && ! -z "$VPC_EXISTS" ]]; then
+          if [[ -n "$VPC_EXISTS" && "$VPC_EXISTS" != "None" ]]; then
             echo "⚠️  Found existing VPC: $VPC_EXISTS with CIDR 10.0.0.0/16"
             echo "This may conflict with stack creation. Checking if it's from stocks-core..."
             VPC_TAGS=$(aws ec2 describe-vpcs --vpc-ids "$VPC_EXISTS" --region "${{ env.AWS_REGION }}" --query 'Vpcs[0].Tags')
