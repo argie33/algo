@@ -27,3 +27,4 @@ provider "aws" {
 # Trigger terraform-apply workflow
 # test
 # Testing fixed bootstrap
+# Fixed Terraform syntax errors
