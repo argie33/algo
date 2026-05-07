@@ -55,7 +55,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Retain
     Properties:
-      GroupDescription: Allow Postgres access from ECS tasks and Bastion
+      GroupDescription: Allow Postgres access from ECS tasks, Bastion, and Lambdas (dev: wide open, prod: lock down)
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -68,6 +68,11 @@ Resources:
           ToPort: 5432
           SourceSecurityGroupId: !ImportValue StocksCore-BastionSecurityGroupId
           Description: "Allow Postgres from Bastion host"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+          Description: "Allow Postgres from anywhere (dev only - lock down for production)"
 
   ### 3) RDS Instance ###
   # NOTE: Current DB has 61GB allocated. Cannot reduce storage in RDS.

@@ -9,10 +9,9 @@
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Core infrastructure stack - VPC, Subnets, Internet Gateway, NAT Gateway, Bastion host (Spot ASG),
+  Core infrastructure stack - VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
   auto-shutdown Lambda, ECR registry, S3 code bucket, and algo artifacts bucket.
-  NAT Gateway enables outbound internet access for private resources (Lambdas, ECS loaders)
-  to call external APIs (Alpaca, yfinance).
+  **NAT Gateway removed to save cost in dev. Add later for production.**
 
 Parameters:
   VpcCidr:
@@ -523,33 +522,6 @@ Resources:
         - !Ref VpcEndpointSecurityGroup
       PrivateDnsEnabled: true
 
-  ### 11) NAT Gateway — Enable outbound internet for private resources ###
-  NatGatewayEIP:
-    Type: AWS::EC2::EIP
-    DependsOn: VPCGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: stocks-nat-eip
-
-  NatGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatGatewayEIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: stocks-nat-gateway
-
-  PrivateNatRoute:
-    Type: AWS::EC2::Route
-    DependsOn: NatGateway
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: "0.0.0.0/0"
-      NatGatewayId: !Ref NatGateway
-
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
@@ -623,15 +595,7 @@ Outputs:
     Value: !Ref CloudWatchLogsEndpoint
     Export:
       Name: StocksCore-CloudWatchLogsEndpointId
-  NatGatewayId:
-    Value: !Ref NatGateway
-    Export:
-      Name: StocksCore-NatGatewayId
-  NatGatewayEIP:
-    Value: !Ref NatGatewayEIP
-    Export:
-      Name: StocksCore-NatGatewayEIP
   VpcEndpointCostSavings:
-    Value: NAT Gateway (~$32/month) enables Alpaca/yfinance API access from private subnets. VPC Endpoints provide AWS service access without additional charges.
+    Value: VPC Endpoints eliminate NAT Gateway charges (~$32/month savings in dev). Add NAT Gateway for production when needed.
     Export:
       Name: StocksCore-OptimizationNotes

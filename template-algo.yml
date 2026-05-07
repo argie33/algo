@@ -131,45 +131,6 @@ Resources:
                   - ec2:DeleteNetworkInterface
                 Resource: '*'
 
-  # Lambda Security Group for algo orchestrator
-  AlgoLambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for algo orchestrator Lambda (RDS egress only)
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          DestinationSecurityGroupId: !ImportValue StocksApp-DBSecurityGroupId
-          Description: "Allow PostgreSQL to RDS"
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: "Allow HTTPS for Alpaca/SEC EDGAR/yfinance API calls"
-        - IpProtocol: tcp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS resolution"
-        - IpProtocol: udp
-          FromPort: 53
-          ToPort: 53
-          CidrIp: 0.0.0.0/0
-          Description: "Allow DNS resolution"
-
-  # Allow Lambda to connect to RDS
-  RDSIngressFromAlgoLambda:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      GroupId: !ImportValue StocksApp-DBSecurityGroupId
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !Ref AlgoLambdaSecurityGroup
-      Description: "Allow PostgreSQL from algo orchestrator Lambda"
-
   # Lambda function
   AlgoOrchestratorFunction:
     Type: AWS::Lambda::Function
@@ -182,12 +143,7 @@ Resources:
       Handler: lambda_function.lambda_handler
       Timeout: 900  # 15 minutes
       MemorySize: 512
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref AlgoLambdaSecurityGroup
-        SubnetIds:
-          - !ImportValue StocksCore-PrivateSubnet1Id
-          - !ImportValue StocksCore-PrivateSubnet2Id
+      # Dev: Public Lambda for cost savings. Prod: Add VpcConfig when adding NAT Gateway.
       Code:
         S3Bucket: !Ref LambdaFunctionCodeBucket
         S3Key: !Ref LambdaFunctionCodeKey
