@@ -1,110 +1,189 @@
+﻿# ============================================================
+# Root Module - Outputs
 # ============================================================
-# Outputs - Exported values for reference and integration
+
+# ============================================================
+# Network Outputs
 # ============================================================
 
-# Bootstrap Outputs
-output "oidc_provider_arn" {
-  description = "ARN of the OIDC provider for GitHub Actions"
-  value       = var.deploy_bootstrap ? module.bootstrap[0].oidc_provider_arn : null
-}
-
-output "github_deploy_role_arn" {
-  description = "ARN of the GitHub Actions deploy role"
-  value       = var.deploy_bootstrap ? module.bootstrap[0].github_deploy_role_arn : null
-}
-
-# Core Outputs
 output "vpc_id" {
   description = "VPC ID"
-  value       = var.deploy_core ? module.core[0].vpc_id : null
+  value       = module.vpc.vpc_id
 }
 
 output "public_subnet_ids" {
   description = "Public subnet IDs"
-  value       = var.deploy_core ? module.core[0].public_subnet_ids : null
+  value       = module.vpc.public_subnet_ids
 }
 
 output "private_subnet_ids" {
   description = "Private subnet IDs"
-  value       = var.deploy_core ? module.core[0].private_subnet_ids : null
+  value       = module.vpc.private_subnet_ids
 }
 
-output "ecr_repository_uri" {
-  description = "ECR repository URI"
-  value       = var.deploy_core ? module.core[0].ecr_repository_uri : null
+output "vpc_endpoint_ids" {
+  description = "VPC endpoint IDs"
+  value       = module.vpc.vpc_endpoint_ids
 }
 
-output "cf_templates_bucket_name" {
-  description = "CloudFormation templates bucket name"
-  value       = var.deploy_core ? module.core[0].cf_templates_bucket_name : null
+# ============================================================
+# Storage Outputs
+# ============================================================
+
+output "storage_buckets" {
+  description = "S3 bucket names"
+  value = {
+    code_bucket              = module.storage.code_bucket_name
+    cf_templates_bucket      = module.storage.cf_templates_bucket_name
+    lambda_artifacts_bucket  = module.storage.lambda_artifacts_bucket_name
+    data_loading_bucket      = module.storage.data_loading_bucket_name
+    log_archive_bucket       = module.storage.log_archive_bucket_name
+    frontend_bucket          = module.storage.frontend_bucket_name
+  }
 }
 
-output "code_bucket_name" {
-  description = "Code bucket name"
-  value       = var.deploy_core ? module.core[0].code_bucket_name : null
-}
+# ============================================================
+# Database Outputs
+# ============================================================
 
-output "algo_artifacts_bucket_name" {
-  description = "Algo artifacts bucket name"
-  value       = var.deploy_core ? module.core[0].algo_artifacts_bucket_name : null
-}
-
-# Data Infrastructure Outputs
-output "db_endpoint" {
-  description = "RDS database endpoint"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].db_endpoint : null
+output "rds_endpoint" {
+  description = "RDS database endpoint (host:port)"
+  value       = module.database.rds_endpoint
   sensitive   = true
 }
 
-output "db_port" {
+output "rds_address" {
+  description = "RDS database host address"
+  value       = module.database.rds_address
+  sensitive   = true
+}
+
+output "rds_port" {
   description = "RDS database port"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].db_port : null
+  value       = module.database.rds_port
 }
 
-output "db_name" {
+output "rds_database_name" {
   description = "RDS database name"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].db_name : null
+  value       = module.database.rds_database_name
 }
 
-output "db_secret_arn" {
-  description = "ARN of RDS secret in Secrets Manager"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].db_secret_arn : null
+output "rds_credentials_secret_arn" {
+  description = "ARN of RDS credentials secret"
+  value       = module.database.rds_credentials_secret_arn
   sensitive   = true
 }
+
+# ============================================================
+# Compute Outputs
+# ============================================================
 
 output "ecs_cluster_name" {
   description = "ECS cluster name"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].ecs_cluster_name : null
+  value       = module.compute.ecs_cluster_name
 }
 
 output "ecs_cluster_arn" {
   description = "ECS cluster ARN"
-  value       = var.deploy_data_infrastructure ? module.data_infrastructure[0].ecs_cluster_arn : null
+  value       = module.compute.ecs_cluster_arn
 }
 
-# Webapp Outputs
-output "api_endpoint" {
+output "ecr_repository_url" {
+  description = "ECR repository URL"
+  value       = module.compute.ecr_repository_url
+}
+
+output "bastion_asg_name" {
+  description = "Bastion Auto Scaling Group name"
+  value       = module.compute.bastion_asg_name
+}
+
+output "bastion_shutdown_lambda_arn" {
+  description = "Bastion shutdown Lambda ARN"
+  value       = module.compute.bastion_shutdown_lambda_arn
+}
+
+# ============================================================
+# API & Services Outputs
+# ============================================================
+
+output "api_url" {
   description = "API Gateway endpoint URL"
-  value       = var.deploy_webapp ? module.webapp[0].api_endpoint : null
+  value       = module.services.api_url
+}
+
+output "api_lambda_arn" {
+  description = "API Lambda function ARN"
+  value       = module.services.api_lambda_arn
 }
 
 output "cloudfront_domain" {
-  description = "CloudFront distribution domain name"
-  value       = var.deploy_webapp ? module.webapp[0].cloudfront_domain : null
+  description = "CloudFront domain name"
+  value       = module.services.cloudfront_domain_name
 }
 
 output "website_url" {
-  description = "Website URL"
-  value       = var.deploy_webapp ? module.webapp[0].website_url : null
+  description = "Frontend website URL"
+  value       = module.services.website_url
 }
 
-# Algo Outputs
+# ============================================================
+# Authentication Outputs
+# ============================================================
+
+output "cognito_user_pool_id" {
+  description = "Cognito user pool ID"
+  value       = module.services.cognito_user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "Cognito app client ID"
+  value       = module.services.cognito_client_id
+}
+
+# ============================================================
+# Algo Orchestrator Outputs
+# ============================================================
+
 output "algo_lambda_arn" {
-  description = "Algorithm orchestrator Lambda ARN"
-  value       = var.deploy_algo ? module.algo[0].lambda_arn : null
+  description = "Algo orchestrator Lambda ARN"
+  value       = module.services.algo_lambda_arn
 }
 
-output "algo_schedule_arn" {
-  description = "Algorithm scheduler EventBridge rule ARN"
-  value       = var.deploy_algo ? module.algo[0].schedule_arn : null
+output "eventbridge_schedule_arn" {
+  description = "Algo scheduler ARN"
+  value       = module.services.eventbridge_schedule_arn
+}
+
+output "sns_alerts_topic_arn" {
+  description = "SNS alerts topic ARN"
+  value       = module.services.sns_alerts_topic_arn
+}
+
+# ============================================================
+# Loaders Outputs
+# ============================================================
+
+output "loader_task_definitions" {
+  description = "Task definition ARNs by loader name"
+  value       = module.loaders.loader_task_definition_arns
+}
+
+output "all_loader_names" {
+  description = "Configured loader names"
+  value       = module.loaders.all_loader_names
+}
+
+# ============================================================
+# Deployment Info
+# ============================================================
+
+output "deployment_summary" {
+  description = "Deployment summary"
+  value = {
+    project_name = var.project_name
+    environment  = var.environment
+    aws_region   = var.aws_region
+    deployed_at  = timestamp()
+  }
 }

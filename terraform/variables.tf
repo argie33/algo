@@ -1,219 +1,586 @@
-# Global AWS Configuration
-variable "aws_region" {
-  description = "AWS region for all resources"
-  type        = string
-  default     = "us-east-1"
-}
+﻿# ============================================================
+# Root Module - Input Variables
+# ============================================================
 
-variable "aws_account_id" {
-  description = "AWS account ID"
-  type        = string
-  sensitive   = true
-}
+# ============================================================
+# Deployment Configuration
+# ============================================================
 
-# Project Configuration
 variable "project_name" {
-  description = "Project name for tagging and naming"
+  description = "Project name for resource naming"
   type        = string
   default     = "stocks"
+  validation {
+    condition     = can(regex("^[a-z0-9-]{3,32}$", var.project_name))
+    error_message = "Project name must be 3-32 lowercase alphanumeric characters"
+  }
 }
 
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
   default     = "dev"
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "Environment must be dev, staging, or prod"
+  }
 }
 
-# GitHub Configuration
-variable "github_org" {
-  description = "GitHub organization"
+variable "aws_region" {
+  description = "AWS region"
   type        = string
-  default     = "argeropolos"
+  default     = "us-east-1"
 }
 
-variable "github_repo" {
-  description = "GitHub repository name"
+variable "github_repository" {
+  description = "GitHub repository in format owner/repo for OIDC trust"
   type        = string
-  default     = "algo"
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$", var.github_repository))
+    error_message = "Repository must be in format owner/repo"
+  }
 }
 
+variable "github_ref_path" {
+  description = "GitHub ref path for OIDC trust (e.g., refs/heads/main)"
+  type        = string
+  default     = "refs/heads/main"
+  validation {
+    condition     = can(regex("^refs/(heads|tags)/", var.github_ref_path))
+    error_message = "Ref path must start with refs/heads/ or refs/tags/"
+  }
+}
+
+variable "notification_email" {
+  description = "Email address for CloudWatch alarms and SNS notifications"
+  type        = string
+  validation {
+    condition     = can(regex("^[^@]+@[^@]+\\.[^@]+$", var.notification_email))
+    error_message = "Must be a valid email address"
+  }
+}
+
+# ============================================================
 # Network Configuration
-variable "create_vpc" {
-  description = "Whether to create a new VPC (set to false to use existing VPC)"
+# ============================================================
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "Must be a valid CIDR block"
+  }
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2 && length(var.public_subnet_cidrs) <= 4
+    error_message = "Must have 2-4 public subnets"
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for private subnets"
+  type        = list(string)
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 2 && length(var.private_subnet_cidrs) <= 4
+    error_message = "Must have 2-4 private subnets"
+  }
+}
+
+variable "availability_zones" {
+  description = "Availability zones (typically 2 or 3)"
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+variable "enable_vpc_endpoints" {
+  description = "Enable VPC endpoints (S3, Secrets Manager, ECR, CloudWatch Logs, SNS, DynamoDB)"
   type        = bool
   default     = true
 }
 
-variable "vpc_id" {
-  description = "Existing VPC ID to use (if create_vpc is false)"
+# ============================================================
+# RDS Configuration
+# ============================================================
+
+variable "rds_username" {
+  description = "Master username for RDS database"
+  type        = string
+  default     = "stocks"
+  sensitive   = true
+}
+
+variable "rds_db_name" {
+  description = "Initial database name for RDS"
+  type        = string
+  default     = "stocks"
+  validation {
+    condition     = can(regex("^[a-z0-9_]{3,32}$", var.rds_db_name))
+    error_message = "DB name must be 3-32 lowercase alphanumeric characters"
+  }
+}
+
+variable "rds_instance_class" {
+  description = "RDS instance type"
+  type        = string
+  default     = "db.t3.micro"
+  validation {
+    condition     = can(regex("^db\\.", var.rds_instance_class))
+    error_message = "Must be a valid RDS instance class (e.g., db.t3.micro)"
+  }
+}
+
+variable "rds_allocated_storage" {
+  description = "Initial allocated storage in GB"
+  type        = number
+  default     = 61
+  validation {
+    condition     = var.rds_allocated_storage >= 20 && var.rds_allocated_storage <= 65535
+    error_message = "Storage must be between 20 and 65535 GB"
+  }
+}
+
+variable "rds_max_allocated_storage" {
+  description = "Maximum auto-scaling storage in GB"
+  type        = number
+  default     = 100
+  validation {
+    condition     = var.rds_max_allocated_storage >= 20 && var.rds_max_allocated_storage <= 65535
+    error_message = "Max storage must be between 20 and 65535 GB"
+  }
+}
+
+variable "rds_backup_retention_period" {
+  description = "Backup retention period in days"
+  type        = number
+  default     = 30
+  validation {
+    condition     = var.rds_backup_retention_period >= 1 && var.rds_backup_retention_period <= 35
+    error_message = "Retention period must be 1-35 days"
+  }
+}
+
+variable "rds_backup_window" {
+  description = "Backup window in UTC (HH:MM-HH:MM)"
+  type        = string
+  default     = "03:00-04:00"
+}
+
+variable "rds_maintenance_window" {
+  description = "Maintenance window in UTC (ddd:HH:MM-ddd:HH:MM)"
+  type        = string
+  default     = "sun:04:00-sun:05:00"
+}
+
+variable "enable_rds_cloudwatch_logs" {
+  description = "Enable CloudWatch logs for RDS"
+  type        = bool
+  default     = true
+}
+
+variable "rds_log_retention_days" {
+  description = "RDS log retention in days"
+  type        = number
+  default     = 30
+}
+
+# ============================================================
+# ECS Configuration
+# ============================================================
+
+variable "ecs_cluster_name" {
+  description = "ECS cluster name"
   type        = string
   default     = null
 }
 
-variable "existing_public_subnet_ids" {
-  description = "Existing public subnet IDs to use (if create_vpc is false)"
+variable "ecs_capacity_providers" {
+  description = "ECS capacity providers (FARGATE, FARGATE_SPOT)"
   type        = list(string)
-  default     = []
+  default     = ["FARGATE", "FARGATE_SPOT"]
 }
 
-variable "existing_private_subnet_ids" {
-  description = "Existing private subnet IDs to use (if create_vpc is false)"
-  type        = list(string)
-  default     = []
+variable "ecs_default_capacity_provider_strategy" {
+  description = "Default capacity provider strategy"
+  type = list(object({
+    capacity_provider = string
+    weight            = number
+  }))
+  default = [
+    { capacity_provider = "FARGATE_SPOT", weight = 4 },
+    { capacity_provider = "FARGATE", weight = 1 }
+  ]
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for VPC (if creating new VPC)"
+# ============================================================
+# Bastion Configuration
+# ============================================================
+
+variable "bastion_enabled" {
+  description = "Whether to create Bastion host"
+  type        = bool
+  default     = true
+}
+
+variable "bastion_instance_type" {
+  description = "EC2 instance type for Bastion"
   type        = string
-  default     = "10.1.0.0/16"
+  default     = "t3.micro"
+  validation {
+    condition     = can(regex("^t[23]\\.", var.bastion_instance_type))
+    error_message = "Bastion should use t3 or t4g instance types"
+  }
 }
 
-variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets (if creating new VPC)"
-  type        = list(string)
-  default     = ["10.1.1.0/24", "10.1.2.0/24"]
-}
-
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets (if creating new VPC)"
-  type        = list(string)
-  default     = ["10.1.10.0/24", "10.1.11.0/24"]
-}
-
-# Database Configuration
-variable "db_name" {
-  description = "RDS database name"
-  type        = string
-  default     = "stocks"
-}
-
-variable "db_user" {
-  description = "RDS master username"
-  type        = string
-  default     = "stocks"
-}
-
-variable "db_password" {
-  description = "RDS master password"
-  type        = string
-  sensitive   = true
-}
-
-variable "db_instance_class" {
-  description = "RDS instance type"
-  type        = string
-  default     = "db.t3.micro"
-}
-
-variable "db_allocated_storage" {
-  description = "RDS allocated storage in GB"
+variable "bastion_shutdown_hour_utc" {
+  description = "Hour (UTC) to shutdown Bastion (0-23)"
   type        = number
-  default     = 100
+  default     = 4
+  validation {
+    condition     = var.bastion_shutdown_hour_utc >= 0 && var.bastion_shutdown_hour_utc < 24
+    error_message = "Hour must be 0-23"
+  }
 }
 
-# ECS Configuration
-variable "ecs_instance_type" {
-  description = "EC2 instance type for ECS cluster"
+variable "bastion_shutdown_minute_utc" {
+  description = "Minute (UTC) to shutdown Bastion (0-59)"
+  type        = number
+  default     = 59
+  validation {
+    condition     = var.bastion_shutdown_minute_utc >= 0 && var.bastion_shutdown_minute_utc < 60
+    error_message = "Minute must be 0-59"
+  }
+}
+
+# ============================================================
+# ECR Configuration
+# ============================================================
+
+variable "ecr_repository_name" {
+  description = "ECR repository name"
   type        = string
-  default     = "t3.small"
+  default     = null
 }
 
-variable "ecs_min_capacity" {
-  description = "Minimum ECS cluster size"
-  type        = number
-  default     = 1
+variable "ecr_image_scan_enabled" {
+  description = "Enable ECR image scanning on push"
+  type        = bool
+  default     = true
 }
 
-variable "ecs_max_capacity" {
-  description = "Maximum ECS cluster size"
-  type        = number
-  default     = 3
+variable "ecr_image_tag_mutability" {
+  description = "ECR image tag mutability (MUTABLE or IMMUTABLE)"
+  type        = string
+  default     = "MUTABLE"
+  validation {
+    condition     = contains(["MUTABLE", "IMMUTABLE"], var.ecr_image_tag_mutability)
+    error_message = "Must be MUTABLE or IMMUTABLE"
+  }
 }
 
+# ============================================================
+# Storage Configuration
+# ============================================================
+
+variable "enable_s3_versioning" {
+  description = "Enable versioning on all S3 buckets"
+  type        = bool
+  default     = true
+}
+
+variable "code_bucket_lifecycle" {
+  description = "Lifecycle configuration for code bucket"
+  type = object({
+    expiration_days    = number
+    transition_days    = number
+    transition_storage = string
+  })
+  default = {
+    expiration_days    = 90
+    transition_days    = 30
+    transition_storage = "STANDARD_IA"
+  }
+}
+
+variable "cf_templates_bucket_lifecycle" {
+  description = "Lifecycle configuration for CloudFormation templates bucket"
+  type = object({
+    expiration_days = number
+  })
+  default = {
+    expiration_days = 365
+  }
+}
+
+variable "lambda_artifacts_bucket_lifecycle" {
+  description = "Lifecycle configuration for Lambda artifacts bucket"
+  type = object({
+    expiration_days = number
+  })
+  default = {
+    expiration_days = 90
+  }
+}
+
+variable "data_loading_bucket_lifecycle" {
+  description = "Lifecycle configuration for data loading bucket"
+  type = object({
+    expiration_days = number
+  })
+  default = {
+    expiration_days = 30
+  }
+}
+
+variable "log_archive_bucket_lifecycle" {
+  description = "Lifecycle configuration for log archive bucket"
+  type = object({
+    intelligent_tiering       = bool
+    glacier_ir_days          = number
+    deep_archive_days        = number
+  })
+  default = {
+    intelligent_tiering = true
+    glacier_ir_days    = 90
+    deep_archive_days  = 365
+  }
+}
+
+# ============================================================
 # Lambda Configuration
-variable "lambda_memory" {
-  description = "Lambda function memory in MB"
+# ============================================================
+
+variable "api_lambda_memory" {
+  description = "Memory for API Lambda"
+  type        = number
+  default     = 256
+}
+
+variable "api_lambda_timeout" {
+  description = "Timeout for API Lambda"
+  type        = number
+  default     = 30
+}
+
+variable "api_lambda_ephemeral_storage" {
+  description = "Ephemeral storage for API Lambda"
   type        = number
   default     = 512
 }
 
-variable "lambda_timeout" {
-  description = "Lambda function timeout in seconds"
+variable "algo_lambda_memory" {
+  description = "Memory for algo Lambda"
+  type        = number
+  default     = 512
+}
+
+variable "algo_lambda_timeout" {
+  description = "Timeout for algo Lambda"
   type        = number
   default     = 300
 }
 
-# Cognito Configuration
-variable "cognito_callback_urls" {
-  description = "Cognito callback URLs"
-  type        = list(string)
-  default     = ["http://localhost:5173"]
+variable "algo_lambda_ephemeral_storage" {
+  description = "Ephemeral storage for algo Lambda"
+  type        = number
+  default     = 2048
 }
 
-variable "cognito_logout_urls" {
-  description = "Cognito logout URLs"
-  type        = list(string)
-  default     = ["http://localhost:5173"]
-}
-
-# Email Configuration
-variable "notification_email" {
-  description = "Email for CloudWatch notifications"
+variable "api_lambda_code_file" {
+  description = "Path to API Lambda deployment package"
   type        = string
-  default     = "your-email@example.com"
+  default     = "lambda_api.zip"
 }
 
-# Enable/Disable Stacks
-variable "deploy_bootstrap" {
-  description = "Deploy OIDC bootstrap stack"
+variable "algo_lambda_code_file" {
+  description = "Path to algo Lambda deployment package"
+  type        = string
+  default     = "lambda_algo.zip"
+}
+
+# ============================================================
+# API Gateway Configuration
+# ============================================================
+
+variable "api_gateway_stage_name" {
+  description = "API Gateway stage name"
+  type        = string
+  default     = "api"
+}
+
+variable "api_gateway_logging_enabled" {
+  description = "Enable CloudWatch logging for API Gateway"
   type        = bool
   default     = true
 }
 
-variable "deploy_core" {
-  description = "Deploy core infrastructure"
+variable "api_cors_allowed_origins" {
+  description = "CORS allowed origins"
+  type        = list(string)
+  default     = ["http://localhost:5173", "http://localhost:3000"]
+}
+
+variable "api_gateway_log_retention_days" {
+  description = "API Gateway log retention"
+  type        = number
+  default     = 7
+}
+
+# ============================================================
+# CloudFront Configuration
+# ============================================================
+
+variable "cloudfront_enabled" {
+  description = "Enable CloudFront distribution"
   type        = bool
   default     = true
 }
 
-variable "deploy_data_infrastructure" {
-  description = "Deploy data infrastructure (RDS, ECS)"
-  type        = bool
-  default     = true
+variable "cloudfront_cache_default_ttl" {
+  description = "Default CloudFront cache TTL"
+  type        = number
+  default     = 3600
 }
 
-variable "deploy_loaders" {
-  description = "Deploy loader tasks"
-  type        = bool
-  default     = true
+variable "cloudfront_cache_max_ttl" {
+  description = "Max CloudFront cache TTL"
+  type        = number
+  default     = 86400
 }
 
-variable "deploy_webapp" {
-  description = "Deploy webapp (Lambda, CloudFront)"
-  type        = bool
-  default     = true
-}
-
-variable "deploy_algo" {
-  description = "Deploy algo orchestrator"
-  type        = bool
-  default     = true
-}
-
-# Resource Control Flags
-variable "create_ecr_repository" {
-  description = "Whether to create ECR repository (set to false if already exists)"
+variable "cloudfront_waf_enabled" {
+  description = "Enable WAF on CloudFront"
   type        = bool
   default     = false
 }
 
-variable "create_s3_buckets" {
-  description = "Whether to create S3 buckets (set to false if they already exist)"
+# ============================================================
+# Cognito Configuration
+# ============================================================
+
+variable "cognito_enabled" {
+  description = "Enable Cognito user pool"
   type        = bool
-  default     = false
+  default     = true
 }
 
+variable "cognito_user_pool_name" {
+  description = "Cognito user pool name"
+  type        = string
+  default     = null
+}
+
+variable "cognito_password_min_length" {
+  description = "Cognito password minimum length"
+  type        = number
+  default     = 12
+}
+
+variable "cognito_mfa_configuration" {
+  description = "Cognito MFA configuration"
+  type        = string
+  default     = "OPTIONAL"
+  validation {
+    condition     = contains(["OFF", "OPTIONAL", "REQUIRED"], var.cognito_mfa_configuration)
+    error_message = "Must be OFF, OPTIONAL, or REQUIRED"
+  }
+}
+
+variable "cognito_session_duration_hours" {
+  description = "Cognito session duration"
+  type        = number
+  default     = 24
+}
+
+# ============================================================
+# Algo Orchestrator Configuration
+# ============================================================
+
+variable "algo_schedule_expression" {
+  description = "Cron expression for algo execution"
+  type        = string
+  default     = "cron(0 4 ? * MON-FRI *)"
+}
+
+variable "algo_schedule_enabled" {
+  description = "Enable algo scheduler"
+  type        = bool
+  default     = true
+}
+
+variable "algo_schedule_timezone" {
+  description = "Timezone for algo schedule"
+  type        = string
+  default     = "America/New_York"
+}
+
+# ============================================================
+# SNS Configuration
+# ============================================================
+
+variable "sns_alerts_enabled" {
+  description = "Enable SNS alerts"
+  type        = bool
+  default     = true
+}
+
+variable "sns_alert_email" {
+  description = "Email for SNS alerts"
+  type        = string
+  default     = ""
+}
+
+# ============================================================
+# Loader Configuration
+# ============================================================
+
+variable "loader_manifest" {
+  description = "Custom loader manifest (merges with defaults)"
+  type = map(object({
+    cpu           = optional(number)
+    memory        = optional(number)
+    schedule      = optional(string)
+  }))
+  default = {}
+}
+
+variable "enable_scheduled_loaders" {
+  description = "Enable EventBridge scheduled rules for loaders"
+  type        = bool
+  default     = true
+}
+
+# ============================================================
+# Logging Configuration
+# ============================================================
+
+variable "cloudwatch_log_retention_days" {
+  description = "Default CloudWatch log retention"
+  type        = number
+  default     = 30
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.cloudwatch_log_retention_days)
+    error_message = "Must be a valid CloudWatch retention period"
+  }
+}
+
+variable "enable_bastion_cloudwatch_logs" {
+  description = "Enable CloudWatch logs for Bastion SSM"
+  type        = bool
+  default     = true
+}
+
+# ============================================================
 # Tags
+# ============================================================
+
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
