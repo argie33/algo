@@ -22,17 +22,18 @@ from pathlib import Path
 from datetime import date
 
 
+@pytest.fixture(scope="module")
+def reference_metrics():
+    """Load reference metrics from file."""
+    ref_file = Path(__file__).parent / "reference_metrics.json"
+    assert ref_file.exists(), f"reference_metrics.json not found at {ref_file}"
+    with open(ref_file) as f:
+        return json.load(f)
+
+
 @pytest.mark.regression
 class TestBacktestRegression:
     """Ensure backtest metrics don't regress beyond tolerance."""
-
-    @pytest.fixture(scope="class")
-    def reference_metrics(self):
-        """Load reference metrics from file."""
-        ref_file = Path(__file__).parent / "reference_metrics.json"
-        assert ref_file.exists(), f"reference_metrics.json not found at {ref_file}"
-        with open(ref_file) as f:
-            return json.load(f)
 
     @pytest.fixture(scope="class")
     def current_metrics(self, test_config):
