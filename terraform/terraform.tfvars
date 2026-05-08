@@ -119,9 +119,9 @@ cognito_session_duration_hours = 24
 # Algo Orchestrator
 # ============================================================
 
-algo_schedule_expression = "cron(0 4 ? * MON-FRI *)"
+algo_schedule_expression = "cron(0 22 ? * MON-FRI *)"
 algo_schedule_enabled = true
-algo_schedule_timezone = "America/New_York"
+algo_schedule_timezone = "UTC"
 
 # ============================================================
 # SNS Alerts

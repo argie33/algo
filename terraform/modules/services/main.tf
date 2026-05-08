@@ -39,26 +39,15 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 # API Lambda Function (placeholder)
 # ============================================================
 
-# Use data archive to avoid requiring file existence during validation
-data "archive_file" "api_lambda" {
-  type        = "zip"
-  output_path = "${path.module}/.terraform_generated_api_lambda.zip"
-
-  source {
-    content  = "import json\ndef handler(event, context):\n    return {'statusCode': 200, 'body': json.dumps({'message': 'API Lambda placeholder'})}"
-    filename = "index.py"
-  }
-}
-
 resource "aws_lambda_function" "api" {
-  filename         = data.archive_file.api_lambda.output_path
+  filename         = var.api_lambda_code_file
   function_name   = local.api_lambda_name
   role            = var.api_lambda_role_arn
   handler         = "index.handler"
   runtime         = "python3.11"
   timeout         = var.api_lambda_timeout
   memory_size     = var.api_lambda_memory
-  source_code_hash = data.archive_file.api_lambda.output_base64sha256
+  source_code_hash = filebase64sha256(var.api_lambda_code_file)
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
@@ -402,7 +391,10 @@ resource "aws_cognito_user_pool_client" "main" {
     refresh_token = "days"
   }
 
-  depends_on = [aws_cognito_user_pool.main]
+  depends_on = [
+    aws_cognito_user_pool.main,
+    aws_cloudfront_distribution.frontend
+  ]
 }
 
 # ============================================================
@@ -428,26 +420,15 @@ resource "aws_cloudwatch_log_group" "algo_lambda" {
 # Algo Lambda Function (placeholder)
 # ============================================================
 
-# Use data archive to avoid requiring file existence during validation
-data "archive_file" "algo_lambda" {
-  type        = "zip"
-  output_path = "${path.module}/.terraform_generated_algo_lambda.zip"
-
-  source {
-    content  = "import json\ndef handler(event, context):\n    return {'statusCode': 200, 'body': json.dumps({'message': 'Algo Lambda placeholder'})}"
-    filename = "index.py"
-  }
-}
-
 resource "aws_lambda_function" "algo" {
-  filename         = data.archive_file.algo_lambda.output_path
+  filename         = var.algo_lambda_code_file
   function_name   = local.algo_lambda_name
   role            = var.algo_lambda_role_arn
   handler         = "index.handler"
   runtime         = "python3.11"
   timeout         = var.algo_lambda_timeout
   memory_size     = var.algo_lambda_memory
-  source_code_hash = data.archive_file.algo_lambda.output_base64sha256
+  source_code_hash = filebase64sha256(var.algo_lambda_code_file)
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
