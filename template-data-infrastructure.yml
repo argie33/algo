@@ -37,6 +37,7 @@ Parameters:
 
 Conditions:
   HasAlertTopic: !Not [!Equals [!Ref AlertTopicArn, '']]
+  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
 
 Resources:
 
@@ -163,6 +164,7 @@ Resources:
   ### 5.1) ECS Tasks Security Group ###
   EcsTasksSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Retain
     Properties:
       GroupDescription: Security group for ECS tasks
       VpcId: !ImportValue StocksCore-VpcId
@@ -356,6 +358,7 @@ Outputs:
       Name: StocksApp-AlgoSecretsSecretArn
 
   EmailNotificationEmail:
+    Condition: HasNotificationEmail
     Description: Email address for contact form notifications
     Value: !Ref NotificationEmail
     Export:
