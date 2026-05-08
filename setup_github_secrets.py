@@ -45,7 +45,7 @@ def get_repo_info():
             owner = parts[-2]
             repo = parts[-1]
             return owner, repo
-    except:
+    except (subprocess.CalledProcessError, IndexError, ValueError):
         pass
 
     print("ERROR: Could not detect GitHub repository")
