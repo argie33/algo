@@ -5,7 +5,7 @@
 # GitHub Actions OIDC & Role
 output "github_oidc_provider_arn" {
   description = "ARN of GitHub Actions OIDC provider"
-  value       = aws_iam_openid_connect_provider.github.arn
+  value       = data.aws_iam_openid_connect_provider.github_existing.arn
 }
 
 output "github_actions_role_arn" {
