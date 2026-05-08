@@ -76,12 +76,12 @@ data_bucket_expiration_days = 30
 api_lambda_memory     = 256
 api_lambda_timeout    = 30
 api_lambda_ephemeral_storage = 512
-api_lambda_code_file  = "lambda_api.zip"
+api_lambda_code_file  = "../lambda_api.zip"
 
 algo_lambda_memory    = 512
 algo_lambda_timeout   = 300
 algo_lambda_ephemeral_storage = 2048
-algo_lambda_code_file = "lambda_algo.zip"
+algo_lambda_code_file = "../lambda_algo.zip"
 
 # ============================================================
 # API Gateway

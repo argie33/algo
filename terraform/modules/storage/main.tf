@@ -51,7 +51,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
     filter {}
 
     expiration {
-      days = var.code_bucket_expiration_days
+      days                         = var.code_bucket_expiration_days
+      expired_object_delete_marker = true
     }
 
     noncurrent_version_expiration {
@@ -61,11 +62,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
     # Clean up incomplete multipart uploads after 7 days
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
-    }
-
-    # Remove delete markers that have no current version
-    expiration {
-      expired_object_delete_marker = true
     }
   }
 }
@@ -157,7 +153,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
     filter {}
 
     expiration {
-      days = 90
+      days                         = 90
+      expired_object_delete_marker = true
     }
 
     noncurrent_version_expiration {
@@ -167,11 +164,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
     # Clean up incomplete multipart uploads after 7 days
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
-    }
-
-    # Remove delete markers that have no current version
-    expiration {
-      expired_object_delete_marker = true
     }
   }
 }
@@ -216,17 +208,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
     filter {}
 
     expiration {
-      days = var.data_bucket_expiration_days
+      days                         = var.data_bucket_expiration_days
+      expired_object_delete_marker = true
     }
 
     # Clean up incomplete multipart uploads after 7 days
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
-    }
-
-    # Remove delete markers that have no current version
-    expiration {
-      expired_object_delete_marker = true
     }
   }
 }

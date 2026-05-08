@@ -166,23 +166,9 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 # CloudFront Distribution (Frontend CDN)
 # ============================================================
 
-# Data source to detect existing OAC (handles orphaned resources from failed prior deploys)
-data "aws_cloudfront_origin_access_controls" "existing" {
-  count = var.cloudfront_enabled ? 1 : 0
-}
-
-# Find matching OAC by name if it exists
+# OAC handling: cleaned up manually, now create fresh
 locals {
-  existing_oac_name = var.cloudfront_enabled ? "${var.project_name}-frontend-oac-${var.environment}" : null
-  existing_oac_id = var.cloudfront_enabled ? (
-    try(
-      [
-        for oac in data.aws_cloudfront_origin_access_controls.existing[0].items : oac.id
-        if oac.name == local.existing_oac_name
-      ][0],
-      null
-    )
-  ) : null
+  existing_oac_id = null
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
@@ -323,8 +309,6 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
     ]
   })
 }
-
-data "aws_caller_identity" "current" {}
 
 # ============================================================
 # Cognito User Pool (Authentication)

@@ -240,14 +240,3 @@ variable "rds_connections_alarm_threshold" {
     error_message = "Connections threshold must be > 0"
   }
 }
-
-variable "cloudwatch_log_retention_days" {
-  description = "CloudWatch log retention in days"
-  type        = number
-  default     = 30
-
-  validation {
-    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.cloudwatch_log_retention_days)
-    error_message = "Must be a valid CloudWatch retention period"
-  }
-}

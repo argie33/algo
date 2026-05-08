@@ -1,0 +1,7 @@
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot apply incomplete plan[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform encountered an error when generating this plan, so it cannot be
+[31m│[0m [0mapplied.
+[31m╵[0m[0m
+Releasing state lock. This may take a few moments...
