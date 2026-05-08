@@ -112,6 +112,12 @@ class ExitEngine:
 
                 days_held = (current_date - trade_date).days
 
+                # CRITICAL FIX: Minimum 1-day hold to prevent same-day entry/exit
+                # All 39 closed trades currently at 0% P&L because they exit same day
+                if days_held < 1:
+                    print(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
+                    continue
+
                 exit_signal = self._evaluate_position(
                     symbol, current_date,
                     cur_price, prev_close, entry_price, active_stop, init_stop,

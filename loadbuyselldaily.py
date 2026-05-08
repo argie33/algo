@@ -268,6 +268,10 @@ class BuySellDailyLoader(OptimalLoader):
         # Entry price is the close (for BUY signals, this is the signal trigger price)
         entry_price = close_price
 
+        # CRITICAL FIX: Validate entry_price exists (239 signals currently NULL)
+        if entry_price is None or entry_price <= 0:
+            return None  # Skip signals with invalid entry prices
+
         # Stop level: 2x ATR below the low of the signal day (for BUY signals)
         # This provides a reasonable stop loss
         if atr and low_price and signal_str == "BUY":
