@@ -17,6 +17,9 @@ gh workflow run deploy-all-infrastructure.yml --repo argie33/algo
 
 | Task | Resource |
 |------|----------|
+| **System status snapshot** | STATUS.md |
+| **I want to change X** | DECISION_MATRIX.md |
+| **Check costs** | .claude/cost-tracker.json |
 | **Understand the system** | memory/architectural_principles.md |
 | **Deploy infrastructure** | deployment-reference.md |
 | **Test locally** | memory/local_testing_setup.md |
