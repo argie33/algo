@@ -45,6 +45,44 @@ jobs:
           chmod +x .github/workflows/bootstrap.sh
           .github/workflows/bootstrap.sh "${{ env.AWS_REGION }}" "${{ secrets.AWS_ACCOUNT_ID }}"
 
+      - name: Delete existing IAM roles (with basic auth)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "Deleting existing IAM roles with admin credentials..."
+          # List of roles to delete
+          ROLES=(
+            "stocks-bastion-stop-lambda-role"
+            "stocks-rds-monitoring-role"
+            "stocks-github-actions-dev"
+            "stocks-bastion-dev"
+            "stocks-ecs-task-execution-dev"
+            "stocks-ecs-task-dev"
+            "stocks-lambda-api-dev"
+            "stocks-lambda-algo-dev"
+            "stocks-eventbridge-scheduler-dev"
+            "stocks-eventbridge-run-task-role"
+          )
+
+          for ROLE in "${ROLES[@]}"; do
+            echo "Deleting $ROLE..."
+            # Detach inline policies
+            for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
+              [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
+            done
+            # Detach managed policies
+            for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
+              [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
+            done
+            # Delete the role
+            aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "  ✅ Deleted $ROLE" || true
+          done
+
+          sleep 3
+          echo "IAM role cleanup complete"
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
