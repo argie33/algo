@@ -55,9 +55,9 @@ jobs:
           echo "Running comprehensive AWS resource cleanup..."
           REGION=${{ env.AWS_REGION }}
 
-          # Delete S3 buckets
-          echo "[1/4] Deleting S3 buckets..."
-          for BUCKET in $(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `stocks-`)].Name' --output text 2>/dev/null || echo ""); do
+          # Delete S3 buckets (EXCEPT terraform backend bucket)
+          echo "[1/4] Deleting S3 buckets (except terraform backend)..."
+          for BUCKET in $(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `stocks-`) && Name!=`stocks-terraform-state`].Name' --output text 2>/dev/null || echo ""); do
             [ -n "$BUCKET" ] && {
               echo "  Removing objects from $BUCKET..."
               aws s3 rm "s3://$BUCKET" --recursive --region $REGION 2>/dev/null || true
