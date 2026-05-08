@@ -120,14 +120,28 @@ class DataQualityValidator:
     def _check_loader(self, table, max_age_hours, min_expected_rows, eval_date):
         """Check if loader meets SLA: freshness + completeness."""
         try:
-            self.cur.execute(f"""
-                SELECT
-                    MAX(date) as latest_date,
-                    COUNT(*) as total_rows,
-                    COUNT(DISTINCT symbol) as symbol_count
-                FROM {table}
-                WHERE date >= NOW()::DATE - INTERVAL '1 day'
-            """)
+            # market_health_daily has no symbol column, others do
+            has_symbol = table != 'market_health_daily'
+
+            if has_symbol:
+                self.cur.execute(f"""
+                    SELECT
+                        MAX(date) as latest_date,
+                        COUNT(*) as total_rows,
+                        COUNT(DISTINCT symbol) as symbol_count
+                    FROM {table}
+                    WHERE date >= NOW()::DATE - INTERVAL '1 day'
+                """)
+            else:
+                self.cur.execute(f"""
+                    SELECT
+                        MAX(date) as latest_date,
+                        COUNT(*) as total_rows,
+                        NULL as symbol_count
+                    FROM {table}
+                    WHERE date >= NOW()::DATE - INTERVAL '1 day'
+                """)
+
             row = self.cur.fetchone()
 
             if not row or not row[0]:
@@ -150,9 +164,11 @@ class DataQualityValidator:
 
             # Check completeness SLA (allow 20% variance)
             min_acceptable = int(min_expected_rows * 0.8)
-            if symbol_count < min_acceptable:
+            # For market_health_daily, check total_rows instead of symbol_count
+            check_count = symbol_count if symbol_count is not None else total_rows
+            if check_count < min_acceptable:
                 self.warnings.append(
-                    f"{table}: Only {symbol_count}/{min_expected_rows} rows "
+                    f"{table}: Only {check_count}/{min_expected_rows} rows "
                     f"(expected >= {min_acceptable})"
                 )
 

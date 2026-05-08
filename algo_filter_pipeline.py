@@ -101,7 +101,6 @@ class FilterPipeline:
             logger.info(f"Market context: top sectors = {ctx['strong_sectors']}")
             if ctx['market_breadth']:
                 logger.info(f"  AAII bull/bear spread: {ctx['market_breadth']['bull_bear_spread']:+.1f}")
-            logger.info()
 
             tier_pass_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
             advanced_passed = 0
