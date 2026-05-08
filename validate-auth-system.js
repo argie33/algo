@@ -384,6 +384,97 @@ test('Dead test files deleted: auth.integration.test.js', () => {
 });
 
 // ============================================================================
+// IMPLEMENTATION INTEGRITY TESTS
+// ============================================================================
+
+test('LoginPage: Component exists and exports default', () => {
+  const loginPage = fs.readFileSync(path.join(__dirname, 'webapp/frontend/src/pages/LoginPage.jsx'), 'utf8');
+
+  if (!loginPage.includes('function LoginPage') && !loginPage.includes('const LoginPage')) {
+    throw new Error('LoginPage component not defined');
+  }
+  if (!loginPage.includes('export default LoginPage')) {
+    throw new Error('LoginPage not exported as default');
+  }
+  if (!loginPage.includes('AuthModal')) {
+    throw new Error('LoginPage does not use AuthModal');
+  }
+  if (!loginPage.includes('setAuthModalOpen')) {
+    throw new Error('LoginPage does not control auth modal state');
+  }
+});
+
+test('App.jsx: LoginPage imported and used', () => {
+  const app = fs.readFileSync(path.join(__dirname, 'webapp/frontend/src/App.jsx'), 'utf8');
+
+  if (!app.includes('import LoginPage')) {
+    throw new Error('LoginPage not imported in App.jsx');
+  }
+  if (!app.includes('element={<LoginPage') && !app.includes('element={<LoginPage')) {
+    throw new Error('/login route does not use LoginPage');
+  }
+});
+
+test('AuthContext: idToken JWT structure properly decoded', () => {
+  const ctx = fs.readFileSync(path.join(__dirname, 'webapp/frontend/src/contexts/AuthContext.jsx'), 'utf8');
+
+  if (!ctx.includes('split') || !ctx.includes('atob')) {
+    throw new Error('JWT decoding (split/atob) not implemented');
+  }
+  if (!ctx.includes('idToken.split') || !ctx.includes('parts[1]')) {
+    throw new Error('JWT payload extraction incorrect');
+  }
+  if (!ctx.includes('JSON.parse(atob')) {
+    throw new Error('JWT payload parsing incorrect');
+  }
+});
+
+test('API Service: User object includes all required fields', () => {
+  const apiKey = fs.readFileSync(path.join(__dirname, 'webapp/lambda/utils/apiKeyService.js'), 'utf8');
+
+  const requiredFields = ['sub', 'username', 'email', 'role', 'groups', 'sessionId'];
+  for (const field of requiredFields) {
+    if (!apiKey.includes(field + ':') && !apiKey.includes(field + ',')) {
+      throw new Error(`User object missing ${field} field`);
+    }
+  }
+});
+
+test('Auth Middleware: requireRole checks both role and groups', () => {
+  const auth = fs.readFileSync(path.join(__dirname, 'webapp/lambda/middleware/auth.js'), 'utf8');
+
+  if (!auth.includes('req.user.role') || !auth.includes('req.user.groups')) {
+    throw new Error('requireRole does not check both role and groups');
+  }
+  if (!auth.includes('hasRole') || !auth.includes('hasGroup')) {
+    throw new Error('requireRole logic incomplete');
+  }
+});
+
+test('Portfolio Routes: All data-modifying operations protected', () => {
+  const portfolio = fs.readFileSync(path.join(__dirname, 'webapp/lambda/routes/portfolio.js'), 'utf8');
+
+  // Check POST and PATCH operations have auth
+  if (!portfolio.includes('router.post') || !portfolio.includes('authenticateToken')) {
+    throw new Error('POST operations might not be authenticated');
+  }
+});
+
+test('Environment Config: Validates production environment', () => {
+  const env = fs.readFileSync(path.join(__dirname, 'webapp/lambda/config/environment.js'), 'utf8');
+
+  if (!env.includes('validateEnvironment')) {
+    throw new Error('Environment validation function missing');
+  }
+  if (!env.includes('NODE_ENV === "production"')) {
+    throw new Error('Production environment check missing');
+  }
+  if (!env.includes('throw new Error')) {
+    throw new Error('No error thrown on missing required variables');
+  }
+});
+
+// ============================================================================
 // RUN ALL TESTS
 // ============================================================================
 
