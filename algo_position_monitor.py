@@ -26,6 +26,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 import logging
+from db_connection_pool import get_db_pool
 
 logger = logging.getLogger(__name__)
 

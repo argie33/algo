@@ -69,6 +69,7 @@ class PositionStatus(Enum):
     CLOSED = 'closed'    # Position fully exited
     PARTIAL = 'partial'  # Some shares exited, some still open
     PENDING_CLOSE = 'pending_close'  # Exit order submitted, awaiting fill
+    ORPHANED = 'orphaned'  # Position in DB but not in Alpaca (error state)
 
     @classmethod
     def all_active(cls):

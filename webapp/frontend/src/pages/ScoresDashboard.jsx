@@ -98,18 +98,18 @@ export default function ScoresDashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [details, setDetails] = useState({});
 
-  const { data: items, isLoading, refetch } = useQuery({
-    queryKey: ['stock-scores'],
-    queryFn: () =>
-      api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true')
-         .then(r => r.data?.items || []),
-    refetchInterval: 60000,
-  });
+  const queryResult = useApiQuery(
+    ['stock-scores'],
+    () => api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true'),
+    { refetchInterval: 60000 }
+  );
+  const { data: rawData, loading: isLoading, refetch } = queryResult;
+  const items = (Array.isArray(rawData) ? rawData : rawData?.items) || [];
 
   useEffect(() => { setPage(1); }, [search, sector, sortBy, sortOrder, minScore]);
 
   const sectors = useMemo(() => {
-    if (!items) return [];
+    if (!items || items.length === 0) return [];
     return Array.from(new Set(items.map(i => i.sector).filter(Boolean))).sort();
   }, [items]);
 

@@ -251,8 +251,8 @@ class DailyReconciliation:
             if sym in our_symbols:
                 # Check for quantity drift
                 self.cur.execute(
-                    "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = 'open'",
-                    (sym,)
+                    "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = %s",
+                    (sym, PositionStatus.OPEN.value)
                 )
                 row = self.cur.fetchone()
                 if row:
@@ -302,7 +302,7 @@ class DailyReconciliation:
                     )
                     VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, %s, %s, %s,
                             %s, %s,
-                            %s, %s, %s, 'open', 'external', %s,
+                            %s, %s, %s, %s, %s, %s,
                             %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (trade_id) DO NOTHING
                 """, (
@@ -311,7 +311,7 @@ class DailyReconciliation:
                     avg_entry * 0.92,  # placeholder 8% stop
                     'imported_no_stop',
                     avg_entry * 1.10, avg_entry * 1.20, avg_entry * 1.30,  # placeholders
-                    f'ALPACA-EXT-{sym}',
+                    PositionStatus.OPEN.value, 'external', f'ALPACA-EXT-{sym}',
                     pos_value / 100000.0 * 100,  # rough %
                     'imported_external',
                 ))
@@ -324,11 +324,11 @@ class DailyReconciliation:
                         unrealized_pnl_pct, status, trade_ids_arr,
                         current_stop_price, target_levels_hit, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
-                              'open', %s, %s, 0, CURRENT_TIMESTAMP)
+                              %s, %s, %s, 0, CURRENT_TIMESTAMP)
                     ON CONFLICT (position_id) DO NOTHING
                 """, (
                     position_id, sym, int(qty), avg_entry, cur_price,
-                    pos_value, pnl, pnl_pct, [trade_id],
+                    pos_value, pnl, pnl_pct, PositionStatus.OPEN.value, [trade_id],
                     avg_entry * 0.92,  # placeholder 8% stop
                 ))
                 imported += 1
@@ -342,9 +342,9 @@ class DailyReconciliation:
             for sym in orphans:
                 self.cur.execute("""
                     UPDATE algo_positions
-                    SET status = 'orphaned', updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = %s AND status = 'open'
-                """, (sym,))
+                    SET status = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s AND status = %s
+                """, (PositionStatus.ORPHANED.value, sym, PositionStatus.OPEN.value))
                 # Alert: position missing from Alpaca
                 try:
                     from algo_notifications import notify

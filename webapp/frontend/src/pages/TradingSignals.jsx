@@ -14,13 +14,13 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
   Tooltip, CartesianGrid, BarChart, Bar, Cell, AreaChart, Area, ReferenceLine,
 } from 'recharts';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 // ─── formatters ────────────────────────────────────────────────────────────
@@ -85,34 +85,32 @@ export default function TradingSignals() {
 
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['signals', tab, signal, timeframe],
-    queryFn: () => {
+  const { data, loading: isLoading, refetch, isFetching } = useApiQuery(
+    ['signals', tab, signal, timeframe],
+    () => {
       const params = new URLSearchParams();
       params.set('timeframe', timeframe);
       params.set('limit', '500');
       if (signal !== 'all') params.set('signal', signal);
-      return api.get(`${endpoint}?${params.toString()}`).then(r => r.data);
+      return api.get(`${endpoint}?${params.toString()}`);
     },
-    refetchInterval: 60000,
-  });
+    { refetchInterval: 60000 }
+  );
 
-  // Pull swing scores so we can join "passes algo gates" + better SQS
-  const { data: gatesData } = useQuery({
-    queryKey: ['signals-gates'],
-    queryFn: () =>
-      api.get('/api/algo/swing-scores?limit=2000&min_score=0').then(r => r.data?.items || []),
-    refetchInterval: 120000,
-    enabled: tab === 'stocks',
-  });
+  const { data: gatesData } = useApiQuery(
+    ['signals-gates'],
+    () => api.get('/api/algo/swing-scores?limit=2000&min_score=0'),
+    { refetchInterval: 120000, enabled: tab === 'stocks' }
+  );
 
   const gateMap = useMemo(() => {
     const m = new Map();
-    (gatesData || []).forEach(g => m.set(g.symbol, g));
+    const gatesArray = (Array.isArray(gatesData) ? gatesData : gatesData?.items) || [];
+    gatesArray.forEach(g => m.set(g.symbol, g));
     return m;
   }, [gatesData]);
 
-  const rows = data?.items || data?.data || [];
+  const rows = (Array.isArray(data) ? data : data?.items) || (data?.data) || [];
 
   // Enrich rows with gate / sqs info
   const enriched = useMemo(() => rows.map(r => {

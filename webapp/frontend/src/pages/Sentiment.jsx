@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { useMarketSentiment, useStockScores } from '../hooks/useDataApi';
+import { useMarketSentiment } from '../hooks/useDataApi';
 import {
   RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
   ArrowLeft, AlertCircle, MessageSquare, Activity,
@@ -75,38 +75,29 @@ export default function Sentiment() {
   const [sortBy, setSortBy] = useState('composite');
   const [selectedSymbol, setSelectedSymbol] = useState(null);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['sentiment-stocks'],
-    queryFn: async () => {
-      const res = await api.get('/api/sentiment/data?limit=5000&page=1');
-      return res.data;
-    },
-    staleTime: 300000,
-    refetchInterval: 300000,
-  });
+  const { data, loading: isLoading, error, refetch } = useApiQuery(
+    ['sentiment-stocks'],
+    () => api.get('/api/sentiment/data?limit=5000&page=1'),
+    { staleTime: 300000, refetchInterval: 300000 }
+  );
 
-  // Cross-source aggregate sentiment (analyst + AAII retail + NAAIM pro + fear/greed)
-  const summaryQ = useQuery({
-    queryKey: ['sentiment-summary'],
-    queryFn: () => api.get('/api/sentiment/summary').then((r) => r.data?.data || null),
-    refetchInterval: 300000,
-  });
+  const summaryQ = useApiQuery(
+    ['sentiment-summary'],
+    () => api.get('/api/sentiment/summary'),
+    { refetchInterval: 300000 }
+  );
 
-  // Algo composite scores joined for contrarian-setup detection
-  const scoresQ = useQuery({
-    queryKey: ['sentiment-scores-overlay'],
-    queryFn: () =>
-      api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true')
-         .then((r) => r.data?.items || []),
-    refetchInterval: 300000,
-  });
+  const scoresQ = useApiQuery(
+    ['sentiment-scores-overlay'],
+    () => api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true'),
+    { refetchInterval: 300000 }
+  );
 
-  // Per-symbol divergence time series (analyst-only proxy: bull% − bear% over last 90d)
-  const divergenceQ = useQuery({
-    queryKey: ['sentiment-divergence'],
-    queryFn: () => api.get('/api/sentiment/divergence').then((r) => r.data?.items || []),
-    refetchInterval: 300000,
-  });
+  const divergenceQ = useApiQuery(
+    ['sentiment-divergence'],
+    () => api.get('/api/sentiment/divergence'),
+    { refetchInterval: 300000 }
+  );
 
   const rawData = data?.items || data?.data || [];
 
