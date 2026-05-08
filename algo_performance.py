@@ -389,42 +389,54 @@ class LivePerformance:
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
 
             # Upsert into database with fresh connection (insert or replace if already exists for this date)
-            conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO algo_performance_daily (
-                    report_date, rolling_sharpe_252d, win_rate_50t,
-                    avg_win_r, avg_loss_r, expectancy,
-                    max_drawdown_pct, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (report_date) DO UPDATE SET
-                    rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
-                    win_rate_50t = EXCLUDED.win_rate_50t,
-                    avg_win_r = EXCLUDED.avg_win_r,
-                    avg_loss_r = EXCLUDED.avg_loss_r,
-                    expectancy = EXCLUDED.expectancy,
-                    max_drawdown_pct = EXCLUDED.max_drawdown_pct
-                """,
-                (
-                    report_date,
-                    sharpe,
-                    wr['win_rate_pct'] if wr else None,
-                    wr['avg_win_r'] if wr else None,
-                    wr['avg_loss_r'] if wr else None,
-                    expectancy,
-                    max_dd,
+            conn = None
+            cur = None
+            try:
+                conn = psycopg2.connect(
+                    host=self.db_host,
+                    port=self.db_port,
+                    user=self.db_user,
+                    password=self.db_password,
+                    database=self.db_name,
                 )
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO algo_performance_daily (
+                        report_date, rolling_sharpe_252d, win_rate_50t,
+                        avg_win_r, avg_loss_r, expectancy,
+                        max_drawdown_pct, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (report_date) DO UPDATE SET
+                        rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                        win_rate_50t = EXCLUDED.win_rate_50t,
+                        avg_win_r = EXCLUDED.avg_win_r,
+                        avg_loss_r = EXCLUDED.avg_loss_r,
+                        expectancy = EXCLUDED.expectancy,
+                        max_drawdown_pct = EXCLUDED.max_drawdown_pct
+                    """,
+                    (
+                        report_date,
+                        sharpe,
+                        wr['win_rate_pct'] if wr else None,
+                        wr['avg_win_r'] if wr else None,
+                        wr['avg_loss_r'] if wr else None,
+                        expectancy,
+                        max_dd,
+                    )
+                )
+                conn.commit()
+            finally:
+                if cur:
+                    try:
+                        cur.close()
+                    except Exception:
+                        pass
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
 
             return result
 
