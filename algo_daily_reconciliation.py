@@ -278,6 +278,9 @@ class DailyReconciliation:
                 trade_id = f'EXT-{sym}'
 
                 # Insert a placeholder trade for tracking
+                # P3 FIX: For imported positions, set signal_date = trade_date to avoid timing violations
+                # (signal should always be <= entry date). Since we don't know when this position was
+                # opened externally, we use today's date for both, but they will be equal.
                 self.cur.execute("""
                     INSERT INTO algo_trades (
                         trade_id, symbol, signal_date, trade_date,
