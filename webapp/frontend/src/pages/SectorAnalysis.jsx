@@ -296,9 +296,9 @@ function SectorRelativeChart({ sectors }) {
   }, [sectors]);
 
   // One query that fans out internally — keeps hook count constant
-  const { data: merged, isLoading } = useQuery({
-    queryKey: ['sector-relative-90', top.join('|')],
-    queryFn: async () => {
+  const { data: merged, loading: isLoading } = useApiQuery(
+    ['sector-relative-90', top.join('|')],
+    async () => {
       if (top.length === 0) return [];
       const results = await Promise.all(top.map(name =>
         api.get(`/api/sectors/${encodeURIComponent(name)}/trend?days=90`)
@@ -316,13 +316,10 @@ function SectorRelativeChart({ sectors }) {
           all[dateKey][name] = Number(indexed.toFixed(2));
         }
       }
-      return Object.values(all).sort((a, b) => a.date.localeCompare(b.date));
+      return Promise.resolve(Object.values(all).sort((a, b) => a.date.localeCompare(b.date)));
     },
-    enabled: top.length > 0,
-    staleTime: 1000 * 60 * 10,
-    refetchInterval: 60000,
-    retry: false,
-  });
+    { enabled: top.length > 0, staleTime: 1000 * 60 * 10, refetchInterval: 60000 }
+  );
 
   if (isLoading) return <Empty title="Loading…" />;
   if (!merged || merged.length < 2) {
@@ -357,18 +354,17 @@ function SectorRelativeChart({ sectors }) {
 
 // ─── Sector breadth (% above 50d / 200d MA) ────────────────────────────────
 function SectorBreadthChart() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['sector-breadth'],
-    queryFn: () => api.get('/api/algo/sector-breadth')
-                      .then(r => r.data?.items || []).catch(() => []),
-    refetchInterval: 60000,
-    retry: false,
-  });
+  const { data, loading: isLoading } = useApiQuery(
+    ['sector-breadth'],
+    () => api.get('/api/algo/sector-breadth'),
+    { refetchInterval: 60000 }
+  );
 
   if (isLoading) return <Empty title="Loading breadth…" />;
-  if (!data || data.length === 0) return <Empty title="No breadth data" />;
+  const breadthData = (Array.isArray(data) ? data : data?.items) || [];
+  if (!breadthData || breadthData.length === 0) return <Empty title="No breadth data" />;
 
-  const sorted = [...data].sort((a, b) => b.pct_above_200d - a.pct_above_200d);
+  const sorted = [...breadthData].sort((a, b) => b.pct_above_200d - a.pct_above_200d);
 
   return (
     <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>

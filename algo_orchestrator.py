@@ -951,7 +951,7 @@ class Orchestrator:
             try:
                 conn = psycopg2.connect(**DB_CONFIG)
                 cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
                 open_count = cur.fetchone()[0] or 0
             except Exception:
                 open_count = 0
