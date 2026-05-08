@@ -278,71 +278,73 @@ class SignalComputer:
         }
         """
         self.connect()
-
-        # 30-week MA = 150 trading days. Compute current value + value 30 days ago for slope.
-        self.cur.execute(
-            """
-            WITH d AS (
-                SELECT date, close,
-                       AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
-                       MAX(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS hi_150,
-                       ROW_NUMBER() OVER (ORDER BY date DESC) AS rn,
-                       COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
+        try:
+            # 30-week MA = 150 trading days. Compute current value + value 30 days ago for slope.
+            self.cur.execute(
+                """
+                WITH d AS (
+                    SELECT date, close,
+                           AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
+                           MAX(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS hi_150,
+                           ROW_NUMBER() OVER (ORDER BY date DESC) AS rn,
+                           COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                )
+                SELECT date, close, sma_150, hi_150, pts
+                FROM d
+                ORDER BY date DESC LIMIT 35
+                """,
+                (symbol, eval_date),
             )
-            SELECT date, close, sma_150, hi_150, pts
-            FROM d
-            ORDER BY date DESC LIMIT 35
-            """,
-            (symbol, eval_date),
-        )
-        rows = self.cur.fetchall()
-        if not rows or rows[0][2] is None or int(rows[0][4]) < 150:
-            return {'stage': 0, 'reason': 'Insufficient history for 30-wk MA'}
+            rows = self.cur.fetchall()
+            if not rows or rows[0][2] is None or int(rows[0][4]) < 150:
+                return {'stage': 0, 'reason': 'Insufficient history for 30-wk MA'}
 
-        cur_close = float(rows[0][1])
-        sma_150_now = float(rows[0][2])
-        sma_150_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_150_now
-        recent_high = float(rows[0][3]) if rows[0][3] is not None else cur_close
+            cur_close = float(rows[0][1])
+            sma_150_now = float(rows[0][2])
+            sma_150_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_150_now
+            recent_high = float(rows[0][3]) if rows[0][3] is not None else cur_close
 
-        # Slope = % change of 30-wk MA over last 30 trading days
-        slope_pct = ((sma_150_now - sma_150_30d_ago) / sma_150_30d_ago * 100.0) if sma_150_30d_ago > 0 else 0.0
-        price_vs_ma = ((cur_close - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
+            # Slope = % change of 30-wk MA over last 30 trading days
+            slope_pct = ((sma_150_now - sma_150_30d_ago) / sma_150_30d_ago * 100.0) if sma_150_30d_ago > 0 else 0.0
+            price_vs_ma = ((cur_close - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
 
-        # Distance from recent 30-wk high
-        recent_high_above_ma = ((recent_high - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
+            # Distance from recent 30-wk high
+            recent_high_above_ma = ((recent_high - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
 
-        # Stage classification
-        # Thresholds: slope > +1% over month = rising, < -1% = falling, else flat
-        # Price-vs-MA: > +3% = above, < -3% = below, else near
-        FLAT_SLOPE = 1.0    # %
-        NEAR_MA = 3.0       # %
+            # Stage classification
+            # Thresholds: slope > +1% over month = rising, < -1% = falling, else flat
+            # Price-vs-MA: > +3% = above, < -3% = below, else near
+            FLAT_SLOPE = 1.0    # %
+            NEAR_MA = 3.0       # %
 
-        if slope_pct > FLAT_SLOPE and price_vs_ma > NEAR_MA:
-            stage = 2  # uptrend
-        elif slope_pct < -FLAT_SLOPE and price_vs_ma < -NEAR_MA:
-            stage = 4  # downtrend
-        elif abs(slope_pct) <= FLAT_SLOPE and recent_high_above_ma > 15:
-            stage = 3  # topping (flat after big run)
-        elif abs(slope_pct) <= FLAT_SLOPE:
-            stage = 1  # basing
-        elif slope_pct > 0:
-            stage = 2  # weak uptrend
-        else:
-            stage = 4  # weak downtrend
+            if slope_pct > FLAT_SLOPE and price_vs_ma > NEAR_MA:
+                stage = 2  # uptrend
+            elif slope_pct < -FLAT_SLOPE and price_vs_ma < -NEAR_MA:
+                stage = 4  # downtrend
+            elif abs(slope_pct) <= FLAT_SLOPE and recent_high_above_ma > 15:
+                stage = 3  # topping (flat after big run)
+            elif abs(slope_pct) <= FLAT_SLOPE:
+                stage = 1  # basing
+            elif slope_pct > 0:
+                stage = 2  # weak uptrend
+            else:
+                stage = 4  # weak downtrend
 
-        # Confidence: how cleanly the data fits the stage definition
-        confidence = min(1.0, abs(slope_pct) / 5.0 + abs(price_vs_ma) / 15.0)
+            # Confidence: how cleanly the data fits the stage definition
+            confidence = min(1.0, abs(slope_pct) / 5.0 + abs(price_vs_ma) / 15.0)
 
-        return {
-            'stage': stage,
-            'sma_150': round(sma_150_now, 2),
-            'slope_pct': round(slope_pct, 2),
-            'price_vs_ma_pct': round(price_vs_ma, 2),
-            'recent_high_above_ma_pct': round(recent_high_above_ma, 2),
-            'confidence': round(confidence, 2),
-        }
+            return {
+                'stage': stage,
+                'sma_150': round(sma_150_now, 2),
+                'slope_pct': round(slope_pct, 2),
+                'price_vs_ma_pct': round(price_vs_ma, 2),
+                'recent_high_above_ma_pct': round(recent_high_above_ma, 2),
+                'confidence': round(confidence, 2),
+            }
+        finally:
+            self.disconnect()
 
     # ============================================================
     # BASE / CONSOLIDATION DETECTION
@@ -368,66 +370,68 @@ class SignalComputer:
         }
         """
         self.connect()
+        try:
+            # Look at the last 60 trading days
+            self.cur.execute(
+                """
+                SELECT date, high, low, close, volume FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT 60
+                """,
+                (symbol, eval_date),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < 20:
+                return {'in_base': False, 'reason': 'Insufficient history'}
 
-        # Look at the last 60 trading days
-        self.cur.execute(
-            """
-            SELECT date, high, low, close, volume FROM price_daily
-            WHERE symbol = %s AND date <= %s
-            ORDER BY date DESC LIMIT 60
-            """,
-            (symbol, eval_date),
-        )
-        rows = self.cur.fetchall()
-        if len(rows) < 20:
-            return {'in_base': False, 'reason': 'Insufficient history'}
+            # Walk back from most recent to find the start of the current base
+            # A base ends at present (or last new high) and started when price
+            # topped out (within 5% of the highest high in the lookback).
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
+            closes = [float(r[3]) for r in rows]
+            volumes = [float(r[4]) for r in rows]
 
-        # Walk back from most recent to find the start of the current base
-        # A base ends at present (or last new high) and started when price
-        # topped out (within 5% of the highest high in the lookback).
-        highs = [float(r[1]) for r in rows]
-        lows = [float(r[2]) for r in rows]
-        closes = [float(r[3]) for r in rows]
-        volumes = [float(r[4]) for r in rows]
+            peak_idx = highs.index(max(highs))  # 0 is most recent
+            peak = highs[peak_idx]
+            # Slice from start of base (peak) through present
+            base_highs = highs[:peak_idx + 1]
+            base_lows = lows[:peak_idx + 1]
+            base_closes = closes[:peak_idx + 1]
+            base_vols = volumes[:peak_idx + 1]
 
-        peak_idx = highs.index(max(highs))  # 0 is most recent
-        peak = highs[peak_idx]
-        # Slice from start of base (peak) through present
-        base_highs = highs[:peak_idx + 1]
-        base_lows = lows[:peak_idx + 1]
-        base_closes = closes[:peak_idx + 1]
-        base_vols = volumes[:peak_idx + 1]
+            if len(base_highs) < 10:
+                return {'in_base': False, 'reason': f'Base too short ({len(base_highs)} bars)'}
 
-        if len(base_highs) < 10:
-            return {'in_base': False, 'reason': f'Base too short ({len(base_highs)} bars)'}
+            base_high = max(base_highs)
+            base_low = min(base_lows)
+            base_depth = ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
+            weeks_in_base = len(base_highs) // 5  # 5 trading days per week
 
-        base_high = max(base_highs)
-        base_low = min(base_lows)
-        base_depth = ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
-        weeks_in_base = len(base_highs) // 5  # 5 trading days per week
+            cur_price = closes[0]
+            # In-base = depth in the 8%-35% range, length >= 4 weeks (20 bars)
+            in_base = (8.0 <= base_depth <= 35.0) and len(base_highs) >= 20
 
-        cur_price = closes[0]
-        # In-base = depth in the 8%-35% range, length >= 4 weeks (20 bars)
-        in_base = (8.0 <= base_depth <= 35.0) and len(base_highs) >= 20
+            # Breakout imminent: current price within 2% of pivot (base_high)
+            pct_to_pivot = ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
+            breakout_imminent = in_base and pct_to_pivot <= 2.0
 
-        # Breakout imminent: current price within 2% of pivot (base_high)
-        pct_to_pivot = ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
-        breakout_imminent = in_base and pct_to_pivot <= 2.0
+            # Volume drying up: recent 10-bar avg vol < base 30-bar avg vol
+            recent_vol = sum(base_vols[:10]) / 10 if len(base_vols) >= 10 else 0
+            prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
+            volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
-        # Volume drying up: recent 10-bar avg vol < base 30-bar avg vol
-        recent_vol = sum(base_vols[:10]) / 10 if len(base_vols) >= 10 else 0
-        prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
-        volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
-
-        return {
-            'in_base': in_base,
-            'base_depth_pct': round(base_depth, 1),
-            'weeks_in_base': weeks_in_base,
-            'pivot_high': round(base_high, 2),
-            'pct_to_pivot': round(pct_to_pivot, 2),
-            'breakout_imminent': breakout_imminent,
-            'volume_dryup': volume_dryup,
-        }
+            return {
+                'in_base': in_base,
+                'base_depth_pct': round(base_depth, 1),
+                'weeks_in_base': weeks_in_base,
+                'pivot_high': round(base_high, 2),
+                'pct_to_pivot': round(pct_to_pivot, 2),
+                'breakout_imminent': breakout_imminent,
+                'volume_dryup': volume_dryup,
+            }
+        finally:
+            self.disconnect()
 
     # ============================================================
     # TD SEQUENTIAL (DeMark)
@@ -683,105 +687,108 @@ class SignalComputer:
         }
         """
         self.connect()
-        # 30-week MA history — find when its slope first turned up sustainably
-        self.cur.execute(
-            """
-            WITH d AS (
-                SELECT date, close,
-                       AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
-                       COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
+        try:
+            # 30-week MA history — find when its slope first turned up sustainably
+            self.cur.execute(
+                """
+                WITH d AS (
+                    SELECT date, close,
+                           AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
+                           COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                )
+                SELECT date, close, sma_150, pts FROM d
+                WHERE pts >= 150
+                ORDER BY date DESC LIMIT 200
+                """,
+                (symbol, eval_date),
             )
-            SELECT date, close, sma_150, pts FROM d
-            WHERE pts >= 150
-            ORDER BY date DESC LIMIT 200
-            """,
-            (symbol, eval_date),
-        )
-        rows = self.cur.fetchall()
-        if len(rows) < 50:
-            return {'phase': 'unknown', 'reason': 'Insufficient history'}
+            rows = self.cur.fetchall()
+            if len(rows) < 50:
+                return {'phase': 'unknown', 'reason': 'Insufficient history'}
 
-        cur_close = float(rows[0][1])
-        cur_sma = float(rows[0][2])
+            cur_close = float(rows[0][1])
+            cur_sma = float(rows[0][2])
 
-        # Walk back to find when 30-week MA started rising (slope positive)
-        weeks_uptrend = 0
-        for i in range(1, len(rows)):
-            if rows[i][2] is None:
-                continue
-            prior_sma = float(rows[i][2])
-            if cur_sma > prior_sma:
-                # Still rising
-                weeks_uptrend = (rows[0][0] - rows[i][0]).days // 7
+            # Walk back to find when 30-week MA started rising (slope positive)
+            weeks_uptrend = 0
+            for i in range(1, len(rows)):
+                if rows[i][2] is None:
+                    continue
+                prior_sma = float(rows[i][2])
+                if cur_sma > prior_sma:
+                    # Still rising
+                    weeks_uptrend = (rows[0][0] - rows[i][0]).days // 7
+                else:
+                    break
+
+            # Get 50-DMA
+            self.cur.execute(
+                "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+                (symbol, eval_date),
+            )
+            rsma = self.cur.fetchone()
+            sma_50 = float(rsma[0]) if rsma and rsma[0] is not None else cur_close
+            price_vs_50 = (cur_close - sma_50) / sma_50 * 100.0 if sma_50 > 0 else 0
+
+            # Estimate base count by counting distinct consolidations in last 9 months
+            # A new base forms when price retraces > 8% from a recent peak
+            self.cur.execute(
+                """
+                SELECT date, high, low FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                  AND date >= %s::date - INTERVAL '270 days'
+                ORDER BY date
+                """,
+                (symbol, eval_date, eval_date),
+            )
+            bars = self.cur.fetchall()
+            base_count = 1
+            if len(bars) > 30:
+                highs = [float(b[1]) for b in bars]
+                running_peak = highs[0]
+                in_drawdown = False
+                for h in highs[1:]:
+                    if h > running_peak * 1.005:
+                        if in_drawdown:
+                            base_count += 1
+                        running_peak = h
+                        in_drawdown = False
+                    elif h < running_peak * 0.92:  # 8% drawdown = new base forming
+                        in_drawdown = True
+
+            # Classify
+            if weeks_uptrend < 4:
+                phase = 'unknown'  # too new
+                mult = 0.5
+            elif weeks_uptrend <= 8 and price_vs_50 < 8 and base_count <= 1:
+                phase = 'early'
+                mult = 1.0
+            elif weeks_uptrend <= 30 and price_vs_50 < 20 and base_count <= 2:
+                phase = 'mid'
+                mult = 1.0
+            elif weeks_uptrend > 30 or price_vs_50 > 25 or base_count >= 3:
+                phase = 'late'
+                mult = 0.5
             else:
-                break
+                phase = 'mid'
+                mult = 1.0
 
-        # Get 50-DMA
-        self.cur.execute(
-            "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
-            (symbol, eval_date),
-        )
-        rsma = self.cur.fetchone()
-        sma_50 = float(rsma[0]) if rsma and rsma[0] is not None else cur_close
-        price_vs_50 = (cur_close - sma_50) / sma_50 * 100.0 if sma_50 > 0 else 0
+            # Hard cap: 4+ base = skip
+            if base_count >= 4:
+                mult = 0.0
+                phase = 'late_climax'
 
-        # Estimate base count by counting distinct consolidations in last 9 months
-        # A new base forms when price retraces > 8% from a recent peak
-        self.cur.execute(
-            """
-            SELECT date, high, low FROM price_daily
-            WHERE symbol = %s AND date <= %s
-              AND date >= %s::date - INTERVAL '270 days'
-            ORDER BY date
-            """,
-            (symbol, eval_date, eval_date),
-        )
-        bars = self.cur.fetchall()
-        base_count = 1
-        if len(bars) > 30:
-            highs = [float(b[1]) for b in bars]
-            running_peak = highs[0]
-            in_drawdown = False
-            for h in highs[1:]:
-                if h > running_peak * 1.005:
-                    if in_drawdown:
-                        base_count += 1
-                    running_peak = h
-                    in_drawdown = False
-                elif h < running_peak * 0.92:  # 8% drawdown = new base forming
-                    in_drawdown = True
-
-        # Classify
-        if weeks_uptrend < 4:
-            phase = 'unknown'  # too new
-            mult = 0.5
-        elif weeks_uptrend <= 8 and price_vs_50 < 8 and base_count <= 1:
-            phase = 'early'
-            mult = 1.0
-        elif weeks_uptrend <= 30 and price_vs_50 < 20 and base_count <= 2:
-            phase = 'mid'
-            mult = 1.0
-        elif weeks_uptrend > 30 or price_vs_50 > 25 or base_count >= 3:
-            phase = 'late'
-            mult = 0.5
-        else:
-            phase = 'mid'
-            mult = 1.0
-
-        # Hard cap: 4+ base = skip
-        if base_count >= 4:
-            mult = 0.0
-            phase = 'late_climax'
-
-        return {
-            'phase': phase,
-            'weeks_since_30wk_uptrend': weeks_uptrend,
-            'price_above_50dma_pct': round(price_vs_50, 2),
-            'estimated_base_count': base_count,
-            'size_multiplier': mult,
-        }
+            return {
+                'phase': phase,
+                'weeks_since_30wk_uptrend': weeks_uptrend,
+                'price_above_50dma_pct': round(price_vs_50, 2),
+                'estimated_base_count': base_count,
+                'size_multiplier': mult,
+            }
+        finally:
+            self.disconnect()
 
     # ============================================================
     # BASE TYPE CLASSIFICATION

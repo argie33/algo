@@ -49,61 +49,59 @@ def load_industry_ranking():
 
         print(f"  Computing for date: {latest_date}")
 
-    # Compute average 4-week return per industry, weighted by liquidity (volume)
-    cur.execute("""
-        WITH stock_returns AS (
-            SELECT
-                cp.industry,
-                pd.symbol,
-                pd.close AS today_close,
-                pd.volume,
-                LAG(pd.close, 20) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_4w,
-                LAG(pd.close, 5)  OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_1w,
-                LAG(pd.close, 60) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_12w,
-                ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) AS rn
-            FROM price_daily pd
-            JOIN company_profile cp ON cp.ticker = pd.symbol
-            WHERE pd.date >= %s::date - INTERVAL '90 days'
-              AND pd.date <= %s
-              AND cp.industry IS NOT NULL AND cp.industry <> ''
-              AND pd.close > 5
-        ),
-        latest AS (
-            SELECT industry, symbol, today_close, volume,
-                   close_1w, close_4w, close_12w
-            FROM stock_returns WHERE rn = 1
-        ),
-        industry_avg AS (
-            SELECT
-                industry,
-                COUNT(*) AS n_constituents,
-                AVG(CASE WHEN close_1w > 0 THEN (today_close - close_1w) / close_1w * 100 END) AS ret_1w,
-                AVG(CASE WHEN close_4w > 0 THEN (today_close - close_4w) / close_4w * 100 END) AS ret_4w,
-                AVG(CASE WHEN close_12w > 0 THEN (today_close - close_12w) / close_12w * 100 END) AS ret_12w,
-                AVG(today_close * volume) AS avg_dollar_vol
-            FROM latest
-            GROUP BY industry
-            HAVING COUNT(*) >= 3  -- need at least 3 stocks for stable average
-        ),
-        ranked AS (
-            SELECT
-                industry,
-                n_constituents,
-                ret_1w, ret_4w, ret_12w,
-                avg_dollar_vol,
-                -- Strength score: 4w weighted heavily (swing window), with breadth bonus
-                COALESCE(ret_4w, 0) * 0.5 + COALESCE(ret_12w, 0) * 0.3 + COALESCE(ret_1w, 0) * 0.2 AS strength,
-                ROW_NUMBER() OVER (
-                    ORDER BY
-                        COALESCE(ret_4w, 0) * 0.5 + COALESCE(ret_12w, 0) * 0.3 + COALESCE(ret_1w, 0) * 0.2
-                        DESC NULLS LAST
-                ) AS current_rank
-            FROM industry_avg
-        )
-        SELECT industry, current_rank, strength, ret_1w, ret_4w, ret_12w, n_constituents
-        FROM ranked
-        ORDER BY current_rank
-    """, (latest_date, latest_date))
+        cur.execute("""
+            WITH stock_returns AS (
+                SELECT
+                    cp.industry,
+                    pd.symbol,
+                    pd.close AS today_close,
+                    pd.volume,
+                    LAG(pd.close, 20) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_4w,
+                    LAG(pd.close, 5)  OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_1w,
+                    LAG(pd.close, 60) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS close_12w,
+                    ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) AS rn
+                FROM price_daily pd
+                JOIN company_profile cp ON cp.ticker = pd.symbol
+                WHERE pd.date >= %s::date - INTERVAL '90 days'
+                  AND pd.date <= %s
+                  AND cp.industry IS NOT NULL AND cp.industry <> ''
+                  AND pd.close > 5
+            ),
+            latest AS (
+                SELECT industry, symbol, today_close, volume,
+                       close_1w, close_4w, close_12w
+                FROM stock_returns WHERE rn = 1
+            ),
+            industry_avg AS (
+                SELECT
+                    industry,
+                    COUNT(*) AS n_constituents,
+                    AVG(CASE WHEN close_1w > 0 THEN (today_close - close_1w) / close_1w * 100 END) AS ret_1w,
+                    AVG(CASE WHEN close_4w > 0 THEN (today_close - close_4w) / close_4w * 100 END) AS ret_4w,
+                    AVG(CASE WHEN close_12w > 0 THEN (today_close - close_12w) / close_12w * 100 END) AS ret_12w,
+                    AVG(today_close * volume) AS avg_dollar_vol
+                FROM latest
+                GROUP BY industry
+                HAVING COUNT(*) >= 3
+            ),
+            ranked AS (
+                SELECT
+                    industry,
+                    n_constituents,
+                    ret_1w, ret_4w, ret_12w,
+                    avg_dollar_vol,
+                    COALESCE(ret_4w, 0) * 0.5 + COALESCE(ret_12w, 0) * 0.3 + COALESCE(ret_1w, 0) * 0.2 AS strength,
+                    ROW_NUMBER() OVER (
+                        ORDER BY
+                            COALESCE(ret_4w, 0) * 0.5 + COALESCE(ret_12w, 0) * 0.3 + COALESCE(ret_1w, 0) * 0.2
+                            DESC NULLS LAST
+                    ) AS current_rank
+                FROM industry_avg
+            )
+            SELECT industry, current_rank, strength, ret_1w, ret_4w, ret_12w, n_constituents
+            FROM ranked
+            ORDER BY current_rank
+        """, (latest_date, latest_date))
 
         rows = cur.fetchall()
         print(f"  Computed ranks for {len(rows)} industries")
