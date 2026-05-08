@@ -92,7 +92,7 @@ class PyramidEngine:
                        (SELECT COUNT(*) FROM algo_trade_adds WHERE trade_id = t.trade_id) AS adds_so_far
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ('filled','active')
+                WHERE t.status IN ('open','pending')
                   AND p.status = 'open'
                   AND p.quantity > 0
                 """

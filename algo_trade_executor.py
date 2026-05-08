@@ -240,7 +240,7 @@ class TradeExecutor:
             self.cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
-                WHERE symbol = %s AND signal_date = %s AND status IN ('filled','active','pending')
+                WHERE symbol = %s AND signal_date = %s AND status IN ('open','pending')
                 LIMIT 1
                 """,
                 (symbol, signal_date),
@@ -725,7 +725,7 @@ class TradeExecutor:
                             %s,
                         partial_exit_count = COALESCE(partial_exit_count, 0) + 1,
                         last_partial_exit_date = CURRENT_DATE,
-                        status = 'active'
+                        status = 'open'
                     WHERE trade_id = %s
                     """,
                     (

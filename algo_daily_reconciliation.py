@@ -292,7 +292,7 @@ class DailyReconciliation:
                     )
                     VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, %s, %s, %s,
                             %s, %s,
-                            %s, %s, %s, 'filled', 'external', %s,
+                            %s, %s, %s, 'open', 'external', %s,
                             %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (trade_id) DO NOTHING
                 """, (

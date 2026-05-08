@@ -987,7 +987,7 @@ class DataPatrol:
                     ON t.symbol = p.symbol
                    AND p.date >= t.created_at::date
                    AND p.date <= CURRENT_DATE
-                WHERE t.status IN ('filled', 'active', 'partial')
+                WHERE t.status IN ('open', 'pending')
                   AND t.created_at >= CURRENT_DATE - INTERVAL '60 days'
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0

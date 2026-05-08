@@ -165,9 +165,9 @@ class PaperModeGates:
                 """
                 SELECT
                     COUNT(*) as total_orders,
-                    SUM(CASE WHEN status = 'filled' THEN 1 ELSE 0 END) as filled_orders
+                    SUM(CASE WHEN status IN ('open', 'closed') THEN 1 ELSE 0 END) as filled_orders
                 FROM algo_trades
-                WHERE signal_date >= %s AND status IN ('filled', 'rejected', 'cancelled')
+                WHERE signal_date >= %s AND status IN ('open', 'closed', 'rejected', 'cancelled')
                 """,
                 (paper_start_date,)
             )

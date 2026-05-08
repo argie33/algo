@@ -194,7 +194,11 @@
       "Bash(tee orchestrator_verification.log)",
       "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT COUNT\\(*\\), status FROM algo_trades GROUP BY status ORDER BY status;\")",
       "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT COUNT\\(*\\), status FROM algo_signals WHERE signal_date = CURRENT_DATE GROUP BY status ORDER BY status;\")",
-      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT symbol, signal_date, signal_type, swing_score FROM algo_signals WHERE signal_date = CURRENT_DATE ORDER BY swing_score DESC LIMIT 10;\")"
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT symbol, signal_date, signal_type, swing_score FROM algo_signals WHERE signal_date = CURRENT_DATE ORDER BY swing_score DESC LIMIT 10;\")",
+      "Bash(sed -n '151,158p' algo_paper_mode_gates.py)",
+      "Bash(sed -n '215,222p' algo_paper_mode_gates.py)",
+      "Bash(tee orchestrator_test.log)",
+      "Bash(pkill -f \"tail -f\")"
     ]
   }
 }

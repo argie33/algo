@@ -269,7 +269,7 @@ class MarketEventHandler:
                 """
                 UPDATE algo_trades
                 SET status = 'cancelled'
-                WHERE symbol = %s AND status IN ('pending', 'active')
+                WHERE symbol = %s AND status IN ('pending', 'open')
                 """,
                 (symbol,)
             )

@@ -159,7 +159,7 @@ def audit_trades():
         print("  ERROR: Trades without entry prices!")
 
     # Check for NULL exit prices in closed trades
-    cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status IN ('CLOSED', 'EXITED') AND exit_price IS NULL")
+    cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status = 'closed' AND exit_price IS NULL")
     closed_no_exit = cur.fetchone()[0]
     print(f"Closed trades without exit_price: {closed_no_exit}")
 
@@ -174,7 +174,7 @@ def audit_trades():
     print(f"Trades with NULL signal_date: {null_signal_date}")
 
     # Check exit_date in closed trades
-    cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status IN ('CLOSED', 'EXITED') AND exit_date IS NULL")
+    cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status = 'closed' AND exit_date IS NULL")
     closed_no_exit_date = cur.fetchone()[0]
     print(f"Closed trades without exit_date: {closed_no_exit_date}")
 
@@ -186,7 +186,7 @@ def audit_trades():
             SUM(CASE WHEN profit_loss_pct = 0 THEN 1 ELSE 0 END) as zero_pnl,
             SUM(CASE WHEN profit_loss_pct > 0 THEN 1 ELSE 0 END) as positive_pnl,
             SUM(CASE WHEN profit_loss_pct < 0 THEN 1 ELSE 0 END) as negative_pnl
-        FROM algo_trades WHERE status IN ('CLOSED', 'EXITED', 'filled')
+        FROM algo_trades WHERE status = 'closed'
     """)
     row = cur.fetchone()
     print(f"\nClosed/filled trade P&L distribution:")
@@ -202,7 +202,7 @@ def audit_trades():
         SELECT symbol, signal_date, entry_price, exit_date, exit_price,
                ROUND(profit_loss_pct, 2) as pct_change
         FROM algo_trades
-        WHERE status IN ('CLOSED', 'EXITED')
+        WHERE status = 'closed'
         ORDER BY signal_date DESC
         LIMIT 10
     """)

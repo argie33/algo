@@ -126,7 +126,7 @@ class PreTradeChecks:
                 """
                 SELECT COUNT(*) FROM algo_trades
                 WHERE created_at >= NOW() - INTERVAL '60 seconds'
-                  AND status IN ('filled', 'active', 'pending')
+                  AND status IN ('open', 'pending')
                 """
             )
             order_count = self.cur.fetchone()[0]

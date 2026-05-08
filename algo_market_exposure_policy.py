@@ -222,7 +222,7 @@ class ExposurePolicy:
                        p.unrealized_pnl_pct
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ('filled','active') AND p.status = 'open' AND p.quantity > 0
+                WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
                 """
             )
             positions = self.cur.fetchall()
