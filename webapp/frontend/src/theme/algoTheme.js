@@ -2,8 +2,8 @@
  * Bullseye Trading — Unified Design System
  *
  * Hybrid light/dark theme inspired by Bloomberg Terminal, Koyfin, Stripe.
- * Default: clean light palette for max data clarity.
- * Optional: dark mode toggle for low-light/long-session use.
+ * Default: dark palette for sleek/professional look.
+ * Optional: light mode toggle for high-light/daytime use.
  *
  * Each page builds with these tokens — purpose-designed, not template-driven.
  * Mobile-responsive from the foundation.
@@ -13,19 +13,17 @@
  *   <Box sx={{ bgcolor: C.card, color: C.text }} />
  */
 
+import { theme as themeService } from '../services/theme';
+
 // ============================================================================
-// THEME MODE — controlled via localStorage 'algo-theme' = 'light' | 'dark'
+// THEME MODE — controlled via centralized theme service
 // ============================================================================
 const getMode = () => {
-  if (typeof window === 'undefined') return 'light';
-  return localStorage.getItem('algo-theme') || 'light';
+  return themeService.getTheme();
 };
 
 const setMode = (mode) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('algo-theme', mode);
-    window.dispatchEvent(new Event('algo-theme-change'));
-  }
+  themeService.setTheme(mode);
 };
 
 // ============================================================================

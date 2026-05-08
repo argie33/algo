@@ -1,4 +1,5 @@
 import axios from "axios";
+import { tokenManager } from "./tokenManager";
 
 // Get API configuration
 export const getApiConfig = () => {
@@ -100,11 +101,9 @@ try {
     api.interceptors.request.use(
       (config) => {
         config.metadata = { startTime: new Date() };
-        if (typeof window !== "undefined") {
-          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken");
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
+        const authHeader = tokenManager.getAuthHeader();
+        if (authHeader) {
+          config.headers.Authorization = authHeader.Authorization;
         }
         return config;
       },
@@ -137,7 +136,7 @@ try {
             try {
               const result = await _refreshCallback();
               if (result.success) {
-                const newToken = localStorage.getItem("accessToken");
+                const newToken = tokenManager.getToken('access');
                 processQueue(null, newToken);
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 isRefreshing = false;
@@ -150,8 +149,7 @@ try {
           }
 
           isRefreshing = false;
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("accessToken");
+          tokenManager.clearTokens();
           if (typeof window !== "undefined" && window.location) {
             window.location.href = "/login";
           }
@@ -444,25 +442,20 @@ export const testApiConnection = async () => {
 // EXTERNAL DATA FUNCTIONS
 // ============================================
 
-export const getNaaimData = async () => {
+// Single function for market sentiment data - NAAIM and Fear/Greed indices
+export const getMarketSentimentData = async () => {
   try {
     const response = await api.get("/api/market/sentiment");
     return response.data;
   } catch (error) {
-    console.error("Error fetching NAAIM data:", error);
+    console.error("Error fetching market sentiment data:", error);
     return { success: false, data: {}, error: error.message };
   }
 };
 
-export const getFearGreedData = async () => {
-  try {
-    const response = await api.get("/api/market/sentiment");
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching Fear/Greed data:", error);
-    return { success: false, data: {}, error: error.message };
-  }
-};
+// Aliases for backward compatibility
+export const getNaaimData = getMarketSentimentData;
+export const getFearGreedData = getMarketSentimentData;
 
 // Export the axios instance for direct use
 export { api };

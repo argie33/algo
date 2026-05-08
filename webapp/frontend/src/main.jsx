@@ -1,17 +1,11 @@
 import ReactDOM from "react-dom/client";
 import "./index.css"; // Tailwind base + design system tokens
+import { theme } from "./services/theme";
 
 // Apply theme class before first paint (avoid flash of wrong theme).
 // Dark is default — sleek is the look we want. User can opt into light via
 // the toggle in the user menu (persisted to localStorage as theme=light).
-(function applyInitialTheme() {
-  try {
-    const saved = localStorage.getItem("theme");
-    document.documentElement.classList.toggle("light", saved === "light");
-  } catch (_) {
-    /* default: no .light class → dark */
-  }
-})();
+theme.initialize();
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";

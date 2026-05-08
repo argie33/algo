@@ -19,6 +19,7 @@ import {
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
 import { setRefreshCallback } from "../services/api";
+import { tokenManager } from "../services/tokenManager";
 import devAuth from "../services/devAuth"; // eslint-disable-line import/no-unused-modules
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
@@ -95,10 +96,7 @@ function authReducer(state, action) {
       };
     case AUTH_ACTIONS.LOGOUT:
       // Clear stored tokens
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authToken");
-      sessionStorage.removeItem("accessToken");
-      sessionStorage.removeItem("authToken");
+      tokenManager.clearTokens();
 
       return {
         ...state,
@@ -246,7 +244,7 @@ export function AuthProvider({ children }) {
             };
 
             // Store access token for API requests
-            localStorage.setItem("accessToken", tokens.accessToken);
+            tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
 
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -422,7 +420,7 @@ export function AuthProvider({ children }) {
             };
 
             // Store access token for API requests
-            localStorage.setItem("accessToken", tokens.accessToken);
+            tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
 
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,

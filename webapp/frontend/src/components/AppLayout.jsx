@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
+import { theme } from '../services/theme';
 
 // ═════════════════════════════════════════════════════════════════════════
 // NAVIGATION
@@ -79,18 +80,15 @@ export default function AppLayout({ children }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [exposure, setExposure] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; }
-    catch { return 'dark'; }
-  });
+  const [currentTheme, setCurrentTheme] = useState(() => theme.getTheme());
 
-  // Apply class on <html> + persist whenever the user toggles
+  // Subscribe to theme changes
   useEffect(() => {
-    document.documentElement.classList.toggle('light', theme === 'light');
-    try { localStorage.setItem('theme', theme); } catch { /* localStorage blocked */ }
-  }, [theme]);
+    const unsubscribe = theme.subscribe(newTheme => setCurrentTheme(newTheme));
+    return unsubscribe;
+  }, []);
 
-  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
+  const toggleTheme = () => theme.toggleTheme();
 
   // Poll status every 30s
   useEffect(() => {
@@ -222,9 +220,9 @@ export default function AppLayout({ children }) {
             <div style={{ borderTop: '1px solid var(--border-soft)' }} />
             <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px' }}
               onClick={() => { toggleTheme(); }}
-              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>
-              {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
-              {theme === 'light' ? 'Dark theme' : 'Light theme'}
+              title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}>
+              {currentTheme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+              {currentTheme === 'light' ? 'Dark theme' : 'Light theme'}
             </button>
             <div style={{ borderTop: '1px solid var(--border-soft)' }} />
             <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px', color: 'var(--danger)' }}

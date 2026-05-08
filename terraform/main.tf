@@ -125,6 +125,11 @@ module "services" {
   api_lambda_memory                 = var.api_lambda_memory
   api_lambda_timeout                = var.api_lambda_timeout
   api_lambda_ephemeral_storage      = var.api_lambda_ephemeral_storage
+  api_lambda_role_arn               = module.iam.lambda_api_role_arn
+  algo_lambda_memory                = var.algo_lambda_memory
+  algo_lambda_timeout               = var.algo_lambda_timeout
+  algo_lambda_ephemeral_storage     = var.algo_lambda_ephemeral_storage
+  algo_lambda_role_arn              = module.iam.lambda_algo_role_arn
   api_gateway_stage_name            = var.api_gateway_stage_name
   api_gateway_logging_enabled       = var.api_gateway_logging_enabled
   api_cors_allowed_origins          = var.api_cors_allowed_origins
@@ -137,9 +142,6 @@ module "services" {
   cognito_password_min_length       = var.cognito_password_min_length
   cognito_mfa_configuration         = var.cognito_mfa_configuration
   cognito_session_duration_hours    = var.cognito_session_duration_hours
-  algo_lambda_memory                = var.algo_lambda_memory
-  algo_lambda_timeout               = var.algo_lambda_timeout
-  algo_lambda_ephemeral_storage     = var.algo_lambda_ephemeral_storage
   algo_schedule_expression          = var.algo_schedule_expression
   algo_schedule_enabled             = var.algo_schedule_enabled
   algo_schedule_timezone            = var.algo_schedule_timezone

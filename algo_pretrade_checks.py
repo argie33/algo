@@ -45,6 +45,21 @@ class PreTradeChecks:
         self.conn = None
         self.cur = None
 
+    def _get_fresh_connection(self):
+        """Get a fresh database connection for each query to avoid stale data."""
+        try:
+            conn = psycopg2.connect(
+                host=self.db_host,
+                port=self.db_port,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+            )
+            return conn
+        except Exception as e:
+            print(f"PreTradeChecks: DB connection failed: {e}")
+            raise
+
     def connect(self):
         """Connect to database."""
         try:
@@ -92,7 +107,7 @@ class PreTradeChecks:
                 resp = requests.get(url, headers=headers, timeout=5)
                 if resp.status_code == 200:
                     data = resp.json()
-                    current_price = data.get('quote', {}).get('ap')  # ask price
+                    current_price = float(data.get('quote', {}).get('ap', 0))  # ask price
             except:
                 pass
 
@@ -106,15 +121,17 @@ class PreTradeChecks:
                 )
                 result = self.cur.fetchone()
                 if result:
-                    current_price = result[0]
+                    current_price = float(result[0])  # Convert Decimal to float
 
             if not current_price:
                 return False, f"Cannot determine current price for {symbol}"
 
-            divergence_pct = abs(entry_price - current_price) / current_price * 100
+            # Convert entry_price to float to ensure consistent types
+            entry_price_f = float(entry_price)
+            divergence_pct = abs(entry_price_f - current_price) / current_price * 100
 
             if divergence_pct > max_divergence_pct:
-                return False, f"Fat-finger check failed: entry ${entry_price:.2f} diverges {divergence_pct:.1f}% from market ${current_price:.2f} (max {max_divergence_pct}%)"
+                return False, f"Fat-finger check failed: entry ${entry_price_f:.2f} diverges {divergence_pct:.1f}% from market ${current_price:.2f} (max {max_divergence_pct}%)"
 
             return True, None
 
@@ -133,18 +150,24 @@ class PreTradeChecks:
             (passed: bool, reason: str or None)
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Use fresh connection to avoid stale data from cached connections
+            conn = self._get_fresh_connection()
+            cur = conn.cursor()
 
-            # Count orders in last 60 seconds
-            self.cur.execute(
+            # Count EXECUTED orders in last 60 seconds (not pending/cancelled)
+            # "pending" means created but not yet submitted, so don't count it
+            # Only count "open" (submitted and waiting) and "filled" (executed)
+            cur.execute(
                 """
                 SELECT COUNT(*) FROM algo_trades
                 WHERE created_at >= NOW() - INTERVAL '60 seconds'
-                  AND status IN ('open', 'pending')
+                  AND status IN ('open', 'filled')
                 """
             )
-            order_count = self.cur.fetchone()[0]
+            order_count = cur.fetchone()[0]
+
+            cur.close()
+            conn.close()
 
             if order_count >= max_orders_per_60s:
                 return False, f"Order velocity exceeded: {order_count} orders in last 60s (max {max_orders_per_60s})"
