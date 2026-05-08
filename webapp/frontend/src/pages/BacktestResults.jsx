@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Inbox, AlertCircle,
@@ -13,6 +12,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
@@ -37,24 +37,25 @@ export default function BacktestResults() {
   });
   const [selectedRun, setSelectedRun] = useState(null);
 
-  const { data: list, isLoading, error: listErr, refetch } = useQuery({
-    queryKey: ['backtest-runs', filters],
-    queryFn: () => {
+  const queryResult = useApiQuery(
+    ['backtest-runs', filters],
+    () => {
       const p = new URLSearchParams();
       if (filters.strategy_name) p.set('strategy_name', filters.strategy_name);
       p.set('limit', filters.limit);
       p.set('offset', filters.offset);
       p.set('sort_by', filters.sort_by);
       p.set('order', filters.order);
-      return api.get(`/api/research/backtests?${p.toString()}`).then(r => r.data);
-    },
-  });
+      return api.get(`/api/research/backtests?${p.toString()}`);
+    }
+  );
+  const { data: list, loading: isLoading, error: listErr, refetch } = queryResult;
 
-  const { data: detail } = useQuery({
-    queryKey: ['backtest-detail', selectedRun],
-    queryFn: () => api.get(`/api/research/backtests/${selectedRun}`).then(r => r.data),
-    enabled: !!selectedRun,
-  });
+  const { data: detail } = useApiQuery(
+    ['backtest-detail', selectedRun],
+    () => api.get(`/api/research/backtests/${selectedRun}`),
+    { enabled: !!selectedRun }
+  );
 
   const runs = list?.items || [];
   const pagination = list?.pagination || { total: 0, page: 1, totalPages: 1 };

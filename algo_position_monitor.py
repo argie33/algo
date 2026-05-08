@@ -374,6 +374,7 @@ class PositionMonitor:
         stock = self._period_return(symbol, current_date, 20)
         spy = self._period_return('SPY', current_date, 20)
         if stock is None or spy is None:
+            logger.warning(f"RS data missing for {symbol}: stock={stock}, spy={spy} — treating as unknown, not weakening")
             return 'unknown'
         excess = stock - spy
         if excess < -0.05:
@@ -389,7 +390,11 @@ class PositionMonitor:
             (symbol,),
         )
         srow = self.cur.fetchone()
-        if not srow or not srow[0]:
+        if not srow:
+            logger.warning(f"Missing sector data for {symbol} in company_profile — cannot assess sector health")
+            return 'unknown'
+        if not srow[0]:
+            logger.warning(f"NULL sector for {symbol} in company_profile — cannot assess sector health")
             return 'unknown'
         sector = srow[0]
 
@@ -404,6 +409,7 @@ class PositionMonitor:
         )
         row = self.cur.fetchone()
         if not row:
+            logger.warning(f"Missing sector ranking data for {sector} — cannot assess health")
             return 'unknown'
         cur_rank = int(row[0]) if row[0] else 99
         old_rank = int(row[1]) if row[1] else cur_rank
@@ -485,52 +491,49 @@ class PositionMonitor:
         return (recent - oldest) / oldest
 
     def _persist_review(self, rec, current_date):
-        """Update algo_positions with current price/PnL and log a monitoring audit row."""
-        try:
-            self.cur.execute(
-                """
-                UPDATE algo_positions
-                SET current_price = %s,
-                    position_value = %s * %s,
-                    unrealized_pnl = (%s - avg_entry_price) * quantity,
-                    unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
-                    days_since_entry = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE position_id = %s
-                """,
-                (
-                    rec['current_price'], rec['quantity'], rec['current_price'],
-                    rec['current_price'], rec['current_price'],
-                    rec['days_held'], rec['position_id'],
-                ),
-            )
-            # Log the review to audit
-            self.cur.execute(
-                """
-                INSERT INTO algo_audit_log (action_type, symbol, action_date,
-                                            details, actor, status, created_at)
-                VALUES ('position_review', %s, CURRENT_TIMESTAMP, %s, 'position_monitor',
-                        %s, CURRENT_TIMESTAMP)
-                """,
-                (
-                    rec['symbol'],
-                    json.dumps({
-                        'trade_id': rec['trade_id'],
-                        'r_multiple': rec['r_multiple'],
-                        'unrealized_pct': rec['unrealized_pct'],
-                        'flags': rec['flags'],
-                        'rs_label': rec['rs_label'],
-                        'sector_state': rec['sector_state'],
-                        'action': rec['action'],
-                        'action_reason': rec['action_reason'],
-                        'days_to_earnings': rec['days_to_earnings'],
-                        'proposed_stop': float(rec['proposed_stop']),
-                    }),
-                    rec['action'],
-                ),
-            )
-        except Exception as e:
-            logger.info(f"  (audit log skipped for {rec['symbol']}: {e})")
+        """Update algo_positions with current price/PnL and log a monitoring audit row (atomic)."""
+        self.cur.execute(
+            """
+            UPDATE algo_positions
+            SET current_price = %s,
+                position_value = %s * %s,
+                unrealized_pnl = (%s - avg_entry_price) * quantity,
+                unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
+                days_since_entry = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE position_id = %s
+            """,
+            (
+                rec['current_price'], rec['quantity'], rec['current_price'],
+                rec['current_price'], rec['current_price'],
+                rec['days_held'], rec['position_id'],
+            ),
+        )
+        # Log the review to audit (same transaction)
+        self.cur.execute(
+            """
+            INSERT INTO algo_audit_log (action_type, symbol, action_date,
+                                        details, actor, status, created_at)
+            VALUES ('position_review', %s, CURRENT_TIMESTAMP, %s, 'position_monitor',
+                    %s, CURRENT_TIMESTAMP)
+            """,
+            (
+                rec['symbol'],
+                json.dumps({
+                    'trade_id': rec['trade_id'],
+                    'r_multiple': rec['r_multiple'],
+                    'unrealized_pct': rec['unrealized_pct'],
+                    'flags': rec['flags'],
+                    'rs_label': rec['rs_label'],
+                    'sector_state': rec['sector_state'],
+                    'action': rec['action'],
+                    'action_reason': rec['action_reason'],
+                    'days_to_earnings': rec['days_to_earnings'],
+                    'proposed_stop': float(rec['proposed_stop']),
+                }),
+                rec['action'],
+            ),
+        )
 
     def _print_recommendation(self, rec):
         flags_str = ', '.join(rec['flags']) if rec['flags'] else 'none'

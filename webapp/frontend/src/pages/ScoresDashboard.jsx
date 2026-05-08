@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw, Search, Filter, Inbox, ChevronLeft, ChevronRight,
   Star, Activity, DollarSign, TrendingUp, Users, Shield, Layers,
@@ -10,6 +9,7 @@ import {
   Tooltip as RTooltip, ResponsiveContainer, Cell, LabelList,
   LineChart, Line,
 } from 'recharts';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 const num = (v, dp = 1) => (v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp));

@@ -16,6 +16,7 @@ import requests
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+from trade_status import TradeStatus, PositionStatus
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
@@ -64,7 +65,14 @@ class DailyReconciliation:
             # 1. Fetch Alpaca account
             alpaca_data = self._fetch_alpaca_account()
             if not alpaca_data:
-                alpaca_data = {'cash': 100000, 'equity': 100000, 'portfolio_value': 100000}
+                logger.error("CRITICAL: Alpaca account fetch failed — cannot reconcile")
+                try:
+                    from algo_notifications import notify
+                    notify('critical', title='Alpaca Connection Failed',
+                           message='Daily reconciliation cannot proceed without Alpaca account data')
+                except Exception:
+                    pass
+                return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
 
             print(f"1. Alpaca Account:")
             print(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")
@@ -82,9 +90,9 @@ class DailyReconciliation:
             self.cur.execute("""
                 SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
                 FROM algo_positions
-                WHERE status = 'open'
+                WHERE status = %s
                 ORDER BY symbol
-            """)
+            """, (PositionStatus.OPEN.value,))
 
             positions = self.cur.fetchall()
             print(f"\n2. Database Positions: {len(positions)} open")
@@ -129,11 +137,12 @@ class DailyReconciliation:
             daily_return = total_equity - prev_value
             daily_return_pct = (daily_return / prev_value * 100) if prev_value > 0 else 0
 
-            # 5. Get market health
+            # 5. Get market health (use most recent available, not exact date)
             self.cur.execute("""
                 SELECT market_trend, distribution_days_4w
                 FROM market_health_daily
-                WHERE date = %s
+                WHERE date <= %s
+                ORDER BY date DESC LIMIT 1
             """, (reconcile_date,))
 
             market = self.cur.fetchone()
@@ -141,32 +150,35 @@ class DailyReconciliation:
             dist_days = market[1] if market else 0
 
             # 6. Create portfolio snapshot
-            self.cur.execute("""
-                INSERT INTO algo_portfolio_snapshots (
-                    snapshot_date, total_portfolio_value, total_cash, total_equity,
-                    position_count, largest_position_pct, average_position_size_pct,
-                    unrealized_pnl_total, unrealized_pnl_pct,
-                    daily_return_pct, market_health_status, created_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (snapshot_date) DO UPDATE SET
-                    total_portfolio_value = EXCLUDED.total_portfolio_value,
-                    total_equity = EXCLUDED.total_equity,
-                    unrealized_pnl_total = EXCLUDED.unrealized_pnl_total
-            """, (
-                reconcile_date,
-                total_equity,
-                cash,
-                total_equity,
-                len(positions),
-                max_concentration,
-                (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
-                unrealized_pnl,
-                unrealized_pnl_pct,
-                daily_return_pct,
-                market_trend
-            ))
+            # Check if snapshot already exists for this date
+            self.cur.execute("SELECT snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (reconcile_date,))
+            existing_snapshot = self.cur.fetchone()
+            if existing_snapshot:
+                logger.warning(f"Portfolio snapshot already exists for {reconcile_date} — refusing overwrite to prevent data loss")
+                print(f"WARNING: Snapshot for {reconcile_date} already exists. Skipping insertion to prevent overwrite.")
+            else:
+                self.cur.execute("""
+                    INSERT INTO algo_portfolio_snapshots (
+                        snapshot_date, total_portfolio_value, total_cash, total_equity,
+                        position_count, largest_position_pct, average_position_size_pct,
+                        unrealized_pnl_total, unrealized_pnl_pct,
+                        daily_return_pct, market_health_status, created_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                    )
+                """, (
+                    reconcile_date,
+                    total_equity,
+                    cash,
+                    total_equity,
+                    len(positions),
+                    max_concentration,
+                    (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
+                    unrealized_pnl,
+                    unrealized_pnl_pct,
+                    daily_return_pct,
+                    market_trend
+                ))
 
             self.conn.commit()
 
@@ -225,7 +237,7 @@ class DailyReconciliation:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
         # Get current symbols in our DB
-        self.cur.execute("SELECT symbol FROM algo_positions WHERE status = 'open'")
+        self.cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
         our_symbols = {row[0] for row in self.cur.fetchall()}
 
         alpaca_symbols = {}  # symbol -> qty for drift detection

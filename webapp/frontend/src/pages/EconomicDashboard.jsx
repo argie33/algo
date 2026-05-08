@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw, TrendingUp, TrendingDown, Minus, Activity,
   AlertCircle, Inbox, CalendarDays,
@@ -8,7 +7,8 @@ import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, Tooltip, ReferenceLine, Legend,
 } from 'recharts';
-import { api, extractData } from '../services/api';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { api } from '../services/api';
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -56,38 +56,25 @@ function stressTone(value, hi, mid) {
 }
 
 export default function EconomicDashboard() {
-  const leadingQ = useQuery({
-    queryKey: ['economic-leading-indicators'],
-    queryFn: async () => {
-      const r = await api.get('/api/economic/leading-indicators');
-      const ext = extractData(r);
-      return ext.data || ext || {};
-    },
-    refetchInterval: 60000,
-  });
+  const leadingQ = useApiQuery(
+    ['economic-leading-indicators'],
+    () => api.get('/api/economic/leading-indicators'),
+    { refetchInterval: 60000 }
+  );
 
-  const yieldQ = useQuery({
-    queryKey: ['economic-yield-curve-full'],
-    queryFn: async () => {
-      const r = await api.get('/api/economic/yield-curve-full');
-      const ext = extractData(r);
-      return ext.data || ext || null;
-    },
-    refetchInterval: 60000,
-  });
+  const yieldQ = useApiQuery(
+    ['economic-yield-curve-full'],
+    () => api.get('/api/economic/yield-curve-full'),
+    { refetchInterval: 60000 }
+  );
 
-  const calendarQ = useQuery({
-    queryKey: ['economic-calendar'],
-    queryFn: async () => {
-      const r = await api.get('/api/economic/calendar');
-      const ext = extractData(r);
-      const raw = ext.data || ext || {};
-      return raw?.events || (Array.isArray(raw) ? raw : []);
-    },
-    refetchInterval: 60000,
-  });
+  const calendarQ = useApiQuery(
+    ['economic-calendar'],
+    () => api.get('/api/economic/calendar'),
+    { refetchInterval: 60000 }
+  );
 
-  const isLoading = leadingQ.isLoading || yieldQ.isLoading || calendarQ.isLoading;
+  const isLoading = leadingQ.loading || yieldQ.loading || calendarQ.loading;
   const refetch = () => {
     leadingQ.refetch();
     yieldQ.refetch();
@@ -96,7 +83,10 @@ export default function EconomicDashboard() {
 
   const leading = leadingQ.data || {};
   const yieldData = yieldQ.data || null;
-  const calendarRaw = calendarQ.data || [];
+  const calendarRaw = (() => {
+    const raw = calendarQ.data || {};
+    return raw?.events || (Array.isArray(raw) ? raw : []);
+  })();
 
   const indicators = leading.indicators || [];
 

@@ -410,10 +410,14 @@ class DataPatrol:
         """P7. % symbols updated today (catches loader drop-offs)."""
         try:
             self.cur.execute("""
+                WITH latest_date AS (
+                    SELECT MAX(date) AS max_date FROM price_daily
+                )
                 SELECT
-                    (SELECT COUNT(DISTINCT symbol) FROM price_daily
-                       WHERE date >= (SELECT MAX(date) FROM price_daily)) AS today_count,
-                    (SELECT COUNT(DISTINCT symbol) FROM price_daily) AS total_count
+                    COUNT(DISTINCT CASE WHEN pd.date = ld.max_date THEN pd.symbol END) AS today_count,
+                    COUNT(DISTINCT pd.symbol) AS total_count
+                FROM price_daily pd
+                CROSS JOIN latest_date ld
             """)
             today_count, total_count = self.cur.fetchone()
             today_count = int(today_count or 0)

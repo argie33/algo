@@ -12,7 +12,6 @@
  */
 
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, TrendingUp, Activity, Shield,
@@ -22,6 +21,7 @@ import {
   AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Legend, ReferenceLine,
 } from 'recharts';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 const fmtMoney = (v) =>
@@ -66,43 +66,41 @@ const PIE_PALETTE = [
 export default function PortfolioDashboard() {
   const navigate = useNavigate();
 
-  const { data: status, refetch: refetchStatus } = useQuery({
-    queryKey: ['algo-status'],
-    queryFn: () => api.get('/api/algo/status').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: positions, isLoading: posLoading } = useQuery({
-    queryKey: ['algo-positions'],
-    queryFn: () => api.get('/api/algo/positions').then(r => r.data?.items || []),
-    refetchInterval: 60000,
-  });
-  const { data: perf } = useQuery({
-    queryKey: ['algo-performance'],
-    queryFn: () => api.get('/api/algo/performance').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: trades } = useQuery({
-    queryKey: ['algo-trades-recent'],
-    queryFn: () => api.get('/api/algo/trades?limit=200').then(r => r.data?.items || []),
-    refetchInterval: 60000,
-  });
-  const { data: markets } = useQuery({
-    queryKey: ['algo-markets'],
-    queryFn: () => api.get('/api/algo/markets').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: equityItems } = useQuery({
-    queryKey: ['algo-equity-curve'],
-    queryFn: () => api.get('/api/algo/equity-curve?limit=180')
-                      .then(r => r.data?.items || []).catch(() => []),
-    refetchInterval: 60000,
-  });
-  const { data: breakers } = useQuery({
-    queryKey: ['algo-circuit-breakers'],
-    queryFn: () => api.get('/api/algo/circuit-breakers')
-                      .then(r => r.data?.data).catch(() => null),
-    refetchInterval: 60000,
-  });
+  const { data: status, refetch: refetchStatus } = useApiQuery(
+    ['algo-status'],
+    () => api.get('/api/algo/status'),
+    { refetchInterval: 60000 }
+  );
+  const { data: positions, loading: posLoading } = useApiQuery(
+    ['algo-positions'],
+    () => api.get('/api/algo/positions'),
+    { refetchInterval: 60000 }
+  );
+  const { data: perf } = useApiQuery(
+    ['algo-performance'],
+    () => api.get('/api/algo/performance'),
+    { refetchInterval: 60000 }
+  );
+  const { data: trades } = useApiQuery(
+    ['algo-trades-recent'],
+    () => api.get('/api/algo/trades?limit=200'),
+    { refetchInterval: 60000 }
+  );
+  const { data: markets } = useApiQuery(
+    ['algo-markets'],
+    () => api.get('/api/algo/markets'),
+    { refetchInterval: 60000 }
+  );
+  const { data: equityItems } = useApiQuery(
+    ['algo-equity-curve'],
+    () => api.get('/api/algo/equity-curve?limit=180'),
+    { refetchInterval: 60000 }
+  );
+  const { data: breakers } = useApiQuery(
+    ['algo-circuit-breakers'],
+    () => api.get('/api/algo/circuit-breakers'),
+    { refetchInterval: 60000 }
+  );
 
   const portfolio = status?.portfolio || {};
   const market = status?.market || {};
