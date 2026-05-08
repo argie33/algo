@@ -24,7 +24,7 @@ resource "aws_db_subnet_group" "main" {
 
 resource "aws_db_instance" "main" {
   identifier            = "${var.project_name}-db"
-  db_name              = var.project_name
+  db_name              = var.rds_db_name
   engine               = "postgres"
   engine_version       = "15.3" # Currently supported PostgreSQL version
   instance_class       = var.db_instance_class
