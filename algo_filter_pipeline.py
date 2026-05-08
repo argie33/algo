@@ -725,12 +725,27 @@ class FilterPipeline:
         """Get market close price for a symbol on a given date.
 
         Returns the actual market close from price_daily table.
-        This is the REAL price to use for entry, not theoretical levels.
+        If the requested date has no data (e.g., future date), falls back to
+        most recent available price to avoid rejecting same-day signals.
+        This is appropriate for paper/sim trading.
         """
         self.cur.execute(
             """
             SELECT close FROM price_daily
             WHERE symbol = %s AND date = %s
+            """,
+            (symbol, date),
+        )
+        row = self.cur.fetchone()
+        if row and row[0] is not None:
+            return float(row[0])
+
+        # Fallback: use most recent price <= requested date (for same-day signal evaluation)
+        self.cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 1
             """,
             (symbol, date),
         )
