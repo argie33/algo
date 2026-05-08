@@ -51,7 +51,7 @@ data "archive_file" "api_lambda" {
 resource "aws_lambda_function" "api" {
   filename         = data.archive_file.api_lambda.output_path
   function_name   = local.api_lambda_name
-  role            = aws_iam_role.api_lambda.arn
+  role            = var.api_lambda_role_arn
   handler         = "index.handler"
   runtime         = "python3.11"
   timeout         = var.api_lambda_timeout
@@ -77,8 +77,6 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [
-    aws_iam_role_policy.api_lambda_secrets,
-    aws_iam_role_policy.api_lambda_s3,
     aws_cloudwatch_log_group.api_lambda
   ]
 
@@ -114,6 +112,18 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
   integration_method = "POST"
   integration_uri  = aws_lambda_function.api.invoke_arn
   payload_format_version = "2.0"
+}
+
+# ============================================================
+# Lambda Permission for API Gateway Invocation
+# ============================================================
+
+resource "aws_lambda_permission" "api_gateway" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
 resource "aws_apigatewayv2_route" "api_default" {
@@ -402,94 +412,10 @@ resource "aws_cognito_user_pool_client" "main" {
 }
 
 # ============================================================
-# IAM Role for Algo Lambda
+# Lambda Algo Role - Reference from IAM module
 # ============================================================
-
-resource "aws_iam_role" "algo_lambda" {
-  name = local.algo_lambda_role_name
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = local.algo_lambda_role_name
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "algo_lambda_vpc" {
-  role       = aws_iam_role.algo_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "algo_lambda_logs" {
-  role       = aws_iam_role.algo_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy" "algo_lambda_secrets" {
-  name = "${local.algo_lambda_name}-secrets"
-  role = aws_iam_role.algo_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = "*"
-        Condition = {
-          StringLike = {
-            "secretsmanager:Name" = "${var.project_name}-*"
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "kms:Decrypt"
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "algo_lambda_sns" {
-  name = "${local.algo_lambda_name}-sns"
-  role = aws_iam_role.algo_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish"
-        ]
-        Resource = [
-          aws_sns_topic.algo_alerts[0].arn
-        ]
-      }
-    ]
-  })
-}
+# The Algo Lambda role is created and managed by the IAM module.
+# This module receives the role ARN as a variable and uses it below.
 
 # ============================================================
 # CloudWatch Log Group for Algo Lambda
@@ -522,7 +448,7 @@ data "archive_file" "algo_lambda" {
 resource "aws_lambda_function" "algo" {
   filename         = data.archive_file.algo_lambda.output_path
   function_name   = local.algo_lambda_name
-  role            = aws_iam_role.algo_lambda.arn
+  role            = var.algo_lambda_role_arn
   handler         = "index.handler"
   runtime         = "python3.11"
   timeout         = var.algo_lambda_timeout
@@ -549,7 +475,6 @@ resource "aws_lambda_function" "algo" {
   }
 
   depends_on = [
-    aws_iam_role_policy.algo_lambda_secrets,
     aws_cloudwatch_log_group.algo_lambda
   ]
 

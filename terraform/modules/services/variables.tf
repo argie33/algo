@@ -50,6 +50,20 @@ variable "ecs_tasks_security_group_id" {
 }
 
 # ============================================================
+# IAM Configuration
+# ============================================================
+
+variable "api_lambda_role_arn" {
+  description = "IAM role ARN for API Lambda (from IAM module)"
+  type        = string
+}
+
+variable "algo_lambda_role_arn" {
+  description = "IAM role ARN for Algo Lambda (from IAM module)"
+  type        = string
+}
+
+# ============================================================
 # Database Configuration
 # ============================================================
 
