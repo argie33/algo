@@ -7,7 +7,11 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
+
+// Protect all diagnostics endpoints with auth + admin role
+router.use(authenticateToken, requireAdmin);
 
 // Diagnostics cache with 5-minute TTL
 let diagnosticsCache = null;

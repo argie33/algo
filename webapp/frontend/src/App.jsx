@@ -48,6 +48,7 @@ import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
 
 import { useAuth } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import AuthModal from "./components/auth/AuthModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -368,6 +369,7 @@ function App() {
           {/* Legal Pages */}
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/login" element={<Home />} />
 
           {/* Fallback for marketing - if route doesn't exist, redirect to home */}
           <Route path="*" element={<Home />} />
@@ -400,17 +402,17 @@ function App() {
           <Route path="/app/stock/:symbol" element={<StockDetail />} />
 
           {/* Portfolio & Trading */}
-          <Route path="/app/portfolio" element={<PortfolioDashboard />} />
-          <Route path="/app/trades" element={<TradeTracker />} />
-          <Route path="/app/optimizer" element={<PortfolioOptimizerNew />} />
+          <Route path="/app/portfolio" element={<ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute>} />
+          <Route path="/app/trades" element={<ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute>} />
+          <Route path="/app/optimizer" element={<ProtectedRoute requireAuth><PortfolioOptimizerNew /></ProtectedRoute>} />
           <Route path="/app/hedge-helper" element={<HedgeHelper />} />
 
           {/* Research & Testing */}
           <Route path="/app/backtests" element={<BacktestResults />} />
 
           {/* Admin & Settings */}
-          <Route path="/app/health" element={<ServiceHealth />} />
-          <Route path="/app/settings" element={<Settings />} />
+          <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />
+          <Route path="/app/settings" element={<ProtectedRoute requireAuth><Settings /></ProtectedRoute>} />
         </Routes>
 
         {/* Authentication Modal */}

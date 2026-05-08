@@ -12,12 +12,10 @@
 
 const express = require('express');
 const { getPool } = require('../utils/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Auth middleware: require authentication for endpoints that mutate state or
-// trigger expensive operations. GET endpoints remain public for read-only data.
 const requireAuth = authenticateToken;
 
 /**
@@ -388,10 +386,10 @@ router.get('/trades', async (req, res) => {
 });
 
 /**
- * GET /api/algo/config
+ * GET /api/algo/config (admin only)
  * Get current configuration
  */
-router.get('/config', async (req, res) => {
+router.get('/config', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
 
@@ -772,9 +770,9 @@ router.get('/exposure-policy', async (req, res) => {
 });
 
 // ============================================================
-// RUN ORCHESTRATOR — trigger the daily algo workflow from UI
+// RUN ORCHESTRATOR — trigger the daily algo workflow from UI (admin only)
 // ============================================================
-router.post('/run', requireAuth, async (req, res) => {
+router.post('/run', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
 
@@ -836,9 +834,9 @@ router.post('/run', requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// RUN DATA PATROL — trigger watchdog from UI
+// RUN DATA PATROL — trigger watchdog from UI (admin only)
 // ============================================================
-router.post('/patrol', requireAuth, async (req, res) => {
+router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
 
@@ -886,9 +884,9 @@ router.post('/patrol', requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// PATROL HISTORY — recent patrol log entries
+// PATROL HISTORY — recent patrol log entries (admin only)
 // ============================================================
-router.get('/patrol-log', async (req, res) => {
+router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
     const limit = parseInt(req.query.limit) || 50;
@@ -980,9 +978,9 @@ router.post('/notifications/seen', requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// PRE-TRADE SIMULATION — what would the algo do?
+// PRE-TRADE SIMULATION — what would the algo do? (admin only)
 // ============================================================
-router.post('/simulate', requireAuth, async (req, res) => {
+router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
   try {
@@ -1205,9 +1203,9 @@ router.get('/equity-curve', async (req, res) => {
 });
 
 // ============================================================
-// AUDIT LOG — every algo decision logged
+// AUDIT LOG — every algo decision logged (admin only)
 // ============================================================
-router.get('/audit-log', async (req, res) => {
+router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
     const limit = parseInt(req.query.limit) || 100;
@@ -1284,9 +1282,9 @@ router.get('/trade/:tradeId', async (req, res) => {
 });
 
 // ============================================================
-// CIRCUIT BREAKERS — current state of all 7 kill-switches
+// CIRCUIT BREAKERS — current state of all 7 kill-switches (admin only)
 // ============================================================
-router.get('/circuit-breakers', async (req, res) => {
+router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
 

@@ -40,13 +40,20 @@ class TestBacktestRegression:
         """Run backtest with current code to get live metrics.
 
         Returns empty dict if running in local mode without data access.
+        Uses a rolling 1-year window from today, ensuring data exists.
         """
         # Only run if we can connect to test database
         try:
             from algo_backtest import Backtester
+            from datetime import timedelta
+
+            # Use rolling 1-year window from today
+            end_date = date.today()
+            start_date = end_date - timedelta(days=365)
+
             bt = Backtester(
-                start_date=date(2026, 1, 1),
-                end_date=date(2026, 4, 24),
+                start_date=start_date,
+                end_date=end_date,
                 initial_capital=100_000.0,
                 max_positions=12,
                 use_advanced_filters=True,

@@ -1,24 +1,88 @@
-// Stub apiKeyService - removed in cleanup but still required by auth middleware
-// These functions are called during JWT token validation
+const { CognitoJwtVerifier } = require('aws-jwt-verify');
+
+/**
+ * Cognito JWT Validator
+ * Validates AWS Cognito access tokens and extracts user info + roles
+ */
+
+let verifier = null;
+
+function getVerifier() {
+  if (!verifier) {
+    const userPoolId = process.env.COGNITO_USER_POOL_ID;
+    const clientId = process.env.COGNITO_CLIENT_ID;
+
+    if (!userPoolId || !clientId) {
+      throw new Error('Cognito environment variables not configured: COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID are required');
+    }
+
+    verifier = CognitoJwtVerifier.create({
+      userPoolId,
+      tokenUse: 'access',
+      clientId,
+    });
+  }
+  return verifier;
+}
+
+/**
+ * Validate Cognito JWT token and extract user info + role
+ * @param {string} token - JWT access token from Cognito
+ * @returns {Promise<{valid: boolean, user?: object, error?: string}>}
+ */
+async function validateJwtToken(token) {
+  try {
+    const payload = await getVerifier().verify(token);
+
+    // Extract groups from token and map to role
+    const groups = payload['cognito:groups'] || [];
+    const role = groups.includes('admin') ? 'admin' : 'user';
+
+    return {
+      valid: true,
+      user: {
+        sub: payload.sub,
+        username: payload['cognito:username'] || payload.username || payload.sub,
+        email: payload.email || null,
+        role,
+        groups,
+        sessionId: payload.jti,
+        tokenExpirationTime: payload.exp,
+        tokenIssueTime: payload.iat,
+      }
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      error: err.message
+    };
+  }
+}
+
+/**
+ * Get API key for a user and provider (not implemented - stub for compatibility)
+ */
+async function getApiKey(userId, provider) {
+  return null;
+}
+
+/**
+ * Store API key (not implemented - stub for compatibility)
+ */
+async function storeApiKey(userId, provider, apiKey) {
+  return { success: true };
+}
+
+/**
+ * Get decrypted API key (not implemented - stub for compatibility)
+ */
+async function getDecryptedApiKey(userId, provider) {
+  return null;
+}
 
 module.exports = {
-  validateJwtToken: async (token) => {
-    // Stub implementation - JWT validation happens in auth.js via the JWT library
-    return { valid: true, userId: null };
-  },
-
-  getApiKey: async (userId, provider) => {
-    // Stub implementation - not used by core endpoints
-    return null;
-  },
-
-  storeApiKey: async (userId, provider, secret) => {
-    // Stub implementation - not used by core endpoints
-    return { success: true };
-  },
-
-  getDecryptedApiKey: async (userId, provider) => {
-    // Stub implementation - not used by core endpoints
-    return null;
-  }
+  validateJwtToken,
+  getApiKey,
+  storeApiKey,
+  getDecryptedApiKey,
 };

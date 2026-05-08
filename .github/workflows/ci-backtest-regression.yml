@@ -39,9 +39,36 @@ jobs:
           pip install -q pytest pytest-cov pytest-mock
           pip install -q psycopg2-binary python-dotenv
 
-      - name: Initialize test database
+      - name: Create test databases
         run: |
-          PGPASSWORD=testpass psql -h localhost -U stocks -d stocks -f init_database.py
+          PGPASSWORD=testpass psql -h localhost -U stocks -d postgres -c "CREATE DATABASE stocks_test OWNER stocks;" || true
+
+      - name: Initialize main database schema
+        run: |
+          python init_database.py
+        env:
+          DB_HOST: localhost
+          DB_USER: stocks
+          DB_PASSWORD: testpass
+          DB_NAME: stocks
+
+      - name: Initialize test database schema
+        run: |
+          python init_database.py
+        env:
+          DB_HOST: localhost
+          DB_USER: stocks
+          DB_PASSWORD: testpass
+          DB_NAME: stocks_test
+
+      - name: Seed test database
+        run: |
+          python tests/setup_test_db.py
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_USER: stocks
+          TEST_DB_PASSWORD: testpass
+          TEST_DB_NAME: stocks_test
         continue-on-error: true
 
       - name: Run backtest regression tests
@@ -55,8 +82,12 @@ jobs:
           EXECUTION_MODE: paper
 
       - name: Run integration tests
-        run: pytest tests/integration/ -v --tb=short
+        run: pytest tests/integration/ -v --tb=short --run-db
         env:
+          TEST_DB_HOST: localhost
+          TEST_DB_USER: stocks
+          TEST_DB_PASSWORD: testpass
+          TEST_DB_NAME: stocks_test
           DB_HOST: localhost
           DB_USER: stocks
           DB_PASSWORD: testpass

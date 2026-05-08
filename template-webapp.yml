@@ -118,6 +118,24 @@ Resources:
     Properties:
       UserPoolId: !Ref UserPool
       Domain: !Sub 'stocks-webapp-${EnvironmentName}-${AWS::AccountId}'
+
+  # Cognito User Pool Groups for Role-Based Access Control
+  AdminUserPoolGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admin
+      Description: Administrators with full system access
+      UserPoolId: !Ref UserPool
+      Precedence: 1
+
+  UserUserPoolGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: user
+      Description: Standard authenticated users
+      UserPoolId: !Ref UserPool
+      Precedence: 10
+
   # S3 Bucket for frontend hosting
   FrontendBucket:
     Type: AWS::S3::Bucket

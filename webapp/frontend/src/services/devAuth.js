@@ -9,11 +9,14 @@ const SESSION_KEY = 'devAuth_session';
 
 // Default dev user — always available in development
 const DEV_USER = {
-  username: 'admin',
+  username: 'dev-admin',
   password: 'Admin123!',
-  email: 'admin@localhost.dev',
+  email: 'admin@dev.local',
   firstName: 'Dev',
   lastName: 'Admin',
+  role: 'admin',
+  groups: ['admin'],
+  isAdmin: true,
   confirmed: true,
 };
 
@@ -61,12 +64,16 @@ const devAuth = {
   async getCurrentUser() {
     const session = getSession();
     if (!session) throw new Error('No current user');
+    // Dev user is always admin
     return {
       username: session.username,
       userId: session.username,
       email: session.email,
       firstName: session.firstName,
       lastName: session.lastName,
+      role: 'admin',
+      groups: ['admin'],
+      isAdmin: true,
       signInDetails: { loginId: session.email },
     };
   },
@@ -85,7 +92,16 @@ const devAuth = {
       return {
         success: true,
         tokens: makeTokens(username),
-        user: { username: DEV_USER.username, userId: DEV_USER.username, email: DEV_USER.email, firstName: DEV_USER.firstName, lastName: DEV_USER.lastName },
+        user: {
+          username: DEV_USER.username,
+          userId: DEV_USER.username,
+          email: DEV_USER.email,
+          firstName: DEV_USER.firstName,
+          lastName: DEV_USER.lastName,
+          role: 'admin',
+          groups: ['admin'],
+          isAdmin: true,
+        },
       };
     }
 
@@ -101,7 +117,16 @@ const devAuth = {
     return {
       success: true,
       tokens: makeTokens(username),
-      user: { username, userId: username, email: user.email, firstName: user.firstName, lastName: user.lastName },
+      user: {
+        username,
+        userId: username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: 'admin',
+        groups: ['admin'],
+        isAdmin: true,
+      },
     };
   },
 

@@ -138,20 +138,20 @@ class TestTier4SignalQuality:
 
             assert result['pass'] is True
 
-    def test_weak_trend_template_fails(self, test_config):
-        """Minervini score 4/10 should fail (min 8)."""
+    def test_low_sqs_fails(self, test_config):
+        """SQS 45 should fail (min 60)."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
-        with patch.object(pipeline, '_tier4_technical_pattern') as mock_t4:
+        with patch.object(pipeline, '_tier4_signal_quality') as mock_t4:
             mock_t4.return_value = {
                 'pass': False,
-                'minervini_score': 4,
-                'reason': 'Minervini 4 < 8 min'
+                'sqs': 45,
+                'reason': 'SQS 45 < 60 min'
             }
 
-            result = mock_t4('AAPL')
+            result = mock_t4('AAPL', date.today())
 
             assert result['pass'] is False
 

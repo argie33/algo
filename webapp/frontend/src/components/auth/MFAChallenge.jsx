@@ -14,6 +14,7 @@ function MFAChallenge({
   message = "Please enter the verification code sent to your device.",
   onSuccess,
   onCancel,
+  onVerify = null, // Optional: callback to verify code with Amplify
 }) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,15 +31,21 @@ function MFAChallenge({
     setError("");
 
     try {
-      // Simulate MFA validation
-      if (code === "123456") {
-        onSuccess({
-          username: "testuser",
-          code: code,
-          challengeType: challengeType,
-        });
+      // If an onVerify callback is provided (Amplify integration), use it
+      if (onVerify && typeof onVerify === 'function') {
+        const result = await onVerify(code);
+        if (result?.success) {
+          onSuccess({
+            username: result.username || "user",
+            code: code,
+            challengeType: challengeType,
+          });
+        } else {
+          setError(result?.error || "Invalid verification code. Please try again.");
+        }
       } else {
-        setError("Invalid verification code. Please try again.");
+        // Fallback: always fail without a verification callback
+        setError("MFA verification is not configured. Please contact support.");
       }
     } catch (err) {
       setError("MFA verification failed. Please try again.");

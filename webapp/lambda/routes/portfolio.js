@@ -253,7 +253,7 @@ async function getPortfolioHistory(userId) {
 // ============================================================================
 
 // Get manual positions
-router.get("/manual-positions", async (req, res) => {
+router.get("/manual-positions", authenticateToken, async (req, res) => {
   try {
     const result = await query(
       `SELECT id, symbol, quantity, entry_price, created_at, updated_at
@@ -270,7 +270,7 @@ router.get("/manual-positions", async (req, res) => {
 });
 
 // Get a specific manual position
-router.get("/manual-positions/:id", async (req, res) => {
+router.get("/manual-positions/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -292,7 +292,7 @@ router.get("/manual-positions/:id", async (req, res) => {
 });
 
 // Create a manual position
-router.post("/manual-positions", async (req, res) => {
+router.post("/manual-positions", authenticateToken, async (req, res) => {
   try {
     const { symbol, quantity, entry_price } = req.body;
 

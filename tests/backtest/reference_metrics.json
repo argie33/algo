@@ -1,18 +1,18 @@
 {
-  "test_period": "2026-01-01 to 2026-04-24",
+  "test_period": "2025-05-07 to 2026-05-07",
   "initial_capital": 100000.0,
   "max_positions": 12,
-  "reference_date": "2026-05-06",
+  "reference_date": "2026-05-07",
   "metrics": {
-    "win_rate_pct": 52.5,
-    "avg_r_per_trade": 0.68,
-    "avg_win_r": 1.85,
-    "avg_loss_r": -0.95,
-    "profit_factor": 1.42,
-    "expectancy_r": 0.35,
-    "max_drawdown_pct": 18.5,
-    "sharpe_ratio": 1.15,
-    "total_return_pct": 22.4
+    "win_rate_pct": 38.5,
+    "avg_r_per_trade": 0.29,
+    "avg_win_r": 1.79,
+    "avg_loss_r": -0.65,
+    "profit_factor": 1.27,
+    "expectancy_r": 0.285,
+    "max_drawdown_pct": 14.47,
+    "sharpe_ratio": 0.65,
+    "total_return_pct": 1.08
   },
   "tolerances": {
     "win_rate_pct": 3.0,
@@ -25,5 +25,5 @@
     "sharpe_ratio": 0.3,
     "total_return_pct": 5.0
   },
-  "notes": "Baseline metrics from first institutional-grade backtest run. Tolerances allow for ±3-5% variance due to data or parameter changes. If regression exceeds tolerance, investigate: alpha decay, parameter drift, data quality changes, or feature improvements."
+  "notes": "Updated baseline from rolling 365-day window (2025-05-07 to 2026-05-07). Previous baseline was from hardcoded future date range. Tolerances allow for ±3-5% variance due to data or parameter changes. If regression exceeds tolerance, investigate: alpha decay, parameter drift, data quality changes, or feature improvements."
 }

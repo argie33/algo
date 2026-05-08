@@ -162,8 +162,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
 
         {mode === AUTH_MODES.FORGOT_PASSWORD && (
           <ForgotPasswordForm
-            onForgotPasswordSuccess={handleForgotPasswordSuccess}
-            onSwitchToLogin={() => {
+            onBack={() => {
               setSuccessMessage("");
               setMode(AUTH_MODES.LOGIN);
             }}

@@ -10,6 +10,7 @@ const {
 } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 // Health endpoints - Updated 2025-10-01 - CloudWatch Logs integration for ECS tasks
@@ -327,8 +328,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Comprehensive database health check endpoint (RESTORED health_status logic)
-router.get("/database", async (req, res) => {
+// Comprehensive database health check endpoint (RESTORED health_status logic) - Admin only
+router.get("/database", authenticateToken, requireAdmin, async (req, res) => {
   logger.info("Received request for /health/database");
   try {
     // Ensure database pool is initialized before running any queries
@@ -463,8 +464,8 @@ router.get("/database", async (req, res) => {
   }
 });
 
-// ECS task monitoring endpoint - check status of scheduled tasks
-router.get("/ecs-tasks", async (req, res) => {
+// ECS task monitoring endpoint - check status of scheduled tasks - Admin only
+router.get("/ecs-tasks", authenticateToken, requireAdmin, async (req, res) => {
   logger.info("Received request for /health/ecs-tasks");
 
   // In local development, AWS SDK may not be available
@@ -713,8 +714,8 @@ router.get("/ecs-tasks", async (req, res) => {
   }
 });
 
-// API endpoints health check - verify all routes are responding
-router.get("/api-endpoints", async (req, res) => {
+// API endpoints health check - verify all routes are responding - Admin only
+router.get("/api-endpoints", authenticateToken, requireAdmin, async (req, res) => {
   logger.info("Received request for /health/api-endpoints");
 
   try {

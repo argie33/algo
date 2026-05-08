@@ -58,7 +58,10 @@ def seeded_test_db():
     - Seeds minimal realistic test data (prices, signals, positions, trades)
 
     Use this fixture in integration tests that need a real database with data.
+    Tests connect to the database directly; this fixture ensures it's set up.
     """
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
     from setup_test_db import setup_test_db
     try:
         setup_test_db()
@@ -67,16 +70,7 @@ def seeded_test_db():
         print(f"\n✗ Test database setup failed: {e}")
         raise
 
-    # Return a connection for tests to use
-    conn = psycopg2.connect(
-        host=TEST_DB_HOST,
-        port=TEST_DB_PORT,
-        database=TEST_DB_NAME,
-        user=TEST_DB_USER,
-        password=TEST_DB_PASSWORD,
-    )
-    yield conn
-    conn.close()
+    yield  # Tests run here
 
 
 @pytest.fixture(scope="session")

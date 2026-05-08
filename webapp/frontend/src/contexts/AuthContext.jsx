@@ -42,6 +42,22 @@ const AUTH_ACTIONS = {
   UPDATE_TOKENS: "UPDATE_TOKENS",
 };
 
+// Helper to extract groups from Cognito idToken JWT
+function extractGroupsFromIdToken(idToken) {
+  try {
+    if (!idToken) return { groups: [], role: 'user' };
+    const parts = idToken.split('.');
+    if (parts.length !== 3) return { groups: [], role: 'user' };
+    const payload = JSON.parse(atob(parts[1]));
+    const groups = payload['cognito:groups'] || [];
+    const role = groups.includes('admin') ? 'admin' : 'user';
+    return { groups, role };
+  } catch (error) {
+    console.warn('Failed to extract groups from idToken:', error);
+    return { groups: [], role: 'user' };
+  }
+}
+
 // Auth reducer
 function authReducer(state, action) {
   switch (action.type) {
@@ -51,10 +67,18 @@ function authReducer(state, action) {
         isLoading: action.payload,
       };
     case AUTH_ACTIONS.LOGIN_SUCCESS:
+      const user = action.payload.user;
+      const tokens = action.payload.tokens;
+      const { groups, role } = extractGroupsFromIdToken(tokens?.idToken);
       return {
         ...state,
-        user: action.payload.user,
-        tokens: action.payload.tokens,
+        user: {
+          ...user,
+          groups: user.groups || groups,
+          role: user.role || role,
+          isAdmin: (user.role || role) === 'admin',
+        },
+        tokens,
         isAuthenticated: true,
         isLoading: false,
         error: null,

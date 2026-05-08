@@ -9,6 +9,7 @@ const requiredInProduction = {
   DB_USER: "PostgreSQL username",
   DB_PASSWORD: "PostgreSQL password",
   DB_NAME: "PostgreSQL database name",
+  COGNITO_USER_POOL_ID: "AWS Cognito User Pool ID",
   COGNITO_CLIENT_ID: "AWS Cognito Client ID",
   JWT_SECRET: "JWT signing secret",
 };
@@ -76,6 +77,7 @@ const config = {
   },
 
   auth: {
+    cognitoUserPoolId: process.env.COGNITO_USER_POOL_ID,
     cognitoClientId: process.env.COGNITO_CLIENT_ID,
     jwtSecret: process.env.JWT_SECRET,
   },

@@ -190,7 +190,11 @@
       "Bash(Select-Object Name)",
       "PowerShell(ls -Directory \"C:\\\\Users\\\\arger\\\\code\\\\algo\" | ForEach-Object { $_.Name })",
       "Bash(Get-Content *)",
-      "Bash(pkill -f algo_orchestrator)"
+      "Bash(pkill -f algo_orchestrator)",
+      "Bash(tee orchestrator_verification.log)",
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT COUNT\\(*\\), status FROM algo_trades GROUP BY status ORDER BY status;\")",
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT COUNT\\(*\\), status FROM algo_signals WHERE signal_date = CURRENT_DATE GROUP BY status ORDER BY status;\")",
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT symbol, signal_date, signal_type, swing_score FROM algo_signals WHERE signal_date = CURRENT_DATE ORDER BY swing_score DESC LIMIT 10;\")"
     ]
   }
 }
