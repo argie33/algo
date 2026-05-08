@@ -27,6 +27,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+from typing import Dict, List, Any, Tuple
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -60,7 +61,7 @@ class CircuitBreaker:
             self.conn.close()
         self.cur = self.conn = None
 
-    def check_all(self, current_date=None):
+    def check_all(self, current_date: Any = None) -> Dict[str, Any]:
         """Run all circuit breakers. Returns dict with per-check status."""
         if not current_date:
             current_date = _date.today()
@@ -122,7 +123,7 @@ class CircuitBreaker:
 
     # ---------- Individual checks ----------
 
-    def _check_drawdown(self, current_date):
+    def _check_drawdown(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
             """
             SELECT MAX(total_portfolio_value),
@@ -144,7 +145,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_daily_loss(self, current_date):
+    def _check_daily_loss(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
@@ -161,7 +162,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_consecutive_losses(self, current_date):
+    def _check_consecutive_losses(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
@@ -189,7 +190,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_total_risk(self, current_date):
+    def _check_total_risk(self, current_date: Any) -> Dict[str, Any]:
         """Sum of (entry - stop) * qty across open positions vs portfolio value."""
         self.cur.execute(
             """
@@ -220,7 +221,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_vix_spike(self, current_date):
+    def _check_vix_spike(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
             "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
@@ -237,7 +238,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_market_stage(self, current_date):
+    def _check_market_stage(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
             "SELECT market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
@@ -255,7 +256,7 @@ class CircuitBreaker:
             'value': stage,
         }
 
-    def _check_weekly_loss(self, current_date):
+    def _check_weekly_loss(self, current_date: Any) -> Dict[str, Any]:
         """7-day return on portfolio."""
         week_ago = current_date - timedelta(days=7)
         self.cur.execute(
@@ -279,7 +280,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_data_freshness(self, current_date):
+    def _check_data_freshness(self, current_date: Any) -> Dict[str, Any]:
         """Block if our market data is too stale."""
         self.cur.execute(
             "SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'"
