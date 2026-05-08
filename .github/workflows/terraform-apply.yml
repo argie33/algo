@@ -89,12 +89,7 @@ jobs:
             }
           done
 
-          # Run deep VPC cleanup
-          echo "[4/4] Running deep VPC cleanup..."
-          gh workflow run deep-cleanup-vpc.yml --repo argie33/algo
-          echo "Deep VPC cleanup triggered (runs in parallel)"
-          sleep 5
-
+          echo "[4/4] VPC cleanup (handled by Terraform destroy)"
           echo "Cleanup complete"
 
       - uses: aws-actions/configure-aws-credentials@v4
