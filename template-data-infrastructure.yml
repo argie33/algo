@@ -55,7 +55,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Retain
     Properties:
-      GroupDescription: Allow Postgres access from ECS tasks, Bastion, and Lambdas (dev: wide open, prod: lock down)
+      GroupDescription: "Allow Postgres access from ECS tasks, Bastion, and Lambdas (dev: wide open, prod: lock down)"
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -151,7 +151,6 @@ Resources:
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: stocks-cluster
       CapacityProviders:
         - FARGATE
         - FARGATE_SPOT
@@ -177,7 +176,6 @@ Resources:
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ecs-task-execution-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
