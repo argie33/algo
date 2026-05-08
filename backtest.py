@@ -45,7 +45,7 @@ if DB_SECRET_ARN:
         DB_HOST = creds["host"]
         DB_PORT = int(creds.get("port", 5432))
         DB_NAME = creds["dbname"]
-    except:
+                except Exception:
         pass
 
 def get_db_connection():

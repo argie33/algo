@@ -77,6 +77,7 @@ class ETFPriceDailyLoader(OptimalLoader):
 def get_active_etf_symbols() -> List[str]:
     """Pull active ETF symbols from database or use defaults."""
     import psycopg2
+    conn = None
     try:
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
@@ -88,13 +89,15 @@ def get_active_etf_symbols() -> List[str]:
         with conn.cursor() as cur:
             cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]
-    except:
+    except (psycopg2.Error, OSError) as e:
+        logging.warning(f"Failed to fetch ETF symbols: {e}")
         return ["SPY", "QQQ", "IWM", "EEM", "EFA"]
     finally:
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except psycopg2.Error:
+                pass
 
 
 def main():

@@ -170,7 +170,7 @@ def delete_vpc_resources():
                 for eni in enis['NetworkInterfaces']:
                     try:
                         ec2_client.delete_network_interface(NetworkInterfaceId=eni['NetworkInterfaceId'])
-                    except:
+                    except Exception:
                         pass
                 print("[OK]")
             except Exception as e:
@@ -209,7 +209,7 @@ def delete_vpc_resources():
                     if sg['GroupName'] != 'default':
                         try:
                             ec2_client.delete_security_group(GroupId=sg['GroupId'])
-                        except:
+                        except Exception:
                             pass
                 print("[OK]")
             except Exception as e:
@@ -224,7 +224,7 @@ def delete_vpc_resources():
                     if not any(assoc['Main'] for assoc in rt.get('Associations', [])):
                         try:
                             ec2_client.delete_route_table(RouteTableId=rt['RouteTableId'])
-                        except:
+                        except Exception:
                             pass
                 print("[OK]")
             except Exception as e:
@@ -238,7 +238,7 @@ def delete_vpc_resources():
                 for subnet in subnets['Subnets']:
                     try:
                         ec2_client.delete_subnet(SubnetId=subnet['SubnetId'])
-                    except:
+                    except Exception:
                         pass
                 print("[OK]")
             except Exception as e:

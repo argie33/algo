@@ -140,7 +140,7 @@ def seed_test_data():
         print(f"  [FAIL] Failed to seed data: {e}")
         try:
             conn.rollback()
-        except:
+                except Exception:
             pass
         raise
 

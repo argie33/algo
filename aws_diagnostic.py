@@ -43,7 +43,7 @@ def run_diagnostics():
                 try:
                     details = cfn.describe_hooks(HookId=hook['HookId'])
                     print(f"    Status: {hook.get('Status', 'N/A')}")
-                except:
+                except Exception:
                     pass
         else:
             print("✓ No CloudFormation hooks configured")

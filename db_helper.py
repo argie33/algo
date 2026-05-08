@@ -70,7 +70,7 @@ class DatabaseHelper:
         if self.conn:
             try:
                 self.conn.close()
-            except:
+            except psycopg2.Error:
                 pass
             self.conn = None
 
@@ -163,12 +163,12 @@ class DatabaseHelper:
             if self.conn:
                 try:
                     self.conn.rollback()
-                except:
+                except psycopg2.Error:
                     pass
             return 0
         finally:
             if cursor:
                 try:
                     cursor.close()
-                except:
+                except psycopg2.Error:
                     pass

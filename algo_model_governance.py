@@ -85,7 +85,7 @@ class ModelRegistry:
                     cwd=Path(__file__).parent,
                     text=True,
                 ).strip()[:40]
-            except:
+            except (subprocess.CalledProcessError, OSError, FileNotFoundError) as e:
                 git_commit = "unknown"
 
             self.cur.execute(

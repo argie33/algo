@@ -31,7 +31,7 @@ try:
             if 'Attachment' in eni:
                 ec2.detach_network_interface(AttachmentId=eni['Attachment']['AttachmentId'], Force=True)
             ec2.delete_network_interface(NetworkInterfaceId=eni['NetworkInterfaceId'])
-        except:
+        except Exception:
             pass
     print('[OK]')
 except Exception as e:
@@ -44,7 +44,7 @@ try:
         try:
             ec2.detach_internet_gateway(InternetGatewayId=igw['InternetGatewayId'], VpcId=vpc_id)
             ec2.delete_internet_gateway(InternetGatewayId=igw['InternetGatewayId'])
-        except:
+        except Exception:
             pass
     print('[OK]')
 except Exception as e:
@@ -57,7 +57,7 @@ try:
         if not any(a['Main'] for a in rt.get('Associations', [])):
             try:
                 ec2.delete_route_table(RouteTableId=rt['RouteTableId'])
-            except:
+            except Exception:
                 pass
     print('[OK]')
 except Exception as e:
@@ -69,7 +69,7 @@ try:
     for subnet in subnets['Subnets']:
         try:
             ec2.delete_subnet(SubnetId=subnet['SubnetId'])
-        except:
+        except Exception:
             pass
     print('[OK]')
 except Exception as e:
@@ -82,7 +82,7 @@ try:
         if sg['GroupName'] != 'default':
             try:
                 ec2.delete_security_group(GroupId=sg['GroupId'])
-            except:
+            except Exception:
                 pass
     print('[OK]')
 except Exception as e:

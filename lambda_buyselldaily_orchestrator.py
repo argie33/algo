@@ -38,7 +38,7 @@ def get_all_symbols():
         try:
             secret_response = secrets_client.get_secret_value(SecretId=secret_name)
             secret = json.loads(secret_response['SecretString'])
-        except:
+                except Exception:
             # Fallback to environment variables if Secrets Manager fails
             secret = {
                 'host': os.environ.get('DB_HOST', 'localhost'),

@@ -204,7 +204,7 @@ def get_vix_level(conn, date_obj):
         """, (date_obj,))
         result = cur.fetchone()
         return float(result[0]) if result and result[0] else 20.0
-    except:
+                except Exception:
         return 20.0
     finally:
         cur.close()

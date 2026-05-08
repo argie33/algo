@@ -83,7 +83,7 @@ def cleanup_stacks():
             try:
                 waiter.wait(StackName=stack_name, WaiterConfig={'Delay': 15, 'MaxAttempts': 20})
                 print(f"  [OK] Deletion completed")
-            except:
+                except Exception:
                 print(f"  [WARN] Deletion in progress or failed (will continue)")
 
         except cfn.exceptions.ClientError as e:

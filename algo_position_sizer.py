@@ -360,7 +360,7 @@ class PositionSizer:
         try:
             splits = [float(x.strip()) / 100 for x in split_str.split(',')]
             return splits
-        except:
+        except (ValueError, AttributeError) as e:
             return [0.50, 0.33, 0.17]
 
 if __name__ == "__main__":

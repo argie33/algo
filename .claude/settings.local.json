@@ -198,7 +198,8 @@
       "Bash(sed -n '151,158p' algo_paper_mode_gates.py)",
       "Bash(sed -n '215,222p' algo_paper_mode_gates.py)",
       "Bash(tee orchestrator_test.log)",
-      "Bash(pkill -f \"tail -f\")"
+      "Bash(pkill -f \"tail -f\")",
+      "Bash(jobs *)"
     ]
   }
 }

@@ -71,6 +71,7 @@ class SectorsLoader(OptimalLoader):
     def _get_sector_list(self) -> List[str]:
         """Get list of unique sectors from stocks table."""
         import psycopg2
+        conn = None
         try:
             conn = psycopg2.connect(
                 host=os.getenv("DB_HOST", "localhost"),
@@ -82,13 +83,15 @@ class SectorsLoader(OptimalLoader):
             with conn.cursor() as cur:
                 cur.execute("SELECT DISTINCT sector FROM stocks WHERE sector IS NOT NULL ORDER BY sector")
                 return [r[0] for r in cur.fetchall()]
-        except:
+        except (psycopg2.Error, OSError) as e:
+            logging.warning(f"Failed to fetch sectors: {e}")
             return ["Technology", "Healthcare", "Financials", "Energy", "Consumer", "Industrials"]
         finally:
-            try:
-                conn.close()
-            except:
-                pass
+            if conn:
+                try:
+                    conn.close()
+                except psycopg2.Error:
+                    pass
 
     def transform(self, rows):
         """Rows are clean."""
