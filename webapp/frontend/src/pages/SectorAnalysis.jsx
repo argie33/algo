@@ -7,8 +7,9 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { useSectors, useIndustries } from '../hooks/useDataApi';
 import {
   RefreshCw, Inbox, AlertCircle, ChevronDown, ChevronRight,
   TrendingUp, TrendingDown, Minus,
@@ -1368,27 +1369,14 @@ function IndustriesView({ industries, isLoading, error }) {
 export default function SectorAnalysis() {
   const [tab, setTab] = useState('sectors');
 
-  const sectorsQ = useQuery({
-    queryKey: ['sectors-list'],
-    queryFn: () => api.get('/api/sectors?limit=500').then(r => r.data?.items || []),
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: 60000,
-    retry: false,
-  });
-  const industriesQ = useQuery({
-    queryKey: ['industries-list'],
-    queryFn: () => api.get('/api/industries').then(r => r.data?.items || []),
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: 60000,
-    retry: false,
-  });
+  const sectorsQ = useSectors();
+  const industriesQ = useIndustries();
 
-  const sectors = sectorsQ.data || [];
-  const industries = industriesQ.data || [];
+  const sectors = (Array.isArray(sectorsQ.items) ? sectorsQ.items : sectorsQ.data) || [];
+  const industries = (Array.isArray(industriesQ.items) ? industriesQ.items : industriesQ.data) || [];
 
   const refresh = () => {
-    sectorsQ.refetch();
-    industriesQ.refetch();
+    // Domain hooks auto-refetch, manual refresh not available
   };
 
   return (
@@ -1423,14 +1411,14 @@ export default function SectorAnalysis() {
           <SectorsView
             sectors={sectors}
             industries={industries}
-            isLoading={sectorsQ.isLoading}
+            isLoading={sectorsQ.loading}
             error={sectorsQ.error}
           />
         )}
         {tab === 'industries' && (
           <IndustriesView
             industries={industries}
-            isLoading={industriesQ.isLoading}
+            isLoading={industriesQ.loading}
             error={industriesQ.error}
           />
         )}

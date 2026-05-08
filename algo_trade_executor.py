@@ -264,6 +264,22 @@ class TradeExecutor:
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
+            # Check for PENDING trades first (count towards re-entry limit)
+            self.cur.execute(
+                """
+                SELECT COUNT(*) FROM algo_trades
+                WHERE symbol = %s AND status IN (%s, %s)
+                  AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+                """,
+                (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
+            )
+            pending_count = self.cur.fetchone()[0]
+            if pending_count > 0:
+                return {
+                    'success': False, 'trade_id': '', 'status': 'pending_trade_exists',
+                    'message': f'{symbol}: {pending_count} pending/open trade(s) exist. Close before re-entering.'
+                }
+
             # Find most recent CLOSED trade for this symbol in the last 30 days
             self.cur.execute(
                 """

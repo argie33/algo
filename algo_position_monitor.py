@@ -52,14 +52,19 @@ class PositionMonitor:
         self.cur = None
 
     def connect(self):
-        self.conn = psycopg2.connect(**DB_CONFIG)
+        pool = get_db_pool()
+        self.conn = pool.getconn()
         self.cur = self.conn.cursor()
+        self._pool = pool
 
     def disconnect(self):
         if self.cur:
             self.cur.close()
         if self.conn:
-            self.conn.close()
+            if hasattr(self, '_pool'):
+                self._pool.putconn(self.conn)
+            else:
+                self.conn.close()
         self.cur = self.conn = None
 
     def check_stale_orders(self, current_date=None):

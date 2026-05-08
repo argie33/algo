@@ -61,6 +61,7 @@ from datetime import datetime, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
+from trade_status import PositionStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -805,8 +806,8 @@ class Orchestrator:
                             cur = conn.cursor()
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s "
-                                "WHERE position_id = %s AND status = 'open'",
-                                (rec['new_stop_recommended'], rec['position_id']),
+                                "WHERE position_id = %s AND status = %s",
+                                (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
                             )
                             conn.commit()
                             stop_raises += 1
