@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ============================================================
 # GitHub Actions Terraform Bootstrap Script
 # Purpose: Verify/create S3 state backend and DynamoDB locks
