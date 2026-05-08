@@ -134,7 +134,7 @@ export default function CommoditiesAnalysis() {
               </select>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              {prices.isLoading ? <Empty title="Loading commodities…" /> :
+              {prices.loading ? <Empty title="Loading commodities…" /> :
                filteredCommodities.length === 0 ? <Empty title="No commodities" /> : (
                 <div style={{ overflow: 'auto' }}>
                   <table className="data-table">
