@@ -50,11 +50,23 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Reset backend state completely
+        run: |
+          echo "Removing all stale state..."
+          # Delete state file
+          aws s3 rm s3://stocks-terraform-state/dev/terraform.tfstate --region ${{ env.AWS_REGION }} || true
+          # Scan and delete all lock entries
+          aws dynamodb scan --table-name stocks-terraform-locks --region ${{ env.AWS_REGION }} \
+            --query 'Items[*].LockID.S' --output text 2>/dev/null | \
+            xargs -I {} aws dynamodb delete-item --table-name stocks-terraform-locks \
+            --key '{"LockID":{"S":"{}"}}' --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          echo "Backend cleared"
+          sleep 2
+
       - name: Terraform init
         run: |
           cd terraform
-          # Use -reconfigure to skip state validation on first init
-          # This handles stale state/lock mismatches from previous failed deploys
+          # Init with backend reconfiguration after cleanup
           terraform init -upgrade -reconfigure
 
       - name: Terraform validate
