@@ -257,12 +257,19 @@ class MultiSourceOHLCVLoader:
             self.conn.close()
 
 def main():
+    loader = None
     try:
         loader = MultiSourceOHLCVLoader()
         return loader.load_all()
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
+    finally:
+        if loader:
+            try:
+                loader.close()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     sys.exit(main())

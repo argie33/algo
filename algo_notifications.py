@@ -47,6 +47,9 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
 
     Note: algo_notifications table is created by init_database.py (schema as code).
     """
+    import json
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
@@ -58,8 +61,6 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
         )
         notif_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Optional: send email if configured
         recipient = os.getenv('EMAIL_RECIPIENT')
@@ -80,6 +81,17 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
     except Exception as e:
         print(f"  (notify failed: {e})")
         return None
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _send_email(recipient, severity, title, message, symbol):
@@ -128,42 +140,66 @@ def _publish_sns(severity, title, message, symbol):
 
 
 def get_unseen(limit=50):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    cur.execute(
-        """SELECT id, kind, severity, title, message, symbol, details, created_at
-           FROM algo_notifications
-           WHERE seen = FALSE
-           ORDER BY
-               CASE severity
-                   WHEN 'critical' THEN 1
-                   WHEN 'error' THEN 2
-                   WHEN 'warning' THEN 3
-                   ELSE 4
-               END,
-               created_at DESC
-           LIMIT %s""",
-        (limit,),
-    )
-    rows = cur.fetchall()
-    cols = [d[0] for d in cur.description]
-    notifications = [dict(zip(cols, row)) for row in rows]
-    cur.close()
-    conn.close()
-    return notifications
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, kind, severity, title, message, symbol, details, created_at
+               FROM algo_notifications
+               WHERE seen = FALSE
+               ORDER BY
+                   CASE severity
+                       WHEN 'critical' THEN 1
+                       WHEN 'error' THEN 2
+                       WHEN 'warning' THEN 3
+                       ELSE 4
+                   END,
+                   created_at DESC
+               LIMIT %s""",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description]
+        notifications = [dict(zip(cols, row)) for row in rows]
+        return notifications
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def mark_seen(notification_ids):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    cur.execute(
-        """UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP
-           WHERE id = ANY(%s)""",
-        (notification_ids,),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP
+               WHERE id = ANY(%s)""",
+            (notification_ids,),
+        )
+        conn.commit()
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
