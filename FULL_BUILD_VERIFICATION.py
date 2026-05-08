@@ -72,6 +72,8 @@ class FullBuildVerification:
         """Verify all 11 database tables exist with proper structure."""
         self.section("1. DATABASE SCHEMA VERIFICATION")
 
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -110,11 +112,19 @@ class FullBuildVerification:
             index_count = cur.fetchone()[0]
             self.log(index_count > 20, f"Indexes created", f"{index_count} indexes found")
 
-            cur.close()
-            conn.close()
-
         except Exception as e:
             self.log(False, "Database connection", str(e))
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ========== DATA VERIFICATION ==========
 
@@ -122,6 +132,8 @@ class FullBuildVerification:
         """Verify data has been loaded for metrics."""
         self.section("2. DATA LOADING VERIFICATION")
 
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -151,11 +163,19 @@ class FullBuildVerification:
             completeness_count = cur.fetchone()[0]
             self.log(completeness_count > 4000, f"Data completeness scores", f"{completeness_count} symbols")
 
-            cur.close()
-            conn.close()
-
         except Exception as e:
             self.log(False, "Data verification", str(e))
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ========== CONFIGURATION VERIFICATION ==========
 
@@ -163,6 +183,8 @@ class FullBuildVerification:
         """Verify configuration system with all 33 parameters."""
         self.section("3. CONFIGURATION SYSTEM VERIFICATION")
 
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -187,11 +209,19 @@ class FullBuildVerification:
                 exists = result is not None
                 self.log(exists, f"Parameter '{param}'", f"value: {result[0] if result else 'NOT FOUND'}")
 
-            cur.close()
-            conn.close()
-
         except Exception as e:
             self.log(False, "Configuration verification", str(e))
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ========== MODULE VERIFICATION ==========
 
