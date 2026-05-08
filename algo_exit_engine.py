@@ -25,6 +25,7 @@ from trade_performance_auditor import TradePerformanceAuditor
 from algo_trade_executor import TradeExecutor
 from algo_signals import SignalComputer
 import logging
+from typing import Dict, List, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +51,18 @@ class ExitEngine:
         self.conn = None
         self.cur = None
 
-    def connect(self):
+    def connect(self) -> None:
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.cur:
             self.cur.close()
         if self.conn:
             self.conn.close()
         self.cur = self.conn = None
 
-    def check_and_execute_exits(self, current_date=None):
+    def check_and_execute_exits(self, current_date=None) -> int:
         """Check all open positions for exit conditions and execute."""
         if not current_date:
             current_date = datetime.now().date()
@@ -200,7 +201,7 @@ class ExitEngine:
     def _evaluate_position(self, symbol, current_date, cur_price, prev_close,
                            entry_price, active_stop, init_stop,
                            t1_price, t2_price, t3_price,
-                           target_hits, days_held, dist_days_today):
+                           target_hits, days_held, dist_days_today) -> Dict[str, Any] | None:
         """Decide what (if any) exit to take. Returns dict or None."""
         # PHASE 1 FIX: Enforce minimum holding period (no same-day exits)
         min_hold_days = int(self.config.get('min_hold_days', 1))
@@ -341,7 +342,7 @@ class ExitEngine:
 
     # ---------- Data helpers ----------
 
-    def _fetch_recent_prices(self, symbol, current_date):
+    def _fetch_recent_prices(self, symbol, current_date) -> tuple[float | None, float | None]:
         """Return (current_close, previous_close) using closest available price <= current_date."""
         self.cur.execute(
             """
@@ -358,7 +359,7 @@ class ExitEngine:
         prev_close = float(rows[1][1]) if len(rows) > 1 else None
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, current_date):
+    def _fetch_market_dist_days(self, current_date) -> int:
         self.cur.execute(
             """
             SELECT distribution_days_4w FROM market_health_daily
@@ -369,7 +370,7 @@ class ExitEngine:
         row = self.cur.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    def _is_pulling_back(self, symbol, current_date):
+    def _is_pulling_back(self, symbol, current_date) -> bool:
         """True if current close is below the highest close of the last 3 days."""
         if self.cur is None:
             # Pure-function caller didn't open a connection; default to True so
@@ -390,7 +391,7 @@ class ExitEngine:
         prior_max = max(float(r[0]) for r in rows[1:])
         return cur_close < prior_max
 
-    def _rs_line_breaking(self, symbol, current_date):
+    def _rs_line_breaking(self, symbol, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
         if self.cur is None:
             return False
@@ -425,7 +426,7 @@ class ExitEngine:
             return False
 
     def _eight_week_rule_active(self, symbol, current_date, entry_price, days_held,
-                                 threshold_pct, window_days):
+                                 threshold_pct, window_days) -> bool:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
         if self.cur is None or days_held < window_days:
             return False
@@ -459,7 +460,7 @@ class ExitEngine:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
-    def _chandelier_or_ema_stop(self, symbol, current_date, days_held):
+    def _chandelier_or_ema_stop(self, symbol, current_date, days_held) -> tuple[float | None, bool]:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
         if self.cur is None:
@@ -518,7 +519,7 @@ class ExitEngine:
             logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
             return None
 
-    def _is_td_sequential_top(self, symbol, current_date):
+    def _is_td_sequential_top(self, symbol, current_date) -> bool:
         """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
         if self.cur is None:
             return False
@@ -530,7 +531,7 @@ class ExitEngine:
             logger.error(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
             return False
 
-    def _get_td_state(self, symbol, current_date):
+    def _get_td_state(self, symbol, current_date) -> Dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection)."""
         if self.cur is None:
             return {}
@@ -541,7 +542,7 @@ class ExitEngine:
             logger.error(f"Warning: _get_td_state({symbol}) failed: {e}")
             return {}
 
-    def _is_minervini_break(self, symbol, current_date, cur_price):
+    def _is_minervini_break(self, symbol, current_date, cur_price) -> bool:
         """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""
         if self.cur is None:
             return False
@@ -579,7 +580,7 @@ class ExitEngine:
 
     def _check_exit_conditions(self, symbol, current_price, entry_price, qty,
                                 t1_price, t2_price, t3_price, stop_price,
-                                days_held, eval_date):
+                                days_held, eval_date) -> Dict[str, Any]:
         """Pure-function exit check used by FULL_BUILD_VERIFICATION.py."""
         signal = self._evaluate_position(
             symbol, eval_date,

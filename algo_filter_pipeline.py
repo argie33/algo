@@ -17,6 +17,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+from typing import Dict, List, Any, Optional, Tuple
 from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
@@ -53,18 +54,18 @@ class FilterPipeline:
         self._candidate_holdings = {}  # symbols that passed T5 in this run, for sector counting
         self.advanced = None  # AdvancedFilters instance, lazy-init
 
-    def connect(self):
+    def connect(self) -> None:
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.cur:
             self.cur.close()
         if self.conn:
             self.conn.close()
         self.cur = self.conn = None
 
-    def evaluate_signals(self, eval_date=None):
+    def evaluate_signals(self, eval_date=None) -> List[Dict[str, Any]]:
         """Evaluate all buy signals through filter pipeline.
 
         If eval_date is None, uses the most recent date in buy_sell_daily that
@@ -250,7 +251,7 @@ class FilterPipeline:
         finally:
             self.disconnect()
 
-    def _resolve_evaluation_date(self):
+    def _resolve_evaluation_date(self) -> _date:
         """Pick the most recent date that has BUY signals + market health + trend data."""
         self.cur.execute(
             """
@@ -267,7 +268,7 @@ class FilterPipeline:
         row = self.cur.fetchone()
         return row[0] if row else _date.today()
 
-    def evaluate_signal(self, symbol, signal_date, entry_price):
+    def evaluate_signal(self, symbol, signal_date, entry_price) -> Dict[str, Any]:
         """Evaluate single signal through all 5 tiers (short-circuits on first failure)."""
         result = {
             'symbol': symbol,
@@ -323,7 +324,7 @@ class FilterPipeline:
 
     # ---------- Tier implementations ----------
 
-    def _tier1_data_quality(self, symbol):
+    def _tier1_data_quality(self, symbol) -> Dict[str, Any]:
         try:
             self.cur.execute(
                 """
@@ -370,7 +371,7 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'completeness_pct': 0}
 
-    def _tier2_market_health(self, signal_date):
+    def _tier2_market_health(self, signal_date) -> Dict[str, Any]:
         """Market health for the signal's date, with 5-day fallback."""
         try:
             if self._market_health_cache and self._market_health_date == signal_date:
@@ -416,7 +417,7 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}'}
 
-    def _tier3_trend_template(self, symbol, signal_date):
+    def _tier3_trend_template(self, symbol, signal_date) -> Dict[str, Any]:
         """Trend template (Minervini) + Weinstein stage + compute stop from MA/ATR/swing.
 
         Pulls every swing-trading-canon factor we have for the stock:
@@ -504,7 +505,7 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
 
-    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr):
+    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr) -> Dict[str, Any]:
         """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
 
         First tries the base-type-specific stop (cup-handle uses handle low,
@@ -565,7 +566,7 @@ class FilterPipeline:
         self._last_stop_reasoning = f'Best of (50-DMA, swing low, 2×ATR), capped at 8%'
         return round(stop, 2)
 
-    def _tier4_signal_quality(self, symbol, signal_date):
+    def _tier4_signal_quality(self, symbol, signal_date) -> Dict[str, Any]:
         try:
             self.cur.execute(
                 """
@@ -584,7 +585,7 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
-    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price):
+    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price) -> Dict[str, Any]:
         """Portfolio health check + actual share calculation using PositionSizer."""
         try:
             state = self._load_portfolio_state()
@@ -663,7 +664,7 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
 
-    def _get_sector_info(self, symbol):
+    def _get_sector_info(self, symbol) -> Dict[str, Any]:
         try:
             self.cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
@@ -676,7 +677,7 @@ class FilterPipeline:
         except Exception:
             return None
 
-    def _count_sector_industry_overlap(self, new_info, existing_symbols):
+    def _count_sector_industry_overlap(self, new_info, existing_symbols) -> int:
         """Count how many open positions + this-run candidates share sector/industry with new_info."""
         sector_count = 0
         industry_count = 0
@@ -705,7 +706,7 @@ class FilterPipeline:
 
     # ---------- Market Data Helpers ----------
 
-    def _get_next_trading_day(self, from_date):
+    def _get_next_trading_day(self, from_date) -> _date:
         """Get the next trading day after from_date (first day with price data).
 
         For entry purposes, this gives us Day 1 to confirm the signal on real market data.
@@ -724,7 +725,7 @@ class FilterPipeline:
         # Fallback: add 1 day and hope it's a trading day
         return from_date + timedelta(days=1)
 
-    def _get_market_close(self, symbol, date):
+    def _get_market_close(self, symbol, date) -> Optional[float]:
         """Get market close price for a symbol on a given date.
 
         Returns the actual market close from price_daily table.
@@ -759,7 +760,7 @@ class FilterPipeline:
 
     # ---------- Helpers ----------
 
-    def _load_portfolio_state(self):
+    def _load_portfolio_state(self) -> Dict[str, Any]:
         """Cache portfolio state for the run (positions, value, drawdown)."""
         if self._portfolio_state_cache is not None:
             return self._portfolio_state_cache
@@ -809,7 +810,7 @@ class FilterPipeline:
         }
         return self._portfolio_state_cache
 
-    def _log_signal_evaluation(self, result):
+    def _log_signal_evaluation(self, result) -> None:
         symbol = result['symbol']
         tiers = result['tiers']
         passed = ''.join(['1' if tiers[t]['pass'] else '.' for t in (1, 2, 3, 4, 5)])
@@ -825,7 +826,7 @@ class FilterPipeline:
             )
         logger.error(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
 
-    def _persist_signal_evaluation(self, result, eval_date):
+    def _persist_signal_evaluation(self, result, eval_date) -> bool:
         """Persist evaluation result to algo_signals_evaluated for audit / dashboard."""
         try:
             tiers = result['tiers']
