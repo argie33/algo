@@ -24,6 +24,9 @@ from datetime import datetime, timedelta, date as _date
 from trade_performance_auditor import TradePerformanceAuditor
 from algo_trade_executor import TradeExecutor
 from algo_signals import SignalComputer
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -68,9 +71,9 @@ class ExitEngine:
 
         self.connect()
         try:
-            print(f"\n{'='*70}")
-            print(f"EXIT ENGINE CHECK - {current_date}")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"EXIT ENGINE CHECK - {current_date}")
+            logger.info(f"{'='*70}\n")
 
             self.cur.execute(
                 """
@@ -87,7 +90,7 @@ class ExitEngine:
             )
             trades = self.cur.fetchall()
             if not trades:
-                print("No open positions.\n")
+                logger.info("No open positions.\n")
                 return 0
 
             # Cache market distribution-day status once for the run
@@ -115,7 +118,7 @@ class ExitEngine:
                 # CRITICAL FIX: Minimum 1-day hold to prevent same-day entry/exit
                 # All 39 closed trades currently at 0% P&L because they exit same day
                 if days_held < 1:
-                    print(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
+                    logger.info(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
                     continue
 
                 exit_signal = self._evaluate_position(
@@ -136,7 +139,7 @@ class ExitEngine:
 
                 # Stop-raise only (no exit shares) — handle directly via UPDATE
                 if fraction == 0.0 and new_stop is not None and new_stop > active_stop:
-                    print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
                     try:
                         self.cur.execute(
                             """UPDATE algo_positions SET current_stop_price = %s
@@ -144,9 +147,9 @@ class ExitEngine:
                             (new_stop, trade_id),
                         )
                         self.conn.commit()
-                        print(f"      -> Stop raised to ${new_stop:.2f}")
+                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
                     except Exception as e:
-                        print(f"      -> Stop-raise failed: {e}")
+                        logger.error(f"      -> Stop-raise failed: {e}")
                     continue
 
                 print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']} "
@@ -163,13 +166,13 @@ class ExitEngine:
 
                 if result.get('success'):
                     exits_executed += 1
-                    print(f"      -> {result['message']}")
+                    logger.info(f"      -> {result['message']}")
                 else:
-                    print(f"      -> FAILED: {result.get('message')}")
+                    logger.error(f"      -> FAILED: {result.get('message')}")
 
-            print(f"\n{'='*70}")
-            print(f"Exits executed: {exits_executed}/{len(trades)} positions")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"Exits executed: {exits_executed}/{len(trades)} positions")
+            logger.info(f"{'='*70}\n")
 
             # NEW: Audit closed trades for performance (Phase 2 integration)
             try:
@@ -181,11 +184,11 @@ class ExitEngine:
                 for (trade_id,) in closed_trades:
                     auditor.audit_exit(trade_id)
             except Exception as audit_err:
-                print(f"Warning: Failed to audit closed trades: {audit_err}")
+                logger.error(f"Warning: Failed to audit closed trades: {audit_err}")
 
             return exits_executed
         except Exception as e:
-            print(f"Error in exit engine: {e}")
+            logger.error(f"Error in exit engine: {e}")
             import traceback
             traceback.print_exc()
             return 0
@@ -418,7 +421,7 @@ class ExitEngine:
             # Break if current RS is < 50-day RS-line MA (deteriorating)
             return cur_rs < rs_50 * 0.99
         except Exception as e:
-            print(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
+            logger.error(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
             return False
 
     def _eight_week_rule_active(self, symbol, current_date, entry_price, days_held,
@@ -453,7 +456,7 @@ class ExitEngine:
             gain_pct = (max_high_in_window - entry_price) / entry_price * 100.0
             return gain_pct >= threshold_pct
         except Exception as e:
-            print(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
+            logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
     def _chandelier_or_ema_stop(self, symbol, current_date, days_held):
@@ -512,7 +515,7 @@ class ExitEngine:
                 mult = float(self.config.get('chandelier_atr_mult', 3.0))
                 return round(hh - (mult * atr), 2)
         except Exception as e:
-            print(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
+            logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
             return None
 
     def _is_td_sequential_top(self, symbol, current_date):
@@ -524,7 +527,7 @@ class ExitEngine:
             td = sc.td_sequential(symbol, current_date)
             return td.get('completed_9', False) and td.get('setup_type') == 'sell'
         except Exception as e:
-            print(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
+            logger.error(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
             return False
 
     def _get_td_state(self, symbol, current_date):
@@ -535,7 +538,7 @@ class ExitEngine:
             sc = SignalComputer(cur=self.cur)
             return sc.td_sequential(symbol, current_date)
         except Exception as e:
-            print(f"Warning: _get_td_state({symbol}) failed: {e}")
+            logger.error(f"Warning: _get_td_state({symbol}) failed: {e}")
             return {}
 
     def _is_minervini_break(self, symbol, current_date, cur_price):
@@ -599,4 +602,4 @@ if __name__ == "__main__":
     config = get_config()
     engine = ExitEngine(config)
     exits = engine.check_and_execute_exits()
-    print(f"Exits executed: {exits}")
+    logger.info(f"Exits executed: {exits}")

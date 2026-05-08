@@ -61,6 +61,9 @@ from datetime import datetime, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -107,7 +110,7 @@ class Orchestrator:
             cur.execute("SELECT 1")
             return True
         except Exception as e:
-            print(f"  [ERROR] Database connectivity check failed: {e}")
+            logger.error(f"  [ERROR] Database connectivity check failed: {e}")
             return False
         finally:
             if cur:
@@ -158,20 +161,20 @@ class Orchestrator:
 
             if table_count >= 3:
                 if self.verbose:
-                    print("  [SCHEMA] Database schema already initialized")
+                    logger.info("  [SCHEMA] Database schema already initialized")
                 return
 
             if self.verbose:
-                print("  [SCHEMA] Initializing database schema...")
+                logger.info("  [SCHEMA] Initializing database schema...")
 
             import init_database
             init_database.main()
 
             if self.verbose:
-                print("  [SCHEMA] Database schema initialized successfully")
+                logger.info("  [SCHEMA] Database schema initialized successfully")
         except Exception as e:
             if self.verbose:
-                print(f"  [WARN] Schema initialization check failed: {e}")
+                logger.error(f"  [WARN] Schema initialization check failed: {e}")
         finally:
             if cur:
                 try:
@@ -199,7 +202,7 @@ class Orchestrator:
             latest_run = cur.fetchone()
             if not latest_run:
                 if self.verbose:
-                    print("  [WARN] No patrol data available")
+                    logger.warning("  [WARN] No patrol data available")
                 return True
 
             latest_run_id = latest_run[0]
@@ -220,7 +223,7 @@ class Orchestrator:
             if not row or not row[0]:
                 # No patrol findings (shouldn't happen, but safe to proceed)
                 if self.verbose:
-                    print("  [PATROL] No findings in latest patrol")
+                    logger.info("  [PATROL] No findings in latest patrol")
                 return True
 
             worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
@@ -250,7 +253,7 @@ class Orchestrator:
             # FAIL-CLOSED: critical findings always block
             if critical_count and critical_count > 0:
                 if self.verbose:
-                    print(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
+                    logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
                 self.log_phase_result(1, 'data_patrol', 'halt',
                                       f'Critical data quality issues: {critical_count} critical findings')
                 return False
@@ -258,7 +261,7 @@ class Orchestrator:
             # FAIL-CLOSED: too many errors block in auto mode
             if error_count and error_count > 2:
                 if self.verbose:
-                    print(f"  [HALT] Data patrol found {error_count} ERROR issues")
+                    logger.error(f"  [HALT] Data patrol found {error_count} ERROR issues")
                 self.log_phase_result(1, 'data_patrol', 'halt',
                                       f'Data quality errors: {error_count} findings')
                 return False
@@ -266,14 +269,14 @@ class Orchestrator:
             # Warnings are just logged, not blocking
             if error_count == 1 or error_count == 2:
                 if self.verbose:
-                    print(f"  [WARN] Data patrol found {error_count} error(s)")
+                    logger.error(f"  [WARN] Data patrol found {error_count} error(s)")
 
             return True
 
         except Exception as e:
             # If patrol check fails, don't block (assume manual run/oversight)
             if self.verbose:
-                print(f"  [WARN] Could not check data patrol: {e}")
+                logger.warning(f"  [WARN] Could not check data patrol: {e}")
             return True
 
     # ---------- Logging helpers ----------
@@ -292,22 +295,22 @@ class Orchestrator:
                 if lock_content:
                     old_pid = int(lock_content)
                     if self._pid_alive(old_pid):
-                        print(f"ERROR: Orchestrator already running (PID {old_pid})")
+                        logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
                         return False
                     else:
-                        print(f"Stale lock from PID {old_pid} — acquiring")
+                        logger.info(f"Stale lock from PID {old_pid} — acquiring")
             except Exception as e:
-                print(f"Warning: Could not read lock file: {e}")
+                logger.warning(f"Warning: Could not read lock file: {e}")
 
         # Acquire lock
         try:
             self.lock_file.write_text(str(os.getpid()))
             self._lock_acquired = True
             if self.verbose:
-                print(f"Lock acquired (PID {os.getpid()})")
+                logger.info(f"Lock acquired (PID {os.getpid()})")
             return True
         except Exception as e:
-            print(f"ERROR: Could not create lock file: {e}")
+            logger.error(f"ERROR: Could not create lock file: {e}")
             return False
 
     def _release_run_lock(self):
@@ -321,9 +324,9 @@ class Orchestrator:
 
     def log_phase_start(self, phase_num, name):
         if self.verbose:
-            print(f"\n{'='*70}")
-            print(f"PHASE {phase_num}: {name}")
-            print(f"{'='*70}")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"PHASE {phase_num}: {name}")
+            logger.info(f"{'='*70}")
 
     def log_phase_result(self, phase_num, name, status, summary):
         import json
@@ -333,7 +336,7 @@ class Orchestrator:
             'summary': summary,
         }
         if self.verbose:
-            print(f"\n-> Phase {phase_num} {status}: {summary}")
+            logger.info(f"\n-> Phase {phase_num} {status}: {summary}")
         conn = None
         cur = None
         try:
@@ -352,7 +355,7 @@ class Orchestrator:
             )
             conn.commit()
         except Exception as e:
-            print(f"Warning: Could not persist audit log entry: {e}")
+            logger.warning(f"Warning: Could not persist audit log entry: {e}")
         finally:
             if cur:
                 try:
@@ -405,7 +408,7 @@ class Orchestrator:
                         stale_items.append(f"{name}: {age}d old")
                     if self.verbose:
                         flag = '[OK]' if age <= max_stale else '[STALE]'
-                        print(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
+                        logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
             if stale_items:
                 self.alerts.send_position_alert(
@@ -451,7 +454,7 @@ class Orchestrator:
             if self.verbose:
                 for name, state in result['checks'].items():
                     flag = '[HALT]' if state.get('halted') else '[OK]  '
-                    print(f"  {flag} {name:22s}: {state.get('reason', '')}")
+                    logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
 
             # Check market circuit breakers (market-wide halts, L1/L2/L3)
             try:
@@ -462,7 +465,7 @@ class Orchestrator:
                     halt_level = cb_result.get('level', '?')
                     halt_reason = cb_result.get('reason', 'circuit breaker triggered')
                     if self.verbose:
-                        print(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                        logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
                     self.alerts.send_position_alert(
                         'PORTFOLIO',
                         'MARKET_CIRCUIT_BREAKER',
@@ -514,7 +517,7 @@ class Orchestrator:
                         symbol = pos.get('symbol') or pos.get('name', '')
                         halts_found.append(symbol)
                         if self.verbose:
-                            print(f"  [WARN] {symbol} halted — pending orders cancelled")
+                            logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
                 if halts_found:
                     self.log_phase_result(3, 'single_stock_halts', 'warn',
                                         f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
@@ -603,15 +606,15 @@ class Orchestrator:
             from algo_market_exposure_policy import ExposurePolicy
             me = MarketExposure()
             exposure = me.compute(self.run_date)
-            print(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
+            logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
             if exposure.get('halt_reasons'):
-                print(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
+                logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 
             policy = ExposurePolicy(self.config)
             constraints = policy.get_entry_constraints(self.run_date)
             self._exposure_constraints = constraints
             if constraints:
-                print(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
+                logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
                 print(f"    risk_mult={constraints['risk_multiplier']}, "
                       f"max_new/day={constraints['max_new_positions_today']}, "
                       f"min_grade={constraints['min_swing_grade']}, "
@@ -621,7 +624,7 @@ class Orchestrator:
             self._exposure_actions = actions
 
             if not actions:
-                print(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
+                logger.info(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
                 self.log_phase_result('3b', 'exposure_policy', 'success',
                                       f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
                 return True
@@ -630,7 +633,7 @@ class Orchestrator:
             for action in actions:
                 counts[action['action']] = counts.get(action['action'], 0) + 1
 
-            print(f"\n  {len(actions)} exposure-policy actions:")
+            logger.info(f"\n  {len(actions)} exposure-policy actions:")
             for a in actions:
                 print(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
                       f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
@@ -686,7 +689,7 @@ class Orchestrator:
                             finally:
                                 cur_tmp.close()
                         except Exception as e:
-                            print(f"  Warning: Could not fetch price for force_exit: {e}")
+                            logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
                         finally:
                             try:
                                 conn_tmp.close()
@@ -694,7 +697,7 @@ class Orchestrator:
                                 pass
 
                         if cur_price <= 0:
-                            print(f"  ERROR: force_exit cannot proceed — no valid current price")
+                            logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
                             continue
 
                         result = executor.exit_trade(
@@ -706,7 +709,7 @@ class Orchestrator:
                         )
                         if result.get('success'):
                             exit_count += 1
-                            print(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                            logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
                         else:
                             errors += 1
 
@@ -726,7 +729,7 @@ class Orchestrator:
                             finally:
                                 cur.close()
                         except Exception as e:
-                            print(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
+                            logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                         finally:
                             try:
                                 conn.close()
@@ -743,7 +746,7 @@ class Orchestrator:
                             )
                             if result.get('success'):
                                 exit_count += 1
-                                print(f"  EXPOSURE PARTIAL: {result['message']}")
+                                logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
                     elif action['action'] == 'tighten_stop':
                         try:
@@ -757,12 +760,12 @@ class Orchestrator:
                                 conn.commit()
                                 stop_raises += 1
                                 if self.verbose:
-                                    print(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                                    logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
                             finally:
                                 cur.close()
                         except Exception as e:
                             errors += 1
-                            print(f"  Tighten failed for {action['symbol']}: {e}")
+                            logger.error(f"  Tighten failed for {action['symbol']}: {e}")
                         finally:
                             try:
                                 conn.close()
@@ -770,14 +773,14 @@ class Orchestrator:
                                 pass
                 except Exception as e:
                     errors += 1
-                    print(f"  Error on exposure action {action.get('symbol')}: {e}")
+                    logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
 
             # 4a. Apply position monitor recommendations (early exits + stop raises)
             for rec in getattr(self, '_position_recs', []):
                 try:
                     if self.dry_run:
                         if self.verbose:
-                            print(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
+                            logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                         continue
 
                     if rec['action'] == 'EARLY_EXIT':
@@ -791,7 +794,7 @@ class Orchestrator:
                         if result.get('success'):
                             exit_count += 1
                             if self.verbose:
-                                print(f"  EARLY EXIT: {result['message']}")
+                                logger.info(f"  EARLY EXIT: {result['message']}")
                         else:
                             errors += 1
                     elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
@@ -808,10 +811,10 @@ class Orchestrator:
                             conn.commit()
                             stop_raises += 1
                             if self.verbose:
-                                print(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
+                                logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
                         except Exception as e:
                             errors += 1
-                            print(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                            logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
                         finally:
                             if cur:
                                 try:
@@ -825,7 +828,7 @@ class Orchestrator:
                                     pass
                 except Exception as e:
                     errors += 1
-                    print(f"  Error on {rec.get('symbol')}: {e}")
+                    logger.error(f"  Error on {rec.get('symbol')}: {e}")
 
             # 4b. Exit engine — tiered targets, stops, time, Minervini break
             if not self.dry_run:
@@ -864,7 +867,7 @@ class Orchestrator:
                 result = engine.execute_add(r)
                 if result.get('success'):
                     executed += 1
-                    print(f"  PYRAMID: {result['message']}")
+                    logger.info(f"  PYRAMID: {result['message']}")
 
             self.log_phase_result('4b', 'pyramid_adds', 'success',
                                   f'{len(recs)} recommended, {executed} executed')
@@ -970,9 +973,9 @@ class Orchestrator:
                 daily_cap = constraints.get('max_new_positions_today', 5)
                 open_slots = min(open_slots, daily_cap)
 
-            print(f"  Open positions: {open_count}/{max_positions}, slots available: {open_slots}")
+            logger.info(f"  Open positions: {open_count}/{max_positions}, slots available: {open_slots}")
             if constraints:
-                print(f"  Tier '{constraints['tier_name']}' caps daily entries at {constraints['max_new_positions_today']}")
+                logger.info(f"  Tier '{constraints['tier_name']}' caps daily entries at {constraints['max_new_positions_today']}")
 
             if open_slots == 0:
                 self.log_phase_result(6, 'entry_execution', 'success',
@@ -1033,15 +1036,15 @@ class Orchestrator:
                     if result.get('success'):
                         entered += 1
                         if self.verbose:
-                            print(f"  ENTERED: {result['message']}")
+                            logger.info(f"  ENTERED: {result['message']}")
                     elif result.get('duplicate'):
                         blocked += 1
                     else:
                         errors += 1
-                        print(f"  Failed {trade['symbol']}: {result.get('message')}")
+                        logger.error(f"  Failed {trade['symbol']}: {result.get('message')}")
                 except Exception as e:
                     errors += 1
-                    print(f"  Exception on {trade['symbol']}: {e}")
+                    logger.info(f"  Exception on {trade['symbol']}: {e}")
 
             self.log_phase_result(
                 6, 'entry_execution', 'success',
@@ -1126,16 +1129,16 @@ class Orchestrator:
     # ---------- Main entrypoint ----------
 
     def run(self) -> Dict[str, Any]:
-        print(f"\n{'#'*70}")
-        print(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
-        print(f"#   run_id: {self.run_id}")
-        print(f"{'#'*70}")
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
+        logger.info(f"#   run_id: {self.run_id}")
+        logger.info(f"{'#'*70}")
 
         # Check market calendar
         if not MarketCalendar.is_trading_day(self.run_date):
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
-            print(f"\n⏸️  Market closed: {status['reason']}")
-            print("Skipping all trading phases.\n")
+            logger.info(f"\n⏸️  Market closed: {status['reason']}")
+            logger.info("Skipping all trading phases.\n")
             return {'success': False, 'error': f"Market closed: {status['reason']}"}
 
         # Concurrency lock — prevent two orchestrators running at once
@@ -1151,7 +1154,7 @@ class Orchestrator:
                           "Wait for it to finish or kill it.")
                     return {'success': False, 'error': f'lock held by PID {existing_pid}'}
                 else:
-                    print(f"  (Stale lock from PID {existing_pid} — clearing)")
+                    logger.info(f"  (Stale lock from PID {existing_pid} — clearing)")
             except Exception:
                 pass
 
@@ -1159,27 +1162,27 @@ class Orchestrator:
         try:
             lock_path.write_text(str(os.getpid()))
         except Exception as e:
-            print(f"  (warning: couldn't write lock file: {e})")
+            logger.warning(f"  (warning: couldn't write lock file: {e})")
 
         try:
             # Run data patrol first (before DB check, but will silently fail if DB down)
             # Note: Use quick=True for the 5 critical checks only (staleness, universe, zeros, corp actions, DB constraints)
             # Full patrol (16 checks) is run separately on a slower schedule
-            print("\nRunning critical data patrol checks...")
+            logger.info("\nRunning critical data patrol checks...")
             try:
                 from algo_data_patrol import DataPatrol
                 patrol = DataPatrol()
                 patrol.run(quick=True)  # Only run the 5 critical checks, not the full 16-check suite
             except Exception as e:
-                print(f"  [WARN] Data patrol failed: {e}")
+                logger.error(f"  [WARN] Data patrol failed: {e}")
 
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
                 if failures >= 3:
                     self.degraded_mode = True
-                    print(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
-                    print("Skipping all trading phases. Continuing with monitoring only.")
+                    logger.error(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
+                    logger.info("Skipping all trading phases. Continuing with monitoring only.")
                     try:
                         from algo_notifications import notify
                         notify(
@@ -1193,27 +1196,27 @@ class Orchestrator:
                     self.phase_7_reconcile()
                     return self._final_report()
                 else:
-                    print(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
+                    logger.error(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
                     return self._final_report()
             else:
                 self._reset_db_failure_counter()
 
             if getattr(self, 'skip_freshness', False):
-                print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
+                logger.info("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
                 self.log_phase_result(1, 'freshness_bypassed', 'override',
                                      '--skip-freshness flag used — data freshness check skipped')
             else:
                 try:
                     if not self.phase_1_data_freshness():
-                        print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
                         return self._final_report()
                 except Exception as e:
-                    print(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
+                    logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
                     self.log_phase_result(1, 'data_freshness', 'error', str(e))
                     return self._final_report()
 
             if not self.phase_2_circuit_breakers():
-                print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+                logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
                 self.phase_3a_reconciliation()
                 self.phase_3_position_monitor()
                 self.phase_3b_exposure_policy()
@@ -1277,9 +1280,9 @@ class Orchestrator:
         except Exception as e:
             mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
             if mode == 'auto':
-                print(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
+                logger.error(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
                 return False
-            print(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
+            logger.error(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
             return True
 
     def _pid_alive(self, pid):
@@ -1301,9 +1304,9 @@ class Orchestrator:
             return False
 
     def _final_report(self):
-        print(f"\n{'#'*70}")
-        print(f"#   FINAL REPORT — {self.run_id}")
-        print(f"{'#'*70}")
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"#   FINAL REPORT — {self.run_id}")
+        logger.info(f"{'#'*70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
                 'success': '[OK] ',
@@ -1311,8 +1314,8 @@ class Orchestrator:
                 'fail':    '[FAIL]',
                 'error':   '[ERR] ',
             }.get(info['status'], '[?]   ')
-            print(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
-        print(f"{'#'*70}\n")
+            logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
+        logger.info(f"{'#'*70}\n")
 
         result = {
             'run_id': self.run_id,
@@ -1336,7 +1339,7 @@ class Orchestrator:
             )
         except Exception as e:
             # Silently continue — metrics publishing must never fail the trading system
-            print(f"  (CloudWatch metric publish failed: {e})")
+            logger.error(f"  (CloudWatch metric publish failed: {e})")
 
         return result
 
@@ -1355,6 +1358,6 @@ if __name__ == "__main__":
     orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
     if args.skip_freshness:
         orch.skip_freshness = True
-        print("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
+        logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
     final = orch.run()
     sys.exit(0 if final['success'] else 1)

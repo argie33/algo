@@ -42,6 +42,9 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from algo_connection_monitor import on_connect as monitor_on_connect, on_disconnect as monitor_on_disconnect
@@ -1551,14 +1554,14 @@ if __name__ == "__main__":
     s.connect()
     eval_date = _date(2026, 4, 24)
     for sym in ('AROC', 'NBHC', 'EW', 'LRCX', 'NVDA', 'AAPL'):
-        print(f"\n{'='*70}\n{sym}\n{'='*70}")
+        logger.info(f"\n{'='*70}\n{sym}\n{'='*70}")
         mt = s.minervini_trend_template(sym, eval_date)
-        print(f"\nMinervini 8-Pt Trend Template: score={mt['score']}/8, pass={mt['pass']}")
+        logger.info(f"\nMinervini 8-Pt Trend Template: score={mt['score']}/8, pass={mt['pass']}")
         for k, v in mt['criteria'].items():
             if not k.startswith('_'):
-                print(f"   {k:42s} : {v}")
+                logger.info(f"   {k:42s} : {v}")
             else:
-                print(f"   ({k:40s}: {v})")
+                logger.info(f"   ({k:40s}: {v})")
 
         ws = s.weinstein_stage(sym, eval_date)
         print(f"\nWeinstein Stage: {ws.get('stage')} (slope={ws.get('slope_pct', 0):+.2f}%, "
@@ -1579,15 +1582,15 @@ if __name__ == "__main__":
               f"depths={vcp.get('depth_progression')}, tight={vcp.get('tight_pattern')}")
 
         pt = s.power_trend(sym, eval_date)
-        print(f"\nPower Trend: {pt}")
+        logger.info(f"\nPower Trend: {pt}")
 
         rs = s.mansfield_rs(sym, eval_date)
-        print(f"Mansfield RS: {rs}")
+        logger.info(f"Mansfield RS: {rs}")
 
         pivot = s.pivot_breakout(sym, eval_date)
-        print(f"Pivot breakout: {pivot}")
+        logger.info(f"Pivot breakout: {pivot}")
 
         dd = s.distribution_days(sym, eval_date)
-        print(f"Distribution days (last 20): {dd}")
+        logger.info(f"Distribution days (last 20): {dd}")
 
     s.disconnect()

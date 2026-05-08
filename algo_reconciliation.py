@@ -12,6 +12,9 @@ import os
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -39,7 +42,7 @@ class PositionReconciler:
                 secret_key=os.getenv('APCA_API_SECRET_KEY'),
             )
         except Exception as e:
-            print(f"  [WARN] Alpaca client init failed: {e}")
+            logger.error(f"  [WARN] Alpaca client init failed: {e}")
             self.trading_client = None
 
     def connect(self):
@@ -56,14 +59,14 @@ class PositionReconciler:
     def reconcile(self):
         """Run full reconciliation. Returns dict with findings."""
         if not self.trading_client:
-            print("  [WARN] Alpaca client unavailable — skipping reconciliation")
+            logger.warning("  [WARN] Alpaca client unavailable — skipping reconciliation")
             return {'status': 'skipped', 'reason': 'no_alpaca_client'}
 
         self.connect()
         try:
-            print("\n" + "="*70)
-            print("POSITION RECONCILIATION")
-            print("="*70)
+            logger.info("\n" + "="*70)
+            logger.info("POSITION RECONCILIATION")
+            logger.info("="*70)
 
             # Get DB positions
             self.cur.execute("""
@@ -79,7 +82,7 @@ class PositionReconciler:
             try:
                 alpaca_positions = {pos.symbol: int(pos.qty) for pos in self.trading_client.get_all_positions()}
             except Exception as e:
-                print(f"  [ERROR] Could not query Alpaca positions: {e}")
+                logger.error(f"  [ERROR] Could not query Alpaca positions: {e}")
                 return {'status': 'error', 'reason': str(e)}
 
             issues = []
@@ -94,7 +97,7 @@ class PositionReconciler:
                         'alpaca_qty': 0,
                         'severity': 'ERROR',
                     })
-                    print(f"  [ERROR] {symbol}: DB open {db_info['qty']} shares but Alpaca shows 0")
+                    logger.error(f"  [ERROR] {symbol}: DB open {db_info['qty']} shares but Alpaca shows 0")
                 elif alpaca_positions[symbol] != db_info['qty']:
                     issues.append({
                         'type': 'QTY_MISMATCH',
@@ -103,9 +106,9 @@ class PositionReconciler:
                         'alpaca_qty': alpaca_positions[symbol],
                         'severity': 'WARN',
                     })
-                    print(f"  [WARN] {symbol}: DB {db_info['qty']} vs Alpaca {alpaca_positions[symbol]}")
+                    logger.warning(f"  [WARN] {symbol}: DB {db_info['qty']} vs Alpaca {alpaca_positions[symbol]}")
                 else:
-                    print(f"  [OK] {symbol}: {db_info['qty']} shares")
+                    logger.info(f"  [OK] {symbol}: {db_info['qty']} shares")
 
             # Check 2: Alpaca positions not in DB (likely filled outside our workflow)
             for symbol, alpaca_qty in alpaca_positions.items():
@@ -117,14 +120,14 @@ class PositionReconciler:
                         'alpaca_qty': alpaca_qty,
                         'severity': 'CRITICAL',  # Untracked position is dangerous
                     })
-                    print(f"  [CRITICAL] {symbol}: Alpaca has {alpaca_qty} but DB has no record")
+                    logger.info(f"  [CRITICAL] {symbol}: Alpaca has {alpaca_qty} but DB has no record")
 
             # Log reconciliation to DB
             self._log_reconciliation(issues)
 
-            print(f"\n{'='*70}")
-            print(f"Summary: {len(db_positions)} DB, {len(alpaca_positions)} Alpaca, {len(issues)} issues")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"Summary: {len(db_positions)} DB, {len(alpaca_positions)} Alpaca, {len(issues)} issues")
+            logger.info(f"{'='*70}\n")
 
             return {
                 'status': 'complete',
@@ -162,13 +165,13 @@ class PositionReconciler:
             ))
             self.conn.commit()
         except Exception as e:
-            print(f"  [WARN] Could not log reconciliation: {e}")
+            logger.warning(f"  [WARN] Could not log reconciliation: {e}")
 
 
 if __name__ == '__main__':
     reconciler = PositionReconciler()
     result = reconciler.reconcile()
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))
 
     import sys
     sys.exit(0 if result.get('critical_count', 0) == 0 else 1)

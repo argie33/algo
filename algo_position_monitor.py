@@ -25,6 +25,9 @@ import requests
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -77,11 +80,11 @@ class PositionMonitor:
             """)
             stale_orders = self.cur.fetchall()
             if stale_orders:
-                print(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour:")
+                logger.info(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour:")
                 for row in stale_orders:
                     trade_id, symbol, price, qty, created_at = row
                     age_minutes = int((datetime.now() - created_at).total_seconds() / 60)
-                    print(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
+                    logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
                 return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
             else:
                 return {'status': 'OK', 'count': 0}
@@ -114,9 +117,9 @@ class PositionMonitor:
             """)
             concentrated = self.cur.fetchall()
             if concentrated:
-                print(f"\n  [CONCENTRATION ALERT]")
+                logger.info(f"\n  [CONCENTRATION ALERT]")
                 for sector, count in concentrated:
-                    print(f"    {sector}: {count} positions (>3 is risky)")
+                    logger.info(f"    {sector}: {count} positions (>3 is risky)")
                 return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
             return {'status': 'OK', 'sectors': []}
         except Exception as e:
@@ -136,7 +139,7 @@ class PositionMonitor:
             # Check sector concentration first
             conc = self.check_sector_concentration(current_date)
             if conc['status'] == 'HIGH_CONCENTRATION':
-                print(f"  ⚠️  Portfolio concentration risk detected")
+                logger.info(f"  ⚠️  Portfolio concentration risk detected")
 
             self.cur.execute(
                 """
@@ -152,10 +155,10 @@ class PositionMonitor:
             )
             positions = self.cur.fetchall()
 
-            print(f"\n{'='*70}")
-            print(f"POSITION MONITOR — {current_date}")
-            print(f"{'='*70}")
-            print(f"Reviewing {len(positions)} open position(s)\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"POSITION MONITOR — {current_date}")
+            logger.info(f"{'='*70}")
+            logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
             for row in positions:
                 rec = self._evaluate_position(row, current_date)
@@ -178,13 +181,13 @@ class PositionMonitor:
 
         # B15: Validate core prices before all calculations
         if entry_price <= 0:
-            print(f"ERROR: Invalid entry price {entry_price} for {symbol} — cannot monitor")
+            logger.error(f"ERROR: Invalid entry price {entry_price} for {symbol} — cannot monitor")
             return None
         if init_stop <= 0:
-            print(f"ERROR: Invalid stop {init_stop} for {symbol} — cannot monitor")
+            logger.error(f"ERROR: Invalid stop {init_stop} for {symbol} — cannot monitor")
             return None
         if init_stop >= entry_price:
-            print(f"ERROR: Stop {init_stop} >= entry {entry_price} for {symbol} — invalid trade")
+            logger.error(f"ERROR: Stop {init_stop} >= entry {entry_price} for {symbol} — invalid trade")
             return None
         active_stop = float(current_stop) if current_stop else init_stop
         target_hits = int(target_hits or 0)
@@ -198,10 +201,10 @@ class PositionMonitor:
 
         # B14: Validate current price is positive
         if cur_price is None or cur_price <= 0:
-            print(f"WARNING: Invalid current price {cur_price} for {symbol}, using entry price {entry_price}")
+            logger.warning(f"WARNING: Invalid current price {cur_price} for {symbol}, using entry price {entry_price}")
             cur_price = entry_price
         if cur_price <= 0:
-            print(f"ERROR: Cannot monitor position {symbol} — invalid prices")
+            logger.error(f"ERROR: Cannot monitor position {symbol} — invalid prices")
             return None
 
         # P&L
@@ -218,9 +221,9 @@ class PositionMonitor:
 
         # B16: Validate stop price is below current price (can't sell above market)
         if proposed_stop > cur_price:
-            print(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
+            logger.error(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
             proposed_stop = cur_price - 0.01  # Clamp to 1c below market
-            print(f"  Clamped stop to ${proposed_stop:.2f}")
+            logger.info(f"  Clamped stop to ${proposed_stop:.2f}")
 
         # 3. Health flags
         flags = []
@@ -439,7 +442,7 @@ class PositionMonitor:
                 return None
             return days
         except Exception as e:
-            print(f"  [WARN] Could not compute days_to_earnings for {symbol}: {e}")
+            logger.warning(f"  [WARN] Could not compute days_to_earnings for {symbol}: {e}")
             return None
 
     def _fetch_market_dist_days(self, current_date):
@@ -519,7 +522,7 @@ class PositionMonitor:
                 ),
             )
         except Exception as e:
-            print(f"  (audit log skipped for {rec['symbol']}: {e})")
+            logger.info(f"  (audit log skipped for {rec['symbol']}: {e})")
 
     def _print_recommendation(self, rec):
         flags_str = ', '.join(rec['flags']) if rec['flags'] else 'none'
@@ -624,7 +627,7 @@ class PositionMonitor:
                             })
 
                 except Exception as e:
-                    print(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
+                    logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
 
             self.conn.commit()
@@ -633,7 +636,7 @@ class PositionMonitor:
         except Exception as e:
             if self.conn:
                 self.conn.rollback()
-            print(f"ERROR: check_corporate_actions failed: {e}")
+            logger.error(f"ERROR: check_corporate_actions failed: {e}")
             return []
         finally:
             self.disconnect()
@@ -641,7 +644,7 @@ class PositionMonitor:
             f"          stop ${rec['active_stop']:.2f} -> ${rec['proposed_stop']:.2f} | "
             f"RS={rec['rs_label']} | sector={rec['sector_state']} | flags={flags_str}"
         )
-        print(f"          -> {rec['action']}: {rec['action_reason']}")
+        logger.info(f"          -> {rec['action']}: {rec['action_reason']}")
 
 
 if __name__ == "__main__":

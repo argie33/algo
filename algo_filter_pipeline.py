@@ -21,6 +21,9 @@ from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
 from filter_rejection_tracker import RejectionTracker
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -74,9 +77,9 @@ class FilterPipeline:
             if not eval_date:
                 eval_date = self._resolve_evaluation_date()
 
-            print(f"\n{'='*70}")
-            print(f"FILTER PIPELINE EVALUATION - {eval_date}")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
+            logger.info(f"{'='*70}\n")
 
             self.cur.execute(
                 """
@@ -88,16 +91,16 @@ class FilterPipeline:
                 (eval_date,),
             )
             signals = self.cur.fetchall()
-            print(f"Found {len(signals)} BUY signals to evaluate\n")
+            logger.info(f"Found {len(signals)} BUY signals to evaluate\n")
 
             # Initialize advanced filters and pre-load market context once
             if self.advanced is None:
                 self.advanced = AdvancedFilters(self.config, cur=self.cur)
             ctx = self.advanced.load_market_context(eval_date)
-            print(f"Market context: top sectors = {ctx['strong_sectors']}")
+            logger.info(f"Market context: top sectors = {ctx['strong_sectors']}")
             if ctx['market_breadth']:
-                print(f"  AAII bull/bear spread: {ctx['market_breadth']['bull_bear_spread']:+.1f}")
-            print()
+                logger.info(f"  AAII bull/bear spread: {ctx['market_breadth']['bull_bear_spread']:+.1f}")
+            logger.info()
 
             tier_pass_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
             advanced_passed = 0
@@ -187,16 +190,16 @@ class FilterPipeline:
                 self._log_signal_evaluation(result)
                 self._persist_signal_evaluation(result, eval_date)
 
-            print(f"\n{'='*70}")
-            print("Tier pass-through summary:")
-            print(f"  T1 Data Quality:     {tier_pass_counts[1]:3d}/{len(signals)}")
-            print(f"  T2 Market Health:    {tier_pass_counts[2]:3d}/{len(signals)}")
-            print(f"  T3 Trend Template:   {tier_pass_counts[3]:3d}/{len(signals)}")
-            print(f"  T4 Signal Quality:   {tier_pass_counts[4]:3d}/{len(signals)}")
-            print(f"  T5 Portfolio:        {tier_pass_counts[5]:3d}/{len(signals)}")
+            logger.info(f"\n{'='*70}")
+            logger.info("Tier pass-through summary:")
+            logger.info(f"  T1 Data Quality:     {tier_pass_counts[1]:3d}/{len(signals)}")
+            logger.info(f"  T2 Market Health:    {tier_pass_counts[2]:3d}/{len(signals)}")
+            logger.info(f"  T3 Trend Template:   {tier_pass_counts[3]:3d}/{len(signals)}")
+            logger.info(f"  T4 Signal Quality:   {tier_pass_counts[4]:3d}/{len(signals)}")
+            logger.info(f"  T5 Portfolio:        {tier_pass_counts[5]:3d}/{len(signals)}")
             print(f"  T6 Advanced Filters: {advanced_passed:3d}/{tier_pass_counts[5]} passed, "
                   f"{advanced_blocked} blocked")
-            print(f"{'='*70}")
+            logger.info(f"{'='*70}")
 
             # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
             for t in passed_all_tiers:
@@ -206,11 +209,11 @@ class FilterPipeline:
             max_positions = int(self.config.get('max_positions', 6))
             final_trades = passed_all_tiers[:max_positions]
 
-            print(f"\nFinal Trades (Top {max_positions} by swing_score):")
-            print("=" * 100)
+            logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
+            logger.info("=" * 100)
             print(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
                   f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
-            print("-" * 100)
+            logger.info("-" * 100)
             for i, trade in enumerate(final_trades, 1):
                 comp = trade.get('swing_components', {})
                 gr = trade.get('swing_grade', 'D')
@@ -227,10 +230,10 @@ class FilterPipeline:
                     f"{(trade.get('sector') or 'N/A')[:20]:<20}"
                 )
             if not final_trades:
-                print("(no qualifying trades — gates too strict for current market)")
+                logger.info("(no qualifying trades — gates too strict for current market)")
             if not final_trades:
-                print("(no qualifying trades)")
-            print(f"\n{'='*70}\n")
+                logger.info("(no qualifying trades)")
+            logger.info(f"\n{'='*70}\n")
 
             try:
                 self.conn.commit()
@@ -240,7 +243,7 @@ class FilterPipeline:
             return final_trades
 
         except Exception as e:
-            print(f"ERROR in evaluate_signals: {e}")
+            logger.error(f"ERROR in evaluate_signals: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -532,7 +535,7 @@ class FilterPipeline:
                 if 'fallback' not in base_stop_info['method'] and 'sanity' not in base_stop_info['method']:
                     return base_stop_info['stop_price']
         except Exception as e:
-            print(f"  (base_type_stop failed for {symbol}: {e})")
+            logger.error(f"  (base_type_stop failed for {symbol}: {e})")
 
         # Fallback: structural stops (MA / swing / ATR)
         self.cur.execute(
@@ -820,7 +823,7 @@ class FilterPipeline:
                 f"PASS — SQS {result['sqs']}, Stop ${result['stop_loss_price']:.2f}, "
                 f"{result['shares']} sh"
             )
-        print(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
+        logger.error(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
 
     def _persist_signal_evaluation(self, result, eval_date):
         """Persist evaluation result to algo_signals_evaluated for audit / dashboard."""
@@ -874,7 +877,7 @@ class FilterPipeline:
             )
         except Exception as e:
             # Don't fail the pipeline because of audit logging
-            print(f"  (audit log skipped for {result['symbol']}: {e})")
+            logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
             try:
                 self.conn.rollback()
             except Exception:
@@ -884,4 +887,4 @@ class FilterPipeline:
 if __name__ == "__main__":
     pipeline = FilterPipeline()
     final_trades = pipeline.evaluate_signals()
-    print(f"\nFinal trade count: {len(final_trades)}")
+    logger.info(f"\nFinal trade count: {len(final_trades)}")

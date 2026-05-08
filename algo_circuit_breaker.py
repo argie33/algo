@@ -28,6 +28,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -99,7 +102,7 @@ class CircuitBreaker:
 
             return results
         except Exception as e:
-            print(f"CRITICAL ERROR in circuit breaker check: {e}")
+            logger.error(f"CRITICAL ERROR in circuit breaker check: {e}")
             import traceback
             traceback.print_exc()
             # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
@@ -309,7 +312,7 @@ class CircuitBreaker:
             )
             self.conn.commit()
         except Exception as e:
-            print(f"Warning: Could not log circuit breaker halt to audit log: {e}")
+            logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
         try:
             from algo_notifications import notify
@@ -321,18 +324,18 @@ class CircuitBreaker:
                 details=results.get('checks'),
             )
         except Exception as e:
-            print(f"Warning: Could not send circuit breaker notification: {e}")
+            logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
 
 
 if __name__ == "__main__":
     from algo_config import get_config
     cb = CircuitBreaker(get_config())
     result = cb.check_all()
-    print(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")
+    logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")
     for name, state in result['checks'].items():
         flag = '[HALT]' if state.get('halted') else '[OK]  '
-        print(f"  {flag} {name:22s} : {state.get('reason', 'no detail')}")
+        logger.info(f"  {flag} {name:22s} : {state.get('reason', 'no detail')}")
     if result['halted']:
-        print(f"\nHALT REASONS:")
+        logger.info(f"\nHALT REASONS:")
         for r in result['halt_reasons']:
-            print(f"  - {r}")
+            logger.info(f"  - {r}")
