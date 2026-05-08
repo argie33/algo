@@ -1,0 +1,105 @@
+{
+  "metadata": {
+    "last_updated": "2026-05-07",
+    "currency": "USD",
+    "period": "monthly_estimate",
+    "region": "us-east-1"
+  },
+  "summary": {
+    "total_monthly": 77,
+    "range_low": 65,
+    "range_high": 90,
+    "notes": "Actual varies month-to-month; VPC endpoints save $20-25/mo vs NAT"
+  },
+  "breakdown": {
+    "RDS_PostgreSQL": {
+      "cost": 25,
+      "details": "db.t3.micro + 61GB storage + 5-day backups",
+      "optimization_potential": "Switch to db.t3.nano for -$10/mo"
+    },
+    "ECS_Loaders": {
+      "cost": 12,
+      "details": "t3 instances + spot pricing (39 loader tasks)",
+      "optimization_potential": "Graviton ARM + Batch -$5/mo"
+    },
+    "Lambda": {
+      "cost": 2,
+      "details": "Algo orchestrator (5 min/day) + REST API (minimal)",
+      "optimization_potential": "Already ARM64 + SnapStart, minimal room"
+    },
+    "S3": {
+      "cost": 1,
+      "details": "Code, logs, frontend (lifecycle policies enabled)",
+      "optimization_potential": "Intelligent-Tiering on logs -$1/mo"
+    },
+    "CloudFront": {
+      "cost": 0.08,
+      "details": "Frontend CDN (mostly free tier)",
+      "optimization_potential": "None, already optimized"
+    },
+    "VPC": {
+      "cost": 0,
+      "details": "7 endpoints instead of NAT Gateway",
+      "optimization_potential": "Already optimized vs NAT ($45/mo)"
+    },
+    "Other": {
+      "cost": 37.92,
+      "details": "Secrets Manager, CloudWatch, EventBridge, misc",
+      "optimization_potential": "Reduce CloudWatch retention from 7d to 3d -$5/mo"
+    }
+  },
+  "alerts": [
+    {
+      "severity": "info",
+      "message": "RDS storage at ~70% (42GB used, 61GB allocated)",
+      "action": "Monitor; clean audit logs if needed (monthly cleanup script)"
+    },
+    {
+      "severity": "info",
+      "message": "ECS spot pricing savings: ~40% ($8 saved on $20 compute)",
+      "action": "None; already optimized"
+    }
+  ],
+  "cost_reduction_roadmap": [
+    {
+      "rank": 1,
+      "optimization": "Enable TimescaleDB on RDS (hyperscale queries)",
+      "estimated_savings": 0,
+      "notes": "No direct cost savings but 10-100x query speedup; enables future optimizations"
+    },
+    {
+      "rank": 2,
+      "optimization": "Switch RDS to db.t3.nano",
+      "estimated_savings": 10,
+      "effort": "2 hours",
+      "notes": "Small risk; algo is light, nano should handle it"
+    },
+    {
+      "rank": 3,
+      "optimization": "Move buyselldaily to AWS Batch with EC2 Spot",
+      "estimated_savings": 20,
+      "effort": "2 days",
+      "notes": "Heavy compute, Batch is perfect; 50% cost reduction"
+    },
+    {
+      "rank": 4,
+      "optimization": "Reduce CloudWatch log retention from 7d to 3d",
+      "estimated_savings": 5,
+      "effort": "30 min",
+      "notes": "Update template-app-stocks.yml LogGroupRetention"
+    },
+    {
+      "rank": 5,
+      "optimization": "Switch to S3 Intelligent-Tiering for logs",
+      "estimated_savings": 1,
+      "effort": "1 hour",
+      "notes": "Auto-archives cold logs; S3 lifecycle policy update"
+    }
+  ],
+  "estimated_savings_potential": {
+    "quick_wins_week1": 15,
+    "medium_effort_month1": 35,
+    "quarterly_target": 45,
+    "notes": "Target: $32-45/mo (~50% reduction from $65)"
+  }
+}
