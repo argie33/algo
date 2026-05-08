@@ -39,6 +39,8 @@ def log_execution_complete(
 ) -> bool:
     """Log execution metrics to database"""
 
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'localhost'),
@@ -73,19 +75,30 @@ def log_execution_complete(
             aws_region, ecs_task_id, git_commit
         ))
 
-        conn.close()
-
         logger.info(f"[METRICS] {loader_name}: {rows_inserted} rows in {duration:.1f}s ({speedup:.1f}x speedup)")
         return True
 
     except Exception as e:
         logger.error(f"[METRICS ERROR] Failed to log execution: {e}")
         return False
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def get_recent_performance(loader_name: str, limit: int = 10) -> list:
     """Get recent performance data for a loader"""
 
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'localhost'),
@@ -108,17 +121,29 @@ def get_recent_performance(loader_name: str, limit: int = 10) -> list:
         ''', (loader_name, limit))
 
         results = cur.fetchall()
-        conn.close()
         return results
 
     except Exception as e:
         logger.error(f"[METRICS ERROR] Failed to fetch performance data: {e}")
         return []
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def print_performance_summary():
     """Print summary of all loader performance"""
 
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'localhost'),
@@ -149,10 +174,20 @@ def print_performance_summary():
             logger.info(f'{loader_name:<40} {total_runs:>6} {successful:>8} {avg_dur_str:>10} {max_rows_str:>12} {speedup_str:>8}')
 
         logger.info('=' * 100 + '\n')
-        conn.close()
 
     except Exception as e:
         logger.error(f"[METRICS ERROR] Failed to print summary: {e}")
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':
