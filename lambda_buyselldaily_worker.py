@@ -9,6 +9,7 @@ Lambda Worker: Process buyselldaily signals for 50 symbols in parallel
 
 import os
 import sys
+import json
 import boto3
 import logging
 from datetime import datetime, timedelta
