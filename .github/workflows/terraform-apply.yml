@@ -50,12 +50,94 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Reset backend state completely
+      - name: Terraform init
         run: |
-          echo "Removing all stale state..."
-          # Delete state file
+          cd terraform
+          terraform init -upgrade
+
+      - name: Destroy all managed resources
+        run: |
+          cd terraform
+          echo "Destroying all Terraform-managed resources..."
+          terraform destroy -auto-approve -no-color || true
+          echo "Resources destroyed"
+
+      - name: Clean up orphaned VPCs
+        run: |
+          echo "Cleaning up orphaned VPCs (keeping default)..."
+          # Get all non-default VPCs
+          VPC_IDS=$(aws ec2 describe-vpcs --region ${{ env.AWS_REGION }} \
+            --filters "Name=isDefault,Values=false" \
+            --query 'Vpcs[*].VpcId' --output text)
+
+          if [ -z "$VPC_IDS" ]; then
+            echo "No orphaned VPCs found"
+            exit 0
+          fi
+
+          for VPC_ID in $VPC_IDS; do
+            echo "Processing VPC: $VPC_ID"
+
+            # Delete all subnets
+            SUBNET_IDS=$(aws ec2 describe-subnets --region ${{ env.AWS_REGION }} \
+              --filters "Name=vpc-id,Values=$VPC_ID" \
+              --query 'Subnets[*].SubnetId' --output text)
+            for SUBNET_ID in $SUBNET_IDS; do
+              aws ec2 delete-subnet --subnet-id $SUBNET_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Delete all security groups (except default)
+            SG_IDS=$(aws ec2 describe-security-groups --region ${{ env.AWS_REGION }} \
+              --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=!default" \
+              --query 'SecurityGroups[*].GroupId' --output text)
+            for SG_ID in $SG_IDS; do
+              aws ec2 delete-security-group --group-id $SG_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Delete NAT gateways
+            NAT_GW_IDS=$(aws ec2 describe-nat-gateways --region ${{ env.AWS_REGION }} \
+              --filter "Name=vpc-id,Values=$VPC_ID" \
+              --query 'NatGateways[*].NatGatewayId' --output text)
+            for NAT_GW_ID in $NAT_GW_IDS; do
+              aws ec2 delete-nat-gateway --nat-gateway-id $NAT_GW_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Delete internet gateways
+            IGW_IDS=$(aws ec2 describe-internet-gateways --region ${{ env.AWS_REGION }} \
+              --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+              --query 'InternetGateways[*].InternetGatewayId' --output text)
+            for IGW_ID in $IGW_IDS; do
+              aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+              aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Delete route tables
+            RT_IDS=$(aws ec2 describe-route-tables --region ${{ env.AWS_REGION }} \
+              --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=false" \
+              --query 'RouteTables[*].RouteTableId' --output text)
+            for RT_ID in $RT_IDS; do
+              aws ec2 delete-route-table --route-table-id $RT_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Delete network ACLs
+            NACL_IDS=$(aws ec2 describe-network-acls --region ${{ env.AWS_REGION }} \
+              --filters "Name=vpc-id,Values=$VPC_ID" "Name=default,Values=false" \
+              --query 'NetworkAcls[*].NetworkAclId' --output text)
+            for NACL_ID in $NACL_IDS; do
+              aws ec2 delete-network-acl --network-acl-id $NACL_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            done
+
+            # Finally delete the VPC
+            sleep 5
+            aws ec2 delete-vpc --vpc-id $VPC_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
+            echo "Deleted VPC: $VPC_ID"
+          done
+          echo "VPC cleanup complete"
+
+      - name: Clear backend state and locks
+        run: |
+          echo "Clearing Terraform state backend..."
           aws s3 rm s3://stocks-terraform-state/dev/terraform.tfstate --region ${{ env.AWS_REGION }} || true
-          # Scan and delete all lock entries
           aws dynamodb scan --table-name stocks-terraform-locks --region ${{ env.AWS_REGION }} \
             --query 'Items[*].LockID.S' --output text 2>/dev/null | \
             xargs -I {} aws dynamodb delete-item --table-name stocks-terraform-locks \
@@ -63,18 +145,10 @@ jobs:
           echo "Backend cleared"
           sleep 2
 
-      - name: Terraform init
+      - name: Terraform init clean
         run: |
           cd terraform
-          # Init with backend reconfiguration after cleanup
           terraform init -upgrade -reconfigure
-
-      - name: Destroy orphaned resources
-        run: |
-          cd terraform
-          echo "Destroying orphaned AWS resources from previous failed deployments..."
-          terraform destroy -auto-approve -no-color || true
-          echo "Orphaned resources destroyed (or didn't exist)"
 
       - name: Terraform validate
         run: |
