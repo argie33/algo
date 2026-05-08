@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Inbox, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
+import { useCommodities } from '../hooks/useDataApi';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
 
 const fmtMoney = (v) =>
@@ -35,36 +37,38 @@ export default function CommoditiesAnalysis() {
   const [selectedSymbol, setSelectedSymbol] = useState('GC=F');
   const [filterCategory, setFilterCategory] = useState('all');
 
-  const prices = useQuery({
-    queryKey: ['commodities-prices'],
-    queryFn: () => api.get('/api/commodities/prices?limit=100').then(r => r.data?.items || r.data?.data || []),
-    staleTime: 2 * 60 * 1000,
-  });
-  const cats = useQuery({
-    queryKey: ['commodities-categories'],
-    queryFn: () => api.get('/api/commodities/categories').then(r => r.data?.items || r.data?.data || []),
-    staleTime: 5 * 60 * 1000,
-  });
-  const technicals = useQuery({
-    queryKey: ['commodities-technicals', selectedSymbol],
-    queryFn: () => api.get(`/api/commodities/technicals/${selectedSymbol}`).then(r => r.data?.technicals || []).catch(() => []),
-    enabled: tab === 'technicals',
-  });
-  const macro = useQuery({
-    queryKey: ['commodities-macro'],
-    queryFn: () => api.get('/api/commodities/macro').then(r => r.data?.macroDrivers || []).catch(() => []),
-    enabled: tab === 'macro',
-  });
-  const events = useQuery({
-    queryKey: ['commodities-events'],
-    queryFn: () => api.get('/api/commodities/events').then(r => r.data?.events || []).catch(() => []),
-    enabled: tab === 'events',
-  });
-  const seasonality = useQuery({
-    queryKey: ['commodities-seasonality', selectedSymbol],
-    queryFn: () => api.get(`/api/commodities/seasonality/${selectedSymbol}`).then(r => r.data?.seasonality || []).catch(() => []),
-    enabled: tab === 'seasonality',
-  });
+  // Use domain-specific hooks instead of manual useQuery
+  const prices = useCommodities({ limit: 100 });
+
+  const cats = useApiQuery(
+    ['commodities-categories'],
+    () => api.get('/api/commodities/categories'),
+    { staleTime: 5 * 60 * 1000 }
+  );
+
+  const technicals = useApiQuery(
+    ['commodities-technicals', selectedSymbol],
+    () => api.get(`/api/commodities/technicals/${selectedSymbol}`),
+    { enabled: tab === 'technicals' }
+  );
+
+  const macro = useApiQuery(
+    ['commodities-macro'],
+    () => api.get('/api/commodities/macro'),
+    { enabled: tab === 'macro' }
+  );
+
+  const events = useApiQuery(
+    ['commodities-events'],
+    () => api.get('/api/commodities/events'),
+    { enabled: tab === 'events' }
+  );
+
+  const seasonality = useApiQuery(
+    ['commodities-seasonality', selectedSymbol],
+    () => api.get(`/api/commodities/seasonality/${selectedSymbol}`),
+    { enabled: tab === 'seasonality' }
+  );
 
   const categories = useMemo(() => {
     if (!cats.data) return [];

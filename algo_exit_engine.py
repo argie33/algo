@@ -151,6 +151,10 @@ class ExitEngine:
                         logger.info(f"      -> Stop raised to ${new_stop:.2f}")
                     except Exception as e:
                         logger.error(f"      -> Stop-raise failed: {e}")
+                        try:
+                            self.conn.rollback()
+                        except Exception as rb_e:
+                            logger.error(f"      -> Rollback also failed: {rb_e}")
                     continue
 
                 print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']} "
