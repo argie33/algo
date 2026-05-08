@@ -215,18 +215,34 @@ jobs:
             [ -n "$VPCE" ] && aws ec2 delete-vpc-endpoints --vpc-endpoint-ids "$VPCE" --region $REGION 2>/dev/null && echo "  Deleted VPC Endpoint: $VPCE" || true
           done
 
-          # Delete all IAM roles with stocks- prefix
+          # Delete all IAM roles with stocks- prefix (with explicit error handling)
           echo "[8/10] Deleting IAM roles..."
-          for ROLE in $(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>/dev/null || echo ""); do
-            [ -n "$ROLE" ] && {
-              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
-              done
-              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
-              done
-              aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "  Deleted IAM role: $ROLE" || true
-            }
+          ROLES=$(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>&1)
+          echo "Found roles: $ROLES"
+
+          for ROLE in $ROLES; do
+            [ -z "$ROLE" ] && continue
+            echo "  Processing role: $ROLE"
+
+            # Delete inline policies
+            INLINE=$(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>&1)
+            for POLICY in $INLINE; do
+              [ -z "$POLICY" ] && continue
+              echo "    Deleting inline policy: $POLICY"
+              aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>&1 && echo "      ✓ Deleted" || echo "      ✗ Failed"
+            done
+
+            # Detach managed policies
+            MANAGED=$(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>&1)
+            for POLICY_ARN in $MANAGED; do
+              [ -z "$POLICY_ARN" ] && continue
+              echo "    Detaching managed policy: $POLICY_ARN"
+              aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>&1 && echo "      ✓ Detached" || echo "      ✗ Failed"
+            done
+
+            # Delete the role
+            echo "    Deleting role: $ROLE"
+            aws iam delete-role --role-name "$ROLE" 2>&1 && echo "  ✅ Deleted IAM role: $ROLE" || echo "  ⚠️  Could not delete role: $ROLE (check logs above)"
           done
 
           # Delete CloudFront Origin Access Controls
