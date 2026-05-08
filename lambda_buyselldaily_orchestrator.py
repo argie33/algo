@@ -48,23 +48,35 @@ def get_all_symbols():
             }
 
         # Connect to database
-        conn = psycopg2.connect(
-            host=secret.get('host'),
-            port=secret.get('port', 5432),
-            user=secret.get('username', secret.get('user')),
-            password=secret.get('password'),
-            database=secret.get('dbname', secret.get('name'))
-        )
+        conn = None
+        cursor = None
+        try:
+            conn = psycopg2.connect(
+                host=secret.get('host'),
+                port=secret.get('port', 5432),
+                user=secret.get('username', secret.get('user')),
+                password=secret.get('password'),
+                database=secret.get('dbname', secret.get('name'))
+            )
 
-        cursor = conn.cursor()
-        # Fetch from stock_symbols table (all active stocks)
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
+            cursor = conn.cursor()
+            # Fetch from stock_symbols table (all active stocks)
+            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+            symbols = [row[0] for row in cursor.fetchall()]
 
-        logger.info(f"Fetched {len(symbols)} symbols from database")
-        return symbols
+            logger.info(f"Fetched {len(symbols)} symbols from database")
+            return symbols
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     except Exception as e:
         logger.error(f"Failed to fetch symbols from database: {str(e)}")
