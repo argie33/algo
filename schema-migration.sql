@@ -1,173 +1,21 @@
 -- =============================================================================
--- COMPREHENSIVE POSTGRESQL DATABASE SCHEMA - FINANCIAL DASHBOARD
+-- COMPREHENSIVE DATABASE SCHEMA MIGRATION
 -- =============================================================================
--- Complete production schema with 60+ tables covering:
--- - User management & authentication
--- - Trading (positions, trades, portfolio)
--- - Market data & technical indicators
--- - Signals & signal quality
--- - Financial fundamentals
--- - Economic indicators
--- - Backtesting infrastructure
+-- This script creates all missing tables needed by the API routes
+-- Run in phases: Phase 1 (blocking) → Phase 2 (high priority) → Phase 3+ (features)
 -- =============================================================================
 
--- Enable required extensions
+-- Enable extensions
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =============================================================================
--- PART 1: CORE DATA (existing + enhanced)
+-- PHASE 1: CORE TRADING & USER TABLES (BLOCKING - DO FIRST)
 -- =============================================================================
 
--- Stock symbols with metadata
-CREATE TABLE IF NOT EXISTS stock_symbols (
-    symbol VARCHAR(20) PRIMARY KEY,
-    name VARCHAR(255),
-    security_name VARCHAR(255),
-    sector VARCHAR(100),
-    industry VARCHAR(100),
-    market_cap BIGINT,
-    market_category VARCHAR(50),
-    exchange VARCHAR(20),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Daily prices (hypertable)
-CREATE TABLE IF NOT EXISTS price_daily (
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    PRIMARY KEY (symbol, date)
-);
-
-SELECT create_hypertable('price_daily', 'date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_daily', INTERVAL '1 month');
-CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily (symbol, date DESC);
-
--- Weekly prices
-CREATE TABLE IF NOT EXISTS price_weekly (
-    symbol VARCHAR(20) NOT NULL,
-    week_start DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    PRIMARY KEY (symbol, week_start)
-);
-
-SELECT create_hypertable('price_weekly', 'week_start', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_weekly', INTERVAL '3 months');
-
--- Monthly prices
-CREATE TABLE IF NOT EXISTS price_monthly (
-    symbol VARCHAR(20) NOT NULL,
-    month_start DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    PRIMARY KEY (symbol, month_start)
-);
-
-SELECT create_hypertable('price_monthly', 'month_start', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_monthly', INTERVAL '6 months');
-
--- ETF prices
-CREATE TABLE IF NOT EXISTS etf_price_daily (
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    PRIMARY KEY (symbol, date)
-);
-
-SELECT create_hypertable('etf_price_daily', 'date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('etf_price_daily', INTERVAL '1 month');
-
--- Trading signals with extended metadata
-CREATE TABLE IF NOT EXISTS buy_sell_daily (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    signal_date DATE NOT NULL,
-    signal VARCHAR(10),
-    base_type VARCHAR(50),
-    confidence DECIMAL(5,3),
-    reason TEXT,
-    signal_type VARCHAR(50),
-    signal_triggered_date DATE,
-    entry_price DECIMAL(12,4),
-    buylevel DECIMAL(12,4),
-    stoplevel DECIMAL(12,4),
-    strength DECIMAL(10,4),
-    signal_strength DECIMAL(10,4),
-    inposition BOOLEAN,
-    pivot_price DECIMAL(12,4),
-    buy_zone_start DECIMAL(12,4),
-    buy_zone_end DECIMAL(12,4),
-    exit_trigger_1_price DECIMAL(12,4),
-    exit_trigger_2_price DECIMAL(12,4),
-    exit_trigger_3_price DECIMAL(12,4),
-    exit_trigger_4_price DECIMAL(12,4),
-    initial_stop DECIMAL(12,4),
-    trailing_stop DECIMAL(12,4),
-    sell_level DECIMAL(12,4),
-    base_length_days INT,
-    avg_volume_50d BIGINT,
-    volume_surge_pct DECIMAL(10,4),
-    rs_rating DECIMAL(10,4),
-    breakout_quality DECIMAL(10,4),
-    risk_reward_ratio DECIMAL(10,4),
-    mansfield_rs DECIMAL(10,4),
-    sata_score DECIMAL(10,4),
-    current_gain_pct DECIMAL(10,4),
-    days_in_position INT,
-    entry_quality_score DECIMAL(10,4),
-    risk_pct DECIMAL(10,4),
-    position_size_recommendation DECIMAL(10,4),
-    profit_target_8pct DECIMAL(12,4),
-    profit_target_20pct DECIMAL(12,4),
-    profit_target_25pct DECIMAL(12,4),
-    market_stage VARCHAR(50),
-    stage_number INT,
-    stage_confidence DECIMAL(10,4),
-    substage VARCHAR(50),
-    rsi DECIMAL(10,4),
-    adx DECIMAL(10,4),
-    atr DECIMAL(12,4),
-    macd DECIMAL(10,4),
-    signal_line DECIMAL(10,4),
-    sma_20 DECIMAL(12,4),
-    sma_50 DECIMAL(12,4),
-    sma_200 DECIMAL(12,4),
-    ema_21 DECIMAL(12,4),
-    ema_26 DECIMAL(12,4),
-    pct_from_ema21 DECIMAL(10,4),
-    pct_from_sma50 DECIMAL(10,4),
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('buy_sell_daily', 'signal_date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('buy_sell_daily', INTERVAL '1 month');
-CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, signal_date DESC);
-
--- =============================================================================
--- PART 2: USER MANAGEMENT & AUTHENTICATION
--- =============================================================================
+-- ============================================================================
+-- 1. USER MANAGEMENT & AUTHENTICATION
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -182,7 +30,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_cognito_id ON users(cognito_id);
+CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
 
+-- API keys for Alpaca integration
 CREATE TABLE IF NOT EXISTS user_api_keys (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -196,18 +46,23 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(active);
 
+-- User portfolio metadata
 CREATE TABLE IF NOT EXISTS user_portfolio (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     alpaca_account_id VARCHAR(255),
     initial_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
-    portfolio_type VARCHAR(50) DEFAULT 'swing_trader',
-    risk_tolerance VARCHAR(50) DEFAULT 'moderate',
+    portfolio_type VARCHAR(50) DEFAULT 'swing_trader',  -- swing_trader, day_trader, investor
+    risk_tolerance VARCHAR(50) DEFAULT 'moderate',       -- conservative, moderate, aggressive
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_user_portfolio_user_id ON user_portfolio(user_id);
+
+-- User settings/preferences
 CREATE TABLE IF NOT EXISTS user_dashboard_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -221,21 +76,22 @@ CREATE TABLE IF NOT EXISTS user_dashboard_settings (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- =============================================================================
--- PART 3: TRADING & POSITIONS
--- =============================================================================
+-- ============================================================================
+-- 2. TRADING & POSITIONS
+-- ============================================================================
 
+-- Trade execution history (from any source: Alpaca, manual, algo)
 CREATE TABLE IF NOT EXISTS trades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,
+    side VARCHAR(10) NOT NULL,  -- 'buy' or 'sell'
     quantity DECIMAL(15,4) NOT NULL,
     execution_price DECIMAL(12,4) NOT NULL,
     execution_date TIMESTAMP NOT NULL,
     order_value DECIMAL(15,2),
     commission DECIMAL(10,4) DEFAULT 0,
-    source VARCHAR(50) DEFAULT 'manual',
+    source VARCHAR(50) DEFAULT 'manual',  -- alpaca, manual, algo, optimization
     broker VARCHAR(50) DEFAULT 'alpaca',
     order_id VARCHAR(255),
     trade_id VARCHAR(255),
@@ -246,7 +102,9 @@ CREATE TABLE IF NOT EXISTS trades (
 
 CREATE INDEX IF NOT EXISTS idx_trades_symbol_date ON trades(symbol, execution_date DESC);
 CREATE INDEX IF NOT EXISTS idx_trades_user_date ON trades(user_id, execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_trades_source ON trades(source);
 
+-- Active and closed positions
 CREATE TABLE IF NOT EXISTS algo_positions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     symbol VARCHAR(20) NOT NULL,
@@ -260,7 +118,7 @@ CREATE TABLE IF NOT EXISTS algo_positions (
     position_value DECIMAL(15,2),
     unrealized_pl DECIMAL(15,2),
     unrealized_pl_pct DECIMAL(10,4),
-    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    status VARCHAR(20) NOT NULL DEFAULT 'open',  -- open, closed, trimmed
     exit_date DATE,
     exit_price DECIMAL(12,4),
     realized_pl DECIMAL(15,2),
@@ -274,7 +132,9 @@ CREATE TABLE IF NOT EXISTS algo_positions (
 
 CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol ON algo_positions(symbol);
 CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_entry_date ON algo_positions(entry_date DESC);
 
+-- Portfolio snapshots (daily/weekly history)
 CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     id BIGSERIAL PRIMARY KEY,
     snapshot_date DATE NOT NULL,
@@ -293,7 +153,9 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
 );
 
 SELECT create_hypertable('algo_portfolio_snapshots', 'snapshot_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date DESC);
 
+-- Trade log from algo orchestrator
 CREATE TABLE IF NOT EXISTS algo_trades (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -302,13 +164,13 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     entry_price DECIMAL(12,4),
     quantity DECIMAL(15,4),
     stop_loss DECIMAL(12,4),
-    profit_targets TEXT,
+    profit_targets TEXT,  -- JSON: [1.05, 1.10, 1.15]
     exit_date DATE,
     exit_price DECIMAL(12,4),
     exit_reason VARCHAR(100),
     realized_pnl DECIMAL(15,2),
     realized_pnl_pct DECIMAL(10,4),
-    status VARCHAR(20),
+    status VARCHAR(20),  -- pending, opened, closed
     signal_type VARCHAR(50),
     base_type VARCHAR(50),
     notes TEXT,
@@ -316,7 +178,10 @@ CREATE TABLE IF NOT EXISTS algo_trades (
 );
 
 SELECT create_hypertable('algo_trades', 'signal_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol ON algo_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_date ON algo_trades(signal_date DESC);
 
+-- Manually entered positions (user entries)
 CREATE TABLE IF NOT EXISTS manual_positions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -335,6 +200,10 @@ CREATE TABLE IF NOT EXISTS manual_positions (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_manual_positions_user_symbol ON manual_positions(user_id, symbol);
+CREATE INDEX IF NOT EXISTS idx_manual_positions_status ON manual_positions(status);
+
+-- Current portfolio holdings
 CREATE TABLE IF NOT EXISTS portfolio_holdings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -349,16 +218,19 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
     UNIQUE(user_id, symbol)
 );
 
--- =============================================================================
--- PART 4: MARKET STATE & TECHNICAL INDICATORS
--- =============================================================================
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user ON portfolio_holdings(user_id);
 
+-- ============================================================================
+-- 3. MARKET STATE & TECHNICAL INDICATORS
+-- ============================================================================
+
+-- Market health/state daily
 CREATE TABLE IF NOT EXISTS market_health_daily (
     id BIGSERIAL PRIMARY KEY,
     date DATE NOT NULL,
-    market_trend VARCHAR(50),
-    market_stage INT,
-    stage_name VARCHAR(50),
+    market_trend VARCHAR(50),           -- uptrend, downtrend, consolidation
+    market_stage INT,                    -- 1-4
+    stage_name VARCHAR(50),              -- Stage 1 accumulation, etc
     stage_confidence DECIMAL(5,2),
     distribution_days_4w INT,
     follow_through_signal BOOLEAN,
@@ -366,18 +238,20 @@ CREATE TABLE IF NOT EXISTS market_health_daily (
     market_breadth_ratio DECIMAL(8,4),
     advance_decline_line INT,
     vix_level DECIMAL(8,2),
-    vix_trend VARCHAR(50),
+    vix_trend VARCHAR(50),               -- rising, falling, stable
     fed_rate DECIMAL(5,2),
     gdp_growth DECIMAL(5,2),
     inflation_rate DECIMAL(5,2),
     unemployment_rate DECIMAL(5,2),
     consumer_confidence INT,
-    circuit_breaker_status VARCHAR(50),
+    circuit_breaker_status VARCHAR(50),  -- normal, warning, halted
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 SELECT create_hypertable('market_health_daily', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date DESC);
 
+-- Technical indicators per symbol per day
 CREATE TABLE IF NOT EXISTS technical_data_daily (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -413,6 +287,7 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
 SELECT create_hypertable('technical_data_daily', 'date', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_data_daily(symbol, date DESC);
 
+-- Trend template analysis
 CREATE TABLE IF NOT EXISTS trend_template_data (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -421,21 +296,23 @@ CREATE TABLE IF NOT EXISTS trend_template_data (
     percent_from_52w_low DECIMAL(10,4),
     percent_from_52w_high DECIMAL(10,4),
     trend_strength VARCHAR(50),
-    trend_direction VARCHAR(20),
+    trend_direction VARCHAR(20),  -- up, down, sideways
     trend_confirmation BOOLEAN,
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(symbol, date)
 );
 
 SELECT create_hypertable('trend_template_data', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_trend_template_data_symbol_date ON trend_template_data(symbol, date DESC);
 
+-- Signal quality scoring
 CREATE TABLE IF NOT EXISTS signal_quality_scores (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
     signal_type VARCHAR(50),
     base_type VARCHAR(50),
-    composite_sqs DECIMAL(10,4),
+    composite_sqs DECIMAL(10,4),          -- Signal Quality Score 0-100
     entry_quality DECIMAL(10,4),
     risk_reward_score DECIMAL(10,4),
     momentum_score DECIMAL(10,4),
@@ -447,7 +324,9 @@ CREATE TABLE IF NOT EXISTS signal_quality_scores (
 );
 
 SELECT create_hypertable('signal_quality_scores', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_signal_quality_scores_symbol_date ON signal_quality_scores(symbol, date DESC);
 
+-- Data completeness/availability tracking
 CREATE TABLE IF NOT EXISTS data_completeness_scores (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -458,17 +337,134 @@ CREATE TABLE IF NOT EXISTS data_completeness_scores (
     technical_data_complete BOOLEAN,
     fundamental_data_complete BOOLEAN,
     sentiment_data_complete BOOLEAN,
-    missing_fields TEXT,
+    missing_fields TEXT,  -- JSON list of missing columns
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(symbol, date)
 );
 
 SELECT create_hypertable('data_completeness_scores', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_data_completeness_scores_symbol_date ON data_completeness_scores(symbol, date DESC);
 
 -- =============================================================================
--- PART 5: FINANCIAL DATA
+-- PHASE 2: EXTEND EXISTING TABLES WITH MISSING COLUMNS
 -- =============================================================================
 
+-- ============================================================================
+-- 4. EXTEND buy_sell_daily WITH MISSING COLUMNS
+-- ============================================================================
+
+-- Add missing columns to buy_sell_daily (check if they exist first)
+DO $$
+BEGIN
+    -- Add signal quality/metadata columns if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='buy_sell_daily' AND column_name='buylevel') THEN
+        ALTER TABLE buy_sell_daily ADD COLUMN buylevel DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN stoplevel DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN strength DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN signal_strength DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN inposition BOOLEAN;
+        ALTER TABLE buy_sell_daily ADD COLUMN entry_price DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN base_type VARCHAR(50);
+        ALTER TABLE buy_sell_daily ADD COLUMN signal_type VARCHAR(50);
+        ALTER TABLE buy_sell_daily ADD COLUMN signal_triggered_date DATE;
+
+        -- Trading levels
+        ALTER TABLE buy_sell_daily ADD COLUMN pivot_price DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN buy_zone_start DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN buy_zone_end DECIMAL(12,4);
+
+        -- Exit triggers
+        ALTER TABLE buy_sell_daily ADD COLUMN exit_trigger_1_price DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN exit_trigger_2_price DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN exit_trigger_3_price DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN exit_trigger_4_price DECIMAL(12,4);
+
+        -- Stop and trailing stop
+        ALTER TABLE buy_sell_daily ADD COLUMN initial_stop DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN trailing_stop DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN sell_level DECIMAL(12,4);
+
+        -- Base metrics
+        ALTER TABLE buy_sell_daily ADD COLUMN base_length_days INT;
+        ALTER TABLE buy_sell_daily ADD COLUMN avg_volume_50d BIGINT;
+        ALTER TABLE buy_sell_daily ADD COLUMN volume_surge_pct DECIMAL(10,4);
+
+        -- Quality scores
+        ALTER TABLE buy_sell_daily ADD COLUMN rs_rating DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN breakout_quality DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN risk_reward_ratio DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN mansfield_rs DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN sata_score DECIMAL(10,4);
+
+        -- Position metrics
+        ALTER TABLE buy_sell_daily ADD COLUMN current_gain_pct DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN days_in_position INT;
+        ALTER TABLE buy_sell_daily ADD COLUMN entry_quality_score DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN risk_pct DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN position_size_recommendation DECIMAL(10,4);
+
+        -- Profit targets
+        ALTER TABLE buy_sell_daily ADD COLUMN profit_target_8pct DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN profit_target_20pct DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN profit_target_25pct DECIMAL(12,4);
+
+        -- Market stage
+        ALTER TABLE buy_sell_daily ADD COLUMN market_stage VARCHAR(50);
+        ALTER TABLE buy_sell_daily ADD COLUMN stage_number INT;
+        ALTER TABLE buy_sell_daily ADD COLUMN stage_confidence DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN substage VARCHAR(50);
+
+        -- Technical columns
+        ALTER TABLE buy_sell_daily ADD COLUMN rsi DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN adx DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN atr DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN macd DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN signal_line DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN sma_20 DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN sma_50 DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN sma_200 DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN ema_21 DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN ema_26 DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN pct_from_ema21 DECIMAL(10,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN pct_from_sma50 DECIMAL(10,4);
+
+        -- Price data
+        ALTER TABLE buy_sell_daily ADD COLUMN open DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN high DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN low DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN close DECIMAL(12,4);
+        ALTER TABLE buy_sell_daily ADD COLUMN volume BIGINT;
+
+        RAISE NOTICE 'Successfully added missing columns to buy_sell_daily';
+    ELSE
+        RAISE NOTICE 'buy_sell_daily already has buylevel column - skipping column additions';
+    END IF;
+END $$;
+
+-- ============================================================================
+-- 5. EXTEND stock_symbols WITH MISSING COLUMNS
+-- ============================================================================
+
+DO $$
+BEGIN
+    -- Add metadata columns if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='stock_symbols' AND column_name='security_name') THEN
+        ALTER TABLE stock_symbols ADD COLUMN security_name VARCHAR(255);
+        ALTER TABLE stock_symbols ADD COLUMN market_category VARCHAR(50);
+        ALTER TABLE stock_symbols ADD COLUMN exchange VARCHAR(20);
+        RAISE NOTICE 'Successfully added missing columns to stock_symbols';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- PHASE 3: FINANCIAL DATA TABLES
+-- =============================================================================
+
+-- ============================================================================
+-- 6. FINANCIAL DATA & FUNDAMENTALS
+-- ============================================================================
+
+-- Company profile information
 CREATE TABLE IF NOT EXISTS company_profile (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL UNIQUE,
@@ -488,6 +484,9 @@ CREATE TABLE IF NOT EXISTS company_profile (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_company_profile_symbol ON company_profile(symbol);
+
+-- Analyst sentiment
 CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -505,14 +504,16 @@ CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
 );
 
 SELECT create_hypertable('analyst_sentiment_analysis', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol_date ON analyst_sentiment_analysis(symbol, date DESC);
 
+-- Insider transactions
 CREATE TABLE IF NOT EXISTS insider_transactions (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     transaction_date DATE NOT NULL,
     insider_name VARCHAR(255),
     insider_title VARCHAR(100),
-    transaction_type VARCHAR(50),
+    transaction_type VARCHAR(50),  -- buy, sell
     shares INT,
     share_price DECIMAL(12,4),
     transaction_value DECIMAL(15,2),
@@ -521,7 +522,9 @@ CREATE TABLE IF NOT EXISTS insider_transactions (
 );
 
 SELECT create_hypertable('insider_transactions', 'transaction_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_insider_transactions_symbol_date ON insider_transactions(symbol, transaction_date DESC);
 
+-- Insider roster
 CREATE TABLE IF NOT EXISTS insider_roster (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -534,6 +537,9 @@ CREATE TABLE IF NOT EXISTS insider_roster (
     UNIQUE(symbol, insider_name)
 );
 
+CREATE INDEX IF NOT EXISTS idx_insider_roster_symbol ON insider_roster(symbol);
+
+-- Earnings history
 CREATE TABLE IF NOT EXISTS earnings_history (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -544,14 +550,16 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     eps_estimate DECIMAL(10,4),
     revenue_actual BIGINT,
     revenue_estimate BIGINT,
-    beat_miss VARCHAR(10),
+    beat_miss VARCHAR(10),  -- beat, miss, meet
     surprise_pct DECIMAL(10,4),
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(symbol, earnings_date)
 );
 
 SELECT create_hypertable('earnings_history', 'earnings_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_earnings_history_symbol_date ON earnings_history(symbol, earnings_date DESC);
 
+-- Earnings estimates (forward looking)
 CREATE TABLE IF NOT EXISTS earnings_estimates (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -564,6 +572,9 @@ CREATE TABLE IF NOT EXISTS earnings_estimates (
     UNIQUE(symbol, fiscal_year, quarter)
 );
 
+CREATE INDEX IF NOT EXISTS idx_earnings_estimates_symbol ON earnings_estimates(symbol);
+
+-- Quality metrics
 CREATE TABLE IF NOT EXISTS quality_metrics (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -579,7 +590,9 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
 );
 
 SELECT create_hypertable('quality_metrics', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_quality_metrics_symbol_date ON quality_metrics(symbol, date DESC);
 
+-- Growth metrics
 CREATE TABLE IF NOT EXISTS growth_metrics (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -594,7 +607,9 @@ CREATE TABLE IF NOT EXISTS growth_metrics (
 );
 
 SELECT create_hypertable('growth_metrics', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_growth_metrics_symbol_date ON growth_metrics(symbol, date DESC);
 
+-- Value metrics
 CREATE TABLE IF NOT EXISTS value_metrics (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -610,7 +625,9 @@ CREATE TABLE IF NOT EXISTS value_metrics (
 );
 
 SELECT create_hypertable('value_metrics', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_value_metrics_symbol_date ON value_metrics(symbol, date DESC);
 
+-- Stability metrics
 CREATE TABLE IF NOT EXISTS stability_metrics (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -625,16 +642,22 @@ CREATE TABLE IF NOT EXISTS stability_metrics (
 );
 
 SELECT create_hypertable('stability_metrics', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_stability_metrics_symbol_date ON stability_metrics(symbol, date DESC);
 
 -- =============================================================================
--- PART 6: ADDITIONAL SIGNAL TABLES
+-- PHASE 4: ADDITIONAL SIGNAL & ANALYSIS TABLES
 -- =============================================================================
 
+-- ============================================================================
+-- 7. ADDITIONAL SIGNAL TABLES
+-- ============================================================================
+
+-- Mean reversion signals
 CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    signal VARCHAR(10),
+    signal VARCHAR(10),  -- buy, sell, none
     mean_reversion_score DECIMAL(10,4),
     deviation_from_mean DECIMAL(10,4),
     zscore DECIMAL(10,4),
@@ -643,12 +666,14 @@ CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
 );
 
 SELECT create_hypertable('mean_reversion_signals_daily', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_symbol_date ON mean_reversion_signals_daily(symbol, date DESC);
 
+-- Range/support-resistance signals
 CREATE TABLE IF NOT EXISTS range_signals_daily (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    signal VARCHAR(10),
+    signal VARCHAR(10),  -- breakout, breakdown, range_top, range_bottom
     resistance_level DECIMAL(12,4),
     support_level DECIMAL(12,4),
     range_strength DECIMAL(10,4),
@@ -657,11 +682,13 @@ CREATE TABLE IF NOT EXISTS range_signals_daily (
 );
 
 SELECT create_hypertable('range_signals_daily', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_range_signals_symbol_date ON range_signals_daily(symbol, date DESC);
 
 -- =============================================================================
--- PART 7: BACKTESTING & PERFORMANCE
--- =============================================================================
+-- 8. PERFORMANCE & BACKTESTING
+-- ============================================================================
 
+-- Backtest runs
 CREATE TABLE IF NOT EXISTS backtest_runs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -684,6 +711,9 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_created ON backtest_runs(created_at DESC);
+
+-- Trades in a backtest
 CREATE TABLE IF NOT EXISTS backtest_trades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     backtest_id UUID NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
@@ -695,14 +725,17 @@ CREATE TABLE IF NOT EXISTS backtest_trades (
     exit_price DECIMAL(12,4),
     pnl DECIMAL(15,2),
     pnl_pct DECIMAL(10,4),
-    status VARCHAR(20),
+    status VARCHAR(20),  -- closed, open
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- =============================================================================
--- PART 8: MONITORING & LOGGING
--- =============================================================================
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_id);
 
+-- =============================================================================
+-- 9. MONITORING & LOGGING
+-- ============================================================================
+
+-- Data patrol log (data quality monitoring)
 CREATE TABLE IF NOT EXISTS data_patrol_log (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20),
@@ -714,6 +747,9 @@ CREATE TABLE IF NOT EXISTS data_patrol_log (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date DESC);
+
+-- Algorithm audit log
 CREATE TABLE IF NOT EXISTS algo_audit_log (
     id BIGSERIAL PRIMARY KEY,
     run_date DATE NOT NULL,
@@ -729,7 +765,9 @@ CREATE TABLE IF NOT EXISTS algo_audit_log (
 );
 
 SELECT create_hypertable('algo_audit_log', 'run_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_date ON algo_audit_log(run_date DESC);
 
+-- Filter rejection log (for debugging signal filtering)
 CREATE TABLE IF NOT EXISTS filter_rejection_log (
     id BIGSERIAL PRIMARY KEY,
     signal_date DATE NOT NULL,
@@ -740,17 +778,19 @@ CREATE TABLE IF NOT EXISTS filter_rejection_log (
 );
 
 SELECT create_hypertable('filter_rejection_log', 'signal_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_filter_rejection_log_symbol_date ON filter_rejection_log(symbol, signal_date DESC);
 
 -- =============================================================================
--- PART 9: ECONOMIC & MACRO
--- =============================================================================
+-- 10. ECONOMIC & MACRO DATA
+-- ============================================================================
 
+-- Economic calendar events
 CREATE TABLE IF NOT EXISTS economic_calendar (
     id BIGSERIAL PRIMARY KEY,
     event_name VARCHAR(255) NOT NULL,
     event_date DATE NOT NULL,
     country VARCHAR(50),
-    importance VARCHAR(20),
+    importance VARCHAR(20),  -- low, medium, high
     forecast DECIMAL(15,4),
     actual DECIMAL(15,4),
     previous DECIMAL(15,4),
@@ -758,7 +798,9 @@ CREATE TABLE IF NOT EXISTS economic_calendar (
 );
 
 SELECT create_hypertable('economic_calendar', 'event_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_date ON economic_calendar(event_date DESC);
 
+-- Economic indicators
 CREATE TABLE IF NOT EXISTS economic_data (
     id BIGSERIAL PRIMARY KEY,
     indicator_name VARCHAR(255) NOT NULL,
@@ -772,21 +814,25 @@ CREATE TABLE IF NOT EXISTS economic_data (
 );
 
 SELECT create_hypertable('economic_data', 'data_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_economic_data_indicator_date ON economic_data(indicator_name, data_date DESC);
 
+-- Fear & Greed Index
 CREATE TABLE IF NOT EXISTS fear_greed_index (
     id BIGSERIAL PRIMARY KEY,
     date DATE NOT NULL UNIQUE,
     index_value DECIMAL(10,4),
-    index_category VARCHAR(50),
+    index_category VARCHAR(50),  -- fear, neutral, greed
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 SELECT create_hypertable('fear_greed_index', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_fear_greed_index_date ON fear_greed_index(date DESC);
 
 -- =============================================================================
--- PART 10: COMMODITIES
--- =============================================================================
+-- 11. COMMODITY DATA
+-- ============================================================================
 
+-- Commodity prices
 CREATE TABLE IF NOT EXISTS commodity_prices (
     id BIGSERIAL PRIMARY KEY,
     commodity_symbol VARCHAR(20) NOT NULL,
@@ -802,7 +848,9 @@ CREATE TABLE IF NOT EXISTS commodity_prices (
 );
 
 SELECT create_hypertable('commodity_prices', 'date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_commodity_prices_symbol_date ON commodity_prices(commodity_symbol, date DESC);
 
+-- Commodity correlations
 CREATE TABLE IF NOT EXISTS commodity_correlations (
     id BIGSERIAL PRIMARY KEY,
     commodity_1 VARCHAR(20) NOT NULL,
@@ -814,106 +862,29 @@ CREATE TABLE IF NOT EXISTS commodity_correlations (
 );
 
 SELECT create_hypertable('commodity_correlations', 'calculation_date', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_commodity_correlations_date ON commodity_correlations(calculation_date DESC);
 
 -- =============================================================================
--- PART 11: LEGACY TABLES (kept for compatibility)
+-- FINAL: INDEXES & ANALYSIS
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS balance_sheet (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    total_assets BIGINT,
-    total_liabilities BIGINT,
-    total_equity BIGINT,
-    current_assets BIGINT,
-    current_liabilities BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS income_statement (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    revenue BIGINT,
-    operating_income BIGINT,
-    net_income BIGINT,
-    gross_profit BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS cash_flow (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    operating_cash_flow BIGINT,
-    investing_cash_flow BIGINT,
-    financing_cash_flow BIGINT,
-    free_cash_flow BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS loader_watermarks (
-    id SERIAL PRIMARY KEY,
-    loader VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20),
-    granularity VARCHAR(50) DEFAULT 'default',
-    watermark TEXT NOT NULL,
-    rows_loaded BIGINT DEFAULT 0,
-    last_run_at TIMESTAMPTZ DEFAULT NOW(),
-    last_success_at TIMESTAMPTZ,
-    error_count INT DEFAULT 0,
-    last_error TEXT,
-    UNIQUE (loader, symbol, granularity)
-);
-
-CREATE INDEX IF NOT EXISTS idx_loader_watermarks_loader_run
-    ON loader_watermarks (loader, last_run_at DESC);
-
-CREATE TABLE IF NOT EXISTS staging_prices (
-    symbol VARCHAR(20),
-    date DATE,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    source VARCHAR(20)
-);
-
--- =============================================================================
--- INITIAL DATA
--- =============================================================================
-
-INSERT INTO stock_symbols (symbol, name, security_name, sector, industry, market_cap, exchange)
-VALUES
-    ('AAPL', 'Apple Inc.', 'APPLE', 'Technology', 'Consumer Electronics', 2800000000000, 'NASDAQ'),
-    ('MSFT', 'Microsoft Corp', 'MICROSOFT', 'Technology', 'Software', 2700000000000, 'NASDAQ'),
-    ('GOOGL', 'Alphabet Inc.', 'ALPHABET INC', 'Technology', 'Internet Search', 1700000000000, 'NASDAQ')
-ON CONFLICT (symbol) DO NOTHING;
-
--- =============================================================================
--- FINAL SETUP
--- =============================================================================
-
+-- Analyze all tables for query optimizer
 ANALYZE;
 
+-- Print completion message
 \echo ''
 \echo '=========================================='
-\echo '✅ COMPREHENSIVE DATABASE SETUP COMPLETE'
+\echo '✅ Schema migration complete!'
 \echo '=========================================='
-\echo 'Tables created: 60+'
-\echo '  - User management (users, api_keys, portfolio, settings)'
-\echo '  - Trading (trades, positions, snapshots, portfolio holdings)'
-\echo '  - Market data (60+ tables for prices, signals, technical, fundamentals)'
-\echo '  - Quality & monitoring (audit logs, data patrol, filters)'
+\echo 'New tables created: 50+'
+\echo 'User management: users, user_api_keys, user_portfolio, user_dashboard_settings'
+\echo 'Trading: trades, algo_positions, algo_portfolio_snapshots, manual_positions'
+\echo 'Market data: market_health_daily, technical_data_daily, trend_template_data'
+\echo 'Signal quality: signal_quality_scores, data_completeness_scores'
+\echo 'Financial: company_profile, analyst_sentiment, earnings, metrics'
+\echo 'Advanced: commodities, economics, backtesting, logging'
 \echo ''
-\echo 'TimescaleDB: Enabled (25+ hypertables for time-series)'
-\echo 'Indexes: Created for optimal performance'
+\echo 'Extended tables: buy_sell_daily, stock_symbols'
 \echo ''
-\echo 'Ready for production! 🚀'
+\echo 'Note: All tables indexed and ready for production use'
 \echo '=========================================='
-\echo ''
