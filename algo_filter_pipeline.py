@@ -318,7 +318,7 @@ class FilterPipeline:
             return result
 
         # Tier 5 (portfolio health)
-        t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'])
+        t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'], signal_date)
         result['tiers'][5] = t5
         result['shares'] = t5.get('shares', 0)
         result['risk_dollars'] = t5.get('risk_dollars', 0.0)
@@ -589,9 +589,31 @@ class FilterPipeline:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
-    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price) -> Dict[str, Any]:
+    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None) -> Dict[str, Any]:
         """Portfolio health check + actual share calculation using PositionSizer."""
         try:
+            # Production safeguards (Phase 1)
+            if signal_date:
+                # Check liquidity
+                try:
+                    from algo_liquidity_checks import LiquidityChecks
+                    lq = LiquidityChecks(self.config)
+                    lq_passed, lq_reason = lq.run_all(symbol, entry_price, signal_date)
+                    if not lq_passed:
+                        return {'pass': False, 'reason': f'Liquidity: {lq_reason}', 'shares': 0}
+                except Exception as e:
+                    logger.warning(f'Liquidity check error for {symbol}: {e}')
+
+                # Check earnings blackout
+                try:
+                    from algo_earnings_blackout import EarningsBlackout
+                    eb = EarningsBlackout(self.config)
+                    eb_result = eb.run(symbol, signal_date)
+                    if not eb_result.get('pass', True):
+                        return {'pass': False, 'reason': f'Earnings: {eb_result.get("reason", "blackout")}', 'shares': 0}
+                except Exception as e:
+                    logger.warning(f'Earnings check error for {symbol}: {e}')
+
             state = self._load_portfolio_state()
             existing_symbols = state['symbols']
 

@@ -427,6 +427,25 @@ class Orchestrator:
             if not patrol_ok:
                 return False
 
+            # Margin health check (Phase 1 - production safeguard)
+            try:
+                from algo_margin_monitor import MarginMonitor
+                mm = MarginMonitor()
+                margin_info = mm.get_margin_usage()
+                if margin_info and margin_info['margin_usage_pct'] > 70:
+                    self.alerts.send_position_alert(
+                        'ACCOUNT',
+                        'MARGIN_ALERT',
+                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
+                        margin_info
+                    )
+                    if self.verbose:
+                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
+                elif self.verbose and margin_info:
+                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
+            except Exception as e:
+                logger.warning(f'Margin check failed: {e}')
+
             self.log_phase_result(1, 'data_freshness', 'success',
                                   'All data fresh within window')
             return True
@@ -986,6 +1005,22 @@ class Orchestrator:
                 self.log_phase_result(6, 'entry_execution', 'success',
                                       'No qualified trades meet tier requirements')
                 return True
+
+            # Margin entry gate (Phase 6 - production safeguard)
+            try:
+                from algo_margin_monitor import MarginMonitor
+                mm = MarginMonitor()
+                can_enter, margin_reason = mm.can_enter_new_position()
+                if not can_enter:
+                    self.log_phase_result(
+                        6, 'entry_execution', 'success',
+                        f'Margin gate blocked entries: {margin_reason}'
+                    )
+                    return True
+                elif self.verbose:
+                    logger.info(f"  [OK] Margin gate: Can enter new positions")
+            except Exception as e:
+                logger.warning(f'Margin gate check failed: {e}')
 
             entered = 0
             blocked = 0
