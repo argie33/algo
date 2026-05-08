@@ -63,7 +63,6 @@ resource "aws_lambda_function" "api" {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
       DB_NAME       = var.rds_database_name
-      AWS_REGION    = var.aws_region
     }
   }
 
@@ -333,19 +332,6 @@ resource "aws_cognito_user_pool" "main" {
     enabled = var.cognito_mfa_configuration != "OFF" ? true : false
   }
 
-  schema {
-    name              = "email"
-    attribute_data_type = "String"
-    required          = true
-    mutable           = false
-  }
-
-  schema {
-    name              = "name"
-    attribute_data_type = "String"
-    mutable           = true
-  }
-
   auto_verified_attributes = ["email"]
   email_verification_message = "Your verification code is {####}"
   email_verification_subject = "Stocks Analytics - Email Verification"
@@ -364,6 +350,10 @@ resource "aws_cognito_user_pool" "main" {
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-cognito-pool-${var.environment}"
   })
+
+  lifecycle {
+    ignore_changes = [schema]
+  }
 }
 
 resource "aws_cognito_user_pool_client" "main" {
@@ -453,7 +443,6 @@ resource "aws_lambda_function" "algo" {
       DB_SECRET_ARN      = var.rds_credentials_secret_arn
       DB_ENDPOINT        = var.rds_endpoint
       DB_NAME            = var.rds_database_name
-      AWS_REGION         = var.aws_region
       ALERTS_SNS_TOPIC   = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
     }
   }

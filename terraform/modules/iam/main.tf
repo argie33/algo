@@ -618,12 +618,6 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
 
     resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
   }
 
   # Secrets Manager (read DB credentials)
@@ -708,12 +702,6 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
 
     resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
   }
 
   # Secrets Manager

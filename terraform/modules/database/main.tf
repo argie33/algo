@@ -26,7 +26,7 @@ resource "aws_db_instance" "main" {
   identifier            = "${var.project_name}-db"
   db_name              = var.rds_db_name
   engine               = "postgres"
-  engine_version       = "15.3" # Currently supported PostgreSQL version
+  engine_version       = "14" # PostgreSQL 14
   instance_class       = var.db_instance_class
   allocated_storage    = var.db_allocated_storage
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null
@@ -45,9 +45,7 @@ resource "aws_db_instance" "main" {
 
   # Performance & Optimization
   multi_az            = var.db_multi_az
-  storage_type        = "gp3"
-  iops                = 3000
-  storage_throughput  = 125
+  storage_type        = "gp2"
   publicly_accessible = false # Private subnet, no public endpoint
 
   # Encryption
@@ -90,9 +88,9 @@ resource "aws_db_instance" "main" {
 # ============================================================
 
 resource "aws_db_parameter_group" "main" {
-  name        = "${var.project_name}-pg15-params"
-  description = "PostgreSQL 15 parameter group for ${var.project_name}"
-  family      = "postgres15"
+  name        = "${var.project_name}-pg14-params"
+  description = "PostgreSQL 14 parameter group for ${var.project_name}"
+  family      = "postgres14"
 
   parameter {
     name  = "log_statement"

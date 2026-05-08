@@ -305,6 +305,17 @@ variable "enable_s3_versioning" {
   default     = true
 }
 
+variable "code_bucket_expiration_days" {
+  description = "Days before deleting old code artifacts"
+  type        = number
+  default     = 90
+}
+
+variable "data_bucket_expiration_days" {
+  description = "Days before deleting old loader staging data"
+  type        = number
+  default     = 30
+}
 
 # ============================================================
 # Lambda Configuration

@@ -36,6 +36,8 @@ module "storage" {
   aws_region    = var.aws_region
   aws_account_id = data.aws_caller_identity.current.account_id
   enable_versioning = var.enable_s3_versioning
+  code_bucket_expiration_days = var.code_bucket_expiration_days
+  data_bucket_expiration_days = var.data_bucket_expiration_days
   common_tags   = local.common_tags
 }
 
