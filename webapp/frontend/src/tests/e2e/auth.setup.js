@@ -12,16 +12,8 @@ setup("authenticate", async ({ page }) => {
 
   // Set up authentication state
   await page.addInitScript(() => {
-    localStorage.setItem("financial_auth_token", "e2e-test-token");
-    localStorage.setItem(
-      "financial_user_data",
-      JSON.stringify({
-        username: "e2etest",
-        email: "e2e@test.com",
-        name: "E2E Test User",
-        id: "e2e-test-user-id",
-      })
-    );
+    // Use 'test-token' which is recognized by the backend test auth handler
+    localStorage.setItem("accessToken", "test-token");
   });
 
   // Navigate to verify auth works

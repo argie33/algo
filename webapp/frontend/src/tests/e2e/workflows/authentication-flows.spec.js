@@ -52,7 +52,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
   });
 
   test("should handle API key setup flow", async ({ page }) => {
-    await page.goto("/settings");
+    await page.goto("/app/settings");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
@@ -132,10 +132,9 @@ test.describe("Financial Platform - Authentication Flows", () => {
     console.log("🛡️ Testing protected routes...");
 
     const protectedRoutes = [
-      "/portfolio",
-      "/trade-history",
-      "/orders",
-      "/settings",
+      "/app/portfolio",
+      "/app/trades",
+      "/app/settings",
     ];
 
     let accessibleRoutes = 0;
@@ -205,7 +204,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
       );
     });
 
-    await page.goto("/portfolio");
+    await page.goto("/app/portfolio");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
@@ -246,7 +245,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
   test("should handle logout flow", async ({ page }) => {
     // Set up authenticated state
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
+      localStorage.setItem("accessToken", "test-token");
     });
 
     await page.goto("/");

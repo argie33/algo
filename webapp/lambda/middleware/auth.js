@@ -1,4 +1,5 @@
 const { validateJwtToken } = require("../utils/apiKeyService");
+const logger = require("../utils/logger");
 
 /**
  * Authentication Middleware - Clean implementation with three explicit paths
@@ -157,6 +158,11 @@ const authenticateTokenAsync = async (req, res, next) => {
     const result = await validateJwtToken(token);
 
     if (!result.valid) {
+      logger.security('auth_failure', {
+        error: result.error,
+        path: req.path,
+        ip: req.ip || req.connection.remoteAddress,
+      });
       return res.status(401).json({
         success: false,
         error: result.error || 'Authentication credentials are invalid',
@@ -168,6 +174,13 @@ const authenticateTokenAsync = async (req, res, next) => {
     req.user = user;
     req.token = token;
     req.sessionId = user.sessionId;
+
+    logger.auth('token_validated', {
+      userId: user.sub,
+      username: user.username,
+      path: req.path,
+      ip: req.ip || req.connection.remoteAddress,
+    });
     req.clientInfo = {
       ipAddress: req.ip || req.connection.remoteAddress,
       userAgent: req.get('User-Agent'),
@@ -203,6 +216,14 @@ const requireRole = (roles) => {
     const hasGroup = roles.some((role) => userGroups.includes(role));
 
     if (!hasRole && !hasGroup) {
+      logger.security('permission_denied', {
+        userId: req.user.sub,
+        username: req.user.username,
+        role: userRole,
+        requiredRoles: roles,
+        path: req.path,
+        ip: req.ip || req.connection.remoteAddress,
+      });
       return res.status(403).json({
         success: false,
         error: `Access denied. Required roles: ${roles.join(', ')}`,

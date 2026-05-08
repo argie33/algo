@@ -6,13 +6,15 @@
 class SessionManager {
   constructor() {
     this.callbacks = {
-      onWarning: null,
-      onExpire: null,
-      onExtend: null,
+      onSessionWarning: null,
+      onSessionExpired: null,
+      onTokenRefresh: null,
+      onRefreshError: null,
     };
     this.timers = {
       warning: null,
       expiration: null,
+      tokenRefreshTimer: null,
     };
     this.sessionData = null;
     this.config = {
@@ -49,15 +51,15 @@ class SessionManager {
 
     // Set warning timer
     this.timers.warning = setTimeout(() => {
-      if (this.callbacks.onWarning) {
-        this.callbacks.onWarning();
+      if (this.callbacks.onSessionWarning) {
+        this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
       }
     }, this.config.sessionTimeout - this.config.warningTime);
 
     // Set expiration timer
     this.timers.expiration = setTimeout(() => {
-      if (this.callbacks.onExpire) {
-        this.callbacks.onExpire();
+      if (this.callbacks.onSessionExpired) {
+        this.callbacks.onSessionExpired();
       }
     }, this.config.sessionTimeout);
   }
@@ -68,11 +70,53 @@ class SessionManager {
     localStorage.removeItem('rememberMe');
   }
 
+  startTokenRefreshTimer(accessToken) {
+    if (this.timers.tokenRefreshTimer) {
+      clearTimeout(this.timers.tokenRefreshTimer);
+      this.timers.tokenRefreshTimer = null;
+    }
+
+    if (!accessToken) return;
+
+    try {
+      const parts = accessToken.split('.');
+      if (parts.length !== 3) return;
+
+      const payload = JSON.parse(atob(parts[1]));
+      const expMs = payload.exp * 1000;
+      const nowMs = Date.now();
+      const refreshEarlyMs = 5 * 60 * 1000; // refresh 5 minutes before expiry
+      const refreshAtMs = expMs - nowMs - refreshEarlyMs;
+
+      if (refreshAtMs > 0) {
+        this.timers.tokenRefreshTimer = setTimeout(async () => {
+          if (this.authContext?.refreshSession) {
+            try {
+              const result = await this.authContext.refreshSession();
+              if (this.callbacks.onTokenRefresh) {
+                this.callbacks.onTokenRefresh(result);
+              }
+              if (!result.success && this.callbacks.onRefreshError) {
+                this.callbacks.onRefreshError(result.error, 1);
+              }
+            } catch (error) {
+              if (this.callbacks.onRefreshError) {
+                this.callbacks.onRefreshError(error.message, 1);
+              }
+            }
+          }
+        }, refreshAtMs);
+      }
+    } catch (e) {
+      console.warn('Could not parse token expiry for refresh timer', e);
+    }
+  }
+
   extendSession() {
     this.startSession(localStorage.getItem('rememberMe') === 'true');
 
-    if (this.callbacks.onExtend) {
-      this.callbacks.onExtend();
+    if (this.callbacks.onTokenRefresh) {
+      this.callbacks.onTokenRefresh(null);
     }
   }
 
@@ -84,6 +128,10 @@ class SessionManager {
     if (this.timers.expiration) {
       clearTimeout(this.timers.expiration);
       this.timers.expiration = null;
+    }
+    if (this.timers.tokenRefreshTimer) {
+      clearTimeout(this.timers.tokenRefreshTimer);
+      this.timers.tokenRefreshTimer = null;
     }
   }
 

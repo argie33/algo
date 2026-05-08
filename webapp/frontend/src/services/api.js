@@ -78,6 +78,22 @@ let api = axios.create({
   },
 });
 
+// Token refresh management
+let _refreshCallback = null;
+let isRefreshing = false;
+let failedQueue = [];
+
+export const setRefreshCallback = (fn) => {
+  _refreshCallback = fn;
+};
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) =>
+    error ? prom.reject(error) : prom.resolve(token)
+  );
+  failedQueue = [];
+};
+
 // Request interceptor - add auth token and track timing
 try {
   if (api && api.interceptors) {
@@ -95,17 +111,60 @@ try {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor - handle errors
+    // Response interceptor - handle errors with retry logic
     api.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config;
+
+        // Handle 401 — try refresh once, then redirect
         if (error.response?.status === 401) {
+          if (isRefreshing) {
+            // Already refreshing, queue this request
+            return new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject });
+            })
+              .then((token) => {
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+                return api(originalRequest);
+              })
+              .catch((err) => Promise.reject(err));
+          }
+
+          isRefreshing = true;
+
+          if (_refreshCallback) {
+            try {
+              const result = await _refreshCallback();
+              if (result.success) {
+                const newToken = localStorage.getItem("accessToken");
+                processQueue(null, newToken);
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                isRefreshing = false;
+                return api(originalRequest);
+              }
+            } catch (refreshError) {
+              processQueue(refreshError, null);
+              isRefreshing = false;
+            }
+          }
+
+          isRefreshing = false;
           localStorage.removeItem("authToken");
           localStorage.removeItem("accessToken");
           if (typeof window !== "undefined" && window.location) {
             window.location.href = "/login";
           }
         }
+
+        // Handle 403 — permission denied
+        if (error.response?.status === 403) {
+          const forbiddenError = new Error("You do not have permission to perform this action.");
+          forbiddenError.code = "FORBIDDEN";
+          forbiddenError.status = 403;
+          return Promise.reject(forbiddenError);
+        }
+
         return Promise.reject(error);
       }
     );

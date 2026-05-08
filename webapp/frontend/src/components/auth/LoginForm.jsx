@@ -22,7 +22,7 @@ import {
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
-function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
+function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword, onMFARequired }) {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -57,6 +57,12 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     localStorage.setItem("rememberMe", rememberMe.toString());
 
     const result = await login(formData.username, formData.password);
+
+    // Handle MFA challenge if required
+    if (result.nextStep) {
+      onMFARequired?.(result.nextStep);
+      return;
+    }
 
     if (!result.success && result.error) {
       setLocalError(result.error);

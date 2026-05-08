@@ -18,6 +18,7 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
+import { setRefreshCallback } from "../services/api";
 import devAuth from "../services/devAuth"; // eslint-disable-line import/no-unused-modules
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
@@ -315,7 +316,9 @@ export function AuthProvider({ children }) {
   // Check if user is authenticated on app start
   useEffect(() => {
     checkAuthState();
-  }, [checkAuthState]);
+    // Register the refresh callback for API interceptor
+    setRefreshCallback(refreshSession);
+  }, [checkAuthState, refreshSession]);
 
   // Initialize session manager when authenticated
   useEffect(() => {
@@ -351,9 +354,13 @@ export function AuthProvider({ children }) {
           },
         });
 
-        // Start session
+        // Start session and token refresh timer
         const rememberMe = localStorage.getItem("rememberMe") === "true";
         sessionManager.startSession(rememberMe);
+        // Start proactive token refresh timer
+        if (state.tokens?.accessToken) {
+          sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
+        }
       } catch (error) {
         console.error("❌ Failed to initialize session manager:", error);
         // Don't throw error to prevent app crash
@@ -371,10 +378,18 @@ export function AuthProvider({ children }) {
   }, [
     state.isAuthenticated,
     state.user,
+    state.tokens?.accessToken,
     refreshSession,
     logout,
     setSessionWarning,
   ]);
+
+  // Restart token refresh timer when tokens change
+  useEffect(() => {
+    if (state.tokens?.accessToken && state.isAuthenticated) {
+      sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
+    }
+  }, [state.tokens?.accessToken, state.isAuthenticated]);
 
   const login = async (username, password) => {
     try {

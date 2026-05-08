@@ -8,6 +8,8 @@ import {
   Alert,
 } from "@mui/material";
 import { Close } from "@mui/icons-material";
+import { confirmSignIn } from "aws-amplify/auth";
+import { useAuth } from "../../contexts/AuthContext";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
 import ConfirmationForm from "./ConfirmationForm";
@@ -28,6 +30,9 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
   const [mode, setMode] = useState(initialMode);
   const [username, setUsername] = useState(email);
   const [successMessage, setSuccessMessage] = useState("");
+  const [mfaNextStep, setMfaNextStep] = useState(null);
+  const [pendingUsername, setPendingUsername] = useState("");
+  const { checkAuthState } = useAuth();
 
   const handleRegistrationSuccess = (registeredUsername, _nextStep) => {
     setUsername(registeredUsername);
@@ -56,11 +61,24 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
     onSuccess?.();
   };
 
-  const handleMFASuccess = (result) => {
+  const handleMFAVerify = async (code) => {
+    try {
+      const { isSignedIn } = await confirmSignIn({ challengeResponse: code });
+      return {
+        success: isSignedIn,
+        error: isSignedIn ? null : "Verification did not complete sign-in",
+      };
+    } catch (err) {
+      return { success: false, error: err.message || "Verification failed" };
+    }
+  };
+
+  const handleMFASuccess = async (_result) => {
     setSuccessMessage("Multi-factor authentication successful!");
-    setMode(AUTH_MODES.LOGIN);
-    // In a real app, this would complete the authentication process
-    console.log("MFA Success:", result);
+    // Fetch the authenticated user and dispatch LOGIN_SUCCESS
+    await checkAuthState();
+    onSuccess?.();
+    onClose();
   };
 
   const handleMFACancel = () => {
@@ -136,6 +154,10 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
               setSuccessMessage("");
               setMode(AUTH_MODES.FORGOT_PASSWORD);
             }}
+            onMFARequired={(nextStep) => {
+              setMfaNextStep(nextStep);
+              setMode(AUTH_MODES.MFA_CHALLENGE);
+            }}
           />
         )}
 
@@ -182,8 +204,13 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
 
         {mode === AUTH_MODES.MFA_CHALLENGE && (
           <MFAChallenge
-            challengeType="SMS_MFA"
+            challengeType={
+              mfaNextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+                ? "SOFTWARE_TOKEN_MFA"
+                : "SMS_MFA"
+            }
             message="Please enter the verification code sent to your device."
+            onVerify={handleMFAVerify}
             onSuccess={handleMFASuccess}
             onCancel={handleMFACancel}
           />
