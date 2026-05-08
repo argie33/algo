@@ -113,6 +113,10 @@ class AdvancedFilters:
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
             self._strong_sectors = {row[0]: float(row[2] or 0) for row in sectors[:top_n]}
 
+            # Graceful degradation: if no sector data, continue with empty dict
+            if not self._strong_sectors:
+                logger.warning(f"No sector ranking data available for {eval_date} — sector filters disabled")
+
             self.cur.execute(
                 """
                 SELECT industry, daily_strength_score

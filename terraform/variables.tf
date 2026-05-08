@@ -305,63 +305,6 @@ variable "enable_s3_versioning" {
   default     = true
 }
 
-variable "code_bucket_lifecycle" {
-  description = "Lifecycle configuration for code bucket"
-  type = object({
-    expiration_days    = number
-    transition_days    = number
-    transition_storage = string
-  })
-  default = {
-    expiration_days    = 90
-    transition_days    = 30
-    transition_storage = "STANDARD_IA"
-  }
-}
-
-variable "cf_templates_bucket_lifecycle" {
-  description = "Lifecycle configuration for CloudFormation templates bucket"
-  type = object({
-    expiration_days = number
-  })
-  default = {
-    expiration_days = 365
-  }
-}
-
-variable "lambda_artifacts_bucket_lifecycle" {
-  description = "Lifecycle configuration for Lambda artifacts bucket"
-  type = object({
-    expiration_days = number
-  })
-  default = {
-    expiration_days = 90
-  }
-}
-
-variable "data_loading_bucket_lifecycle" {
-  description = "Lifecycle configuration for data loading bucket"
-  type = object({
-    expiration_days = number
-  })
-  default = {
-    expiration_days = 30
-  }
-}
-
-variable "log_archive_bucket_lifecycle" {
-  description = "Lifecycle configuration for log archive bucket"
-  type = object({
-    intelligent_tiering       = bool
-    glacier_ir_days          = number
-    deep_archive_days        = number
-  })
-  default = {
-    intelligent_tiering = true
-    glacier_ir_days    = 90
-    deep_archive_days  = 365
-  }
-}
 
 # ============================================================
 # Lambda Configuration

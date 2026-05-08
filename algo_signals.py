@@ -75,6 +75,7 @@ class SignalComputer:
         self.cur = cur
         self._owned = None
         self._nesting_level = 0
+        self._price_cache = {}  # Cache for N+1 query optimization
 
     def connect(self):
         if self.cur is None:
@@ -92,9 +93,14 @@ class SignalComputer:
             self.cur = None
             self._owned = None
             self._nesting_level = 0
+            self._price_cache = {}  # Clear cache on disconnect
             monitor_on_disconnect()
         elif self._nesting_level > 1:
             self._nesting_level -= 1
+
+    def clear_cache(self):
+        """Clear price cache to prevent stale data."""
+        self._price_cache = {}
 
     # ============================================================
     # MINERVINI 8-POINT TREND TEMPLATE

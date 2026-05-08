@@ -23,7 +23,8 @@ enable_vpc_endpoints   = true
 # Database
 # ============================================================
 
-rds_username           = "stocks"  # Change this in sensitive tfvars
+rds_username           = "stocks"
+rds_password           = "CHANGE_ME_TO_STRONG_PASSWORD_8_CHARS_MIN"  # REQUIRED: Change before deploy
 rds_db_name            = "stocks"
 rds_instance_class     = "db.t3.micro"
 rds_allocated_storage  = 61

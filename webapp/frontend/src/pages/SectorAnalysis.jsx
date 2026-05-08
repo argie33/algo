@@ -390,13 +390,11 @@ function SectorBreadthChart() {
 
 // ─── Stage-2 leaders per sector ────────────────────────────────────────────
 function Stage2LeadersChart() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['sector-stage2'],
-    queryFn: () => api.get('/api/algo/sector-stage2')
-                      .then(r => r.data?.items || []).catch(() => []),
-    refetchInterval: 60000,
-    retry: false,
-  });
+  const { data, loading: isLoading } = useApiQuery(
+    ['sector-stage2'],
+    () => api.get('/api/algo/sector-stage2'),
+    { refetchInterval: 60000 }
+  );
 
   if (isLoading) return <Empty title="Loading…" />;
   if (!data || data.length === 0) {
@@ -430,28 +428,27 @@ function Stage2LeadersChart() {
 
 // ─── Defensive vs Cyclical signal timeline ─────────────────────────────────
 function DefensiveCyclicalChart() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['sector-rotation'],
-    queryFn: () => api.get('/api/algo/sector-rotation?limit=180')
-                      .then(r => r.data?.items || []).catch(() => []),
-    refetchInterval: 60000,
-    retry: false,
-  });
+  const { data, loading: isLoading } = useApiQuery(
+    ['sector-rotation'],
+    () => api.get('/api/algo/sector-rotation?limit=180'),
+    { refetchInterval: 60000 }
+  );
 
+  const rotationData = (Array.isArray(data) ? data : data?.items) || [];
   if (isLoading) return <Empty title="Loading…" />;
-  if (!data || data.length === 0) {
+  if (!rotationData || rotationData.length === 0) {
     return <Empty title="Sector rotation signal not yet computed"
                   desc="Run algo_sector_rotation.py to populate." />;
   }
 
-  const series = data.map(d => ({
+  const series = rotationData.map(d => ({
     date: String(d.date).slice(5, 10),
     defensive: d.defensive_lead_score,
     cyclical: d.cyclical_weak_score,
     spread: d.spread,
   }));
 
-  const last = data[data.length - 1] || {};
+  const last = rotationData[rotationData.length - 1] || {};
 
   return (
     <div>
@@ -498,13 +495,11 @@ function DailyStrengthChart({ name, type, range }) {
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
     : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
 
-  const { data: resp, isLoading } = useQuery({
-    queryKey: [`${type}-strength`, name],
-    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
-    enabled: !!name,
-    staleTime: 1000 * 60 * 10,
-    retry: false,
-  });
+  const { data: resp, loading: isLoading } = useApiQuery(
+    [`${type}-strength`, name],
+    () => api.get(endpoint),
+    { enabled: !!name, staleTime: 1000 * 60 * 10 }
+  );
 
   if (isLoading) return <Empty title="Loading…" />;
 
@@ -669,13 +664,11 @@ function SparklineTrend({ name, type }) {
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=90`
     : `/api/industries/${encodeURIComponent(name)}/trend?days=90`;
 
-  const { data: resp } = useQuery({
-    queryKey: [`${type}-sparkline`, name],
-    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
-    enabled: !!name,
-    staleTime: 1000 * 60 * 10,
-    retry: false,
-  });
+  const { data: resp } = useApiQuery(
+    [`${type}-sparkline`, name],
+    () => api.get(endpoint),
+    { enabled: !!name, staleTime: 1000 * 60 * 10 }
+  );
 
   const rows = (resp?.trendData || []).filter(r => r.rank != null);
   if (rows.length < 2) return <span className="t-xs muted">—</span>;
@@ -698,19 +691,16 @@ function SparklineTrend({ name, type }) {
 function TopCompanies({ industry }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const { data, isLoading } = useQuery({
-    queryKey: ['industry-top-companies', industry],
-    queryFn: () =>
-      api.get('/api/scores/stockscores?limit=200&sortBy=composite_score&sortOrder=desc')
-        .then(r => r.data?.items || []).catch(() => []),
-    enabled: open,
-    staleTime: 1000 * 60 * 10,
-    retry: false,
-  });
+  const { data: rawData, loading: isLoading } = useApiQuery(
+    ['industry-top-companies', industry],
+    () => api.get('/api/scores/stockscores?limit=200&sortBy=composite_score&sortOrder=desc'),
+    { enabled: open, staleTime: 1000 * 60 * 10 }
+  );
 
-  // Filter to industry-matched names if metadata available, else show top
+  const data = (Array.isArray(rawData) ? rawData : rawData?.items) || [];
+
   const filtered = useMemo(() => {
-    if (!data) return [];
+    if (!data || data.length === 0) return [];
     const matched = data.filter(d =>
       (d.industry || '').toLowerCase() === (industry || '').toLowerCase()
     );

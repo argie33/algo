@@ -64,3 +64,25 @@ def close_pool():
     if _pool is not None:
         _pool.closeall()
         _pool = None
+
+def set_serializable_isolation(conn):
+    """Set SERIALIZABLE isolation level for critical transactional sections.
+
+    Usage: Use for Phase 3 (position monitor) + Phase 4 (exit execution)
+    to prevent race conditions where multiple transactions read/update same position.
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+        conn.commit()
+    finally:
+        cur.close()
+
+def set_read_committed_isolation(conn):
+    """Reset to default READ_COMMITTED isolation level."""
+    cur = conn.cursor()
+    try:
+        cur.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+        conn.commit()
+    finally:
+        cur.close()

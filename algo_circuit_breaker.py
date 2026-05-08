@@ -28,6 +28,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Tuple
+from trade_status import TradeStatus, PositionStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -171,10 +172,11 @@ class CircuitBreaker:
         self.cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
-            WHERE status = 'closed' AND exit_date IS NOT NULL
+            WHERE status = %s AND exit_date IS NOT NULL
             ORDER BY exit_date DESC, id DESC
             LIMIT 10
-            """
+            """,
+            (TradeStatus.CLOSED.value,)
         )
         rows = self.cur.fetchall()
         if not rows:
@@ -202,8 +204,9 @@ class CircuitBreaker:
             SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
             FROM algo_positions p
             JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
-            WHERE p.status = 'open'
-            """
+            WHERE p.status = %s
+            """,
+            (PositionStatus.OPEN.value,)
         )
         total_open_risk = float(self.cur.fetchone()[0] or 0)
 

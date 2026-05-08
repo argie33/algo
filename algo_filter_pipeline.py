@@ -54,6 +54,7 @@ class FilterPipeline:
         self._sector_cache = {}
         self._candidate_holdings = {}  # symbols that passed T5 in this run, for sector counting
         self.advanced = None  # AdvancedFilters instance, lazy-init
+        self._snapshot_eval_date = None  # Immutable snapshot of eval_date for this run
 
     def connect(self) -> None:
         self.conn = psycopg2.connect(**DB_CONFIG)
