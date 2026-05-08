@@ -69,6 +69,13 @@ jobs:
           # Init with backend reconfiguration after cleanup
           terraform init -upgrade -reconfigure
 
+      - name: Destroy orphaned resources
+        run: |
+          cd terraform
+          echo "Destroying orphaned AWS resources from previous failed deployments..."
+          terraform destroy -auto-approve -no-color || true
+          echo "Orphaned resources destroyed (or didn't exist)"
+
       - name: Terraform validate
         run: |
           cd terraform
