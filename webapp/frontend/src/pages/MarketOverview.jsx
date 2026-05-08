@@ -364,76 +364,65 @@ function MarketOverview() {
   // MARKET DATA - 3 separate endpoints for focused data fetching
   const {
     data: technicalsData,
-    isLoading: technicalsLoading,
+    loading: technicalsLoading,
     error: technicalsError,
-  } = useQuery({
-    queryKey: ["market-technicals"],
-    queryFn: fetchMarketTechnicals,
-    refetchInterval: 60000,
-    retry: 2,
-    staleTime: 30000,
-  });
+  } = useApiQuery(
+    ["market-technicals"],
+    fetchMarketTechnicals,
+    { refetchInterval: 60000, retry: 2, staleTime: 30000 }
+  );
 
   const {
     data: sentimentData,
-    isLoading: sentimentLoading,
+    loading: sentimentLoading,
     error: sentimentError,
-  } = useQuery({
-    queryKey: ["market-sentiment-30d"],
-    queryFn: () => fetchMarketSentiment("30d"),
-    refetchInterval: 60000,
-    retry: 2,
-    staleTime: 60000,
-  });
+  } = useApiQuery(
+    ["market-sentiment-30d"],
+    () => fetchMarketSentiment("30d"),
+    { refetchInterval: 60000, retry: 2, staleTime: 60000 }
+  );
 
   const {
     data: seasonalityData,
-    isLoading: seasonalityLoading,
+    loading: seasonalityLoading,
     error: seasonalityError,
-  } = useQuery({
-    queryKey: ["market-seasonality"],
-    queryFn: fetchMarketSeasonality,
-    refetchInterval: 1000 * 60 * 60,
-    retry: 2,
-    staleTime: 1000 * 60 * 60,
-  });
+  } = useApiQuery(
+    ["market-seasonality"],
+    fetchMarketSeasonality,
+    { refetchInterval: 1000 * 60 * 60, retry: 2, staleTime: 1000 * 60 * 60 }
+  );
 
   const {
     data: indicesData,
-    isLoading: indicesLoading,
+    loading: indicesLoading,
     error: indicesError,
-  } = useQuery({
-    queryKey: ["market-indices"],
-    queryFn: getMarketIndices,
-    refetchInterval: 60000,
-    retry: 2,
-    staleTime: 30000,
-  });
+  } = useApiQuery(
+    ["market-indices"],
+    getMarketIndices,
+    { refetchInterval: 60000, retry: 2, staleTime: 30000 }
+  );
 
   // Combined loading and error states
   const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading || indicesLoading;
   const marketError = technicalsError || sentimentError || seasonalityError || indicesError;
 
-  const { data: correlationData, isLoading: correlationLoading } = useQuery({
-    queryKey: ["market-correlation"],
-    queryFn: getMarketCorrelation,
-    staleTime: 1000 * 60 * 60,
-    refetchInterval: 120000,
-  });
+  const { data: correlationData, loading: correlationLoading } = useApiQuery(
+    ["market-correlation"],
+    getMarketCorrelation,
+    { staleTime: 1000 * 60 * 60, refetchInterval: 120000 }
+  );
 
-  const { data: topMoversData, isLoading: topMoversLoading } = useQuery({
-    queryKey: ["market-top-movers"],
-    queryFn: getMarketTopMovers,
-    staleTime: 30000,
-    refetchInterval: 60000,
-  });
+  const { data: topMoversData, loading: topMoversLoading } = useApiQuery(
+    ["market-top-movers"],
+    getMarketTopMovers,
+    { staleTime: 30000, refetchInterval: 60000 }
+  );
 
-  const { data: marketCapData, isLoading: marketCapLoading } = useQuery({
-    queryKey: ["market-cap-distribution"],
-    queryFn: getMarketCapDistribution,
-    staleTime: 1000 * 60 * 60,
-    refetchInterval: 120000,
-  });
+  const { data: marketCapData, loading: marketCapLoading } = useApiQuery(
+    ["market-cap-distribution"],
+    getMarketCapDistribution,
+    { staleTime: 1000 * 60 * 60, refetchInterval: 120000 }
+  );
 
 const handleTabChange = (event, newValue) => {
     setTabValue(newValue);

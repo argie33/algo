@@ -127,12 +127,6 @@ algo_schedule_timezone = "America/New_York"
 sns_alerts_enabled = true
 sns_alert_email = "argeropolos@gmail.com"
 
-# ============================================================
-# Loaders
-# ============================================================
-
-loader_manifest = {}
-enable_scheduled_loaders = true
 
 # ============================================================
 # Tags
