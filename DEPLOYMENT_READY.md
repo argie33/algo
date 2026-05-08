@@ -1,244 +1,244 @@
-# AWS Infrastructure Deployment — In Progress
+﻿# ✅ INFRASTRUCTURE READY FOR DEPLOYMENT
 
-**Status:** 🔧 Testing deploy-core with CloudFormation fixes
+**Status:** All Terraform infrastructure and bootstrap components are complete and ready to deploy.
 
-**Last Updated:** 2026-05-06 01:27 UTC  
-**Deployment Order:** 6 CloudFormation stacks (dependencies enforced)
-**Current Task:** Testing workflow 25411687355 (deploy-core with REVIEW_IN_PROGRESS fix)
+## What You Have Now
 
----
+✅ **Terraform Modules** (7 modules)
+- IAM roles and policies
+- VPC with 4 subnets, 5 security groups, 7 VPC endpoints  
+- S3 buckets (6 total)
+- RDS PostgreSQL database
+- ECS Fargate cluster with 18 data loader task definitions
+- Lambda functions (API + Algo orchestrator)
+- API Gateway, CloudFront CDN, Cognito authentication
+- EventBridge scheduled rules and event bus
+- CloudWatch monitoring and alarms
 
-## What's Ready
+✅ **GitHub Actions Workflows**
+- terraform-apply (main deployment workflow)
+- terraform-plan (review changes)
+- terraform-validate (syntax checking)
+- terraform-destroy (cleanup)
+- terraform-state-backup (S3 backups)
 
-### ✅ Templates (6 configured and renamed)
-- `template-bootstrap.yml` → Stack: `stocks-oidc`
-- `template-core.yml` → Stack: `stocks-core`
-- `template-data-infrastructure.yml` → Stack: `stocks-data`
-- `template-loader-tasks.yml` → Stack: `stocks-loaders`
-- `template-webapp.yml` → Stack: `stocks-webapp-dev`
-- `template-algo.yml` → Stack: `stocks-algo-dev`
+✅ **Bootstrap Infrastructure**
+- GitHub OIDC CloudFormation stack (creates github-actions-role)
+- Automated deployment scripts (both PowerShell and Bash)
+- Comprehensive bootstrap documentation
 
-### ✅ Workflows (7 configured with static credentials)
-- `.github/workflows/bootstrap-oidc.yml` (one-time setup)
-- `.github/workflows/deploy-core.yml` (root infrastructure)
-- `.github/workflows/deploy-data-infrastructure.yml` (RDS, ECS cluster)
-- `.github/workflows/deploy-loaders.yml` (62 data loader tasks)
-- `.github/workflows/deploy-webapp.yml` (Lambda API, frontend)
-- `.github/workflows/deploy-algo.yml` (Algo orchestrator Lambda)
-- `.github/workflows/deploy-all-infrastructure.yml` (master orchestrator)
+## Deployment Timeline
 
-### ✅ Authentication
-- All workflows configured to use **static AWS credentials** (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`)
-- GitHub Secrets required: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`
-- OIDC provider (stocks-oidc) configured in bootstrap template, not used by workflows
+### Phase 1: Bootstrap (10 minutes, manual)
+1. Run bootstrap script (deploy.ps1 or deploy.sh)
+2. Script deploys OIDC CloudFormation stack
+3. Script sets GitHub secrets
+4. Script pushes code to GitHub
 
-### ✅ Architecture Standards Applied
-- One export prefix per template (StocksOidc-, StocksCore-, StocksApp-, StocksLoaders-, etc.)
-- Secrets stored in AWS Secrets Manager, not as environment variables
-- All resources tagged with Project, Environment, ManagedBy, Stack
-- Stack naming: `stocks-{component}[-{env}]` (no `-stack` suffix)
-- Pre-flight checks and rollback-on-failure jobs in all deployment workflows
+### Phase 2: Terraform Deployment (15-20 minutes, automatic)
+- GitHub Actions workflow triggered automatically
+- terraform-apply workflow runs
+- Infrastructure deployed to AWS
+- State backed up to S3
 
----
+**Total Time: ~30-35 minutes**
 
-## Deployment Sequence (automatic via orchestrator)
+## Deploy Now
 
-1. **Bootstrap** (stocks-oidc) — Creates OIDC provider for GitHub Actions
-2. **Core** (stocks-core) — VPC, subnets, ECR registry, S3 buckets, IAM roles
-3. **Data Infrastructure** (stocks-data) — RDS PostgreSQL, ECS cluster, secrets, ECS execution role
-4. **Parallel deployment** (all depend on stocks-data):
-   - **Loaders** (stocks-loaders) — 62 ECS task definitions + 4 EventBridge scheduled rules
-   - **Webapp** (stocks-webapp-dev) — Lambda REST API, CloudFront, Cognito
-   - **Algo** (stocks-algo-dev) — Algo Lambda function + EventBridge Scheduler
+### Prerequisites
+You need:
+- AWS CLI installed
+- GitHub CLI installed and authenticated
+- AWS credentials configured
+- Access to GitHub repository
 
----
+### Step 1: Run Bootstrap Script
 
-## How to Deploy
-
-### Option A: Full Orchestration (Recommended)
-Trigger the master orchestrator workflow that deploys all 6 stacks in the correct order:
-
-```bash
-# Via GitHub CLI
-gh workflow run deploy-all-infrastructure.yml --repo argeropolos/algo -f skip_bootstrap=false
-
-# Via GitHub UI
-1. Go to: https://github.com/argeropolos/algo/actions
-2. Click "Deploy All Infrastructure (Master Orchestrator)"
-3. Click "Run workflow"
-4. Set "Skip OIDC bootstrap" to "false" (first deployment)
-5. Click "Run workflow" button
+**Windows (PowerShell):**
+```powershell
+cd bootstrap
+.\deploy.ps1
 ```
 
-Workflow will:
-- Deploy stocks-oidc (OIDC provider)
-- Deploy stocks-core (core infrastructure)
-- Deploy stocks-data (data layer)
-- Deploy stocks-loaders, stocks-webapp-dev, stocks-algo-dev in parallel
-- Display summary of all 6 stacks deployed
-
-**Estimated time:** 15-20 minutes for full deployment
-
-### Option B: Individual Stack Deployment
-Deploy stacks one at a time (useful for debugging):
-
+**macOS/Linux (Bash):**
 ```bash
-# Deploy core first
-gh workflow run deploy-core.yml --repo argeropolos/algo
-
-# Then data infrastructure
-gh workflow run deploy-data-infrastructure.yml --repo argeropolos/algo
-
-# Then any of the dependent stacks
-gh workflow run deploy-loaders.yml --repo argeropolos/algo
-gh workflow run deploy-webapp.yml --repo argeropolos/algo
-gh workflow run deploy-algo.yml --repo argeropolos/algo
+cd bootstrap
+bash deploy.sh
 ```
 
----
+The script will:
+1. ✅ Verify AWS CLI, GitHub CLI, and git are installed
+2. ✅ Check AWS credentials and account
+3. ✅ Deploy GitHub OIDC CloudFormation stack (creates github-actions-role)
+4. ✅ Prompt for AWS access key and secret key
+5. ✅ Prompt for RDS password (min 8 characters)
+6. ✅ Set all GitHub secrets
+7. ✅ Push code to main branch
+8. ✅ Trigger terraform-apply workflow
 
-## Verify Deployment Success
+### Step 2: Monitor Deployment
 
-After deployment completes:
-
-### 1. Check CloudFormation Stacks
+Watch the GitHub Actions workflow:
 ```bash
+gh run list --workflow terraform-apply.yml
+```
+
+Or visit: https://github.com/argeropolos/algo/actions
+
+### Step 3: Verify Infrastructure
+
+Once deployment completes (look for green checkmark):
+
+```bash
+# Check CloudFormation stack
 aws cloudformation describe-stacks \
-  --region us-east-1 \
-  --query 'Stacks[*].[StackName,StackStatus]' \
-  --output table
+  --stack-name stocks-dev \
+  --query 'Stacks[0].StackStatus'
 
-# Expected output (all should show CREATE_COMPLETE or UPDATE_COMPLETE):
-# StackName           StackStatus
-# stocks-oidc         CREATE_COMPLETE
-# stocks-core         CREATE_COMPLETE
-# stocks-data         CREATE_COMPLETE
-# stocks-loaders      CREATE_COMPLETE
-# stocks-webapp-dev   CREATE_COMPLETE
-# stocks-algo-dev     CREATE_COMPLETE
+# Check RDS database
+aws rds describe-db-instances \
+  --query 'DBInstances[0].Endpoint.Address'
+
+# Check ECS cluster
+aws ecs describe-clusters --clusters stocks-dev-cluster
+
+# Check S3 buckets
+aws s3 ls | grep stocks
+
+# Check API Lambda
+aws lambda list-functions --query 'Functions[?contains(FunctionName, `stocks-api`)].FunctionName'
 ```
 
-### 2. Check Data Loaders
-```bash
-# View loader task definitions
-aws ecs list-task-definition-families \
-  --region us-east-1 \
-  --query 'taskDefinitionFamilies[?contains(@, `loader`)]' \
-  --output text | wc -l
-# Expected: 64 task definition families (62 data loaders + 2 new ones)
+## What Gets Deployed
 
-# View EventBridge rules for scheduled loaders
-aws events list-rules \
-  --name-prefix "Stocks" \
-  --region us-east-1 \
-  --query 'Rules[*].[Name,ScheduleExpression]' \
-  --output table
-# Expected: 4 rules (MarketIndices, EconData, SectorRanking, FearGreed)
-```
+### AWS Account Resources
 
-### 3. Check Webapp Endpoint
-```bash
-# Get CloudFront distribution URL
-aws cloudformation describe-stacks \
-  --stack-name stocks-webapp-dev \
-  --region us-east-1 \
-  --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
-  --output text
+**Networking (VPC)**
+- 1 VPC (10.0.0.0/16)
+- 4 Subnets (2 public, 2 private)
+- 5 Security Groups
+- 7 VPC Endpoints (S3, DynamoDB, Secrets Manager, CloudWatch Logs, ECR, SNS, EC2 Messages)
 
-# Open URL in browser — should display frontend dashboard
-```
+**Database**
+- RDS PostgreSQL 15.4 (db.t3.micro, 61GB, auto-scales to 100GB)
+- Multi-AZ ready
+- Automated backups (30 days)
+- Encryption at rest
+- 3 CloudWatch alarms (CPU, storage, connections)
 
-### 4. Check Algo Lambda
-```bash
-# Verify algo Lambda function exists
-aws lambda get-function \
-  --function-name stocks-algo-dev-AlgoLambda \
-  --region us-east-1 \
-  --query 'Configuration.FunctionArn' \
-  --output text
+**Compute**
+- ECS Fargate cluster
+- 18 ECS task definitions (data loaders)
+- EC2 Bastion host (auto-shutdown at 5am UTC)
+- ECR container registry
 
-# Check EventBridge Scheduler for algo jobs
-aws scheduler list-schedules \
-  --region us-east-1 \
-  --name-prefix "stocks-algo" \
-  --query 'Schedules[*].[Name,ScheduleExpression]' \
-  --output table
-```
+**Storage**
+- 6 S3 buckets (code, data, logs, templates, lambda artifacts, frontend)
+- Versioning enabled
+- Lifecycle policies for cost optimization
+- Encryption at rest
 
----
+**Services**
+- REST API Lambda function
+- API Gateway V2
+- CloudFront CDN distribution
+- Cognito user pool
+- Algo orchestrator Lambda
+- EventBridge Scheduler
 
-## GitHub Secrets Required
+**Monitoring**
+- CloudWatch log groups (30-day retention)
+- CloudWatch alarms
+- SNS alerts
 
-Before deploying, ensure these secrets are configured in the repository:
+**Orchestration**
+- 4 EventBridge scheduled rules (data loaders)
+- 1 EventBridge Scheduler schedule (algo orchestrator)
 
-| Secret | Purpose | Source |
-|--------|---------|--------|
-| `AWS_ACCESS_KEY_ID` | AWS API access (static credential) | AWS IAM User |
-| `AWS_SECRET_ACCESS_KEY` | AWS API secret (static credential) | AWS IAM User |
-| `AWS_ACCOUNT_ID` | AWS account ID for role ARN construction | AWS Account settings |
+## Infrastructure Costs
 
-**How to set:**
-1. Go to: https://github.com/argeropolos/algo/settings/secrets/actions
-2. Click "New repository secret"
-3. Add each of the 3 secrets above
+**Monthly Estimate: $65-90**
 
----
+- VPC: $0 (no NAT Gateway)
+- RDS: $20-30
+- ECS/Fargate: $10-15
+- Lambda: $0-5
+- S3: $1-5
+- CloudFront: varies (free tier includes significant bandwidth)
+- Data Transfer: $0-5
+
+## Files Modified
+
+**New Files:**
+- `bootstrap/oidc.yml` - GitHub OIDC CloudFormation stack
+- `bootstrap/deploy.ps1` - PowerShell deployment script
+- `bootstrap/deploy.sh` - Bash deployment script
+- `bootstrap/README.md` - Bootstrap documentation
+- `TERRAFORM_DEPLOYMENT_GUIDE.md` - Comprehensive deployment guide
+- `TERRAFORM_CHECKLIST.md` - Quick deployment checklist
+
+**Modified Files:**
+- `terraform/variables.tf` - Added rds_password variable
+- `terraform/main.tf` - Use rds_password variable
+- `terraform/versions.tf` - Cleaned up comments
+- `.github/workflows/terraform-apply.yml` - Added TF_VAR_rds_password secret
 
 ## Troubleshooting
 
-### Deployment Fails with "Invalid AWS Credentials"
-- Verify secrets are correct in GitHub Settings → Secrets
-- Verify AWS credentials have CloudFormation, EC2, RDS, Lambda, IAM, and S3 permissions
-- Try deploying a single stack first: `deploy-core.yml`
+**❌ "AWS CLI not found"**
+Install from: https://aws.amazon.com/cli/
 
-### Deployment Fails with "Stack already exists"
-- Check if stack was partially created in previous failed attempt
-- Delete the failed stack: `aws cloudformation delete-stack --stack-name {stack-name}`
-- Wait for deletion to complete: `aws cloudformation wait stack-delete-complete --stack-name {stack-name}`
-- Retry deployment
+**❌ "GitHub CLI not found"**
+Install from: https://cli.github.com/
 
-### Webapp Lambda Returns 500 Errors
-- Check Lambda CloudWatch logs: `aws logs tail /aws/lambda/stocks-webapp-dev-ApiFunction --follow`
-- Verify RDS database connection in CloudWatch Logs
-- Check that `stocks-data` stack is fully deployed
+**❌ "Wrong AWS account"**
+The script expected account `626216981288` but got a different account. Either:
+1. Switch AWS profiles: `export AWS_PROFILE=correct-profile`
+2. Use a different AWS account
 
-### Loaders Not Running
-- Verify EventBridge rules are active: `aws events list-rules --region us-east-1`
-- Check ECS cluster has tasks running: `aws ecs list-tasks --cluster stocks-data --region us-east-1`
-- View task logs: `aws logs tail /ecs/loader-name --follow`
+**❌ "Workflow still running after 30 minutes"**
+Check the workflow logs:
+```bash
+gh run view --log
+```
+
+**❌ "Terraform state is locked"**
+Wait for any in-progress deployments to complete, or:
+```bash
+aws dynamodb scan --table-name stocks-terraform-locks --region us-east-1
+# Then force unlock if needed
+terraform force-unlock <lock-id>
+```
+
+**❌ "RDS password invalid"**
+Password must be 8+ characters and cannot start/end with special characters.
+
+## What Happens After Deployment?
+
+1. **Infrastructure is Live**
+   - RDS database is running
+   - ECS cluster is ready for task definitions
+   - API Lambda is deployed
+   - Frontend bucket is ready
+
+2. **Next Steps**
+   - Deploy loader containers to ECR
+   - Configure Cognito callback URLs
+   - Set up Cognito user pools
+   - Deploy algo Lambda code
+   - Run first data loader tasks
+   - Configure CloudFront custom domain
+
+## Questions?
+
+See the detailed guides:
+- `TERRAFORM_DEPLOYMENT_GUIDE.md` - Full reference
+- `TERRAFORM_CHECKLIST.md` - Quick checklist  
+- `bootstrap/README.md` - Bootstrap details
+- `CLAUDE.md` - Project-wide documentation
 
 ---
 
-## Post-Deployment Checklist
-
-- [ ] All 6 CloudFormation stacks deployed (CREATE_COMPLETE or UPDATE_COMPLETE)
-- [ ] Data loaders running on schedule (check CloudWatch Logs)
-- [ ] Webapp frontend accessible via CloudFront URL
-- [ ] Sample API call returns data from RDS
-- [ ] Algo Lambda scheduled (check EventBridge Scheduler)
-- [ ] Database has fresh data (run: `SELECT COUNT(*) FROM stocks;`)
-
----
-
-## Next Steps After Successful Deployment
-
-1. **Monitor loaders** — Check CloudWatch Logs for each loader running successfully
-2. **Verify data freshness** — Query RDS database for recent stock data
-3. **Test webapp** — Load frontend, verify charts display data
-4. **Enable alerts** — Set up CloudWatch alarms for Lambda errors, RDS CPU
-5. **Configure backup** — Enable RDS automated backups to S3
-6. **Document API endpoints** — Share webapp API URL with frontend team
-
----
-
-## Architecture Summary
-
-**Deployment stack count:** 6  
-**ECS task definitions:** 64 (62 data loaders + 2 new)  
-**EventBridge scheduled rules:** 4 (data loader schedules)  
-**Lambda functions:** 3 (Webapp API, Algo orchestrator, + 2 new in loaders)  
-**RDS database:** 1 (PostgreSQL with TimescaleDB)  
-**S3 buckets:** 5 (Code, Artifacts, Templates, CloudFront logs, Algo artifacts)  
-**Estimated monthly cost:** $65-90 (VPC NATing + RDS + ECS Fargate)
-
-See `CLAUDE.md` for full architectural documentation and deployment principles.
+**Status:** ✅ READY FOR DEPLOYMENT
+**Last Updated:** 2026-05-07
+**Infrastructure Version:** Terraform 1.5.0+
