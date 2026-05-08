@@ -163,6 +163,32 @@ class TradeExecutor:
                 'message': f'Pre-trade check failed: {pretrade_reason}'
             }
 
+        # P2 FIX: IDEMPOTENCY CHECK - Prevent duplicate positions on same symbol
+        # Check if this symbol already has an open position
+        self.connect()
+        try:
+            self.cur.execute(
+                """
+                SELECT symbol FROM algo_positions
+                WHERE symbol = %s AND status = 'open'
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            existing_pos = self.cur.fetchone()
+            if existing_pos:
+                self.disconnect()
+                return {
+                    'success': False, 'trade_id': '', 'status': 'duplicate_position',
+                    'message': f'Symbol {symbol} already has an open position. Close it before entering another.',
+                    'duplicate': True
+                }
+        except Exception as e:
+            print(f"Warning: Failed to check for duplicate position: {e}")
+            # Continue anyway, but log the warning
+        finally:
+            self.disconnect()
+
         # Compute targets if missing — based on R-multiples from actual stop
         risk_per_share = entry_price - stop_loss_price
         if risk_per_share <= 0:
