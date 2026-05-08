@@ -63,6 +63,49 @@ jobs:
           echo "Resources destroyed"
           sleep 5
 
+      - name: Delete orphaned resources
+        run: |
+          echo "Deleting orphaned AWS resources..."
+          REGION=${{ env.AWS_REGION }}
+
+          # Delete ECR repositories
+          echo "Deleting ECR repositories..."
+          aws ecr describe-repositories --region $REGION --query 'repositories[*].repositoryName' --output text | \
+            xargs -I {} aws ecr delete-repository --repository-name {} --force --region $REGION 2>/dev/null || true
+
+          # Delete CloudWatch log groups
+          echo "Deleting CloudWatch log groups..."
+          aws logs describe-log-groups --region $REGION --query 'logGroups[*].logGroupName' --output text | \
+            while read LG; do
+              [ -n "$LG" ] && aws logs delete-log-group --log-group-name "$LG" --region $REGION 2>/dev/null || true
+            done
+
+          # Delete RDS parameter groups (except default ones)
+          echo "Deleting RDS parameter groups..."
+          aws rds describe-db-parameter-groups --region $REGION --query 'DBParameterGroups[*].DBParameterGroupName' --output text | \
+            while read PG; do
+              [[ "$PG" != "default."* ]] && [ -n "$PG" ] && aws rds delete-db-parameter-group --db-parameter-group-name "$PG" --region $REGION 2>/dev/null || true
+            done
+
+          # Delete IAM roles (those matching our pattern)
+          echo "Deleting IAM roles..."
+          aws iam list-roles --query "Roles[?contains(RoleName, 'stocks-')].RoleName" --output text | \
+            while read ROLE; do
+              [ -n "$ROLE" ] && {
+                # Detach all policies first
+                aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text | \
+                  xargs -I {} aws iam delete-role-policy --role-name "$ROLE" --policy-name {} 2>/dev/null || true
+                # Detach managed policies
+                aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text | \
+                  xargs -I {} aws iam detach-role-policy --role-name "$ROLE" --policy-arn {} 2>/dev/null || true
+                # Delete the role
+                aws iam delete-role --role-name "$ROLE" 2>/dev/null || true
+              }
+            done
+
+          echo "Orphaned resource cleanup complete"
+          sleep 5
+
       - name: Clear backend state and locks
         run: |
           echo "Clearing Terraform state backend..."
