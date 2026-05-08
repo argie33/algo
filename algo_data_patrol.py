@@ -157,8 +157,11 @@ class DataPatrol:
                  json.dumps(details) if details else None),
             )
             self.conn.commit()
-        except Exception:
-            self.conn.rollback()
+        except Exception as e:
+            try:
+                self.conn.rollback()
+            except Exception as rb_e:
+                pass
 
     # ============================================================
     # CHECKS

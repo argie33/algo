@@ -10,13 +10,14 @@
 
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   ResponsiveContainer, ComposedChart, Area, Line, Bar, Scatter, XAxis, YAxis,
   CartesianGrid, Tooltip as RTooltip, LineChart, BarChart, PieChart, Pie, Cell,
   ReferenceLine,
 } from 'recharts';
 import { ArrowLeft, RefreshCw, Inbox, TrendingUp, Activity, Target, Briefcase, BarChart3, Users } from 'lucide-react';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
 
 // ─── format helpers ─────────────────────────────────────────────────────────
@@ -97,92 +98,83 @@ export default function StockDetail() {
   const histLimit = { '1M': 30, '3M': 65, '6M': 130, '1Y': 260, '5Y': 1260, 'All': 5200 }[tf] || 130;
 
   // ── Queries ──
-  const { data: priceData, isLoading: priceLoading, refetch: refetchPrice } = useQuery({
-    queryKey: ['stock-price', symbol, histLimit],
-    queryFn: () => api.get(`/api/prices/history/${symbol}?timeframe=daily&limit=${histLimit}`)
-      .then(r => r.data?.data?.items || r.data?.items || []),
-    enabled: !!symbol,
-    refetchInterval: 60_000,
-  });
+  const { data: priceData, loading: priceLoading, refetch: refetchPrice } = useApiQuery(
+    ['stock-price', symbol, histLimit],
+    () => api.get(`/api/price/history/${symbol}?days=${Math.ceil(histLimit / 5)}&limit=${histLimit}`),
+    { enabled: !!symbol, staleTime: 60_000 }
+  );
 
-  const { data: profileData } = useQuery({
-    queryKey: ['stock-profile', symbol],
-    queryFn: () => api.get(`/api/stocks/${symbol}`).then(r => r.data?.data || r.data).catch(() => null),
-    enabled: !!symbol,
-  });
+  const { data: profileData } = useApiQuery(
+    ['stock-profile', symbol],
+    () => api.get(`/api/stocks/${symbol}`),
+    { enabled: !!symbol }
+  );
 
   // Scores w/ all factor inputs (single-symbol path triggers full enrichment)
-  const { data: scoreRow } = useQuery({
-    queryKey: ['stock-scores-detail', symbol],
-    queryFn: async () => {
-      const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
-      const items = r.data?.data || r.data?.items || [];
-      return items[0] || null;
+  const scoreQueryResult = useApiQuery(
+    ['stock-scores-detail', symbol],
+    () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
+    { enabled: !!symbol }
+  );
+  const scoreRow = scoreQueryResult.data?.[0] || null;
     },
     enabled: !!symbol,
     refetchInterval: 60_000,
   });
 
   // Key metrics (sector/industry + market cap + ownership %)
-  const { data: keyMetricsData } = useQuery({
-    queryKey: ['stock-keymetrics', symbol],
-    queryFn: () => api.get(`/api/financials/${symbol}/key-metrics`)
-      .then(r => r.data?.data || r.data).catch(() => null),
-    enabled: !!symbol,
-  });
+  const { data: keyMetricsData } = useApiQuery(
+    ['stock-keymetrics', symbol],
+    () => api.get(`/api/financials/${symbol}/key-metrics`),
+    { enabled: !!symbol }
+  );
 
   // Signals (last 60d)
-  const { data: signalsData } = useQuery({
-    queryKey: ['stock-signals', symbol],
-    queryFn: () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=60`)
-      .then(r => r.data?.items || r.data?.data || []).catch(() => []),
-    enabled: !!symbol,
-    refetchInterval: 60_000,
-  });
+  const { data: signalsData } = useApiQuery(
+    ['stock-signals', symbol],
+    () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=60`),
+    { enabled: !!symbol, staleTime: 60_000 }
+  );
 
   // Algo swing-score (full eval)
-  const { data: swingScore } = useQuery({
-    queryKey: ['stock-swing-score', symbol],
-    queryFn: async () => {
-      const r = await api.get(`/api/algo/swing-scores?limit=2000`).catch(() => null);
-      const items = r?.data?.items || [];
+  const swingScoreQuery = useApiQuery(
+    ['stock-swing-score', symbol],
+    async () => {
+      const r = await api.get(`/api/algo/swing-scores?limit=2000`);
+      const items = extractData(r);
       return items.find(it => it.symbol === symbol.toUpperCase()) || null;
     },
-    enabled: !!symbol,
-    refetchInterval: 60_000,
-  });
+    { enabled: !!symbol, staleTime: 60_000 }
+  );
+  const swingScore = swingScoreQuery.data;
 
   // Analyst sentiment
-  const { data: analystData } = useQuery({
-    queryKey: ['stock-analyst', symbol],
-    queryFn: () => api.get(`/api/sentiment/analyst/insights/${symbol}`)
-      .then(r => r.data?.data || r.data).catch(() => null),
-    enabled: !!symbol,
-  });
+  const { data: analystData } = useApiQuery(
+    ['stock-analyst', symbol],
+    () => api.get(`/api/sentiment/analyst/insights/${symbol}`),
+    { enabled: !!symbol }
+  );
 
   // Income statement
-  const { data: incomeData } = useQuery({
-    queryKey: ['stock-income', symbol],
-    queryFn: () => api.get(`/api/financials/${symbol}/income-statement?period=quarterly`)
-      .then(r => r.data?.data?.financialData || r.data?.financialData || []).catch(() => []),
-    enabled: !!symbol,
-  });
+  const { data: incomeData } = useApiQuery(
+    ['stock-income', symbol],
+    () => api.get(`/api/financials/${symbol}/income-statement?period=quarterly`),
+    { enabled: !!symbol }
+  );
 
   // Balance sheet
-  const { data: balanceData } = useQuery({
-    queryKey: ['stock-balance', symbol],
-    queryFn: () => api.get(`/api/financials/${symbol}/balance-sheet?period=quarterly`)
-      .then(r => r.data?.data?.financialData || r.data?.financialData || []).catch(() => []),
-    enabled: !!symbol,
-  });
+  const { data: balanceData } = useApiQuery(
+    ['stock-balance', symbol],
+    () => api.get(`/api/financials/${symbol}/balance-sheet?period=quarterly`),
+    { enabled: !!symbol }
+  );
 
   // Cash flow
-  const { data: cashflowData } = useQuery({
-    queryKey: ['stock-cashflow', symbol],
-    queryFn: () => api.get(`/api/financials/${symbol}/cash-flow?period=quarterly`)
-      .then(r => r.data?.data?.financialData || r.data?.financialData || []).catch(() => []),
-    enabled: !!symbol,
-  });
+  const { data: cashflowData } = useApiQuery(
+    ['stock-cashflow', symbol],
+    () => api.get(`/api/financials/${symbol}/cash-flow?period=quarterly`),
+    { enabled: !!symbol }
+  );
 
   // ── Derived chart series ──
   const priceSeries = useMemo(() => {

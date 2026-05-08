@@ -136,10 +136,12 @@ class CircuitBreaker:
         )
         row = self.cur.fetchone()
         if not row or not row[0] or not row[1]:
-            return {'halted': False, 'reason': 'No portfolio history'}
+            return {'halted': True, 'reason': 'Portfolio history missing — fail-closed'}
         peak = float(row[0])
         cur_val = float(row[1])
-        dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
+        if peak <= 0 or cur_val <= 0:
+            return {'halted': True, 'reason': 'Invalid portfolio values — fail-closed'}
+        dd = ((peak - cur_val) / peak * 100.0)
         threshold = float(self.config.get('halt_drawdown_pct', 20.0))
         return {
             'halted': dd >= threshold,
@@ -231,7 +233,7 @@ class CircuitBreaker:
         )
         row = self.cur.fetchone()
         if not row or row[0] is None:
-            return {'halted': False, 'reason': 'No VIX'}
+            return {'halted': True, 'reason': 'VIX data missing — fail-closed to prevent trading during unknown volatility'}
         vix = float(row[0])
         threshold = float(self.config.get('vix_max_threshold', 35.0))
         return {
@@ -248,8 +250,10 @@ class CircuitBreaker:
         )
         row = self.cur.fetchone()
         if not row:
-            return {'halted': False, 'reason': 'No market health'}
-        stage = int(row[0]) if row[0] is not None else 0
+            return {'halted': True, 'reason': 'Market health data missing — fail-closed'}
+        if row[0] is None:
+            return {'halted': True, 'reason': 'Market stage NULL — fail-closed to prevent trading in unknown stage'}
+        stage = int(row[0])
         trend = row[1] or 'unknown'
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4

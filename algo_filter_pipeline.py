@@ -22,6 +22,7 @@ from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
 from filter_rejection_tracker import RejectionTracker
+from trade_status import PositionStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -766,7 +767,8 @@ class FilterPipeline:
 
         # Open positions
         self.cur.execute(
-            "SELECT symbol, position_value FROM algo_positions WHERE status = 'open'"
+            "SELECT symbol, position_value FROM algo_positions WHERE status = %s",
+            (PositionStatus.OPEN.value,)
         )
         rows = self.cur.fetchall()
         position_count = len(rows)

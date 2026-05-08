@@ -164,9 +164,16 @@ class PositionMonitor:
                 rec = self._evaluate_position(row, current_date)
                 recs.append(rec)
                 self._print_recommendation(rec)
-                self._persist_review(rec, current_date)
-
-            self.conn.commit()
+                try:
+                    self._persist_review(rec, current_date)
+                    self.conn.commit()
+                except Exception as e:
+                    logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
+                    try:
+                        self.conn.rollback()
+                    except Exception:
+                        pass
+                    continue
             return recs
         finally:
             self.disconnect()

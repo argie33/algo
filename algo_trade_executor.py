@@ -245,7 +245,8 @@ class TradeExecutor:
             self.cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
-                WHERE symbol = %s AND signal_date = %s AND status IN (%s, %s)
+                WHERE symbol = %s AND COALESCE(signal_date, '1900-01-01') = COALESCE(%s, '1900-01-01')
+                  AND status IN (%s, %s)
                 LIMIT 1
                 """,
                 (symbol, signal_date, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
@@ -317,7 +318,12 @@ class TradeExecutor:
                         'success': False, 'trade_id': trade_id, 'status': 'failed',
                         'message': order_result.get('message', 'Order failed')
                     }
-                alpaca_order_id = order_result['order_id']
+                alpaca_order_id = order_result.get('order_id')
+                if not alpaca_order_id:
+                    return {
+                        'success': False, 'trade_id': trade_id, 'status': 'failed',
+                        'message': 'Alpaca response missing order_id'
+                    }
                 order_status = order_result.get('status', 'pending')
                 # For pending orders, executed_price will be None; use entry_price as placeholder
                 executed_price = order_result.get('executed_price') or entry_price
@@ -328,11 +334,18 @@ class TradeExecutor:
                     shares, entry_price, alpaca_order_id
                 )
 
-                # Verify bracket legs were created successfully
+                # Verify bracket legs were created successfully — FAIL-CLOSED if missing stop leg
                 legs = order_result.get('legs', [])
                 if order_result.get('order_class') == 'bracket' and len(legs) < 2:
-                    logger.warning(f"Bracket order {alpaca_order_id} created but legs incomplete: {len(legs)} legs")
-                    # Continue anyway but flag for monitoring
+                    # Bracket order MUST have stop loss leg — cancel and reject if missing
+                    try:
+                        self._cancel_bracket_orders(alpaca_order_id)
+                    except Exception:
+                        pass
+                    return {
+                        'success': False, 'trade_id': trade_id, 'status': 'failed',
+                        'message': f'Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) — order cancelled and rejected'
+                    }
 
                 # Validate filled status — only mark as filled if Alpaca confirmed
                 if order_status not in ('filled', 'partially_filled'):

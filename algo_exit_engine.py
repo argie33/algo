@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, date as _date
 from trade_performance_auditor import TradePerformanceAuditor
 from algo_trade_executor import TradeExecutor
 from algo_signals import SignalComputer
+from trade_status import TradeStatus, PositionStatus
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -85,9 +86,10 @@ class ExitEngine:
                        p.current_stop_price
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
+                WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
                 ORDER BY t.trade_date ASC
-                """
+                """,
+                (TradeStatus.OPEN.value, TradeStatus.PENDING.value, PositionStatus.OPEN.value)
             )
             trades = self.cur.fetchall()
             if not trades:
@@ -138,33 +140,17 @@ class ExitEngine:
                 stage = exit_signal['stage']
                 new_stop = exit_signal.get('new_stop')
 
-                # Stop-raise only (no exit shares) — handle directly via UPDATE
-                if fraction == 0.0 and new_stop is not None and new_stop > active_stop:
-                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
-                    try:
-                        self.cur.execute(
-                            """UPDATE algo_positions SET current_stop_price = %s
-                               WHERE %s = ANY(trade_ids_arr) AND status = 'open'""",
-                            (new_stop, trade_id),
-                        )
-                        self.conn.commit()
-                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-                    except Exception as e:
-                        logger.error(f"      -> Stop-raise failed: {e}")
-                        try:
-                            self.conn.rollback()
-                        except Exception as rb_e:
-                            logger.error(f"      -> Rollback also failed: {rb_e}")
-                    continue
-
-                print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']} "
-                      f"(exit {int(fraction*100)}%)")
+                # Route ALL updates through executor (no direct UPDATE bypass)
+                # Even stop-raise-only (fraction=0) must use executor for atomicity and audit logging
+                logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                if fraction > 0:
+                    print(f"      (exit {int(fraction*100)}%)")
 
                 result = self.executor.exit_trade(
                     trade_id=trade_id,
                     exit_price=cur_price,
                     exit_reason=exit_signal['reason'],
-                    exit_fraction=fraction,
+                    exit_fraction=max(fraction, 1e-6) if fraction >= 0 else 1e-6,
                     exit_stage=stage,
                     new_stop_price=new_stop,
                 )
@@ -183,8 +169,8 @@ class ExitEngine:
             try:
                 self.cur.execute("""
                     SELECT DISTINCT id FROM algo_trades
-                    WHERE status = 'closed' AND exit_date = %s
-                """, (current_date,))
+                    WHERE status = %s AND exit_date = %s
+                """, (TradeStatus.CLOSED.value, current_date))
                 closed_trades = self.cur.fetchall()
                 for (trade_id,) in closed_trades:
                     auditor.audit_exit(trade_id)
