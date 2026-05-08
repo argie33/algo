@@ -245,7 +245,9 @@ jobs:
           if [[ "$STATUS" != "DOES_NOT_EXIST" ]]; then
             echo "Deleting existing stocks-core stack (status: $STATUS)..."
             aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "$REGION" 2>/dev/null || true
-            sleep 5
+            echo "Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "$REGION" 2>/dev/null || true
+            echo "Stack deletion complete"
           fi
 
           # 2. Delete ECR repository FIRST (it blocks other cleanup)
