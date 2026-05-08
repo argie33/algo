@@ -6,6 +6,10 @@ locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
 
+  # Role names with 'svc-' prefix to avoid conflicts with legacy resources
+  api_lambda_role_name  = "${var.project_name}-svc-api-${var.environment}"
+  algo_lambda_role_name = "${var.project_name}-svc-algo-${var.environment}"
+
   # Note: CloudFront domain is added to CORS post-deployment to avoid circular dependency
   api_cors_origins = var.api_cors_allowed_origins
 }
@@ -15,7 +19,7 @@ locals {
 # ============================================================
 
 resource "aws_iam_role" "api_lambda" {
-  name = "${local.api_lambda_name}-role"
+  name = local.api_lambda_role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -31,7 +35,7 @@ resource "aws_iam_role" "api_lambda" {
   })
 
   tags = merge(var.common_tags, {
-    Name = "${local.api_lambda_name}-role"
+    Name = local.api_lambda_role_name
   })
 }
 
@@ -484,7 +488,7 @@ resource "aws_cognito_user_pool_client" "main" {
 # ============================================================
 
 resource "aws_iam_role" "algo_lambda" {
-  name = "${local.algo_lambda_name}-role"
+  name = local.algo_lambda_role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -500,7 +504,7 @@ resource "aws_iam_role" "algo_lambda" {
   })
 
   tags = merge(var.common_tags, {
-    Name = "${local.algo_lambda_name}-role"
+    Name = local.algo_lambda_role_name
   })
 }
 

@@ -150,7 +150,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 
 # ECS Task Execution Role
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.project_name}-ecs-task-execution-role"
+  name = "${var.project_name}-svc-ecs-task-execution-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

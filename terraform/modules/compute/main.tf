@@ -249,7 +249,7 @@ resource "aws_autoscaling_group" "bastion" {
 
 resource "aws_iam_role" "bastion_stop" {
   count              = var.bastion_enabled ? 1 : 0
-  name               = "${var.project_name}-bastion-stop-lambda-role"
+  name               = "${var.project_name}-svc-bastion-stop-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume[0].json
 
   tags = var.common_tags

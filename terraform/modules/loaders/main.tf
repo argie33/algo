@@ -13,7 +13,7 @@
 
 # EventBridge role to run ECS tasks
 resource "aws_iam_role" "eventbridge_run_task" {
-  name = "${var.project_name}-eventbridge-run-task-role"
+  name = "${var.project_name}-svc-eventbridge-run-task-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

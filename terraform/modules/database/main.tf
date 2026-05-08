@@ -116,7 +116,7 @@ resource "aws_db_parameter_group" "main" {
 # ============================================================
 
 resource "aws_iam_role" "rds_monitoring" {
-  name               = "${var.project_name}-rds-monitoring-role"
+  name               = "${var.project_name}-svc-rds-monitoring-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.rds_monitoring_assume.json
 
   tags = var.common_tags

@@ -34,12 +34,12 @@ resource "aws_iam_openid_connect_provider" "github" {
 # GitHub Actions deployment role - LEAST PRIVILEGE
 # Scoped to: this repository only, no wildcard actions
 resource "aws_iam_role" "github_actions" {
-  name               = "${var.project_name}-github-actions-${var.environment}"
+  name               = "${var.project_name}-svc-github-actions-${var.environment}"
   description        = "GitHub Actions deployment role for ${var.project_name}"
   assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-github-actions"
+    Name = "${var.project_name}-svc-github-actions-${var.environment}"
   })
 }
 
