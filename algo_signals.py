@@ -100,110 +100,113 @@ class SignalComputer:
         }
         """
         self.connect()
-        # Get last ~250 trading days of price + MA data in one fetch
-        self.cur.execute(
-            """
-            WITH recent AS (
-                SELECT pd.date, pd.close, pd.high, pd.low,
-                       td.sma_50, td.sma_200,
-                       AVG(pd.close) OVER (
-                           ORDER BY pd.date DESC
-                           ROWS BETWEEN CURRENT ROW AND 149 FOLLOWING
-                       ) AS sma_150_calc,
-                       ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
-                FROM price_daily pd
-                LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
-                WHERE pd.symbol = %s AND pd.date <= %s
+        try:
+            # Get last ~250 trading days of price + MA data in one fetch
+            self.cur.execute(
+                """
+                WITH recent AS (
+                    SELECT pd.date, pd.close, pd.high, pd.low,
+                           td.sma_50, td.sma_200,
+                           AVG(pd.close) OVER (
+                               ORDER BY pd.date DESC
+                               ROWS BETWEEN CURRENT ROW AND 149 FOLLOWING
+                           ) AS sma_150_calc,
+                           ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
+                    FROM price_daily pd
+                    LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                    WHERE pd.symbol = %s AND pd.date <= %s
+                )
+                SELECT date, close, sma_50, sma_150_calc, sma_200, rn
+                FROM recent WHERE rn <= 252
+                ORDER BY date DESC
+                """,
+                (symbol, eval_date),
             )
-            SELECT date, close, sma_50, sma_150_calc, sma_200, rn
-            FROM recent WHERE rn <= 252
-            ORDER BY date DESC
-            """,
-            (symbol, eval_date),
-        )
-        rows = self.cur.fetchall()
-        if not rows:
-            return self._minervini_empty('No price data')
+            rows = self.cur.fetchall()
+            if not rows:
+                return self._minervini_empty('No price data')
 
-        # Latest values
-        cur_date, cur_close, sma_50, sma_150, sma_200, _rn = rows[0]
-        cur_close = float(cur_close)
-        sma_50 = float(sma_50) if sma_50 is not None else None
-        sma_150 = float(sma_150) if sma_150 is not None else None
-        sma_200 = float(sma_200) if sma_200 is not None else None
+            # Latest values
+            cur_date, cur_close, sma_50, sma_150, sma_200, _rn = rows[0]
+            cur_close = float(cur_close)
+            sma_50 = float(sma_50) if sma_50 is not None else None
+            sma_150 = float(sma_150) if sma_150 is not None else None
+            sma_200 = float(sma_200) if sma_200 is not None else None
 
-        # SMA-200 from 21 trading days ago (for trend slope criterion 3)
-        sma_200_21d_ago = None
-        if len(rows) > 21:
-            sma_200_21d_ago = rows[21][4]
-            sma_200_21d_ago = float(sma_200_21d_ago) if sma_200_21d_ago is not None else None
+            # SMA-200 from 21 trading days ago (for trend slope criterion 3)
+            sma_200_21d_ago = None
+            if len(rows) > 21:
+                sma_200_21d_ago = rows[21][4]
+                sma_200_21d_ago = float(sma_200_21d_ago) if sma_200_21d_ago is not None else None
 
-        # 52-week high / low
-        self.cur.execute(
-            """
-            SELECT MAX(high), MIN(low) FROM price_daily
-            WHERE symbol = %s AND date <= %s
-              AND date >= %s::date - INTERVAL '365 days'
-            """,
-            (symbol, eval_date, eval_date),
-        )
-        hl = self.cur.fetchone()
-        if not hl or hl[0] is None or hl[1] is None:
-            return self._minervini_empty('No 52w range')
-        high_52w = float(hl[0])
-        low_52w = float(hl[1])
+            # 52-week high / low
+            self.cur.execute(
+                """
+                SELECT MAX(high), MIN(low) FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                  AND date >= %s::date - INTERVAL '365 days'
+                """,
+                (symbol, eval_date, eval_date),
+            )
+            hl = self.cur.fetchone()
+            if not hl or hl[0] is None or hl[1] is None:
+                return self._minervini_empty('No 52w range')
+            high_52w = float(hl[0])
+            low_52w = float(hl[1])
 
-        # Score the 8 criteria
-        criteria = {}
+            # Score the 8 criteria
+            criteria = {}
 
-        # 1. Above 150 + 200 MA
-        c1 = sma_150 is not None and sma_200 is not None and cur_close > sma_150 and cur_close > sma_200
-        criteria['c1_above_150_200_ma'] = c1
+            # 1. Above 150 + 200 MA
+            c1 = sma_150 is not None and sma_200 is not None and cur_close > sma_150 and cur_close > sma_200
+            criteria['c1_above_150_200_ma'] = c1
 
-        # 2. 150 > 200
-        c2 = sma_150 is not None and sma_200 is not None and sma_150 > sma_200
-        criteria['c2_sma150_above_sma200'] = c2
+            # 2. 150 > 200
+            c2 = sma_150 is not None and sma_200 is not None and sma_150 > sma_200
+            criteria['c2_sma150_above_sma200'] = c2
 
-        # 3. 200-MA trending up for at least a month
-        c3 = sma_200 is not None and sma_200_21d_ago is not None and sma_200 > sma_200_21d_ago
-        criteria['c3_sma200_rising_1mo'] = c3
+            # 3. 200-MA trending up for at least a month
+            c3 = sma_200 is not None and sma_200_21d_ago is not None and sma_200 > sma_200_21d_ago
+            criteria['c3_sma200_rising_1mo'] = c3
 
-        # 4. 50 > 150 AND 50 > 200
-        c4 = (sma_50 is not None and sma_150 is not None and sma_200 is not None
-              and sma_50 > sma_150 and sma_50 > sma_200)
-        criteria['c4_sma50_above_others'] = c4
+            # 4. 50 > 150 AND 50 > 200
+            c4 = (sma_50 is not None and sma_150 is not None and sma_200 is not None
+                  and sma_50 > sma_150 and sma_50 > sma_200)
+            criteria['c4_sma50_above_others'] = c4
 
-        # 5. Above 50-MA
-        c5 = sma_50 is not None and cur_close > sma_50
-        criteria['c5_above_sma50'] = c5
+            # 5. Above 50-MA
+            c5 = sma_50 is not None and cur_close > sma_50
+            criteria['c5_above_sma50'] = c5
 
-        # 6. ≥ 30% above 52-week low
-        pct_above_low = ((cur_close - low_52w) / low_52w * 100.0) if low_52w > 0 else 0
-        c6 = pct_above_low >= 30.0
-        criteria['c6_at_least_30pct_above_52w_low'] = c6
-        criteria['_pct_above_52w_low'] = round(pct_above_low, 1)
+            # 6. ≥ 30% above 52-week low
+            pct_above_low = ((cur_close - low_52w) / low_52w * 100.0) if low_52w > 0 else 0
+            c6 = pct_above_low >= 30.0
+            criteria['c6_at_least_30pct_above_52w_low'] = c6
+            criteria['_pct_above_52w_low'] = round(pct_above_low, 1)
 
-        # 7. Within 25% of 52-week high
-        pct_below_high = ((high_52w - cur_close) / high_52w * 100.0) if high_52w > 0 else 100
-        c7 = pct_below_high <= 25.0
-        criteria['c7_within_25pct_of_52w_high'] = c7
-        criteria['_pct_below_52w_high'] = round(pct_below_high, 1)
+            # 7. Within 25% of 52-week high
+            pct_below_high = ((high_52w - cur_close) / high_52w * 100.0) if high_52w > 0 else 100
+            c7 = pct_below_high <= 25.0
+            criteria['c7_within_25pct_of_52w_high'] = c7
+            criteria['_pct_below_52w_high'] = round(pct_below_high, 1)
 
-        # 8. Relative Strength vs SPY ≥ 70 percentile (over 60-day return)
-        rs_pct = self._rs_percentile_vs_spy(symbol, eval_date, lookback=60)
-        c8 = rs_pct is not None and rs_pct >= 70.0
-        criteria['c8_rs_rank_70_or_better'] = c8
-        criteria['_rs_percentile'] = rs_pct
+            # 8. Relative Strength vs SPY ≥ 70 percentile (over 60-day return)
+            rs_pct = self._rs_percentile_vs_spy(symbol, eval_date, lookback=60)
+            c8 = rs_pct is not None and rs_pct >= 70.0
+            criteria['c8_rs_rank_70_or_better'] = c8
+            criteria['_rs_percentile'] = rs_pct
 
-        score = sum(1 for k, v in criteria.items() if not k.startswith('_') and v)
-        institutional_pass = score >= 7
+            score = sum(1 for k, v in criteria.items() if not k.startswith('_') and v)
+            institutional_pass = score >= 7
 
-        return {
-            'score': score,
-            'criteria': criteria,
-            'pass': institutional_pass,
-            'eval_date': str(eval_date),
-        }
+            return {
+                'score': score,
+                'criteria': criteria,
+                'pass': institutional_pass,
+                'eval_date': str(eval_date),
+            }
+        finally:
+            self.disconnect()
 
     def _minervini_empty(self, reason):
         return {'score': 0, 'criteria': {}, 'pass': False, 'reason': reason}

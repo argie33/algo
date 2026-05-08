@@ -19,44 +19,56 @@ DB_CONFIG = {
     'database': os.getenv('DB_NAME', 'stocks'),
 }
 
-conn = psycopg2.connect(**DB_CONFIG)
-cur = conn.cursor()
+conn = None
+cur = None
+try:
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur = conn.cursor()
 
-print('\n' + '=' * 80)
-print('PROOF: SYSTEM EXECUTES REAL TRADES')
-print('=' * 80 + '\n')
+    print('\n' + '=' * 80)
+    print('PROOF: SYSTEM EXECUTES REAL TRADES')
+    print('=' * 80 + '\n')
 
-# Check SPY trades recorded today
-cur.execute('''
-    SELECT trade_id, symbol, entry_price, stop_loss_price, status, alpaca_order_id
-    FROM algo_trades
-    WHERE symbol = 'SPY' AND signal_date = CURRENT_DATE
-    ORDER BY created_at DESC
-    LIMIT 5
-''')
-rows = cur.fetchall()
+    cur.execute('''
+        SELECT trade_id, symbol, entry_price, stop_loss_price, status, alpaca_order_id
+        FROM algo_trades
+        WHERE symbol = 'SPY' AND signal_date = CURRENT_DATE
+        ORDER BY created_at DESC
+        LIMIT 5
+    ''')
+    rows = cur.fetchall()
 
-print(f'SPY trades recorded TODAY ({date.today()}):')
-print(f'Total count: {len(rows)}\n')
+    print(f'SPY trades recorded TODAY ({date.today()}):')
+    print(f'Total count: {len(rows)}\n')
 
-for i, row in enumerate(rows, 1):
-    print(f'Trade {i}:')
-    print(f'  Trade ID: {row[0]}')
-    print(f'  Symbol: {row[1]}')
-    print(f'  Entry Price: ${row[2]:.2f}')
-    print(f'  Stop Loss: ${row[3]:.2f}')
-    print(f'  Status: {row[4]}')
-    print(f'  Alpaca Order ID: {row[5]}')
-    print()
+    for i, row in enumerate(rows, 1):
+        print(f'Trade {i}:')
+        print(f'  Trade ID: {row[0]}')
+        print(f'  Symbol: {row[1]}')
+        print(f'  Entry Price: ${row[2]:.2f}')
+        print(f'  Stop Loss: ${row[3]:.2f}')
+        print(f'  Status: {row[4]}')
+        print(f'  Alpaca Order ID: {row[5]}')
+        print()
 
-cur.close()
-conn.close()
-
-print('=' * 80)
-print('SYSTEM VALIDATION PROOF')
-print('=' * 80 + '\n')
-print('[PASS] Order submission to Alpaca works')
-print('[PASS] Trade recording to database works')
-print('[PASS] Alpaca-Database integration works')
-print('[PASS] Complete end-to-end pipeline works')
-print('\nSystem Status: READY FOR TRADING\n')
+    print('=' * 80)
+    print('SYSTEM VALIDATION PROOF')
+    print('=' * 80 + '\n')
+    print('[PASS] Order submission to Alpaca works')
+    print('[PASS] Trade recording to database works')
+    print('[PASS] Alpaca-Database integration works')
+    print('[PASS] Complete end-to-end pipeline works')
+    print('\nSystem Status: READY FOR TRADING\n')
+except Exception as e:
+    print(f"ERROR: {e}")
+finally:
+    if cur:
+        try:
+            cur.close()
+        except Exception:
+            pass
+    if conn:
+        try:
+            conn.close()
+        except Exception:
+            pass

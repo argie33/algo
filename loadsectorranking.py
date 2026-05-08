@@ -48,11 +48,14 @@ SECTORS = [
 
 
 def load_sector_ranking():
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    start = datetime.now()
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        start = datetime.now()
 
-    print(f"\n{'='*70}\nLOADING SECTOR RANKING\n{'='*70}")
+        print(f"\n{'='*70}\nLOADING SECTOR RANKING\n{'='*70}")
 
     # If we have sector ETF prices, use them. Otherwise fall back to
     # computing sector returns from constituents (slower but doesn't need ETF prices).
@@ -166,13 +169,23 @@ def load_sector_ranking():
             rank_lookback[60].get(sec),
         ))
 
-    conn.commit()
-    elapsed = (datetime.now() - start).total_seconds()
-    print(f"\n  Persisted {len(sector_returns)} sectors")
-    print(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
-
-    cur.close()
-    conn.close()
+        conn.commit()
+        elapsed = (datetime.now() - start).total_seconds()
+        print(f"\n  Persisted {len(sector_returns)} sectors")
+        print(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
+    except Exception as e:
+        print(f"ERROR: {e}")
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

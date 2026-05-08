@@ -49,14 +49,17 @@ def load_technicals(days_back=365, symbol_filter=None):
       - roc_10d, roc_20d, roc_60d, roc_120d, roc_252d (rate of change)
       - mansfield_rs (placeholder — computed elsewhere relative to SPY)
     """
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    start = datetime.now()
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        start = datetime.now()
 
-    print(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
-    print(f"  Lookback: {days_back} days")
-    if symbol_filter:
-        print(f"  Symbol filter: {symbol_filter}")
+        print(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
+        print(f"  Lookback: {days_back} days")
+        if symbol_filter:
+            print(f"  Symbol filter: {symbol_filter}")
 
     # Build the WHERE clause
     where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
@@ -234,16 +237,26 @@ def load_technicals(days_back=365, symbol_filter=None):
     """)
     total, symbols, min_d, max_d = cur.fetchone()
 
-    elapsed = (datetime.now() - start).total_seconds()
-    print(f"\n{'='*70}")
-    print(f"COMPLETE — {elapsed:.1f}s")
-    print(f"  total rows:    {total:,}")
-    print(f"  symbols:       {symbols:,}")
-    print(f"  date range:    {min_d} to {max_d}")
-    print(f"{'='*70}\n")
-
-    cur.close()
-    conn.close()
+        elapsed = (datetime.now() - start).total_seconds()
+        print(f"\n{'='*70}")
+        print(f"COMPLETE — {elapsed:.1f}s")
+        print(f"  total rows:    {total:,}")
+        print(f"  symbols:       {symbols:,}")
+        print(f"  date range:    {min_d} to {max_d}")
+        print(f"{'='*70}\n")
+    except Exception as e:
+        print(f"ERROR: {e}")
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
