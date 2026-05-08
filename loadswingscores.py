@@ -130,89 +130,100 @@ def run(eval_date=None, symbol_filter=None, min_completeness=70, batch_size=200,
     elif isinstance(eval_date, str):
         eval_date = _date.fromisoformat(eval_date)
 
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
 
-    # Make sure most recent trend_template_data <= eval_date is reasonably fresh
-    cur.execute("SELECT MAX(date) FROM trend_template_data WHERE date <= %s", (eval_date,))
-    latest_trend = cur.fetchone()[0]
-    if latest_trend is None:
-        print(f"ABORT: no trend_template_data <= {eval_date}. Run loadtrendtemplate first.")
-        cur.close(); conn.close()
-        return
+        # Make sure most recent trend_template_data <= eval_date is reasonably fresh
+        cur.execute("SELECT MAX(date) FROM trend_template_data WHERE date <= %s", (eval_date,))
+        latest_trend = cur.fetchone()[0]
+        if latest_trend is None:
+            print(f"ABORT: no trend_template_data <= {eval_date}. Run loadtrendtemplate first.")
+            return
 
-    if (eval_date - latest_trend).days > 7:
-        print(f"WARN: trend_template_data is {(eval_date - latest_trend).days} days "
-              f"behind eval_date ({latest_trend} vs {eval_date}). Scores will use stale gates.")
+        if (eval_date - latest_trend).days > 7:
+            print(f"WARN: trend_template_data is {(eval_date - latest_trend).days} days "
+                  f"behind eval_date ({latest_trend} vs {eval_date}). Scores will use stale gates.")
 
-    universe = _get_universe(cur, symbol_filter=symbol_filter, min_completeness=min_completeness)
+        universe = _get_universe(cur, symbol_filter=symbol_filter, min_completeness=min_completeness)
 
-    print(f"\n{'='*70}")
-    print(f"SWING TRADER SCORES — eval_date={eval_date}")
-    print(f"  Universe: {len(universe)} symbols (completeness >= {min_completeness}%)")
-    print(f"  Trend data latest: {latest_trend}")
-    print(f"{'='*70}\n")
+        print(f"\n{'='*70}")
+        print(f"SWING TRADER SCORES — eval_date={eval_date}")
+        print(f"  Universe: {len(universe)} symbols (completeness >= {min_completeness}%)")
+        print(f"  Trend data latest: {latest_trend}")
+        print(f"{'='*70}\n")
 
-    sw = SwingTraderScore(cur=cur)
+        sw = SwingTraderScore(cur=cur)
 
-    grade_counts = {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'F': 0}
-    pass_count = 0
-    fail_count = 0
-    fail_reasons = {}
-    error_count = 0
-    started = time.time()
+        grade_counts = {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'F': 0}
+        pass_count = 0
+        fail_count = 0
+        fail_reasons = {}
+        error_count = 0
+        started = time.time()
 
-    for idx, symbol in enumerate(universe, 1):
-        try:
-            sector, industry = _get_profile(cur, symbol)
-            result = sw.compute(symbol, eval_date, sector=sector, industry=industry)
+        for idx, symbol in enumerate(universe, 1):
+            try:
+                sector, industry = _get_profile(cur, symbol)
+                result = sw.compute(symbol, eval_date, sector=sector, industry=industry)
 
-            if result.get('pass'):
-                pass_count += 1
-                grade_counts[result.get('grade', 'F')] = grade_counts.get(result.get('grade', 'F'), 0) + 1
+                if result.get('pass'):
+                    pass_count += 1
+                    grade_counts[result.get('grade', 'F')] = grade_counts.get(result.get('grade', 'F'), 0) + 1
+                    if verbose:
+                        print(f"  PASS  {symbol:6s}  {result['grade']:>2s}  {result['swing_score']:5.1f}")
+                else:
+                    fail_count += 1
+                    reason = result.get('reason', 'unknown')
+                    # Bucket reason for summary
+                    bucket = reason.split(':')[0].split('(')[0].strip()
+                    fail_reasons[bucket] = fail_reasons.get(bucket, 0) + 1
+                    _persist_fail(cur, symbol, eval_date, reason)
+            except Exception as e:
+                error_count += 1
                 if verbose:
-                    print(f"  PASS  {symbol:6s}  {result['grade']:>2s}  {result['swing_score']:5.1f}")
-            else:
-                fail_count += 1
-                reason = result.get('reason', 'unknown')
-                # Bucket reason for summary
-                bucket = reason.split(':')[0].split('(')[0].strip()
-                fail_reasons[bucket] = fail_reasons.get(bucket, 0) + 1
-                _persist_fail(cur, symbol, eval_date, reason)
-        except Exception as e:
-            error_count += 1
-            if verbose:
-                print(f"  ERR   {symbol:6s}  {e}")
+                    print(f"  ERR   {symbol:6s}  {e}")
 
-        # Periodic commit + progress
-        if idx % batch_size == 0:
-            conn.commit()
-            elapsed = time.time() - started
-            rate = idx / elapsed if elapsed > 0 else 0
-            eta = (len(universe) - idx) / rate if rate > 0 else 0
-            print(f"  [{idx:>5d}/{len(universe)}] pass={pass_count} fail={fail_count} "
-                  f"err={error_count}  rate={rate:.1f}/s  eta={int(eta)}s")
+            # Periodic commit + progress
+            if idx % batch_size == 0:
+                conn.commit()
+                elapsed = time.time() - started
+                rate = idx / elapsed if elapsed > 0 else 0
+                eta = (len(universe) - idx) / rate if rate > 0 else 0
+                print(f"  [{idx:>5d}/{len(universe)}] pass={pass_count} fail={fail_count} "
+                      f"err={error_count}  rate={rate:.1f}/s  eta={int(eta)}s")
 
-    conn.commit()
-    elapsed = time.time() - started
+        conn.commit()
+        elapsed = time.time() - started
 
-    print(f"\n{'='*70}")
-    print(f"DONE — {len(universe)} symbols in {int(elapsed)}s ({len(universe)/elapsed:.1f}/s)")
-    print(f"  Passed gates: {pass_count}  ({100*pass_count/max(1,len(universe)):.1f}%)")
-    print(f"  Failed gates: {fail_count}")
-    print(f"  Errors:       {error_count}")
-    print(f"\nGrade distribution (passers):")
-    for g in ['A+', 'A', 'B', 'C', 'D', 'F']:
-        n = grade_counts.get(g, 0)
-        bar = '#' * int(n / max(1, max(grade_counts.values())) * 30)
-        print(f"  {g:>2s}: {n:>4d}  {bar}")
-    print(f"\nTop fail reasons:")
-    for r, n in sorted(fail_reasons.items(), key=lambda x: -x[1])[:8]:
-        print(f"  {n:>5d}  {r}")
-    print(f"{'='*70}\n")
+        print(f"\n{'='*70}")
+        print(f"DONE — {len(universe)} symbols in {int(elapsed)}s ({len(universe)/elapsed:.1f}/s)")
+        print(f"  Passed gates: {pass_count}  ({100*pass_count/max(1,len(universe)):.1f}%)")
+        print(f"  Failed gates: {fail_count}")
+        print(f"  Errors:       {error_count}")
+        print(f"\nGrade distribution (passers):")
+        for g in ['A+', 'A', 'B', 'C', 'D', 'F']:
+            n = grade_counts.get(g, 0)
+            bar = '#' * int(n / max(1, max(grade_counts.values())) * 30)
+            print(f"  {g:>2s}: {n:>4d}  {bar}")
+        print(f"\nTop fail reasons:")
+        for r, n in sorted(fail_reasons.items(), key=lambda x: -x[1])[:8]:
+            print(f"  {n:>5d}  {r}")
+        print(f"{'='*70}\n")
 
-    cur.close()
-    conn.close()
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
