@@ -21,6 +21,7 @@ import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP
 import logging
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class TradeExecutor:
                       sector=None, industry=None, rs_percentile=None,
                       market_exposure_at_entry=None, exposure_tier_at_entry=None,
                       stop_method=None, stop_reasoning=None,
-                      swing_components=None, advanced_components=None):
+                      swing_components=None, advanced_components=None) -> Dict[str, Any]:
         """Execute a new entry trade.
 
         Returns: {
