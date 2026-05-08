@@ -37,7 +37,7 @@ def get_all_symbols():
         try:
             secret_response = secrets_client.get_secret_value(SecretId=secret_name)
             secret = json.loads(secret_response['SecretString'])
-                except Exception:
+        except Exception:
             # Fallback to environment variables if Secrets Manager fails
             secret = {
                 'host': os.environ.get('DB_HOST', 'localhost'),
@@ -231,4 +231,4 @@ if __name__ == '__main__':
     # Test locally
     test_event = {'symbol_count': 5000, 'batch_size': 50}
     result = lambda_handler(test_event, None)
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))

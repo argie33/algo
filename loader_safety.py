@@ -244,5 +244,5 @@ def get_loader_config(loader_name):
 
 if __name__ == "__main__":
     # Test timeouts
-    print("Loader Safety Module Loaded")
-    print(f"Configurations: {list(LOADER_CONFIGS.keys())}")
+    logger.info("Loader Safety Module Loaded")
+    logger.info(f"Configurations: {list(LOADER_CONFIGS.keys())}")

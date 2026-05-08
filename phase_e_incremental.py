@@ -263,4 +263,4 @@ if __name__ == '__main__':
     # Example usage
     symbols = ['AAPL', 'MSFT', 'GOOGL']
     result = load_prices_incremental(symbols)
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))
