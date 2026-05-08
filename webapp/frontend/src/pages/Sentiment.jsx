@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { useMarketSentiment, useStockScores } from '../hooks/useDataApi';
 import {
   RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
   ArrowLeft, AlertCircle, MessageSquare, Activity,

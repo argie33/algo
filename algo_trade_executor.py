@@ -1030,11 +1030,21 @@ class TradeExecutor:
                 timeout=5,
             )
             if resp.status_code == 200:
-                data = resp.json()
-                if data.get('status') == 'filled' and data.get('filled_avg_price'):
-                    return float(data['filled_avg_price'])
-        except Exception:
-            pass
+                try:
+                    data = resp.json()
+                except Exception as parse_err:
+                    logger.warning(f"[GET_ORDER_PRICE] {alpaca_order_id}: Failed to parse response: {parse_err}")
+                    return None
+
+                validation = validator.validate_order_status_response(data)
+                if not validation['valid']:
+                    logger.debug(f"[GET_ORDER_PRICE] {alpaca_order_id}: Invalid response: {validation['errors']}")
+                    return None
+
+                if validation['status'] == 'filled':
+                    return validation['filled_avg_price']
+        except Exception as e:
+            logger.warning(f"[GET_ORDER_PRICE] {alpaca_order_id}: Request failed: {e}")
         return None
 
     def _get_order_filled_quantity(self, alpaca_order_id):
