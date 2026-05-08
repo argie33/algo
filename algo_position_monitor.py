@@ -96,6 +96,12 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
+        # Only create connection if we don't already have one (for safe standalone use)
+        need_disconnect = False
+        if self.cur is None:
+            self.connect()
+            need_disconnect = True
+
         try:
             self.cur.execute("""
                 SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
@@ -115,6 +121,9 @@ class PositionMonitor:
             return {'status': 'OK', 'sectors': []}
         except Exception as e:
             return {'status': 'ERROR', 'error': str(e)}
+        finally:
+            if need_disconnect:
+                self.disconnect()
 
     def review_positions(self, current_date=None):
         """Review every open position. Returns list of recommendations."""
