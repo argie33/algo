@@ -1,0 +1,371 @@
+# ============================================================
+# Stock Analytics Platform — template-loader-lambda.yml
+# Layer:   Data Loading (Lambda-based lightweight loaders)
+# Stack:   stocks-loaders-lambda
+# Exports: LambdaLoaderRole, LambdaLayerArn
+# Imports: From stocks-data (RDS endpoint, secrets)
+# Deploy:  .github/workflows/deploy-loaders-lambda.yml
+# ============================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Lambda-based lightweight loaders (econ, calendar, sentiment, etc.)
+  for cost-optimized data loading. Runs 10 small loaders on Lambda
+  instead of ECS, saving ~70% on compute costs.
+
+Parameters:
+  LambdaMemory:
+    Type: Number
+    Default: 512
+    Description: Lambda function memory (MB)
+    AllowedValues: [128, 256, 512, 1024]
+
+  LambdaTimeout:
+    Type: Number
+    Default: 300
+    Description: Lambda function timeout (seconds)
+
+Resources:
+
+  ### 1) Lambda Execution Role ###
+  LambdaLoaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/*"
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-*"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/loader-*"
+
+  ### 2) Lambda Layer (shared dependencies) ###
+  LambdaLoaderLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: loader-dependencies
+      Description: Shared dependencies for lightweight loaders
+      Content:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: layer-loader-deps.zip
+      CompatibleRuntimes:
+        - python3.11
+
+  ### 3) Lambda Functions (Tier 1: Small loaders) ###
+
+  # Econ Data Loader
+  LambdaEconDataLoader:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loader-econ-data
+      Runtime: python3.11
+      Handler: lambda_loader_wrapper.handler
+      Memory: !Ref LambdaMemory
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: lambda-loaders.zip
+      Layers:
+        - !Ref LambdaLoaderLayer
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue StocksData-DBEndpoint
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_NAME: stocks
+          # DB_PASSWORD and API keys come from Secrets Manager
+          ALPACA_API_KEY: !Sub "{{resolve:secretsmanager:stocks-algo-secrets:SecretString:APCA_API_KEY_ID}}"
+          ALPACA_API_SECRET: !Sub "{{resolve:secretsmanager:stocks-algo-secrets:SecretString:APCA_API_SECRET_KEY}}"
+      Role: !GetAtt LambdaLoaderRole.Arn
+      ReservedConcurrentExecutions: 1  # Don't hammer DB
+      Tags:
+        - Key: Loader
+          Value: econ-data
+        - Key: Tier
+          Value: Lambda
+
+  # Calendar Loader
+  LambdaCalendarLoader:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loader-calendar
+      Runtime: python3.11
+      Handler: lambda_loader_wrapper.handler
+      Memory: !Ref LambdaMemory
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: lambda-loaders.zip
+      Layers:
+        - !Ref LambdaLoaderLayer
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue StocksData-DBEndpoint
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_NAME: stocks
+      Role: !GetAtt LambdaLoaderRole.Arn
+      ReservedConcurrentExecutions: 1
+      Tags:
+        - Key: Loader
+          Value: calendar
+        - Key: Tier
+          Value: Lambda
+
+  # Sentiment Loader
+  LambdaSentimentLoader:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loader-sentiment
+      Runtime: python3.11
+      Handler: lambda_loader_wrapper.handler
+      Memory: !Ref LambdaMemory
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: lambda-loaders.zip
+      Layers:
+        - !Ref LambdaLoaderLayer
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue StocksData-DBEndpoint
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_NAME: stocks
+      Role: !GetAtt LambdaLoaderRole.Arn
+      ReservedConcurrentExecutions: 1
+      Tags:
+        - Key: Loader
+          Value: sentiment
+        - Key: Tier
+          Value: Lambda
+
+  # Fear & Greed Index Loader
+  LambdaFearGreedLoader:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loader-feargreed
+      Runtime: python3.11
+      Handler: lambda_loader_wrapper.handler
+      Memory: !Ref LambdaMemory
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: lambda-loaders.zip
+      Layers:
+        - !Ref LambdaLoaderLayer
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue StocksData-DBEndpoint
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_NAME: stocks
+      Role: !GetAtt LambdaLoaderRole.Arn
+      ReservedConcurrentExecutions: 1
+      Tags:
+        - Key: Loader
+          Value: feargreed
+        - Key: Tier
+          Value: Lambda
+
+  # NAAIM Loader
+  LambdaNAAIMLoader:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: loader-naaim
+      Runtime: python3.11
+      Handler: lambda_loader_wrapper.handler
+      Memory: !Ref LambdaMemory
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+        S3Key: lambda-loaders.zip
+      Layers:
+        - !Ref LambdaLoaderLayer
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue StocksData-DBEndpoint
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_NAME: stocks
+      Role: !GetAtt LambdaLoaderRole.Arn
+      ReservedConcurrentExecutions: 1
+      Tags:
+        - Key: Loader
+          Value: naaim
+        - Key: Tier
+          Value: Lambda
+
+  ### 4) EventBridge Rules (Scheduling) ###
+  # These replace ECS task definitions for small loaders
+  # Schedule: Every day at different times to avoid thundering herd
+
+  ScheduleEconLoader:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: loader-econ-daily
+      ScheduleExpression: "cron(30 5 * * ? *)"  # 5:30am ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaEconDataLoader.Arn
+          RoleArn: !GetAtt EventBridgeLoaderRole.Arn
+          Input: !Sub |
+            {"loader": "econ", "parallelism": 2}
+
+  ScheduleCalendarLoader:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: loader-calendar-daily
+      ScheduleExpression: "cron(32 5 * * ? *)"  # 5:32am ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaCalendarLoader.Arn
+          RoleArn: !GetAtt EventBridgeLoaderRole.Arn
+          Input: !Sub |
+            {"loader": "calendar", "parallelism": 1}
+
+  ScheduleSentimentLoader:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: loader-sentiment-daily
+      ScheduleExpression: "cron(34 5 * * ? *)"  # 5:34am ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaSentimentLoader.Arn
+          RoleArn: !GetAtt EventBridgeLoaderRole.Arn
+          Input: !Sub |
+            {"loader": "sentiment", "parallelism": 2}
+
+  ScheduleFearGreedLoader:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: loader-feargreed-daily
+      ScheduleExpression: "cron(36 5 * * ? *)"  # 5:36am ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaFearGreedLoader.Arn
+          RoleArn: !GetAtt EventBridgeLoaderRole.Arn
+          Input: !Sub |
+            {"loader": "feargreed", "parallelism": 1}
+
+  ScheduleNAAIMLoader:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: loader-naaim-daily
+      ScheduleExpression: "cron(38 5 * * ? *)"  # 5:38am ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaNAAIMLoader.Arn
+          RoleArn: !GetAtt EventBridgeLoaderRole.Arn
+          Input: !Sub |
+            {"loader": "naaim", "parallelism": 1}
+
+  ### 5) Lambda Permissions (allow EventBridge to invoke) ###
+  LambdaInvokePermissionEcon:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaEconDataLoader
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleEconLoader.Arn
+
+  LambdaInvokePermissionCalendar:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaCalendarLoader
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleCalendarLoader.Arn
+
+  LambdaInvokePermissionSentiment:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaSentimentLoader
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleSentimentLoader.Arn
+
+  LambdaInvokePermissionFearGreed:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFearGreedLoader
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleFearGreedLoader.Arn
+
+  LambdaInvokePermissionNAAIM:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaNAAIMLoader
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleNAAIMLoader.Arn
+
+  ### 6) EventBridge Role ###
+  EventBridgeLoaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:loader-*"
+
+Outputs:
+  LambdaLoaderRoleArn:
+    Description: IAM role for Lambda loaders
+    Value: !GetAtt LambdaLoaderRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LoaderRoleArn"
+
+  LambdaLayerArn:
+    Description: Lambda layer for shared dependencies
+    Value: !Ref LambdaLoaderLayer
+    Export:
+      Name: !Sub "${AWS::StackName}-LayerArn"
+
+  EconLoaderArn:
+    Description: Econ data loader Lambda function ARN
+    Value: !GetAtt LambdaEconDataLoader.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-EconLoaderArn"

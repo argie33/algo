@@ -3,13 +3,12 @@ version: '3.9'
 services:
   # PostgreSQL database (matches RDS config)
   postgres:
-    image: postgres:15
+    image: postgres:16-alpine
     container_name: stocks_db
     environment:
       POSTGRES_USER: stocks
-      POSTGRES_PASSWORD: stocks_local_password
+      POSTGRES_PASSWORD: ''  # empty for local dev
       POSTGRES_DB: stocks
-      POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=timescaledb"
     ports:
       - "5432:5432"
     volumes:
@@ -23,32 +22,49 @@ services:
     networks:
       - stocks_network
 
-  # LocalStack for S3, Secrets Manager, CloudWatch, etc.
+  # Redis (for Bloom filter dedup, caching, optional LocalStack Lambda)
+  redis:
+    image: redis:7-alpine
+    container_name: stocks_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stocks_network
+
+  # LocalStack for S3, Secrets Manager, CloudWatch, Lambda, etc.
   localstack:
     image: localstack/localstack:latest
     container_name: stocks_localstack
     environment:
-      SERVICES: s3,secretsmanager,cloudwatch,logs
+      SERVICES: s3,secretsmanager,cloudwatch,logs,lambda,cloudformation,iam,eventbridge,scheduler
       DEBUG: 0
       DOCKER_HOST: unix:///var/run/docker.sock
       AWS_DEFAULT_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
+      LAMBDA_DOCKER_NETWORK: stocks_network
     ports:
       - "4566:4566"  # LocalStack Gateway
       - "4571:4571"  # S3
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./localstack_init.sh:/docker-entrypoint-initdb.d/localstack-init.sh
+      - ./localstack-init.sh:/docker-entrypoint-initdb.d/init.sh
     networks:
       - stocks_network
     healthcheck:
-      test: ["CMD", "awslocal", "s3", "ls"]
+      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Optional: pgAdmin for database inspection
+  # Database UI (pgAdmin)
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: stocks_pgadmin
@@ -58,9 +74,28 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - stocks_network
+    profiles:
+      - ui
+
+  # Redis UI (Redis Commander)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: stocks_redis_commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - stocks_network
+    profiles:
+      - ui
 
 networks:
   stocks_network:
@@ -68,3 +103,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:
