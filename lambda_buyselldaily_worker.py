@@ -71,8 +71,9 @@ def process_symbol_batch(symbols, lookback_days=1825):
 
     for symbol in symbols:
         try:
-            # Fetch price history from yfinance
-            ticker = yf.Ticker(symbol)
+            # Fetch price history from yfinance (normalize symbol: BRK.B -> BRK-B)
+            yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+            ticker = yf.Ticker(yf_symbol)
             hist = ticker.history(
                 period='5y',
                 interval='1d',

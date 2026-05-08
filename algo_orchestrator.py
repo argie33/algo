@@ -98,16 +98,27 @@ class Orchestrator:
 
     def _check_db_connectivity(self):
         """Test if database is reachable. Returns True if OK, False if failed."""
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
             cur.execute("SELECT 1")
-            cur.close()
-            conn.close()
             return True
         except Exception as e:
             print(f"  [ERROR] Database connectivity check failed: {e}")
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _increment_db_failure_counter(self):
         """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
@@ -131,6 +142,8 @@ class Orchestrator:
 
     def _ensure_schema_initialized(self):
         """Initialize database schema if not already present. Idempotent."""
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -141,8 +154,6 @@ class Orchestrator:
                 AND table_name IN ('stock_symbols', 'algo_positions', 'algo_trades')
             """)
             table_count = cur.fetchone()[0]
-            cur.close()
-            conn.close()
 
             if table_count >= 3:
                 if self.verbose:
@@ -160,7 +171,17 @@ class Orchestrator:
         except Exception as e:
             if self.verbose:
                 print(f"  [WARN] Schema initialization check failed: {e}")
-            pass
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _check_data_patrol(self, cur):
         """Check data patrol results. Fail-closed if critical/error findings.
@@ -304,6 +325,7 @@ class Orchestrator:
             print(f"{'='*70}")
 
     def log_phase_result(self, phase_num, name, status, summary):
+        import json
         self.phase_results[phase_num] = {
             'name': name,
             'status': status,
@@ -311,6 +333,8 @@ class Orchestrator:
         }
         if self.verbose:
             print(f"\n-> Phase {phase_num} {status}: {summary}")
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -326,15 +350,26 @@ class Orchestrator:
                 ),
             )
             conn.commit()
-            cur.close()
-            conn.close()
         except Exception as e:
             print(f"Warning: Could not persist audit log entry: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self):
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -372,8 +407,6 @@ class Orchestrator:
                         print(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
             if stale_items:
-                cur.close()
-                conn.close()
                 self.alerts.send_position_alert(
                     'DATA',
                     'STALE_DATA_HALT',
@@ -384,11 +417,7 @@ class Orchestrator:
                                       f'Stale: {"; ".join(stale_items)}')
                 return False
 
-            # NEW: Check data patrol results (quality gate) - cursor still open
             patrol_ok = self._check_data_patrol(cur)
-
-            cur.close()
-            conn.close()
 
             if not patrol_ok:
                 return False
@@ -399,6 +428,17 @@ class Orchestrator:
         except Exception as e:
             self.log_phase_result(1, 'data_freshness', 'error', str(e))
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def phase_2_circuit_breakers(self):
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
@@ -754,7 +794,8 @@ class Orchestrator:
                         else:
                             errors += 1
                     elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
-                        # Raise stop without exiting via direct UPDATE
+                        conn = None
+                        cur = None
                         try:
                             conn = psycopg2.connect(**DB_CONFIG)
                             cur = conn.cursor()
@@ -764,14 +805,23 @@ class Orchestrator:
                                 (rec['new_stop_recommended'], rec['position_id']),
                             )
                             conn.commit()
-                            cur.close()
-                            conn.close()
                             stop_raises += 1
                             if self.verbose:
                                 print(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
                         except Exception as e:
                             errors += 1
                             print(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                        finally:
+                            if cur:
+                                try:
+                                    cur.close()
+                                except Exception:
+                                    pass
+                            if conn:
+                                try:
+                                    conn.close()
+                                except Exception:
+                                    pass
                 except Exception as e:
                     errors += 1
                     print(f"  Error on {rec.get('symbol')}: {e}")
@@ -891,15 +941,26 @@ class Orchestrator:
                           f"(min_score={min_score}, min_grade={min_grade})")
 
             # Determine open slots
+            conn = None
+            cur = None
             try:
                 conn = psycopg2.connect(**DB_CONFIG)
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
                 open_count = cur.fetchone()[0] or 0
-                cur.close()
-                conn.close()
             except Exception:
                 open_count = 0
+            finally:
+                if cur:
+                    try:
+                        cur.close()
+                    except Exception:
+                        pass
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             max_positions = int(self.config.get('max_positions', 6))
             open_slots = max(0, max_positions - open_count)
 

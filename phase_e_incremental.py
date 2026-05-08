@@ -222,7 +222,8 @@ def load_prices_incremental(symbols, loader_name='pricedaily'):
             # Fetch with caching
             def fetch_price_data():
                 import yfinance as yf
-                ticker = yf.Ticker(symbol)
+                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+                ticker = yf.Ticker(yf_symbol)
                 hist = ticker.history(period='5y', interval='1d', timeout=30)
                 return hist.to_dict()
 

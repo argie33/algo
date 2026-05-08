@@ -110,7 +110,8 @@ class MultiSourceOHLCVLoader:
         """Load OHLCV data from yfinance (fallback)."""
         try:
             import yfinance as yf
-            ticker = yf.Ticker(symbol)
+            yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+            ticker = yf.Ticker(yf_symbol)
             hist = ticker.history(start=start_date, end=end_date)
 
             if hist.empty:
