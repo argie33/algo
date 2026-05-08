@@ -130,6 +130,7 @@ module "services" {
   algo_lambda_timeout               = var.algo_lambda_timeout
   algo_lambda_ephemeral_storage     = var.algo_lambda_ephemeral_storage
   algo_lambda_role_arn              = module.iam.lambda_algo_role_arn
+  eventbridge_scheduler_role_arn    = module.iam.eventbridge_scheduler_role_arn
   api_gateway_stage_name            = var.api_gateway_stage_name
   api_gateway_logging_enabled       = var.api_gateway_logging_enabled
   api_cors_allowed_origins          = var.api_cors_allowed_origins

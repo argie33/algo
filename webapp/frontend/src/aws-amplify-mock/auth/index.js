@@ -6,6 +6,10 @@ export const signIn = async () => {
   throw new Error('AWS Amplify Auth is not configured');
 };
 
+export const confirmSignIn = async () => {
+  throw new Error('AWS Amplify Auth is not configured');
+};
+
 export const signOut = async () => {
   throw new Error('AWS Amplify Auth is not configured');
 };
@@ -60,6 +64,7 @@ export const updatePassword = async () => {
 
 export default {
   signIn,
+  confirmSignIn,
   signOut,
   signUp,
   confirmSignUp,

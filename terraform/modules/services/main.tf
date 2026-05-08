@@ -2,6 +2,8 @@
 # Services Module - REST API, CloudFront, Cognito, Algo
 # ============================================================
 
+data "aws_caller_identity" "current" {}
+
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
@@ -169,14 +171,6 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-api-gateway-logs"
   })
-}
-
-resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.api.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
 # ============================================================
@@ -522,7 +516,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 
   target {
     arn      = aws_lambda_function.algo.arn
-    role_arn = aws_iam_role.eventbridge_scheduler.arn
+    role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
       source   = "eventbridge-scheduler"
@@ -531,50 +525,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
   }
 
   depends_on = [
-    aws_lambda_permission.eventbridge_scheduler,
-    aws_iam_role.eventbridge_scheduler
+    aws_lambda_permission.eventbridge_scheduler
   ]
-}
-
-resource "aws_iam_role" "eventbridge_scheduler" {
-  name = "${local.algo_lambda_name}-eventbridge-scheduler-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "scheduler.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = "${local.algo_lambda_name}-eventbridge-scheduler-role"
-  })
-}
-
-resource "aws_iam_role_policy" "eventbridge_scheduler_lambda" {
-  name = "${local.algo_lambda_name}-eventbridge-invoke"
-  role = aws_iam_role.eventbridge_scheduler.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Resource = [
-          aws_lambda_function.algo.arn
-        ]
-      }
-    ]
-  })
 }
 
 resource "aws_lambda_permission" "eventbridge_scheduler" {

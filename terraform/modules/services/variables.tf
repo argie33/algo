@@ -63,6 +63,11 @@ variable "algo_lambda_role_arn" {
   type        = string
 }
 
+variable "eventbridge_scheduler_role_arn" {
+  description = "IAM role ARN for EventBridge Scheduler (from IAM module)"
+  type        = string
+}
+
 # ============================================================
 # Database Configuration
 # ============================================================

@@ -23,6 +23,8 @@ from decimal import Decimal, ROUND_HALF_UP
 import logging
 from typing import Dict, List, Any, Optional
 
+from trade_status import TradeStatus, PositionStatus
+
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
@@ -173,10 +175,10 @@ class TradeExecutor:
             self.cur.execute(
                 """
                 SELECT symbol FROM algo_positions
-                WHERE symbol = %s AND status = 'open'
+                WHERE symbol = %s AND status = %s
                 LIMIT 1
                 """,
-                (symbol,),
+                (symbol, PositionStatus.OPEN.value),
             )
             existing_pos = self.cur.fetchone()
             if existing_pos:
@@ -231,8 +233,8 @@ class TradeExecutor:
             # ---- Idempotency: skip if we already have an open position for this symbol
             #     OR an entry trade for this symbol on this signal_date ----
             self.cur.execute(
-                "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = 'open' LIMIT 1",
-                (symbol,),
+                "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
+                (symbol, PositionStatus.OPEN.value),
             )
             if self.cur.fetchone():
                 return {
@@ -243,10 +245,10 @@ class TradeExecutor:
             self.cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
-                WHERE symbol = %s AND signal_date = %s AND status IN ('open','pending')
+                WHERE symbol = %s AND signal_date = %s AND status IN (%s, %s)
                 LIMIT 1
                 """,
-                (symbol, signal_date),
+                (symbol, signal_date, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
             existing = self.cur.fetchone()
             if existing:
@@ -265,12 +267,12 @@ class TradeExecutor:
                 SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
                        COALESCE(reentry_count, 0) AS reentry_count
                 FROM algo_trades
-                WHERE symbol = %s AND status = 'closed'
+                WHERE symbol = %s AND status = %s
                   AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
                 ORDER BY exit_date DESC NULLS LAST, id DESC
                 LIMIT 1
                 """,
-                (symbol,),
+                (symbol, TradeStatus.CLOSED.value),
             )
             prior = self.cur.fetchone()
             reentry_count = 0

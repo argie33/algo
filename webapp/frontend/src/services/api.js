@@ -442,17 +442,6 @@ export const testApiConnection = async () => {
 // EXTERNAL DATA FUNCTIONS
 // ============================================
 
-// Single function for market sentiment data - NAAIM and Fear/Greed indices
-export const getMarketSentimentData = async () => {
-  try {
-    const response = await api.get("/api/market/sentiment");
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching market sentiment data:", error);
-    return { success: false, data: {}, error: error.message };
-  }
-};
-
 // Aliases for backward compatibility
 export const getNaaimData = getMarketSentimentData;
 export const getFearGreedData = getMarketSentimentData;

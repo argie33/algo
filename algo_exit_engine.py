@@ -454,6 +454,8 @@ class ExitEngine:
             if not row or not row[0]:
                 return False
             max_high_in_window = float(row[0])
+            if entry_price <= 0:
+                return False
             gain_pct = (max_high_in_window - entry_price) / entry_price * 100.0
             return gain_pct >= threshold_pct
         except Exception as e:
