@@ -117,10 +117,6 @@ export default function StockDetail() {
     { enabled: !!symbol }
   );
   const scoreRow = scoreQueryResult.data?.[0] || null;
-    },
-    enabled: !!symbol,
-    refetchInterval: 60_000,
-  });
 
   // Key metrics (sector/industry + market cap + ownership %)
   const { data: keyMetricsData } = useApiQuery(

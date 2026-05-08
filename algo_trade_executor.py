@@ -24,8 +24,10 @@ import logging
 from typing import Dict, List, Any, Optional
 
 from trade_status import TradeStatus, PositionStatus
+from alpaca_response_validator import AlpacaResponseValidator
 
 logger = logging.getLogger(__name__)
+validator = AlpacaResponseValidator()
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -951,32 +953,32 @@ class TradeExecutor:
             logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with status {response.status_code}")
 
             if response.status_code in (200, 201):
-                data = response.json()
+                try:
+                    data = response.json()
+                except Exception as e:
+                    logger.error(f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}")
+                    return {'success': False, 'message': f'Invalid response format: {e}'}
+
                 logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
-                # Validate response has required fields
-                if not data.get('id'):
-                    logger.error(f"[SEND_ORDER] {symbol}: Response missing order ID")
-                    return {'success': False, 'message': 'Alpaca response missing order ID'}
-                order_status = data.get('status', 'pending')
-                # Only return actual fill price if order is filled; for pending orders, return None
-                executed_price = None
-                if order_status == 'filled' and data.get('filled_avg_price'):
-                    try:
-                        executed_price = float(data['filled_avg_price'])
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"[SEND_ORDER] {symbol}: Could not parse fill price: {e}")
-                        executed_price = None
-                elif order_status in ('pending', 'partially_filled'):
-                    # For pending/partial orders, actual fill price unknown yet
-                    executed_price = None
-                logger.info(f"[SEND_ORDER] {symbol}: Order {data.get('id')} created - status={order_status}, fill=${executed_price}")
+
+                # Validate response using dedicated validator
+                validation = validator.validate_order_response(data)
+                if not validation['valid']:
+                    error_msg = f"Invalid response: {', '.join(validation['errors'])}"
+                    logger.error(f"[SEND_ORDER] {symbol}: {error_msg}")
+                    return {'success': False, 'message': error_msg}
+
+                order_status = validation['status']
+                executed_price = validation['filled_avg_price']
+
+                logger.info(f"[SEND_ORDER] {symbol}: Order {validation['order_id']} created - status={order_status}, fill=${executed_price}")
                 return {
                     'success': True,
-                    'order_id': data.get('id'),
-                    'order_class': data.get('order_class', 'simple'),
+                    'order_id': validation['order_id'],
+                    'order_class': validation['order_class'],
                     'status': order_status,
                     'executed_price': executed_price,
-                    'legs': data.get('legs', []),  # bracket child orders
+                    'legs': validation['legs'],
                 }
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} - {response.text[:200]}")
             return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}

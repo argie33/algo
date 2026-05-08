@@ -365,8 +365,9 @@ class PositionMonitor:
                 candidates = [cap]
 
         new_stop = max(candidates)
-        # NEVER lower the stop
-        return round(max(new_stop, active_stop), 2)
+        # NEVER lower the stop, and NEVER go below 50% of entry (meaningful risk)
+        floor = entry_price * 0.5
+        return round(max(new_stop, active_stop, floor), 2)
 
     def _check_relative_strength(self, symbol, current_date):
         """20-day relative return vs SPY: weakening / neutral / strong."""
