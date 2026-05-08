@@ -1,178 +1,272 @@
-# Terraform Deployment Guide — Clean Infrastructure
+﻿# Terraform Deployment Guide
 
-## Problem We Solved
+## Overview
 
-**Root Cause of VPC Accumulation:**
-When Terraform deployments failed or were incomplete, they left orphaned AWS resources (VPCs, subnets, security groups) without proper state tracking. These accumulated until hitting the 5 VPC limit.
+This guide provides step-by-step instructions for deploying the stocks analytics infrastructure using Terraform via GitHub Actions.
 
-**Why It Happened:**
-1. Module dependencies were hard-coded without conditionals
-2. When `create_vpc=false` (reusing existing VPCs), the core module wouldn't deploy
-3. Other modules tried to reference `module.core[0]` which didn't exist
-4. This caused cascading failures, leaving partially created resources
+## Prerequisites Checklist
 
-## Fixes Applied
+### 1. AWS Account & Credentials ✓
 
-### 1. Fixed Terraform Module Dependencies
-**File:** `terraform/main.tf`
-- Changed: `depends_on = [module.core[0]]` 
-- To: `depends_on = var.create_vpc ? [module.core[0]] : []`
-- **Effect:** Modules only depend on other modules if those modules are actually created
+You need:
+- AWS Account ID: `626216981288`
+- AWS Access Key ID (for bootstrap)
+- AWS Secret Access Key (for bootstrap)
 
-### 2. Made Security Group Variables Optional
-**File:** `terraform/modules/data_infrastructure/variables.tf`
-- Changed `rds_sg_id` and `ecs_tasks_sg_id` from required strings to `optional(string)`
-- **Effect:** Can pass `null` when core module doesn't create them
+### 2. GitHub Repository Secrets ✓
 
-### 3. Added Fallback Security Group Creation
-**File:** `terraform/modules/data_infrastructure/main.tf`
-- Added automatic SG creation if not provided from core module
-- **Effect:** data_infrastructure module is now self-contained and works with or without core module
+Configure these secrets in GitHub: Settings → Secrets and Variables → Actions
 
-### 4. Added Concurrency Control
-**File:** `.github/workflows/deploy-terraform.yml`
-- Added: `concurrency: { group: terraform-deploy, cancel-in-progress: false }`
-- **Effect:** Only one Terraform deployment can run at a time (prevents state lock conflicts)
+| Secret Name | Value | Notes |
+|-------------|-------|-------|
+| `AWS_ACCOUNT_ID` | `626216981288` | Used for OIDC role assumption |
+| `AWS_ACCESS_KEY_ID` | Your access key | Used for bootstrap operations only |
+| `AWS_SECRET_ACCESS_KEY` | Your secret key | Used for bootstrap operations only |
+| `RDS_PASSWORD` | Your secure password | Min 8 chars, for database access |
+| `SLACK_WEBHOOK` | Your Slack webhook URL | Optional: for deployment notifications |
 
-### 5. Fixed VPC Deletion Script
-**File:** `delete-old-vpcs.sh`
-- Fixed RDS/ElastiCache filtering to only target resources in specific VPC
-- Fixed VPC peering/VPN to target only resources related to target VPC
-- Fixed EIP filtering by VPC association
-- Improved security group rule revocation using Python for reliability
-- Added better error diagnostics
+### 3. Bootstrap Stack (One-Time Only)
 
-## Proper Deployment Sequence
+The `stocks-oidc` CloudFormation stack must be created once to establish GitHub OIDC trust:
 
-### Fresh Deployment (create_vpc=true) — RECOMMENDED
 ```bash
-# From main branch with all fixes in place
-git push origin main
-# This triggers deploy-terraform.yml which:
-# 1. Creates new VPC
-# 2. Creates core infrastructure (ECR, S3, security groups)
-# 3. Creates data infrastructure (RDS, ECS, Secrets Manager)
-# 4. Creates loaders, webapp, algo modules
+aws cloudformation deploy \
+  --template-file bootstrap/oidc.yml \
+  --stack-name stocks-oidc \
+  --region us-east-1 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=stocks \
+    GitHubOrg=argeropolos \
+    GitHubRepo=algo
 ```
 
-### Never Do This
+This creates the `github-actions-role` IAM role that GitHub Actions uses.
+
+## Deployment Process
+
+### Option 1: Automatic via GitHub Actions (Recommended)
+
+1. **Configure GitHub Secrets:**
+   ```bash
+   gh secret set AWS_ACCOUNT_ID --body "626216981288"
+   gh secret set AWS_ACCESS_KEY_ID --body "your-access-key"
+   gh secret set AWS_SECRET_ACCESS_KEY --body "your-secret-key"
+   gh secret set RDS_PASSWORD --body "your-secure-password"
+   gh secret set SLACK_WEBHOOK --body "https://hooks.slack.com/..." # optional
+   ```
+
+2. **Trigger Deployment:**
+   ```bash
+   git add terraform/
+   git commit -m "Update: Terraform infrastructure"
+   git push origin main
+   ```
+
+   The `terraform-apply.yml` workflow will automatically:
+   - Bootstrap AWS prerequisites (S3 state bucket, DynamoDB locks)
+   - Validate Terraform configuration
+   - Plan changes (shows what will be created/modified)
+   - Apply changes (creates/updates infrastructure)
+   - Backup state to S3
+
+3. **Monitor Deployment:**
+   - Check GitHub Actions: https://github.com/argeropolos/algo/actions
+   - Look for the `Terraform Apply` workflow
+   - Review logs for any errors
+
+### Option 2: Manual Terraform Commands (Advanced)
+
+If you need to deploy locally:
+
 ```bash
-# ❌ Manual VPC deletion followed by Terraform deploy
-# → Orphans resources, breaks state tracking
+cd terraform
 
-# ❌ Setting create_vpc=false without proper existing resources
-# → Terraform fails, leaves partials behind
+# Initialize (downloads modules, configures state backend)
+terraform init
 
-# ❌ Deploying with VPC limit already at 5 using VPC reuse logic
-# → Causes module reference errors and failures
+# Validate syntax
+terraform validate
+
+# Plan changes (shows what will happen)
+terraform plan -var="rds_password=YourSecurePassword123" -out=tfplan.bin
+
+# Apply changes
+terraform apply tfplan.bin
+
+# View outputs
+terraform output
 ```
 
-## Emergency VPC Cleanup (If Needed)
+## What Gets Deployed
 
-Only after fixing Terraform code:
-```bash
-# Trigger the cleanup workflow
-gh workflow run delete-vpcs.yml
+### Core Infrastructure (Terraform Modules)
 
-# This will:
-# 1. List non-default VPCs
-# 2. Delete all AWS resources in each VPC in proper order
-# 3. Report which VPCs successfully deleted
-# 4. Show diagnostics for any blockers remaining
+| Module | Resources | Purpose |
+|--------|-----------|---------|
+| `iam` | Roles, Policies | GitHub Actions, Bastion, ECS, Lambda permissions |
+| `vpc` | VPC, Subnets, Security Groups, VPC Endpoints | Network isolation, 7 VPC endpoints |
+| `storage` | S3 Buckets | Code, data, templates, logs, frontend |
+| `database` | RDS PostgreSQL, Secrets Manager | Time-series data storage |
+| `compute` | ECS Cluster, Bastion, ECR | Container orchestration, image registry |
+| `loaders` | ECS Task Definitions, EventBridge | Data ingestion pipelines (18 loaders) |
+| `services` | API Lambda, API Gateway, CloudFront, Cognito | REST API, frontend CDN, authentication |
 
-# View logs to see what's blocking deletion
-# Fix those resources manually if needed
-```
+### Total AWS Resources
 
-## Prevention Going Forward
+- **VPC:** 1 VPC, 4 subnets, 5 security groups, 7 VPC endpoints
+- **Database:** 1 RDS PostgreSQL, 3 Secrets Manager secrets, CloudWatch alarms
+- **Compute:** 1 ECS cluster, 1 Bastion host, 1 ECR repository
+- **Storage:** 6 S3 buckets with lifecycle policies
+- **Services:** 1 API Lambda, 1 API Gateway, 1 CloudFront distribution, 1 Cognito pool
+- **Scheduling:** 4 EventBridge rules, 1 EventBridge Scheduler schedule
+- **IAM:** 8 IAM roles, 12 IAM policies
 
-### Never Reuse VPCs
-The current Terraform design supports VPC reuse (`create_vpc=false`) but it's fragile:
-- Requires existing subnets, routes, security groups
-- Core module doesn't deploy, breaking dependency chain
-- Any failure leaves orphaned resources
+### Estimated Costs (Monthly)
 
-**Recommendation:** Always create fresh infrastructure. Cost of VPC cleanup when limit is hit is lower than supporting VPC reuse logic.
-
-### Always Use Terraform for Cleanup
-- Never delete AWS resources manually
-- Let Terraform manage dependencies (`terraform destroy`)
-- If Terraform state is lost, use `terraform import` to recover
-
-### State Lock Management
-- Terraform uses DynamoDB lock table: `terraform-lock-us-east-1`
-- If locks persist (dead deployment), manually delete lock records
-- Never use `terraform apply -lock=false` except for `import` operations
-
-## Deployment Checklist
-
-Before deploying:
-- [ ] All Terraform modules have conditional `depends_on`
-- [ ] No hard-coded module references (e.g., `module.core[0]` without `create_vpc` check)
-- [ ] Concurrency group set in workflow
-- [ ] GitHub secrets configured: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`
-- [ ] No other Terraform deployments in progress (concurrency prevents this)
-- [ ] Branch is up to date with main: `git pull origin main`
-
-After deployment:
-- [ ] All stacks deployed successfully (check CloudFormation console)
-- [ ] Terraform state file has complete resource list: `terraform state list | wc -l`
-- [ ] VPC count below limit: `aws ec2 describe-vpcs --query 'length(Vpcs)' --output text` (should be < 5)
+- VPC: $0 (no NAT Gateway)
+- RDS: $20-30 (db.t3.micro)
+- ECS: $10-15 (Fargate)
+- Lambda: $0-5 (minimal)
+- S3: $1-5 (with lifecycle policies)
+- CloudFront: $0.085/GB
+- Data Transfer: $0-5
+- **Total: $65-90/month**
 
 ## Troubleshooting
 
-### "Error acquiring the state lock"
-**Cause:** Previous deployment crashed and left lock
-**Fix:** 
+### Issue: "OIDC role not found"
+
+**Solution:** Run the bootstrap CloudFormation stack:
 ```bash
-# Check lock
-aws dynamodb scan --table-name terraform-lock-us-east-1 --region us-east-1
-
-# Delete lock (ONLY if deployment is truly dead)
-aws dynamodb delete-item --table-name terraform-lock-us-east-1 \
-  --key '{"LockID": {"S": "stocks/terraform.tfstate"}}' --region us-east-1
-
-# Retry deployment
-gh workflow run deploy-terraform.yml
+aws cloudformation deploy \
+  --template-file bootstrap/oidc.yml \
+  --stack-name stocks-oidc \
+  --region us-east-1 \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
 
-### "No module named 'core'"
-**Cause:** Referencing `module.core[0]` when `create_vpc=false`
-**Fix:** Check main.tf - all module references must be conditional
+### Issue: "S3 state bucket not found"
 
-### VPC deletion still failing
-**Cause:** Some AWS resource type not handled in cleanup script
-**Check logs:** `gh run view <run_id> --log | grep "⚠️"`
-**Fix:** Add cleanup step for that resource type to `delete-old-vpcs.sh`
-
-## Architecture After Fixes
-
+**Solution:** The `bootstrap.sh` script creates it automatically. If it fails:
+```bash
+aws s3 mb s3://stocks-terraform-state --region us-east-1
+aws s3api put-bucket-versioning \
+  --bucket stocks-terraform-state \
+  --versioning-configuration Status=Enabled \
+  --region us-east-1
 ```
-Deployment Flow (create_vpc=true):
-├── Bootstrap (OIDC - optional, once-only)
-└── Core (VPC, ECR, S3, Subnets, Security Groups)
-    ├── Data Infrastructure (RDS, ECS, Secrets)
-    │   ├── Loaders (Task Definitions)
-    │   ├── Webapp (Lambda, CloudFront)
-    │   └── Algo (Lambda Scheduler)
 
-Reuse Flow (create_vpc=false):
-├── [No Core]
-└── Data Infrastructure (creates own security groups)
-    ├── Loaders
-    ├── Webapp
-    └── Algo
+### Issue: "DynamoDB lock table doesn't exist"
 
-Cleanup Flow:
-├── Loaders (delete tasks)
-├── Webapp (delete Lambda, CloudFront)
-├── Algo (delete Lambda)
-├── Data Infrastructure (delete RDS, ECS)
-├── Core (delete VPC resources)
-└── [Manual: Delete VPCs via delete-vpcs.sh if needed]
+**Solution:** Create it manually:
+```bash
+aws dynamodb create-table \
+  --table-name stocks-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
+
+### Issue: "Terraform state is locked"
+
+**Solution:** Check who has it locked and unlock if needed:
+```bash
+# List locks
+aws dynamodb scan --table-name stocks-terraform-locks --region us-east-1
+
+# Force unlock (use with caution!)
+terraform force-unlock <lock-id>
+```
+
+### Issue: "Variable validation failed"
+
+Check `terraform.tfvars` for invalid values:
+- `rds_password` must be 8+ characters
+- `environment` must be dev, staging, or prod
+- `github_repository` must be in format owner/repo
+
+### Issue: "Module not found"
+
+Re-initialize Terraform:
+```bash
+cd terraform
+rm -rf .terraform/
+terraform init -upgrade
+```
+
+## Deployment Outputs
+
+After successful deployment, Terraform outputs important values:
+
+```bash
+terraform output
+```
+
+Key outputs:
+- `api_url` - REST API endpoint
+- `cloudfront_domain_name` - Frontend CDN domain
+- `rds_endpoint` - Database endpoint
+- `ecr_repository_url` - Container registry URL
+- `ecs_cluster_arn` - ECS cluster ARN
+
+## Rolling Back
+
+If deployment fails and you need to rollback:
+
+```bash
+# Option 1: Re-run terraform apply after fixing the issue
+git fix bug
+git push origin main
+# GitHub Actions automatically re-applies
+
+# Option 2: Restore from S3 backup
+aws s3 cp s3://stocks-terraform-state/backups/terraform.tfstate.1234567890.backup \
+  s3://stocks-terraform-state/dev/terraform.tfstate \
+  --region us-east-1
+
+# Option 3: Delete infrastructure entirely
+cd terraform
+terraform destroy -var="rds_password=YourPassword"
+```
+
+## Best Practices
+
+✅ **DO:**
+- Always review `terraform plan` output before applying
+- Keep `terraform.tfstate` backed up (automatic via GitHub Actions)
+- Use meaningful commit messages when updating Terraform
+- Monitor CloudWatch alarms after deployment
+- Test in dev environment first
+
+❌ **DON'T:**
+- Manually modify AWS resources via Console (breaks Terraform state)
+- Commit sensitive values (passwords, API keys) to Git
+- Delete `.terraform` directory without running `terraform destroy` first
+- Share `terraform.tfstate` file (contains sensitive data)
+
+## Maintenance
+
+### Weekly
+- Review CloudWatch alarms for breaches
+- Check S3 state bucket exists and is versioned
+
+### Monthly
+- Review AWS Cost Explorer for unexpected charges
+- Audit IAM roles and policies
+
+### Quarterly
+- Update AWS provider version (`terraform get -upgrade`)
+- Review and update resource configurations
+- Test disaster recovery (redeploy from scratch)
+
+## Support
+
+For detailed troubleshooting, see `CLAUDE.md` in the project root, or consult the Terraform AWS provider documentation:
+- https://registry.terraform.io/providers/hashicorp/aws/latest
 
 ---
 
 **Last Updated:** 2026-05-07
-**Status:** Ready for deployment with all dependency fixes applied
+**Status:** Ready for GitHub Actions Deployment

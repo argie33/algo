@@ -24,11 +24,3 @@ provider "aws" {
   skip_credentials_validation = false
   skip_requesting_account_id  = false
 }
-# Trigger terraform-apply workflow
-# test
-# Testing fixed bootstrap
-# Fixed Terraform syntax errors
-# All Terraform HCL syntax fixed
-# VPC module arguments fixed
-# Compute module aws_account_id added
-# All module args corrected

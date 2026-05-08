@@ -54,7 +54,7 @@ module "database" {
   db_max_allocated_storage  = var.rds_max_allocated_storage
   db_backup_retention_days  = var.rds_backup_retention_period
   db_master_username        = var.rds_username
-  db_master_password        = "changeme"
+  db_master_password        = var.rds_password
   notification_email        = var.notification_email
   common_tags               = local.common_tags
 }

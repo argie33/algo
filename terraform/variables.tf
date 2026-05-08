@@ -117,6 +117,16 @@ variable "rds_username" {
   sensitive   = true
 }
 
+variable "rds_password" {
+  description = "Master password for RDS database (must be 8+ characters, no special chars at start/end)"
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(var.rds_password) >= 8
+    error_message = "RDS password must be at least 8 characters long"
+  }
+}
+
 variable "rds_db_name" {
   description = "Initial database name for RDS"
   type        = string
