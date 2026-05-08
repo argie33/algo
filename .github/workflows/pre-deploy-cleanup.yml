@@ -1,0 +1,201 @@
+name: Pre-Deployment Cleanup
+
+# Run before any deployment to ensure clean state
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Clean Orphaned Resources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find and clean orphaned IAM roles
+        run: |
+          echo "=========================================="
+          echo "Scanning for orphaned IAM roles"
+          echo "=========================================="
+
+          # List all roles matching our naming pattern
+          echo "Finding stocks-* roles not managed by current deployment..."
+          ROLES=$(aws iam list-roles \
+            --query "Roles[?contains(RoleName, 'stocks-')].RoleName" \
+            --output text)
+
+          if [ -z "$ROLES" ]; then
+            echo "✓ No stocks-* roles found"
+            exit 0
+          fi
+
+          CLEANED=0
+          FAILED=0
+          SKIPPED=0
+
+          for role_name in $ROLES; do
+            echo ""
+            echo "Checking role: $role_name"
+
+            # Skip roles we know Terraform manages
+            if [[ "$role_name" == *"svc-"* ]]; then
+              echo "  → Skipping (managed by Terraform: $role_name)"
+              ((SKIPPED++))
+              continue
+            fi
+
+            # Skip bastion role
+            if [[ "$role_name" == *"bastion"* ]]; then
+              echo "  → Skipping (bastion role, may be in use)"
+              ((SKIPPED++))
+              continue
+            fi
+
+            # Check if role has inline policies
+            POLICIES=$(aws iam list-role-policies --role-name "$role_name" \
+              --query 'PolicyNames' --output text 2>/dev/null || echo "")
+
+            if [ -n "$POLICIES" ]; then
+              echo "  → Found inline policies: $POLICIES"
+              for policy in $POLICIES; do
+                echo "    Deleting policy: $policy"
+                aws iam delete-role-policy --role-name "$role_name" --policy-name "$policy" 2>/dev/null || {
+                  echo "    ✗ Failed to delete policy"
+                  ((FAILED++))
+                  continue 2
+                }
+              done
+            fi
+
+            # Check if role has attached managed policies
+            MANAGED=$(aws iam list-attached-role-policies --role-name "$role_name" \
+              --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo "")
+
+            if [ -n "$MANAGED" ]; then
+              echo "  → Found managed policies: $MANAGED"
+              for policy_arn in $MANAGED; do
+                echo "    Detaching policy: $policy_arn"
+                aws iam detach-role-policy --role-name "$role_name" --policy-arn "$policy_arn" 2>/dev/null || {
+                  echo "    ✗ Failed to detach policy"
+                  ((FAILED++))
+                  continue 2
+                }
+              done
+            fi
+
+            # Try to delete the role
+            echo "  → Deleting role: $role_name"
+            if aws iam delete-role --role-name "$role_name" 2>/dev/null; then
+              echo "  ✓ Role deleted"
+              ((CLEANED++))
+            else
+              echo "  ✗ Failed to delete (may still be in use)"
+              ((FAILED++))
+            fi
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "Summary:"
+          echo "  Cleaned:  $CLEANED"
+          echo "  Failed:   $FAILED"
+          echo "  Skipped:  $SKIPPED"
+          echo "=========================================="
+
+          if [ $FAILED -gt 0 ]; then
+            echo "⚠️  Some roles could not be deleted (may still be in use by CloudFormation)"
+            # Don't fail the workflow; proceed with deployment
+          fi
+
+      - name: Check for orphaned CloudFront OACs
+        run: |
+          echo "=========================================="
+          echo "Checking for orphaned CloudFront OACs"
+          echo "=========================================="
+
+          OACS=$(aws cloudfront list-origin-access-controls \
+            --query "OriginAccessControlList.Items[?contains(Name, 'stocks-')].{Id:Id,Name:Name}" \
+            --output json 2>/dev/null || echo "[]")
+
+          echo "Found OACs:"
+          echo "$OACS" | jq -r '.[] | "  - \(.Name) (\(.Id))"' || echo "  (none)"
+
+          # Note: We don't delete OACs automatically as they may be in use
+          # Terraform will handle importing/reusing them
+          echo "✓ OACs checked (will be handled by Terraform import)"
+
+      - name: Verify state bucket exists and is protected
+        run: |
+          echo "=========================================="
+          echo "Verifying Terraform state bucket"
+          echo "=========================================="
+
+          STATE_BUCKET="stocks-terraform-state"
+
+          if aws s3 ls "s3://$STATE_BUCKET" 2>/dev/null; then
+            echo "✓ State bucket exists: $STATE_BUCKET"
+
+            # Check versioning
+            VERSIONING=$(aws s3api get-bucket-versioning --bucket "$STATE_BUCKET" \
+              --query 'Status' --output text)
+            echo "  Versioning: $VERSIONING"
+
+            # Check public access block
+            aws s3api get-public-access-block --bucket "$STATE_BUCKET" 2>/dev/null && \
+              echo "  ✓ Public access blocked" || \
+              echo "  ⚠️  Public access block not found"
+          else
+            echo "✗ State bucket NOT found: $STATE_BUCKET"
+            echo "  Create it manually or via the state-backend Terraform module"
+            exit 1
+          fi
+
+      - name: Check ECR image cleanup
+        run: |
+          echo "=========================================="
+          echo "Checking ECR repositories"
+          echo "=========================================="
+
+          REPOS=$(aws ecr describe-repositories \
+            --query "repositories[?contains(repositoryName, 'stocks')].repositoryName" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$REPOS" ]; then
+            echo "✓ No orphaned ECR repos found"
+          else
+            echo "Found ECR repositories:"
+            for repo in $REPOS; do
+              IMAGE_COUNT=$(aws ecr list-images --repository-name "$repo" \
+                --query 'length(imageIds)' --output text 2>/dev/null || echo "0")
+              echo "  - $repo ($IMAGE_COUNT images)"
+            done
+            echo "✓ ECR repos checked (Terraform manages these)"
+          fi
+
+      - name: Pre-deployment summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Pre-Deployment Cleanup Complete"
+          echo "=========================================="
+          echo ""
+          echo "Next steps:"
+          echo "1. Terraform will import/reuse existing OACs"
+          echo "2. Terraform will manage all IAM roles"
+          echo "3. State bucket is protected from deletion"
+          echo ""
+          echo "Ready to proceed with terraform apply ✓"

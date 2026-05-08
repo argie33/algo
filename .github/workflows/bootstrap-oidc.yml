@@ -36,16 +36,13 @@ jobs:
           ARN=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text)
           echo "arn=$ARN" >> $GITHUB_OUTPUT
 
-      - name: Create IAM Role for GitHub Actions
-        run: bash .github/scripts/create-oidc-role.sh "${{ steps.oidc.outputs.arn }}"
-
-      - name: Attach Permissions to Role
-        run: bash .github/scripts/attach-permissions.sh
-
       - name: Verify OIDC Setup
         run: |
+          echo "✓ OIDC Provider setup complete"
+          echo ""
           echo "OIDC Provider ARN:"
           aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[0].OpenIDConnectProviderArn' --output text
           echo ""
-          echo "GitHub Actions Role:"
-          aws iam get-role --role-name github-actions-role --query 'Role.Arn' --output text
+          echo "⚠️  GitHub Actions IAM role will be created by Terraform IAM module"
+          echo "   Role name: stocks-svc-github-actions-{environment}"
+          echo "   This ensures proper least-privilege management via IaC"

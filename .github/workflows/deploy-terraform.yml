@@ -28,8 +28,17 @@ env:
   AWS_ACCOUNT_ID: '626216981288'
 
 jobs:
+  # Pre-deployment cleanup
+  cleanup:
+    name: Pre-Deployment Cleanup
+    uses: ./.github/workflows/pre-deploy-cleanup.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
   # Pre-flight checks
   pre-flight:
+    needs: cleanup
     name: Pre-flight checks
     runs-on: ubuntu-latest
     steps:

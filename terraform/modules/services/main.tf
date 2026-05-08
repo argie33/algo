@@ -166,12 +166,36 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 # CloudFront Distribution (Frontend CDN)
 # ============================================================
 
+# Data source to detect existing OAC (handles orphaned resources from failed prior deploys)
+data "aws_cloudfront_origin_access_controls" "existing" {
+  count = var.cloudfront_enabled ? 1 : 0
+}
+
+# Find matching OAC by name if it exists
+locals {
+  existing_oac_name = var.cloudfront_enabled ? "${var.project_name}-frontend-oac-${var.environment}" : null
+  existing_oac_id = var.cloudfront_enabled ? (
+    try(
+      [
+        for oac in data.aws_cloudfront_origin_access_controls.existing[0].items : oac.id
+        if oac.name == local.existing_oac_name
+      ][0],
+      null
+    )
+  ) : null
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  count           = var.cloudfront_enabled ? 1 : 0
+  count           = var.cloudfront_enabled && local.existing_oac_id == null ? 1 : 0
   name            = "${var.project_name}-frontend-oac-${var.environment}"
   origin_access_control_origin_type = "s3"
   signing_behavior = "always"
   signing_protocol = "sigv4"
+
+  lifecycle {
+    # Prevent accidental deletion
+    prevent_destroy = true
+  }
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
@@ -180,7 +204,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name            = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
     origin_id              = "S3Frontend"
-    origin_access_control_id = aws_cloudfront_origin_access_control.frontend[0].id
+    # Use existing OAC if found, otherwise use newly created one
+    origin_access_control_id = local.existing_oac_id != null ? local.existing_oac_id : aws_cloudfront_origin_access_control.frontend[0].id
   }
 
   origin {
