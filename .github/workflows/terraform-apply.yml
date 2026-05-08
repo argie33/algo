@@ -54,7 +54,15 @@ jobs:
         run: |
           echo "Removing stale terraform state file to ensure clean deploy..."
           aws s3 rm s3://stocks-terraform-state/dev/terraform.tfstate --region ${{ env.AWS_REGION }} || true
-          echo "State file removed (or didn't exist)"
+          echo "State file removed"
+
+          echo "Clearing lock table..."
+          LOCK_ID="stocks-terraform-state/dev/terraform.tfstate"
+          aws dynamodb delete-item \
+            --table-name stocks-terraform-locks \
+            --key "{\"LockID\": {\"S\": \"$LOCK_ID\"}}" \
+            --region ${{ env.AWS_REGION }} || true
+          echo "Lock table cleared"
 
       - name: Terraform init
         run: |
