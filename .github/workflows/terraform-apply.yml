@@ -135,30 +135,6 @@ jobs:
       - name: Terraform init
         run: |
           cd terraform
-          terraform init -upgrade
-
-      - name: Destroy all managed resources
-        run: |
-          cd terraform
-          echo "Destroying all Terraform-managed resources..."
-          terraform destroy -auto-approve -no-color || true
-          echo "Resources destroyed"
-          sleep 5
-
-      - name: Clear backend state and locks
-        run: |
-          echo "Clearing Terraform state backend..."
-          aws s3 rm s3://stocks-terraform-state/dev/terraform.tfstate --region ${{ env.AWS_REGION }} || true
-          aws dynamodb scan --table-name stocks-terraform-locks --region ${{ env.AWS_REGION }} \
-            --query 'Items[*].LockID.S' --output text 2>/dev/null | \
-            xargs -I {} aws dynamodb delete-item --table-name stocks-terraform-locks \
-            --key '{"LockID":{"S":"{}"}}' --region ${{ env.AWS_REGION }} 2>/dev/null || true
-          echo "Backend cleared"
-          sleep 3
-
-      - name: Terraform init clean
-        run: |
-          cd terraform
           terraform init -upgrade -reconfigure
 
       - name: Terraform validate
