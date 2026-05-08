@@ -72,6 +72,8 @@ class LivePerformance:
         Returns:
             Annualized Sharpe ratio or None if insufficient data
         """
+        conn = None
+        cur = None
         try:
             # Create fresh connection for this metric
             conn = psycopg2.connect(
@@ -92,8 +94,6 @@ class LivePerformance:
                 """ % lookback_days,
             )
             rows = cur.fetchall()
-            cur.close()
-            conn.close()
 
             if len(rows) < 30:  # Need at least 30 days to estimate Sharpe
                 return None
@@ -122,6 +122,17 @@ class LivePerformance:
         except Exception as e:
             print(f"Performance: rolling_sharpe failed: {e}")
             return None
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def win_rate(self, lookback_trades: int = 50) -> Optional[Dict[str, float]]:
         """Compute win rate and average R-multiple from closed trades.
@@ -132,6 +143,8 @@ class LivePerformance:
         Returns:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
         """
+        conn = None
+        cur = None
         try:
             # Create fresh connection for this metric
             conn = psycopg2.connect(
@@ -161,8 +174,6 @@ class LivePerformance:
                 (lookback_trades,)
             )
             row = cur.fetchone()
-            cur.close()
-            conn.close()
 
             if not row or row[0] == 0:
                 return None
@@ -192,6 +203,17 @@ class LivePerformance:
         except Exception as e:
             print(f"Performance: win_rate failed: {e}")
             return None
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def expectancy(self, lookback_trades: int = 50) -> Optional[float]:
         """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
@@ -224,6 +246,8 @@ class LivePerformance:
         Returns:
             Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
         """
+        conn = None
+        cur = None
         try:
             # Create fresh connection for this metric
             conn = psycopg2.connect(
@@ -244,8 +268,6 @@ class LivePerformance:
                 """
             )
             rows = cur.fetchall()
-            cur.close()
-            conn.close()
 
             if len(rows) < 2:
                 return None
@@ -265,6 +287,17 @@ class LivePerformance:
         except Exception as e:
             print(f"Performance: max_drawdown failed: {e}")
             return None
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
         """Compare live metrics to backtest reference metrics.
