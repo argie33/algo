@@ -45,43 +45,55 @@ jobs:
           chmod +x .github/workflows/bootstrap.sh
           .github/workflows/bootstrap.sh "${{ env.AWS_REGION }}" "${{ secrets.AWS_ACCOUNT_ID }}"
 
-      - name: Delete existing IAM roles (with basic auth)
+      - name: Comprehensive AWS cleanup (with basic auth)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.AWS_REGION }}
         run: |
-          echo "Deleting existing IAM roles with admin credentials..."
-          # List of roles to delete
-          ROLES=(
-            "stocks-bastion-stop-lambda-role"
-            "stocks-rds-monitoring-role"
-            "stocks-github-actions-dev"
-            "stocks-bastion-dev"
-            "stocks-ecs-task-execution-dev"
-            "stocks-ecs-task-dev"
-            "stocks-lambda-api-dev"
-            "stocks-lambda-algo-dev"
-            "stocks-eventbridge-scheduler-dev"
-            "stocks-eventbridge-run-task-role"
-          )
+          echo "Running comprehensive AWS resource cleanup..."
+          REGION=${{ env.AWS_REGION }}
 
-          for ROLE in "${ROLES[@]}"; do
-            echo "Deleting $ROLE..."
-            # Detach inline policies
-            for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
-              [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
-            done
-            # Detach managed policies
-            for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
-              [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
-            done
-            # Delete the role
-            aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "  ✅ Deleted $ROLE" || true
+          # Delete S3 buckets
+          echo "[1/4] Deleting S3 buckets..."
+          for BUCKET in $(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `stocks-`)].Name' --output text 2>/dev/null || echo ""); do
+            [ -n "$BUCKET" ] && {
+              echo "  Removing objects from $BUCKET..."
+              aws s3 rm "s3://$BUCKET" --recursive --region $REGION 2>/dev/null || true
+              echo "  Deleting $BUCKET..."
+              aws s3api delete-bucket --bucket "$BUCKET" --region $REGION 2>/dev/null && echo "    ✅ Deleted $BUCKET" || true
+            }
           done
 
-          sleep 3
-          echo "IAM role cleanup complete"
+          # Delete CloudFront OAC
+          echo "[2/4] Deleting CloudFront OAC..."
+          for OAC_ID in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[?Name==`stocks-frontend-oac-dev`].Id' --output text 2>/dev/null || echo ""); do
+            [ -n "$OAC_ID" ] && aws cloudfront delete-origin-access-control --id "$OAC_ID" --e-tag "placeholder" 2>/dev/null || true
+          done
+
+          # Delete all stocks-* IAM roles
+          echo "[3/4] Deleting all stocks-* IAM roles..."
+          for ROLE in $(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>/dev/null || echo ""); do
+            [ -n "$ROLE" ] && {
+              echo "  Deleting inline policies from $ROLE..."
+              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
+                [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
+              done
+              echo "  Detaching managed policies from $ROLE..."
+              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
+                [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
+              done
+              echo "  Deleting $ROLE..."
+              aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "    ✅ Deleted $ROLE" || true
+            }
+          done
+
+          # Run deep VPC cleanup
+          echo "[4/4] Running deep VPC cleanup..."
+          gh workflow run deep-cleanup-vpc.yml --repo argie33/algo
+          echo "Deep VPC cleanup triggered (runs in parallel)"
+
+          echo "Cleanup complete"
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
