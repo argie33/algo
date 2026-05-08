@@ -9,7 +9,6 @@ locals {
       Project   = var.project_name
       Environment = var.environment
       ManagedBy = "terraform"
-      CreatedAt = timestamp()
       Region    = var.aws_region
     },
     var.additional_tags
