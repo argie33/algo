@@ -176,56 +176,68 @@ def bulk_upsert(conn, rows: List[dict]) -> int:
 
 
 def run(symbol_filter=None, days=10, batch_size=80, sleep_between=1.0):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
 
-    if symbol_filter:
-        symbols = list(symbol_filter)
-    else:
-        symbols = get_universe(cur)
+        if symbol_filter:
+            symbols = list(symbol_filter)
+        else:
+            symbols = get_universe(cur)
 
-    log.info(f"EOD BULK LOAD start: {len(symbols)} symbols, {days}d window, batch={batch_size}")
+        log.info(f"EOD BULK LOAD start: {len(symbols)} symbols, {days}d window, batch={batch_size}")
 
-    started = time.time()
-    total_rows = 0
-    total_failed = 0
-    batches = list(chunked(symbols, batch_size))
-    for idx, batch in enumerate(batches, 1):
-        t0 = time.time()
-        result = fetch_batch(batch, days)
-        flat_rows = []
-        for sym in batch:
-            sym_rows = result.get(sym, [])
-            if not sym_rows:
-                total_failed += 1
-                continue
-            flat_rows.extend(sym_rows)
+        started = time.time()
+        total_rows = 0
+        total_failed = 0
+        batches = list(chunked(symbols, batch_size))
+        for idx, batch in enumerate(batches, 1):
+            t0 = time.time()
+            result = fetch_batch(batch, days)
+            flat_rows = []
+            for sym in batch:
+                sym_rows = result.get(sym, [])
+                if not sym_rows:
+                    total_failed += 1
+                    continue
+                flat_rows.extend(sym_rows)
 
-        inserted = bulk_upsert(conn, flat_rows)
-        total_rows += inserted
-        log.info(
-            f"[{idx:>3}/{len(batches)}] batch {idx*batch_size:>5}: "
-            f"fetched {len(result)}/{len(batch)} | inserted {inserted:>5} rows | "
-            f"{time.time()-t0:.1f}s"
-        )
+            inserted = bulk_upsert(conn, flat_rows)
+            total_rows += inserted
+            log.info(
+                f"[{idx:>3}/{len(batches)}] batch {idx*batch_size:>5}: "
+                f"fetched {len(result)}/{len(batch)} | inserted {inserted:>5} rows | "
+                f"{time.time()-t0:.1f}s"
+            )
 
-        # Throttle between batches
-        if sleep_between > 0 and idx < len(batches):
-            time.sleep(sleep_between)
+            # Throttle between batches
+            if sleep_between > 0 and idx < len(batches):
+                time.sleep(sleep_between)
 
-    elapsed = time.time() - started
-    log.info(f"\nDONE: {total_rows} rows total, {total_failed} symbols failed, "
-             f"{elapsed:.1f}s ({len(symbols)/elapsed:.1f} sym/s)")
+        elapsed = time.time() - started
+        log.info(f"\nDONE: {total_rows} rows total, {total_failed} symbols failed, "
+                 f"{elapsed:.1f}s ({len(symbols)/elapsed:.1f} sym/s)")
 
-    # Sanity check — what dates do we have for the latest?
-    cur.execute("""SELECT date, COUNT(DISTINCT symbol) FROM price_daily
-                   WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-                   GROUP BY date ORDER BY date DESC""")
-    log.info("\nCoverage by recent date:")
-    for d, n in cur.fetchall():
-        log.info(f"  {d}: {n} symbols")
-    cur.close()
-    conn.close()
+        # Sanity check — what dates do we have for the latest?
+        cur.execute("""SELECT date, COUNT(DISTINCT symbol) FROM price_daily
+                       WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                       GROUP BY date ORDER BY date DESC""")
+        log.info("\nCoverage by recent date:")
+        for d, n in cur.fetchall():
+            log.info(f"  {d}: {n} symbols")
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
