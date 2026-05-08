@@ -6,6 +6,7 @@ No need to manually go to GitHub Settings
 
 import requests
 import sys
+import subprocess
 from pathlib import Path
 
 def get_github_token():
