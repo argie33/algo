@@ -170,37 +170,86 @@ jobs:
 
       - name: Delete orphaned resources before init
         run: |
-          echo "Deleting ALL orphaned AWS resources before Terraform init..."
+          echo "Deleting ALL orphaned AWS resources (comprehensive cleanup)..."
           REGION=${{ env.AWS_REGION }}
 
           # Delete ECR repositories
-          echo "[1/6] Deleting ECR repositories..."
+          echo "[1/10] Deleting ECR repositories..."
           for REPO in $(aws ecr describe-repositories --region $REGION --query 'repositories[*].repositoryName' --output text 2>/dev/null || echo ""); do
             [ -n "$REPO" ] && aws ecr delete-repository --repository-name "$REPO" --force --region $REGION 2>/dev/null && echo "  Deleted ECR: $REPO"
           done
 
           # Delete CloudWatch log groups
-          echo "[2/6] Deleting CloudWatch log groups..."
+          echo "[2/10] Deleting CloudWatch log groups..."
           for LG in $(aws logs describe-log-groups --region $REGION --query 'logGroups[*].logGroupName' --output text 2>/dev/null || echo ""); do
             [ -n "$LG" ] && aws logs delete-log-group --log-group-name "$LG" --region $REGION 2>/dev/null && echo "  Deleted log group: $LG"
           done
 
           # Delete Secrets Manager secrets
-          echo "[3/6] Deleting Secrets Manager secrets..."
+          echo "[3/10] Deleting Secrets Manager secrets..."
           for SECRET in $(aws secretsmanager list-secrets --region $REGION --query 'SecretList[*].Name' --output text 2>/dev/null || echo ""); do
             [ -n "$SECRET" ] && aws secretsmanager delete-secret --secret-id "$SECRET" --force-delete-without-recovery --region $REGION 2>/dev/null && echo "  Deleted secret: $SECRET"
           done
 
           # Delete RDS parameter groups (except default ones)
-          echo "[4/6] Deleting RDS parameter groups..."
+          echo "[4/10] Deleting RDS parameter groups..."
           for PG in $(aws rds describe-db-parameter-groups --region $REGION --query 'DBParameterGroups[*].DBParameterGroupName' --output text 2>/dev/null || echo ""); do
             [[ "$PG" != "default."* ]] && [ -n "$PG" ] && aws rds delete-db-parameter-group --db-parameter-group-name "$PG" --region $REGION 2>/dev/null && echo "  Deleted RDS param group: $PG"
           done
 
-          echo "[5/6] Skipping IAM role deletion (will be replaced by Terraform)"
-          echo "[6/6] Skipping instance profile deletion (will be replaced by Terraform)"
+          # Delete Elastic IPs (must be before NAT gateway deletion)
+          echo "[5/10] Deleting Elastic IPs..."
+          for ALLOC in $(aws ec2 describe-addresses --region $REGION --query 'Addresses[].AllocationId' --output text 2>/dev/null || echo ""); do
+            [ -n "$ALLOC" ] && aws ec2 release-address --allocation-id "$ALLOC" --region $REGION 2>/dev/null && echo "  Released EIP: $ALLOC" || true
+          done
 
-          echo "Orphaned resource cleanup complete (ECR, logs, secrets, RDS params)"
+          # Delete NAT Gateways
+          echo "[6/10] Deleting NAT Gateways..."
+          for NGW in $(aws ec2 describe-nat-gateways --region $REGION --filter "Name=state,Values=available,pending" --query 'NatGateways[*].NatGatewayId' --output text 2>/dev/null || echo ""); do
+            [ -n "$NGW" ] && aws ec2 delete-nat-gateway --nat-gateway-id "$NGW" --region $REGION 2>/dev/null && echo "  Deleted NAT Gateway: $NGW" || true
+          done
+
+          # Delete VPC Endpoints
+          echo "[7/10] Deleting VPC Endpoints..."
+          for VPCE in $(aws ec2 describe-vpc-endpoints --region $REGION --query 'VpcEndpoints[*].VpcEndpointId' --output text 2>/dev/null || echo ""); do
+            [ -n "$VPCE" ] && aws ec2 delete-vpc-endpoints --vpc-endpoint-ids "$VPCE" --region $REGION 2>/dev/null && echo "  Deleted VPC Endpoint: $VPCE" || true
+          done
+
+          # Delete all IAM roles with stocks- prefix
+          echo "[8/10] Deleting IAM roles..."
+          for ROLE in $(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>/dev/null || echo ""); do
+            [ -n "$ROLE" ] && {
+              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
+                [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
+              done
+              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
+                [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
+              done
+              aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "  Deleted IAM role: $ROLE" || true
+            }
+          done
+
+          # Delete CloudFront Origin Access Controls
+          echo "[9/10] Deleting CloudFront Origin Access Controls..."
+          for OAC in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[*].Id' --output text 2>/dev/null || echo ""); do
+            [ -n "$OAC" ] && {
+              E_TAG=$(aws cloudfront get-origin-access-control --id "$OAC" --query 'OriginAccessControl.ETag' --output text 2>/dev/null || echo "")
+              [ -n "$E_TAG" ] && aws cloudfront delete-origin-access-control --id "$OAC" --e-tag "$E_TAG" 2>/dev/null && echo "  Deleted OAC: $OAC" || true
+            }
+          done
+
+          # Delete instance profiles
+          echo "[10/10] Deleting instance profiles..."
+          for PROFILE in $(aws iam list-instance-profiles --query 'InstanceProfiles[?starts_with(InstanceProfileName, `stocks-`)].InstanceProfileName' --output text 2>/dev/null || echo ""); do
+            [ -n "$PROFILE" ] && {
+              for ROLE in $(aws iam get-instance-profile --instance-profile-name "$PROFILE" --query 'InstanceProfile.Roles[*].RoleName' --output text 2>/dev/null || echo ""); do
+                [ -n "$ROLE" ] && aws iam remove-role-from-instance-profile --instance-profile-name "$PROFILE" --role-name "$ROLE" 2>/dev/null || true
+              done
+              aws iam delete-instance-profile --instance-profile-name "$PROFILE" 2>/dev/null && echo "  Deleted instance profile: $PROFILE" || true
+            }
+          done
+
+          echo "Comprehensive orphaned resource cleanup complete"
           sleep 5
 
       - name: Clear corrupted Terraform state (force reset)
