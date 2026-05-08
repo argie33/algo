@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import os
 import logging
 from datetime import datetime
+from algo_sql_safety import assert_safe_table
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ def update_patterns_for_timeframe(timeframe):
 
     try:
         # Get all unique symbols
-        cur.execute(f"SELECT DISTINCT symbol FROM {signals_table} ORDER BY symbol")
+        signals_table_safe = assert_safe_table(signals_table)
+        cur.execute(f"SELECT DISTINCT symbol FROM {signals_table_safe} ORDER BY symbol")
         symbols = [row[0] for row in cur.fetchall()]
         logger.info(f"Found {len(symbols)} unique symbols to process")
 

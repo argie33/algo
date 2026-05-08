@@ -39,6 +39,7 @@ import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date, datetime
+from algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -93,11 +94,14 @@ def audit():
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
         try:
+            tbl_safe = assert_safe_table(tbl)
             if date_col:
-                cur.execute(f"SELECT COUNT(*), MAX({date_col}::date) FROM {tbl}")
+                date_col_safe = assert_safe_column(date_col)
+                count, max_date_str = safe_select_count(cur, tbl_safe, date_column=date_col_safe)
+                max_date = datetime.strptime(max_date_str, '%Y-%m-%d').date() if max_date_str else None
             else:
-                cur.execute(f"SELECT COUNT(*), NULL FROM {tbl}")
-            count, max_date = cur.fetchone()
+                count, _ = safe_select_count(cur, tbl_safe)
+                max_date = None
 
             age_days = (today - max_date).days if max_date else None
             if count == 0:

@@ -45,6 +45,7 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
+from algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -185,11 +186,13 @@ class DataPatrol:
         today = _date.today()
         for tbl, col, freq, max_days, sev_on_stale in sources:
             try:
-                self.cur.execute(f"SELECT MAX({col}::date), COUNT(*) FROM {tbl}")
-                latest, count = self.cur.fetchone()
-                if not latest:
+                tbl_safe = assert_safe_table(tbl)
+                col_safe = assert_safe_column(col)
+                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
+                if not latest_str:
                     self.log('staleness', CRIT, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
+                latest = datetime.strptime(latest_str, '%Y-%m-%d').date()
                 age = (today - latest).days
                 if age > max_days:
                     self.log('staleness', sev_on_stale, tbl,
@@ -720,8 +723,8 @@ class DataPatrol:
         # Generic count contracts
         for tbl, cond, min_rows, severity, desc in contracts:
             try:
-                self.cur.execute(f"SELECT COUNT(*) FROM {tbl} WHERE {cond}")
-                actual = int(self.cur.fetchone()[0] or 0)
+                tbl_safe = assert_safe_table(tbl)
+                actual, _ = safe_select_count(self.cur, tbl_safe, where_clause=cond)
                 if actual < min_rows:
                     self.log('loader_contract', severity, tbl,
                              f'{actual:,} rows < {min_rows:,} expected ({desc})',
@@ -744,8 +747,8 @@ class DataPatrol:
             ]
             for tbl, cond in checks:
                 try:
-                    self.cur.execute(f"SELECT COUNT(*) FROM {tbl} WHERE {cond}")
-                    n = int(self.cur.fetchone()[0])
+                    tbl_safe = assert_safe_table(tbl)
+                    n, _ = safe_select_count(self.cur, tbl_safe, where_clause=cond)
                     if n > 0:
                         self.log('db_constraints', ERROR, tbl,
                                  f'{n} rows with NULL key fields ({cond})',
@@ -768,8 +771,10 @@ class DataPatrol:
             try:
                 # Try first column option, fall back to second if it fails
                 col = col_options[0]
-                self.cur.execute(f"SELECT MAX({col}::date), COUNT(*) FROM {tbl}")
-                latest, count = self.cur.fetchone()
+                tbl_safe = assert_safe_table(tbl)
+                col_safe = assert_safe_column(col)
+                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
+                latest = datetime.strptime(latest_str, '%Y-%m-%d').date() if latest_str else None
                 if not latest:
                     self.log('earnings_staleness', WARN, tbl, f'{tbl} is empty', {'count': 0})
                 else:
@@ -831,8 +836,9 @@ class DataPatrol:
         ]
         for tbl, max_age, sev in signal_checks:
             try:
-                self.cur.execute(f"SELECT MAX(date), COUNT(*) FROM {tbl}")
-                latest, count = self.cur.fetchone()
+                tbl_safe = assert_safe_table(tbl)
+                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column='date')
+                latest = datetime.strptime(latest_str, '%Y-%m-%d').date() if latest_str else None
                 if not latest:
                     self.log('etf_signals', WARN, tbl, f'{tbl} is empty', {})
                 else:
@@ -865,7 +871,8 @@ class DataPatrol:
         ]
         for tbl, where, min_ratio, sev in checks:
             try:
-                self.cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl} WHERE {where}")
+                tbl_safe = assert_safe_table(tbl)
+                self.cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl_safe} WHERE {where}")
                 count = int(self.cur.fetchone()[0] or 0)
                 ratio = count / baseline
                 if ratio < min_ratio:

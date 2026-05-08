@@ -17,6 +17,7 @@ import psycopg2
 from pathlib import Path
 from datetime import datetime, date
 from dotenv import load_dotenv
+from algo_sql_safety import assert_safe_table
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -50,7 +51,8 @@ def test_database_tables():
     all_exist = True
     for table in tables:
         try:
-            cur.execute(f"SELECT 1 FROM {table} LIMIT 1")
+            table_safe = assert_safe_table(table)
+            cur.execute(f"SELECT 1 FROM {table_safe} LIMIT 1")
             print(f"  [OK] Table '{table}' exists")
         except psycopg2.Error as e:
             if 'does not exist' in str(e):

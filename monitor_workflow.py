@@ -10,6 +10,7 @@ import time
 import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
+from algo_sql_safety import assert_safe_table
 
 load_dotenv('.env.local')
 
@@ -50,7 +51,8 @@ def get_table_count(conn, table_name):
     """Get row count for a table"""
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        table_safe = assert_safe_table(table_name)
+        cursor.execute(f"SELECT COUNT(*) FROM {table_safe}")
         count = cursor.fetchone()[0]
         cursor.close()
         return count

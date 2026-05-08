@@ -137,6 +137,7 @@ class PolarsLoader(ABC):
         execute_values + per-row ON CONFLICT.
         """
         import polars as pl  # noqa: F401
+        from algo_sql_safety import assert_safe_table
 
         if df.is_empty():
             return 0
@@ -145,11 +146,13 @@ class PolarsLoader(ABC):
         cur = conn.cursor()
         try:
             staging = f"_stage_{self.table_name}_{int(time.time() * 1000)}"
+            table_safe = assert_safe_table(self.table_name)
+            staging_safe = assert_safe_table(staging)  # Validate staging name (contains base table name + timestamp)
             columns = df.columns
 
             # Create unlogged staging table for speed
             cur.execute(
-                f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
+                f"CREATE UNLOGGED TABLE {staging_safe} (LIKE {table_safe} INCLUDING DEFAULTS)"
             )
 
             # Stream Polars → CSV → COPY
@@ -157,7 +160,7 @@ class PolarsLoader(ABC):
             df.write_csv(buf, include_header=False)
             buf.seek(0)
             cur.copy_expert(
-                f"COPY {staging} ({','.join(columns)}) FROM STDIN WITH (FORMAT CSV)",
+                f"COPY {staging_safe} ({','.join(columns)}) FROM STDIN WITH (FORMAT CSV)",
                 buf,
             )
 
@@ -169,13 +172,13 @@ class PolarsLoader(ABC):
                 else "ON CONFLICT DO NOTHING"
             )
             cur.execute(
-                f"INSERT INTO {self.table_name} ({','.join(columns)}) "
-                f"SELECT {','.join(columns)} FROM {staging} "
+                f"INSERT INTO {table_safe} ({','.join(columns)}) "
+                f"SELECT {','.join(columns)} FROM {staging_safe} "
                 f"{on_conflict}"
             )
             inserted = cur.rowcount
 
-            cur.execute(f"DROP TABLE {staging}")
+            cur.execute(f"DROP TABLE {staging_safe}")
             conn.commit()
             return inserted
         except Exception:
