@@ -598,6 +598,60 @@ class TradeExecutor:
 
     # ---------- Exit (full or partial) ----------
 
+    def _update_position_with_retry(self, position_id, new_qty, new_stop_price=None, full_exit=False, target_levels_hit=0):
+        """Update position with retry logic for race condition safety.
+
+        Handles concurrent updates by re-reading position before each retry.
+        Returns: (success: bool, message: str or None)
+        """
+        retry_config = RetryConfig(max_attempts=3, base_delay_ms=100)
+
+        def do_update():
+            # Re-read current quantity (fresh for each retry)
+            self.cur.execute(
+                "SELECT quantity FROM algo_positions WHERE position_id = %s",
+                (position_id,)
+            )
+            result = self.cur.fetchone()
+            if not result:
+                raise ValueError(f"Position {position_id} not found")
+
+            current_qty = result[0]
+
+            # Attempt update
+            if full_exit or new_qty <= 0:
+                self.cur.execute(
+                    """UPDATE algo_positions
+                       SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
+                       WHERE position_id = %s AND quantity = %s""",
+                    (PositionStatus.CLOSED.value, position_id, current_qty)
+                )
+            else:
+                self.cur.execute(
+                    """UPDATE algo_positions
+                       SET quantity = %s,
+                           position_value = %s * current_price,
+                           target_levels_hit = COALESCE(target_levels_hit, 0) + 1,
+                           current_stop_price = %s
+                       WHERE position_id = %s AND quantity = %s""",
+                    (new_qty, new_qty, new_stop_price, position_id, current_qty)
+                )
+
+            return self.cur.rowcount > 0  # True if update succeeded
+
+        success = OptimisticLockRetry.retry_on_race_condition(
+            do_update,
+            operation_name=f"update_position_{position_id}",
+            config=retry_config
+        )
+
+        if success:
+            self.conn.commit()
+            return True, None
+        else:
+            self.conn.rollback()
+            return False, "Position quantity changed before update (race condition, retries exhausted)"
+
     def exit_trade(self, trade_id, exit_price, exit_reason, exit_fraction=1.0,
                    exit_stage=None, new_stop_price=None):
         """Exit all or part of a position.
@@ -768,45 +822,27 @@ class TradeExecutor:
                     ),
                 )
 
-            # Update the position (with optimistic locking to prevent race conditions)
+            # Update the position with retry logic for race condition safety
             # B8: Use Decimal for precision with fractional shares
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
             new_qty_dec = current_qty_dec - shares_exited_dec
             new_qty = float(new_qty_dec)
-            if full_exit or new_qty <= 0:
-                self.cur.execute(
-                    """
-                    UPDATE algo_positions
-                    SET status = 'closed', quantity = 0, closed_at = CURRENT_TIMESTAMP
-                    WHERE position_id = %s AND quantity = %s
-                    """,
-                    (position_id, current_qty),
-                )
-                if self.cur.rowcount == 0:
-                    return {
-                        'success': False,
-                        'message': f'Position quantity changed between read and update (race condition)'
-                    }
-            else:
-                # New stop (trailing) and incremented target_levels_hit
-                effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
-                self.cur.execute(
-                    """
-                    UPDATE algo_positions
-                    SET quantity = %s,
-                        position_value = %s * current_price,
-                        target_levels_hit = COALESCE(target_levels_hit, 0) + 1,
-                        current_stop_price = %s
-                    WHERE position_id = %s AND quantity = %s
-                    """,
-                    (new_qty, new_qty, effective_stop, position_id, current_qty),
-                )
-                if self.cur.rowcount == 0:
-                    return {
-                        'success': False,
-                        'message': f'Position quantity changed between read and update (race condition)'
-                    }
+
+            effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
+            update_success, update_error = self._update_position_with_retry(
+                position_id=position_id,
+                new_qty=new_qty,
+                new_stop_price=effective_stop,
+                full_exit=full_exit or new_qty <= 0,
+                target_levels_hit=target_levels_hit or 0
+            )
+
+            if not update_success:
+                return {
+                    'success': False,
+                    'message': update_error or 'Position update failed'
+                }
 
             # Audit log
             try:

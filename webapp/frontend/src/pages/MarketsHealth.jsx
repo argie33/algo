@@ -29,7 +29,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useApiQuery } from '../hooks/useApiQuery';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceLine, Cell, Legend,
@@ -110,31 +110,31 @@ export default function MarketsHealth() {
   const navigate = useNavigate();
   const [ts, setTs] = useState(new Date());
 
-  const { data: marketsData, isLoading: marketsLoading, refetch: refetchMarkets } = useQuery({
-    queryKey: ['algo-markets'],
-    queryFn: () => api.get('/api/algo/markets').then(r => r.data?.data),
-    refetchInterval: 30000,
-  });
-  const { data: sentimentData } = useQuery({
-    queryKey: ['market-sentiment-30d'],
-    queryFn: () => api.get('/api/market/sentiment?range=30d').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: moversData } = useQuery({
-    queryKey: ['market-top-movers'],
-    queryFn: () => api.get('/api/market/top-movers').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: technicalsData } = useQuery({
-    queryKey: ['market-technicals'],
-    queryFn: () => api.get('/api/market/technicals').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-  const { data: seasonalityData } = useQuery({
-    queryKey: ['market-seasonality'],
-    queryFn: () => api.get('/api/market/seasonality').then(r => r.data?.data),
-    refetchInterval: 1000 * 60 * 60,
-  });
+  const { data: marketsData, loading: marketsLoading, refetch: refetchMarkets } = useApiQuery(
+    ['algo-markets'],
+    () => api.get('/api/algo/markets'),
+    { refetchInterval: 30000 }
+  );
+  const { data: sentimentData } = useApiQuery(
+    ['market-sentiment-30d'],
+    () => api.get('/api/market/sentiment?range=30d'),
+    { refetchInterval: 60000 }
+  );
+  const { data: moversData } = useApiQuery(
+    ['market-top-movers'],
+    () => api.get('/api/market/top-movers'),
+    { refetchInterval: 60000 }
+  );
+  const { data: technicalsData } = useApiQuery(
+    ['market-technicals'],
+    () => api.get('/api/market/technicals'),
+    { refetchInterval: 60000 }
+  );
+  const { data: seasonalityData } = useApiQuery(
+    ['market-seasonality'],
+    () => api.get('/api/market/seasonality'),
+    { refetchInterval: 1000 * 60 * 60 }
+  );
 
   useEffect(() => {
     const id = setInterval(() => setTs(new Date()), 30000);
@@ -342,12 +342,11 @@ function IndicesStrip() {
 }
 
 function IndexCell({ idx }) {
-  const { data } = useQuery({
-    queryKey: ['index-history', idx.symbol],
-    queryFn: () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`)
-      .then(r => r.data?.data?.items || r.data?.items || []),
-    staleTime: 60000,
-  });
+  const { data } = useApiQuery(
+    ['index-history', idx.symbol],
+    () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`),
+    { staleTime: 60000 }
+  );
   const series = (data || []).slice(-30).map(p => ({
     date: p.date, close: parseFloat(p.close || p.adj_close),
   }));
@@ -934,13 +933,11 @@ const SECTOR_ETFS = [
 ];
 
 function SectorTile({ etf, name, weight, onSelect }) {
-  const { data } = useQuery({
-    queryKey: ['sector-tile', etf],
-    queryFn: () => api.get(`/api/prices/history/${etf}?timeframe=daily&limit=2`)
-      .then(r => r.data?.data?.items || r.data?.items || []),
-    staleTime: 30000,
-    refetchInterval: 60000,
-  });
+  const { data } = useApiQuery(
+    ['sector-tile', etf],
+    () => api.get(`/api/prices/history/${etf}?timeframe=daily&limit=2`),
+    { staleTime: 30000, refetchInterval: 60000 }
+  );
   const series = data || [];
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   const prev = series[1]?.close ?? series[series.length - 2]?.close;
@@ -1149,14 +1146,14 @@ function SectorRotationMap({ markets, onSelect }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function YieldCurveCard() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['yield-curve-full'],
-    queryFn: () => api.get('/api/economic/yield-curve-full').then(r => r.data?.data),
-    refetchInterval: 1000 * 60 * 30,
-  });
+  const { data, loading, error } = useApiQuery(
+    ['yield-curve-full'],
+    () => api.get('/api/economic/yield-curve-full'),
+    { refetchInterval: 1000 * 60 * 30 }
+  );
 
-  if (isLoading && !data) return <Empty title="Yield Curve" desc="Loading…" wrap />;
-  if (isError || !data?.currentCurve) return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
+  if (loading && !data) return <Empty title="Yield Curve" desc="Loading…" wrap />;
+  if (error || !data?.currentCurve) return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
 
   const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
   const curve = order
@@ -1239,14 +1236,17 @@ function YieldCurveCard() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function useTermPoint(sym) {
-  const { data } = useQuery({
-    queryKey: ['vix-term', sym],
-    queryFn: () => api.get(`/api/prices/history/${encodeURIComponent(sym)}?timeframe=daily&limit=2`)
-      .then(r => r.data?.data?.items || r.data?.items || [])
-      .catch(() => []),
-    staleTime: 60000,
-    refetchInterval: 60000,
-  });
+  const { data } = useApiQuery(
+    ['vix-term', sym],
+    async () => {
+      try {
+        return await api.get(`/api/prices/history/${encodeURIComponent(sym)}?timeframe=daily&limit=2`);
+      } catch {
+        return { data: { data: { items: [] } } };
+      }
+    },
+    { staleTime: 60000, refetchInterval: 60000 }
+  );
   const series = data || [];
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   return last != null ? parseFloat(last) : null;
@@ -1325,14 +1325,14 @@ function VolTermStructureCard() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function DistributionDaysTimeline() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['distribution-days'],
-    queryFn: () => api.get('/api/market/distribution-days').then(r => r.data?.data),
-    refetchInterval: 1000 * 60 * 5,
-  });
+  const { data, loading, error } = useApiQuery(
+    ['distribution-days'],
+    () => api.get('/api/market/distribution-days'),
+    { refetchInterval: 1000 * 60 * 5 }
+  );
 
-  if (isLoading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
-  if (isError || !data) return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
+  if (loading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
+  if (error || !data) return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
 
   const indices = ['^GSPC', '^IXIC', '^DJI'].filter(k => data[k]);
   if (!indices.length) return <Empty title="Distribution Days" desc="No index data available" wrap />;
@@ -1419,12 +1419,11 @@ function DistributionDaysTimeline() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SentimentCompositeCard({ markets, sentiment }) {
-  const { data: fgData } = useQuery({
-    queryKey: ['fear-greed-30d'],
-    queryFn: () => api.get('/api/market/fear-greed?range=30d')
-      .then(r => r.data?.data?.items || []),
-    refetchInterval: 1000 * 60 * 60,
-  });
+  const { data: fgData } = useApiQuery(
+    ['fear-greed-30d'],
+    () => api.get('/api/market/fear-greed?range=30d').then(r => r.data?.data?.items || []),
+    { refetchInterval: 1000 * 60 * 60 }
+  );
 
   const fg = (fgData || []).slice();
   const fgLatest = fg.length ? fg[fg.length - 1] : null;
@@ -1592,14 +1591,14 @@ function EconomicCalendarCard() {
   const end = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   const startStr = today.toISOString().slice(0, 10);
   const endStr = end.toISOString().slice(0, 10);
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['economic-calendar', startStr, endStr],
-    queryFn: () => api.get(`/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`)
+  const { data, loading, error } = useApiQuery(
+    ['economic-calendar', startStr, endStr],
+    () => api.get(`/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`)
       .then(r => r.data?.data?.events || r.data?.events || []),
-    refetchInterval: 1000 * 60 * 30,
-  });
+    { refetchInterval: 1000 * 60 * 30 }
+  );
 
-  if (isLoading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
+  if (loading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
   const events = (data || []).slice(0, 25);
 
   return (
@@ -1611,7 +1610,7 @@ function EconomicCalendarCard() {
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
-        {isError || events.length === 0 ? (
+        {error || events.length === 0 ? (
           <Empty title="No upcoming releases" desc="Calendar table empty for next 7 days" />
         ) : (
           <div style={{ maxHeight: 360, overflowY: 'auto' }}>
@@ -1674,14 +1673,14 @@ function EconomicCalendarCard() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function EarningsCalendarCard({ onSelect }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['earnings-calendar-upcoming'],
-    queryFn: () => api.get('/api/earnings/calendar?period=upcoming&limit=25')
+  const { data, loading, error } = useApiQuery(
+    ['earnings-calendar-upcoming'],
+    () => api.get('/api/earnings/calendar?period=upcoming&limit=25')
       .then(r => r.data?.items || r.data?.data?.items || []),
-    refetchInterval: 1000 * 60 * 30,
-  });
+    { refetchInterval: 1000 * 60 * 30 }
+  );
 
-  if (isLoading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
+  if (loading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
   const rows = (data || []).slice(0, 20);
 
   return (
@@ -1693,7 +1692,7 @@ function EarningsCalendarCard({ onSelect }) {
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
-        {isError || rows.length === 0 ? (
+        {error || rows.length === 0 ? (
           <Empty title="No upcoming earnings" desc="No reports scheduled for the upcoming window" />
         ) : (
           <div style={{ maxHeight: 360, overflowY: 'auto' }}>

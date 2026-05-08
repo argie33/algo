@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, ChevronDown, ChevronUp, Inbox, AlertCircle,
@@ -107,19 +107,19 @@ function TradesView() {
   const [symbolFilter, setSymbolFilter] = useState('');
   const [expandedKey, setExpandedKey] = useState(null);
 
-  const { data: positions, refetch: rp, isLoading: lp } = useQuery({
-    queryKey: ['algo-positions'],
-    queryFn: () => api.get('/api/algo/positions').then(r => r.data),
-    refetchInterval: 30000,
-  });
-  const { data: trades, refetch: rt, isLoading: lt } = useQuery({
-    queryKey: ['algo-trades'],
-    queryFn: () => api.get('/api/algo/trades?limit=200').then(r => r.data),
-    refetchInterval: 60000,
-  });
+  const { data: positions, refetch: rp, loading: lp } = useApiQuery(
+    ['algo-positions'],
+    () => api.get('/api/algo/positions'),
+    { refetchInterval: 30000 }
+  );
+  const { data: trades, refetch: rt, loading: lt } = useApiQuery(
+    ['algo-trades'],
+    () => api.get('/api/algo/trades?limit=200'),
+    { refetchInterval: 60000 }
+  );
   const refetch = () => { rp(); rt(); };
 
-  const openPositions = positions?.items || positions?.data?.items || [];
+  const openPositions = positions?.items || [];
   const closedTrades = (trades?.items || []).filter(t => t.status === 'closed');
 
   const rows = useMemo(() => {
@@ -300,11 +300,11 @@ function ActivityView() {
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  const { data: log, isLoading, refetch } = useQuery({
-    queryKey: ['algo-audit-log', filter],
-    queryFn: () => api.get(`/api/algo/audit-log?limit=300${filter ? '&action_type=' + filter : ''}`).then(r => r.data),
-    refetchInterval: 60000,
-  });
+  const { data: log, loading: isLoading, refetch } = useApiQuery(
+    ['algo-audit-log', filter],
+    () => api.get(`/api/algo/audit-log?limit=300${filter ? '&action_type=' + filter : ''}`),
+    { refetchInterval: 60000 }
+  );
 
   const items = useMemo(() => {
     let rows = log?.items || [];
@@ -410,11 +410,11 @@ function ActivityRow({ item }) {
 
 // ─── NOTIFICATIONS VIEW ────────────────────────────────────────────────────
 function NotificationsView() {
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['algo-notifications-all'],
-    queryFn: () => api.get('/api/algo/notifications?include_seen=1').then(r => r.data),
-    refetchInterval: 30000,
-  });
+  const { data, loading: isLoading, refetch } = useApiQuery(
+    ['algo-notifications-all'],
+    () => api.get('/api/algo/notifications?include_seen=1'),
+    { refetchInterval: 30000 }
+  );
   const items = data?.items || [];
   return (
     <div className="card">

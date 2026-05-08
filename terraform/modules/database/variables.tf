@@ -64,6 +64,17 @@ variable "db_max_allocated_storage" {
   }
 }
 
+variable "rds_db_name" {
+  description = "Initial database name for RDS"
+  type        = string
+  default     = "stocks"
+
+  validation {
+    condition     = can(regex("^[a-z0-9_]{3,32}$", var.rds_db_name))
+    error_message = "DB name must be 3-32 lowercase alphanumeric characters"
+  }
+}
+
 variable "db_master_username" {
   description = "Master username for RDS"
   type        = string
@@ -227,5 +238,16 @@ variable "rds_connections_alarm_threshold" {
   validation {
     condition     = var.rds_connections_alarm_threshold > 0
     error_message = "Connections threshold must be > 0"
+  }
+}
+
+variable "cloudwatch_log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.cloudwatch_log_retention_days)
+    error_message = "Must be a valid CloudWatch retention period"
   }
 }

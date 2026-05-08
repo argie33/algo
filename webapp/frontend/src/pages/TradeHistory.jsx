@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useApiQuery } from '../hooks/useApiQuery';
 import {
   Table,
   TableBody,
@@ -36,12 +36,12 @@ const TradeHistory = () => {
   // Fetch trades
   const {
     data: tradesData,
-    isLoading: tradesLoading,
+    loading: tradesLoading,
     error: tradesError,
     refetch: refetchTrades
-  } = useQuery({
-    queryKey: ['trades', page, limit, filters],
-    queryFn: async () => {
+  } = useApiQuery(
+    ['trades', page, limit, filters],
+    async () => {
       const params = new URLSearchParams({
         page,
         limit,
@@ -55,23 +55,23 @@ const TradeHistory = () => {
       if (!response.ok) throw new Error('Failed to fetch trades');
       return response.json();
     },
-    staleTime: 30000
-  });
+    { staleTime: 30000 }
+  );
 
   // Fetch summary
   const {
     data: summaryData,
-    isLoading: summaryLoading,
+    loading: summaryLoading,
     error: summaryError
-  } = useQuery({
-    queryKey: ['tradeSummary'],
-    queryFn: async () => {
+  } = useApiQuery(
+    ['tradeSummary'],
+    async () => {
       const response = await fetch(`${API_BASE_URL}/api/trades/summary`);
       if (!response.ok) throw new Error('Failed to fetch summary');
       return response.json();
     },
-    staleTime: 30000
-  });
+    { staleTime: 30000 }
+  );
 
   const summary = summaryData?.data || {};
   const trades = tradesData?.data?.trades || [];

@@ -15,7 +15,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, Inbox, CheckCircle, XCircle,
@@ -66,32 +66,29 @@ export default function SwingCandidates() {
   const [minScore, setMinScore] = useState(0);
   const [selectedSym, setSelectedSym] = useState(null);
 
-  const { data: items, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['swing-candidates', minScore],
-    queryFn: () =>
-      api.get(`/api/algo/swing-scores?limit=500&min_score=${minScore}`)
-         .then(r => r.data?.items || []),
-    refetchInterval: 60000,
-  });
+  const { data: items, loading: isLoading, refetch, isFetching } = useApiQuery(
+    ['swing-candidates', minScore],
+    () => api.get(`/api/algo/swing-scores?limit=500&min_score=${minScore}`),
+    { refetchInterval: 60000 }
+  );
 
-  const { data: history } = useQuery({
-    queryKey: ['swing-history-30'],
-    queryFn: () =>
-      api.get('/api/algo/swing-scores-history?days=30')
-         .then(r => r.data?.items || []),
-    refetchInterval: 300000,
-    retry: 1,
-  });
+  const { data: history } = useApiQuery(
+    ['swing-history-30'],
+    () => api.get('/api/algo/swing-scores-history?days=30'),
+    { refetchInterval: 300000, retry: 1 }
+  );
+
+  const itemsList = Array.isArray(items) ? items : items?.items || [];
 
   const sectors = useMemo(() => {
-    if (!items) return [];
-    return Array.from(new Set(items.map(i => i.sector).filter(Boolean))).sort();
-  }, [items]);
+    if (!itemsList) return [];
+    return Array.from(new Set(itemsList.map(i => i.sector).filter(Boolean))).sort();
+  }, [itemsList]);
 
   const filtered = useMemo(() => {
-    if (!items) return [];
+    if (!itemsList) return [];
     const q = search.trim().toUpperCase();
-    return items.filter(i => {
+    return itemsList.filter(i => {
       if (q && !(i.symbol || '').toUpperCase().includes(q)) return false;
       if (grade && i.grade !== grade) return false;
       if (sector && i.sector !== sector) return false;
@@ -99,26 +96,26 @@ export default function SwingCandidates() {
       if (gateFilter === 'fail' && i.pass_gates) return false;
       return true;
     });
-  }, [items, search, grade, sector, gateFilter]);
+  }, [itemsList, search, grade, sector, gateFilter]);
 
   const stats = useMemo(() => {
-    if (!items) return { total: 0, passing: 0, gradeA: 0, top10Score: 0 };
-    const passing = items.filter(i => i.pass_gates).length;
-    const gradeA = items.filter(i => i.grade === 'A' || i.grade === 'A+').length;
-    const top10 = items.slice(0, 10);
+    if (!itemsList) return { total: 0, passing: 0, gradeA: 0, top10Score: 0 };
+    const passing = itemsList.filter(i => i.pass_gates).length;
+    const gradeA = itemsList.filter(i => i.grade === 'A' || i.grade === 'A+').length;
+    const top10 = itemsList.slice(0, 10);
     const top10Score = top10.length === 0 ? 0
       : top10.reduce((s, i) => s + (i.swing_score || 0), 0) / top10.length;
-    return { total: items.length, passing, gradeA, top10Score };
-  }, [items]);
+    return { total: itemsList.length, passing, gradeA, top10Score };
+  }, [itemsList]);
 
   const topAplus = useMemo(() =>
-    (items || []).filter(i => i.grade === 'A+').slice(0, 5),
-    [items]);
+    (itemsList || []).filter(i => i.grade === 'A+').slice(0, 5),
+    [itemsList]);
 
   const selected = useMemo(() => {
-    if (!selectedSym || !items) return null;
-    return items.find(i => i.symbol === selectedSym) || null;
-  }, [selectedSym, items]);
+    if (!selectedSym || !itemsList) return null;
+    return itemsList.find(i => i.symbol === selectedSym) || null;
+  }, [selectedSym, itemsList]);
 
   return (
     <div className="main-content">
@@ -254,7 +251,7 @@ export default function SwingCandidates() {
               <option value="85">Score ≥ 85</option>
             </select>
             <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
-              <Filter size={12} style={{ verticalAlign: '-2px' }} /> {filtered.length} of {items?.length || 0}
+              <Filter size={12} style={{ verticalAlign: '-2px' }} /> {filtered.length} of {itemsList?.length || 0}
             </span>
           </div>
         </div>
@@ -333,17 +330,16 @@ export default function SwingCandidates() {
 
 // ─── top A+ card with sparkline ────────────────────────────────────────────
 function TopCard({ c, onClick }) {
-  const { data } = useQuery({
-    queryKey: ['spark', c.symbol],
-    queryFn: () =>
-      api.get(`/api/prices/history/${c.symbol}?timeframe=daily&limit=60`)
-         .then(r => r.data?.data?.items || r.data?.items || []),
-    staleTime: 600000,
-  });
+  const { data } = useApiQuery(
+    ['spark', c.symbol],
+    () => api.get(`/api/prices/history/${c.symbol}?timeframe=daily&limit=60`),
+    { staleTime: 600000 }
+  );
 
   const series = useMemo(() => {
     if (!data) return [];
-    return [...data]
+    const items = Array.isArray(data) ? data : data?.items || [];
+    return [...items]
       .map(d => ({ date: String(d.date).slice(0, 10), close: Number(d.close) }))
       .filter(d => !isNaN(d.close))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -390,7 +386,8 @@ function TopCard({ c, onClick }) {
 }
 
 // ─── component radar ───────────────────────────────────────────────────────
-function ComponentRadar({ items, selected }) {
+function ComponentRadar({ items: itemsProp, selected }) {
+  const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
     if (!items || items.length === 0) return [];
     const universeAvg = {}, top10Avg = {};
@@ -458,7 +455,8 @@ function ComponentRadar({ items, selected }) {
 }
 
 // ─── sector treemap ────────────────────────────────────────────────────────
-function SectorTreemap({ items, onSectorClick }) {
+function SectorTreemap({ items: itemsProp, onSectorClick }) {
+  const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
     if (!items) return [];
     const top50 = items.slice(0, 50);
@@ -526,7 +524,8 @@ function TreemapCell({ x, y, width, height, name, size, colors, onClick, index }
 }
 
 // ─── grade distribution + funnel ───────────────────────────────────────────
-function GradeFunnel({ items }) {
+function GradeFunnel({ items: itemsProp }) {
+  const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
     if (!items) return { grades: [], funnel: [] };
     const order = ['A+', 'A', 'B', 'C', 'D', 'F'];
@@ -606,7 +605,8 @@ function GradeFunnel({ items }) {
 }
 
 // ─── component correlation matrix ──────────────────────────────────────────
-function ComponentCorrelation({ items }) {
+function ComponentCorrelation({ items: itemsProp }) {
+  const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const matrix = useMemo(() => {
     if (!items || items.length < 5) return null;
     // Build columns of values

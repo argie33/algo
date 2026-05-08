@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useApiQuery } from '../hooks/useApiQuery';
 import {
   RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity,
 } from 'lucide-react';
@@ -27,26 +27,26 @@ const STATUS_VARIANT = {
 };
 
 export default function ServiceHealth() {
-  const { data: dataStatus, isLoading, refetch } = useQuery({
-    queryKey: ['algo-data-status'],
-    queryFn: () => api.get('/api/algo/data-status').then(r => r.data?.data),
-    refetchInterval: 30000,
-  });
-  const { data: patrolLog } = useQuery({
-    queryKey: ['algo-patrol-log'],
-    queryFn: () => api.get('/api/algo/patrol-log?limit=50').then(r => r.data),
-    refetchInterval: 60000,
-  });
-  const { data: status } = useQuery({
-    queryKey: ['algo-status'],
-    queryFn: () => api.get('/api/algo/status').then(r => r.data?.data),
-    refetchInterval: 30000,
-  });
+  const { data: dataStatus, loading: isLoading, refetch } = useApiQuery(
+    ['algo-data-status'],
+    () => api.get('/api/algo/data-status'),
+    { refetchInterval: 30000 }
+  );
+  const { data: patrolLog } = useApiQuery(
+    ['algo-patrol-log'],
+    () => api.get('/api/algo/patrol-log?limit=50'),
+    { refetchInterval: 60000 }
+  );
+  const { data: status } = useApiQuery(
+    ['algo-status'],
+    () => api.get('/api/algo/status'),
+    { refetchInterval: 30000 }
+  );
 
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };
   const sources = dataStatus?.sources || [];
   const ready = dataStatus?.ready_to_trade;
-  const findings = patrolLog?.items || [];
+  const findings = patrolLog?.items || patrolLog?.data?.items || [];
 
   return (
     <div className="main-content">

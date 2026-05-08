@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "../hooks/useApiQuery";
 import {
   Container,
   Box,
@@ -31,39 +31,39 @@ function FinancialData() {
   const [period, setPeriod] = useState("annual");
 
   // Get companies list
-  const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ["companies"],
-    queryFn: () => getStocks({ limit: 1000 }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: companiesData, loading: companiesLoading } = useApiQuery(
+    ["companies"],
+    () => getStocks({ limit: 1000 }),
+    { staleTime: 5 * 60 * 1000 }
+  );
 
   const companies = companiesData?.data ?? [];
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   // Get financial data with period selection
-  const { data: balanceSheetData, isLoading: bsLoading } = useQuery({
-    queryKey: ["balance-sheet", ticker, period],
-    queryFn: () => getBalanceSheet(ticker, period),
-    enabled: !!ticker,
-  });
+  const { data: balanceSheetData, loading: bsLoading } = useApiQuery(
+    ["balance-sheet", ticker, period],
+    () => getBalanceSheet(ticker, period),
+    { enabled: !!ticker }
+  );
 
-  const { data: incomeStatementData, isLoading: isLoading } = useQuery({
-    queryKey: ["income-statement", ticker, period],
-    queryFn: () => getIncomeStatement(ticker, period),
-    enabled: !!ticker,
-  });
+  const { data: incomeStatementData, loading: isLoading } = useApiQuery(
+    ["income-statement", ticker, period],
+    () => getIncomeStatement(ticker, period),
+    { enabled: !!ticker }
+  );
 
-  const { data: cashFlowData, isLoading: cfLoading } = useQuery({
-    queryKey: ["cash-flow", ticker, period],
-    queryFn: () => getCashFlowStatement(ticker, period),
-    enabled: !!ticker,
-  });
+  const { data: cashFlowData, loading: cfLoading } = useApiQuery(
+    ["cash-flow", ticker, period],
+    () => getCashFlowStatement(ticker, period),
+    { enabled: !!ticker }
+  );
 
-  const { data: keyMetricsData, isLoading: kmLoading } = useQuery({
-    queryKey: ["key-metrics", ticker],
-    queryFn: () => getKeyMetrics(ticker),
-    enabled: !!ticker,
-  });
+  const { data: keyMetricsData, loading: kmLoading } = useApiQuery(
+    ["key-metrics", ticker],
+    () => getKeyMetrics(ticker),
+    { enabled: !!ticker }
+  );
 
   const getFinancialData = (data) => {
     return data?.data?.financialData || [];

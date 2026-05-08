@@ -55,7 +55,17 @@ module "database" {
   db_backup_retention_days  = var.rds_backup_retention_period
   db_master_username        = var.rds_username
   db_master_password        = var.rds_password
+  rds_db_name               = var.rds_db_name
+  db_multi_az               = false
+  enable_rds_kms_encryption = false
+  rds_kms_key_id            = null
+  enable_rds_alarms         = var.environment != "dev"
+  alarm_sns_topic_arn       = null
+  rds_cpu_alarm_threshold   = 80
+  rds_storage_alarm_threshold = 10737418240
+  rds_connections_alarm_threshold = 50
   notification_email        = var.notification_email
+  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
   common_tags               = local.common_tags
 }
 

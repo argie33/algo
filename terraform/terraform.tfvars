@@ -9,6 +9,9 @@ github_repository      = "argeropolos/algo"
 github_ref_path        = "refs/heads/main"
 notification_email     = "argeropolos@gmail.com"
 
+# GitHub Actions will override rds_password with secrets.RDS_PASSWORD
+# Environment variable: TF_VAR_rds_password
+
 # ============================================================
 # Network
 # ============================================================
@@ -24,7 +27,7 @@ enable_vpc_endpoints   = true
 # ============================================================
 
 rds_username           = "stocks"
-rds_password           = "CHANGE_ME_TO_STRONG_PASSWORD_8_CHARS_MIN"  # REQUIRED: Change before deploy
+rds_password           = "StocksProd2024!"  # REQUIRED: Change to a unique password for production
 rds_db_name            = "stocks"
 rds_instance_class     = "db.t3.micro"
 rds_allocated_storage  = 61
@@ -46,7 +49,7 @@ ecs_default_capacity_provider_strategy = [
   { capacity_provider = "FARGATE", weight = 1 }
 ]
 
-bastion_enabled        = true
+bastion_enabled        = false
 bastion_instance_type  = "t3.micro"
 bastion_shutdown_hour_utc = 4
 bastion_shutdown_minute_utc = 59

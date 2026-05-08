@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "../hooks/useApiQuery";
 import api from "../services/api";
 import {
   Box,
@@ -46,56 +46,44 @@ function EarningsCalendar() {
   // Fetch S&P 500 earnings trend data
   const {
     data: sp500TrendData,
-    isLoading: sp500Loading,
+    loading: sp500Loading,
     error: sp500Error,
-  } = useQuery({
-    queryKey: ["sp500EarningsTrend"],
-    queryFn: async () => {
-      const response = await api.get('/api/earnings/sp500-trend');
-      return response.data;
-    },
-    staleTime: 1000 * 60 * 60,
-  });
+  } = useApiQuery(
+    ["sp500EarningsTrend"],
+    () => api.get('/api/earnings/sp500-trend'),
+    { staleTime: 1000 * 60 * 60 }
+  );
 
   // Fetch sector earnings trend
   const {
     data: sectorTrendData,
-    isLoading: sectorTrendLoading,
+    loading: sectorTrendLoading,
     error: sectorTrendError,
-  } = useQuery({
-    queryKey: ["sectorEarningsTrend"],
-    queryFn: async () => {
-      const response = await api.get('/api/earnings/sector-trend');
-      return response.data;
-    },
-    staleTime: 1000 * 60 * 60,
-  });
+  } = useApiQuery(
+    ["sectorEarningsTrend"],
+    () => api.get('/api/earnings/sector-trend'),
+    { staleTime: 1000 * 60 * 60 }
+  );
 
   // Fetch upcoming earnings
   const {
     data: upcomingData,
-    isLoading: upcomingLoading,
+    loading: upcomingLoading,
     error: upcomingError,
-  } = useQuery({
-    queryKey: ["upcomingEarnings", page, rowsPerPage],
-    queryFn: async () => {
-      const response = await api.get(`/api/earnings/calendar?period=upcoming&limit=50`);
-      return response.data?.items || [];
-    },
-  });
+  } = useApiQuery(
+    ["upcomingEarnings", page, rowsPerPage],
+    () => api.get(`/api/earnings/calendar?period=upcoming&limit=50`)
+  );
 
   // Fetch past earnings
   const {
     data: pastData,
-    isLoading: pastLoading,
+    loading: pastLoading,
     error: pastError,
-  } = useQuery({
-    queryKey: ["pastEarnings"],
-    queryFn: async () => {
-      const response = await api.get('/api/earnings/calendar?period=past&limit=50');
-      return response.data?.items || [];
-    },
-  });
+  } = useApiQuery(
+    ["pastEarnings"],
+    () => api.get('/api/earnings/calendar?period=past&limit=50')
+  );
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
