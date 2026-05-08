@@ -43,6 +43,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 
+try:
+    from algo_connection_monitor import on_connect as monitor_on_connect, on_disconnect as monitor_on_disconnect
+except ImportError:
+    # If monitor not available, provide no-op functions
+    def monitor_on_connect():
+        pass
+    def monitor_on_disconnect():
+        pass
+
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
@@ -69,6 +78,7 @@ class SignalComputer:
             self._owned = psycopg2.connect(**DB_CONFIG)
             self.cur = self._owned.cursor()
             self._nesting_level = 1
+            monitor_on_connect()
         else:
             self._nesting_level += 1
 
@@ -79,6 +89,7 @@ class SignalComputer:
             self.cur = None
             self._owned = None
             self._nesting_level = 0
+            monitor_on_disconnect()
         elif self._nesting_level > 1:
             self._nesting_level -= 1
 
@@ -1280,78 +1291,84 @@ class SignalComputer:
           'pivot_high': float,
         }
         """
-        self.connect()
-        # Need ~12 weeks of weekly data
-        self.cur.execute(
-            """
-            SELECT date, high, low, close FROM price_weekly
-            WHERE symbol = %s AND date <= %s
-            ORDER BY date DESC LIMIT 12
-            """,
-            (symbol, eval_date),
-        )
-        rows = self.cur.fetchall()
-        if len(rows) < 8:
-            return {'is_htf': False, 'reason': 'insufficient weekly history'}
+        try:
+            self.connect()
+            # Need ~12 weeks of weekly data
+            self.cur.execute(
+                """
+                SELECT date, high, low, close FROM price_weekly
+                WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT 12
+                """,
+                (symbol, eval_date),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < 8:
+                return {'is_htf': False, 'reason': 'insufficient weekly history'}
 
-        rows = list(reversed(rows))  # chronological
-        highs = [float(r[1]) for r in rows]
-        lows = [float(r[2]) for r in rows]
-        closes = [float(r[3]) for r in rows]
+            rows = list(reversed(rows))  # chronological
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
+            closes = [float(r[3]) for r in rows]
 
-        # Look for last 1-3 weeks (consolidation) and prior 4-8 weeks (advance)
-        # Try different consolidation lengths
-        best_htf = None
-        for cons_weeks in (1, 2, 3):
-            if len(rows) < 4 + cons_weeks:
-                continue
-            cons_section = closes[-cons_weeks:]
-            cons_highs = highs[-cons_weeks:]
-            cons_lows = lows[-cons_weeks:]
-            cons_high = max(cons_highs)
-            cons_low = min(cons_lows)
-            cons_pct = (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
-
-            # Tight consolidation: <= 25% range (HTF is allowed wider than other bases)
-            if cons_pct > 25:
-                continue
-
-            # Prior advance: 4-8 weeks before consolidation
-            for adv_weeks in (4, 5, 6, 7, 8):
-                if len(rows) < adv_weeks + cons_weeks:
+            # Look for last 1-3 weeks (consolidation) and prior 4-8 weeks (advance)
+            # Try different consolidation lengths
+            best_htf = None
+            for cons_weeks in (1, 2, 3):
+                if len(rows) < 4 + cons_weeks:
                     continue
-                advance_section = closes[-(adv_weeks + cons_weeks):-cons_weeks]
-                if not advance_section:
+                cons_section = closes[-cons_weeks:]
+                cons_highs = highs[-cons_weeks:]
+                cons_lows = lows[-cons_weeks:]
+                cons_high = max(cons_highs)
+                cons_low = min(cons_lows)
+                cons_pct = (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
+
+                # Tight consolidation: <= 25% range (HTF is allowed wider than other bases)
+                if cons_pct > 25:
                     continue
-                start_close = advance_section[0]
-                end_close = advance_section[-1]
-                if start_close <= 0:
-                    continue
-                advance_pct = (end_close - start_close) / start_close * 100.0
-                # 100%+ advance qualifies
-                if advance_pct >= 100:
-                    if best_htf is None or advance_pct > best_htf['advance']:
-                        best_htf = {
-                            'advance': advance_pct,
-                            'cons_pct': cons_pct,
-                            'cons_weeks': cons_weeks,
-                            'pivot_high': cons_high,
-                        }
 
-        if best_htf:
-            return {
-                'is_htf': True,
-                'prior_advance_pct': round(best_htf['advance'], 1),
-                'consolidation_pct': round(best_htf['cons_pct'], 1),
-                'consolidation_weeks': best_htf['cons_weeks'],
-                'pivot_high': round(best_htf['pivot_high'], 2),
-            }
-        return {'is_htf': False}
+                # Prior advance: 4-8 weeks before consolidation
+                for adv_weeks in (4, 5, 6, 7, 8):
+                    if len(rows) < adv_weeks + cons_weeks:
+                        continue
+                    advance_section = closes[-(adv_weeks + cons_weeks):-cons_weeks]
+                    if not advance_section:
+                        continue
+                    start_close = advance_section[0]
+                    end_close = advance_section[-1]
+                    if start_close <= 0:
+                        continue
+                    advance_pct = (end_close - start_close) / start_close * 100.0
+                    # 100%+ advance qualifies
+                    if advance_pct >= 100:
+                        if best_htf is None or advance_pct > best_htf['advance']:
+                            best_htf = {
+                                'advance': advance_pct,
+                                'cons_pct': cons_pct,
+                                'cons_weeks': cons_weeks,
+                                'pivot_high': cons_high,
+                            }
 
-    # ============================================================
-    # POWER TREND (Minervini)
-    # ============================================================
+            if best_htf:
+                return {
+                    'is_htf': True,
+                    'prior_advance_pct': round(best_htf['advance'], 1),
+                    'consolidation_pct': round(best_htf['cons_pct'], 1),
+                    'consolidation_weeks': best_htf['cons_weeks'],
+                    'pivot_high': round(best_htf['pivot_high'], 2),
+                }
+            return {'is_htf': False}
 
+        # ============================================================
+        # POWER TREND (Minervini)
+        # ============================================================
+
+        finally:
+            try:
+                self.disconnect()
+            except Exception:
+                pass
     def power_trend(self, symbol, eval_date):
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
@@ -1460,40 +1477,46 @@ class SignalComputer:
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
         """
-        self.connect()
-        self.cur.execute(
-            """
-            WITH d AS (
-                SELECT date, close, volume,
-                       MAX(high) OVER (ORDER BY date ROWS BETWEEN 21 PRECEDING AND 1 PRECEDING) AS pivot,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol_50
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 1
+        try:
+            self.connect()
+            self.cur.execute(
+                """
+                WITH d AS (
+                    SELECT date, close, volume,
+                           MAX(high) OVER (ORDER BY date ROWS BETWEEN 21 PRECEDING AND 1 PRECEDING) AS pivot,
+                           AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol_50
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                )
+                SELECT close, pivot, volume, avg_vol_50 FROM d
+                """,
+                (symbol, eval_date),
             )
-            SELECT close, pivot, volume, avg_vol_50 FROM d
-            """,
-            (symbol, eval_date),
-        )
-        row = self.cur.fetchone()
-        if not row or row[1] is None:
-            return {'breakout': False}
-        close = float(row[0])
-        pivot = float(row[1])
-        volume = float(row[2]) if row[2] else 0
-        avg_vol = float(row[3]) if row[3] else 0
-        breakout = close > pivot * 1.005   # 0.5% buffer to avoid noise
-        on_volume = avg_vol > 0 and volume > avg_vol
-        return {
-            'breakout': breakout and on_volume,
-            'close': close,
-            'pivot': round(pivot, 2),
-            'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
-            'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
-        }
+            row = self.cur.fetchone()
+            if not row or row[1] is None:
+                return {'breakout': False}
+            close = float(row[0])
+            pivot = float(row[1])
+            volume = float(row[2]) if row[2] else 0
+            avg_vol = float(row[3]) if row[3] else 0
+            breakout = close > pivot * 1.005   # 0.5% buffer to avoid noise
+            on_volume = avg_vol > 0 and volume > avg_vol
+            return {
+                'breakout': breakout and on_volume,
+                'close': close,
+                'pivot': round(pivot, 2),
+                'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
+                'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
+            }
 
-    # ---- shared helpers ----
+        # ---- shared helpers ----
 
+        finally:
+            try:
+                self.disconnect()
+            except Exception:
+                pass
     def _period_return(self, symbol, end_date, lookback_days):
         self.cur.execute(
             """
