@@ -294,12 +294,12 @@ class TradeExecutor:
             if execution_mode in ('paper', 'dry'):
                 logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
                 alpaca_order_id = f'LOCAL-{trade_id}'
-                order_status = 'filled'
+                order_status = 'open'  # P4: Changed from 'filled' to standardized 'open'
                 executed_price = entry_price
             elif execution_mode == 'review':
                 logger.info(f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}")
                 alpaca_order_id = f'PENDING-{trade_id}'
-                order_status = 'pending_review'
+                order_status = 'pending'  # P4: Standardized status
                 executed_price = entry_price
             else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
                 logger.info(f"[ENTRY] {symbol}: AUTO mode - sending to Alpaca")
