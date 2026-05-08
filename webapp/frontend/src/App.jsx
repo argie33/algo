@@ -65,6 +65,7 @@ import Terms from "./pages/marketing/Terms";
 import Privacy from "./pages/marketing/Privacy";
 import InvestmentTools from "./pages/marketing/InvestmentTools";
 import WealthManagement from "./pages/marketing/WealthManagement";
+import LoginPage from "./pages/LoginPage";
 
 // Layout components
 import AppLayout from "./components/AppLayout";
@@ -369,7 +370,9 @@ function App() {
           {/* Legal Pages */}
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
-          <Route path="/login" element={<Home />} />
+
+          {/* Authentication */}
+          <Route path="/login" element={<LoginPage />} />
 
           {/* Fallback for marketing - if route doesn't exist, redirect to home */}
           <Route path="*" element={<Home />} />
