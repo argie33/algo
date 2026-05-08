@@ -58,6 +58,7 @@ import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
+from typing import Dict, List, Any, Optional, Tuple
 from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
 
@@ -366,7 +367,7 @@ class Orchestrator:
 
     # ---------- Phase implementations ----------
 
-    def phase_1_data_freshness(self):
+    def phase_1_data_freshness(self) -> bool:
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
         conn = None
         cur = None
@@ -440,7 +441,7 @@ class Orchestrator:
                 except Exception:
                     pass
 
-    def phase_2_circuit_breakers(self):
+    def phase_2_circuit_breakers(self) -> bool:
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
         try:
             from algo_circuit_breaker import CircuitBreaker
@@ -492,7 +493,7 @@ class Orchestrator:
             self.log_phase_result(2, 'circuit_breakers', 'error', str(e))
             return False
 
-    def phase_3_position_monitor(self):
+    def phase_3_position_monitor(self) -> List[Dict[str, Any]]:
         self.log_phase_start(3, 'POSITION MONITOR')
         try:
             from algo_position_monitor import PositionMonitor
@@ -548,7 +549,7 @@ class Orchestrator:
             self._position_recs = []
             return True   # fail-open
 
-    def phase_3a_reconciliation(self):
+    def phase_3a_reconciliation(self) -> Dict[str, Any]:
         """Check that DB positions match Alpaca account holdings.
 
         FAIL-OPEN: alerts on divergence but doesn't block trading.
@@ -589,7 +590,7 @@ class Orchestrator:
             self.log_phase_result('3a', 'reconciliation', 'error', str(e))
             return True  # fail-open
 
-    def phase_3b_exposure_policy(self):
+    def phase_3b_exposure_policy(self) -> Dict[str, Any]:
         """Apply market exposure tier policy to existing positions.
 
         Tighten stops on extended winners, force partial profits, and force-exit
@@ -649,7 +650,7 @@ class Orchestrator:
             self._exposure_constraints = None
             return True  # fail-open
 
-    def phase_4_exit_execution(self):
+    def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(4, 'EXIT EXECUTION')
         try:
             from algo_trade_executor import TradeExecutor
@@ -842,7 +843,7 @@ class Orchestrator:
             self.log_phase_result(4, 'exit_execution', 'error', str(e))
             return True
 
-    def phase_4b_pyramid_adds(self):
+    def phase_4b_pyramid_adds(self) -> List[Dict[str, Any]]:
         """Add to winners (Livermore) — runs after exits, before new entries."""
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
         try:
@@ -873,7 +874,7 @@ class Orchestrator:
             self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
             return True
 
-    def phase_5_signal_generation(self):
+    def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         try:
             from algo_filter_pipeline import FilterPipeline
@@ -895,7 +896,7 @@ class Orchestrator:
             self._qualified_trades = []
             return True
 
-    def phase_6_entry_execution(self):
+    def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(6, 'ENTRY EXECUTION')
         try:
             from algo_trade_executor import TradeExecutor
@@ -1052,7 +1053,7 @@ class Orchestrator:
             self.log_phase_result(6, 'entry_execution', 'error', str(e))
             return True
 
-    def phase_7_reconcile(self):
+    def phase_7_reconcile(self) -> Dict[str, Any]:
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
         try:
             from algo_daily_reconciliation import DailyReconciliation
@@ -1124,7 +1125,7 @@ class Orchestrator:
 
     # ---------- Main entrypoint ----------
 
-    def run(self):
+    def run(self) -> Dict[str, Any]:
         print(f"\n{'#'*70}")
         print(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         print(f"#   run_id: {self.run_id}")
