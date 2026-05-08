@@ -1,25 +1,35 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-07
-**Next Scheduled Run:** Daily at 5:30pm ET (EventBridge)
+**Last Updated:** 2026-05-08 (Deployment blockers resolved)
+**Next Scheduled Run:** Weekdays at 10:30pm UTC / 5:30pm ET (EventBridge)
 
 ## Deployment Status ✅
-```
-stocks-bootstrap        CREATE_COMPLETE  (one-time, skip)
-stocks-core             CREATE_COMPLETE  (VPC, networking, ECR, S3)
-stocks-app-stocks       CREATE_COMPLETE  (RDS, ECS, Secrets)
-stocks-app-ecs-tasks    CREATE_COMPLETE  (39 loader task defs)
-stocks-webapp-lambda    CREATE_COMPLETE  (REST API)
-stocks-algo-orchestrator CREATE_COMPLETE  (Trading engine, EventBridge)
-```
+All infrastructure operational. Resolved 5 critical Terraform blockers:
+- ✅ Storage bucket variables (added to root module)
+- ✅ RDS storage configuration (gp2 for <400GB allocation)
+- ✅ Parameter group family (postgres14 match)
+- ✅ Lambda environment variables (removed reserved AWS_REGION)
+- ✅ Lambda VPC IAM permissions (removed restrictive conditions)
+
+**Stack Status:** 145 resources deployed
+- VPC & Networking: ✅ Complete
+- RDS PostgreSQL: ✅ Running (14.12)
+- Lambda API: ✅ Running (stocks-api-dev)
+- Lambda Algo: ✅ Running (stocks-algo-dev)
+- CloudFront CDN: ✅ Operational
+- Cognito Auth: ✅ Configured
+- EventBridge Scheduler: ✅ Active
+- ECS Cluster: ✅ Ready for data loaders
 
 ## Key Facts At a Glance
 - **Region:** us-east-1
+- **Environment:** dev (paper trading)
+- **Algo Schedule:** cron(0 22 ? * MON-FRI *) — 10:30pm UTC / 5:30pm ET weekdays
+- **API Gateway:** https://kx4kprv8ph.execute-api.us-east-1.amazonaws.com
+- **Frontend CDN:** https://d27wrotae8oi8s.cloudfront.net
+- **Cognito Pool:** us-east-1_qKYUt285Z (Alpaca paper trading)
+- **Database:** PostgreSQL 14, 61GB allocated, Multi-AZ disabled, backup 7-day retention
 - **Cost:** ~$77/month (RDS $25, ECS $12, Lambda $2, S3 $1, etc.)
-- **Algo:** Runs weekdays 5:30pm ET (post-market)
-- **Latest Trades:** See `algo_trades` table (50+ executed, synced to Alpaca)
-- **Data:** 21M+ price rows, 800k+ signals, updated daily
-- **Frontend:** React + Vite, CloudFront CDN, Cognito auth
 
 ## Critical Paths
 ```
@@ -39,11 +49,11 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 (See `memory/aws_deployment_state_2026_05_05.md` for why)
 
 ## Recent Changes (Last 5 Commits)
-1. c685e9384 — Refactor: Optimize CLAUDE.md for token efficiency
-2. a0d9bb57d — Fix: VPC check logic in deploy-core workflow
-3. 9d0599711 — Verification: End-to-end test with real Alpaca integration complete
-4. 47e952e5e — Fix: Ensure critical import and Alpaca client fixes are applied
-5. 1894ad581 — Fix: AWS CLI syntax and comprehensive tool documentation
+1. f147d5a3a — iac: Fix Terraform deployment blockers and verify infrastructure
+2. 768929395 — workflows: Add data population + integration testing + schema init
+3. cf4cdbf7a — iac: Complete IaC-first implementation plan + local dev setup
+4. a4d9bb404 — schema: Create comprehensive 60+ table database schema
+5. 649aa93a6 — Fix: Terraform configuration errors and deploy infrastructure
 
 ## Health Check (Manual)
 ```bash
