@@ -272,22 +272,26 @@ class QuickWinsDeployment:
         print("QUICK WINS FULL SYSTEM DEPLOYMENT - VERIFICATION & LOADING")
         print("=" * 65)
 
-        if not self.connect_db():
-            return 1
+        try:
+            if not self.connect_db():
+                return 1
 
-        # Run all phases
-        self.test_timescaledb()
-        self.test_data_completeness()
-        self.test_performance()
-        self.test_cost_controls()
+            # Run all phases
+            self.test_timescaledb()
+            self.test_data_completeness()
+            self.test_performance()
+            self.test_cost_controls()
 
-        # Generate report
-        self.generate_report()
+            # Generate report
+            self.generate_report()
 
-        if self.conn:
-            self.conn.close()
-
-        return 0
+            return 0
+        finally:
+            if self.conn:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
 
 def main():
     try:
