@@ -250,13 +250,10 @@ data "aws_iam_policy_document" "github_actions" {
       "kms:GenerateDataKey"
     ]
 
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
   }
 
   # CloudWatch Logs for monitoring
@@ -380,13 +377,10 @@ data "aws_iam_policy_document" "bastion" {
       "kms:DescribeKey"
     ]
 
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
   }
 }
 
@@ -547,13 +541,10 @@ data "aws_iam_policy_document" "ecs_task" {
       "kms:Decrypt"
     ]
 
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
   }
 
   # S3 data bucket (for loader staging)
@@ -658,13 +649,10 @@ data "aws_iam_policy_document" "lambda_api" {
       "kms:Decrypt"
     ]
 
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
   }
 
   # CloudWatch Logs

@@ -52,7 +52,7 @@ resource "aws_db_instance" "main" {
 
   # Encryption
   storage_encrypted            = true
-  kms_key_id                   = null # Use default AWS managed key
+  kms_key_id                   = var.enable_rds_kms_encryption ? var.rds_kms_key_id : null
   iam_database_authentication_enabled = true
 
   # Monitoring & Logs
@@ -62,9 +62,9 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled     = false # Additional cost, disable for dev
 
   # Deletion Protection
-  deletion_protection = false # Allow deletion, but backup is retained
-  skip_final_snapshot = false
-  final_snapshot_identifier = "${var.project_name}-db-final-snapshot-${var.environment}"
+  deletion_protection         = var.environment == "prod" ? true : false
+  skip_final_snapshot         = var.environment == "prod" ? false : false
+  final_snapshot_identifier   = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"
@@ -80,7 +80,8 @@ resource "aws_db_instance" "main" {
 
   depends_on = [
     aws_db_subnet_group.main,
-    aws_iam_role.rds_monitoring
+    aws_iam_role.rds_monitoring,
+    aws_db_parameter_group.main
   ]
 }
 
@@ -93,15 +94,14 @@ resource "aws_db_parameter_group" "main" {
   description = "PostgreSQL 15 parameter group for ${var.project_name}"
   family      = "postgres15"
 
-  # Time-series optimization via BRIN indexes (CloudFormation note)
   parameter {
     name  = "log_statement"
-    value = "all" # Log all statements (remove for prod)
+    value = var.environment == "prod" ? "none" : "ddl"
   }
 
   parameter {
     name  = "log_min_duration_statement"
-    value = "1000" # Log queries > 1 second
+    value = var.environment == "prod" ? "5000" : "1000"
   }
 
   tags = var.common_tags

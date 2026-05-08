@@ -88,3 +88,9 @@ variable "log_archive_intelligent_tiering_enabled" {
   type        = bool
   default     = true
 }
+
+variable "enforce_kms_encryption" {
+  description = "Enforce KMS-only encryption for S3 buckets (production recommended)"
+  type        = bool
+  default     = false
+}

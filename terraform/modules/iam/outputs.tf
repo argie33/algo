@@ -5,7 +5,7 @@
 # GitHub Actions OIDC & Role
 output "github_oidc_provider_arn" {
   description = "ARN of GitHub Actions OIDC provider"
-  value       = data.aws_iam_openid_connect_provider.github_existing.arn
+  value       = data.aws_iam_openid_connect_provider.github.arn
 }
 
 output "github_actions_role_arn" {
@@ -27,12 +27,22 @@ output "bastion_role_arn" {
 output "bastion_instance_profile_name" {
   description = "Name of Bastion instance profile (for launch template)"
   value       = var.bastion_enabled ? aws_iam_instance_profile.bastion[0].name : null
+
+  precondition {
+    condition     = !var.bastion_enabled || aws_iam_instance_profile.bastion[0].name != ""
+    error_message = "Bastion instance profile must exist when bastion_enabled = true"
+  }
 }
 
 # ECS
 output "ecs_task_execution_role_arn" {
   description = "ARN of ECS task execution role"
   value       = aws_iam_role.ecs_task_execution.arn
+
+  precondition {
+    condition     = can(aws_iam_role.ecs_task_execution.arn)
+    error_message = "ECS task execution role must be created successfully"
+  }
 }
 
 output "ecs_task_execution_role_name" {

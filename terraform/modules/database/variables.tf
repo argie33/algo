@@ -98,6 +98,18 @@ variable "db_backup_retention_days" {
   }
 }
 
+variable "enable_rds_kms_encryption" {
+  description = "Enable customer-managed KMS key for RDS encryption (recommended for prod)"
+  type        = bool
+  default     = false
+}
+
+variable "rds_kms_key_id" {
+  description = "KMS key ID for RDS encryption (only used if enable_rds_kms_encryption=true)"
+  type        = string
+  default     = null
+}
+
 # ============================================================
 # Network Configuration
 # ============================================================

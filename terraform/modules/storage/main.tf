@@ -348,6 +348,18 @@ resource "aws_s3_bucket_policy" "code_vpc_endpoint_only" {
             "aws:PrincipalAccount" = var.aws_account_id
           }
         }
+      },
+      {
+        Sid    = "DenyUnencryptedObjectUploads"
+        Effect = "Deny"
+        Principal = "*"
+        Action = "s3:PutObject"
+        Resource = "${aws_s3_bucket.code.arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = var.enforce_kms_encryption ? "aws:kms" : "AES256"
+          }
+        }
       }
     ]
   })
