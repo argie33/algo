@@ -90,9 +90,11 @@ def audit():
     results = []
 
     for tbl, date_col, freq, role, stale_days in DATA_SOURCES:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
+        conn = None
+        cur = None
         try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
             tbl_safe = assert_safe_table(tbl)
             if date_col:
                 date_col_safe = assert_safe_column(date_col)
@@ -129,15 +131,25 @@ def audit():
                 'error': str(e)[:80],
             })
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
     return results
 
 
 def persist(results):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
+    conn = None
+    cur = None
     try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
         # Note: data_loader_status table created by init_database.py (schema as code)
 
         critical_issues = []
@@ -178,8 +190,16 @@ def persist(results):
             _alert_critical_staleness(critical_issues)
 
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _alert_critical_staleness(issues):

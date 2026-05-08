@@ -146,6 +146,8 @@ class AlgoConfig:
         if psycopg2 is None:
             print("Warning: psycopg2 not available, using defaults")
             return
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -160,12 +162,20 @@ class AlgoConfig:
                         self._config[key] = self._parse_value(value, dtype)
                     except ValueError as e:
                         print(f"Warning: Invalid config {key}={value}: {e} — using default")
-
-            cur.close()
-            conn.close()
         except Exception as e:
             print(f"Warning: Could not load config from DB: {e}")
             print("  Using defaults...")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _parse_value(self, value, dtype):
         """Parse configuration value to correct type."""
@@ -224,6 +234,8 @@ class AlgoConfig:
 
         Returns: (success: bool, message: str)
         """
+        conn = None
+        cur = None
         try:
             # Validate before storing
             self._validate_value(key, str(value), value_type)
@@ -242,8 +254,6 @@ class AlgoConfig:
             """, (key, str(value), value_type, description))
 
             conn.commit()
-            cur.close()
-            conn.close()
 
             # Update in-memory config
             self._config[key] = self._parse_value(str(value), value_type)
@@ -255,9 +265,22 @@ class AlgoConfig:
         except Exception as e:
             print(f"Error setting config {key}: {e}")
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def initialize_defaults(self):
         """Initialize all default configs in database."""
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -271,12 +294,21 @@ class AlgoConfig:
 
             conn.commit()
             print(f"✓ Initialized {len(self.DEFAULTS)} config defaults")
-            cur.close()
-            conn.close()
             return True
         except Exception as e:
             print(f"Error initializing defaults: {e}")
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def reload(self):
         """Reload configuration from database."""
