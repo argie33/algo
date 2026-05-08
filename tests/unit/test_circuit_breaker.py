@@ -109,13 +109,17 @@ class TestConsecutiveLossesCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (2,)
+            mock_cur.fetchall.return_value = [
+                (-1.5, date.today()),
+                (-0.8, date.today() - timedelta(days=1)),
+                (1.2, date.today() - timedelta(days=2)),
+            ]
 
             result = cb._check_consecutive_losses(date.today())
 
             assert result['halted'] is False
+            assert result['value'] == 2
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_three_consecutive_losses_halt(self, test_config):
         """3 consecutive losses should halt."""
         from algo_circuit_breaker import CircuitBreaker
@@ -126,18 +130,22 @@ class TestConsecutiveLossesCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (3,)
+            mock_cur.fetchall.return_value = [
+                (-1.5, date.today()),
+                (-0.8, date.today() - timedelta(days=1)),
+                (-0.9, date.today() - timedelta(days=2)),
+            ]
 
             result = cb._check_consecutive_losses(date.today())
 
             assert result['halted'] is True
+            assert result['value'] >= 3
 
 
 @pytest.mark.unit
 class TestTotalRiskCircuitBreaker:
     """CB4: Halt if total_open_risk >= max_total_risk_pct (default 4%)."""
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_low_open_risk_ok(self, test_config):
         """2% open risk should not halt."""
         from algo_circuit_breaker import CircuitBreaker
@@ -148,14 +156,16 @@ class TestTotalRiskCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # 2k risk on 100k portfolio = 2%
-            mock_cur.fetchone.side_effect = [2000.0, (100000.0,)]
+            # Query 1: total open risk = 2000
+            # Query 2: portfolio value = 100000
+            # Risk pct = 2000 / 100000 * 100 = 2%
+            mock_cur.fetchone.side_effect = [(2000.0,), (100000.0,)]
 
             result = cb._check_total_risk(date.today())
 
             assert result['halted'] is False
+            assert result['value'] == 2.0
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_high_open_risk_halt(self, test_config):
         """5% open risk should halt."""
         from algo_circuit_breaker import CircuitBreaker
@@ -166,12 +176,15 @@ class TestTotalRiskCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # 5k risk on 100k portfolio = 5%
-            mock_cur.fetchone.side_effect = [5000.0, (100000.0,)]
+            # Query 1: total open risk = 5000
+            # Query 2: portfolio value = 100000
+            # Risk pct = 5000 / 100000 * 100 = 5%
+            mock_cur.fetchone.side_effect = [(5000.0,), (100000.0,)]
 
             result = cb._check_total_risk(date.today())
 
             assert result['halted'] is True
+            assert result['value'] >= 4.0
 
 
 @pytest.mark.unit
@@ -252,7 +265,6 @@ class TestMarketStageCircuitBreaker:
 class TestWeeklyLossCircuitBreaker:
     """CB7: Halt if weekly_loss >= max_weekly_loss_pct (default 5%)."""
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_low_weekly_loss_ok(self, test_config):
         """Weekly loss 3% should not halt."""
         from algo_circuit_breaker import CircuitBreaker
@@ -263,13 +275,14 @@ class TestWeeklyLossCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (-3.0,)
+            # Current portfolio value: 100000, week ago: 103000
+            # Weekly return = (100000 - 103000) / 103000 * 100 = -2.91%
+            mock_cur.fetchone.return_value = (100000.0, 103000.0)
 
             result = cb._check_weekly_loss(date.today())
 
             assert result['halted'] is False
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_high_weekly_loss_halt(self, test_config):
         """Weekly loss 5%+ should halt."""
         from algo_circuit_breaker import CircuitBreaker
@@ -280,7 +293,9 @@ class TestWeeklyLossCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (-6.0,)
+            # Current portfolio value: 95000, week ago: 100000
+            # Weekly return = (95000 - 100000) / 100000 * 100 = -5%
+            mock_cur.fetchone.return_value = (95000.0, 100000.0)
 
             result = cb._check_weekly_loss(date.today())
 
@@ -307,9 +322,8 @@ class TestDataFreshnessCircuitBreaker:
 
             assert result['halted'] is False
 
-    @pytest.mark.skip(reason="Circuit breaker test data mismatch")
     def test_stale_data_halt(self, test_config):
-        """Data > 3 days old should halt."""
+        """Data > max_data_staleness_days (default 5) should halt."""
         from algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
@@ -318,12 +332,13 @@ class TestDataFreshnessCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            stale_date = date.today() - timedelta(days=4)
+            stale_date = date.today() - timedelta(days=6)
             mock_cur.fetchone.return_value = (stale_date,)
 
             result = cb._check_data_freshness(date.today())
 
             assert result['halted'] is True
+            assert result['value'] > 5
 
 
 @pytest.mark.unit

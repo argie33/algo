@@ -404,6 +404,11 @@ resource "aws_cognito_user_pool" "main" {
 
   mfa_configuration = var.cognito_mfa_configuration
 
+  # Software token MFA (required if MFA is enabled)
+  software_token_mfa_configuration {
+    enabled = var.cognito_mfa_configuration != "OFF" ? true : false
+  }
+
   schema {
     name              = "email"
     attribute_data_type = "String"

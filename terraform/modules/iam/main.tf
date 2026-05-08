@@ -7,7 +7,21 @@
 # ============================================================
 
 # OIDC Provider for GitHub Actions trust
+# Note: GitHub OIDC provider is a singleton - only one per AWS account
+# If it already exists from bootstrap, we'll use a data source instead
+data "aws_iam_openid_connect_provider" "github_existing" {
+  arn = "arn:aws:iam::${var.aws_account_id}:oidc-provider/token.actions.githubusercontent.com"
+
+  depends_on = [
+    # This ensures the data source query happens after bootstrap
+    # If bootstrap hasn't run yet, this will fail gracefully
+  ]
+}
+
+# Only create if it doesn't exist
 resource "aws_iam_openid_connect_provider" "github" {
+  count = 0  # Disabled - using data source instead to reference existing provider
+
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
@@ -36,7 +50,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github_existing.arn]
     }
 
     # CRITICAL: Scope to THIS repository only
@@ -561,21 +575,24 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   # S3 data bucket (for loader staging)
-  statement {
-    sid    = "S3DataBucket"
-    effect = "Allow"
+  dynamic "statement" {
+    for_each = var.data_bucket_name != null ? [1] : []
+    content {
+      sid    = "S3DataBucket"
+      effect = "Allow"
 
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:ListBucket"
-    ]
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ]
 
-    resources = var.data_bucket_name != null ? [
-      "arn:aws:s3:::${var.data_bucket_name}",
-      "arn:aws:s3:::${var.data_bucket_name}/*"
-    ] : []
+      resources = [
+        "arn:aws:s3:::${var.data_bucket_name}",
+        "arn:aws:s3:::${var.data_bucket_name}/*"
+      ]
+    }
   }
 }
 

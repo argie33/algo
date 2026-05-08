@@ -235,7 +235,12 @@ resource "aws_autoscaling_group" "bastion" {
 
   lifecycle {
     create_before_destroy = true
+    ignore_changes = [
+      launch_template  # Ignore launch template version changes that don't require replacement
+    ]
   }
+
+  depends_on = [aws_launch_template.bastion]
 }
 
 # ============================================================

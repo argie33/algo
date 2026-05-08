@@ -49,6 +49,37 @@ def test_db():
 
 
 @pytest.fixture(scope="session")
+def seeded_test_db():
+    """Set up stocks_test database with schema and seed data.
+
+    This fixture runs once per session and sets up the complete test environment:
+    - Creates stocks_test database if it doesn't exist
+    - Initializes the schema
+    - Seeds minimal realistic test data (prices, signals, positions, trades)
+
+    Use this fixture in integration tests that need a real database with data.
+    """
+    from setup_test_db import setup_test_db
+    try:
+        setup_test_db()
+        print("\n✓ Test database setup complete")
+    except Exception as e:
+        print(f"\n✗ Test database setup failed: {e}")
+        raise
+
+    # Return a connection for tests to use
+    conn = psycopg2.connect(
+        host=TEST_DB_HOST,
+        port=TEST_DB_PORT,
+        database=TEST_DB_NAME,
+        user=TEST_DB_USER,
+        password=TEST_DB_PASSWORD,
+    )
+    yield conn
+    conn.close()
+
+
+@pytest.fixture(scope="session")
 def test_config():
     """Provide test configuration with institutional defaults."""
     from algo_config import AlgoConfig
@@ -79,43 +110,45 @@ def test_config():
 
 @pytest.fixture
 def alpaca_mock():
-    """Mock Alpaca API responses."""
+    """Mock Alpaca API responses with proper object attributes.
+
+    Returns objects that match the real Alpaca SDK interface:
+    - account.portfolio_value (string attribute)
+    - order.id, order.status, order.filled_qty, order.filled_avg_price (attributes)
+    """
+    class MockAccount:
+        def __init__(self):
+            self.portfolio_value = '100000.00'
+            self.equity = '100000.00'
+            self.cash = '50000.00'
+
+    class MockAsset:
+        def __init__(self):
+            self.symbol = 'AAPL'
+            self.tradable = True
+            self.status = 'active'
+
+    class MockOrder:
+        def __init__(self, status='filled', filled_qty=None, filled_price=None):
+            self.id = 'test-order-' + str(datetime.now().timestamp())
+            self.symbol = 'AAPL'
+            self.qty = 100
+            self.side = 'buy'
+            self.type = 'limit'
+            self.status = status
+            self.filled_qty = filled_qty or 100
+            self.filled_avg_price = filled_price or '150.25'
+            self.order_class = 'bracket'
+            self.legs = [
+                MagicMock(id='leg-1', status=status),
+                MagicMock(id='leg-2', status='pending'),
+                MagicMock(id='leg-3', status='pending'),
+            ] if status == 'filled' else []
+
     mock = MagicMock()
-
-    def make_order_response(status='filled', filled_qty=None, filled_price=None):
-        """Generate realistic Alpaca order response."""
-        return {
-            'id': 'test-order-' + str(datetime.now().timestamp()),
-            'symbol': 'AAPL',
-            'qty': 100,
-            'side': 'buy',
-            'type': 'limit',
-            'status': status,
-            'filled_qty': filled_qty or 100,
-            'filled_avg_price': filled_price or '150.25',
-            'order_class': 'bracket',
-            'legs': [
-                {'id': 'leg-1', 'status': status},  # Parent
-                {'id': 'leg-2', 'status': 'pending'},  # Stop
-                {'id': 'leg-3', 'status': 'pending'},  # Take profit
-            ] if status == 'filled' else [],
-        }
-
-    mock.make_order_response = make_order_response
-
-    # Default responses
-    mock.get_account = MagicMock(return_value={
-        'portfolio_value': '100000.00',
-        'equity': '100000.00',
-        'cash': '50000.00',
-    })
-
-    mock.get_asset = MagicMock(return_value={
-        'symbol': 'AAPL',
-        'tradable': True,
-        'status': 'active',
-    })
-
+    mock.get_account = MagicMock(return_value=MockAccount())
+    mock.get_asset = MagicMock(return_value=MockAsset())
+    mock.MockOrder = MockOrder
     return mock
 
 

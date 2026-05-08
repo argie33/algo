@@ -185,7 +185,12 @@
       "PowerShell(netstat *)",
       "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT 1;\")",
       "Bash(find C:\\\\\\\\Users\\\\\\\\arger\\\\\\\\code\\\\\\\\algo -name \"*schema*\" -o -name \"*init*\" -o -name \"*.sql\")",
-      "Bash(psql -h localhost -U stocks -d stocks -c \"\\\\d buy_sell_daily\")"
+      "Bash(psql -h localhost -U stocks -d stocks -c \"\\\\d buy_sell_daily\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\arger\\\\code\\\\algo\" -Directory)",
+      "Bash(Select-Object Name)",
+      "PowerShell(ls -Directory \"C:\\\\Users\\\\arger\\\\code\\\\algo\" | ForEach-Object { $_.Name })",
+      "Bash(Get-Content *)",
+      "Bash(pkill -f algo_orchestrator)"
     ]
   }
 }

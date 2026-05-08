@@ -26,7 +26,7 @@ resource "aws_db_instance" "main" {
   identifier            = "${var.project_name}-db"
   db_name              = var.project_name
   engine               = "postgres"
-  engine_version       = "15.4" # Latest stable
+  engine_version       = "15.3" # Available in us-east-1
   instance_class       = var.db_instance_class
   allocated_storage    = var.db_allocated_storage
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null

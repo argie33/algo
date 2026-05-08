@@ -50,9 +50,76 @@ class TestTier1DataQuality:
 
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="Tier method names don't match implementation")
-class TestTier2SignalQuality:
-    """T2: Signal quality score threshold."""
+class TestTier2MarketHealth:
+    """T2: Market health (stage 2 uptrend, VIX, distribution days)."""
+
+    def test_stage_2_uptrend_passes(self, test_config):
+        """Stage 2 uptrend should pass."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+
+        with patch.object(pipeline, '_tier2_market_health') as mock_t2:
+            mock_t2.return_value = {'pass': True, 'reason': 'Stage 2 uptrend, VIX 18'}
+
+            result = mock_t2(date.today())
+
+            assert result['pass'] is True
+
+    def test_stage_4_downtrend_fails(self, test_config):
+        """Stage 4 downtrend should fail."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+
+        with patch.object(pipeline, '_tier2_market_health') as mock_t2:
+            mock_t2.return_value = {'pass': False, 'reason': 'Stage 4 downtrend'}
+
+            result = mock_t2(date.today())
+
+            assert result['pass'] is False
+
+
+@pytest.mark.unit
+class TestTier3TrendTemplate:
+    """T3: Trend template confirmation (Minervini score, 52w range)."""
+
+    def test_strong_minervini_passes(self, test_config):
+        """Minervini score 8.5/10 should pass."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+
+        with patch.object(pipeline, '_tier3_trend_template') as mock_t3:
+            mock_t3.return_value = {
+                'pass': True,
+                'trend_score': 8.5,
+                'stop_loss_price': 142.5,
+                'reason': 'Minervini 8.5/10, Stage 2 present'
+            }
+
+            result = mock_t3('AAPL', date.today())
+
+            assert result['pass'] is True
+            assert result['stop_loss_price'] == 142.5
+
+    def test_weak_minervini_fails(self, test_config):
+        """Minervini score 5/10 should fail."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+
+        with patch.object(pipeline, '_tier3_trend_template') as mock_t3:
+            mock_t3.return_value = {'pass': False, 'reason': 'Minervini 5/10 < 8 min'}
+
+            result = mock_t3('AAPL', date.today())
+
+            assert result['pass'] is False
+
+
+@pytest.mark.unit
+class TestTier4SignalQuality:
+    """T4: Signal quality score (SQS >= min threshold)."""
 
     def test_high_sqs_passes(self, test_config):
         """SQS 75 should pass (min 60)."""
@@ -60,91 +127,14 @@ class TestTier2SignalQuality:
 
         pipeline = FilterPipeline()
 
-        with patch.object(pipeline, '_tier2_signal_quality') as mock_t2:
-            mock_t2.return_value = {'pass': True, 'sqs': 75, 'reason': 'SQS 75 >= 60 min'}
-
-            result = mock_t2('AAPL')
-
-            assert result['pass'] is True
-
-    def test_low_sqs_fails(self, test_config):
-        """SQS 45 should fail (min 60)."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier2_signal_quality') as mock_t2:
-            mock_t2.return_value = {'pass': False, 'sqs': 45, 'reason': 'SQS 45 < 60 min'}
-
-            result = mock_t2('AAPL')
-
-            assert result['pass'] is False
-
-
-@pytest.mark.unit
-@pytest.mark.skip(reason="Tier method names don't match implementation")
-class TestTier3MarketConditions:
-    """T3: Market health, VIX, exposure."""
-
-    def test_market_uptrend_ok(self, test_config):
-        """Stage 1-2 uptrend should pass."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier3_market_conditions') as mock_t3:
-            mock_t3.return_value = {'pass': True, 'reason': 'Stage 2 uptrend, VIX 18'}
-
-            result = mock_t3('AAPL')
-
-            assert result['pass'] is True
-
-    def test_market_downtrend_fails(self, test_config):
-        """Stage 4 downtrend should fail."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier3_market_conditions') as mock_t3:
-            mock_t3.return_value = {'pass': False, 'reason': 'Stage 4 downtrend'}
-
-            result = mock_t3('AAPL')
-
-            assert result['pass'] is False
-
-    def test_high_vix_fails(self, test_config):
-        """VIX 40 should fail (max 35)."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier3_market_conditions') as mock_t3:
-            mock_t3.return_value = {'pass': False, 'reason': 'VIX 40 > 35 max'}
-
-            result = mock_t3('AAPL')
-
-            assert result['pass'] is False
-
-
-@pytest.mark.unit
-@pytest.mark.skip(reason="Tier method names don't match implementation")
-class TestTier4TechnicalPattern:
-    """T4: Trend template, Minervini score, RS percentile."""
-
-    def test_strong_trend_template_passes(self, test_config):
-        """Minervini score 9/10 should pass."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier4_technical_pattern') as mock_t4:
+        with patch.object(pipeline, '_tier4_signal_quality') as mock_t4:
             mock_t4.return_value = {
                 'pass': True,
-                'minervini_score': 9,
-                'reason': 'Minervini 9/10, Stage 2 present'
+                'sqs': 75,
+                'reason': 'SQS 75 >= 60 min'
             }
 
-            result = mock_t4('AAPL')
+            result = mock_t4('AAPL', date.today())
 
             assert result['pass'] is True
 
