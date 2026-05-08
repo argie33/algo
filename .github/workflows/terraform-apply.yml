@@ -56,7 +56,7 @@ jobs:
           REGION=${{ env.AWS_REGION }}
 
           # Delete S3 buckets (EXCEPT terraform backend bucket)
-          echo "[1/4] Deleting S3 buckets (except terraform backend)..."
+          echo "[1/5] Deleting S3 buckets (except terraform backend)..."
           for BUCKET in $(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `stocks-`) && Name!=`stocks-terraform-state`].Name' --output text 2>/dev/null || echo ""); do
             [ -n "$BUCKET" ] && {
               echo "  Removing objects from $BUCKET..."
@@ -66,31 +66,18 @@ jobs:
             }
           done
 
-          # Delete CloudFront OAC
-          echo "[2/4] Deleting CloudFront OAC..."
-          for OAC_ID in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[?Name==`stocks-frontend-oac-dev`].Id' --output text 2>/dev/null || echo ""); do
-            [ -n "$OAC_ID" ] && aws cloudfront delete-origin-access-control --id "$OAC_ID" --e-tag "placeholder" 2>/dev/null || true
-          done
-
-          # Delete all stocks-* IAM roles
-          echo "[3/4] Deleting all stocks-* IAM roles..."
-          for ROLE in $(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>/dev/null || echo ""); do
-            [ -n "$ROLE" ] && {
-              echo "  Deleting inline policies from $ROLE..."
-              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null || true
-              done
-              echo "  Detaching managed policies from $ROLE..."
-              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null || true
-              done
-              echo "  Deleting $ROLE..."
-              aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "    ✅ Deleted $ROLE" || true
+          # Delete ALL CloudFront OAC (not just one name)
+          echo "[2/5] Deleting ALL CloudFront Origin Access Controls..."
+          for OAC_ID in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[*].[Id,ETag]' --output text 2>/dev/null || echo ""); do
+            [ -n "$OAC_ID" ] && {
+              ID=$(echo "$OAC_ID" | awk '{print $1}')
+              ETAG=$(echo "$OAC_ID" | awk '{print $2}')
+              [ -n "$ID" ] && [ -n "$ETAG" ] && aws cloudfront delete-origin-access-control --id "$ID" --e-tag "$ETAG" 2>/dev/null && echo "    ✅ Deleted OAC: $ID" || true
             }
           done
 
-          # Delete instance profiles that might be lingering
-          echo "[4/4] Deleting orphaned EC2 instance profiles..."
+          # Delete all instance profiles BEFORE deleting roles (dependency order)
+          echo "[3/5] Deleting orphaned EC2 instance profiles first..."
           for PROFILE in $(aws iam list-instance-profiles --query 'InstanceProfiles[?starts_with(InstanceProfileName, `stocks-`)].InstanceProfileName' --output text 2>/dev/null || echo ""); do
             [ -n "$PROFILE" ] && {
               echo "  Removing roles from $PROFILE..."
@@ -102,7 +89,44 @@ jobs:
             }
           done
 
-          echo "Cleanup complete"
+          # Delete all stocks-* IAM roles (with more aggressive cleanup)
+          echo "[4/5] Deleting all stocks-* IAM roles..."
+          for ROLE in $(aws iam list-roles --query "Roles[?starts_with(RoleName, \`stocks-\`)].RoleName" --output text 2>/dev/null || echo ""); do
+            [ -z "$ROLE" ] && continue
+            echo "  Processing: $ROLE"
+
+            # Delete inline policies (try multiple times in case of API delays)
+            for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
+              [ -z "$POLICY" ] && continue
+              echo "    Deleting inline policy: $POLICY"
+              for ATTEMPT in 1 2 3; do
+                aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null && break || sleep 1
+              done
+            done
+
+            # Detach ALL managed policies (including AWS managed ones)
+            for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
+              [ -z "$POLICY_ARN" ] && continue
+              echo "    Detaching managed policy: $POLICY_ARN"
+              for ATTEMPT in 1 2 3; do
+                aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null && break || sleep 1
+              done
+            done
+
+            # Delete the role itself
+            echo "    Deleting role: $ROLE"
+            for ATTEMPT in 1 2 3; do
+              if aws iam delete-role --role-name "$ROLE" 2>/dev/null; then
+                echo "    ✅ Deleted role: $ROLE"
+                break
+              else
+                echo "    ⚠️  Attempt $ATTEMPT failed, retrying..."
+                sleep 2
+              fi
+            done
+          done
+
+          echo "[5/5] Cleanup complete"
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -113,25 +137,49 @@ jobs:
         run: |
           echo "Aggressively deleting ALL non-default VPCs to free VPC quota..."
           REGION=${{ env.AWS_REGION }}
-          MAX_ATTEMPTS=3
+          MAX_ATTEMPTS=5
 
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
             echo ""
-            echo "=== Cleanup Attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            echo "=== VPC Cleanup Attempt $ATTEMPT/$MAX_ATTEMPTS ==="
 
             VPC_COUNT=$(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text 2>&1 || echo "0")
             echo "Non-default VPCs found: $VPC_COUNT"
+            [ "$VPC_COUNT" -eq 0 ] && echo "✅ All non-default VPCs deleted" && break
 
             for VPC_ID in $(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'Vpcs[*].VpcId' --output text 2>&1 || echo ""); do
               [ -z "$VPC_ID" ] && continue
               echo ""
               echo "Processing VPC: $VPC_ID"
 
-              # Force delete all network interfaces
+              # Delete all VPC endpoints first (they block other operations)
+              echo "  Deleting VPC endpoints..."
+              for VPCE in $(aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'VpcEndpoints[*].VpcEndpointId' --output text 2>&1 || echo ""); do
+                [ -z "$VPCE" ] && continue
+                aws ec2 delete-vpc-endpoints --vpc-endpoint-ids "$VPCE" --region $REGION 2>&1 && echo "    ✓ Deleted VPC Endpoint: $VPCE" || echo "    ✗ Failed: $VPCE"
+              done
+
+              # Delete all security groups except default
+              echo "  Deleting security groups..."
+              for SG in $(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text 2>&1 || echo ""); do
+                [ -z "$SG" ] && continue
+                aws ec2 delete-security-group --group-id "$SG" --region $REGION 2>&1 && echo "    ✓ Deleted SG: $SG" || echo "    ✗ Failed: $SG"
+              done
+
+              # Delete all network interfaces
               echo "  Deleting ENIs..."
               for ENI in $(aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>&1 || echo ""); do
                 [ -z "$ENI" ] && continue
-                aws ec2 delete-network-interface --network-interface-id "$ENI" --region $REGION 2>&1 && echo "    ✓ Deleted: $ENI" || echo "    ✗ Failed: $ENI"
+                # Detach from instances first if needed
+                aws ec2 detach-network-interface --attachment-id "$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --region $REGION --query 'NetworkInterfaces[0].Attachment.AttachmentId' --output text 2>/dev/null || true)" --region $REGION 2>/dev/null || true
+                aws ec2 delete-network-interface --network-interface-id "$ENI" --region $REGION 2>&1 && echo "    ✓ Deleted: $ENI" || true
+              done
+
+              # Delete NAT gateways
+              echo "  Deleting NAT gateways..."
+              for NGW in $(aws ec2 describe-nat-gateways --filters "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available,pending" --region $REGION --query 'NatGateways[*].NatGatewayId' --output text 2>&1 || echo ""); do
+                [ -z "$NGW" ] && continue
+                aws ec2 delete-nat-gateway --nat-gateway-id "$NGW" --region $REGION 2>&1 && echo "    ✓ Deleted NAT GW: $NGW" || echo "    ✗ Failed: $NGW"
               done
 
               # Delete all subnets
@@ -157,16 +205,19 @@ jobs:
               done
 
               # Delete the VPC
-              echo "  Deleting VPC..."
-              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region $REGION 2>&1 && echo "  ✅ Deleted VPC: $VPC_ID" || echo "  ⚠️  Could not delete VPC (dependencies remain)"
+              echo "  Deleting VPC: $VPC_ID..."
+              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region $REGION 2>&1 && echo "  ✅ Deleted VPC: $VPC_ID" || echo "  ⚠️  Could not delete VPC (dependencies may remain)"
             done
 
-            sleep 2
+            sleep 3
           done
 
           FINAL_COUNT=$(aws ec2 describe-vpcs --region $REGION --filters "Name=isDefault,Values=false" --query 'length(Vpcs)' --output text 2>&1 || echo "?")
           echo ""
           echo "Final non-default VPC count: $FINAL_COUNT"
+          if [ "$FINAL_COUNT" -gt 0 ]; then
+            echo "⚠️  WARNING: $FINAL_COUNT non-default VPCs remain. This may block infrastructure creation."
+          fi
 
       - name: Delete orphaned resources before init
         run: |
