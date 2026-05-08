@@ -108,8 +108,8 @@ data "aws_iam_policy_document" "github_actions" {
     ]
 
     resources = [
-      "arn:aws:s3:::${var.project_name}-terraform-state-${var.aws_account_id}",
-      "arn:aws:s3:::${var.project_name}-terraform-state-${var.aws_account_id}/*"
+      "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}",
+      "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}/*"
     ]
   }
 

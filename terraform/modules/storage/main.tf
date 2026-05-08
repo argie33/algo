@@ -335,14 +335,17 @@ resource "aws_s3_bucket_policy" "code_vpc_endpoint_only" {
         Principal = {
           AWS = "*"
         }
-        Action   = "s3:*"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
         Resource = [
           aws_s3_bucket.code.arn,
           "${aws_s3_bucket.code.arn}/*"
         ]
         Condition = {
           StringEquals = {
-            "aws:SourceVpce" = "*"
+            "aws:PrincipalAccount" = var.aws_account_id
           }
         }
       }
