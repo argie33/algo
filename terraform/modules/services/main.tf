@@ -15,92 +15,10 @@ locals {
 }
 
 # ============================================================
-# IAM Role for API Lambda
+# Lambda API Role - Reference from IAM module
 # ============================================================
-
-resource "aws_iam_role" "api_lambda" {
-  name = local.api_lambda_role_name
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = local.api_lambda_role_name
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "api_lambda_vpc" {
-  role       = aws_iam_role.api_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-resource "aws_iam_role_policy" "api_lambda_secrets" {
-  name = "${local.api_lambda_name}-secrets"
-  role = aws_iam_role.api_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = [
-          var.rds_credentials_secret_arn
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "kms:Decrypt"
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "api_lambda_s3" {
-  name = "${local.api_lambda_name}-s3"
-  role = aws_iam_role.api_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.data_loading_bucket_name}/*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "api_lambda_logs" {
-  role       = aws_iam_role.api_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
+# The API Lambda role is created and managed by the IAM module.
+# This module receives the role ARN as a variable and uses it below.
 
 # ============================================================
 # CloudWatch Log Group for API Lambda

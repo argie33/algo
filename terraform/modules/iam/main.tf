@@ -7,28 +7,10 @@
 # ============================================================
 
 # OIDC Provider for GitHub Actions trust
-# Note: GitHub OIDC provider is a singleton - only one per AWS account
-# If it already exists from bootstrap, we'll use a data source instead
-data "aws_iam_openid_connect_provider" "github_existing" {
+# Note: GitHub OIDC provider is a singleton - created and managed by bootstrap module
+# This module references the provider created by bootstrap
+data "aws_iam_openid_connect_provider" "github" {
   arn = "arn:aws:iam::${var.aws_account_id}:oidc-provider/token.actions.githubusercontent.com"
-
-  depends_on = [
-    # This ensures the data source query happens after bootstrap
-    # If bootstrap hasn't run yet, this will fail gracefully
-  ]
-}
-
-# Only create if it doesn't exist
-resource "aws_iam_openid_connect_provider" "github" {
-  count = 0  # Disabled - using data source instead to reference existing provider
-
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-github-oidc"
-  })
 }
 
 # GitHub Actions deployment role - LEAST PRIVILEGE
@@ -50,7 +32,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
 
     principals {
       type        = "Federated"
-      identifiers = [data.aws_iam_openid_connect_provider.github_existing.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
     # CRITICAL: Scope to THIS repository only

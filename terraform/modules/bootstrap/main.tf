@@ -146,8 +146,8 @@ resource "aws_iam_role_policy" "terraform_deploy" {
           "s3:ListBucketVersions"
         ]
         Resource = [
-          "arn:aws:s3:::terraform-state-${var.aws_account_id}",
-          "arn:aws:s3:::terraform-state-${var.aws_account_id}/*"
+          "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}",
+          "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}/*"
         ]
       },
       {
@@ -159,7 +159,7 @@ resource "aws_iam_role_policy" "terraform_deploy" {
           "dynamodb:PutItem",
           "dynamodb:DeleteItem"
         ]
-        Resource = "arn:aws:dynamodb:*:${var.aws_account_id}:table/terraform-state-lock"
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-terraform-locks"
       },
       {
         Sid    = "EC2Access"

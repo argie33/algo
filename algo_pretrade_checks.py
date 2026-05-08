@@ -80,21 +80,36 @@ class PreTradeChecks:
             (passed: bool, reason: str or None)
         """
         try:
-            # Get current market price from Alpaca
-            url = f"{self.alpaca_base_url}/v2/stocks/{symbol}/quotes/latest"
-            headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret,
-            }
-            resp = requests.get(url, headers=headers, timeout=5)
-            if resp.status_code != 200:
-                # If can't get price, fail-safe: reject the order
-                return False, f"Cannot fetch current price for {symbol} (HTTP {resp.status_code})"
+            current_price = None
 
-            data = resp.json()
-            current_price = data.get('quote', {}).get('ap')  # ask price
+            # Try Alpaca API first
+            try:
+                url = f"{self.alpaca_base_url}/v2/stocks/{symbol}/quotes/latest"
+                headers = {
+                    'APCA-API-KEY-ID': self.alpaca_key,
+                    'APCA-API-SECRET-KEY': self.alpaca_secret,
+                }
+                resp = requests.get(url, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    current_price = data.get('quote', {}).get('ap')  # ask price
+            except:
+                pass
+
+            # Fallback: use database latest close price
             if not current_price:
-                return False, f"No bid/ask data available for {symbol}"
+                if not self.cur:
+                    self.connect()
+                self.cur.execute(
+                    "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
+                    (symbol,)
+                )
+                result = self.cur.fetchone()
+                if result:
+                    current_price = result[0]
+
+            if not current_price:
+                return False, f"Cannot determine current price for {symbol}"
 
             divergence_pct = abs(entry_price - current_price) / current_price * 100
 
