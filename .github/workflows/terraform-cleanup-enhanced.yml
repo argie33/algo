@@ -1,0 +1,262 @@
+name: Enhanced Terraform Cleanup (Blocking Resources)
+
+on:
+  workflow_dispatch:
+    inputs:
+      verify_only:
+        description: 'Only verify blocked resources, do not delete'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Delete Blocking Resources
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: List all blocking IAM roles (pre-cleanup verification)
+        run: |
+          echo "=========================================="
+          echo "PRE-CLEANUP: Resources to be deleted"
+          echo "=========================================="
+
+          BLOCKING_ROLES=(
+            "stocks-bastion-stop-lambda-role"
+            "stocks-github-actions-dev"
+            "stocks-bastion-dev"
+            "stocks-ecs-task-execution-dev"
+            "stocks-ecs-task-dev"
+            "stocks-lambda-api-dev"
+            "stocks-lambda-algo-dev"
+            "stocks-eventbridge-scheduler-dev"
+            "stocks-eventbridge-run-task-role"
+            "stocks-api-dev-role"
+            "stocks-algo-dev-role"
+          )
+
+          echo ""
+          echo "IAM Roles to delete:"
+          FOUND_COUNT=0
+          for ROLE in "${BLOCKING_ROLES[@]}"; do
+            if aws iam get-role --role-name "$ROLE" 2>/dev/null >/dev/null; then
+              echo "  ✓ Found: $ROLE"
+              ((FOUND_COUNT++))
+            else
+              echo "  ✗ Not found: $ROLE (already deleted or doesn't exist)"
+            fi
+          done
+
+          echo ""
+          echo "Found $FOUND_COUNT/$((${#BLOCKING_ROLES[@]})) roles"
+
+          echo ""
+          echo "CloudFront OACs to delete:"
+          OAC_COUNT=$(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items | length(@)' --output text 2>/dev/null || echo "0")
+          echo "  Found $OAC_COUNT CloudFront OACs"
+          if [ "$OAC_COUNT" -gt 0 ]; then
+            aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[*].Id' --output text 2>/dev/null | tr '\t' '\n' | while read OAC_ID; do
+              [ -n "$OAC_ID" ] && echo "    - $OAC_ID"
+            done
+          fi
+
+      - name: Delete blocking IAM roles and CloudFront OACs
+        if: github.event.inputs.verify_only != 'true'
+        run: |
+          echo "=========================================="
+          echo "DELETION PHASE: Removing blocking resources"
+          echo "=========================================="
+
+          BLOCKING_ROLES=(
+            "stocks-bastion-stop-lambda-role"
+            "stocks-github-actions-dev"
+            "stocks-bastion-dev"
+            "stocks-ecs-task-execution-dev"
+            "stocks-ecs-task-dev"
+            "stocks-lambda-api-dev"
+            "stocks-lambda-algo-dev"
+            "stocks-eventbridge-scheduler-dev"
+            "stocks-eventbridge-run-task-role"
+            "stocks-api-dev-role"
+            "stocks-algo-dev-role"
+          )
+
+          DELETED_COUNT=0
+          FAILED_COUNT=0
+
+          echo ""
+          echo "[Phase 1] Deleting inline and managed policies from roles..."
+          for ROLE in "${BLOCKING_ROLES[@]}"; do
+            if aws iam get-role --role-name "$ROLE" 2>/dev/null >/dev/null; then
+              echo ""
+              echo "  Processing role: $ROLE"
+
+              # Delete inline policies with retry logic
+              INLINE_POLICIES=$(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo "")
+              if [ -n "$INLINE_POLICIES" ]; then
+                echo "    Inline policies: $INLINE_POLICIES"
+                for POLICY in $INLINE_POLICIES; do
+                  for ATTEMPT in 1 2 3; do
+                    if aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null; then
+                      echo "      ✓ Deleted inline policy: $POLICY"
+                      break
+                    else
+                      if [ $ATTEMPT -lt 3 ]; then
+                        echo "      ⚠️  Attempt $ATTEMPT failed, retrying..."
+                        sleep 2
+                      else
+                        echo "      ✗ Failed to delete inline policy: $POLICY"
+                      fi
+                    fi
+                  done
+                done
+              else
+                echo "    No inline policies found"
+              fi
+
+              # Detach managed policies with retry logic
+              MANAGED_POLICIES=$(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo "")
+              if [ -n "$MANAGED_POLICIES" ]; then
+                echo "    Managed policies: $MANAGED_POLICIES"
+                for POLICY_ARN in $MANAGED_POLICIES; do
+                  for ATTEMPT in 1 2 3; do
+                    if aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null; then
+                      echo "      ✓ Detached managed policy: $POLICY_ARN"
+                      break
+                    else
+                      if [ $ATTEMPT -lt 3 ]; then
+                        echo "      ⚠️  Attempt $ATTEMPT failed, retrying..."
+                        sleep 2
+                      else
+                        echo "      ✗ Failed to detach managed policy: $POLICY_ARN"
+                      fi
+                    fi
+                  done
+                done
+              else
+                echo "    No managed policies found"
+              fi
+            fi
+          done
+
+          echo ""
+          echo "[Phase 2] Deleting IAM roles themselves..."
+          for ROLE in "${BLOCKING_ROLES[@]}"; do
+            if aws iam get-role --role-name "$ROLE" 2>/dev/null >/dev/null; then
+              echo "  Deleting role: $ROLE"
+              for ATTEMPT in 1 2 3; do
+                if aws iam delete-role --role-name "$ROLE" 2>/dev/null; then
+                  echo "    ✅ Successfully deleted role"
+                  ((DELETED_COUNT++))
+                  break
+                else
+                  if [ $ATTEMPT -lt 3 ]; then
+                    echo "    ⚠️  Attempt $ATTEMPT failed, waiting and retrying..."
+                    sleep 3
+                  else
+                    echo "    ✗ Failed to delete role after 3 attempts"
+                    ((FAILED_COUNT++))
+                  fi
+                fi
+              done
+            else
+              echo "  Skipped (not found): $ROLE"
+            fi
+          done
+
+          echo ""
+          echo "[Phase 3] Deleting CloudFront OACs..."
+          for OAC_ID in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[*].Id' --output text 2>/dev/null || echo ""); do
+            [ -z "$OAC_ID" ] && continue
+            echo "  Deleting OAC: $OAC_ID"
+            ETAG=$(aws cloudfront get-origin-access-control --id "$OAC_ID" --query 'OriginAccessControl.ETag' --output text 2>/dev/null || echo "")
+            if [ -n "$ETAG" ]; then
+              for ATTEMPT in 1 2 3; do
+                if aws cloudfront delete-origin-access-control --id "$OAC_ID" --e-tag "$ETAG" 2>/dev/null; then
+                  echo "    ✅ Successfully deleted OAC"
+                  break
+                else
+                  if [ $ATTEMPT -lt 3 ]; then
+                    echo "    ⚠️  Attempt $ATTEMPT failed, retrying..."
+                    sleep 2
+                  else
+                    echo "    ✗ Failed to delete OAC after 3 attempts"
+                  fi
+                fi
+              done
+            else
+              echo "    ✗ Could not retrieve ETag for OAC"
+            fi
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "Deletion Summary:"
+          echo "  - Successfully deleted: $DELETED_COUNT roles"
+          echo "  - Failed to delete: $FAILED_COUNT roles"
+          echo "=========================================="
+
+      - name: Verify cleanup (post-deletion verification)
+        run: |
+          echo "=========================================="
+          echo "POST-CLEANUP: Verifying all resources deleted"
+          echo "=========================================="
+
+          BLOCKING_ROLES=(
+            "stocks-bastion-stop-lambda-role"
+            "stocks-github-actions-dev"
+            "stocks-bastion-dev"
+            "stocks-ecs-task-execution-dev"
+            "stocks-ecs-task-dev"
+            "stocks-lambda-api-dev"
+            "stocks-lambda-algo-dev"
+            "stocks-eventbridge-scheduler-dev"
+            "stocks-eventbridge-run-task-role"
+            "stocks-api-dev-role"
+            "stocks-algo-dev-role"
+          )
+
+          REMAINING_COUNT=0
+          echo ""
+          echo "Checking for remaining IAM roles:"
+          for ROLE in "${BLOCKING_ROLES[@]}"; do
+            if aws iam get-role --role-name "$ROLE" 2>/dev/null >/dev/null; then
+              echo "  ✗ Still exists: $ROLE"
+              ((REMAINING_COUNT++))
+            else
+              echo "  ✓ Deleted: $ROLE"
+            fi
+          done
+
+          OAC_COUNT=$(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items | length(@)' --output text 2>/dev/null || echo "0")
+          echo ""
+          echo "Checking CloudFront OACs:"
+          echo "  Remaining OACs: $OAC_COUNT"
+
+          echo ""
+          echo "=========================================="
+          if [ "$REMAINING_COUNT" -eq 0 ] && [ "$OAC_COUNT" -eq 0 ]; then
+            echo "✅ SUCCESS: All blocking resources cleaned up!"
+            echo "You can now run terraform apply without conflicts."
+          else
+            echo "⚠️  WARNING: $REMAINING_COUNT roles and $OAC_COUNT OACs still remain"
+            echo "These will still block terraform deployment."
+            exit 1
+          fi
+          echo "=========================================="
