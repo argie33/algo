@@ -218,16 +218,16 @@ class PreTradeChecks:
 
             # Check for recent order with same symbol+side
             self.cur.execute(
-                """
+                f"""
                 SELECT trade_id, created_at FROM algo_trades
                 WHERE symbol = %s AND (
                     -- Determine side from entry_price vs current (simplification: check entry_reason)
                     entry_reason LIKE '%%BUY%%' OR entry_reason LIKE '%%SELL%%'
                 )
-                AND created_at >= %s - INTERVAL '%s minutes'
+                AND created_at >= %s - INTERVAL '{window_minutes} minutes'
                 ORDER BY created_at DESC LIMIT 1
                 """,
-                (symbol, timestamp, str(window_minutes)),
+                (symbol, timestamp),
             )
             recent = self.cur.fetchone()
 
