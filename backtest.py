@@ -140,7 +140,7 @@ def backtest_swing_strategy(date_start, date_end, **kwargs):
         q = """
             SELECT
                 bsd.symbol, bsd.date, bsd.signal,
-                bsd.buylevel as entry_price, bsd.stoplevel as stop_level,
+                bsd.stoplevel as stop_level,
                 bsd.profit_target_25pct as target_price,
                 bsd.signal_type
             FROM buy_sell_daily bsd
@@ -153,7 +153,19 @@ def backtest_swing_strategy(date_start, date_end, **kwargs):
 
         # Replay each signal against subsequent price data
         results = []
-        for symbol, signal_date, signal, entry_price, stop_level, target_price, signal_type in signals:
+        for symbol, signal_date, signal, stop_level, target_price, signal_type in signals:
+            # PHASE 1 FIX: Use market close from next trading day, not theoretical buylevel
+            # Get the next trading day's close price
+            price_q_next = """
+                SELECT close FROM price_daily
+                WHERE symbol = %s AND date > %s
+                ORDER BY date LIMIT 1
+            """
+            cur.execute(price_q_next, (symbol, signal_date))
+            next_price = cur.fetchone()
+            if not next_price or next_price[0] is None:
+                continue
+            entry_price = float(next_price[0])
             # Get next 60 days of price data
             price_q = """
                 SELECT date, close, high, low

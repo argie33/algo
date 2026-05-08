@@ -264,20 +264,26 @@ class Backtester:
 
             # Get raw BUY signals for `day`
             pipeline.cur.execute(
-                "SELECT symbol, date, signal, entry_price FROM buy_sell_daily "
+                "SELECT symbol, date, signal FROM buy_sell_daily "
                 "WHERE date = %s AND signal = 'BUY'",
                 (day,),
             )
             signals = pipeline.cur.fetchall()
             qualified = []
-            for symbol, signal_date, _signal, entry_price in signals:
+            for symbol, signal_date, _signal in signals:
+                # PHASE 1 FIX: Fetch fresh market close instead of using theoretical entry_price
+                next_trading_day = pipeline._get_next_trading_day(signal_date)
+                entry_price = pipeline._get_market_close(symbol, next_trading_day)
+                if entry_price is None:
+                    continue
                 result = pipeline.evaluate_signal(symbol, signal_date, float(entry_price))
                 if not result['passed_all_tiers']:
                     continue
                 if self.use_advanced_filters:
                     sector_info = pipeline._get_sector_info(symbol) or {'sector': '', 'industry': ''}
+                    # Use fresh market close for advanced filter evaluation too
                     adv = pipeline.advanced.evaluate_candidate(
-                        symbol, signal_date, float(entry_price),
+                        symbol, signal_date, entry_price,
                         sector_info['sector'], sector_info['industry'],
                     )
                     if not adv['pass']:
@@ -287,7 +293,7 @@ class Backtester:
                     composite = result.get('sqs', 0)
                 qualified.append({
                     'symbol': symbol,
-                    'entry_price': float(entry_price),
+                    'entry_price': entry_price,  # Now using fresh market close
                     'stop_loss_price': result['stop_loss_price'],
                     'sqs': result['sqs'],
                     'composite_score': composite,

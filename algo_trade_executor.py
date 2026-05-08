@@ -99,7 +99,7 @@ class TradeExecutor:
 
     def execute_trade(self, symbol, entry_price, shares, stop_loss_price,
                       target_1_price=None, target_2_price=None, target_3_price=None,
-                      signal_date=None, sqs=None, trend_score=None,
+                      signal_date=None, entry_date=None, sqs=None, trend_score=None,
                       # New reasoning metadata for transparency:
                       swing_score=None, swing_grade=None,
                       base_type=None, base_quality=None, stage_phase=None,
@@ -120,6 +120,15 @@ class TradeExecutor:
         """
         if not signal_date:
             signal_date = datetime.now().date()
+        if not entry_date:
+            entry_date = datetime.now().date()
+
+        # PHASE 1 FIX: Validate that entry_date is not before signal_date
+        if entry_date < signal_date:
+            return {
+                'success': False, 'trade_id': '', 'status': 'invalid',
+                'message': f'Invalid: entry_date {entry_date} must be >= signal_date {signal_date}'
+            }
 
         # Validate prices
         if not entry_price or entry_price <= 0:
@@ -385,7 +394,7 @@ class TradeExecutor:
                 )
                 """,
                 (
-                    trade_id, symbol, signal_date, datetime.now().date(),  # Use today's date (order fill date from Alpaca API)
+                    trade_id, symbol, signal_date, entry_date,  # entry_date is when trade actually enters
                     executed_price, shares, entry_reason,
                     stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),

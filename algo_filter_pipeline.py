@@ -80,7 +80,7 @@ class FilterPipeline:
 
             self.cur.execute(
                 """
-                SELECT symbol, date, signal, entry_price
+                SELECT symbol, date, signal
                 FROM buy_sell_daily
                 WHERE date = %s AND signal = 'BUY'
                 ORDER BY symbol
@@ -107,8 +107,11 @@ class FilterPipeline:
             # NEW: Initialize rejection tracker (Phase 3 integration)
             tracker = RejectionTracker()
 
-            for symbol, signal_date, _signal, entry_price in signals:
-                if entry_price is None or not entry_price:
+            for symbol, signal_date, _signal in signals:
+                # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
+                entry_date = self._get_next_trading_day(signal_date)
+                entry_price = self._get_market_close(symbol, entry_date)
+                if entry_price is None:
                     continue
                 result = self.evaluate_signal(symbol, signal_date, float(entry_price))
                 for t in (1, 2, 3, 4, 5):
@@ -148,6 +151,8 @@ class FilterPipeline:
                         else:
                             passed_all_tiers.append({
                                 'symbol': symbol,
+                                'signal_date': signal_date,
+                                'entry_date': entry_date,
                                 'entry_price': float(entry_price),
                                 'stop_loss_price': result.get('stop_loss_price'),
                                 'sqs': result.get('sqs', 0),
@@ -694,6 +699,45 @@ class FilterPipeline:
                 industry_count += 1
 
         return sector_count, industry_count
+
+    # ---------- Market Data Helpers ----------
+
+    def _get_next_trading_day(self, from_date):
+        """Get the next trading day after from_date (first day with price data).
+
+        For entry purposes, this gives us Day 1 to confirm the signal on real market data.
+        """
+        self.cur.execute(
+            """
+            SELECT date FROM price_daily
+            WHERE symbol = 'SPY' AND date > %s
+            ORDER BY date ASC LIMIT 1
+            """,
+            (from_date,),
+        )
+        row = self.cur.fetchone()
+        if row:
+            return row[0]
+        # Fallback: add 1 day and hope it's a trading day
+        return from_date + timedelta(days=1)
+
+    def _get_market_close(self, symbol, date):
+        """Get market close price for a symbol on a given date.
+
+        Returns the actual market close from price_daily table.
+        This is the REAL price to use for entry, not theoretical levels.
+        """
+        self.cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = %s AND date = %s
+            """,
+            (symbol, date),
+        )
+        row = self.cur.fetchone()
+        if row and row[0] is not None:
+            return float(row[0])
+        return None
 
     # ---------- Helpers ----------
 

@@ -136,7 +136,9 @@ def run_algo_workflow(eval_date=None):
         executed_trades = []
 
         for trade in sized_trades[:12]:  # Max 12 positions
-            signal_date = eval_date  # Using eval date as signal date
+            # FIXED: Separate signal_date (when signal detected) from entry_date (when entering)
+            signal_date = trade.get('signal_date')  # Day 0 - when signal was generated
+            entry_date = trade.get('entry_date', eval_date)  # Day 1 - when trade enters
             result = executor.execute_trade(
                 symbol=trade['symbol'],
                 entry_price=trade['entry_price'],
@@ -145,7 +147,8 @@ def run_algo_workflow(eval_date=None):
                 target_1_price=trade['target_1'],
                 target_2_price=trade['target_2'],
                 target_3_price=trade['target_3'],
-                signal_date=signal_date
+                signal_date=signal_date,
+                entry_date=entry_date
             )
 
             if result['success']:

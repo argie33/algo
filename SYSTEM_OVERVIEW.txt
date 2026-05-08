@@ -1,0 +1,136 @@
+================================================================================
+WHAT THIS ENTIRE SYSTEM DOES - COMPLETE FLOW
+================================================================================
+
+START: 4,905 stocks with price data today
+
+STAGE 0: TECHNICAL SIGNALS (buy_sell_daily)
+  Rule: IF RSI < 30 AND MACD > signal_line THEN BUY
+  What it does: Finds OVERSOLD bounces
+  Result: 52 signals generated
+  Removed: 4,853 stocks (no oversold condition)
+
+TIER 1: DATA QUALITY
+  Rules:
+    - Price >= $1 (no penny stocks)
+    - 70% data completeness (not gaps)
+    - Has volume data
+  Result: 29 pass
+  Removed: 23 (ADTX $0.14, AEHL $0.49, etc)
+
+TIER 2: MARKET HEALTH
+  Rules:
+    - S&P 500 (SPY) must be Stage 2+ (uptrend)
+    - Distribution days < 4
+    - VIX < 35
+  Result: 29 pass (market was fine today)
+  Removed: 0
+
+TIER 3: STOCK STAGE (THE KILLER FILTER)
+  Rule: MUST be Stage 2 (uptrending per Weinstein)
+        - 30-week MA sloping up (slope > +1%)
+        - Price above 30-week MA by 3%+
+  Result: 0 pass
+  Removed: 29 (ALL were Stage 4 - downtrending!)
+
+  THIS IS WHERE ALL YOUR SIGNALS DIE TODAY
+  System says: "No mean-reversion in downtrends"
+
+TIER 4: SIGNAL QUALITY SCORE
+  Rules: SQS >= 60
+  Result: 0 pass (nothing made it from T3)
+
+TIER 5: PORTFOLIO HEALTH
+  Rules:
+    - Sector concentration <= 3 positions
+    - Industry concentration <= 2 positions
+    - Total portfolio allocation <= 95%
+    - Position count <= 12
+  Result: 0 pass (nothing made it from T4)
+
+TIER 6: ADVANCED MINERVINI FILTERS
+  Rules:
+    - Minervini template score >= 8/8
+    - RS percentile >= 70
+    - Price within 25% of 52w high
+    - Swing trader score >= 60
+  Result: 0 pass (nothing made it from T5)
+
+================================================================================
+FINAL: 0 TRADES
+================================================================================
+
+THE FILTER CHAIN:
+4,905 stocks
+  ↓ (remove no RSI signal)
+  52 signals
+  ↓ (remove data quality issues)
+  29 pass
+  ↓ (market health ok)
+  29 pass
+  ↓ (STAGE 2 REQUIREMENT - REMOVES 29)
+  0 pass
+  ↓
+  FINAL: 0 trades
+
+================================================================================
+WHAT YOU ACTUALLY HAVE HERE
+================================================================================
+
+You built a TREND-FOLLOWING system that:
+  1. Finds oversold bounces (technical)
+  2. But ONLY trades them if in Stage 2 uptrends
+  3. Never trades downtrending stocks (even if bouncing)
+  4. Requires strong relative strength (RS >= 70)
+  5. Requires tight alignment with Minervini template
+  6. Manages concentration and position sizing
+
+This is CONSERVATIVE - won't catch falling knives, but also won't
+get wiped out by catching false bounces in broken stocks.
+
+================================================================================
+WHAT THIS IS NOT
+================================================================================
+
+This is NOT a mean-reversion system that catches bounces anywhere.
+  (That would remove or relax Tier 3)
+
+This is NOT a day-trading system.
+  (Uses multi-day MA, not minute-level signals)
+
+This is NOT a breakout system.
+  (Uses bounces from oversold, not new highs)
+
+This is NOT a fundamental value system.
+  (Uses price patterns, not P/E ratios)
+
+================================================================================
+THE HONEST QUESTION
+================================================================================
+
+Do you WANT all these filters?
+
+Option A: YES - keep them all
+  Pros: Conservative, disciplined, follows Minervini/Weinstein teaching
+  Cons: Many zero-trade days, misses bounces in downtrends
+
+Option B: NO - you want more trades
+  Which filters would you REMOVE?
+    - Tier 3 (Stage 2 requirement)? -> Would catch downtrend bounces
+    - Advanced Minervini filters? -> Would take lower-quality setups
+    - Signal quality? -> Would rely more on technical indicator alone
+
+Option C: CHANGE the strategy entirely
+  Example: Pure mean-reversion oversold system
+    - Buy whenever RSI < 30 + MACD signal
+    - Sell at 3% profit or 7% loss
+    - No stage requirement
+    - More trades, less selectivity
+
+================================================================================
+
+Which path do YOU want to take?
+
+Honest assessment: You have a disciplined system that correctly
+refuses bad setups. But it also means waiting for the right
+market conditions. That's the trade-off.

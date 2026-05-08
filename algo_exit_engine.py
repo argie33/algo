@@ -193,6 +193,11 @@ class ExitEngine:
                            t1_price, t2_price, t3_price,
                            target_hits, days_held, dist_days_today):
         """Decide what (if any) exit to take. Returns dict or None."""
+        # PHASE 1 FIX: Enforce minimum holding period (no same-day exits)
+        min_hold_days = int(self.config.get('min_hold_days', 1))
+        if days_held < min_hold_days:
+            return None  # Not ready to exit yet
+
         # Compute R-multiple for use across rules (Curtis Faith's R-unit framework)
         risk_per_share = entry_price - init_stop
         r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
