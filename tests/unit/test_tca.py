@@ -417,7 +417,7 @@ class TestDatabaseFailureHandling:
 class TestDatabaseIntegration:
     """Integration tests with actual DB (if test_db fixture is available)."""
 
-    @pytest.mark.skip(reason="PostgreSQL test database not available in this environment")
+    @pytest.mark.db
     def test_record_fill_inserts_row(self, test_db):
         """record_fill inserts row and returns tca_id."""
         config = {'db_mode': 'test'}
@@ -437,7 +437,7 @@ class TestDatabaseIntegration:
         assert result['success'] if hasattr(result, '__getitem__') else True
         assert result['tca_id'] > 0 if hasattr(result, '__getitem__') else True
 
-    @pytest.mark.skip(reason="PostgreSQL test database not available in this environment")
+    @pytest.mark.db
     def test_daily_report_aggregates_correctly(self, test_db):
         """daily_report aggregates multiple fills correctly."""
         config = {'db_mode': 'test'}

@@ -224,10 +224,10 @@ class PreTradeChecks:
                     -- Determine side from entry_price vs current (simplification: check entry_reason)
                     entry_reason LIKE '%%BUY%%' OR entry_reason LIKE '%%SELL%%'
                 )
-                AND created_at >= %s - INTERVAL '%d minutes'
+                AND created_at >= %s - INTERVAL '%s minutes'
                 ORDER BY created_at DESC LIMIT 1
-                """ % window_minutes,
-                (symbol, timestamp),
+                """,
+                (symbol, timestamp, str(window_minutes)),
             )
             recent = self.cur.fetchone()
 
