@@ -11,7 +11,6 @@ Run weekly to monitor system health.
 """
 
 import os
-import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

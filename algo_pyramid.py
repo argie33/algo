@@ -33,7 +33,6 @@ so add-decisions don't conflict with new-entry decisions.
 
 import os
 import psycopg2
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date

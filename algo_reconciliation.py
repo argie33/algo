@@ -13,7 +13,6 @@ import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

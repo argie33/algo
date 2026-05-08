@@ -12,7 +12,6 @@ Instead of just printing what would happen, this actually simulates:
 All without touching the database or Alpaca.
 """
 
-import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
