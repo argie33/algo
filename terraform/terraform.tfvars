@@ -63,30 +63,8 @@ enable_bastion_cloudwatch_logs = true
 # ============================================================
 
 enable_s3_versioning   = true
-
-code_bucket_lifecycle = {
-  expiration_days    = 90
-  transition_days    = 30
-  transition_storage = "STANDARD_IA"
-}
-
-cf_templates_bucket_lifecycle = {
-  expiration_days = 365
-}
-
-lambda_artifacts_bucket_lifecycle = {
-  expiration_days = 90
-}
-
-data_loading_bucket_lifecycle = {
-  expiration_days = 30
-}
-
-log_archive_bucket_lifecycle = {
-  intelligent_tiering = true
-  glacier_ir_days    = 90
-  deep_archive_days  = 365
-}
+code_bucket_expiration_days = 90
+data_bucket_expiration_days = 30
 
 # ============================================================
 # Lambda

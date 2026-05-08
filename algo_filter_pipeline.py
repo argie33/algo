@@ -80,6 +80,9 @@ class FilterPipeline:
             if not eval_date:
                 eval_date = self._resolve_evaluation_date()
 
+            # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
+            self._snapshot_eval_date = eval_date
+
             logger.info(f"\n{'='*70}")
             logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
             logger.info(f"{'='*70}\n")

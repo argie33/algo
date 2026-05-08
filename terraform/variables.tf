@@ -494,21 +494,6 @@ variable "sns_alert_email" {
 # Loader Configuration
 # ============================================================
 
-variable "loader_manifest" {
-  description = "Custom loader manifest (merges with defaults)"
-  type = map(object({
-    cpu           = optional(number)
-    memory        = optional(number)
-    schedule      = optional(string)
-  }))
-  default = {}
-}
-
-variable "enable_scheduled_loaders" {
-  description = "Enable EventBridge scheduled rules for loaders"
-  type        = bool
-  default     = true
-}
 
 # ============================================================
 # Logging Configuration

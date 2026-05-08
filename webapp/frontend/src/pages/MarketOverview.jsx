@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "../hooks/useApiQuery";
 import {
   Alert,
   Box,

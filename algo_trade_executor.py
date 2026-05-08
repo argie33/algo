@@ -25,6 +25,7 @@ from typing import Dict, List, Any, Optional
 
 from trade_status import TradeStatus, PositionStatus
 from alpaca_response_validator import AlpacaResponseValidator
+from db_retry_helper import OptimisticLockRetry, RetryConfig
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
