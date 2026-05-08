@@ -50,6 +50,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.AWS_REGION }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Running comprehensive AWS resource cleanup..."
           REGION=${{ env.AWS_REGION }}
@@ -88,10 +89,32 @@ jobs:
             }
           done
 
-          # Run deep VPC cleanup
+          # Run deep VPC cleanup and wait
           echo "[4/4] Running deep VPC cleanup..."
-          gh workflow run deep-cleanup-vpc.yml --repo argie33/algo
-          echo "Deep VPC cleanup triggered (runs in parallel)"
+          RUN_ID=$(gh workflow run deep-cleanup-vpc.yml --repo argie33/algo --json id -q)
+          echo "Deep VPC cleanup workflow triggered (run_id: $RUN_ID)"
+
+          # Wait for the workflow to complete
+          echo "Waiting for deep VPC cleanup to complete..."
+          TIMEOUT=600  # 10 minutes
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(gh run view "$RUN_ID" --repo argie33/algo --json conclusion -q 2>/dev/null || echo "in_progress")
+            if [ "$STATUS" != "in_progress" ] && [ -n "$STATUS" ]; then
+              echo "Deep VPC cleanup completed with status: $STATUS"
+              if [ "$STATUS" != "success" ]; then
+                echo "Warning: Deep VPC cleanup did not succeed, continuing anyway..."
+              fi
+              break
+            fi
+            echo "  Still running... ($ELAPSED/$TIMEOUT seconds)"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "Warning: Deep VPC cleanup timed out after 10 minutes, continuing anyway..."
+          fi
 
           echo "Cleanup complete"
 
