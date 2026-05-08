@@ -26,7 +26,6 @@ in Phase 2.5 (between circuit breakers and position monitor).
 
 import os
 import psycopg2
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date

@@ -16,8 +16,6 @@ import requests
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
-import json
-
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)

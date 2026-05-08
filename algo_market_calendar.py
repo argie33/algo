@@ -7,8 +7,6 @@ Uses standard US market holidays. Can be extended for other markets.
 """
 
 from datetime import datetime, date as _date, time
-import json
-
 # US market holidays (2025-2026)
 US_HOLIDAYS = {
     _date(2025, 1, 1): "New Year's Day",
@@ -169,7 +167,6 @@ class MarketCalendar:
 
 
 if __name__ == '__main__':
-    import sys
     from datetime import timedelta
 
     print(f"\n{'='*70}")
