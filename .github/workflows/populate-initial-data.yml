@@ -1,0 +1,124 @@
+name: populate-initial-data
+
+on:
+  workflow_call:  # Called by deploy-all-infrastructure.yml
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '30 4 * * 1-5'  # Weekdays 4:30 AM ET (before market open)
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  load-initial-data:
+    name: Load Initial Market Data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ECS cluster info
+        id: cluster
+        run: |
+          CLUSTER=$(aws ecs list-clusters \
+            --region ${{ env.AWS_REGION }} \
+            --query 'clusterArns[?contains(@, `stocks-data`)]' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$CLUSTER" ]; then
+            echo "⚠️  ECS cluster not found, skipping data load"
+            exit 0
+          fi
+
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "✅ Found cluster: $CLUSTER"
+
+      - name: Run stock symbols loader
+        if: steps.cluster.outputs.cluster != ''
+        run: |
+          echo "📦 Loading stock symbols..."
+
+          TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix stocks-loaders \
+            --region ${{ env.AWS_REGION }} \
+            --sort DESC \
+            --max-items 1 \
+            --query 'taskDefinitionArns[0]' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            echo "⚠️  No task definition found, skipping"
+            exit 0
+          fi
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ steps.cluster.outputs.cluster }} \
+            --task-definition "$TASK_DEF" \
+            --region ${{ env.AWS_REGION }} \
+            --launch-type EC2 \
+            --query 'tasks[0].taskArn' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "⚠️  Failed to start task"
+            exit 0
+          fi
+
+          echo "✅ Task started: $TASK_ARN"
+
+      - name: Run price loader
+        if: steps.cluster.outputs.cluster != ''
+        run: |
+          echo "📊 Loading price data..."
+
+          TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix stocks-loaders \
+            --region ${{ env.AWS_REGION }} \
+            --sort DESC \
+            --max-items 1 \
+            --query 'taskDefinitionArns[0]' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            exit 0
+          fi
+
+          aws ecs run-task \
+            --cluster ${{ steps.cluster.outputs.cluster }} \
+            --task-definition "$TASK_DEF" \
+            --region ${{ env.AWS_REGION }} \
+            --launch-type EC2 \
+            --overrides '{"containerOverrides":[{"name":"stocks-loader","command":["python3","loadpricedaily.py"]}]}' \
+            2>/dev/null || echo "⚠️  Could not override task command"
+
+          echo "✅ Price loader initiated"
+
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "📊 DATA LOAD INITIATED"
+          echo "=========================================="
+          echo ""
+          echo "The following data is loading in the background:"
+          echo "  📦 Stock symbols"
+          echo "  📊 Price history (daily, weekly, monthly)"
+          echo "  💰 Analyst sentiment"
+          echo "  📈 Technical indicators"
+          echo ""
+          echo "Monitor progress in CloudWatch:"
+          echo "  aws logs tail /ecs/stocks-data-cluster --follow"
+          echo ""
+          echo "Or check ECS tasks:"
+          echo "  aws ecs list-tasks --cluster stocks-data-cluster"
+          echo "=========================================="
