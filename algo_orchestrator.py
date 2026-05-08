@@ -229,8 +229,8 @@ class Orchestrator:
             worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
 
             if self.verbose:
-                print(f"  [PATROL] {latest_run_id}: {total_findings} findings "
-                      f"(critical={critical_count}, error={error_count}, warn={warn_count})")
+                logger.info(f"  [PATROL] {latest_run_id}: {total_findings} findings "
+                            f"(critical={critical_count}, error={error_count}, warn={warn_count})")
 
             # Fetch flagged findings for alerting
             cur.execute("""
@@ -615,10 +615,10 @@ class Orchestrator:
             self._exposure_constraints = constraints
             if constraints:
                 logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
-                print(f"    risk_mult={constraints['risk_multiplier']}, "
-                      f"max_new/day={constraints['max_new_positions_today']}, "
-                      f"min_grade={constraints['min_swing_grade']}, "
-                      f"halt_entries={constraints['halt_new_entries']}")
+                logger.info(f"    risk_mult={constraints['risk_multiplier']}, "
+                            f"max_new/day={constraints['max_new_positions_today']}, "
+                            f"min_grade={constraints['min_swing_grade']}, "
+                            f"halt_entries={constraints['halt_new_entries']}")
 
             actions = policy.review_existing_positions(self.run_date)
             self._exposure_actions = actions
@@ -635,8 +635,8 @@ class Orchestrator:
 
             logger.info(f"\n  {len(actions)} exposure-policy actions:")
             for a in actions:
-                print(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
-                      f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
+                logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
+                            f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
 
             self.log_phase_result(
                 '3b', 'exposure_policy', 'success',
@@ -669,8 +669,8 @@ class Orchestrator:
                 try:
                     if self.dry_run:
                         if self.verbose:
-                            print(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
-                                  f"({action['reason']})")
+                            logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
+                                        f"({action['reason']})")
                         continue
 
                     if action['action'] == 'force_exit':
@@ -861,8 +861,8 @@ class Orchestrator:
             executed = 0
             for r in recs:
                 if self.dry_run:
-                    print(f"  [DRY-RUN] PYRAMID {r['symbol']} #{r['add_number']}: "
-                          f"+{r['add_size_shares']} sh @ ${r['add_price']:.2f}")
+                    logger.info(f"  [DRY-RUN] PYRAMID {r['symbol']} #{r['add_number']}: "
+                                f"+{r['add_size_shares']} sh @ ${r['add_price']:.2f}")
                     continue
                 result = engine.execute_add(r)
                 if result.get('success'):
@@ -941,8 +941,8 @@ class Orchestrator:
                         grade_order.index(t.get('swing_grade', 'F')) >= min_grade_idx)
                 ]
                 if len(qualified) < before:
-                    print(f"  Tier filter: {before} -> {len(qualified)} "
-                          f"(min_score={min_score}, min_grade={min_grade})")
+                    logger.info(f"  Tier filter: {before} -> {len(qualified)} "
+                                f"(min_score={min_score}, min_grade={min_grade})")
 
             # Determine open slots
             conn = None
@@ -992,9 +992,9 @@ class Orchestrator:
             for trade in qualified[:open_slots]:
                 if self.dry_run:
                     if self.verbose:
-                        print(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "
-                              f"{trade['shares']}sh @ ${trade['entry_price']:.2f} "
-                              f"stop ${trade['stop_loss_price']:.2f}")
+                        logger.info(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "
+                                    f"{trade['shares']}sh @ ${trade['entry_price']:.2f} "
+                                    f"stop ${trade['stop_loss_price']:.2f}")
                     continue
                 try:
                     # Pull stage_phase + base_type detail from advanced components
@@ -1150,8 +1150,8 @@ class Orchestrator:
                 existing_pid = int(lock_path.read_text().strip())
                 # Check if PID is alive
                 if self._pid_alive(existing_pid):
-                    print(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
-                          "Wait for it to finish or kill it.")
+                    logger.error(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
+                                 "Wait for it to finish or kill it.")
                     return {'success': False, 'error': f'lock held by PID {existing_pid}'}
                 else:
                     logger.info(f"  (Stale lock from PID {existing_pid} — clearing)")

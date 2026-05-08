@@ -20,6 +20,9 @@ from typing import Optional, Dict, Any
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -52,7 +55,7 @@ class LivePerformance:
             )
             self.cur = self.conn.cursor()
         except Exception as e:
-            print(f"Performance: DB connection failed: {e}")
+            logger.error(f"Performance: DB connection failed: {e}")
             raise
 
     def disconnect(self):
@@ -120,7 +123,7 @@ class LivePerformance:
 
             return round(annualized_sharpe, 4)
         except Exception as e:
-            print(f"Performance: rolling_sharpe failed: {e}")
+            logger.error(f"Performance: rolling_sharpe failed: {e}")
             return None
         finally:
             if cur:
@@ -201,7 +204,7 @@ class LivePerformance:
                 'avg_loss_r': round(avg_loss_r, 3),
             }
         except Exception as e:
-            print(f"Performance: win_rate failed: {e}")
+            logger.error(f"Performance: win_rate failed: {e}")
             return None
         finally:
             if cur:
@@ -237,7 +240,7 @@ class LivePerformance:
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return round(expectancy, 4)
         except Exception as e:
-            print(f"Performance: expectancy failed: {e}")
+            logger.error(f"Performance: expectancy failed: {e}")
             return None
 
     def max_drawdown(self) -> Optional[float]:
@@ -285,7 +288,7 @@ class LivePerformance:
 
             return round(max_dd, 2)
         except Exception as e:
-            print(f"Performance: max_drawdown failed: {e}")
+            logger.error(f"Performance: max_drawdown failed: {e}")
             return None
         finally:
             if cur:
@@ -309,7 +312,7 @@ class LivePerformance:
             # Load backtest reference metrics
             ref_file = Path(__file__).parent / 'tests' / 'backtest' / 'reference_metrics.json'
             if not ref_file.exists():
-                print(f"Performance: Reference metrics not found at {ref_file}")
+                logger.info(f"Performance: Reference metrics not found at {ref_file}")
                 return None
 
             with open(ref_file, 'r') as f:
@@ -339,7 +342,7 @@ class LivePerformance:
                 'backtest_max_dd': backtest_metrics.get('max_drawdown_pct'),
             }
         except Exception as e:
-            print(f"Performance: backtest_vs_live_comparison failed: {e}")
+            logger.error(f"Performance: backtest_vs_live_comparison failed: {e}")
             return None
 
     def generate_daily_report(self, report_date: Optional[date] = None) -> Dict[str, Any]:
@@ -441,5 +444,5 @@ class LivePerformance:
             return result
 
         except Exception as e:
-            print(f"Performance: generate_daily_report failed: {e}")
+            logger.error(f"Performance: generate_daily_report failed: {e}")
             return {'status': 'error', 'message': str(e)}

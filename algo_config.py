@@ -7,6 +7,9 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 try:
     import psycopg2
 except ImportError:
@@ -30,15 +33,15 @@ def validate_environment():
     db_name = os.getenv("DB_NAME")
 
     if not db_host:
-        print("WARNING: DB_HOST not set, using default 'localhost'")
+        logger.warning("WARNING: DB_HOST not set, using default 'localhost'")
     if not db_name:
-        print("WARNING: DB_NAME not set, using default 'stocks'")
+        logger.warning("WARNING: DB_NAME not set, using default 'stocks'")
 
     # Alpaca credentials are optional for paper trading, but check anyway
     alpaca_key = os.getenv("APCA_API_KEY_ID")
     alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
     if not alpaca_key or not alpaca_secret:
-        print("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
+        logger.warning("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
 
     return True
 
@@ -47,7 +50,7 @@ def validate_environment():
 try:
     validate_environment()
 except Exception as e:
-    print(f"ERROR: Environment validation failed: {e}")
+    logger.error(f"ERROR: Environment validation failed: {e}")
     raise
 
 DB_CONFIG = {
@@ -144,7 +147,7 @@ class AlgoConfig:
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
         if psycopg2 is None:
-            print("Warning: psycopg2 not available, using defaults")
+            logger.warning("Warning: psycopg2 not available, using defaults")
             return
         conn = None
         cur = None
@@ -161,10 +164,10 @@ class AlgoConfig:
                         self._validate_value(key, value, dtype)
                         self._config[key] = self._parse_value(value, dtype)
                     except ValueError as e:
-                        print(f"Warning: Invalid config {key}={value}: {e} — using default")
+                        logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
         except Exception as e:
-            print(f"Warning: Could not load config from DB: {e}")
-            print("  Using defaults...")
+            logger.warning(f"Warning: Could not load config from DB: {e}")
+            logger.info("  Using defaults...")
         finally:
             if cur:
                 try:
@@ -260,10 +263,10 @@ class AlgoConfig:
 
             return True
         except ValueError as e:
-            print(f"Error: Invalid config value for {key}: {e}")
+            logger.error(f"Error: Invalid config value for {key}: {e}")
             return False
         except Exception as e:
-            print(f"Error setting config {key}: {e}")
+            logger.error(f"Error setting config {key}: {e}")
             return False
         finally:
             if cur:
@@ -293,10 +296,10 @@ class AlgoConfig:
                 """, (key, value, dtype, desc))
 
             conn.commit()
-            print(f"✓ Initialized {len(self.DEFAULTS)} config defaults")
+            logger.info(f"✓ Initialized {len(self.DEFAULTS)} config defaults")
             return True
         except Exception as e:
-            print(f"Error initializing defaults: {e}")
+            logger.error(f"Error initializing defaults: {e}")
             return False
         finally:
             if cur:
@@ -342,8 +345,8 @@ def reload_config():
 if __name__ == "__main__":
     config = get_config()
     config.initialize_defaults()
-    print("\nConfiguration Summary:")
-    print("="*60)
+    logger.info("\nConfiguration Summary:")
+    logger.info("="*60)
     for key, val in sorted(config.to_dict().items()):
-        print(f"  {key:.<40} {val}")
-    print("="*60)
+        logger.info(f"  {key:.<40} {val}")
+    logger.info("="*60)

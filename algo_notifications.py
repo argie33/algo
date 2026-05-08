@@ -28,6 +28,9 @@ import os
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -79,7 +82,7 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
 
         return notif_id
     except Exception as e:
-        print(f"  (notify failed: {e})")
+        logger.error(f"  (notify failed: {e})")
         return None
     finally:
         if cur:
@@ -136,7 +139,7 @@ def _publish_sns(severity, title, message, symbol):
             }
         )
     except Exception as e:
-        print(f"  (SNS publish failed: {e})")
+        logger.error(f"  (SNS publish failed: {e})")
 
 
 def get_unseen(limit=50):
@@ -204,9 +207,9 @@ def mark_seen(notification_ids):
 
 if __name__ == "__main__":
     _ensure_table()
-    print("notifications table ensured.")
+    logger.info("notifications table ensured.")
     test_id = notify('test', 'info', 'Test notification', 'This is a test.')
-    print(f"Test notification id: {test_id}")
+    logger.info(f"Test notification id: {test_id}")
     unseen = get_unseen(5)
     for n in unseen:
-        print(f"  [{n['severity']}] {n['title']}: {n.get('message', '')}")
+        logger.info(f"  [{n['severity']}] {n['title']}: {n.get('message', '')}")
