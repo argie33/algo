@@ -37,6 +37,73 @@ jobs:
         with:
           terraform_version: 1.5.0
 
+      - name: Delete known blocking IAM roles and CloudFront OACs (targeted cleanup)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Removing known blocking resources that prevent terraform deployment..."
+          echo ""
+
+          # Specific roles that block terraform apply
+          BLOCKING_ROLES=(
+            "stocks-bastion-stop-lambda-role"
+            "stocks-github-actions-dev"
+            "stocks-bastion-dev"
+            "stocks-ecs-task-execution-dev"
+            "stocks-ecs-task-dev"
+            "stocks-lambda-api-dev"
+            "stocks-lambda-algo-dev"
+            "stocks-eventbridge-scheduler-dev"
+            "stocks-eventbridge-run-task-role"
+            "stocks-api-dev-role"
+            "stocks-algo-dev-role"
+          )
+
+          echo "[1/2] Deleting known blocking IAM roles..."
+          for ROLE in "${BLOCKING_ROLES[@]}"; do
+            # Check if role exists
+            if aws iam get-role --role-name "$ROLE" 2>/dev/null >/dev/null; then
+              echo "  Deleting: $ROLE"
+
+              # Delete inline policies
+              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
+                [ -z "$POLICY" ] && continue
+                aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null && echo "    ✓ Deleted inline policy: $POLICY" || true
+              done
+
+              # Detach managed policies
+              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
+                [ -z "$POLICY_ARN" ] && continue
+                aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null && echo "    ✓ Detached: $POLICY_ARN" || true
+              done
+
+              # Delete role
+              if aws iam delete-role --role-name "$ROLE" 2>/dev/null; then
+                echo "    ✅ Deleted role: $ROLE"
+              else
+                echo "    ⚠️ Failed to delete role (may have dependencies)"
+              fi
+            fi
+          done
+
+          echo ""
+          echo "[2/2] Deleting CloudFront Origin Access Controls..."
+          for OAC_ID in $(aws cloudfront list-origin-access-controls --query 'OriginAccessControlList.Items[*].Id' --output text 2>/dev/null || echo ""); do
+            [ -z "$OAC_ID" ] && continue
+            ETAG=$(aws cloudfront get-origin-access-control --id "$OAC_ID" --query 'OriginAccessControl.ETag' --output text 2>/dev/null || echo "")
+            [ -n "$ETAG" ] && {
+              if aws cloudfront delete-origin-access-control --id "$OAC_ID" --e-tag "$ETAG" 2>/dev/null; then
+                echo "  ✅ Deleted OAC: $OAC_ID"
+              else
+                echo "  ⚠️ Failed to delete OAC: $OAC_ID"
+              fi
+            }
+          done
+
+          echo ""
+          echo "Targeted blocking resource cleanup complete"
+
       - name: Bootstrap AWS prerequisites
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
