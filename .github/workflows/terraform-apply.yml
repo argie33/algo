@@ -61,78 +61,7 @@ jobs:
           echo "Destroying all Terraform-managed resources..."
           terraform destroy -auto-approve -no-color || true
           echo "Resources destroyed"
-
-      - name: Clean up orphaned VPCs
-        run: |
-          echo "Cleaning up orphaned VPCs (keeping default)..."
-          # Get all non-default VPCs
-          VPC_IDS=$(aws ec2 describe-vpcs --region ${{ env.AWS_REGION }} \
-            --filters "Name=isDefault,Values=false" \
-            --query 'Vpcs[*].VpcId' --output text)
-
-          if [ -z "$VPC_IDS" ]; then
-            echo "No orphaned VPCs found"
-            exit 0
-          fi
-
-          for VPC_ID in $VPC_IDS; do
-            echo "Processing VPC: $VPC_ID"
-
-            # Delete all subnets
-            SUBNET_IDS=$(aws ec2 describe-subnets --region ${{ env.AWS_REGION }} \
-              --filters "Name=vpc-id,Values=$VPC_ID" \
-              --query 'Subnets[*].SubnetId' --output text)
-            for SUBNET_ID in $SUBNET_IDS; do
-              aws ec2 delete-subnet --subnet-id $SUBNET_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Delete all security groups (except default)
-            SG_IDS=$(aws ec2 describe-security-groups --region ${{ env.AWS_REGION }} \
-              --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=!default" \
-              --query 'SecurityGroups[*].GroupId' --output text)
-            for SG_ID in $SG_IDS; do
-              aws ec2 delete-security-group --group-id $SG_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Delete NAT gateways
-            NAT_GW_IDS=$(aws ec2 describe-nat-gateways --region ${{ env.AWS_REGION }} \
-              --filter "Name=vpc-id,Values=$VPC_ID" \
-              --query 'NatGateways[*].NatGatewayId' --output text)
-            for NAT_GW_ID in $NAT_GW_IDS; do
-              aws ec2 delete-nat-gateway --nat-gateway-id $NAT_GW_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Delete internet gateways
-            IGW_IDS=$(aws ec2 describe-internet-gateways --region ${{ env.AWS_REGION }} \
-              --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
-              --query 'InternetGateways[*].InternetGatewayId' --output text)
-            for IGW_ID in $IGW_IDS; do
-              aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-              aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Delete route tables
-            RT_IDS=$(aws ec2 describe-route-tables --region ${{ env.AWS_REGION }} \
-              --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=false" \
-              --query 'RouteTables[*].RouteTableId' --output text)
-            for RT_ID in $RT_IDS; do
-              aws ec2 delete-route-table --route-table-id $RT_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Delete network ACLs
-            NACL_IDS=$(aws ec2 describe-network-acls --region ${{ env.AWS_REGION }} \
-              --filters "Name=vpc-id,Values=$VPC_ID" "Name=default,Values=false" \
-              --query 'NetworkAcls[*].NetworkAclId' --output text)
-            for NACL_ID in $NACL_IDS; do
-              aws ec2 delete-network-acl --network-acl-id $NACL_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            done
-
-            # Finally delete the VPC
-            sleep 5
-            aws ec2 delete-vpc --vpc-id $VPC_ID --region ${{ env.AWS_REGION }} 2>/dev/null || true
-            echo "Deleted VPC: $VPC_ID"
-          done
-          echo "VPC cleanup complete"
+          sleep 5
 
       - name: Clear backend state and locks
         run: |
@@ -143,7 +72,7 @@ jobs:
             xargs -I {} aws dynamodb delete-item --table-name stocks-terraform-locks \
             --key '{"LockID":{"S":"{}"}}' --region ${{ env.AWS_REGION }} 2>/dev/null || true
           echo "Backend cleared"
-          sleep 2
+          sleep 3
 
       - name: Terraform init clean
         run: |
