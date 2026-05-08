@@ -79,37 +79,10 @@ jobs:
             [[ "$PG" != "default."* ]] && [ -n "$PG" ] && aws rds delete-db-parameter-group --db-parameter-group-name "$PG" --region $REGION 2>/dev/null && echo "  Deleted RDS param group: $PG"
           done
 
-          # Delete IAM roles starting with "stocks-"
-          echo "[5/6] Deleting IAM roles..."
-          for ROLE in $(aws iam list-roles --region $REGION --query "Roles[*].RoleName" --output text 2>/dev/null | tr '\t' '\n' | grep "^stocks-" || echo ""); do
-            [ -n "$ROLE" ] && {
-              # Detach all inline policies
-              for POLICY in $(aws iam list-role-policies --role-name "$ROLE" --query 'RolePolicyNames[*]' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY" ] && aws iam delete-role-policy --role-name "$ROLE" --policy-name "$POLICY" 2>/dev/null
-              done
-              # Detach all managed policies
-              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || echo ""); do
-                [ -n "$POLICY_ARN" ] && aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$POLICY_ARN" 2>/dev/null
-              done
-              # Delete the role
-              aws iam delete-role --role-name "$ROLE" 2>/dev/null && echo "  Deleted IAM role: $ROLE"
-            }
-          done
+          echo "[5/6] Skipping IAM role deletion (will be replaced by Terraform)"
+          echo "[6/6] Skipping instance profile deletion (will be replaced by Terraform)"
 
-          # Delete instance profiles
-          echo "[6/6] Deleting IAM instance profiles..."
-          for PROFILE in $(aws iam list-instance-profiles --query "InstanceProfiles[*].InstanceProfileName" --output text 2>/dev/null | tr '\t' '\n' | grep "^stocks-" || echo ""); do
-            [ -n "$PROFILE" ] && {
-              # Detach roles first
-              for ROLE in $(aws iam get-instance-profile --instance-profile-name "$PROFILE" --query "InstanceProfile.Roles[*].RoleName" --output text 2>/dev/null || echo ""); do
-                [ -n "$ROLE" ] && aws iam remove-role-from-instance-profile --instance-profile-name "$PROFILE" --role-name "$ROLE" 2>/dev/null
-              done
-              # Delete profile
-              aws iam delete-instance-profile --instance-profile-name "$PROFILE" 2>/dev/null && echo "  Deleted instance profile: $PROFILE"
-            }
-          done
-
-          echo "Orphaned resource cleanup complete"
+          echo "Orphaned resource cleanup complete (ECR, logs, secrets, RDS params)"
           sleep 5
 
       - name: Terraform init
