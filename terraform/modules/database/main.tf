@@ -64,7 +64,7 @@ resource "aws_db_instance" "main" {
   # Deletion Protection
   deletion_protection = false # Allow deletion, but backup is retained
   skip_final_snapshot = false
-  final_snapshot_identifier = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  final_snapshot_identifier = "${var.project_name}-db-final-snapshot-${var.environment}"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"
