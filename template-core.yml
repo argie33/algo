@@ -183,7 +183,6 @@ Resources:
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: stocks-bastion-lt
       LaunchTemplateData:
         InstanceType: !Ref BastionInstanceType
         ImageId: !Ref BastionAmiId
@@ -410,7 +409,6 @@ Resources:
   DataLoadingBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'stocks-app-data-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
