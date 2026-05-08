@@ -16,7 +16,6 @@ Also calculates:
 - Extrinsic (time) value
 - IV percentile rank vs historical data
 """
-import numpy as np
 from scipy.stats import norm
 import logging
 

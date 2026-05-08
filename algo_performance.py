@@ -16,10 +16,8 @@ import psycopg2
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 import os
-import json
 from dotenv import load_dotenv
 from pathlib import Path
-import numpy as np
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

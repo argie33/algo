@@ -37,7 +37,6 @@ USAGE:
 """
 
 import os
-import json
 import argparse
 import psycopg2
 import requests

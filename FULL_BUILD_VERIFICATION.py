@@ -18,7 +18,6 @@ Verifies EVERY component of the algo system against specifications:
 import os
 import sys
 import psycopg2
-import subprocess
 import requests
 from pathlib import Path
 from dotenv import load_dotenv

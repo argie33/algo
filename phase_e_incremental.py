@@ -7,7 +7,6 @@ Phase E: Smart Incremental Loading with Caching
 - Expected: 5x reduction in API calls, -10% cost
 """
 
-import json
 import os
 import boto3
 import logging

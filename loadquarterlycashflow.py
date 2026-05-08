@@ -10,7 +10,6 @@ Run:
     python3 loadquarterlycashflow.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

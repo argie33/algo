@@ -8,7 +8,6 @@ Run:
     python3 loadnews.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

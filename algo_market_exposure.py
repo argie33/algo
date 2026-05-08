@@ -33,7 +33,6 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 
 import os
 import psycopg2
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date

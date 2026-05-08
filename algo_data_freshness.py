@@ -33,7 +33,6 @@ USAGE:
 """
 
 import os
-import json
 import psycopg2
 import argparse
 from pathlib import Path

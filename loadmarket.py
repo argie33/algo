@@ -9,7 +9,6 @@ Run:
     python3 loadmarket.py [--parallelism 4]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

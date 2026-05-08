@@ -21,7 +21,6 @@ USAGE:
     python3 migrate_indexes.py --check    # report only, no changes
 """
 
-from __future__ import annotations
 
 import argparse
 import os

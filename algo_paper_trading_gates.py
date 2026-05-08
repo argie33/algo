@@ -22,7 +22,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional
-import json
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

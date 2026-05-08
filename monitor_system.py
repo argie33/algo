@@ -3,8 +3,6 @@
 System Monitoring Script - Track data loading pipeline performance
 """
 
-import json
-import subprocess
 import sys
 from datetime import datetime
 

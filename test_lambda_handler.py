@@ -7,7 +7,6 @@ USAGE:
   pytest test_lambda_handler.py -v -k "cold_start"
 """
 
-import json
 import os
 import sys
 import unittest

@@ -12,7 +12,6 @@ Ensures risk metrics are accurate before using for position sizing.
 
 import os
 import psycopg2
-import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date, timedelta

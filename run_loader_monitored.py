@@ -3,11 +3,9 @@
 Run loadbuyselldaily.py with monitoring, error handling, and accuracy tracking
 Validates patterns are being detected correctly
 """
-import subprocess
 import sys
 import time
 from datetime import datetime
-import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

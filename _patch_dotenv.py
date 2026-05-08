@@ -18,7 +18,6 @@ docstring + __future__ imports), before any project-local imports that may
 need env vars at import time.
 """
 
-from __future__ import annotations
 
 import ast
 import glob

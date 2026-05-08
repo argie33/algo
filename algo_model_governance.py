@@ -13,7 +13,6 @@ Implements SR 11-7 light governance for trading strategies.
 
 import os
 import psycopg2
-import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date

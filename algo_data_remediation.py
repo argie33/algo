@@ -19,10 +19,8 @@ USAGE (called by run_eod_loaders.sh + manually):
 """
 
 import os
-import json
 import argparse
 import psycopg2
-import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta

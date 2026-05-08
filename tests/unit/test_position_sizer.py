@@ -12,7 +12,6 @@ Tests:
 """
 
 import pytest
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from algo_position_sizer import PositionSizer
 

@@ -41,7 +41,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 import boto3
-import json
 
 def get_db_config():
     """Get database configuration - works in AWS and locally.

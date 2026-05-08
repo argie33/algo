@@ -10,13 +10,11 @@ Usage:
 """
 
 import argparse
-import json
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import psycopg2
 from dotenv import load_dotenv

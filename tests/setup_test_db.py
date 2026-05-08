@@ -13,7 +13,6 @@ import sys
 import psycopg2
 from pathlib import Path
 from datetime import date, timedelta, datetime
-from decimal import Decimal
 from dotenv import load_dotenv
 
 # Load .env.local or .env.test

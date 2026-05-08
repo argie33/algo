@@ -14,7 +14,6 @@ Features:
 import os
 import psycopg2
 import uuid
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime

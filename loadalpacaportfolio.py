@@ -17,7 +17,6 @@ import psycopg2
 from db_helper import DatabaseHelper
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
-import json
 import requests
 from requests.auth import HTTPBasicAuth
 

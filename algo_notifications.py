@@ -25,7 +25,6 @@ Usage from other modules:
 """
 
 import os
-import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

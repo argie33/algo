@@ -5,7 +5,6 @@ Avoids psycopg2 import issues by keeping database operations local.
 Deployed: 2026-05-05 15:35 UTC
 """
 
-import json
 import os
 import sys
 import logging

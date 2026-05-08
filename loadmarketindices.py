@@ -10,7 +10,6 @@ Run:
     python3 loadmarketindices.py [--parallelism 4]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

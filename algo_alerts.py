@@ -11,7 +11,6 @@ Configuration via environment variables:
 """
 
 import os
-import json
 import smtplib
 import requests
 from pathlib import Path

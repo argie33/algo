@@ -34,7 +34,6 @@ swing_score directly.
 
 import os
 import psycopg2
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date

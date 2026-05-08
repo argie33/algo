@@ -24,7 +24,6 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date
-import json
 from algo_backtest import Backtester
 
 env_file = Path(__file__).parent / '.env.local'

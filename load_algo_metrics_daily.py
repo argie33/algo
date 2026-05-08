@@ -23,7 +23,6 @@ import psycopg2
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
-from decimal import Decimal
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

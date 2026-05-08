@@ -11,7 +11,6 @@ that all three strategies need for complete data parity.
 """
 
 import pandas as pd
-import numpy as np
 import logging
 
 ###############################################################################

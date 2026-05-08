@@ -3,7 +3,6 @@ Simplified Lambda handler - runs algo orchestrator directly without subprocesses
 Avoids psycopg2 import issues by keeping database operations local.
 """
 
-import json
 import os
 import sys
 import logging

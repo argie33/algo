@@ -3,7 +3,6 @@ Performance calculation utilities - shared across all data loaders
 Eliminates duplication of performance calculations and indicators
 """
 
-import numpy as np
 import logging
 from typing import Optional, List, Tuple
 

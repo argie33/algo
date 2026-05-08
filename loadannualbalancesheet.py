@@ -12,7 +12,6 @@ Run:
     python3 loadannualbalancesheet.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

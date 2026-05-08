@@ -4,7 +4,6 @@ Eliminates duplication of get_db_config() across all loaders
 """
 
 import os
-import json
 import logging
 import boto3
 import psycopg2

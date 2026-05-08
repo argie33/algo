@@ -14,7 +14,6 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 # Load test env vars

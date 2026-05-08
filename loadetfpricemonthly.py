@@ -9,7 +9,6 @@ Run:
     python3 loadetfpricemonthly.py [--symbols SPY,QQQ] [--parallelism 8]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

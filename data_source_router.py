@@ -30,7 +30,6 @@ Usage:
     print(router.last_source)  # "alpaca" / "polygon" / "yfinance"
 """
 
-from __future__ import annotations
 
 import logging
 import os

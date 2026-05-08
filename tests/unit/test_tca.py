@@ -11,7 +11,6 @@ Validates:
 
 import pytest
 from datetime import date, timedelta
-from decimal import Decimal
 from unittest.mock import MagicMock, patch, call
 from algo_tca import TCAEngine
 

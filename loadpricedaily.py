@@ -17,7 +17,6 @@ Run:
     python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

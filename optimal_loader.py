@@ -34,7 +34,6 @@ Example - full price_daily loader:
     PriceDailyLoader().run(get_active_symbols())
 """
 
-from __future__ import annotations
 
 import logging
 import os

@@ -36,7 +36,6 @@ USAGE:
 import os
 import psycopg2
 import argparse
-import json
 import statistics
 from pathlib import Path
 from dotenv import load_dotenv

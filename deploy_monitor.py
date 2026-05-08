@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Monitor CloudFormation deployment and run health checks."""
 
-import subprocess
-import json
 import time
 from datetime import datetime
 

@@ -6,10 +6,8 @@ Runs: TimescaleDB setup + Multi-source OHLCV loading + Full validation.
 
 import os
 import sys
-import subprocess
 import psycopg2
 from datetime import datetime, timedelta
-import json
 
 class QuickWinsDeployment:
     def __init__(self):

@@ -11,7 +11,6 @@ Usage:
   python3 test_patrol_system.py --alerts        # test alerts
 """
 
-import json
 import argparse
 from pathlib import Path
 from datetime import datetime, date as _date

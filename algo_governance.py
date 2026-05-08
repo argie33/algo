@@ -12,13 +12,11 @@ Tracks:
 
 import psycopg2
 import os
-import json
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
 from scipy import stats
-import numpy as np
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

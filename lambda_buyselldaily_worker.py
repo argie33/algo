@@ -7,7 +7,6 @@ Lambda Worker: Process buyselldaily signals for 50 symbols in parallel
 - Uses DatabaseHelper for cloud-native inserts
 """
 
-import json
 import os
 import sys
 import boto3

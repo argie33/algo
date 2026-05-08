@@ -10,7 +10,6 @@ Run:
     python3 loadetfpricedaily.py [--symbols SPY,QQQ] [--parallelism 8]
 """
 
-from __future__ import annotations
 
 import argparse
 import logging

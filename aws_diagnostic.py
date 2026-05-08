@@ -5,7 +5,6 @@ Diagnoses and fixes CloudFormation stack issues
 """
 
 import boto3
-import json
 from datetime import datetime
 
 def run_diagnostics():

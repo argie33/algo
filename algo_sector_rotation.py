@@ -20,7 +20,6 @@ composite score by 5-10 points (handled in algo_market_exposure.py).
 
 import os
 import psycopg2
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date

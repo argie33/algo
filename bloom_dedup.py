@@ -18,7 +18,6 @@ Usage:
     dedup.add_batch(new_rows, key=lambda r: f"{r.symbol}:{r.date}")
 """
 
-from __future__ import annotations
 
 import hashlib
 import logging

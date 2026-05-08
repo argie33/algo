@@ -18,12 +18,10 @@ Alerts:
 
 import psycopg2
 import os
-import json
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from dotenv import load_dotenv
-import numpy as np
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

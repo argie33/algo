@@ -31,7 +31,6 @@ Or use the context manager (atomic update):
         # commit on success advances watermark to target_date
 """
 
-from __future__ import annotations
 
 import contextlib
 import logging

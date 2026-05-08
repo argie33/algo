@@ -17,9 +17,7 @@ Returns: JSON report with all phase validation results
 """
 
 import os
-import json
 import sys
-import subprocess
 from pathlib import Path
 from datetime import date
 from typing import Dict, Any

@@ -17,7 +17,6 @@ USAGE:
     python3 load_eod_bulk.py --symbols SPY,QQQ
 """
 
-from __future__ import annotations
 
 import argparse
 import io

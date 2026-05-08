@@ -54,7 +54,6 @@ can show exactly what happened and when.
 import os
 import sys
 import psycopg2
-import json
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv

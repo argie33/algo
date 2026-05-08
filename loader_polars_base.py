@@ -30,7 +30,6 @@ Usage:
     loader.run(symbols=["AAPL", "MSFT"])
 """
 
-from __future__ import annotations
 
 import io
 import logging
