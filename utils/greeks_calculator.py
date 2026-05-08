@@ -17,6 +17,7 @@ Also calculates:
 - IV percentile rank vs historical data
 """
 from scipy.stats import norm
+import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)

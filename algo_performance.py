@@ -13,6 +13,8 @@ Metrics computed:
 """
 
 import psycopg2
+import json
+import numpy as np
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 import os
