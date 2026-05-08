@@ -93,64 +93,66 @@ class AdvancedFilters:
 
     def load_market_context(self, eval_date):
         self.connect()
-
-        self.cur.execute(
-            """
-            SELECT sector_name, current_rank, momentum_score
-            FROM sector_ranking
-            WHERE date_recorded = (
-                SELECT MAX(date_recorded) FROM sector_ranking
-                WHERE date_recorded <= %s
+        try:
+            self.cur.execute(
+                """
+                SELECT sector_name, current_rank, momentum_score
+                FROM sector_ranking
+                WHERE date_recorded = (
+                    SELECT MAX(date_recorded) FROM sector_ranking
+                    WHERE date_recorded <= %s
+                )
+                AND sector_name <> '' AND sector_name IS NOT NULL
+                AND sector_name <> 'Benchmark'
+                ORDER BY current_rank ASC
+                """,
+                (eval_date,),
             )
-            AND sector_name <> '' AND sector_name IS NOT NULL
-            AND sector_name <> 'Benchmark'
-            ORDER BY current_rank ASC
-            """,
-            (eval_date,),
-        )
-        sectors = self.cur.fetchall()
-        top_n = int(self.config.get('strong_sector_top_n', 5))
-        self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-        self._strong_sectors = {row[0]: float(row[2] or 0) for row in sectors[:top_n]}
+            sectors = self.cur.fetchall()
+            top_n = int(self.config.get('strong_sector_top_n', 5))
+            self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
+            self._strong_sectors = {row[0]: float(row[2] or 0) for row in sectors[:top_n]}
 
-        self.cur.execute(
-            """
-            SELECT industry, daily_strength_score
-            FROM industry_ranking
-            WHERE date_recorded = (
-                SELECT MAX(date_recorded) FROM industry_ranking
-                WHERE date_recorded <= %s
+            self.cur.execute(
+                """
+                SELECT industry, daily_strength_score
+                FROM industry_ranking
+                WHERE date_recorded = (
+                    SELECT MAX(date_recorded) FROM industry_ranking
+                    WHERE date_recorded <= %s
+                )
+                AND industry <> '' AND industry IS NOT NULL
+                AND daily_strength_score IS NOT NULL
+                ORDER BY daily_strength_score DESC
+                """,
+                (eval_date,),
             )
-            AND industry <> '' AND industry IS NOT NULL
-            AND daily_strength_score IS NOT NULL
-            ORDER BY daily_strength_score DESC
-            """,
-            (eval_date,),
-        )
-        industries = self.cur.fetchall()
-        if industries:
-            cutoff_idx = max(1, len(industries) // 4)
-            self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
-        else:
-            self._strong_industries = {}
+            industries = self.cur.fetchall()
+            if industries:
+                cutoff_idx = max(1, len(industries) // 4)
+                self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
+            else:
+                self._strong_industries = {}
 
-        self.cur.execute(
-            "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
-            (eval_date,),
-        )
-        sent = self.cur.fetchone()
-        if sent:
-            self._market_breadth = {
-                'bullish': float(sent[0] or 0),
-                'bearish': float(sent[1] or 0),
-                'bull_bear_spread': float(sent[0] or 0) - float(sent[1] or 0),
+            self.cur.execute(
+                "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                (eval_date,),
+            )
+            sent = self.cur.fetchone()
+            if sent:
+                self._market_breadth = {
+                    'bullish': float(sent[0] or 0),
+                    'bearish': float(sent[1] or 0),
+                    'bull_bear_spread': float(sent[0] or 0) - float(sent[1] or 0),
+                }
+
+            return {
+                'strong_sectors': list(self._strong_sectors.keys()),
+                'strong_industries_count': len(self._strong_industries),
+                'market_breadth': self._market_breadth,
             }
-
-        return {
-            'strong_sectors': list(self._strong_sectors.keys()),
-            'strong_industries_count': len(self._strong_industries),
-            'market_breadth': self._market_breadth,
-        }
+        finally:
+            self.disconnect()
 
     # ---------- Per-candidate evaluation ----------
 
@@ -165,113 +167,116 @@ class AdvancedFilters:
           'components': dict
         """
         self.connect()
-        components = {}
-        subscores = {'momentum': 0.0, 'quality': 0.0, 'catalyst': 0.0, 'risk': 0.0}
-        max_subscores = {'momentum': 40.0, 'quality': 30.0, 'catalyst': 15.0, 'risk': 15.0}
-        hard_fail = None
+        try:
+            components = {}
+            subscores = {'momentum': 0.0, 'quality': 0.0, 'catalyst': 0.0, 'risk': 0.0}
+            max_subscores = {'momentum': 40.0, 'quality': 30.0, 'catalyst': 15.0, 'risk': 15.0}
+            hard_fail = None
 
-        # ===== HARD-FAIL gates (independent) =====
+            # ===== HARD-FAIL gates (independent) =====
 
-        # H1. Earnings proximity
-        days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date)
-        components['days_to_earnings'] = days_to_earnings
-        block_window = int(self.config.get('block_days_before_earnings', 5))
-        if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
-            hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
+            # H1. Earnings proximity
+            days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date)
+            components['days_to_earnings'] = days_to_earnings
+            block_window = int(self.config.get('block_days_before_earnings', 5))
+            if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
+                hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
 
-        # H2. Over-extended
-        ext_pct = self._extension_pct(symbol, signal_date, entry_price)
-        components['extension_pct'] = ext_pct
-        max_extension = float(self.config.get('max_extension_above_50ma_pct', 15.0))
-        if ext_pct is not None and ext_pct > max_extension:
-            hard_fail = hard_fail or f'{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})'
+            # H2. Over-extended
+            ext_pct = self._extension_pct(symbol, signal_date, entry_price)
+            components['extension_pct'] = ext_pct
+            max_extension = float(self.config.get('max_extension_above_50ma_pct', 15.0))
+            if ext_pct is not None and ext_pct > max_extension:
+                hard_fail = hard_fail or f'{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})'
 
-        # H4. Liquidity (institutional must)
-        avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date)
-        components['avg_dollar_volume'] = avg_dollar_vol
-        min_liq = float(self.config.get('min_avg_daily_dollar_volume', 5_000_000))
-        if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
-            hard_fail = hard_fail or f'Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M'
+            # H4. Liquidity (institutional must)
+            avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date)
+            components['avg_dollar_volume'] = avg_dollar_vol
+            min_liq = float(self.config.get('min_avg_daily_dollar_volume', 5_000_000))
+            if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
+                hard_fail = hard_fail or f'Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M'
 
-        # H5. Strong-sector requirement (off by default)
-        if self.config.get('require_strong_sector', False):
-            if sector and sector not in (self._strong_sectors or {}):
-                hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
+            # H5. Strong-sector requirement (off by default)
+            if self.config.get('require_strong_sector', False):
+                if sector and sector not in (self._strong_sectors or {}):
+                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
 
-        # ===== SOFT scoring (always computed, even when hard-failed) =====
+            # ===== SOFT scoring (always computed, even when hard-failed) =====
 
-        # MOMENTUM (40)
-        rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date)
-        components['relative_strength'] = {'pts': round(rs_pts, 1), 'excess_vs_spy': rs_value}
-        subscores['momentum'] += rs_pts
+            # MOMENTUM (40)
+            rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date)
+            components['relative_strength'] = {'pts': round(rs_pts, 1), 'excess_vs_spy': rs_value}
+            subscores['momentum'] += rs_pts
 
-        sec_pts = self._sector_momentum_score(sector)
-        components['sector_strength'] = round(sec_pts, 1)
-        subscores['momentum'] += sec_pts
+            sec_pts = self._sector_momentum_score(sector)
+            components['sector_strength'] = round(sec_pts, 1)
+            subscores['momentum'] += sec_pts
 
-        ind_pts = self._industry_momentum_score(industry)
-        components['industry_strength'] = round(ind_pts, 1)
-        subscores['momentum'] += ind_pts
+            ind_pts = self._industry_momentum_score(industry)
+            components['industry_strength'] = round(ind_pts, 1)
+            subscores['momentum'] += ind_pts
 
-        vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date)
-        components['volume_ratio'] = vol_ratio
-        subscores['momentum'] += vol_pts
+            vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date)
+            components['volume_ratio'] = vol_ratio
+            subscores['momentum'] += vol_pts
 
-        trend_pts = self._price_trend_score(symbol, signal_date)
-        components['price_trend_pts'] = round(trend_pts, 1)
-        subscores['momentum'] += trend_pts
+            trend_pts = self._price_trend_score(symbol, signal_date)
+            components['price_trend_pts'] = round(trend_pts, 1)
+            subscores['momentum'] += trend_pts
 
-        # SETUP QUALITY (5 pts within momentum bucket): base breakout / VCP
-        # Bassal, Darvas, Minervini all emphasize entering on breakout from
-        # tight consolidation (vs chasing extended trends).
-        setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
-        components['setup_quality'] = setup_breakdown
-        subscores['momentum'] += setup_pts
+            # SETUP QUALITY (5 pts within momentum bucket): base breakout / VCP
+            # Bassal, Darvas, Minervini all emphasize entering on breakout from
+            # tight consolidation (vs chasing extended trends).
+            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
+            components['setup_quality'] = setup_breakdown
+            subscores['momentum'] += setup_pts
 
-        # QUALITY (30)
-        ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol)
-        components['ibd_composite'] = ibd_breakdown
-        subscores['quality'] += ibd_pts
+            # QUALITY (30)
+            ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol)
+            components['ibd_composite'] = ibd_breakdown
+            subscores['quality'] += ibd_pts
 
-        fin_pts, fin_val = self._financial_quality_score(symbol)
-        components['financial_quality'] = fin_val
-        subscores['quality'] += fin_pts
+            fin_pts, fin_val = self._financial_quality_score(symbol)
+            components['financial_quality'] = fin_val
+            subscores['quality'] += fin_pts
 
-        eq_pts, eq_val = self._earnings_quality_score(symbol)
-        components['earnings_quality_score'] = eq_val
-        subscores['quality'] += eq_pts
+            eq_pts, eq_val = self._earnings_quality_score(symbol)
+            components['earnings_quality_score'] = eq_val
+            subscores['quality'] += eq_pts
 
-        # CATALYST (15)
-        grw_pts, grw_breakdown = self._growth_score(symbol)
-        components['growth'] = grw_breakdown
-        subscores['catalyst'] += grw_pts
+            # CATALYST (15)
+            grw_pts, grw_breakdown = self._growth_score(symbol)
+            components['growth'] = grw_breakdown
+            subscores['catalyst'] += grw_pts
 
-        an_pts, an_net = self._analyst_score(symbol, signal_date)
-        components['analyst_net_actions'] = an_net
-        subscores['catalyst'] += an_pts
+            an_pts, an_net = self._analyst_score(symbol, signal_date)
+            components['analyst_net_actions'] = an_net
+            subscores['catalyst'] += an_pts
 
-        in_pts, in_net = self._insider_score(symbol, signal_date)
-        components['insider_net_value'] = in_net
-        subscores['catalyst'] += in_pts
+            in_pts, in_net = self._insider_score(symbol, signal_date)
+            components['insider_net_value'] = in_net
+            subscores['catalyst'] += in_pts
 
-        # RISK (15) — these are GOOD when low risk
-        ext_pts = self._extension_risk_score(ext_pct)
-        components['extension_pts'] = round(ext_pts, 1)
-        subscores['risk'] += ext_pts
+            # RISK (15) — these are GOOD when low risk
+            ext_pts = self._extension_risk_score(ext_pct)
+            components['extension_pts'] = round(ext_pts, 1)
+            subscores['risk'] += ext_pts
 
-        ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
-        components['earnings_proximity_pts'] = round(ep_pts, 1)
-        subscores['risk'] += ep_pts
+            ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
+            components['earnings_proximity_pts'] = round(ep_pts, 1)
+            subscores['risk'] += ep_pts
 
-        composite_score = sum(subscores.values())
-        return {
-            'pass': hard_fail is None,
-            'reason': hard_fail or 'all advanced gates passed',
-            'composite_score': round(composite_score, 1),
-            'subscores': {k: round(v, 1) for k, v in subscores.items()},
-            'subscore_max': max_subscores,
-            'components': components,
-        }
+            composite_score = sum(subscores.values())
+            return {
+                'pass': hard_fail is None,
+                'reason': hard_fail or 'all advanced gates passed',
+                'composite_score': round(composite_score, 1),
+                'subscores': {k: round(v, 1) for k, v in subscores.items()},
+                'subscore_max': max_subscores,
+                'components': components,
+            }
+        finally:
+            self.disconnect()
 
     # ============= MOMENTUM =============
 
