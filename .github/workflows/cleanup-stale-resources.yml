@@ -1,0 +1,142 @@
+# ============================================================
+# GitHub Actions Workflow - Clean Up Stale AWS Resources
+# ============================================================
+# This workflow removes leftover AWS resources from failed
+# deployment attempts before running a fresh Terraform deploy.
+# Only run this if instructed during troubleshooting.
+
+name: Cleanup Stale Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_terraform_state:
+        description: "Delete Terraform state file (use only for complete fresh start)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: cleanup-stale-resources
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Clean up stale AWS resources
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete EC2 Launch Template
+        continue-on-error: true
+        run: |
+          echo "🗑️  Deleting EC2 Launch Template..."
+          aws ec2 delete-launch-template \
+            --launch-template-name stocks-bastion-lt \
+            --region ${{ env.AWS_REGION }} && \
+          echo "✅ Launch template deleted" || \
+          echo "⚠️  Launch template not found (already deleted or never existed)"
+
+      - name: Delete RDS DB Subnet Group
+        continue-on-error: true
+        run: |
+          echo "🗑️  Deleting RDS DB Subnet Group..."
+          aws rds delete-db-subnet-group \
+            --db-subnet-group-name stocks-db-subnet-group \
+            --region ${{ env.AWS_REGION }} && \
+          echo "✅ DB subnet group deleted" || \
+          echo "⚠️  DB subnet group not found or still in use"
+
+      - name: Delete EventBridge IAM Role
+        continue-on-error: true
+        run: |
+          echo "🗑️  Deleting EventBridge IAM Role and policies..."
+          ROLE_NAME="stocks-eventbridge-run-task-role"
+
+          # List and delete inline policies
+          POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text 2>/dev/null || echo "")
+          if [ -n "$POLICIES" ]; then
+            for POLICY in $POLICIES; do
+              echo "  - Removing policy: $POLICY"
+              aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY" 2>/dev/null || true
+            done
+          fi
+
+          # Delete the role
+          aws iam delete-role --role-name "$ROLE_NAME" && \
+          echo "✅ IAM role deleted" || \
+          echo "⚠️  IAM role not found or could not be deleted"
+
+      - name: Delete Terraform state (optional)
+        if: ${{ github.event.inputs.delete_terraform_state == 'true' }}
+        continue-on-error: true
+        run: |
+          echo "🗑️  Deleting Terraform state file (COMPLETE FRESH START)..."
+          aws s3 rm \
+            s3://stocks-terraform-state/dev/terraform.tfstate \
+            --region ${{ env.AWS_REGION }} && \
+          echo "✅ Terraform state deleted" || \
+          echo "⚠️  Terraform state not found"
+
+      - name: Verify cleanup
+        run: |
+          echo "📋 Verifying cleanup..."
+          echo ""
+          echo "Checking for remaining resources:"
+
+          # Check launch templates
+          TEMPLATES=$(aws ec2 describe-launch-templates \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LaunchTemplates[?LaunchTemplateName==`stocks-bastion-lt`].LaunchTemplateName' \
+            --output text)
+          if [ -z "$TEMPLATES" ]; then
+            echo "✅ Launch template: DELETED"
+          else
+            echo "⚠️  Launch template: STILL EXISTS"
+          fi
+
+          # Check DB subnet groups
+          SUBNETS=$(aws rds describe-db-subnet-groups \
+            --region ${{ env.AWS_REGION }} \
+            --query 'DBSubnetGroups[?DBSubnetGroupName==`stocks-db-subnet-group`].DBSubnetGroupName' \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$SUBNETS" ]; then
+            echo "✅ DB subnet group: DELETED"
+          else
+            echo "⚠️  DB subnet group: STILL EXISTS"
+          fi
+
+          # Check IAM role
+          ROLE=$(aws iam get-role --role-name stocks-eventbridge-run-task-role 2>/dev/null || echo "")
+          if [ -z "$ROLE" ]; then
+            echo "✅ IAM role: DELETED"
+          else
+            echo "⚠️  IAM role: STILL EXISTS"
+          fi
+
+          echo ""
+          echo "✅ Cleanup verification complete"
+
+      - name: Summary
+        run: |
+          echo "## ✅ Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Stale AWS resources have been removed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the cleanup verification output above" >> $GITHUB_STEP_SUMMARY
+          echo "2. If any resources still exist, they may still be in use" >> $GITHUB_STEP_SUMMARY
+          echo "3. Trigger the Terraform Apply workflow: \`gh workflow run terraform-apply.yml\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Monitor the deployment in GitHub Actions" >> $GITHUB_STEP_SUMMARY
