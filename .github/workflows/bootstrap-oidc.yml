@@ -24,16 +24,11 @@ jobs:
       - name: Create OIDC Provider if not exists
         run: |
           echo "Checking for GitHub OIDC Provider..."
-          EXISTING=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[?contains(OpenIDConnectProviderArn, `github`)]' --output text 2>/dev/null || echo "")
-          if [ -z "$EXISTING" ]; then
-            echo "Creating OIDC provider..."
-            aws iam create-open-id-connect-provider \
-              --url https://token.actions.githubusercontent.com \
-              --client-id-list sts.amazonaws.com \
-              --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03
-          else
-            echo "OIDC provider already exists"
-          fi
+          aws iam create-open-id-connect-provider \
+            --url https://token.actions.githubusercontent.com \
+            --client-id-list sts.amazonaws.com \
+            --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 1b511abead59c6ce207077c0bf4113469e1f0b03 \
+            2>/dev/null || echo "✓ OIDC provider already exists"
 
       - name: Get OIDC Provider ARN
         id: oidc
