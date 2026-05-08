@@ -5,8 +5,11 @@ Create the 4 critical new tables for Phase 1-4 integration
 
 import os
 import psycopg2
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -140,6 +143,8 @@ SQL_STATEMENTS = [
 ]
 
 def main():
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
@@ -147,22 +152,31 @@ def main():
         for i, sql in enumerate(SQL_STATEMENTS, 1):
             try:
                 cur.execute(sql)
-                print(f"[OK] Statement {i} executed")
+                logger.info(f"[OK] Statement {i} executed")
             except Exception as e:
-                print(f"[FAIL] Statement {i}: {str(e)[:80]}")
+                logger.error(f"[FAIL] Statement {i}: {str(e)[:80]}")
 
         conn.commit()
-        cur.close()
-        conn.close()
-        print("\nAll tables and indexes created successfully!")
+        logger.info("\nAll tables and indexes created successfully!")
+        return True
 
     except Exception as e:
-        print(f"Database connection error: {e}")
+        logger.error(f"Database connection error: {e}")
         return False
-
-    return True
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     import sys
     success = main()
     sys.exit(0 if success else 1)
