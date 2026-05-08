@@ -238,17 +238,17 @@ class MultiSourceOHLCVLoader:
     def _report(self):
         """Print loading report."""
         total = sum(self.stats.values())
-        print("\n" + "=" * 60)
-        print(f"📊 OHLCV Multi-Source Load Report")
-        print("=" * 60)
-        print(f"✅ Success:  {self.stats['success']:,d}")
-        print(f"❌ Failed:   {self.stats['failed']:,d}")
-        print(f"⚠️  Partial: {self.stats['partial']:,d}")
-        print(f"📭 Empty:    {self.stats['empty']:,d}")
-        print(f"📈 Total:    {total:,d}")
-        print("=" * 60)
-        print(f"\nExpected speedup: 10-50x faster than yfinance-only")
-        print(f"Data reliability: 99.5% (multi-source fallback)")
+        logger.info("\n" + "=" * 60)
+        logger.info(f"📊 OHLCV Multi-Source Load Report")
+        logger.info("=" * 60)
+        logger.info(f"✅ Success:  {self.stats['success']:,d}")
+        logger.info(f"❌ Failed:   {self.stats['failed']:,d}")
+        logger.info(f"⚠️  Partial: {self.stats['partial']:,d}")
+        logger.info(f"📭 Empty:    {self.stats['empty']:,d}")
+        logger.info(f"📈 Total:    {total:,d}")
+        logger.info("=" * 60)
+        logger.info(f"\nExpected speedup: 10-50x faster than yfinance-only")
+        logger.info(f"Data reliability: 99.5% (multi-source fallback)")
         return 0 if self.stats["failed"] == 0 else 1
 
     def close(self):

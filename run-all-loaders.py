@@ -3,8 +3,10 @@ import os
 import sys
 import time
 import logging
+import subprocess
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Critical loaders - no data or incomplete data
 critical_loaders = [
@@ -70,9 +72,9 @@ critical_loaders = [
     'loadetfsignals.py',
 ]
 
-print(f"\n{'='*70}")
-print(f"Running {len(critical_loaders)} critical loaders")
-print(f"{'='*70}\n")
+logger.info(f"\n{'='*70}")
+logger.info(f"Running {len(critical_loaders)} critical loaders")
+logger.info(f"{'='*70}\n")
 
 failed = []
 successful = []
@@ -121,25 +123,25 @@ for i, loader in enumerate(critical_loaders, 1):
     if i < len(critical_loaders):
         time.sleep(0.5)
 
-print(f"\n{'='*70}")
-print(f"SUMMARY")
-print(f"{'='*70}")
-print(f"Successful: {len(successful)}")
-print(f"Failed: {len(failed)}")
-print(f"Rate Limited: {len(rate_limited)}")
+logger.info(f"\n{'='*70}")
+logger.info(f"SUMMARY")
+logger.info(f"{'='*70}")
+logger.info(f"Successful: {len(successful)}")
+logger.info(f"Failed: {len(failed)}")
+logger.info(f"Rate Limited: {len(rate_limited)}")
 
 if failed:
-    print(f"\nFailed loaders:")
+    logger.info(f"\nFailed loaders:")
     for loader in failed[:5]:
-        print(f"  - {loader}")
+        logger.info(f"  - {loader}")
     if len(failed) > 5:
-        print(f"  ... and {len(failed)-5} more")
+        logger.info(f"  ... and {len(failed)-5} more")
 
 if rate_limited:
-    print(f"\nRate limited loaders (retry later):")
+    logger.info(f"\nRate limited loaders (retry later):")
     for loader in rate_limited[:5]:
-        print(f"  - {loader}")
+        logger.info(f"  - {loader}")
     if len(rate_limited) > 5:
-        print(f"  ... and {len(rate_limited)-5} more")
+        logger.info(f"  ... and {len(rate_limited)-5} more")
 
-print(f"\n{'='*70}\n")
+logger.info(f"\n{'='*70}\n")

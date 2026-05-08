@@ -20,6 +20,9 @@ from datetime import datetime
 import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -183,7 +186,7 @@ class TradeExecutor:
                     'duplicate': True
                 }
         except Exception as e:
-            print(f"Warning: Failed to check for duplicate position: {e}")
+            logger.warning(f"Failed to check for duplicate position: {e}")
             # Continue anyway, but log the warning
         finally:
             self.disconnect()
@@ -248,7 +251,7 @@ class TradeExecutor:
             if existing:
                 # B9: Log duplicate with visibility for pattern monitoring
                 signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
-                print(f"[WARN] DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})")
+                logger.warning(f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})")
                 return {
                     'success': False, 'trade_id': existing[0], 'status': 'duplicate', 'duplicate': True,
                     'message': f'Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})'
@@ -286,9 +289,6 @@ class TradeExecutor:
 
             execution_mode = self.config.get('execution_mode', 'paper')
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
-
-            import logging
-            logger = logging.getLogger('algo_trade_executor')
 
             if execution_mode in ('paper', 'dry'):
                 logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
@@ -328,7 +328,7 @@ class TradeExecutor:
                 # Verify bracket legs were created successfully
                 legs = order_result.get('legs', [])
                 if order_result.get('order_class') == 'bracket' and len(legs) < 2:
-                    print(f"WARNING: Bracket order {alpaca_order_id} created but legs incomplete: {len(legs)} legs")
+                    logger.warning(f"Bracket order {alpaca_order_id} created but legs incomplete: {len(legs)} legs")
                     # Continue anyway but flag for monitoring
 
                 # Validate filled status — only mark as filled if Alpaca confirmed
@@ -344,7 +344,7 @@ class TradeExecutor:
                                 message=f'Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) — {order_status}'
                             )
                         except Exception as e:
-                            print(f"  Warning: Failed to send rejection alert: {e}")
+                            logger.warning(f"Failed to send rejection alert: {e}")
                         # Alpaca rejected the order
                         return {
                             'success': False, 'trade_id': trade_id, 'status': order_status,
@@ -356,7 +356,7 @@ class TradeExecutor:
             # If fill price differs from signal price (slippage), recalculate targets based on actual fill
             if executed_price and executed_price != entry_price:
                 slippage_pct = ((executed_price - entry_price) / entry_price * 100)
-                print(f"  Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})")
+                logger.info(f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})")
                 # Recalculate targets from actual fill price
                 actual_risk_per_share = executed_price - stop_loss_price
                 if actual_risk_per_share > 0:
@@ -463,7 +463,7 @@ class TradeExecutor:
                     filled_qty = self._get_order_filled_quantity(alpaca_order_id)
                     if filled_qty and filled_qty > 0:
                         actual_shares = filled_qty
-                        print(f"Partial fill detected: {actual_shares} of {shares} shares filled")
+                        logger.info(f"Partial fill detected: {actual_shares} of {shares} shares filled")
 
                 # B3: Defensive check for position value
                 position_value = actual_shares * executed_price
@@ -518,9 +518,9 @@ class TradeExecutor:
                                 message=alert_data['message']
                             )
                         except Exception as alert_e:
-                            print(f"  Warning: Failed to send TCA alert: {alert_e}")
+                            logger.warning(f"Failed to send TCA alert: {alert_e}")
                 except Exception as tca_e:
-                    print(f"  Warning: TCA recording failed: {tca_e}")
+                    logger.warning(f"TCA recording failed: {tca_e}")
 
             return {
                 'success': True,
@@ -538,9 +538,9 @@ class TradeExecutor:
                     try:
                         cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                         if cancel_result['success']:
-                            print(f"CRITICAL: DB write failed after Alpaca fill — order {alpaca_order_id} cancelled to prevent orphan")
+                            logger.critical(f"DB write failed after Alpaca fill — order {alpaca_order_id} cancelled to prevent orphan")
                         else:
-                            print(f"CRITICAL: DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
+                            logger.critical(f"DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
                         try:
                             from algo_notifications import notify
                             notify(
@@ -551,7 +551,7 @@ class TradeExecutor:
                         except Exception:
                             pass
                     except Exception as cancel_e:
-                        print(f"CRITICAL: Exception during orphaned order cancellation: {cancel_e}")
+                        logger.critical(f"Exception during orphaned order cancellation: {cancel_e}")
             if self.conn:
                 self.conn.rollback()
             return {
@@ -646,7 +646,7 @@ class TradeExecutor:
             if full_exit and alpaca_order_id:
                 cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                 if not cancel_result.get('success'):
-                    print(f"Warning: Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
+                    logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
 
             # B3+B5: Send exit order and get actual fill price
             execution_mode = self.config.get('execution_mode', 'paper')
@@ -667,7 +667,7 @@ class TradeExecutor:
                             message=f'Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get("message")}'
                         )
                     except Exception as e:
-                        print(f"  Warning: Failed to send exit failure alert: {e}")
+                        logger.warning(f"Failed to send exit failure alert: {e}")
                     # Order failed — don't mark position closed (B4)
                     return {
                         'success': False,
@@ -680,10 +680,10 @@ class TradeExecutor:
             # Profit calc against actual entry + actual exit price (B5)
             # B3: Defensive checks for negative prices
             if final_exit_price <= 0:
-                print(f"WARNING: Negative exit price {final_exit_price} for {symbol}")
+                logger.warning(f"Negative exit price {final_exit_price} for {symbol}")
                 final_exit_price = max(0.01, final_exit_price)  # Floor at $0.01
             if entry_price <= 0:
-                print(f"WARNING: Invalid entry price {entry_price} for {symbol}")
+                logger.warning(f"Invalid entry price {entry_price} for {symbol}")
                 return {'success': False, 'message': f'Invalid entry price for {trade_id}'}
 
             risk_per_share = entry_price - stop_loss_price
@@ -842,7 +842,7 @@ class TradeExecutor:
                         return float(pv)
             except Exception as e:
                 # Alpaca API failed, will fall back to snapshot
-                print(f"Warning: Could not fetch Alpaca account value: {e}")
+                logger.warning(f"Could not fetch Alpaca account value: {e}")
         try:
             self.cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
@@ -867,7 +867,7 @@ class TradeExecutor:
                         pass
                 return pv
         except Exception as e:
-            print(f"Warning: Could not fetch portfolio snapshot: {e}")
+            logger.warning(f"Could not fetch portfolio snapshot: {e}")
         return None
 
     def _send_alpaca_order(self, symbol, shares, entry_price, stop_loss_price=None,
@@ -1056,7 +1056,7 @@ class TradeExecutor:
                     wait_time = 2 ** attempt
                     time.sleep(wait_time)
                 else:
-                    print(f"WARNING: Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}")
+                    logger.warning(f"Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
     def _verify_order_status(self, alpaca_order_id):
@@ -1089,15 +1089,15 @@ class TradeExecutor:
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2 ** attempt  # 1s, 2s, 4s
-                        print(f"  Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s...")
+                        logger.debug(f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s...")
                         time.sleep(wait_time)
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
-                    print(f"  Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s: {e}")
+                    logger.debug(f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
-                    print(f"ERROR: Failed to verify order status for {alpaca_order_id} after {max_retries} attempts: {e}")
+                    logger.error(f"Failed to verify order status for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
     def _send_alpaca_exit(self, symbol, shares):
@@ -1170,8 +1170,8 @@ if __name__ == "__main__":
     result = executor.execute_trade(
         symbol='AAPL', entry_price=150.00, shares=100, stop_loss_price=142.50,
     )
-    print(f"Trade Execution Test:")
-    print(f"  Success: {result['success']}")
-    print(f"  Trade ID: {result['trade_id']}")
-    print(f"  Status: {result['status']}")
-    print(f"  Message: {result['message']}")
+    logger.info(f"Trade Execution Test:")
+    logger.info(f"  Success: {result['success']}")
+    logger.info(f"  Trade ID: {result['trade_id']}")
+    logger.info(f"  Status: {result['status']}")
+    logger.info(f"  Message: {result['message']}")

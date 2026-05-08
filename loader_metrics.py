@@ -134,11 +134,11 @@ def print_performance_summary():
             SELECT * FROM loader_performance_summary
         ''')
 
-        print('\n' + '=' * 100)
-        print('LOADER PERFORMANCE SUMMARY (last 30 days)')
-        print('=' * 100)
-        print(f'{"Loader":<40} {"Runs":>6} {"Success":>8} {"Avg Dur":>10} {"Max Rows":>12} {"Speedup":>8}')
-        print('-' * 100)
+        logger.info('\n' + '=' * 100)
+        logger.info('LOADER PERFORMANCE SUMMARY (last 30 days)')
+        logger.info('=' * 100)
+        logger.info(f'{"Loader":<40} {"Runs":>6} {"Success":>8} {"Avg Dur":>10} {"Max Rows":>12} {"Speedup":>8}')
+        logger.info('-' * 100)
 
         for row in cur.fetchall():
             loader_name, total_runs, successful, failed, avg_dur, max_rows, speedup, last_run = row
@@ -146,9 +146,9 @@ def print_performance_summary():
             max_rows_str = f"{max_rows:,}" if max_rows else "N/A"
             speedup_str = f"{speedup:.1f}x" if speedup else "N/A"
 
-            print(f'{loader_name:<40} {total_runs:>6} {successful:>8} {avg_dur_str:>10} {max_rows_str:>12} {speedup_str:>8}')
+            logger.info(f'{loader_name:<40} {total_runs:>6} {successful:>8} {avg_dur_str:>10} {max_rows_str:>12} {speedup_str:>8}')
 
-        print('=' * 100 + '\n')
+        logger.info('=' * 100 + '\n')
         conn.close()
 
     except Exception as e:
@@ -157,7 +157,7 @@ def print_performance_summary():
 
 if __name__ == '__main__':
     # Test the metrics logging
-    print("Testing metrics logging...")
+    logger.info("Testing metrics logging...")
 
     start_time = datetime.now()
 
@@ -172,9 +172,9 @@ if __name__ == '__main__':
     )
 
     if success:
-        print("[OK] Metrics logged successfully")
+        logger.info("[OK] Metrics logged successfully")
 
         # Print summary
         print_performance_summary()
     else:
-        print("[ERROR] Failed to log metrics")
+        logger.error("[ERROR] Failed to log metrics")

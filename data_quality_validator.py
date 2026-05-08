@@ -86,34 +86,34 @@ class DataQualityValidator:
             ('technical_data_daily', 24, 3000),
         ]
 
-        print("\n" + "=" * 70)
-        print("DATA QUALITY VALIDATION")
-        print("=" * 70 + "\n")
+        log.info("\n" + "=" * 70)
+        log.info("DATA QUALITY VALIDATION")
+        log.info("=" * 70 + "\n")
 
         for table, max_age_h, min_rows in critical_loaders:
             passed = self._check_loader(table, max_age_h, min_rows, eval_date)
             if passed:
-                print(f"  [OK] {table}")
+                log.info(f"  [OK] {table}")
             else:
-                print(f"  [FAIL] {table}")
+                log.info(f"  [FAIL] {table}")
 
         self.disconnect()
 
         all_pass = len(self.failures) == 0
 
-        print("\n" + "-" * 70)
+        log.info("\n" + "-" * 70)
         if all_pass:
-            print(f"RESULT: All {len(critical_loaders)} loaders passed SLA checks")
+            log.info(f"RESULT: All {len(critical_loaders)} loaders passed SLA checks")
         else:
-            print(f"RESULT: {len(self.failures)} loader(s) failed SLA checks")
+            log.info(f"RESULT: {len(self.failures)} loader(s) failed SLA checks")
             for msg in self.failures:
-                print(f"  - {msg}")
+                log.info(f"  - {msg}")
 
         if self.warnings:
-            print(f"\nWARNINGS: {len(self.warnings)} loader(s) at risk")
+            log.info(f"\nWARNINGS: {len(self.warnings)} loader(s) at risk")
             for msg in self.warnings:
-                print(f"  - {msg}")
-        print("-" * 70 + "\n")
+                log.info(f"  - {msg}")
+        log.info("-" * 70 + "\n")
 
         return all_pass, self.failures, self.warnings
 
@@ -188,9 +188,9 @@ if __name__ == "__main__":
     all_pass, failures, warnings = validator.validate_all()
 
     if not all_pass:
-        print("\nALERT: Data quality SLA violations detected!")
-        print("Algo trading blocked until data is fresh.")
+        log.error("\nALERT: Data quality SLA violations detected!")
+        log.error("Algo trading blocked until data is fresh.")
         exit(1)
 
-    print("\nData quality check PASSED. Safe to run algo.")
+    log.info("\nData quality check PASSED. Safe to run algo.")
     exit(0)

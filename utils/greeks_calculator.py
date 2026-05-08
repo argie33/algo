@@ -247,17 +247,17 @@ if __name__ == "__main__":
         option_type='call'
     )
 
-    print("Example: AAPL $180 Call, 30 DTE")
-    print(f"  Delta: {greeks['delta']} (hedge {abs(greeks['delta']*100):.0f} shares)")
-    print(f"  Gamma: {greeks['gamma']}")
-    print(f"  Theta: {greeks['theta']} (daily decay)")
-    print(f"  Vega: {greeks['vega']} (per 1% IV change)")
-    print(f"  Rho: {greeks['rho']}")
-    print(f"  Price: ${greeks['theoretical_value']}")
-    print(f"  Intrinsic: ${greeks['intrinsic_value']}")
-    print(f"  Extrinsic: ${greeks['extrinsic_value']}")
+    logger.info("Example: AAPL $180 Call, 30 DTE")
+    logger.info(f"  Delta: {greeks['delta']} (hedge {abs(greeks['delta']*100):.0f} shares)")
+    logger.info(f"  Gamma: {greeks['gamma']}")
+    logger.info(f"  Theta: {greeks['theta']} (daily decay)")
+    logger.info(f"  Vega: {greeks['vega']} (per 1% IV change)")
+    logger.info(f"  Rho: {greeks['rho']}")
+    logger.info(f"  Price: ${greeks['theoretical_value']}")
+    logger.info(f"  Intrinsic: ${greeks['intrinsic_value']}")
+    logger.info(f"  Extrinsic: ${greeks['extrinsic_value']}")
 
     # Test IV rank
     iv_hist = [0.15, 0.16, 0.18, 0.20, 0.22, 0.25, 0.28, 0.30]
     iv_rank = GreeksCalculator.calculate_iv_rank(0.24, iv_hist)
-    print(f"\nIV Rank: {iv_rank}% (current IV 0.24 vs history {iv_hist})")
+    logger.info(f"\nIV Rank: {iv_rank}% (current IV 0.24 vs history {iv_hist})")
