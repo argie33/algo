@@ -206,3 +206,19 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             logger.info(f"[NOTIF] Sent: {subject}")
         except Exception as e:
             logger.error(f"[NOTIF] Send failed: {e}")
+
+
+def notify(severity: str, title: str, message: str, symbol: str = None, details: dict = None):
+    """Convenience function to send alerts without managing service lifecycle."""
+    try:
+        service = TradeNotificationService()
+        service._send_notification(
+            subject=title,
+            message=message,
+            kind="alert",
+            severity=severity,
+            symbol=symbol,
+            details=details
+        )
+    except Exception as e:
+        logger.error(f"notify() failed: {e}")
