@@ -14,15 +14,9 @@ import {
 import {
   ExpandLess,
   ExpandMore,
-  Stars,
   TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
   Business as BusinessIcon,
-  Public as PublicIcon,
-  Event as EventIcon,
-  Psychology as PsychologyIcon,
   SwapHoriz as SwapHorizIcon,
-  Storage as StorageIcon,
   Grain as GrainIcon,
 } from "@mui/icons-material";
 

@@ -1,0 +1,27 @@
+
+# Runtime artifacts - should never be committed
+loader_logs/
+logs/
+paper_mode_reports/
+.watermarks/
+*.log
+.env.local
+
+# Build/test outputs
+dist/
+build/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# One-off test/debug files
+*-test.js
+*-debug.js
+*-report.js
+*-report.json
