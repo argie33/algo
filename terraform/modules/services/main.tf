@@ -239,6 +239,19 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 # CloudFront Distribution (Frontend CDN)
 # ============================================================
 
+# CloudFront cache policies (AWS managed)
+data "aws_cloudfront_cache_policy" "managed_caching_optimized" {
+  name = "Managed-CachingOptimized"
+}
+
+data "aws_cloudfront_cache_policy" "managed_caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "managed_all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
 # OAC handling: cleaned up manually, now create fresh
 locals {
   existing_oac_id = null
@@ -282,7 +295,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "S3Frontend"
     compress         = true
 
-    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    cache_policy_id        = data.aws_cloudfront_cache_policy.managed_caching_optimized.id
     viewer_protocol_policy = "redirect-to-https"
   }
 
@@ -293,8 +306,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "APIGateway"
     compress         = true
 
-    cache_policy_id          = "4135ea3d-c35d-46eb-81d7-d492a330732d" # Managed-CachingDisabled
-    origin_request_policy_id = "216adef5-5c7f-47e4-b989-5492eafa07d3" # Managed-AllViewerExceptHostHeader
+    cache_policy_id          = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.managed_all_viewer_except_host.id
     viewer_protocol_policy   = "https-only"
   }
 
@@ -305,7 +318,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "S3Frontend"
     compress         = true
 
-    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    cache_policy_id        = data.aws_cloudfront_cache_policy.managed_caching_optimized.id
     viewer_protocol_policy = "redirect-to-https"
   }
 
@@ -562,6 +575,52 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
   topic_arn = aws_sns_topic.algo_alerts[0].arn
   protocol  = "email"
   endpoint  = var.sns_alert_email
+}
+
+# ============================================================
+# EventBridge Scheduler for Price Data Loaders (4:00am ET daily)
+# ============================================================
+# CRITICAL: Must run before algo orchestrator (5:30pm ET)
+# Data freshness check in Phase 1 fails with 0 symbols loaded
+# Current: Disabled — enable after configuring ECS cluster
+
+resource "aws_scheduler_schedule" "price_data_loaders" {
+  count               = var.loader_schedule_enabled ? 1 : 0
+  name                = "${var.project_name}-price-loaders-schedule-${var.environment}"
+  description         = "Trigger price data loaders daily at 4:00am ET (9am UTC) - BEFORE market open at 9:30am ET"
+  schedule_expression = "cron(0 9 ? * MON-FRI *)"  # 9am UTC = 4am ET weekdays
+  state               = "ENABLED"
+  timezone            = "Etc/UTC"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ecs:runTask"
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      Cluster        = var.ecs_cluster_name
+      LaunchType     = "FARGATE"
+      NetworkConfiguration = {
+        AwsvpcConfiguration = {
+          AssignPublicIp = "ENABLED"
+          Subnets        = var.private_subnet_ids
+          SecurityGroups = var.security_group_ids
+        }
+      }
+      Overrides = {
+        ContainerOverrides = [
+          {
+            Name    = "stocks-loaders"
+            Command = ["python3", "loadpricedaily.py", "--parallelism", "6"]
+          }
+        ]
+      }
+      TaskDefinition = var.price_loader_task_definition_arn
+    })
+  }
 }
 
 # ============================================================

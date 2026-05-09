@@ -382,7 +382,26 @@ class Orchestrator:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
 
-            # Check loader health first — fail-closed if critical data missing
+            # Check critical loader SLA status first — fail-closed if data didn't load
+            try:
+                from loader_sla_tracker import get_tracker
+                tracker = get_tracker()
+                all_critical_ok, failures = tracker.check_critical_loaders()
+
+                if not all_critical_ok:
+                    failure_msg = "; ".join(failures)
+                    self.log_phase_result(1, 'loader_sla_check', 'halt',
+                                          f'Critical loaders failed SLA: {failure_msg}')
+                    logger.critical(f"Algo halted: {failure_msg}")
+                    return False
+
+                logger.info("  [OK] All critical loaders have fresh data")
+
+            except Exception as e:
+                logger.warning(f"  [WARN] SLA check failed: {e}")
+                # Don't fail-close on SLA check error, just warn
+
+            # Check loader health via monitor — fail-closed if critical data missing
             try:
                 from algo_loader_monitor import LoaderMonitor
                 monitor = LoaderMonitor()

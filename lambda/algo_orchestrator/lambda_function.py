@@ -5,6 +5,7 @@ Avoids psycopg2 import issues by keeping database operations local.
 
 import os
 import sys
+import json
 import logging
 from datetime import datetime, date as _date
 

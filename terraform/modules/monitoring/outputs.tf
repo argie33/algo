@@ -13,11 +13,11 @@ output "dashboard_url" {
 }
 
 output "api_unhealthy_alarm_name" {
-  description = "Composite alarm name for API health status"
-  value       = aws_cloudwatch_composite_alarm.api_unhealthy.alarm_name
+  description = "Composite alarm name for API health status (disabled until alarms exist)"
+  value       = null
 }
 
 output "database_unhealthy_alarm_name" {
   description = "Composite alarm name for database health status"
-  value       = var.sns_alerts_enabled ? aws_cloudwatch_composite_alarm.database_unhealthy[0].alarm_name : null
+  value       = length(aws_cloudwatch_composite_alarm.database_unhealthy) > 0 ? aws_cloudwatch_composite_alarm.database_unhealthy[0].alarm_name : null
 }

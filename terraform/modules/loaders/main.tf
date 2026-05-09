@@ -503,7 +503,7 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type         = contains(local.critical_loaders, each.key) ? "FARGATE" : "FARGATE_SPOT"
+    launch_type         = "FARGATE"
     task_definition_arn = aws_ecs_task_definition.loader[each.key].arn
     task_count          = 1
     platform_version    = "LATEST"

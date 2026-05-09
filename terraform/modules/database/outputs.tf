@@ -92,18 +92,21 @@ output "rds_log_group_name" {
   value       = aws_cloudwatch_log_group.rds_postgresql.name
 }
 
-# RDS Proxy (Connection Pooling)
-output "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint for connection pooling"
-  value       = aws_db_proxy_endpoint.main_read_write.endpoint
+# RDS Proxy outputs - DISABLED
+# TODO: Re-enable when RDS Proxy is implemented
+
+# Credential Rotation
+output "rds_rotation_lambda_arn" {
+  description = "ARN of RDS credential rotation Lambda function"
+  value       = aws_lambda_function.rds_rotation.arn
 }
 
-output "rds_proxy_name" {
-  description = "RDS Proxy name"
-  value       = aws_db_proxy.main.name
+output "rds_rotation_lambda_name" {
+  description = "Name of RDS credential rotation Lambda function"
+  value       = aws_lambda_function.rds_rotation.function_name
 }
 
-output "rds_proxy_arn" {
-  description = "ARN of RDS Proxy"
-  value       = aws_db_proxy.main.arn
+output "rds_rotation_log_group" {
+  description = "CloudWatch log group for RDS rotation"
+  value       = aws_cloudwatch_log_group.rds_rotation.name
 }

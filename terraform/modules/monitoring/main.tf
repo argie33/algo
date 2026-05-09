@@ -232,28 +232,24 @@ resource "aws_cloudwatch_dashboard" "main" {
 # ============================================================
 
 # Composite alarm: API is unhealthy (5xx + errors)
-resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
-  alarm_name        = "${var.project_name}-api-unhealthy-${var.environment}"
-  alarm_description = "Composite alarm: API Gateway returning 5xx OR Lambda errors exceed threshold"
-  actions_enabled   = var.sns_alerts_enabled
-  alarm_actions     = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
-
-  # Trigger if either 5xx errors OR Lambda errors are high
-  alarm_rule = "ALARM(${var.apigw_5xx_alarm_name}) OR ALARM(${var.api_lambda_errors_alarm_name})"
-
-  tags = var.common_tags
-}
+# NOTE: Disabled - alarms referenced don't exist yet
+# TODO: Re-enable once underlying CloudWatch alarms are created for API Gateway and Lambda
+# This alarm will trigger when either 5xx errors OR Lambda errors exceed thresholds
+# alarm_rule = "ALARM(${var.apigw_5xx_alarm_name}) OR ALARM(${var.api_lambda_errors_alarm_name})"
+# For now, disabled to allow initial deployment without dependency on non-existent alarms
+# resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
+#   count = 0
+# }
 
 # Composite alarm: Database is unhealthy (high CPU + connection issues)
+# NOTE: Disabled until RDS alarms are created
 resource "aws_cloudwatch_composite_alarm" "database_unhealthy" {
-  count             = var.sns_alerts_enabled ? 1 : 0
+  count             = 0 # Disabled - no RDS alarms yet
   alarm_name        = "${var.project_name}-database-unhealthy-${var.environment}"
   alarm_description = "Composite alarm: RDS CPU high OR connection errors detected"
   actions_enabled   = var.sns_alerts_topic_arn != "" ? true : false
   alarm_actions     = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
 
-  # TODO: Update alarm rule once RDS CPU/connection alarms are created in database module
-  # Example: alarm_rule = "ALARM(rds-cpu-alarm-name) OR ALARM(rds-connections-alarm-name)"
   alarm_rule = "OK"
 
   tags = var.common_tags
