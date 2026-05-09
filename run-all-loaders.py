@@ -30,11 +30,14 @@ critical_loaders = [
     'loadttmincomestatement.py',
     'loadttmcashflow.py',
     
-    # Technical indicators
+    # Technical indicators and signals
     'loadbuysell_etf_daily.py',
     'loadbuyselldaily.py',
     'loadbuysellweekly.py',
     'loadbuysellmonthly.py',
+
+    # Algo metrics (market health, trend template, completeness scores)
+    'load_algo_metrics_daily.py',
     
     # Earnings
     'loadearningshistory.py',

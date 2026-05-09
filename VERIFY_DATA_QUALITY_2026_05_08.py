@@ -31,11 +31,11 @@ try:
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
 
-    # Check 1: Stage 2 coverage (BRK.B, LEN.B, WSO.B)
+    # Check 1: Stage 2 coverage (BRK-B, LEN-B, WSO-B)
     print("CHECK 1: Stage 2 Symbol Data Coverage")
     print("-" * 70)
 
-    stage2_symbols = ['BRK.B', 'LEN.B', 'WSO.B']
+    stage2_symbols = ['BRK-B', 'LEN-B', 'WSO-B']
     for symbol in stage2_symbols:
         cur.execute("""
             SELECT MAX(date) as latest_date, COUNT(*) as row_count

@@ -34,7 +34,7 @@ with conn.cursor() as cur:
     cur.execute('''
         SELECT symbol, COUNT(*) as row_count, MAX(date) as latest_date
         FROM price_daily
-        WHERE symbol IN ('BRK.B', 'LEN.B', 'WSO.B')
+        WHERE symbol IN ('BRK-B', 'LEN-B', 'WSO-B')
         GROUP BY symbol
         ORDER BY symbol
     ''')
@@ -47,7 +47,7 @@ with conn.cursor() as cur:
             print(f"  {symbol}: {count} rows, latest: {latest}")
     else:
         print("\nNo Stage 2 data found. Checking if symbols exist in stock_symbols...")
-        cur.execute('SELECT symbol FROM stock_symbols WHERE symbol IN (%s, %s, %s)', ('BRK.B', 'LEN.B', 'WSO.B'))
+        cur.execute('SELECT symbol FROM stock_symbols WHERE symbol IN (%s, %s, %s)', ('BRK-B', 'LEN-B', 'WSO-B'))
         symbols = [row[0] for row in cur.fetchall()]
         if symbols:
             print(f"  Symbols in stock_symbols: {symbols}")

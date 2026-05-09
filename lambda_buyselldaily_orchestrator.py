@@ -80,13 +80,9 @@ def get_all_symbols():
                     pass
 
     except Exception as e:
-        logger.error(f"Failed to fetch symbols from database: {str(e)}")
-        logger.warning("Falling back to test symbols")
-        # Fallback for testing
-        return [
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'BRK.B', 'JNJ', 'V', 'WMT',
-            'JPM', 'NVDA', 'MA', 'HD', 'DIS', 'PYPL', 'ADBE', 'CRM', 'INTC', 'VZ'
-        ]
+        logger.critical(f"CRITICAL: Cannot fetch symbols from database: {str(e)}")
+        logger.critical("No fallback to test symbols - must use real data from stock_symbols table")
+        raise RuntimeError(f"Database connection failed. Cannot proceed without real symbol data: {e}")
 
 
 def generate_batches(symbols, batch_size=50):

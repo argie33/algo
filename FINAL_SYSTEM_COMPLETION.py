@@ -61,7 +61,7 @@ try:
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
 
-    stage2_symbols = ['BRK.B', 'LEN.B', 'WSO.B']
+    stage2_symbols = ['BRK-B', 'LEN-B', 'WSO-B']
     backfill_needed = []
 
     print("\nChecking Stage 2 symbol currency:")
@@ -87,7 +87,7 @@ try:
         print("\nTo backfill, run the corresponding data loaders:")
         for symbol in backfill_needed:
             # Map symbols to likely loader files
-            if 'BRK' in symbol or 'LEN' in symbol or 'WSO' in symbol:
+            if symbol.startswith('BRK-') or symbol.startswith('LEN-') or symbol.startswith('WSO-'):
                 print(f"  python3 loadpricedaily.py  # Updates all daily prices")
         print("\nAlternatively, add to automatic loader watchlist.")
     else:

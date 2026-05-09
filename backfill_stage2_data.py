@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backfill price data for Stage 2 stocks (BRK.B, LEN.B, WSO.B)
+Backfill price data for Stage 2 stocks (BRK-B, LEN-B, WSO-B)
 
 These large-cap stocks may not be in the loader's default watchlist
 but are strategically important for Stage 2 opportunities.
@@ -9,7 +9,7 @@ Usage:
   python3 backfill_stage2_data.py
 
 This script:
-1. Adds BRK.B, LEN.B, WSO.B to stock_symbols if not present
+1. Adds BRK-B, LEN-B, WSO-B to stock_symbols if not present
 2. Runs loadpricedaily.py with these symbols to backfill data
 3. Verifies data was loaded successfully
 """
@@ -28,7 +28,7 @@ DB_CONFIG = {
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
-STAGE2_SYMBOLS = ['BRK.B', 'LEN.B', 'WSO.B']
+STAGE2_SYMBOLS = ['BRK-B', 'LEN-B', 'WSO-B']
 
 
 def ensure_symbols_exist():
