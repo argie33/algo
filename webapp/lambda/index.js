@@ -68,6 +68,7 @@ const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const { marketCache } = require("./utils/market-cache");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const { cacheMiddleware } = require("./middleware/cacheMiddleware");
+const auditRoutes = require("./routes/audit");
 const contactRoutes = require("./routes/contact");
 const commoditiesRoutes = require("./routes/commodities");
 const diagnosticsRoutes = require("./routes/diagnostics");
@@ -607,6 +608,7 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
+app.use("/api/audit", auditRoutes);
 app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);

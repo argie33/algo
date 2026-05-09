@@ -49,11 +49,22 @@ Resources:
       SubnetIds:
         - !ImportValue StocksCore-PrivateSubnet1Id
         - !ImportValue StocksCore-PrivateSubnet2Id
+  ### 1.5) Lambda Security Group ###
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for Lambda functions in VPC"
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic (will be restricted to RDS and API calls)"
+
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow Postgres access from ECS tasks, Bastion, and Lambdas (dev: wide open, prod: lock down)"
+      GroupDescription: "Allow Postgres access from ECS tasks, Bastion, and Lambdas (locked down)"
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -69,8 +80,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: 0.0.0.0/0
-          Description: "Allow Postgres from anywhere (dev only - lock down for production)"
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: "Allow Postgres from Lambda functions in VPC"
 
   ### 2.5) RDS Parameter Group ###
   StocksDBParameterGroup:
@@ -493,6 +504,24 @@ Outputs:
     Value: !GetAtt StocksDBSecurityGroup.GroupId
     Export:
       Name: StocksApp-DBSecurityGroupId
+
+  LambdaSecurityGroupId:
+    Description: ID of Security Group for Lambda functions in VPC
+    Value: !GetAtt LambdaSecurityGroup.GroupId
+    Export:
+      Name: StocksApp-LambdaSecurityGroupId
+
+  PrivateSubnet1Id:
+    Description: ID of Private Subnet 1
+    Value: !ImportValue StocksCore-PrivateSubnet1Id
+    Export:
+      Name: StocksApp-PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: ID of Private Subnet 2
+    Value: !ImportValue StocksCore-PrivateSubnet2Id
+    Export:
+      Name: StocksApp-PrivateSubnet2Id
 
   LogArchiveBucketName:
     Description: Name of S3 bucket for long-term log archival

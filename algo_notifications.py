@@ -1,215 +1,208 @@
 #!/usr/bin/env python3
-"""
-Notifications System — surface CRITICAL events to the UI
-
-Writes to algo_notifications table whenever something needs attention:
-  - Circuit breaker fires
-  - Patrol finds CRITICAL/ERROR severity
-  - Trade entry / exit
-  - Drawdown threshold crossed
-  - Tier transition (e.g., healthy_uptrend -> caution)
-  - Position monitor flags >= 2
-
-The UI polls /api/algo/notifications and displays as toast/banner.
-Optional email sending when EMAIL_RECIPIENT env is set.
-
-Usage from other modules:
-    from algo_notifications import notify
-    notify(
-        kind='circuit_breaker',
-        severity='critical',
-        title='Trading Halted',
-        message='Drawdown 22% >= 20% threshold',
-        symbol=None,
-    )
-"""
+"""Trade & Risk Notifications - Alert on entries, exits, rejections, and risk events."""
 
 import os
-import psycopg2
-from pathlib import Path
-from dotenv import load_dotenv
+import json
 import logging
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional, Dict, List
+from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
+from algo_alerts import AlertManager
+from algo_config import DATABASE_CONFIG
 
-env_file = Path(__file__).parent / '.env.local'
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError:
+    psycopg2 = None
+
+env_file = Path(__file__).parent / ".env.local"
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
-    "database": os.getenv("DB_NAME", "stocks"),
-}
+logger = logging.getLogger(__name__)
 
 
-def notify(kind, severity, title, message=None, symbol=None, details=None):
-    """Write a notification. Severity: info | warning | error | critical.
+class TradeNotificationService:
+    """Monitor trade events and send notifications."""
 
-    Note: algo_notifications table is created by init_database.py (schema as code).
-    """
-    import json
-    conn = None
-    cur = None
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-        cur.execute(
-            """INSERT INTO algo_notifications (kind, severity, title, message, symbol, details)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
-            (kind, severity, title, message, symbol,
-             json.dumps(details) if details else None),
-        )
-        notif_id = cur.fetchone()[0]
-        conn.commit()
+    def __init__(self, config: Dict = None):
+        self.config = config or DATABASE_CONFIG
+        self.alert_manager = AlertManager()
+        self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
+        self.conn = None
 
-        # Optional: send email if configured
-        recipient = os.getenv('EMAIL_RECIPIENT')
-        if recipient and severity in ('critical', 'error'):
-            try:
-                _send_email(recipient, severity, title, message, symbol)
-            except Exception:
-                pass
+    def connect(self):
+        """Connect to database."""
+        if psycopg2 is None:
+            raise ImportError("psycopg2 required for notifications")
+        try:
+            self.conn = psycopg2.connect(
+                host=self.config["host"],
+                port=self.config["port"],
+                database=self.config["database"],
+                user=self.config["user"],
+                password=self.config["password"]
+            )
+            logger.info("[NOTIF] Connected to database")
+        except Exception as e:
+            logger.error(f"[NOTIF] Connection failed: {e}")
+            raise
 
-        # Wire SNS for critical/error trading events
-        if severity in ('critical', 'error'):
-            try:
-                _publish_sns(severity, title, message, symbol)
-            except Exception:
-                pass
+    def close(self):
+        """Close database connection."""
+        if self.conn:
+            self.conn.close()
 
-        return notif_id
-    except Exception as e:
-        logger.error(f"  (notify failed: {e})")
-        return None
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    def get_recent_events(self, minutes: int = 5) -> List[Dict]:
+        """Fetch recent audit log events."""
+        if not self.conn:
+            self.connect()
 
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cutoff = datetime.now() - timedelta(minutes=minutes)
+                cur.execute("""
+                    SELECT id, action_type, symbol, action_date, details,
+                           actor, status, created_at
+                    FROM algo_audit_log
+                    WHERE created_at >= %s
+                    ORDER BY created_at ASC
+                """, (cutoff,))
+                return cur.fetchall()
+        except Exception as e:
+            logger.error(f"[NOTIF] Failed to fetch events: {e}")
+            return []
 
-def _send_email(recipient, severity, title, message, symbol):
-    """Optional SMTP email — only if EMAIL_RECIPIENT env is configured."""
-    smtp_host = os.getenv('SMTP_HOST')
-    smtp_user = os.getenv('SMTP_USER')
-    smtp_pass = os.getenv('SMTP_PASS')
-    if not (smtp_host and smtp_user and smtp_pass):
-        return
-    import smtplib
-    from email.mime.text import MIMEText
-    msg = MIMEText(f"{message or ''}\n\nSymbol: {symbol or 'N/A'}\nSeverity: {severity}")
-    msg['Subject'] = f"[ALGO {severity.upper()}] {title}"
-    msg['From'] = smtp_user
-    msg['To'] = recipient
-    with smtplib.SMTP_SSL(smtp_host, 465) as smtp:
-        smtp.login(smtp_user, smtp_pass)
-        smtp.send_message(msg)
+    def _format_trade_entry_alert(self, event: Dict) -> Optional[str]:
+        """Format trade entry notification."""
+        try:
+            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
+            symbol = event.get("symbol") or details.get("symbol", "?")
+            entry_price = details.get("entry_price")
+            shares = details.get("shares")
+            stop_loss = details.get("stop_loss")
+            target_1 = details.get("target_1")
 
+            return f"""
+[ENTRY] TRADE ENTRY -- {symbol}
+Entry Price:  ${entry_price:.2f}
+Shares:       {shares:.2f}
+Stop Loss:    ${stop_loss:.2f}
+Target 1:     ${target_1:.2f}
+Time:         {event["created_at"].strftime("%H:%M:%S")}
+"""
+        except Exception as e:
+            logger.error(f"[NOTIF] Format failed: {e}")
+            return None
 
-def _publish_sns(severity, title, message, symbol):
-    """Publish critical/error alerts to SNS for SMS/Slack routing.
+    def _format_trade_exit_alert(self, event: Dict) -> Optional[str]:
+        """Format trade exit notification."""
+        try:
+            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
+            symbol = event.get("symbol") or details.get("symbol", "?")
+            exit_price = details.get("exit_price")
+            shares = details.get("shares")
+            pnl = details.get("pnl")
+            exit_reason = details.get("reason", "unknown")
 
-    SNS topic ARN must be in ALERT_SNS_TOPIC_ARN environment variable.
-    Intended for PagerDuty, SMS, or Slack integrations.
-    """
-    import boto3
-    sns_arn = os.getenv('ALERT_SNS_TOPIC_ARN')
-    if not sns_arn:
-        return
-    try:
-        sns = boto3.client('sns')
-        subject = f"[ALGO {severity.upper()}] {title}"
-        body = f"{message or ''}\n\nSymbol: {symbol or 'N/A'}"
-        sns.publish(
-            TopicArn=sns_arn,
-            Subject=subject,
-            Message=body,
-            MessageAttributes={
-                'severity': {'DataType': 'String', 'StringValue': severity},
-                'symbol': {'DataType': 'String', 'StringValue': symbol or 'N/A'},
-            }
-        )
-    except Exception as e:
-        logger.error(f"  (SNS publish failed: {e})")
+            return f"""
+[EXIT] TRADE EXIT -- {symbol}
+Exit Price:   ${exit_price:.2f}
+Shares:       {shares:.2f}
+P&L:          {pnl}
+Reason:       {exit_reason}
+Time:         {event["created_at"].strftime("%H:%M:%S")}
+"""
+        except Exception as e:
+            logger.error(f"[NOTIF] Format failed: {e}")
+            return None
 
+    def _should_notify(self, action_type: str, status: str) -> bool:
+        """Determine if event warrants notification."""
+        notify_on = {
+            "trade_entry": ["FILLED", "PARTIALLY_FILLED"],
+            "trade_exit": ["FILLED", "PARTIALLY_FILLED"],
+            "trade_rejection": ["REJECTED"],
+            "circuit_breaker": ["TRIGGERED"],
+            "error": ["FAILED", "ERROR"],
+        }
+        for key, values in notify_on.items():
+            if key in action_type.lower() and status.upper() in values:
+                return True
+        return False
 
-def get_unseen(limit=50):
-    conn = None
-    cur = None
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-        cur.execute(
-            """SELECT id, kind, severity, title, message, symbol, details, created_at
-               FROM algo_notifications
-               WHERE seen = FALSE
-               ORDER BY
-                   CASE severity
-                       WHEN 'critical' THEN 1
-                       WHEN 'error' THEN 2
-                       WHEN 'warning' THEN 3
-                       ELSE 4
-                   END,
-                   created_at DESC
-               LIMIT %s""",
-            (limit,),
-        )
-        rows = cur.fetchall()
-        cols = [d[0] for d in cur.description]
-        notifications = [dict(zip(cols, row)) for row in rows]
-        return notifications
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    def process_events(self, minutes: int = 5) -> int:
+        """Process recent events and send notifications."""
+        if not self.enabled:
+            return 0
 
+        events = self.get_recent_events(minutes)
+        sent = 0
+        for event in events:
+            action_type = event.get("action_type", "").lower()
+            status = event.get("status", "").upper()
 
-def mark_seen(notification_ids):
-    conn = None
-    cur = None
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-        cur.execute(
-            """UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP
-               WHERE id = ANY(%s)""",
-            (notification_ids,),
-        )
-        conn.commit()
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            if not self._should_notify(action_type, status):
+                continue
 
+            message = None
+            subject_prefix = None
 
-if __name__ == "__main__":
-    _ensure_table()
-    logger.info("notifications table ensured.")
-    test_id = notify('test', 'info', 'Test notification', 'This is a test.')
-    logger.info(f"Test notification id: {test_id}")
-    unseen = get_unseen(5)
-    for n in unseen:
-        logger.info(f"  [{n['severity']}] {n['title']}: {n.get('message', '')}")
+            if "trade_entry" in action_type:
+                message = self._format_trade_entry_alert(event)
+                subject_prefix = f"ENTRY: {event.get('symbol')}"
+            elif "trade_exit" in action_type:
+                message = self._format_trade_exit_alert(event)
+                subject_prefix = f"EXIT: {event.get('symbol')}"
+
+            if message:
+                self._send_notification(subject_prefix or action_type, message)
+                sent += 1
+
+        return sent
+
+    def _save_notification(self, kind: str, severity: str, title: str,
+                           message: str, symbol: str = None, details: dict = None):
+        """Save notification to database."""
+        if not self.conn:
+            self.connect()
+
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO algo_notifications
+                    (kind, severity, title, message, symbol, details, seen, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, FALSE, CURRENT_TIMESTAMP)
+                """, (
+                    kind,
+                    severity,
+                    title,
+                    message,
+                    symbol,
+                    json.dumps(details) if details else None
+                ))
+                self.conn.commit()
+                logger.info(f"[NOTIF] Saved to DB: {title}")
+        except Exception as e:
+            logger.error(f"[NOTIF] DB save failed: {e}")
+            self.conn.rollback()
+
+    def _send_notification(self, subject: str, message: str, kind: str = "trade",
+                          severity: str = "info", symbol: str = None, details: dict = None):
+        """Send notification via email, webhook, and database."""
+        try:
+            # Save to database
+            self._save_notification(kind, severity, subject, message, symbol, details)
+
+            # Send email alert
+            if self.alert_manager.email_to:
+                self.alert_manager.send_email(
+                    subject=f"[ALGO] {subject}",
+                    body=message
+                )
+            logger.info(f"[NOTIF] Sent: {subject}")
+        except Exception as e:
+            logger.error(f"[NOTIF] Send failed: {e}")

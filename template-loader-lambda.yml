@@ -107,6 +107,12 @@ Resources:
           ALPACA_API_SECRET: !Sub "{{resolve:secretsmanager:stocks-algo-secrets:SecretString:APCA_API_SECRET_KEY}}"
       Role: !GetAtt LambdaLoaderRole.Arn
       ReservedConcurrentExecutions: 1  # Don't hammer DB
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Tags:
         - Key: Loader
           Value: econ-data
@@ -135,6 +141,12 @@ Resources:
           DB_NAME: stocks
       Role: !GetAtt LambdaLoaderRole.Arn
       ReservedConcurrentExecutions: 1
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Tags:
         - Key: Loader
           Value: calendar
@@ -163,6 +175,12 @@ Resources:
           DB_NAME: stocks
       Role: !GetAtt LambdaLoaderRole.Arn
       ReservedConcurrentExecutions: 1
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Tags:
         - Key: Loader
           Value: sentiment
@@ -191,6 +209,12 @@ Resources:
           DB_NAME: stocks
       Role: !GetAtt LambdaLoaderRole.Arn
       ReservedConcurrentExecutions: 1
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Tags:
         - Key: Loader
           Value: feargreed
@@ -219,6 +243,12 @@ Resources:
           DB_NAME: stocks
       Role: !GetAtt LambdaLoaderRole.Arn
       ReservedConcurrentExecutions: 1
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Tags:
         - Key: Loader
           Value: naaim

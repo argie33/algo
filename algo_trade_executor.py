@@ -26,6 +26,7 @@ from typing import Dict, List, Any, Optional
 from trade_status import TradeStatus, PositionStatus
 from alpaca_response_validator import AlpacaResponseValidator
 from db_retry_helper import OptimisticLockRetry, RetryConfig
+from algo_notifications import TradeNotificationService
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
@@ -557,6 +558,29 @@ class TradeExecutor:
                 except Exception as tca_e:
                     logger.warning(f"TCA recording failed: {tca_e}")
 
+            # Send trade entry notification
+            try:
+                notif_service = TradeNotificationService()
+                notif_service._send_notification(
+                    subject=f"ENTRY: {symbol}",
+                    message=f"{shares:.2f} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})",
+                    kind="trade_entry",
+                    severity="info",
+                    symbol=symbol,
+                    details={
+                        'entry_price': executed_price,
+                        'shares': float(shares),
+                        'stop_loss': stop_loss_price,
+                        'target_1': target_1_price,
+                        'swing_score': swing_score,
+                        'base_type': base_type,
+                        'trade_id': trade_id,
+                    }
+                )
+                notif_service.close()
+            except Exception as notif_e:
+                logger.warning(f"Failed to send entry notification: {notif_e}")
+
             return {
                 'success': True,
                 'trade_id': trade_id,
@@ -871,6 +895,29 @@ class TradeExecutor:
                 )
             except Exception:
                 pass  # audit best-effort
+
+            # Send trade exit notification
+            try:
+                notif_service = TradeNotificationService()
+                notif_service._send_notification(
+                    subject=f"EXIT: {symbol}",
+                    message=f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R) - {exit_reason}",
+                    kind="trade_exit",
+                    severity="info" if pnl_dollars > 0 else "warning",
+                    symbol=symbol,
+                    details={
+                        'exit_price': final_exit_price,
+                        'shares': shares_to_exit,
+                        'pnl': f"{pnl_dollars:+.2f}",
+                        'pnl_pct': pnl_pct,
+                        'r_multiple': r_multiple,
+                        'reason': exit_reason,
+                        'trade_id': trade_id,
+                    }
+                )
+                notif_service.close()
+            except Exception as notif_e:
+                logger.warning(f"Failed to send exit notification: {notif_e}")
 
             self.conn.commit()
             return {

@@ -144,7 +144,12 @@ Resources:
       Timeout: 900  # 15 minutes
       MemorySize: 512
       ReservedConcurrentExecutions: 1  # Only one concurrent execution (scheduled task)
-      # Dev: Public Lambda for cost savings. Prod: Add VpcConfig when adding NAT Gateway.
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue StocksApp-LambdaSecurityGroupId
+        SubnetIds:
+          - !ImportValue StocksApp-PrivateSubnet1Id
+          - !ImportValue StocksApp-PrivateSubnet2Id
       Code:
         S3Bucket: !Ref LambdaFunctionCodeBucket
         S3Key: !Ref LambdaFunctionCodeKey
