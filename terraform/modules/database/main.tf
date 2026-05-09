@@ -316,6 +316,129 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
 }
 
 # ============================================================
+# Enhanced Monitoring - Connection Pool & Limit Exhaustion
+# ============================================================
+# PostgreSQL has max_connections limit (typically 100-1000 depending on instance)
+# RDS Proxy multiplexes connections but we still need monitoring
+
+# Alert if connection ratio is approaching RDS capacity
+resource "aws_cloudwatch_metric_alarm" "rds_connection_ratio" {
+  count               = var.enable_rds_alarms ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-connection-ratio-high-${var.environment}"
+  alarm_description   = "Alert when connection usage exceeds 70% of max (indicates approaching limit)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "3"
+  threshold           = "70"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
+
+  # Custom metric that we'll publish from application
+  metric_query {
+    id          = "connection_ratio"
+    expression  = "(active / max_connections) * 100"
+    label       = "Connection Usage Ratio (%)"
+    return_data = true
+  }
+
+  metric_query {
+    id          = "active"
+    metric {
+      metric_name = "DatabaseConnections"
+      namespace   = "AWS/RDS"
+      stat        = "Average"
+      period      = 60
+
+      dimensions = {
+        DBInstanceIdentifier = aws_db_instance.main.id
+      }
+    }
+  }
+
+  metric_query {
+    id          = "max_connections"
+    metric {
+      metric_name = "MaxConnections"
+      namespace   = "AWS/RDS"
+      stat        = "Average"
+      period      = 60
+
+      dimensions = {
+        DBInstanceIdentifier = aws_db_instance.main.id
+      }
+    }
+  }
+
+  tags = var.common_tags
+}
+
+# Alert on database connection timeout errors (logged by RDS)
+resource "aws_cloudwatch_log_group_metric_filter" "connection_timeout" {
+  count          = var.enable_rds_alarms ? 1 : 0
+  name           = "${var.project_name}-connection-timeout-filter"
+  log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
+  filter_pattern = "[...] FATAL:  *connection*limit*"
+
+  metric_transformation {
+    name      = "RDSConnectionTimeouts"
+    namespace = "${var.project_name}/Database"
+    value     = "1"
+  }
+}
+
+# Alarm on connection timeout metric
+resource "aws_cloudwatch_metric_alarm" "connection_timeout" {
+  count               = var.enable_rds_alarms ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-connection-timeout-${var.environment}"
+  alarm_description   = "Alert when connection timeout errors are detected"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "RDSConnectionTimeouts"
+  namespace           = "${var.project_name}/Database"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "1"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.common_tags
+
+  depends_on = [aws_cloudwatch_log_group_metric_filter.connection_timeout]
+}
+
+# Alert on "too many connections" application errors
+resource "aws_cloudwatch_log_group_metric_filter" "too_many_connections" {
+  count          = var.enable_rds_alarms ? 1 : 0
+  name           = "${var.project_name}-too-many-connections-filter"
+  log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
+  filter_pattern = "[...] FATAL:  *too*many*connections*"
+
+  metric_transformation {
+    name      = "RDSTooManyConnections"
+    namespace = "${var.project_name}/Database"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
+  count               = var.enable_rds_alarms ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-too-many-connections-${var.environment}"
+  alarm_description   = "Alert when 'too many connections' errors detected (connection limit exceeded)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "RDSTooManyConnections"
+  namespace           = "${var.project_name}/Database"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "1"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
+
+  tags = var.common_tags
+
+  depends_on = [aws_cloudwatch_log_group_metric_filter.too_many_connections]
+}
+
+# ============================================================
 # 10. Database Initialization (PostgreSQL Schema)
 # ============================================================
 
@@ -379,10 +502,135 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
-# RDS Proxy - DISABLED FOR INITIAL DEPLOYMENT
-# TODO: Re-enable after core infrastructure is stable
-# Issues: invalid resource type (aws_db_proxy_target_group) doesn't exist in Terraform AWS provider
-# RDS Proxy will be implemented in a future iteration using correct resource types
+# ============================================================
+# 9. RDS Proxy for Connection Pooling
+# ============================================================
+# Multiplexes many ECS task connections (~320 from 40 loaders × 8 workers)
+# down to a smaller pool of actual DB connections (~20-30)
+# Cost: ~$0.015/hour for connection pooling
+# Benefit: Prevents connection limit errors, automatic failover
+
+resource "aws_db_proxy" "main" {
+  name                   = "${var.project_name}-proxy-${var.environment}"
+  engine_family          = "POSTGRESQL"
+  auth {
+    auth_scheme = "SECRETS"
+    secret_arn  = aws_secretsmanager_secret.db_credentials.arn
+    iam_auth    = "DISABLED"
+  }
+
+  role_arn               = aws_iam_role.rds_proxy_role.arn
+  database_url           = "postgresql://${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.rds_db_name}"
+  max_connections        = 100
+  max_connection_idle_in_minutes = 30
+
+  # Connection pool settings
+  init_query             = ""
+  connection_borrow_timeout = 120
+  session_pinning_filters = ["EXCLUDE_VARIABLE_SETS"]
+
+  vpc_subnet_ids            = var.private_subnet_ids
+  vpc_security_group_ids    = [aws_security_group.rds_proxy.id]
+
+  debug_logging = false
+  require_tls   = false
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy"
+  })
+
+  depends_on = [
+    aws_db_instance.main,
+    aws_secretsmanager_secret_version.db_credentials,
+    aws_iam_role_policy_attachment.rds_proxy_policy
+  ]
+}
+
+# RDS Proxy Target - attach RDS instance to proxy
+resource "aws_db_proxy_target" "main" {
+  db_proxy_name          = aws_db_proxy.main.name
+  target_arn             = aws_db_instance.main.arn
+  db_parameter_group_name = "default.postgres14"
+}
+
+# RDS Proxy Read/Write Endpoint
+resource "aws_db_proxy_endpoint" "main_read_write" {
+  db_proxy_name          = aws_db_proxy.main.name
+  db_proxy_endpoint_name = "${var.project_name}-rw-${var.environment}"
+  target_role            = "READ_WRITE"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy-endpoint"
+  })
+}
+
+# Security group for RDS Proxy (allows inbound from ECS tasks)
+resource "aws_security_group" "rds_proxy" {
+  name        = "${var.project_name}-rds-proxy-${var.environment}"
+  description = "Security group for RDS Proxy"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [var.rds_security_group_id]
+    description     = "PostgreSQL from RDS"
+  }
+
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "PostgreSQL to RDS instance"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy-sg"
+  })
+}
+
+# RDS Proxy IAM role (allows proxy to assume DB credentials)
+resource "aws_iam_role" "rds_proxy_role" {
+  name = "${var.project_name}-rds-proxy-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "rds.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = var.common_tags
+}
+
+# Policy for RDS Proxy to read DB credentials from Secrets Manager
+resource "aws_iam_role_policy" "rds_proxy_policy" {
+  name = "${var.project_name}-rds-proxy-policy"
+  role = aws_iam_role.rds_proxy_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue"
+      ]
+      Resource = aws_secretsmanager_secret.db_credentials.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "rds_proxy_policy" {
+  role       = aws_iam_role.rds_proxy_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonRDSProxyFullAccess"
+}
 
 # ============================================================
 # 11. Credential Rotation - RDS Database Passwords
@@ -535,6 +783,99 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.rds_rotation.function_name
   principal     = "secretsmanager.amazonaws.com"
+}
+
+# ============================================================
+# 11b. DynamoDB Watermark Store for Incremental Loading
+# ============================================================
+# Tracks last successfully loaded data for each source (daily_prices, earnings, etc)
+# Enables incremental loading to reduce API calls and improve performance
+
+resource "aws_dynamodb_table" "watermarks" {
+  name           = "${var.project_name}-watermarks-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"  # On-demand pricing (low-volume data)
+  hash_key       = "source"
+
+  attribute {
+    name = "source"
+    type = "S"
+  }
+
+  # Global secondary index for querying by status (for monitoring)
+  global_secondary_index {
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "updated_at"
+    projection_type = "ALL"
+  }
+
+  # Time-to-live: Auto-delete stale watermarks after 90 days of no updates
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = var.environment == "prod" ? true : false
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-watermarks"
+  })
+
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+
+# IAM policy for loaders to read/write watermarks
+resource "aws_iam_policy" "watermark_access" {
+  name        = "${var.project_name}-watermark-access-${var.environment}"
+  description = "Allow loaders to read/write watermarks"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBWatermarkAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.watermarks.arn,
+          "${aws_dynamodb_table.watermarks.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+# CloudWatch Alarms for watermark monitoring
+resource "aws_cloudwatch_metric_alarm" "watermark_stale" {
+  count               = var.enable_rds_alarms ? 1 : 0
+  alarm_name          = "${var.project_name}-watermark-stale-${var.environment}"
+  alarm_description   = "Alert when data loading hasn't updated watermark in 2 hours"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "ConsumedWriteCapacityUnits"
+  namespace           = "AWS/DynamoDB"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "0"
+  treat_missing_data  = "breaching"
+  alarm_actions       = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
+
+  dimensions = {
+    TableName = aws_dynamodb_table.watermarks.name
+  }
+
+  tags = var.common_tags
 }
 
 # ============================================================

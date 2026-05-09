@@ -692,7 +692,12 @@ class FilterPipeline:
 
             # Use PositionSizer for all risk calculations (includes drawdown cascade, exposure mult, phase mult)
             if not stop_loss_price or stop_loss_price >= entry_price:
-                stop_loss_price = entry_price * 0.92
+                # Stop calculation failed. Use fallback: 2x ATR from entry (if ATR available), else 5% stop.
+                # This replaces the hardcoded 0.92 (8%) with a volatility-aware fallback.
+                if atr and atr > 0:
+                    stop_loss_price = max(0.01, entry_price - (2.0 * atr))
+                else:
+                    stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
 
             from algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)

@@ -92,8 +92,21 @@ output "rds_log_group_name" {
   value       = aws_cloudwatch_log_group.rds_postgresql.name
 }
 
-# RDS Proxy outputs - DISABLED
-# TODO: Re-enable when RDS Proxy is implemented
+# RDS Proxy outputs
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for connection pooling"
+  value       = aws_db_proxy_endpoint.main_read_write.endpoint
+}
+
+output "rds_proxy_name" {
+  description = "RDS Proxy name"
+  value       = aws_db_proxy.main.name
+}
+
+output "rds_proxy_arn" {
+  description = "ARN of RDS Proxy"
+  value       = aws_db_proxy.main.arn
+}
 
 # Credential Rotation
 output "rds_rotation_lambda_arn" {
@@ -109,4 +122,20 @@ output "rds_rotation_lambda_name" {
 output "rds_rotation_log_group" {
   description = "CloudWatch log group for RDS rotation"
   value       = aws_cloudwatch_log_group.rds_rotation.name
+}
+
+# Watermark Store
+output "watermark_table_name" {
+  description = "DynamoDB table name for watermarks"
+  value       = aws_dynamodb_table.watermarks.name
+}
+
+output "watermark_table_arn" {
+  description = "DynamoDB table ARN for watermarks"
+  value       = aws_dynamodb_table.watermarks.arn
+}
+
+output "watermark_access_policy_arn" {
+  description = "IAM policy ARN for watermark access (attach to loader roles)"
+  value       = aws_iam_policy.watermark_access.arn
 }

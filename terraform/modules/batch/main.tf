@@ -320,6 +320,10 @@ resource "aws_batch_compute_environment" "spot" {
   })
 
   depends_on = [aws_iam_role_policy_attachment.batch_service_policy]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # ============================================================
@@ -369,6 +373,8 @@ resource "aws_batch_job_queue" "spot" {
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-batch-job-queue"
   })
+
+  depends_on = [aws_batch_compute_environment.spot]
 }
 
 # ============================================================

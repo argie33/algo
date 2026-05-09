@@ -188,10 +188,10 @@ class Backtester:
 
         # Override portfolio state for the simulation
         config = get_config()
-        # FilterPipeline uses live algo_positions for portfolio state — we need to
-        # stub that out so it sees backtest state. Easiest: insert temp open positions
-        # into algo_positions, run pipeline, delete them. Cleaner: build a forked
-        # version. For now we use a SIMPLIFIED filter that mimics the pipeline.
+        # Use the PRODUCTION FilterPipeline with backtest portfolio state injected.
+        # This ensures backtest validation matches real signal generation exactly.
+        # See _evaluate_signals_for_backtest() which injects backtest state into
+        # the pipeline before running evaluate_signal().
         candidates = self._evaluate_signals_for_backtest(day, config)
         if not candidates:
             return

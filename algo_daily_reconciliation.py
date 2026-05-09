@@ -76,8 +76,10 @@ class DailyReconciliation:
                     from algo_notifications import notify
                     notify('critical', title='Alpaca Connection Failed',
                            message='Daily reconciliation cannot proceed without Alpaca account data')
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Failed to send Alpaca failure notification: {e} (proceeding with reconciliation halt)")
+                    # Note: notification failure doesn't block reconciliation halt, but we log it
                 return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
 
             print(f"1. Alpaca Account:")
@@ -293,7 +295,47 @@ class DailyReconciliation:
                 position_id = f'EXT-{sym}-{datetime.now().strftime("%Y%m%d")}'
                 trade_id = f'EXT-{sym}'
 
-                # Insert a placeholder trade for tracking
+                # For imported positions, calculate realistic stops + targets using volatility
+                # This replaces the hardcoded placeholder values (0.92, 1.10/1.20/1.30)
+                stop_loss_price = None
+                target_1 = None
+                target_2 = None
+                target_3 = None
+                stop_loss_method = 'imported_no_risk_calc'
+
+                try:
+                    # Try to fetch recent volatility (ATR) for better stop placement
+                    self.cur.execute("""
+                        SELECT AVG(high - low) as atr FROM price_daily
+                        WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '20 days'
+                        LIMIT 20
+                    """, (sym,))
+                    atr_row = self.cur.fetchone()
+                    if atr_row and atr_row[0]:
+                        atr = float(atr_row[0])
+                        # Stop = 2 * ATR below entry (standard risk management)
+                        stop_loss_price = max(0.01, avg_entry - (2 * atr))
+                        stop_loss_method = 'imported_2x_atr'
+                        # Targets = 1:2 and 1:3 reward/risk ratio
+                        r = avg_entry - stop_loss_price
+                        target_1 = avg_entry + (2 * r)  # 2R
+                        target_2 = avg_entry + (3 * r)  # 3R
+                        target_3 = avg_entry + (4 * r)  # 4R
+                except Exception as e:
+                    import logging
+                    logging.debug(f"Failed to calculate stop/targets for imported {sym}: {e}")
+                    # Fall through to defaults below
+
+                # If risk calculation failed, use conservative defaults
+                if stop_loss_price is None:
+                    stop_loss_price = avg_entry * 0.95  # 5% stop (conservative, not 8%)
+                    stop_loss_method = 'imported_conservative_default'
+                if target_1 is None:
+                    target_1 = avg_entry * 1.05
+                    target_2 = avg_entry * 1.10
+                    target_3 = avg_entry * 1.15
+
+                # Insert a trade record for the imported position
                 # P3 FIX: For imported positions, set signal_date = trade_date to avoid timing violations
                 # (signal should always be <= entry date). Since we don't know when this position was
                 # opened externally, we use today's date for both, but they will be equal.
@@ -314,9 +356,9 @@ class DailyReconciliation:
                 """, (
                     trade_id, sym, avg_entry, int(qty),
                     'EXTERNAL: existing Alpaca position imported',
-                    avg_entry * 0.92,  # placeholder 8% stop
-                    'imported_no_stop',
-                    avg_entry * 1.10, avg_entry * 1.20, avg_entry * 1.30,  # placeholders
+                    stop_loss_price,
+                    stop_loss_method,
+                    target_1, target_2, target_3,
                     PositionStatus.OPEN.value, 'external', f'ALPACA-EXT-{sym}',
                     pos_value / 100000.0 * 100,  # rough %
                     'imported_external',
