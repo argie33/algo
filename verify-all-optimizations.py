@@ -383,15 +383,14 @@ class OptimizationVerifier:
         except Exception as e:
             checks.append(("Docker Compose", False))
 
-        # Check CloudFormation template
+        # Check Terraform configuration
         try:
-            with open("template-loader-lambda.yml") as f:
-                content = f.read()
-                has_lambda_funcs = "LambdaEconDataLoader" in content
-                has_eventbridge = "ScheduleEconLoader" in content
-                checks.append(("CloudFormation", has_lambda_funcs and has_eventbridge))
+            import os
+            has_terraform = os.path.exists("terraform/main.tf")
+            has_modules = os.path.exists("terraform/modules")
+            checks.append(("Terraform", has_terraform and has_modules))
         except Exception as e:
-            checks.append(("CloudFormation", False))
+            checks.append(("Terraform", False))
 
         # Check guides exist
         guides = [

@@ -393,6 +393,10 @@ locals {
     "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600 }
     "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600 }
 
+    # Trend & technical data (4:15am ET, after prices) - FARGATE: 256 CPU = min 512 MB
+    "trend_template_data" = { cpu = 256, memory = 512, timeout = 300 }
+    "technicals_daily"    = { cpu = 256, memory = 512, timeout = 300 }
+
     # Financial statements (10:00am ET) - FARGATE: 256 CPU = min 512 MB
     "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 1200 }
     "financials_annual_balance"     = { cpu = 256, memory = 512, timeout = 1200 }

@@ -108,7 +108,7 @@ def show_workflow_timeline():
     print("   - Create S3 bucket (if needed)")
     print("   - Package Lambda function")
     print("   - Upload to S3")
-    print("   - Deploy CloudFormation stack")
+    print("   - Deploy via Terraform")
     print("4. manual-test (if workflow_dispatch)  [1 min]")
     print("   - Test Lambda invocation")
     print("5. summary                        [1 min]")
@@ -154,7 +154,7 @@ def show_next_steps():
     print("   1. Check GitHub Actions logs for error")
     print("   2. Verify AWS_ACCOUNT_ID secret is set")
     print("   3. Verify database credentials in AWS Secrets Manager")
-    print("   4. Check CloudFormation stack events in AWS Console")
+    print("   4. Check Terraform apply logs in GitHub Actions")
 
 def main():
     """Main monitoring loop"""
