@@ -32,6 +32,16 @@ output "eventbridge_rules" {
   }
 }
 
+output "eventbridge_targets" {
+  description = "EventBridge target ARNs for scheduled loader tasks"
+  value = {
+    econdata       = aws_cloudwatch_event_target.econdata_target.arn
+    feargreed      = aws_cloudwatch_event_target.fear_greed_target.arn
+    market_indices = aws_cloudwatch_event_target.market_indices_target.arn
+    sector_ranking = aws_cloudwatch_event_target.sector_ranking_target.arn
+  }
+}
+
 output "eventbridge_role_arn" {
   description = "ARN of EventBridge IAM role for running ECS tasks"
   value       = aws_iam_role.eventbridge_run_task.arn
