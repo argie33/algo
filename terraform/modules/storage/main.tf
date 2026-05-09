@@ -8,7 +8,7 @@
 
 resource "aws_s3_bucket" "code" {
   bucket        = "${var.project_name}-code-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-code-bucket"
@@ -80,7 +80,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
 
 resource "aws_s3_bucket" "cf_templates" {
   bucket        = "${var.project_name}-cf-templates-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-cf-templates-bucket"
@@ -119,7 +119,7 @@ resource "aws_s3_bucket_public_access_block" "cf_templates" {
 
 resource "aws_s3_bucket" "lambda_artifacts" {
   bucket        = "${var.project_name}-lambda-artifacts-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-lambda-artifacts-bucket"
@@ -190,7 +190,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
 
 resource "aws_s3_bucket" "data_loading" {
   bucket        = "${var.project_name}-data-loading-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-data-loading-bucket"
@@ -249,7 +249,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
 
 resource "aws_s3_bucket" "log_archive" {
   bucket        = "${var.project_name}-log-archive-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-log-archive-bucket"
@@ -328,7 +328,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "log_archive" {
 
 resource "aws_s3_bucket" "frontend" {
   bucket        = "${var.project_name}-frontend-${var.aws_account_id}"
-  force_destroy = true
+  force_destroy = false  # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-frontend-bucket"

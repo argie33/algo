@@ -68,6 +68,8 @@ module "database" {
   rds_cpu_alarm_threshold         = 80
   rds_storage_alarm_threshold     = 10737418240
   rds_connections_alarm_threshold = 50
+  rds_backup_window               = var.rds_backup_window
+  rds_maintenance_window          = var.rds_maintenance_window
   notification_email              = var.notification_email
   alpaca_api_key_id               = var.alpaca_api_key_id
   alpaca_api_secret_key           = var.alpaca_api_secret_key
@@ -91,6 +93,10 @@ module "compute" {
   ecs_tasks_security_group_id            = module.vpc.ecs_tasks_security_group_id
   bastion_instance_profile_name          = module.iam.bastion_instance_profile_name
   ecs_task_execution_role_arn            = module.iam.ecs_task_execution_role_arn
+  ecs_task_role_arn                      = module.iam.ecs_task_role_arn
+  lambda_api_role_arn                    = module.iam.lambda_api_role_arn
+  lambda_algo_role_arn                   = module.iam.lambda_algo_role_arn
+  batch_ecs_instance_role_arn            = module.batch.batch_ecs_instance_role_arn
   ecs_cluster_name                       = var.ecs_cluster_name
   ecs_capacity_providers                 = var.ecs_capacity_providers
   ecs_default_capacity_provider_strategy = var.ecs_default_capacity_provider_strategy

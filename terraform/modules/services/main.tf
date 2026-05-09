@@ -34,14 +34,48 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 }
 
 # ============================================================
-# API Lambda Function (placeholder)
+# API Lambda Function (placeholder - to be replaced with actual code)
 # ============================================================
+# NOTE: This creates a minimal placeholder Lambda function.
+# Replace the code by updating the function with your actual API implementation.
+# You can deploy new code via: aws lambda update-function-code --function-name <name> --zip-file fileb://api.zip
 
 data "archive_file" "api_placeholder" {
   type        = "zip"
   output_path = "${path.module}/api_placeholder.zip"
   source {
-    content  = "def handler(event, context):\n    return {'statusCode': 200, 'body': 'placeholder'}\n"
+    content = <<-EOT
+import json
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def handler(event, context):
+    """
+    API Gateway proxy handler for ${var.project_name} API.
+    This is a placeholder - replace with actual implementation.
+    """
+    try:
+        logger.info(f"Received request: {event['requestContext']['http']['method']} {event['rawPath']}")
+
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'message': 'API placeholder - deployment successful',
+                'service': '${var.project_name}-api',
+                'environment': '${var.environment}'
+            })
+        }
+    except Exception as e:
+        logger.error(f"Error: {str(e)}", exc_info=True)
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Internal server error'})
+        }
+EOT
     filename = "index.py"
   }
 }
@@ -419,14 +453,46 @@ resource "aws_cloudwatch_log_group" "algo_lambda" {
 }
 
 # ============================================================
-# Algo Lambda Function (placeholder)
+# Algo Lambda Function (placeholder - to be replaced with actual code)
 # ============================================================
+# NOTE: This creates a minimal placeholder Lambda function for the algo orchestrator.
+# Replace the code by updating the function with your actual algo implementation.
+# You can deploy new code via: aws lambda update-function-code --function-name <name> --zip-file fileb://algo.zip
 
 data "archive_file" "algo_placeholder" {
   type        = "zip"
   output_path = "${path.module}/algo_placeholder.zip"
   source {
-    content  = "def handler(event, context):\n    return {'statusCode': 200, 'body': 'algo placeholder'}\n"
+    content = <<-EOT
+import json
+import logging
+import os
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def handler(event, context):
+    """
+    Algo orchestrator Lambda handler for ${var.project_name}.
+    This is a placeholder - replace with actual implementation.
+    Triggered daily by EventBridge Scheduler.
+    """
+    try:
+        logger.info(f"Algo orchestrator triggered: {json.dumps(event)}")
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'message': 'Algo orchestrator placeholder - deployment successful',
+                'service': '${var.project_name}-algo',
+                'environment': '${var.environment}',
+                'timestamp': context.aws_request_id
+            })
+        }
+    except Exception as e:
+        logger.error(f"Algo orchestrator error: {str(e)}", exc_info=True)
+        raise
+EOT
     filename = "index.py"
   }
 }

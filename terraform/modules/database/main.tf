@@ -39,8 +39,8 @@ resource "aws_db_instance" "main" {
 
   # Backup & Recovery
   backup_retention_period = var.db_backup_retention_days
-  backup_window           = "03:00-04:00"         # UTC (10 PM - 11 PM EST)
-  maintenance_window      = "mon:04:00-mon:05:00" # UTC
+  backup_window           = var.rds_backup_window
+  maintenance_window      = var.rds_maintenance_window
   copy_tags_to_snapshot   = true
 
   # Performance & Optimization
@@ -60,9 +60,13 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled    = false # Additional cost, disable for dev
 
   # Deletion Protection
-  deletion_protection       = var.environment == "prod" ? true : false
-  skip_final_snapshot       = var.environment != "prod"
-  final_snapshot_identifier = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  deletion_protection = var.environment == "prod" ? true : false
+  skip_final_snapshot = var.environment != "prod"  # prod=false (takes snapshot), dev=true (skips)
+
+  # CRITICAL: Always explicitly name final snapshots to prevent accidental loss
+  final_snapshot_identifier = var.environment == "prod" ?
+    "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" :
+    null
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"

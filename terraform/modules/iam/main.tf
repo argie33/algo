@@ -55,92 +55,239 @@ resource "aws_iam_role_policy" "github_actions" {
 }
 
 data "aws_iam_policy_document" "github_actions" {
-  # Terraform resource management - EC2, VPC, Security Groups
+  # Terraform resource management - EC2, VPC, Security Groups (scoped to project resources)
   statement {
     sid    = "TerraformEC2VPC"
     effect = "Allow"
 
     actions = [
-      "ec2:*",
-      "vpc:*",
-      "elasticnetwork:*"
+      "ec2:Describe*",
+      "ec2:CreateVpc",
+      "ec2:DeleteVpc",
+      "ec2:CreateSubnet",
+      "ec2:DeleteSubnet",
+      "ec2:CreateSecurityGroup",
+      "ec2:DeleteSecurityGroup",
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:AuthorizeSecurityGroupEgress",
+      "ec2:RevokeSecurityGroupIngress",
+      "ec2:RevokeSecurityGroupEgress",
+      "ec2:CreateNetworkInterface",
+      "ec2:DeleteNetworkInterface",
+      "ec2:ModifyNetworkInterfaceAttribute",
+      "ec2:CreateRoute",
+      "ec2:DeleteRoute",
+      "ec2:CreateRouteTable",
+      "ec2:DeleteRouteTable",
+      "ec2:AssociateRouteTable",
+      "ec2:DisassociateRouteTable",
+      "ec2:CreateInternetGateway",
+      "ec2:DeleteInternetGateway",
+      "ec2:AttachInternetGateway",
+      "ec2:DetachInternetGateway",
+      "ec2:CreateNatGateway",
+      "ec2:DeleteNatGateway",
+      "ec2:AllocateAddress",
+      "ec2:ReleaseAddress",
+      "ec2:CreateTags",
+      "ec2:DeleteTags"
     ]
 
     resources = ["*"]
   }
 
-  # Terraform resource management - RDS
+  # Terraform resource management - RDS (scoped to project databases)
   statement {
     sid    = "TerraformRDS"
     effect = "Allow"
 
     actions = [
-      "rds:*",
-      "rds-db:*"
+      "rds:CreateDBInstance",
+      "rds:DeleteDBInstance",
+      "rds:ModifyDBInstance",
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBParameterGroups",
+      "rds:CreateDBParameterGroup",
+      "rds:DeleteDBParameterGroup",
+      "rds:ModifyDBParameterGroup",
+      "rds:DescribeDBSubnetGroups",
+      "rds:CreateDBSubnetGroup",
+      "rds:DeleteDBSubnetGroup",
+      "rds:AddTagsToResource",
+      "rds:ListTagsForResource",
+      "rds-db:connect"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db/${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:pg:${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:subgrp:${var.project_name}-*"
+    ]
   }
 
-  # Terraform resource management - Lambda
+  # Terraform resource management - Lambda (scoped to project functions)
   statement {
     sid    = "TerraformLambda"
     effect = "Allow"
 
     actions = [
-      "lambda:*",
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:GetFunction",
+      "lambda:ListFunctions",
+      "lambda:AddPermission",
+      "lambda:RemovePermission",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:ListTags",
       "apigateway:*"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
   }
 
-  # Terraform resource management - ECS
+  # Terraform resource management - ECS (scoped to project clusters)
   statement {
     sid    = "TerraformECS"
     effect = "Allow"
 
     actions = [
-      "ecs:*",
-      "autoscaling:*"
+      "ecs:CreateCluster",
+      "ecs:DeleteCluster",
+      "ecs:DescribeClusters",
+      "ecs:RegisterTaskDefinition",
+      "ecs:DeregisterTaskDefinition",
+      "ecs:DescribeTaskDefinition",
+      "ecs:CreateService",
+      "ecs:DeleteService",
+      "ecs:UpdateService",
+      "ecs:DescribeServices",
+      "ecs:TagResource",
+      "ecs:UntagResource",
+      "ecs:ListTagsForResource",
+      "autoscaling:CreateAutoScalingGroup",
+      "autoscaling:DeleteAutoScalingGroup",
+      "autoscaling:UpdateAutoScalingGroup",
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:CreateLaunchConfiguration",
+      "autoscaling:DeleteLaunchConfiguration",
+      "autoscaling:DescribeLaunchConfigurations",
+      "autoscaling:TagResource",
+      "autoscaling:UntagResource"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*",
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*:*",
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:service/${var.project_name}-*/*",
+      "arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:autoScalingGroup:*:autoScalingGroupName/${var.project_name}-*",
+      "arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:launchConfiguration:*:launchConfigurationName/${var.project_name}-*"
+    ]
   }
 
-  # Terraform resource management - IAM
+  # Terraform resource management - IAM (scoped to project roles)
   statement {
     sid    = "TerraformIAM"
     effect = "Allow"
 
     actions = [
-      "iam:*"
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:GetRole",
+      "iam:ListRoles",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:ListRoleTags",
+      "iam:CreateInstanceProfile",
+      "iam:DeleteInstanceProfile",
+      "iam:AddRoleToInstanceProfile",
+      "iam:RemoveRoleFromInstanceProfile",
+      "iam:GetInstanceProfile",
+      "iam:ListInstanceProfiles"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-*",
+      "arn:aws:iam::${var.aws_account_id}:instance-profile/${var.project_name}-*"
+    ]
   }
 
-  # Terraform resource management - Cognito
+  # Terraform resource management - Cognito (scoped to project pools)
   statement {
     sid    = "TerraformCognito"
     effect = "Allow"
 
     actions = [
-      "cognito-idp:*",
-      "cognito-identity:*"
+      "cognito-idp:CreateUserPool",
+      "cognito-idp:DeleteUserPool",
+      "cognito-idp:DescribeUserPool",
+      "cognito-idp:UpdateUserPool",
+      "cognito-idp:CreateUserPoolClient",
+      "cognito-idp:DeleteUserPoolClient",
+      "cognito-idp:DescribeUserPoolClient",
+      "cognito-idp:UpdateUserPoolClient",
+      "cognito-idp:CreateResourceServer",
+      "cognito-idp:DeleteResourceServer",
+      "cognito-idp:DescribeResourceServer",
+      "cognito-idp:UpdateResourceServer",
+      "cognito-idp:TagResource",
+      "cognito-idp:UntagResource",
+      "cognito-idp:ListTagsForResource",
+      "cognito-identity:CreateIdentityPool",
+      "cognito-identity:DeleteIdentityPool",
+      "cognito-identity:DescribeIdentityPool",
+      "cognito-identity:UpdateIdentityPool",
+      "cognito-identity:TagResource",
+      "cognito-identity:UntagResource",
+      "cognito-identity:ListTagsForResource"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/${var.aws_region}_*",
+      "arn:aws:cognito-identity:${var.aws_region}:${var.aws_account_id}:identitypool/*"
+    ]
   }
 
-  # Terraform resource management - CloudFront
+  # Terraform resource management - CloudFront & ACM (scoped)
   statement {
     sid    = "TerraformCloudFront"
     effect = "Allow"
 
     actions = [
-      "cloudfront:*",
-      "acm:*"
+      "cloudfront:CreateDistribution",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:DescribeDistribution",
+      "cloudfront:GetDistribution",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:ListDistributions",
+      "cloudfront:TagResource",
+      "cloudfront:UntagResource",
+      "cloudfront:ListTagsForResource",
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
+      "cloudfront:ListInvalidations",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:ListOriginAccessControls",
+      "acm:RequestCertificate",
+      "acm:DeleteCertificate",
+      "acm:DescribeCertificate",
+      "acm:ListCertificates",
+      "acm:AddTagsToCertificate",
+      "acm:RemoveTagsFromCertificate",
+      "acm:ListTagsForCertificate"
     ]
 
     resources = ["*"]

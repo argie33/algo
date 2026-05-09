@@ -180,15 +180,23 @@ variable "rds_backup_retention_period" {
 }
 
 variable "rds_backup_window" {
-  description = "Backup window in UTC (HH:MM-HH:MM)"
+  description = "Backup window in UTC (HH:MM-HH:MM, e.g., 03:00-04:00)"
   type        = string
   default     = "03:00-04:00"
+  validation {
+    condition     = can(regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$", var.rds_backup_window))
+    error_message = "Backup window must be in format HH:MM-HH:MM"
+  }
 }
 
 variable "rds_maintenance_window" {
-  description = "Maintenance window in UTC (ddd:HH:MM-ddd:HH:MM)"
+  description = "Maintenance window in UTC (ddd:HH:MM-ddd:HH:MM, e.g., sun:04:00-sun:05:00)"
   type        = string
   default     = "sun:04:00-sun:05:00"
+  validation {
+    condition     = can(regex("^(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}-(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}$", var.rds_maintenance_window))
+    error_message = "Maintenance window must be in format ddd:HH:MM-ddd:HH:MM"
+  }
 }
 
 variable "enable_rds_cloudwatch_logs" {
@@ -360,15 +368,23 @@ variable "algo_lambda_ephemeral_storage" {
 }
 
 variable "api_lambda_code_file" {
-  description = "Path to API Lambda deployment package"
+  description = "Path to API Lambda deployment package (ZIP file)"
   type        = string
   default     = "lambda_api.zip"
+  validation {
+    condition     = endswith(var.api_lambda_code_file, ".zip")
+    error_message = "Lambda code file must be a ZIP file"
+  }
 }
 
 variable "algo_lambda_code_file" {
-  description = "Path to algo Lambda deployment package"
+  description = "Path to algo Lambda deployment package (ZIP file)"
   type        = string
   default     = "lambda_algo.zip"
+  validation {
+    condition     = endswith(var.algo_lambda_code_file, ".zip")
+    error_message = "Lambda code file must be a ZIP file"
+  }
 }
 
 # ============================================================
@@ -565,12 +581,18 @@ variable "batch_max_vcpus" {
 }
 
 variable "batch_instance_types" {
-  description = "EC2 instance types for Batch compute environment (Spot Fleet)"
+  description = "EC2 instance types for Batch Spot Fleet (use current generation: c6i, c7i, m6i, m7i, r6i, r7i)"
   type        = list(string)
-  default     = ["c5.xlarge", "c5.2xlarge", "c6i.xlarge", "c6i.2xlarge", "m5.xlarge", "m5.2xlarge"]
+  default     = ["c6i.xlarge", "c6i.2xlarge", "c7i.xlarge", "c7i.2xlarge", "m6i.xlarge", "m6i.2xlarge"]
   validation {
     condition     = length(var.batch_instance_types) > 0
     error_message = "Must specify at least one instance type"
+  }
+  validation {
+    condition = alltrue([
+      for t in var.batch_instance_types : can(regex("^(t[23]|m[56]|c[56]|r[56]|i[34]|a[12]|t4g|m6[ig]|c6[ig]|r6[ig]|t3a|m5a|c5a|r5a)\\.", t))
+    ])
+    error_message = "All instance types must be Spot-compatible (t2/t3, m5+, c5+, r5+, i3+, a1+, t4g, m6i, c6i, r6i, etc)"
   }
 }
 

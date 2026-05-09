@@ -65,7 +65,7 @@ resource "aws_ecr_repository" "main" {
   }
 }
 
-# ECR repository policy: Allow pull from ECS & Lambda
+# ECR repository policy: Allow pull from ECS task roles and Lambda roles only
 resource "aws_ecr_repository_policy" "main" {
   repository = aws_ecr_repository.main.name
 
@@ -73,12 +73,40 @@ resource "aws_ecr_repository_policy" "main" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowECRPullFromECSAndLambda"
+        Sid    = "AllowECRPullFromECSTaskRole"
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${var.aws_account_id}:root"
+          AWS = var.ecs_task_role_arn
         }
         Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:DescribeImages"
+        ]
+      },
+      {
+        Sid    = "AllowECRPullFromLambdaRoles"
+        Effect = "Allow"
+        Principal = {
+          AWS = [
+            var.lambda_api_role_arn,
+            var.lambda_algo_role_arn
+          ]
+        }
+        Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:DescribeImages"
+        ]
+      },
+      {
+        Sid    = "AllowBatchComputeEnvironment"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.batch_ecs_instance_role_arn
+        }
+        Action = [
+          "ecr:GetAuthorizationToken",
           "ecr:GetDownloadUrlForLayer",
           "ecr:BatchGetImage",
           "ecr:DescribeImages"

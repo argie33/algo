@@ -37,6 +37,11 @@ output "batch_job_role_arn" {
   value       = aws_iam_role.batch_job_role.arn
 }
 
+output "batch_ecs_instance_role_arn" {
+  description = "ARN of the Batch ECS instance role (for EC2 Spot instances)"
+  value       = aws_iam_role.batch_ecs_instance_role.arn
+}
+
 output "cloudwatch_log_group_name" {
   description = "CloudWatch log group name for Batch jobs"
   value       = aws_cloudwatch_log_group.batch.name

@@ -66,6 +66,26 @@ variable "ecs_task_execution_role_arn" {
   type        = string
 }
 
+variable "ecs_task_role_arn" {
+  description = "ARN of ECS task role (for ECR pull permissions)"
+  type        = string
+}
+
+variable "lambda_api_role_arn" {
+  description = "ARN of Lambda API role (for ECR pull permissions)"
+  type        = string
+}
+
+variable "lambda_algo_role_arn" {
+  description = "ARN of Lambda Algo role (for ECR pull permissions)"
+  type        = string
+}
+
+variable "batch_ecs_instance_role_arn" {
+  description = "ARN of Batch ECS instance role (for ECR pull permissions)"
+  type        = string
+}
+
 # ============================================================
 # ECS Configuration
 # ============================================================

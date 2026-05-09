@@ -93,9 +93,14 @@ variable "db_master_password" {
 }
 
 variable "db_multi_az" {
-  description = "Enable Multi-AZ deployment"
+  description = "Enable Multi-AZ deployment for high availability (required for prod - prevents single AZ failure)"
   type        = bool
-  default     = false
+  default     = true  # Changed from false - production requires HA
+
+  validation {
+    condition     = var.environment == "prod" ? var.db_multi_az == true : true
+    error_message = "Production database MUST be Multi-AZ for high availability"
+  }
 }
 
 variable "db_backup_retention_days" {
@@ -110,9 +115,14 @@ variable "db_backup_retention_days" {
 }
 
 variable "enable_rds_kms_encryption" {
-  description = "Enable customer-managed KMS key for RDS encryption (recommended for prod)"
+  description = "Enable customer-managed KMS key for RDS encryption (REQUIRED for prod - SOC2/PCI-DSS compliance)"
   type        = bool
-  default     = false
+  default     = true  # Changed from false - customer-managed KMS is required for security compliance
+
+  validation {
+    condition     = var.environment == "prod" ? var.enable_rds_kms_encryption == true : true
+    error_message = "Production database MUST use customer-managed KMS encryption for compliance (SOC2, PCI-DSS)"
+  }
 }
 
 variable "rds_kms_key_id" {
@@ -238,5 +248,27 @@ variable "rds_connections_alarm_threshold" {
   validation {
     condition     = var.rds_connections_alarm_threshold > 0
     error_message = "Connections threshold must be > 0"
+  }
+}
+
+variable "rds_backup_window" {
+  description = "Backup window in UTC (HH:MM-HH:MM)"
+  type        = string
+  default     = "03:00-04:00"
+
+  validation {
+    condition     = can(regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$", var.rds_backup_window))
+    error_message = "Backup window must be in format HH:MM-HH:MM"
+  }
+}
+
+variable "rds_maintenance_window" {
+  description = "Maintenance window in UTC (ddd:HH:MM-ddd:HH:MM, e.g., sun:04:00-sun:05:00)"
+  type        = string
+  default     = "sun:04:00-sun:05:00"
+
+  validation {
+    condition     = can(regex("^(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}-(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}$", var.rds_maintenance_window))
+    error_message = "Maintenance window must be in format ddd:HH:MM-ddd:HH:MM"
   }
 }
