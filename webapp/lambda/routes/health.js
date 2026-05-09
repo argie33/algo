@@ -34,6 +34,7 @@ router.get("/detailed", async (req, res) => {
       dbStatus = "connected";
 
       // Get table counts for key tables
+      // FIXED: Use identifier quoting to prevent SQL injection
       const keyTables = [
         "price_daily", "stock_scores", "buy_sell_daily",
         "sector_ranking", "company_profile", "technical_data_daily"
@@ -41,7 +42,8 @@ router.get("/detailed", async (req, res) => {
 
       for (const table of keyTables) {
         try {
-          const count = await query(`SELECT COUNT(*) as cnt FROM ${table}`);
+          // Use quoted identifier to safely include table name
+          const count = await query(`SELECT COUNT(*) as cnt FROM "${table}"`);
           tables[table] = count.rows[0].cnt;
         } catch (_e) {
           tables[table] = "not_found";
@@ -52,19 +54,31 @@ router.get("/detailed", async (req, res) => {
       tables = { error: dbError.message };
     }
 
-    return sendSuccess(res, {
+    // FIXED: Do not expose detailed schema information in production
+    const isProduction = (process.env.NODE_ENV || '').includes('prod');
+    const response = {
       status: "healthy",
       healthy: true,
       service: "Financial Dashboard API",
-      environment: process.env.NODE_ENV || "development",
       uptime: process.uptime(),
       version: "1.0.0",
-      database: {
+      timestamp: new Date().toISOString()
+    };
+
+    // Only expose schema details to authenticated admins or in development
+    if (!isProduction) {
+      response.environment = process.env.NODE_ENV || "development";
+      response.database = {
         status: dbStatus,
         tables: tables
-      },
-      timestamp: new Date().toISOString()
-    });
+      };
+    } else {
+      response.database = {
+        status: dbStatus
+      };
+    }
+
+    return sendSuccess(res, response);
   } catch (error) {
     return sendError(res, "Detailed health check failed: " + error.message, 503);
   }

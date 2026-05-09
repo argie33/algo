@@ -9,8 +9,18 @@ const logger = require("../utils/logger");
  */
 
 const authenticateToken = (req, res, next) => {
-  // Path 1: Development (NODE_ENV === 'development' only - not localhost check)
-  if (process.env.NODE_ENV === 'development') {
+  // FIXED: Development mode auth bypass removed from production code
+  // For local testing, use explicit JWT tokens or test credentials
+  // Development mode should NOT automatically bypass authentication
+
+  // Path 1: Explicit dev bypass only if ALLOW_DEV_BYPASS=true AND NODE_ENV=development
+  // This prevents accidental auth bypass if NODE_ENV is misconfigured in production
+  if (
+    process.env.NODE_ENV === 'development' &&
+    process.env.ALLOW_DEV_BYPASS === 'true' &&
+    process.env.LOCAL_DEV_MODE === 'true'
+  ) {
+    // Only in explicit local development mode
     req.user = {
       sub: 'dev-admin-001',
       username: 'dev-admin',

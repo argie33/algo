@@ -44,8 +44,13 @@ const errorHandler = (err, req, res, _next) => {
   } else if (err.code === 'ECONNREFUSED' && err.address) {
     status = 503;
     message = "Database Connection Error";
-    details = `Cannot connect to database at ${err.address}:${err.port}`;
+    // FIXED: Don't expose database host/port information in error messages
+    details = "Cannot connect to database";
     code = 'DB_CONNECTION_ERROR';
+    // Log the actual error details server-side (not sent to client)
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`DB Connection error: ${err.address}:${err.port}`);
+    }
   } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
     status = 503;
     message = "Service Unavailable";

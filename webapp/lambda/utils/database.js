@@ -104,7 +104,9 @@ async function getDbConfig() {
             process.env.DB_SSL === "false"
               ? false
               : {
-                  rejectUnauthorized: false,
+                  rejectUnauthorized: true,
+                  // Optional: provide CA certificate if using self-signed or custom CA
+                  // ca: process.env.DB_CA_CERT ? Buffer.from(process.env.DB_CA_CERT, 'base64').toString() : undefined
                 },
         };
 
@@ -156,7 +158,9 @@ async function getDbConfig() {
           process.env.DB_SSL === "false"
             ? false
             : {
-                rejectUnauthorized: false,
+                rejectUnauthorized: true,
+                // Optional: provide CA certificate if using self-signed or custom CA
+                // ca: process.env.DB_CA_CERT ? Buffer.from(process.env.DB_CA_CERT, 'base64').toString() : undefined
               },
       };
 
