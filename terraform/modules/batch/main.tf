@@ -257,7 +257,7 @@ cat > /opt/handle-spot-interruption.sh << 'SPOTHANDLER'
 #!/bin/bash
 # Listen for Spot interruption notice
 while true; do
-  HTTP_CODE=$(curl -s -w %{http_code} -o /dev/null http://169.254.169.254/latest/meta-data/spot/instance-action)
+  HTTP_CODE=$(curl -s -w "%%{http_code}" -o /dev/null http://169.254.169.254/latest/meta-data/spot/instance-action)
   if [[ "$HTTP_CODE" -eq 200 ]]; then
     # Graceful shutdown signal
     ecs-agent-stop --graceful
@@ -284,24 +284,23 @@ EOF
 # ============================================================
 
 resource "aws_batch_compute_environment" "spot" {
-  name_prefix            = "${var.project_name}-batch-spot-"
-  type                   = "MANAGED"
-  state                  = "ENABLED"
-  service_role           = aws_iam_role.batch_service_role.arn
-  compute_resources_type = "SPOT"
+  compute_environment_name = "${var.project_name}-batch-spot-${substr(md5(aws_iam_role.batch_service_role.arn), 0, 6)}"
+  type                     = "MANAGED"
+  state                    = "ENABLED"
+  service_role             = aws_iam_role.batch_service_role.arn
 
   compute_resources {
     type                = "SPOT"
-    allocationStrategy  = "SPOT_CAPACITY_OPTIMIZED"
-    minvCpus            = 0
-    maxvCpus            = var.batch_max_vcpus
-    desiredvCpus        = 0
-    instanceRole        = aws_iam_instance_profile.batch_ecs_instance_profile.arn
-    instanceTypes       = var.batch_instance_types
+    allocation_strategy = "SPOT_CAPACITY_OPTIMIZED"
+    min_vcpus           = 0
+    max_vcpus           = var.batch_max_vcpus
+    desired_vcpus       = 0
+    instance_role       = aws_iam_instance_profile.batch_ecs_instance_profile.arn
+    instance_type       = var.batch_instance_types
     subnets             = var.private_subnet_ids
-    securityGroupIds    = [var.ecs_tasks_security_group_id]
-    bidPercentage       = var.batch_spot_bid_percentage # 70% = 60% cost savings vs on-demand
-    spotIamFleetRole    = aws_iam_role.batch_spot_fleet_role.arn
+    security_group_ids  = [var.ecs_tasks_security_group_id]
+    bid_percentage      = var.batch_spot_bid_percentage # 70% = 60% cost savings vs on-demand
+    spot_iam_fleet_role = aws_iam_role.batch_spot_fleet_role.arn
     tags = merge(var.common_tags, {
       Name = "${var.project_name}-batch-spot-fleet"
     })
@@ -349,15 +348,14 @@ resource "aws_iam_role_policy_attachment" "batch_spot_fleet_policy" {
 # ============================================================
 
 resource "aws_batch_job_queue" "spot" {
-  name                 = "${var.project_name}-batch-job-queue-spot"
-  state                = "ENABLED"
-  priority             = 1
-  compute_environment_order = [
-    {
-      order               = 1
-      compute_environment = aws_batch_compute_environment.spot.arn
-    }
-  ]
+  name     = "${var.project_name}-batch-job-queue-spot"
+  state    = "ENABLED"
+  priority = 1
+
+  compute_environment_order {
+    order               = 1
+    compute_environment = aws_batch_compute_environment.spot.arn
+  }
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-batch-job-queue"
@@ -371,7 +369,6 @@ resource "aws_batch_job_queue" "spot" {
 resource "aws_batch_job_definition" "buyselldaily" {
   name                  = "${var.project_name}-buyselldaily"
   type                  = "container"
-  revision              = 1
   container_properties = jsonencode({
     image  = "${var.ecr_repository_uri}:loadbuyselldaily-latest"
     vcpus  = 4
@@ -441,17 +438,18 @@ resource "aws_batch_job_definition" "buyselldaily" {
 resource "aws_appautoscaling_target" "batch_compute_scaling" {
   max_capacity       = var.batch_max_vcpus
   min_capacity       = 0
-  resource_id        = "computeEnvironment/${aws_batch_compute_environment.spot.name}"
+  resource_id        = "computeEnvironment/${aws_batch_compute_environment.spot.compute_environment_name}"
   scalable_dimension = "batch:computeEnvironment:desiredvCpus"
   service_namespace  = "batch"
 }
 
 resource "aws_appautoscaling_policy" "batch_compute_scaling_policy" {
-  policy_name               = "${var.project_name}-batch-scaling-policy"
-  policy_type               = "TargetTrackingScaling"
-  resource_id               = aws_appautoscaling_target.batch_compute_scaling.resource_id
-  scalable_dimension        = aws_appautoscaling_target.batch_compute_scaling.scalable_dimension
-  service_namespace         = aws_appautoscaling_target.batch_compute_scaling.service_namespace
+  name               = "${var.project_name}-batch-scaling-policy"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.batch_compute_scaling.resource_id
+  scalable_dimension = aws_appautoscaling_target.batch_compute_scaling.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.batch_compute_scaling.service_namespace
+
   target_tracking_scaling_policy_configuration {
     target_value = 70.0
 
@@ -459,17 +457,8 @@ resource "aws_appautoscaling_policy" "batch_compute_scaling_policy" {
       predefined_metric_type = "BatchComputeEnvironmentUtilization"
     }
 
-    scale_down_behavior {
-      statistic           = "Average"
-      adjustment_percent  = -50
-      cooldown            = 300
-    }
-
-    scale_up_behavior {
-      statistic           = "Average"
-      adjustment_percent  = 50
-      cooldown            = 60
-    }
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
   }
 }
 

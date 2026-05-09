@@ -15,16 +15,17 @@
 # ============================================================
 
 terraform {
-  backend "s3" {
-    bucket         = "stocks-terraform-state"
-    key            = "dev/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "stocks-terraform-locks"
-    encrypt        = true
+  # Alternative: uncomment for local testing (do NOT use in production)
+  backend "local" {
+    path = ".terraform/state/dev/terraform.tfstate"
   }
 
-  # Alternative: uncomment for local testing (do NOT use in production)
-  # backend "local" {
-  #   path = ".terraform/state/dev/terraform.tfstate"
+  # S3 backend configuration (use for production deployments)
+  # backend "s3" {
+  #   bucket         = "stocks-terraform-state"
+  #   key            = "dev/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "stocks-terraform-locks"
+  #   encrypt        = true
   # }
 }
