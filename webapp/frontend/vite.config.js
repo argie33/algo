@@ -11,15 +11,19 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   // API URL configuration - use loadEnv to properly read .env file
-  // In development: leave empty so api.js uses relative paths and Vite proxy handles routing
-  // In production: use explicit URL from environment or build-time config
-  const apiUrl = env.VITE_API_URL || (isDevelopment ? "" : "");
+  // In development: leave VITE_API_URL empty so api.js uses relative paths
+  // The Vite proxy will handle routing /api/* to localhost:3001
+  // In production: use explicit URL from VITE_API_URL environment variable
+  const apiUrl = env.VITE_API_URL || ""; // Empty for dev, explicit for prod
+  // Vite proxy always needs the target URL for development
+  const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
 
   console.log("Vite Config:", {
     mode,
     isDevelopment,
     isProduction,
-    apiUrl,
+    apiUrl: apiUrl || "(empty - using proxy)",
+    proxyTarget,
     viteApiUrl: env.VITE_API_URL,
   });
 
@@ -55,7 +59,7 @@ export default defineConfig(({ mode }) => {
       proxy: isDevelopment
         ? {
             "/api": {
-              target: apiUrl,
+              target: proxyTarget,
               changeOrigin: true,
               timeout: 45000, // Longer timeout for Lambda cold starts in development
               configure: (proxy, options) => {
