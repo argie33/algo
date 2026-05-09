@@ -71,7 +71,11 @@ variable "sns_alerts_enabled" {
 }
 
 variable "sns_alerts_topic_arn" {
-  description = "SNS topic ARN for alerts"
+  description = "SNS topic ARN for alerts (required when sns_alerts_enabled=true)"
   type        = string
   default     = ""
+  validation {
+    condition     = var.sns_alerts_enabled == false || var.sns_alerts_topic_arn != ""
+    error_message = "sns_alerts_topic_arn is required when sns_alerts_enabled is true"
+  }
 }

@@ -246,14 +246,15 @@ resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
 
 # Composite alarm: Database is unhealthy (high CPU + connection issues)
 resource "aws_cloudwatch_composite_alarm" "database_unhealthy" {
+  count             = var.sns_alerts_enabled && var.sns_alerts_topic_arn != "" ? 1 : 0
   alarm_name        = "${var.project_name}-database-unhealthy-${var.environment}"
   alarm_description = "Composite alarm: RDS CPU high OR connection errors detected"
-  actions_enabled   = var.sns_alerts_enabled
-  alarm_actions     = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+  actions_enabled   = true
+  alarm_actions     = [var.sns_alerts_topic_arn]
 
-  # Note: Individual RDS alarms must be created separately in database module
-  # This is a placeholder for the alarm rule once they exist
-  alarm_rule = "OK" # Update this when RDS alarms are added
+  # TODO: Update alarm rule once RDS CPU/connection alarms are created in database module
+  # Example: alarm_rule = "ALARM(rds-cpu-alarm-name) OR ALARM(rds-connections-alarm-name)"
+  alarm_rule = "OK"
 
   tags = var.common_tags
 }

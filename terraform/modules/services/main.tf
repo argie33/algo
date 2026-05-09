@@ -369,17 +369,15 @@ resource "aws_cognito_user_pool_client" "main" {
   generate_secret     = true
   explicit_auth_flows = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
 
-  callback_urls = var.cloudfront_enabled ? [
-    "https://${aws_cloudfront_distribution.frontend[0].domain_name}/callback",
-    "http://localhost:3000/callback",
-    "http://localhost:5173/callback"
-  ] : ["http://localhost:3000/callback", "http://localhost:5173/callback"]
+  callback_urls = concat(
+    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/callback"] : [],
+    ["http://localhost:3000/callback", "http://localhost:5173/callback"]
+  )
 
-  logout_urls = var.cloudfront_enabled ? [
-    "https://${aws_cloudfront_distribution.frontend[0].domain_name}/logout",
-    "http://localhost:3000/logout",
-    "http://localhost:5173/logout"
-  ] : ["http://localhost:3000/logout", "http://localhost:5173/logout"]
+  logout_urls = concat(
+    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/logout"] : [],
+    ["http://localhost:3000/logout", "http://localhost:5173/logout"]
+  )
 
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
@@ -532,6 +530,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 
 # API Lambda Error Alarm - Alert on invocation failures
 resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${local.api_lambda_name}-errors"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -541,7 +540,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
   statistic           = "Sum"
   threshold           = 5
   alarm_description   = "Alert when API Lambda has 5+ errors in 5 minutes"
-  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.api.function_name
@@ -552,6 +551,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
 
 # API Lambda Duration Alarm - Alert on slow responses
 resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${local.api_lambda_name}-duration"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 3
@@ -561,7 +561,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
   statistic           = "Average"
   threshold           = 3000 # 3 seconds
   alarm_description   = "Alert when API Lambda average duration exceeds 3 seconds"
-  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.api.function_name
@@ -572,6 +572,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
 
 # Algo Lambda Error Alarm
 resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${local.algo_lambda_name}-errors"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -581,7 +582,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
   statistic           = "Sum"
   threshold           = 1 # Alert on any error
   alarm_description   = "Alert when Algo Lambda has errors"
-  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.algo.function_name
@@ -592,6 +593,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
 
 # Algo Lambda Duration Alarm
 resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${local.algo_lambda_name}-duration"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -601,7 +603,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration" {
   statistic           = "Maximum"
   threshold           = 240000 # 4 minutes
   alarm_description   = "Alert when Algo Lambda exceeds 4 minute timeout threshold"
-  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.algo.function_name
@@ -612,6 +614,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration" {
 
 # API Gateway 5xx Error Alarm
 resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-apigw-5xx-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -621,7 +624,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "Alert on 10+ API Gateway 5xx errors in 1 minute"
-  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     ApiName = aws_apigatewayv2_api.main.name
