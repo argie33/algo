@@ -96,8 +96,9 @@ const config = {
   dataApis: {
     fred: process.env.FRED_API_KEY,
     alpaca: {
-      apiKey: process.env.ALPACA_API_KEY,
-      apiSecret: process.env.ALPACA_API_SECRET,
+      // Use Alpaca's standard naming: APCA_API_KEY_ID and APCA_API_SECRET_KEY
+      apiKey: process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY,
+      apiSecret: process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET,
       paperTrading: process.env.ALPACA_PAPER_TRADING === "true",
     },
   },

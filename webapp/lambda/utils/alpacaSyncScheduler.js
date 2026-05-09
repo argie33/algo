@@ -28,12 +28,13 @@ const activeSyncs = new Map();
 
 // Get Alpaca service instance
 function getAlpacaService() {
-  const apiKey = process.env.ALPACA_API_KEY;
-  const secretKey = process.env.ALPACA_SECRET_KEY;
+  // Use Alpaca's official naming convention (APCA_*), fall back to alternate names
+  const apiKey = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
+  const secretKey = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
   const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
 
   if (!apiKey || !secretKey) {
-    console.error("❌ Alpaca credentials not configured");
+    console.error("❌ Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY");
     return null;
   }
 

@@ -391,8 +391,7 @@ resource "aws_cognito_user_pool_client" "main" {
   }
 
   depends_on = [
-    aws_cognito_user_pool.main,
-    aws_cloudfront_distribution.frontend
+    aws_cognito_user_pool.main
   ]
 }
 

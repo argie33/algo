@@ -135,8 +135,6 @@ def mark_seen(notification_ids):
 
 
 if __name__ == "__main__":
-    _ensure_table()
-    print("notifications table ensured.")
     test_id = notify('test', 'info', 'Test notification', 'This is a test.')
     print(f"Test notification id: {test_id}")
     unseen = get_unseen(5)

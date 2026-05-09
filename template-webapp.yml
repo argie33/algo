@@ -171,7 +171,23 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub '${FrontendBucket.Arn}/*'
 
-  # Explicit API Gateway with CORS (defined first to avoid circular dependency)
+  # Cognito Authorizer for API Gateway
+  ApiAuthorizer:
+    Type: AWS::Serverless::Authorizer
+    Properties:
+      Name: !Sub '${EnvironmentName}-cognito-auth'
+      UserPoolArn: !GetAtt UserPool.Arn
+      Identity:
+        Header: Authorization
+        RevalidateEvery: 300
+        Context:
+          ClaimsOverrideDetails:
+            ClaimsToPassThrough:
+              - 'email'
+              - 'cognito:username'
+              - 'cognito:groups'
+
+  # Explicit API Gateway with CORS and Cognito authorization
   ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -180,6 +196,9 @@ Resources:
       OpenApiVersion: 3.0.1
       EndpointConfiguration:
         Type: REGIONAL
+      Auth:
+        DefaultAuthorizer: ApiAuthorizer
+        AddApiKeyRequiredHeader: false
       MethodSettings:
         - ResourcePath: "/*"
           HttpMethod: "*"

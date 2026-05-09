@@ -13,11 +13,12 @@ const AlpacaService = require('./alpacaService');
  */
 function initializeAlpacaTrader(isPaper = true) {
   try {
-    const apiKey = process.env.ALPACA_API_KEY || process.env.APCA_API_KEY_ID;
-    const apiSecret = process.env.ALPACA_SECRET_KEY || process.env.APCA_API_SECRET_KEY;
+    // Use Alpaca's official naming convention first, fall back to alternate names for compatibility
+    const apiKey = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
+    const apiSecret = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
 
     if (!apiKey || !apiSecret) {
-      console.warn('⚠️ Alpaca credentials not configured (ALPACA_API_KEY and ALPACA_SECRET_KEY required)');
+      console.warn('⚠️ Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables');
       return null;
     }
 
