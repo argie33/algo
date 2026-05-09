@@ -55,10 +55,10 @@ variable "github_ref_path" {
 variable "notification_email" {
   description = "Email address for CloudWatch alarms and SNS notifications"
   type        = string
-  default     = "argeropolos@gmail.com"
+  default     = ""
   validation {
-    condition     = can(regex("^[^@]+@[^@]+\\.[^@]+$", var.notification_email))
-    error_message = "Must be a valid email address"
+    condition     = var.notification_email == "" || can(regex("^[^@]+@[^@]+\\.[^@]+$", var.notification_email))
+    error_message = "Must be a valid email address or empty string"
   }
 }
 

@@ -55,13 +55,24 @@ resource "aws_iam_role_policy" "github_actions" {
 }
 
 data "aws_iam_policy_document" "github_actions" {
-  # Terraform resource management - EC2, VPC, Security Groups (scoped to project resources)
+  # Terraform resource management - EC2, VPC, Security Groups (read-only - requires wildcard)
   statement {
-    sid    = "TerraformEC2VPC"
+    sid    = "TerraformEC2Describe"
     effect = "Allow"
 
     actions = [
-      "ec2:Describe*",
+      "ec2:Describe*"
+    ]
+
+    resources = ["*"]  # AWS requires wildcard for Describe* actions
+  }
+
+  # Terraform resource management - EC2, VPC, Security Groups (modifications - scoped to project)
+  statement {
+    sid    = "TerraformEC2Modify"
+    effect = "Allow"
+
+    actions = [
       "ec2:CreateVpc",
       "ec2:DeleteVpc",
       "ec2:CreateSubnet",
@@ -93,7 +104,16 @@ data "aws_iam_policy_document" "github_actions" {
       "ec2:DeleteTags"
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:vpc/${var.project_name}-*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:subnet/${var.project_name}-*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:security-group/${var.project_name}-*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:network-interface/*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:route-table/${var.project_name}-*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:internet-gateway/${var.project_name}-*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:nat-gateway/*",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:elastic-ip/*"
+    ]
   }
 
   # Terraform resource management - RDS (scoped to project databases)

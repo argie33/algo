@@ -26,7 +26,7 @@ resource "aws_s3_bucket_versioning" "code" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "code" {
   bucket = aws_s3_bucket.code.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm     = var.encryption_kms_key_id != null ? "aws:kms" : "AES256"
       kms_master_key_id = var.encryption_kms_key_id != null ? "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/${var.encryption_kms_key_id}" : null
@@ -45,7 +45,7 @@ resource "aws_s3_bucket_public_access_block" "code" {
 resource "aws_s3_bucket_lifecycle_configuration" "code" {
   bucket = aws_s3_bucket.code.id
 
-  rule {
+  rules {
     id     = "DeleteOldArtifacts"
     status = "Enabled"
     filter {}
@@ -63,7 +63,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
     }
   }
 
-  rule {
+  rules {
     id     = "DeleteExpiredMarkers"
     status = "Enabled"
     filter {}
@@ -98,7 +98,7 @@ resource "aws_s3_bucket_versioning" "cf_templates" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "cf_templates" {
   bucket = aws_s3_bucket.cf_templates.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
@@ -137,7 +137,7 @@ resource "aws_s3_bucket_versioning" "lambda_artifacts" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_artifacts" {
   bucket = aws_s3_bucket.lambda_artifacts.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
@@ -155,7 +155,7 @@ resource "aws_s3_bucket_public_access_block" "lambda_artifacts" {
 resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
   bucket = aws_s3_bucket.lambda_artifacts.id
 
-  rule {
+  rules {
     id     = "DeleteOldArtifacts"
     status = "Enabled"
     filter {}
@@ -173,7 +173,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
     }
   }
 
-  rule {
+  rules {
     id     = "DeleteExpiredMarkers"
     status = "Enabled"
     filter {}
@@ -200,7 +200,7 @@ resource "aws_s3_bucket" "data_loading" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "data_loading" {
   bucket = aws_s3_bucket.data_loading.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
@@ -226,7 +226,7 @@ resource "aws_s3_bucket_versioning" "data_loading" {
 resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
   bucket = aws_s3_bucket.data_loading.id
 
-  rule {
+  rules {
     id     = "DeleteOldData"
     status = "Enabled"
     filter {}
@@ -240,7 +240,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
     }
   }
 
-  rule {
+  rules {
     id     = "DeleteExpiredMarkers"
     status = "Enabled"
     filter {}
@@ -267,7 +267,7 @@ resource "aws_s3_bucket" "log_archive" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "log_archive" {
   bucket = aws_s3_bucket.log_archive.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
@@ -312,7 +312,7 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "log_archive" {
 resource "aws_s3_bucket_lifecycle_configuration" "log_archive" {
   bucket = aws_s3_bucket.log_archive.id
 
-  rule {
+  rules {
     id     = "TransitionToGlacier"
     status = "Enabled"
     filter {}
@@ -362,7 +362,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
-  rule {
+  rules {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }

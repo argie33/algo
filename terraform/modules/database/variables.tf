@@ -177,8 +177,8 @@ variable "alpaca_api_base_url" {
 
 variable "alpaca_paper_trading" {
   description = "Enable Alpaca paper trading mode"
-  type        = string
-  default     = "true"
+  type        = bool
+  default     = true
 }
 
 # ============================================================

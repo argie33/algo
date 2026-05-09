@@ -3,21 +3,17 @@
 # ============================================================
 
 locals {
-  # Standardized common tags for all resources
   common_tags = merge(
+    var.additional_tags,
     {
       Project     = var.project_name
       Environment = var.environment
-      ManagedBy   = "terraform"
-      Region      = var.aws_region
-    },
-    var.additional_tags
+      ManagedBy   = "Terraform"
+      CreatedAt   = timestamp()
+    }
   )
 
-  # Naming convention
-  name_prefix = "${var.project_name}-${var.environment}"
-
-  # Extract GitHub organization and repository from "owner/repo" format
+  # GitHub repository components for OIDC trust
   github_org  = split("/", var.github_repository)[0]
   github_repo = split("/", var.github_repository)[1]
 }

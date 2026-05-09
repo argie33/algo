@@ -170,7 +170,7 @@ resource "aws_launch_template" "bastion" {
   instance_market_options {
     market_type = "spot"
     spot_options {
-      spot_instance_type = "one-time"
+      spot_instance_type = "persistent"  # Bastion should persist through Spot interruptions
     }
   }
 
