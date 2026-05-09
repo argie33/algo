@@ -528,6 +528,130 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
   ]
 }
 
+# ============================================================
+# CloudWatch Monitoring & Alarms
+# ============================================================
+
+# API Lambda Error Alarm - Alert on invocation failures
+resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
+  alarm_name          = "${local.api_lambda_name}-errors"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5
+  alarm_description   = "Alert when API Lambda has 5+ errors in 5 minutes"
+  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+
+  dimensions = {
+    FunctionName = aws_lambda_function.api.function_name
+  }
+
+  tags = var.common_tags
+}
+
+# API Lambda Duration Alarm - Alert on slow responses
+resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
+  alarm_name          = "${local.api_lambda_name}-duration"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "Duration"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 3000  # 3 seconds
+  alarm_description   = "Alert when API Lambda average duration exceeds 3 seconds"
+  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+
+  dimensions = {
+    FunctionName = aws_lambda_function.api.function_name
+  }
+
+  tags = var.common_tags
+}
+
+# Algo Lambda Error Alarm
+resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
+  alarm_name          = "${local.algo_lambda_name}-errors"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1  # Alert on any error
+  alarm_description   = "Alert when Algo Lambda has errors"
+  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+
+  dimensions = {
+    FunctionName = aws_lambda_function.algo.function_name
+  }
+
+  tags = var.common_tags
+}
+
+# Algo Lambda Duration Alarm
+resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration" {
+  alarm_name          = "${local.algo_lambda_name}-duration"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "Duration"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 240000  # 4 minutes
+  alarm_description   = "Alert when Algo Lambda exceeds 4 minute timeout threshold"
+  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+
+  dimensions = {
+    FunctionName = aws_lambda_function.algo.function_name
+  }
+
+  tags = var.common_tags
+}
+
+# API Gateway 5xx Error Alarm
+resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
+  alarm_name          = "${var.project_name}-apigw-5xx-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "5XXError"
+  namespace           = "AWS/ApiGateway"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 10
+  alarm_description   = "Alert on 10+ API Gateway 5xx errors in 1 minute"
+  alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
+
+  dimensions = {
+    ApiName = aws_apigatewayv2_api.main.name
+  }
+
+  tags = var.common_tags
+}
+
+# API Gateway 4xx Error Alarm (informational)
+resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors" {
+  alarm_name          = "${var.project_name}-apigw-4xx-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "4XXError"
+  namespace           = "AWS/ApiGateway"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 50
+  alarm_description   = "Informational: 50+ API Gateway 4xx errors in 5 minutes (auth/validation issues)"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ApiName = aws_apigatewayv2_api.main.name
+  }
+
+  tags = var.common_tags
+}
+
 resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
