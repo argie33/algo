@@ -1,5 +1,5 @@
 # ============================================================
-# Loaders Module - Outputs
+# Loaders Module - Outputs (All 40 Loaders)
 # ============================================================
 
 output "loader_task_definition_arns" {
@@ -23,23 +23,13 @@ output "loader_log_group_names" {
 }
 
 output "eventbridge_rules" {
-  description = "EventBridge rule names for scheduled loaders"
-  value = {
-    econdata       = aws_cloudwatch_event_rule.econdata_schedule.name
-    feargreed      = aws_cloudwatch_event_rule.fear_greed_schedule.name
-    market_indices = aws_cloudwatch_event_rule.market_indices_schedule.name
-    sector_ranking = aws_cloudwatch_event_rule.sector_ranking_schedule.name
-  }
+  description = "EventBridge rule names for all scheduled loaders"
+  value       = { for k, v in aws_cloudwatch_event_rule.scheduled_loader : k => v.name }
 }
 
 output "eventbridge_targets" {
-  description = "EventBridge target ARNs for scheduled loader tasks"
-  value = {
-    econdata       = aws_cloudwatch_event_target.econdata_target.arn
-    feargreed      = aws_cloudwatch_event_target.fear_greed_target.arn
-    market_indices = aws_cloudwatch_event_target.market_indices_target.arn
-    sector_ranking = aws_cloudwatch_event_target.sector_ranking_target.arn
-  }
+  description = "EventBridge target ARNs for all scheduled loader tasks"
+  value       = { for k, v in aws_cloudwatch_event_target.scheduled_loader_target : k => v.arn }
 }
 
 output "eventbridge_role_arn" {
@@ -48,6 +38,21 @@ output "eventbridge_role_arn" {
 }
 
 output "all_loader_names" {
-  description = "List of all configured loader names"
-  value       = keys(local.default_loaders)
+  description = "List of all 40 configured loader names"
+  value       = keys(local.all_loaders)
+}
+
+output "scheduled_loader_names" {
+  description = "List of scheduled loader names (33 loaders)"
+  value       = keys(local.scheduled_loaders)
+}
+
+output "loader_count" {
+  description = "Total number of loaders configured"
+  value       = length(local.all_loaders)
+}
+
+output "scheduled_loader_count" {
+  description = "Total number of scheduled loaders"
+  value       = length(local.scheduled_loaders)
 }

@@ -9,6 +9,7 @@ workflow or positions were closed in Alpaca but marked open in DB.
 """
 
 import os
+import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

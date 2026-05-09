@@ -54,61 +54,281 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
   })
 }
 
-# Example scheduled rule - Market Indices Loader
-resource "aws_cloudwatch_event_rule" "market_indices_schedule" {
-  name                = "${var.project_name}-market-indices-schedule"
-  description         = "Run market indices loader at 5pm ET (9pm UTC)"
-  schedule_expression = "cron(0 21 ? * MON-FRI *)"
-
-  tags = var.common_tags
-}
-
-# Example scheduled rule - EconData Loader (6pm ET)
-resource "aws_cloudwatch_event_rule" "econdata_schedule" {
-  name                = "${var.project_name}-econdata-evening-schedule"
-  description         = "Run econdata loader at 6pm ET (10pm UTC)"
-  schedule_expression = "cron(0 22 ? * MON-FRI *)"
-
-  tags = var.common_tags
-}
-
-# Example scheduled rule - Sector Ranking Loader (6:30pm ET)
-resource "aws_cloudwatch_event_rule" "sector_ranking_schedule" {
-  name                = "${var.project_name}-sector-ranking-schedule"
-  description         = "Run sector ranking loader at 6:30pm ET (10:30pm UTC)"
-  schedule_expression = "cron(30 22 ? * MON-FRI *)"
-
-  tags = var.common_tags
-}
-
-# Example scheduled rule - Fear&Greed Loader (7pm ET)
-
 # ============================================================
-# NOTE: Loader Implementation Status
+# Scheduled EventBridge Rules - All 40 Loaders
 # ============================================================
-# Currently implemented: 7 core loaders (stock symbols, prices, fundamentals,
-# market indices, econdata, feargreed, sector ranking)
+# Loaders are scheduled to run at optimal times to:
+# 1. Respect data dependencies (prices first, then signals)
+# 2. Distribute API load across the trading day
+# 3. Avoid resource contention
 #
-# Missing: 58 additional loaders from template-loader-tasks.yml
-# To add remaining loaders, populate the default_loaders map below with
-# additional loader definitions and create corresponding EventBridge rules
+# Schedule Map:
+# - 3:30am ET (8:30am UTC): stock_symbols
+# - 4:00am ET (9am UTC): price loaders (6 parallel)
+# - 10:00am ET (3pm UTC): financial statements (8 parallel)
+# - 11:00am ET (4pm UTC): earnings data (4 parallel)
+# - 12:00pm ET (5pm UTC): market/economic data (10 parallel)
+# - 1:00pm ET (6pm UTC): sentiment/analysis (5 parallel)
+# - 5:00pm ET (10pm UTC): trading signals (5 parallel)
+# - 5:15pm ET (10:15pm UTC): algo metrics (after signals)
 
 locals {
-  default_loaders = {
-    # Stock data loaders
-    "stock_symbols"        = { cpu = 256, memory = 512 }
-    "stock_prices"         = { cpu = 256, memory = 512 }
-    "company_fundamentals" = { cpu = 256, memory = 512 }
-    "market_indices"       = { cpu = 256, memory = 512 }
-    "econdata"             = { cpu = 256, memory = 512 }
-    "feargreed"            = { cpu = 256, memory = 512 }
-    "sector_ranking"       = { cpu = 256, memory = 512 }
+  scheduled_loaders = {
+    # 3:30am ET = 8:30am UTC Mon-Fri
+    "stock_symbols" = {
+      schedule = "cron(30 8 ? * MON-FRI *)"
+      description = "Stock symbols reference data - 3:30am ET"
+    }
+
+    # 4:00am ET = 9am UTC Mon-Fri
+    "stock_prices_daily" = {
+      schedule = "cron(0 9 ? * MON-FRI *)"
+      description = "Daily stock prices - 4:00am ET"
+    }
+    "stock_prices_weekly" = {
+      schedule = "cron(5 9 ? * MON-FRI *)"
+      description = "Weekly stock prices - 4:05am ET"
+    }
+    "stock_prices_monthly" = {
+      schedule = "cron(10 9 ? * MON-FRI *)"
+      description = "Monthly stock prices - 4:10am ET"
+    }
+    "etf_prices_daily" = {
+      schedule = "cron(15 9 ? * MON-FRI *)"
+      description = "Daily ETF prices - 4:15am ET"
+    }
+    "etf_prices_weekly" = {
+      schedule = "cron(20 9 ? * MON-FRI *)"
+      description = "Weekly ETF prices - 4:20am ET"
+    }
+    "etf_prices_monthly" = {
+      schedule = "cron(25 9 ? * MON-FRI *)"
+      description = "Monthly ETF prices - 4:25am ET"
+    }
+
+    # 10:00am ET = 3pm UTC Mon-Fri
+    "financials_annual_income" = {
+      schedule = "cron(0 15 ? * MON-FRI *)"
+      description = "Annual income statements - 10:00am ET"
+    }
+    "financials_annual_balance" = {
+      schedule = "cron(5 15 ? * MON-FRI *)"
+      description = "Annual balance sheets - 10:05am ET"
+    }
+    "financials_annual_cashflow" = {
+      schedule = "cron(10 15 ? * MON-FRI *)"
+      description = "Annual cash flow - 10:10am ET"
+    }
+    "financials_quarterly_income" = {
+      schedule = "cron(15 15 ? * MON-FRI *)"
+      description = "Quarterly income statements - 10:15am ET"
+    }
+    "financials_quarterly_balance" = {
+      schedule = "cron(20 15 ? * MON-FRI *)"
+      description = "Quarterly balance sheets - 10:20am ET"
+    }
+    "financials_quarterly_cashflow" = {
+      schedule = "cron(25 15 ? * MON-FRI *)"
+      description = "Quarterly cash flow - 10:25am ET"
+    }
+    "financials_ttm_income" = {
+      schedule = "cron(30 15 ? * MON-FRI *)"
+      description = "TTM income statements - 10:30am ET"
+    }
+    "financials_ttm_cashflow" = {
+      schedule = "cron(35 15 ? * MON-FRI *)"
+      description = "TTM cash flow - 10:35am ET"
+    }
+
+    # 11:00am ET = 4pm UTC Mon-Fri
+    "earnings_history" = {
+      schedule = "cron(0 16 ? * MON-FRI *)"
+      description = "Earnings history - 11:00am ET"
+    }
+    "earnings_revisions" = {
+      schedule = "cron(5 16 ? * MON-FRI *)"
+      description = "Earnings revisions - 11:05am ET"
+    }
+    "earnings_surprise" = {
+      schedule = "cron(10 16 ? * MON-FRI *)"
+      description = "Earnings surprise - 11:10am ET"
+    }
+    "earnings_sp500" = {
+      schedule = "cron(15 16 ? * MON-FRI *)"
+      description = "S&P 500 earnings - 11:15am ET"
+    }
+
+    # 12:00pm ET = 5pm UTC Mon-Fri
+    "market_overview" = {
+      schedule = "cron(0 17 ? * MON-FRI *)"
+      description = "Market overview - 12:00pm ET"
+    }
+    "market_indices" = {
+      schedule = "cron(5 17 ? * MON-FRI *)"
+      description = "Market indices - 12:05pm ET"
+    }
+    "sector_performance" = {
+      schedule = "cron(10 17 ? * MON-FRI *)"
+      description = "Sector performance - 12:10pm ET"
+    }
+    "relative_performance" = {
+      schedule = "cron(15 17 ? * MON-FRI *)"
+      description = "Relative performance - 12:15pm ET"
+    }
+    "seasonality" = {
+      schedule = "cron(20 17 ? * MON-FRI *)"
+      description = "Seasonality - 12:20pm ET"
+    }
+    "econ_data" = {
+      schedule = "cron(25 17 ? * MON-FRI *)"
+      description = "Economic data - 12:25pm ET"
+    }
+    "aaiidata" = {
+      schedule = "cron(30 17 ? * MON-FRI *)"
+      description = "AAII data - 12:30pm ET"
+    }
+    "naaim_data" = {
+      schedule = "cron(35 17 ? * MON-FRI *)"
+      description = "NAAIM data - 12:35pm ET"
+    }
+    "feargreed" = {
+      schedule = "cron(40 17 ? * MON-FRI *)"
+      description = "Fear & Greed Index - 12:40pm ET"
+    }
+    "calendar" = {
+      schedule = "cron(45 17 ? * MON-FRI *)"
+      description = "Economic calendar - 12:45pm ET"
+    }
+
+    # 1:00pm ET = 6pm UTC Mon-Fri
+    "analyst_sentiment" = {
+      schedule = "cron(0 18 ? * MON-FRI *)"
+      description = "Analyst sentiment - 1:00pm ET"
+    }
+    "analyst_upgrades" = {
+      schedule = "cron(5 18 ? * MON-FRI *)"
+      description = "Analyst upgrades - 1:05pm ET"
+    }
+    "social_sentiment" = {
+      schedule = "cron(10 18 ? * MON-FRI *)"
+      description = "Social sentiment - 1:10pm ET"
+    }
+    "factor_metrics" = {
+      schedule = "cron(15 18 ? * MON-FRI *)"
+      description = "Factor metrics - 1:15pm ET"
+    }
+    "stock_scores" = {
+      schedule = "cron(20 18 ? * MON-FRI *)"
+      description = "Stock scores - 1:20pm ET"
+    }
+
+    # 5:00pm ET = 10pm UTC Mon-Fri
+    "signals_daily" = {
+      schedule = "cron(0 22 ? * MON-FRI *)"
+      description = "Daily trading signals - 5:00pm ET"
+    }
+    "signals_weekly" = {
+      schedule = "cron(5 22 ? * MON-FRI *)"
+      description = "Weekly trading signals - 5:05pm ET"
+    }
+    "signals_monthly" = {
+      schedule = "cron(10 22 ? * MON-FRI *)"
+      description = "Monthly trading signals - 5:10pm ET"
+    }
+    "signals_etf_daily" = {
+      schedule = "cron(15 22 ? * MON-FRI *)"
+      description = "Daily ETF signals - 5:15pm ET"
+    }
+    "etf_signals" = {
+      schedule = "cron(20 22 ? * MON-FRI *)"
+      description = "ETF signals - 5:20pm ET"
+    }
+
+    # 5:25pm ET = 10:25pm UTC Mon-Fri (after signals complete)
+    "algo_metrics_daily" = {
+      schedule = "cron(25 22 ? * MON-FRI *)"
+      description = "Algo metrics - 5:25pm ET"
+    }
   }
 }
 
-# Placeholder task definitions (stub - to be expanded)
+resource "aws_cloudwatch_event_rule" "scheduled_loader" {
+  for_each = local.scheduled_loaders
+
+  name                = "${var.project_name}-${each.key}-schedule"
+  description         = each.value.description
+  schedule_expression = each.value.schedule
+  is_enabled          = true
+
+  tags = var.common_tags
+}
+
+locals {
+  all_loaders = {
+    # Reference data (3:30am ET)
+    "stock_symbols"          = { cpu = 128, memory = 256, timeout = 300 }
+
+    # Price data loaders (4:00am ET) - HIGH CPU/MEMORY
+    "stock_prices_daily"     = { cpu = 512, memory = 1024, timeout = 600 }
+    "stock_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600 }
+    "stock_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600 }
+    "etf_prices_daily"       = { cpu = 512, memory = 1024, timeout = 600 }
+    "etf_prices_weekly"      = { cpu = 512, memory = 1024, timeout = 600 }
+    "etf_prices_monthly"     = { cpu = 512, memory = 1024, timeout = 600 }
+
+    # Financial statements (10:00am ET)
+    "financials_annual_income"     = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_annual_balance"    = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_annual_cashflow"   = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_quarterly_income"  = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_quarterly_balance" = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_quarterly_cashflow" = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_ttm_income"        = { cpu = 256, memory = 512, timeout = 1200 }
+    "financials_ttm_cashflow"      = { cpu = 256, memory = 512, timeout = 1200 }
+
+    # Earnings data (11:00am ET)
+    "earnings_history"   = { cpu = 256, memory = 512, timeout = 600 }
+    "earnings_revisions" = { cpu = 256, memory = 512, timeout = 600 }
+    "earnings_surprise"  = { cpu = 256, memory = 512, timeout = 600 }
+    "earnings_sp500"     = { cpu = 256, memory = 512, timeout = 600 }
+
+    # Market & economic data (12:00pm ET - 6:00pm ET)
+    "market_overview"    = { cpu = 256, memory = 256, timeout = 300 }
+    "market_indices"     = { cpu = 256, memory = 256, timeout = 300 }
+    "sector_performance" = { cpu = 256, memory = 256, timeout = 300 }
+    "relative_performance" = { cpu = 256, memory = 256, timeout = 300 }
+    "seasonality"        = { cpu = 256, memory = 256, timeout = 300 }
+    "econ_data"          = { cpu = 256, memory = 256, timeout = 300 }
+    "aaiidata"           = { cpu = 256, memory = 256, timeout = 300 }
+    "naaim_data"         = { cpu = 256, memory = 256, timeout = 300 }
+    "feargreed"          = { cpu = 256, memory = 256, timeout = 300 }
+    "calendar"           = { cpu = 256, memory = 256, timeout = 300 }
+
+    # Sentiment & analysis (1:00pm ET)
+    "analyst_sentiment"  = { cpu = 256, memory = 256, timeout = 600 }
+    "analyst_upgrades"   = { cpu = 256, memory = 256, timeout = 600 }
+    "social_sentiment"   = { cpu = 256, memory = 256, timeout = 600 }
+    "factor_metrics"     = { cpu = 256, memory = 256, timeout = 600 }
+    "stock_scores"       = { cpu = 256, memory = 256, timeout = 600 }
+
+    # Trading signals (5:00pm ET)
+    "signals_daily"      = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_weekly"     = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_monthly"    = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_etf_daily"  = { cpu = 256, memory = 512, timeout = 900 }
+    "etf_signals"        = { cpu = 256, memory = 512, timeout = 900 }
+
+    # Algo metrics (5:15pm ET - after signals)
+    "algo_metrics_daily" = { cpu = 256, memory = 256, timeout = 600 }
+  }
+
+  # For backward compatibility
+  default_loaders = local.all_loaders
+}
+
+# ECS Task Definitions for all 40 data loaders
 resource "aws_ecs_task_definition" "loader" {
-  for_each = local.default_loaders
+  for_each = local.all_loaders
 
   family = "${var.project_name}-${each.key}-loader"
   container_definitions = jsonencode([
@@ -150,16 +370,16 @@ resource "aws_ecs_task_definition" "loader" {
 
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = tostring(each.value.cpu)
+  memory                   = tostring(each.value.memory)
   execution_role_arn       = var.task_execution_role_arn
 
   tags = var.common_tags
 }
 
-# Placeholder log groups for loaders (stub)
+# CloudWatch Log Groups for all loaders
 resource "aws_cloudwatch_log_group" "loader" {
-  for_each = local.default_loaders
+  for_each = local.all_loaders
 
   name              = "/ecs/${var.project_name}-${each.key}-loader"
   retention_in_days = 30
@@ -176,19 +396,20 @@ resource "aws_cloudwatch_event_rule" "fear_greed_schedule" {
 }
 
 # ============================================================
-# EventBridge Targets - ECS Task Execution
+# EventBridge Targets - ECS Task Execution (All 40 Loaders)
 # ============================================================
 
-# Market Indices Loader Target
-resource "aws_cloudwatch_event_target" "market_indices_target" {
-  rule      = aws_cloudwatch_event_rule.market_indices_schedule.name
-  target_id = "MarketIndicesLoaderTarget"
+resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
+  for_each = local.scheduled_loaders
+
+  rule      = aws_cloudwatch_event_rule.scheduled_loader[each.key].name
+  target_id = "${upper(replace(each.key, \"_\", \"\"))}Target"
   arn       = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.ecs_cluster_name}"
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
     launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.loader["market_indices"].arn
+    task_definition_arn = aws_ecs_task_definition.loader[each.key].arn
     task_count          = 1
     platform_version    = "LATEST"
     cluster             = var.ecs_cluster_name
@@ -198,67 +419,13 @@ resource "aws_cloudwatch_event_target" "market_indices_target" {
       assign_public_ip = false
     }
   }
-}
 
-# EconData Loader Target
-resource "aws_cloudwatch_event_target" "econdata_target" {
-  rule      = aws_cloudwatch_event_rule.econdata_schedule.name
-  target_id = "EconDataLoaderTarget"
-  arn       = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.ecs_cluster_name}"
-  role_arn  = aws_iam_role.eventbridge_run_task.arn
-
-  ecs_target {
-    launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.loader["econdata"].arn
-    task_count          = 1
-    platform_version    = "LATEST"
-    cluster             = var.ecs_cluster_name
-    network_configuration {
-      subnets          = var.private_subnet_ids
-      security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
-    }
+  retry_policy {
+    maximum_event_age       = 3600
+    maximum_retry_attempts  = 2
   }
-}
 
-# Sector Ranking Loader Target
-resource "aws_cloudwatch_event_target" "sector_ranking_target" {
-  rule      = aws_cloudwatch_event_rule.sector_ranking_schedule.name
-  target_id = "SectorRankingLoaderTarget"
-  arn       = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.ecs_cluster_name}"
-  role_arn  = aws_iam_role.eventbridge_run_task.arn
-
-  ecs_target {
-    launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.loader["sector_ranking"].arn
-    task_count          = 1
-    platform_version    = "LATEST"
-    cluster             = var.ecs_cluster_name
-    network_configuration {
-      subnets          = var.private_subnet_ids
-      security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
-    }
-  }
-}
-
-# Fear & Greed Loader Target
-resource "aws_cloudwatch_event_target" "fear_greed_target" {
-  rule      = aws_cloudwatch_event_rule.fear_greed_schedule.name
-  target_id = "FearGreedLoaderTarget"
-  arn       = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.ecs_cluster_name}"
-  role_arn  = aws_iam_role.eventbridge_run_task.arn
-
-  ecs_target {
-    launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.loader["feargreed"].arn
-    task_count          = 1
-    platform_version    = "LATEST"
-    cluster             = var.ecs_cluster_name
-    network_configuration {
-      subnets          = var.private_subnet_ids
-      security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
-    }
+  dead_letter_config {
+    arn = null
   }
 }

@@ -104,8 +104,8 @@ class PortfolioRisk:
 
             return {
                 'confidence_level': confidence,
-                'var_dollars': round(var_dollars, 2),
-                'var_pct': round(var_pct, 3),
+                'var_dollars': float(round(var_dollars, 2)),
+                'var_pct': float(round(var_pct, 3)),
                 'interpretation': f'95% confident portfolio won\'t lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day',
                 'data_points': len(returns),
             }
@@ -172,8 +172,8 @@ class PortfolioRisk:
 
             return {
                 'confidence_level': confidence,
-                'cvar_dollars': round(cvar_dollars, 2),
-                'cvar_pct': round(cvar_pct, 3),
+                'cvar_dollars': float(round(cvar_dollars, 2)),
+                'cvar_pct': float(round(cvar_pct, 3)),
                 'interpretation': f'Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%',
                 'tail_event_count': len(tail_losses),
             }
@@ -242,8 +242,8 @@ class PortfolioRisk:
 
             return {
                 'confidence_level': confidence,
-                'stressed_var_dollars': round(stressed_var_dollars, 2),
-                'stressed_var_pct': round(stressed_var_pct, 3),
+                'stressed_var_dollars': float(round(stressed_var_dollars, 2)),
+                'stressed_var_pct': float(round(stressed_var_pct, 3)),
                 'worst_window_period': f'{rows[worst_start_idx][0]} to {rows[worst_start_idx + 252][0]}',
                 'interpretation': f'Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%',
             }
@@ -459,6 +459,12 @@ class PortfolioRisk:
             try:
                 conn = psycopg2.connect(**DB_CONFIG)
                 cur = conn.cursor()
+
+                # Convert numpy scalars to Python floats to prevent "schema 'np'" errors
+                var_pct_val = float(var_metrics['var_pct']) if var_metrics else None
+                cvar_pct_val = float(cvar_metrics['cvar_pct']) if cvar_metrics else None
+                stressed_var_pct_val = float(stressed_var['stressed_var_pct']) if stressed_var else None
+
                 cur.execute(
                     """
                     INSERT INTO algo_risk_daily (
@@ -471,9 +477,9 @@ class PortfolioRisk:
                     """,
                     (
                         report_date,
-                        var_metrics['var_pct'] if var_metrics else None,
-                        cvar_metrics['cvar_pct'] if cvar_metrics else None,
-                        stressed_var['stressed_var_pct'] if stressed_var else None,
+                        var_pct_val,
+                        cvar_pct_val,
+                        stressed_var_pct_val,
                     )
                 )
                 conn.commit()

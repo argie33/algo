@@ -20,6 +20,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
 import os
+import json
 import psycopg2
 import requests
 from pathlib import Path

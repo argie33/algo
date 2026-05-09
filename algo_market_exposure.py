@@ -32,6 +32,7 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 """
 
 import os
+import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

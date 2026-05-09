@@ -199,7 +199,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
 
             # Send email alert
             if self.alert_manager.email_to:
-                self.alert_manager.send_email(
+                self.alert_manager._send_email(
                     subject=f"[ALGO] {subject}",
                     body=message
                 )
