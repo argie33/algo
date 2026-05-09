@@ -123,25 +123,25 @@ Resources:
   PositioningLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/positioning-loader
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-positioning'
       RetentionInDays: 7
 
   QualityMetricsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/quality-metrics-service
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-quality-metrics'
       RetentionInDays: 7
 
   GrowthMetricsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/growth-metrics-service
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-growth-metrics'
       RetentionInDays: 7
 
   BenchmarksLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/benchmarks-loader
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-benchmarks'
       RetentionInDays: 7
 
   StockSymbolsTaskDefinition:
