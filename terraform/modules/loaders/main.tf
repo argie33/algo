@@ -465,6 +465,18 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "AWS_REGION"
           value = var.aws_region
+        },
+        {
+          name  = "DB_HOST"
+          value = var.db_host
+        },
+        {
+          name  = "DB_PORT"
+          value = tostring(var.db_port)
+        },
+        {
+          name  = "DB_NAME"
+          value = var.db_name
         }
       ]
     }

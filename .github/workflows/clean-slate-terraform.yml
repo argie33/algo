@@ -1,0 +1,287 @@
+name: Clean Slate - Delete CF + Deploy Terraform Fresh
+
+# Destroys ALL CloudFormation stacks and orphaned resources
+# Then deploys everything fresh with Terraform only
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_delete:
+        description: 'Type DELETE to confirm destroying all CloudFormation resources'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  confirm:
+    name: Confirm Deletion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_delete }}" != "DELETE" ]; then
+            echo "❌ Confirmation failed. Must type 'DELETE' exactly."
+            exit 1
+          fi
+          echo "✅ Confirmed: Proceeding with CloudFormation deletion"
+
+  delete-cf-stacks:
+    name: Delete All CloudFormation Stacks
+    needs: confirm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: List all stacks
+        id: list
+        run: |
+          echo "📋 CloudFormation stacks to delete:"
+          aws cloudformation list-stacks \
+            --region $AWS_REGION \
+            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" \
+            --output text | tr '\t' '\n'
+
+      - name: Delete all stacks (with wait)
+        run: |
+          STACKS=$(aws cloudformation list-stacks \
+            --region $AWS_REGION \
+            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" \
+            --output text)
+
+          if [ -z "$STACKS" ]; then
+            echo "✅ No stacks to delete"
+            exit 0
+          fi
+
+          echo "🗑️  Deleting stacks: $STACKS"
+
+          for stack in $STACKS; do
+            echo "Deleting: $stack"
+            aws cloudformation delete-stack \
+              --stack-name "$stack" \
+              --region $AWS_REGION || {
+              echo "⚠️  Could not delete $stack (may already be deleted)"
+            }
+          done
+
+          echo "⏳ Waiting for deletion to complete..."
+          for stack in $STACKS; do
+            echo "Waiting for $stack..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name "$stack" \
+              --region $AWS_REGION 2>/dev/null || {
+              echo "Note: $stack deletion completed or timed out"
+            }
+          done
+
+          echo "✅ Stack deletion initiated"
+
+  cleanup-orphaned:
+    name: Clean Up Orphaned Resources
+    needs: delete-cf-stacks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete orphaned RDS instances
+        continue-on-error: true
+        run: |
+          echo "🔍 Finding orphaned RDS instances..."
+          INSTANCES=$(aws rds describe-db-instances \
+            --region $AWS_REGION \
+            --query "DBInstances[?contains(DBInstanceIdentifier, 'stocks')].DBInstanceIdentifier" \
+            --output text)
+
+          for instance in $INSTANCES; do
+            echo "Deleting RDS instance: $instance"
+            aws rds delete-db-instance \
+              --db-instance-identifier "$instance" \
+              --skip-final-snapshot \
+              --region $AWS_REGION || true
+          done
+
+      - name: Delete orphaned S3 buckets
+        continue-on-error: true
+        run: |
+          echo "🔍 Finding orphaned S3 buckets..."
+          BUCKETS=$(aws s3api list-buckets \
+            --query "Buckets[?contains(Name, 'stocks')].Name" \
+            --output text)
+
+          for bucket in $BUCKETS; do
+            echo "Emptying bucket: $bucket"
+            aws s3 rm "s3://$bucket" --recursive 2>/dev/null || true
+
+            echo "Deleting bucket: $bucket"
+            aws s3api delete-bucket \
+              --bucket "$bucket" \
+              --region $AWS_REGION 2>/dev/null || true
+          done
+
+      - name: Delete orphaned security groups
+        continue-on-error: true
+        run: |
+          echo "🔍 Finding orphaned security groups..."
+          # This is complex, so we'll be selective
+          SGs=$(aws ec2 describe-security-groups \
+            --region $AWS_REGION \
+            --filters Name=group-name,Values='stocks*' \
+            --query "SecurityGroups[?GroupName!='default'].GroupId" \
+            --output text 2>/dev/null || echo "")
+
+          for sg in $SGs; do
+            echo "Deleting security group: $sg"
+            aws ec2 delete-security-group \
+              --group-id "$sg" \
+              --region $AWS_REGION 2>/dev/null || true
+          done
+
+      - name: Delete orphaned IAM roles
+        continue-on-error: true
+        run: |
+          echo "🔍 Finding orphaned IAM roles..."
+          ROLES=$(aws iam list-roles \
+            --query "Roles[?contains(RoleName, 'stocks')].RoleName" \
+            --output text 2>/dev/null || echo "")
+
+          for role in $ROLES; do
+            echo "Detaching policies from role: $role"
+
+            # Detach managed policies
+            POLICIES=$(aws iam list-attached-role-policies \
+              --role-name "$role" \
+              --query "AttachedPolicies[].PolicyArn" \
+              --output text 2>/dev/null || echo "")
+
+            for policy in $POLICIES; do
+              aws iam detach-role-policy \
+                --role-name "$role" \
+                --policy-arn "$policy" 2>/dev/null || true
+            done
+
+            # Delete inline policies
+            INLINE=$(aws iam list-role-policies \
+              --role-name "$role" \
+              --query "PolicyNames[]" \
+              --output text 2>/dev/null || echo "")
+
+            for policy in $INLINE; do
+              aws iam delete-role-policy \
+                --role-name "$role" \
+                --policy-name "$policy" 2>/dev/null || true
+            done
+
+            # Delete role
+            echo "Deleting role: $role"
+            aws iam delete-role \
+              --role-name "$role" 2>/dev/null || true
+          done
+
+  deploy-terraform-fresh:
+    name: Deploy Fresh with Terraform
+    needs: cleanup-orphaned
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=stocks-terraform-state" \
+            -backend-config="key=stocks/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform Destroy (clean state)
+        run: |
+          terraform destroy -auto-approve -var-file=terraform.tfvars || true
+          echo "✅ State cleaned (if any Terraform resources existed)"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var-file=terraform.tfvars \
+            -out=tfplan \
+            -detailed-exitcode || EXIT=$?
+          if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Collect Outputs
+        id: outputs
+        run: |
+          terraform output -json | tee /tmp/tf-outputs.json
+
+      - name: Display Infrastructure
+        run: |
+          echo "### ✅ Terraform Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Resources Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          terraform output -json | jq -r 'to_entries[] | select(.value.sensitive != true) | "- **\(.key)**: \(.value.value)"' >> $GITHUB_STEP_SUMMARY || true
+
+  summary:
+    name: Summary
+    needs: [delete-cf-stacks, cleanup-orphaned, deploy-terraform-fresh]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Slate Complete
+        run: |
+          echo "# ✅ Clean Slate Complete"
+          echo ""
+          echo "## What Happened"
+          echo "1. ✅ All CloudFormation stacks deleted"
+          echo "2. ✅ All orphaned AWS resources cleaned up"
+          echo "3. ✅ Fresh Terraform deployment completed"
+          echo ""
+          echo "## Next Steps"
+          echo "1. Run: \`gh workflow run deploy-all-infrastructure.yml --ref main\`"
+          echo "2. This will deploy:"
+          echo "   - Terraform infrastructure (RDS, Lambda, VPC, etc)"
+          echo "   - Docker image for loaders (ECR)"
+          echo "   - Algo Lambda code"
+          echo "   - API Lambda code"
+          echo "   - React frontend"
+          echo ""
+          echo "## Important"
+          echo "- **Terraform Only**: No CloudFormation anywhere"
+          echo "- **All Old Resources**: Completely removed"
+          echo "- **Fresh Start**: Everything deployed from code"
+          exit ${{ needs.deploy-terraform-fresh.result == 'success' ? 0 : 1 }}

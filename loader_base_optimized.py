@@ -155,7 +155,8 @@ class OptimizedLoader:
             self.pending_rows = []
         except Exception as e:
             logger.error(f"Batch insert failed: {e}")
-            self.conn.rollback()
+            if self.conn:
+                self.conn.rollback()
             raise
 
     def _batch_insert(self, rows: List[Tuple]) -> None:
@@ -168,13 +169,15 @@ class OptimizedLoader:
 
         if self.symbols_processed % self.commit_every_n_symbols == 0:
             self._flush_batch()  # Insert any remaining rows
-            self.conn.commit()
+            if self.conn:
+                self.conn.commit()
             logger.info(f"Committed after {self.symbols_processed} symbols ({self.total_rows_inserted} rows)")
 
     def finalize(self) -> None:
         """Flush any remaining rows and commit."""
         self._flush_batch()
-        self.conn.commit()
+        if self.conn:
+            self.conn.commit()
         logger.info(f"Finalized: {self.total_rows_inserted} total rows inserted")
 
 

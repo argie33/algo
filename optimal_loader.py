@@ -133,8 +133,18 @@ class OptimalLoader(ABC):
         if self._watermark is not None:
             return self._watermark
         try:
-            from watermark_loader import Watermark
-            self._watermark = Watermark(self.table_name)
+            # Simple in-memory watermark store that tracks per-symbol progress
+            class WatermarkStore:
+                def __init__(self):
+                    self.marks = {}
+
+                def get(self, symbol):
+                    return self.marks.get(symbol)
+
+                def set(self, symbol, value, rows_loaded=0):
+                    self.marks[symbol] = value
+
+            self._watermark = WatermarkStore()
         except Exception as e:
             log.warning("Watermark unavailable (%s) �� running full refresh", e)
             self._watermark = False

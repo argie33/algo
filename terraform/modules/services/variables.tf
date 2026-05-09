@@ -306,9 +306,9 @@ variable "algo_lambda_ephemeral_storage" {
 # ============================================================
 
 variable "algo_schedule_expression" {
-  description = "Cron expression for algo execution (UTC time)"
+  description = "Cron expression for algo execution (10:30pm UTC = 5:30pm ET weekdays, after loaders run)"
   type        = string
-  default     = "cron(0 4 ? * MON-FRI *)"
+  default     = "cron(30 22 ? * MON-FRI *)"
   validation {
     condition     = can(regex("^cron\\(", var.algo_schedule_expression))
     error_message = "Must be a valid cron expression starting with 'cron('"

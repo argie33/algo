@@ -610,11 +610,12 @@ resource "aws_scheduler_schedule" "price_data_loaders" {
 # ============================================================
 
 resource "aws_scheduler_schedule" "algo_orchestrator" {
-  count               = var.algo_schedule_enabled ? 1 : 0
-  name                = "${var.project_name}-algo-schedule-${var.environment}"
-  description         = "Trigger algo orchestrator Lambda at scheduled time"
-  schedule_expression = var.algo_schedule_expression
-  state               = "ENABLED"
+  count                         = var.algo_schedule_enabled ? 1 : 0
+  name                          = "${var.project_name}-algo-schedule-${var.environment}"
+  description                   = "Trigger algo orchestrator Lambda at scheduled time"
+  schedule_expression           = var.algo_schedule_expression
+  schedule_expression_timezone  = var.algo_schedule_timezone
+  state                         = "ENABLED"
 
   flexible_time_window {
     mode = "OFF"

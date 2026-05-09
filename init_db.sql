@@ -98,6 +98,7 @@ SELECT set_chunk_time_interval('etf_price_daily', INTERVAL '1 month');
 CREATE TABLE IF NOT EXISTS buy_sell_daily (
     id BIGSERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
+    timeframe VARCHAR(10) NOT NULL DEFAULT 'daily',
     signal_date DATE NOT NULL,
     signal VARCHAR(10),
     base_type VARCHAR(50),
@@ -406,6 +407,13 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
     williams_r DECIMAL(10,4),
     price_from_52w_high DECIMAL(10,4),
     price_from_52w_low DECIMAL(10,4),
+    roc_10d DECIMAL(10,4),
+    roc_20d DECIMAL(10,4),
+    roc_60d DECIMAL(10,4),
+    roc_120d DECIMAL(10,4),
+    roc_252d DECIMAL(10,4),
+    macd_signal DECIMAL(10,4),
+    macd_hist DECIMAL(10,4),
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(symbol, date)
 );
@@ -423,6 +431,7 @@ CREATE TABLE IF NOT EXISTS trend_template_data (
     trend_strength VARCHAR(50),
     trend_direction VARCHAR(20),
     trend_confirmation BOOLEAN,
+    weinstein_stage INTEGER,
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(symbol, date)
 );

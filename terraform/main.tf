@@ -151,6 +151,9 @@ module "loaders" {
   private_subnet_ids      = module.vpc.private_subnet_ids
   ecs_tasks_sg_id         = module.vpc.ecs_tasks_security_group_id
   db_secret_arn           = module.database.rds_credentials_secret_arn
+  db_host                 = module.database.rds_address
+  db_port                 = 5432
+  db_name                 = var.rds_db_name
   ecr_repository_uri      = module.compute.ecr_repository_url
   vpc_id                  = module.vpc.vpc_id
   common_tags             = local.common_tags

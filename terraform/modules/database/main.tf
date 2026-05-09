@@ -54,7 +54,7 @@ resource "aws_db_instance" "main" {
 
   username               = var.db_master_username
   password               = var.db_master_password
-  parameter_group_name   = data.aws_db_parameter_group.main.name
+  parameter_group_name   = aws_db_parameter_group.main.name
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.rds_security_group_id]
 
@@ -109,20 +109,7 @@ resource "aws_db_instance" "main" {
 # 3. RDS Parameter Group (PostgreSQL 14 + TimescaleDB optimization)
 # ============================================================
 
-# Use data source to reference existing parameter group (created in previous deployment)
-# This avoids conflicts when re-running terraform
-data "aws_db_parameter_group" "main" {
-  name = "stocks-pg14-params"
-}
-
-# Local to use either existing or new parameter group
-locals {
-  db_parameter_group_name = try(data.aws_db_parameter_group.main.name, aws_db_parameter_group.main[0].name)
-}
-
-# Conditionally create parameter group only if it doesn't exist
 resource "aws_db_parameter_group" "main" {
-  count       = 0 # Disabled - managed via data source to avoid conflicts
   name        = "${var.project_name}-pg14-params"
   description = "PostgreSQL 14 parameter group for ${var.project_name} (TimescaleDB-enabled)"
   family      = "postgres14"
@@ -182,7 +169,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
   secret_string = jsonencode({
     username = var.db_master_username
     password = var.db_master_password
-    host     = aws_db_instance.main.endpoint
+    host     = aws_db_instance.main.address
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name
     engine   = "postgresql"
@@ -584,10 +571,10 @@ resource "aws_iam_role_policy_attachment" "rds_rotation_vpc" {
 }
 
 # Lambda Layer for psycopg2 (PostgreSQL driver)
-# Requires: python-psycopg2-layer.zip in module directory
+# Requires: .psycopg2-layer directory in module directory
 # See LAMBDA_LAYER_SETUP.md for how to build
 data "archive_file" "psycopg2_layer" {
-  count       = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
+  count       = fileexists("${path.module}/.psycopg2-layer/python/lib/python3.11/site-packages/psycopg2") ? 1 : 0
   type        = "zip"
   source_dir  = "${path.module}/.psycopg2-layer"
   output_path = "${path.module}/.terraform/psycopg2-layer.zip"

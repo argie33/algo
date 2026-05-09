@@ -55,6 +55,22 @@ variable "db_secret_arn" {
   sensitive   = true
 }
 
+variable "db_host" {
+  description = "RDS database host address"
+  type        = string
+}
+
+variable "db_port" {
+  description = "RDS database port"
+  type        = number
+  default     = 5432
+}
+
+variable "db_name" {
+  description = "RDS database name"
+  type        = string
+}
+
 variable "ecs_tasks_sg_id" {
   description = "Security group ID for ECS tasks (must allow egress to RDS + internet)"
   type        = string
