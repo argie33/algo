@@ -1,148 +1,120 @@
-# System Hardening - Complete Session Summary
-**Date:** 2026-05-07  
-**Status:** PRODUCTION READY
+# Deployment Fixes Session Summary
+
+## Overall Progress
+
+**Issues Audited**: 18 critical/high priority issues found across all templates
+**Issues Fixed This Session**: 11 issues resolved
+**Remaining Issues**: 7 (all non-blocking)
+**Deployment Blockers**: 0 ✅
 
 ---
 
-## WORK COMPLETED
+## Fixes Completed (11 Total)
 
-### Critical Fixes Implemented ✓
-1. **Same-Day Exit Prevention** (algo_exit_engine.py:117)
-   - Added minimum 1-day hold check
-   - Prevents trades from exiting on same day they enter
-   - Impact: All NEW trades protected (39 old trades remain as history)
+### Critical Security Fixes ✅
+1. **API Gateway Authorization** - Added Cognito authorizer to all routes
+2. **S3 Bucket Policies** - Added explicit bucket policies to 5 S3 buckets
+3. **ECS Image Tags** - Replaced 'latest' with version parameter for reproducibility
+4. **Lambda Concurrency** - Added ReservedConcurrentExecutions limits
+5. **Lambda Permission SourceArn** - Added proper event source constraints
 
-2. **NULL Entry Price Prevention** (loadbuyselldaily.py:272)
-   - Added entry_price validation in signal generation
-   - Cleaned 239 NULL signals from database
-   - Added DB constraint: entry_price_required
-   - Impact: All NEW signals guaranteed to have valid entry_price
+### Critical Infrastructure Fixes ✅
+6. **Stack Deletion Order** - Fixed deploy workflow to delete dependencies first
+   - Prevents circular CloudFormation dependencies
+   - Allows clean stack recreation without manual AWS cleanup
 
-### Database Hardening ✓
-- Applied 4 CHECK constraints in NOT VALID mode
-- Protection for new data while preserving historical records
-- Constraints:
-  - entry_price_required (VALID)
-  - entry_price_in_range (NOT VALID)
-  - min_hold_one_day (NOT VALID)
-  - exit_after_entry (NOT VALID)
+7. **Resource Cleanup** - Fixed orphaned resource issues
+   - Removed `DeletionPolicy: Retain` from RDS SecurityGroup/SubnetGroup
+   - Added `SkipFinalSnapshot: true` to RDS instance
+   - Changed Secrets cleanup to `Delete` (was `Retain`)
+   - Added `DeletionPolicy: Retain` to DataLoadingBucket (preserve data)
 
-### Comprehensive Testing ✓
-- All critical modules verified importing
-- Code fixes verified in place
-- Configuration validated
-- Database setup confirmed
-- No FIXME/TODO items in trading code
-- All 7 orchestrator phases verified
+8. **EventBridge Reliability** - Added DeadLetterQueue for rule failures
+   - Events no longer silently dropped on failure
+   - Failures captured in SQS for debugging
 
-### Documentation Created ✓
-- SYSTEM_READY_FINAL_REPORT.md (Production readiness verification)
-- TODAY_COMPLETED.md (Work summary)
-- FIX_COMPLETION_REPORT.md (Technical details)
-- QUICK_STATUS.md (Quick reference)
-- REMAINING_ISSUES_ACTION_PLAN.md (Next steps)
-- DEPLOYMENT_READY.md (Final verification)
+### Best Practice Fixes ✅
+9. **Export Descriptions** - Added Description to all 20+ CloudFormation outputs
+   - Improves clarity and documentation
 
-### Git History
+10. **Log Group Naming** - Replaced 7 hardcoded log group names with stack-aware names
+    - Prevents naming conflicts when deploying multiple stacks
+    - Makes logs trackable by environment
+
+11. **Lambda Timeout Configuration** - Added explicit Timeout and MemorySize to BastionStopFunction
+    - Prevents indefinite hangs on scaling events
+
+---
+
+## Git Commits This Session
+
 ```
-aaf27e3fb - Docs: Final verification complete - system ready for production deployment
-00399eca6 - Fix: Remove UTF-8 BOM from bootstrap.sh script
-825c2a7fa - Infra: Add database constraints for data integrity (NOT VALID mode)
-bbd5767e2 - Fix: Critical data quality issues - same-day exits and NULL entry prices
+db41cf4a7 Fix: Replace hardcoded log group names with stack-aware names
+5cdb22a0e Fix: Add descriptions to all CloudFormation exports
+f5e66ffc6 docs: Add comprehensive deployment audits and issue lists
+6544e8606 docs: Add comprehensive deployment fixes documentation
+cdba2740f Fix: Resolve CloudFormation deletion blockers and improve stack cleanup
+5f3a1f0c1 Fix: Delete dependent CloudFormation stacks before core stack
 ```
 
 ---
 
-## SYSTEM STATUS BY ISSUE
+## Remaining Non-Blocking Issues (7 total)
 
-| Issue | Status | Resolution |
-|-------|--------|-----------|
-| Same-day entry/exit | ✓ FIXED | Code check at line 117, prevents new trades |
-| NULL entry prices | ✓ FIXED | Validation at line 272, DB constraint applied |
-| Entry price out of range | ⏳ WAITING | External team handling, will re-run loader when done |
-| Data quality | ✓ VERIFIED | 21.8M price records clean, 0 NULL closes |
-| Database integrity | ✓ ENFORCED | 4 constraints active in NOT VALID mode |
-| Exit logic | ✓ SAFE | Minimum hold check prevents early exits |
-| Entry validation | ✓ ACTIVE | Loader rejects invalid entry prices |
-
----
-
-## READY FOR PRODUCTION
-
-### What Will Happen Tomorrow
-1. **Exit engine** runs with minimum 1-day hold
-2. **Signal loader** generates signals with validated entry_price
-3. **No NULL entry prices** in new signals
-4. **No same-day exits** in new trades
-5. **All safety constraints** active
-
-### Impact Assessment
-- **Positive:** System protected from data quality issues
-- **Negative:** None (all fixes are safety improvements)
-- **Risk Level:** LOW (all safeguards active)
+| Issue | Template | Priority | Effort |
+|-------|----------|----------|--------|
+| State Machine error handling | template-loader-tasks.yml | HIGH | Medium |
+| CloudWatch alarms for API errors | template-webapp.yml | MEDIUM | Low |
+| RDS parameter group optimization | template-data-infrastructure.yml | MEDIUM | Medium |
+| SNS subscription error handling | template-data-infrastructure.yml | MEDIUM | Low |
+| Secrets rotation policy | template-data-infrastructure.yml | LOW | Low |
+| CloudWatch monitoring dashboards | All templates | LOW | Medium |
+| VPC endpoint SG cleanup verification | template-core.yml | MONITORING | - |
 
 ---
 
-## NEXT ACTIONS
+## Next Steps
 
-### Immediate (Ready Now)
-- System can trade with confidence
-- All protections active
-- No blocking issues
+### Before Next Deployment (when AWS cleanup completes)
+1. ✅ Verify all 11 fixes are in place
+2. ✅ No deployment blockers remain
+3. Run full deployment: `gh workflow run deploy-all-infrastructure.yml`
+4. Monitor for any issues
 
-### When Entry Price Field Fix Completes
-1. Re-run loader: `python3 loadbuyselldaily.py --parallelism 8`
-2. Verify 24,309 out-of-range signals are fixed
-3. Validate remaining constraints with: `ALTER TABLE ... VALIDATE CONSTRAINT ...`
+### After Deployment Success (next 48 hours)
+1. Fix State Machine error handling (HIGH priority)
+2. Add CloudWatch alarms (MEDIUM priority)
+3. Optimize RDS parameters (MEDIUM priority)
 
-### Optional Infrastructure Improvements (Post-Production)
-- Connection pooling in loaders
-- Data freshness timestamps in API
-- Real-time position reconciliation
-- Type validation in frontend
-
----
-
-## TESTING CHECKLIST
-
-Before Trading (Verify Daily):
-- [x] All modules load without errors
-- [x] Orchestrator can initialize
-- [x] Database connectivity working
-- [x] Exit engine can evaluate positions
-- [x] Signal loader can generate signals
-- [x] Trade executor can create trades
-
-During Trading (Monitor):
-- Watch for same-day exits (should be 0)
-- Watch for NULL entry prices (should be 0)
-- Monitor trade hold times (should be >= 1 day)
-- Check P&L calculations (should be non-zero)
+### Nice-to-Have (next sprint)
+1. Add Secrets rotation
+2. Create CloudWatch dashboards
+3. Add SNS error handling
 
 ---
 
-## CONFIDENCE ASSESSMENT
+## Testing Checklist
 
-✓ Code fixes in place and verified  
-✓ Database constraints protecting new data  
-✓ All critical modules functional  
-✓ No syntax errors or import failures  
-✓ Orchestrator workflow verified  
-✓ Trade execution logic validated  
-✓ Exit logic protected with minimum hold  
-✓ Signal generation validates entry prices  
-
-**Overall: HIGH CONFIDENCE**
+When deploying next:
+- [ ] Core stack creates successfully
+- [ ] Data-infrastructure stack creates successfully
+- [ ] No orphaned resources in AWS
+- [ ] API requires Cognito authentication
+- [ ] S3 buckets have proper access policies
+- [ ] ECS tasks use pinned image version
+- [ ] EventBridge failures appear in DLQ
+- [ ] All 4989 stocks load successfully
+- [ ] CloudWatch logs appear with new stack-aware names
 
 ---
 
-## SIGN-OFF
+## Summary
 
-System verified and tested. Ready for next trading cycle.
+All critical deployment issues have been resolved. The system is now ready for:
+- ✅ Clean stack creation and deletion
+- ✅ Proper authorization and access control
+- ✅ Reproducible deployments (pinned image tags)
+- ✅ Better operational visibility (log group names, export descriptions)
+- ✅ Event failure detection (DeadLetterQueue)
 
-All critical issues fixed. Safeguards active. Protected against data quality regressions.
-
-**Authorization: APPROVED FOR PRODUCTION DEPLOYMENT**
-
-Date: 2026-05-07  
-Status: READY ✓
+**Status**: Ready for next deployment cycle

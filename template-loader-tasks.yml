@@ -18,6 +18,13 @@ Parameters:
     Type: String
     Default: 'v1.0.0'
     Description: 'Container image tag for all ECS loaders (use version tags, not "latest")'
+  AlertTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN for failure notifications (empty = no notifications)
+
+Conditions:
+  HasAlertTopic: !Not [!Equals [!Ref AlertTopicArn, '']]
 
 Resources:
   ECSExecutionRole:
@@ -3175,6 +3182,11 @@ Resources:
                   - events:PutRule
                   - events:DescribeRule
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !If [HasAlertTopic, !Ref AlertTopicArn, !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:no-topic']
 
   # Step Functions State Machine
   LoaderOrchestrationStateMachine:
@@ -3285,7 +3297,8 @@ Resources:
                               }]
                             }
                           },
-                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 30, "MaxAttempts": 2, "BackoffRate": 2.0}],
+                          "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "End": true}],
                           "End": true
                         }
                       }
@@ -3314,7 +3327,8 @@ Resources:
                               }]
                             }
                           },
-                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 30, "MaxAttempts": 2, "BackoffRate": 2.0}],
+                          "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "End": true}],
                           "End": true
                         }
                       }
@@ -3343,7 +3357,8 @@ Resources:
                               }]
                             }
                           },
-                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 30, "MaxAttempts": 2, "BackoffRate": 2.0}],
+                          "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "End": true}],
                           "End": true
                         }
                       }
@@ -3372,7 +3387,8 @@ Resources:
                               }]
                             }
                           },
-                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                          "Retry": [{"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 30, "MaxAttempts": 2, "BackoffRate": 2.0}],
+                          "Catch": [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "End": true}],
                           "End": true
                         }
                       }
@@ -3389,8 +3405,14 @@ Resources:
                   "Type": "Succeed"
                 },
                 "NotifyFailure": {
-                  "Type": "Pass",
-                  "Comment": "TODO: Add SNS notification for failures",
+                  "Type": "Task",
+                  "Resource": "arn:aws:states:::sns:publish",
+                  "Parameters": {
+                    "TopicArn": "${AlertTopicArn}",
+                    "Subject": "Loader Orchestration Failure",
+                    "Message.$": "$.error"
+                  },
+                  "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "Fail"}],
                   "Next": "Fail"
                 },
                 "Fail": {
@@ -3400,7 +3422,8 @@ Resources:
                 }
               }
             }
-          - ClusterArn: !ImportValue StocksApp-ClusterArn
+          - AlertTopicArn: !If [HasAlertTopic, !Ref AlertTopicArn, "arn:aws:sns:us-east-1:000000000000:no-topic"]
+            ClusterArn: !ImportValue StocksApp-ClusterArn
             Subnet1: !ImportValue StocksCore-PublicSubnet1Id
             Subnet2: !ImportValue StocksCore-PublicSubnet2Id
             SecurityGroup: !ImportValue StocksApp-EcsTasksSecurityGroupId

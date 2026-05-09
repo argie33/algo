@@ -72,6 +72,28 @@ Resources:
           CidrIp: 0.0.0.0/0
           Description: "Allow Postgres from anywhere (dev only - lock down for production)"
 
+  ### 2.5) RDS Parameter Group ###
+  StocksDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      DBParameterGroupName: !Sub 'stocks-postgres-${AWS::StackName}'
+      Description: Optimized parameters for stock analytics workload
+      Family: postgres15
+      Parameters:
+        max_connections: '100'
+        shared_preload_libraries: 'pg_stat_statements'
+        log_statement: 'all'
+        log_duration: 'on'
+        log_min_duration_statement: '1000'
+        effective_cache_size: '262144'
+        work_mem: '4096'
+        maintenance_work_mem: '65536'
+        random_page_cost: '1.1'
+        effective_io_concurrency: '200'
+      Tags:
+        - Key: Purpose
+          Value: Analytics
+
   ### 3) RDS Instance ###
   # NOTE: Current DB has 61GB allocated. Cannot reduce storage in RDS.
   # Keeping current values to prevent deployment failures.
@@ -84,6 +106,7 @@ Resources:
     DependsOn:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
+      - StocksDBParameterGroup
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
@@ -96,6 +119,7 @@ Resources:
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      DBParameterGroupName: !Ref StocksDBParameterGroup
       PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false

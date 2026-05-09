@@ -360,6 +360,46 @@ Resources:
           Value: !Ref ServerlessRestApi
       AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
 
+  # CloudWatch Alarm for API client errors (4xx)
+  ApiClientErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn: ServerlessRestApi
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-client-errors'
+      AlarmDescription: API Gateway client errors (4xx) exceeds threshold
+      MetricName: 4XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref ServerlessRestApi
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
+
+  # CloudWatch Alarm for API server errors (5xx)
+  ApiServerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn: ServerlessRestApi
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-server-errors'
+      AlarmDescription: API Gateway server errors (5xx) detected
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref ServerlessRestApi
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
+
   # IAM Role for API Gateway CloudWatch Logs
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
