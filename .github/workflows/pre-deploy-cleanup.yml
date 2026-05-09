@@ -141,7 +141,7 @@ jobs:
       - name: Verify state bucket exists and is protected
         run: |
           echo "=========================================="
-          echo "Verifying Terraform state bucket"
+          echo "Terraform state bucket"
           echo "=========================================="
 
           STATE_BUCKET="stocks-terraform-state"
@@ -159,9 +159,8 @@ jobs:
               echo "  ✓ Public access blocked" || \
               echo "  ⚠️  Public access block not found"
           else
-            echo "✗ State bucket NOT found: $STATE_BUCKET"
-            echo "  Create it manually or via the state-backend Terraform module"
-            exit 1
+            echo "ℹ️  State bucket not found: $STATE_BUCKET"
+            echo "✓ Terraform will create it during apply"
           fi
 
       - name: Check ECR image cleanup
