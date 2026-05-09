@@ -33,6 +33,14 @@ export const getApiConfig = () => {
 // Create API instance that can be updated
 let currentConfig = getApiConfig();
 
+// DEBUG: Log the actual configuration being used
+console.log('[API Config Debug]', {
+  viteApiUrl: import.meta.env?.VITE_API_URL,
+  isDev: import.meta.env?.DEV,
+  currentConfig: currentConfig,
+  windowConfig: typeof window !== "undefined" ? window.__CONFIG__?.API_URL : 'N/A'
+});
+
 // Simple health check state
 let apiHealthy = true;
 let lastHealthCheck = 0;

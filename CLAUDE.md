@@ -15,6 +15,8 @@ Master deploy: `gh workflow run deploy-all-infrastructure.yml --repo argie33/alg
 | Tech | algo-tech-stack.md |
 | Memory | memory/* |
 
-**Constraints:** No experimental loaders, IaC only, paper trading, 11 blockers fixed.
+**Constraints:** No experimental loaders, **Terraform IaC only (CloudFormation eliminated)**, paper trading, all blockers fixed.
 
 Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS Lambda/ECS, EventBridge 5:30pm ET.
+
+**Infrastructure:** Terraform only. No CloudFormation. All resources defined in `terraform/` modules.

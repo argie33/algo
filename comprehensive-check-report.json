@@ -1,0 +1,198 @@
+{
+  "timestamp": "2026-05-09T22:33:32.655Z",
+  "summary": {
+    "totalTests": 7,
+    "criticalErrors": 0,
+    "warnings": 39,
+    "apiIssues": 3,
+    "navigationIssues": 0,
+    "performanceIssues": 0
+  },
+  "issues": {
+    "criticalErrors": [],
+    "warnings": [
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      },
+      {
+        "issue": "No 404 page for invalid routes"
+      },
+      {
+        "source": "console",
+        "message": "[API CONFIG] Using fallback API URL: \nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+      },
+      {
+        "source": "console",
+        "message": "⚠️  Cognito not configured - using dummy values for development"
+      }
+    ],
+    "missingElements": [],
+    "performanceIssues": [],
+    "navigationIssues": [],
+    "apiIssues": [
+      {
+        "url": "http://localhost:5176/api/algo/sector-stage2",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "http://localhost:5176/api/algo/sector-breadth",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "http://localhost:5176/api/sectors/Technology/trend?days=90",
+        "error": "net::ERR_ABORTED"
+      }
+    ]
+  },
+  "consoleStats": {
+    "total": 527,
+    "errors": 0,
+    "warnings": 38
+  },
+  "networkStats": {
+    "totalRequests": 834,
+    "apiRequests": 100,
+    "networkErrors": 3
+  }
+}
