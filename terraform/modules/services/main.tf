@@ -586,21 +586,21 @@ resource "aws_scheduler_schedule" "price_data_loaders" {
       Cluster        = var.ecs_cluster_name
       LaunchType     = "FARGATE"
       NetworkConfiguration = {
-        AwsvpcConfiguration = {
-          AssignPublicIp = "ENABLED"
-          Subnets        = var.private_subnet_ids
-          SecurityGroups = var.security_group_ids
+        awsvpcConfiguration = {
+          assignPublicIp = "ENABLED"
+          subnets        = var.private_subnet_ids
+          securityGroups = [var.ecs_tasks_security_group_id]
         }
       }
-      Overrides = {
-        ContainerOverrides = [
+      overrides = {
+        containerOverrides = [
           {
-            Name    = "stocks-loaders"
-            Command = ["python3", "loadpricedaily.py", "--parallelism", "6"]
+            name    = "stocks-loaders"
+            command = ["python3", "loadpricedaily.py", "--parallelism", "6"]
           }
         ]
       }
-      TaskDefinition = var.price_loader_task_definition_arn
+      taskDefinition = var.price_loader_task_definition_arn
     })
   }
 }
