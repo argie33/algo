@@ -187,11 +187,11 @@ resource "aws_cloudwatch_event_target" "market_indices_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type             = "FARGATE"
-    task_definition_arn     = aws_ecs_task_definition.loader["market_indices"].arn
-    task_count              = 1
-    platform_version        = "LATEST"
-    cluster                 = var.ecs_cluster_name
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.loader["market_indices"].arn
+    task_count          = 1
+    platform_version    = "LATEST"
+    cluster             = var.ecs_cluster_name
     network_configuration {
       subnets          = var.private_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
@@ -208,11 +208,11 @@ resource "aws_cloudwatch_event_target" "econdata_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type             = "FARGATE"
-    task_definition_arn     = aws_ecs_task_definition.loader["econdata"].arn
-    task_count              = 1
-    platform_version        = "LATEST"
-    cluster                 = var.ecs_cluster_name
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.loader["econdata"].arn
+    task_count          = 1
+    platform_version    = "LATEST"
+    cluster             = var.ecs_cluster_name
     network_configuration {
       subnets          = var.private_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
@@ -229,11 +229,11 @@ resource "aws_cloudwatch_event_target" "sector_ranking_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type             = "FARGATE"
-    task_definition_arn     = aws_ecs_task_definition.loader["sector_ranking"].arn
-    task_count              = 1
-    platform_version        = "LATEST"
-    cluster                 = var.ecs_cluster_name
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.loader["sector_ranking"].arn
+    task_count          = 1
+    platform_version    = "LATEST"
+    cluster             = var.ecs_cluster_name
     network_configuration {
       subnets          = var.private_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
@@ -250,11 +250,11 @@ resource "aws_cloudwatch_event_target" "fear_greed_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type             = "FARGATE"
-    task_definition_arn     = aws_ecs_task_definition.loader["feargreed"].arn
-    task_count              = 1
-    platform_version        = "LATEST"
-    cluster                 = var.ecs_cluster_name
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.loader["feargreed"].arn
+    task_count          = 1
+    platform_version    = "LATEST"
+    cluster             = var.ecs_cluster_name
     network_configuration {
       subnets          = var.private_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
