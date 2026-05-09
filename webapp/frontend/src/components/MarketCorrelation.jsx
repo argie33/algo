@@ -17,7 +17,7 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
     return <LinearProgress />;
   }
 
-  if (error || !data?.data) {
+  if (error || !data) {
     return (
       <Alert severity="error">
         Unable to load correlation data. {error?.message}
@@ -25,7 +25,7 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
     );
   }
 
-  const { correlations, statistics, analysis } = data.data;
+  const { correlations, statistics, analysis } = data;
 
   // Handle case where correlations might be undefined or empty
   if (!correlations || !Array.isArray(correlations) || correlations.length === 0) {

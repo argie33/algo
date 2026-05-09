@@ -1752,18 +1752,13 @@ router.get('/data-quality', async (req, res) => {
 
     return res.json({
       success: true,
-      status: overall_status,
-      checks,
-      timestamp: new Date()
+      data: { status: overall_status, checks },
     });
   } catch (error) {
     console.error('Error in /algo/data-quality:', error);
     return res.json({
       success: true,
-      status: 'unknown',
-      checks: [],
-      error: error.message,
-      timestamp: new Date()
+      data: { status: 'unknown', checks: [], error: error.message },
     });
   }
 });
@@ -1802,25 +1797,23 @@ router.get('/rejection-funnel', async (req, res) => {
 
     return res.json({
       success: true,
-      date: eval_date,
-      total_signals: total || 0,
-      tiers: [
-        { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
-        { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
-        { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
-        { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
-        { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
-      ],
-      timestamp: new Date()
+      data: {
+        date: eval_date,
+        total_signals: total || 0,
+        tiers: [
+          { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
+          { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
+          { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
+          { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
+          { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
+        ],
+      },
     });
   } catch (error) {
     console.error('Error in /algo/rejection-funnel:', error);
     return res.json({
       success: true,
-      total_signals: 0,
-      tiers: [],
-      error: error.message,
-      timestamp: new Date()
+      data: { total_signals: 0, tiers: [], error: error.message },
     });
   }
 });
@@ -1880,26 +1873,24 @@ router.get('/signal-performance', async (req, res) => {
 
     return res.json({
       success: true,
-      period: `last ${days} days`,
-      filters: { base_type: base_type_filter || 'all' },
-      trades,
-      summary: {
-        total_trades: trades.length,
-        wins: win_count,
-        losses: trades.length - win_count,
-        win_rate_pct: parseFloat(win_rate_pct),
-        avg_r_multiple: parseFloat(avg_r),
+      data: {
+        period: `last ${days} days`,
+        filters: { base_type: base_type_filter || 'all' },
+        trades,
+        summary: {
+          total_trades: trades.length,
+          wins: win_count,
+          losses: trades.length - win_count,
+          win_rate_pct: parseFloat(win_rate_pct),
+          avg_r_multiple: parseFloat(avg_r),
+        },
       },
-      timestamp: new Date()
     });
   } catch (error) {
     console.error('Error in /algo/signal-performance:', error);
     return res.json({
       success: true,
-      trades: [],
-      summary: {},
-      error: error.message,
-      timestamp: new Date()
+      data: { trades: [], summary: {}, error: error.message },
     });
   }
 });
@@ -2034,28 +2025,29 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 
     return res.json({
       success: true,
-      patterns: result.rows.map(r => ({
-        base_type: r.base_type,
-        total_trades: parseInt(r.total_trades),
-        wins: parseInt(r.wins || 0),
-        losses: parseInt(r.total_trades) - parseInt(r.wins || 0),
-        win_rate_pct: parseInt(r.total_trades) > 0
-          ? Math.round(parseInt(r.wins || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
-        avg_r_multiple: parseFloat((r.avg_r || 0).toFixed(2)),
-        avg_pnl_pct: parseFloat((r.avg_pnl_pct || 0).toFixed(2)),
-        total_pnl: parseFloat((r.total_pnl || 0).toFixed(2)),
-        avg_hold_days: parseFloat((r.avg_hold || 0).toFixed(1)),
-        t1_hit_rate: parseInt(r.total_trades) > 0
-          ? Math.round(parseInt(r.t1_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
-        t2_hit_rate: parseInt(r.total_trades) > 0
-          ? Math.round(parseInt(r.t2_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
-      })),
-      period_days: days,
-      timestamp: new Date(),
+      data: {
+        patterns: result.rows.map(r => ({
+          base_type: r.base_type,
+          total_trades: parseInt(r.total_trades),
+          wins: parseInt(r.wins || 0),
+          losses: parseInt(r.total_trades) - parseInt(r.wins || 0),
+          win_rate_pct: parseInt(r.total_trades) > 0
+            ? Math.round(parseInt(r.wins || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+          avg_r_multiple: parseFloat((r.avg_r || 0).toFixed(2)),
+          avg_pnl_pct: parseFloat((r.avg_pnl_pct || 0).toFixed(2)),
+          total_pnl: parseFloat((r.total_pnl || 0).toFixed(2)),
+          avg_hold_days: parseFloat((r.avg_hold || 0).toFixed(1)),
+          t1_hit_rate: parseInt(r.total_trades) > 0
+            ? Math.round(parseInt(r.t1_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+          t2_hit_rate: parseInt(r.total_trades) > 0
+            ? Math.round(parseInt(r.t2_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+        })),
+        period_days: days,
+      },
     });
   } catch (error) {
     console.error('Error in /algo/signal-performance-by-pattern:', error);
-    return res.json({ success: true, patterns: [], error: error.message, timestamp: new Date() });
+    return res.json({ success: true, data: { patterns: [], error: error.message } });
   }
 });
 

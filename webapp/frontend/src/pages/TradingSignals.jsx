@@ -111,7 +111,7 @@ export default function TradingSignals() {
     return m;
   }, [gatesData]);
 
-  const rows = (Array.isArray(data) ? data : data?.items) || (data?.data) || [];
+  const rows = (Array.isArray(data) ? data : data?.items) || [];
 
   // Enrich rows with gate / sqs info
   const enriched = useMemo(() => rows.map(r => {

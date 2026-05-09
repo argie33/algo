@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, ReferenceLine,
 } from 'recharts';
 import { api } from '../services/api';
+import { useApiQuery } from '../hooks/useApiQuery';
 
 const WIN_THRESHOLD = 55;
 const GOOD_R = 1.0;
@@ -15,34 +16,30 @@ function clr(n, threshold = 0) {
 }
 
 export default function SignalIntelligence() {
-  const [patterns, setPatterns] = useState([]);
-  const [funnel, setFunnel] = useState(null);
-  const [trades, setTrades] = useState([]);
   const [days, setDays] = useState(180);
   const [sortKey, setSortKey] = useState('total_trades');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [patR, funR, tradeR] = await Promise.all([
-          api.get(`/api/algo/signal-performance-by-pattern?days=${days}`).catch(() => null),
-          api.get('/api/algo/rejection-funnel').catch(() => null),
-          api.get(`/api/algo/signal-performance?days=${days}`).catch(() => null),
-        ]);
-        setPatterns(patR?.data?.patterns || []);
-        setFunnel(funR?.data || null);
-        setTrades(tradeR?.data?.trades || []);
-      } catch (e) {
-        setError(e.message);
-      }
-      setLoading(false);
-    };
-    load();
-  }, [days]);
+  const { data: patternData, loading: patLoading, error: patError, refetch: refetchPatterns } = useApiQuery(
+    ['signal-patterns', days],
+    () => api.get(`/api/algo/signal-performance-by-pattern?days=${days}`),
+    { staleTime: 60000 }
+  );
+  const { data: funnelRaw } = useApiQuery(
+    ['algo-funnel'],
+    () => api.get('/api/algo/rejection-funnel'),
+    { staleTime: 60000 }
+  );
+  const { data: tradeData } = useApiQuery(
+    ['signal-trades', days],
+    () => api.get(`/api/algo/signal-performance?days=${days}`),
+    { staleTime: 60000 }
+  );
+
+  const patterns = patternData?.patterns || [];
+  const funnel   = funnelRaw   || null;
+  const trades   = tradeData?.trades || [];
+  const loading  = patLoading;
+  const error    = patError;
 
   // Overall stats
   const overall = useMemo(() => {

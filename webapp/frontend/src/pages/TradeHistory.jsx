@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApiQuery } from '../hooks/useApiQuery';
+import { useApiPaginatedQuery, useApiQuery } from '../hooks/useApiQuery';
 import {
   Table,
   TableBody,
@@ -20,10 +20,9 @@ import {
   Chip
 } from '@mui/material';
 import './TradeHistory.css';
-import { getApiConfig } from '../services/api';
+import api from '../services/api';
 
 const TradeHistory = () => {
-  const { apiUrl: API_BASE_URL } = getApiConfig();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [filters, setFilters] = useState({
@@ -33,49 +32,36 @@ const TradeHistory = () => {
     sort: 'date_desc'
   });
 
-  // Fetch trades
+  const params = new URLSearchParams({
+    page,
+    limit,
+    source: filters.source || 'alpaca,manual,optimization,user',
+    symbol: filters.symbol || '',
+    type: filters.type || '',
+    sort: filters.sort || 'date_desc'
+  });
+
   const {
-    data: tradesData,
+    items: trades = [],
+    pagination,
     loading: tradesLoading,
     error: tradesError,
     refetch: refetchTrades
-  } = useApiQuery(
+  } = useApiPaginatedQuery(
     ['trades', page, limit, filters],
-    async () => {
-      const params = new URLSearchParams({
-        page,
-        limit,
-        source: filters.source || 'alpaca,manual,optimization,user',
-        symbol: filters.symbol || '',
-        type: filters.type || '',
-        sort: filters.sort || 'date_desc'
-      });
-
-      const response = await fetch(`${API_BASE_URL}/api/trades?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch trades');
-      return response.json();
-    },
+    () => api.get(`/api/trades?${params}`),
     { staleTime: 30000 }
   );
 
-  // Fetch summary
   const {
-    data: summaryData,
+    data: summary = {},
     loading: summaryLoading,
     error: summaryError
   } = useApiQuery(
     ['tradeSummary'],
-    async () => {
-      const response = await fetch(`${API_BASE_URL}/api/trades/summary`);
-      if (!response.ok) throw new Error('Failed to fetch summary');
-      return response.json();
-    },
+    () => api.get('/api/trades/summary'),
     { staleTime: 30000 }
   );
-
-  const summary = summaryData?.data || {};
-  const trades = tradesData?.data?.trades || [];
-  const pagination = tradesData?.data?.pagination || {};
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({

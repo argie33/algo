@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Paper,
@@ -30,12 +30,10 @@ import {
   Info as InfoIcon,
   Verified as VerifiedIcon,
 } from "@mui/icons-material";
+import { useApiQuery } from "../hooks/useApiQuery";
 import api from "../services/api";
 
 const DeepValueStocks = () => {
-  const [stocks, setStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [selectedStock, setSelectedStock] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -44,20 +42,15 @@ const DeepValueStocks = () => {
   const [sortBy, setSortBy] = useState("generational_score");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  useEffect(() => {
-    fetchDeepValueStocks();
-  }, []);
+  const { data: rawStocks = [], loading, error } = useApiQuery(
+    ['deepValueStocks'],
+    () => api.get("/api/stocks/deep-value?limit=600")
+  );
 
-  const fetchDeepValueStocks = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get("/api/stocks/deep-value?limit=600");
-      const result = response.data;
-      let stocksData = result.items || result.data?.stocks || result.data || result;
-      if (!Array.isArray(stocksData)) stocksData = [];
-      const num = (v) => v != null ? parseFloat(v) : null;
-      setStocks(stocksData.map(s => ({
+  const stocks = useMemo(() => {
+    const stocksData = Array.isArray(rawStocks) ? rawStocks : [];
+    const num = (v) => v != null ? parseFloat(v) : null;
+      return stocksData.map(s => ({
         ...s,
         generational_score: parseFloat(s.generational_score) || 0,
         current_price: num(s.current_price),
@@ -78,34 +71,23 @@ const DeepValueStocks = () => {
         market_median_pe: num(s.market_median_pe),
         discount_vs_sector_pe_pct: num(s.discount_vs_sector_pe_pct),
         discount_vs_market_pe_pct: num(s.discount_vs_market_pe_pct),
-        // Price action
         high_52w: num(s.high_52w),
         high_3y: num(s.high_3y),
         low_52w: num(s.low_52w),
         drop_from_52w_high_pct: num(s.drop_from_52w_high_pct),
         drop_from_3y_high_pct: num(s.drop_from_3y_high_pct),
-        // DCF
         intrinsic_value_per_share: num(s.intrinsic_value_per_share),
         margin_of_safety_pct: num(s.margin_of_safety_pct),
-        // Growth
         revenue_growth_3y_pct: num(s.revenue_growth_3y_pct),
         eps_growth_3y_pct: num(s.eps_growth_3y_pct),
         revenue_growth_yoy_pct: num(s.revenue_growth_yoy_pct),
         fcf_growth_yoy_pct: num(s.fcf_growth_yoy_pct),
         sustainable_growth_pct: num(s.sustainable_growth_pct),
-        // Trends (trap detection)
         op_margin_trend_pp: num(s.op_margin_trend_pp),
         gross_margin_trend_pp: num(s.gross_margin_trend_pp),
         roe_trend_pp: num(s.roe_trend_pp),
-      })));
-    } catch (err) {
-      console.error("Error fetching deep value stocks:", err);
-      setError(err.message || "Failed to load deep value stocks");
-      setStocks([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      }));
+    }, [rawStocks]);
 
   const sorted = [...stocks].sort((a, b) => {
     const aVal = a[sortBy];

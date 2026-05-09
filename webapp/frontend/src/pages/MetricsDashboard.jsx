@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   Alert,
   Box,
@@ -34,165 +34,84 @@ import {
   AttachMoney,
   AccountBalance,
 } from "@mui/icons-material";
-import { getApiConfig } from "../services/api";
+import { useApiQuery } from "../hooks/useApiQuery";
+import api from "../services/api";
 
 const MetricsDashboard = () => {
-  const { apiUrl: API_BASE } = getApiConfig();
   const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Data states
-  const [stocks, setStocks] = useState([]);
-  const [sectors, setSectors] = useState([]);
-  const [topStocks, setTopStocks] = useState({});
-
-  // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSector, setSelectedSector] = useState("");
   const [minMetric, setMinMetric] = useState(0);
   const [maxMetric, setMaxMetric] = useState(1);
   const [sortBy, setSortBy] = useState("composite_metric");
-  const [sortOrder, _setSortOrder] = useState("desc");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [page, setPage] = useState(1);
 
-  // Pagination
-  const [page, _setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const { data: allStocks = [], loading, error } = useApiQuery(
+    ['stockscores'],
+    () => api.get("/api/scores/stockscores?limit=10000")
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [
-    page,
-    searchTerm,
-    selectedSector,
-    minMetric,
-    maxMetric,
-    sortBy,
-    sortOrder,
-  ]);
+  const stocks = useMemo(() => {
+    let filtered = Array.isArray(allStocks) ? allStocks : [];
 
-  useEffect(() => {
-    if (activeTab === 1) {
-      fetchSectorAnalysis();
-    } else if (activeTab === 2) {
-      fetchTopStocks();
+    if (searchTerm) {
+      filtered = filtered.filter(s =>
+        s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
-  }, [activeTab]);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: "50",
-      });
-
-      const response = await fetch(`${API_BASE}/api/scores/stockscores?${params}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      let filteredStocks = data.items || [];
-
-      // Client-side filtering
-      if (searchTerm) {
-        filteredStocks = filteredStocks.filter(s =>
-          s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-
-      if (selectedSector) {
-        filteredStocks = filteredStocks.filter(s => s.sector === selectedSector);
-      }
-
-      // Client-side sorting
-      filteredStocks.sort((a, b) => {
-        const sortKey = sortBy === "composite_metric" ? "composite_score" : sortBy.replace("_metric", "_score");
-        const aVal = a[sortKey] || 0;
-        const bVal = b[sortKey] || 0;
-        return sortOrder === "desc" ? bVal - aVal : aVal - bVal;
-      });
-
-      setStocks(filteredStocks);
-      setTotalPages(Math.ceil(filteredStocks.length / 50));
-      setError(null);
-    } catch (err) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Error fetching metrics:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (selectedSector) {
+      filtered = filtered.filter(s => s.sector === selectedSector);
     }
-  };
 
-  const fetchSectorAnalysis = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/scores/stockscores?limit=10000`);
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
+    filtered.sort((a, b) => {
+      const sortKey = sortBy === "composite_metric" ? "composite_score" : sortBy.replace("_metric", "_score");
+      const aVal = a[sortKey] || 0;
+      const bVal = b[sortKey] || 0;
+      return sortOrder === "desc" ? bVal - aVal : aVal - bVal;
+    });
 
-      const data = await response.json();
-      const stocks = data.items || [];
+    return filtered;
+  }, [allStocks, searchTerm, selectedSector, sortBy, sortOrder]);
 
-      // Group by sector
-      const sectorData = {};
-      stocks.forEach(stock => {
-        if (stock.sector) {
-          if (!sectorData[stock.sector]) {
-            sectorData[stock.sector] = [];
-          }
-          sectorData[stock.sector].push(stock);
+  const totalPages = useMemo(() => Math.ceil(stocks.length / 50), [stocks]);
+
+  const sectors = useMemo(() => {
+    const sectorData = {};
+    allStocks.forEach(stock => {
+      if (stock.sector) {
+        if (!sectorData[stock.sector]) {
+          sectorData[stock.sector] = [];
         }
-      });
+        sectorData[stock.sector].push(stock);
+      }
+    });
 
-      setSectors(Object.entries(sectorData).map(([name, stocks]) => ({
-        name,
-        count: stocks.length,
-        avgComposite: (stocks.reduce((sum, s) => sum + (s.composite_score || 0), 0) / stocks.length).toFixed(2),
-      })));
-    } catch (err) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Error fetching sector analysis:", err);
-      setError(err.message);
-    }
-  };
+    return Object.entries(sectorData).map(([name, stocks]) => ({
+      name,
+      count: stocks.length,
+      avgComposite: (stocks.reduce((sum, s) => sum + (s.composite_score || 0), 0) / stocks.length).toFixed(2),
+    }));
+  }, [allStocks]);
 
-  const fetchTopStocks = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/scores/stockscores?limit=10000`);
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
-
-      const data = await response.json();
-      const allStocks = data.items || [];
-
-      // Get top 10 by each category
-      const topStocksData = {
-        composite: [...allStocks]
-          .filter(s => s.composite_score !== null)
-          .sort((a, b) => b.composite_score - a.composite_score)
-          .slice(0, 10),
-        quality: [...allStocks]
-          .filter(s => s.quality_score !== null)
-          .sort((a, b) => b.quality_score - a.quality_score)
-          .slice(0, 10),
-        value: [...allStocks]
-          .filter(s => s.value_score !== null)
-          .sort((a, b) => b.value_score - a.value_score)
-          .slice(0, 10),
-      };
-
-      setTopStocks(topStocksData);
-    } catch (err) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Error fetching top stocks:", err);
-      setError(err.message);
-    }
-  };
+  const topStocksData = useMemo(() => {
+    const allList = Array.isArray(allStocks) ? allStocks : [];
+    return {
+      composite: [...allList]
+        .filter(s => s.composite_score !== null)
+        .sort((a, b) => b.composite_score - a.composite_score)
+        .slice(0, 10),
+      quality: [...allList]
+        .filter(s => s.quality_score !== null)
+        .sort((a, b) => b.quality_score - a.quality_score)
+        .slice(0, 10),
+      value: [...allList]
+        .filter(s => s.value_score !== null)
+        .sort((a, b) => b.value_score - a.value_score)
+        .slice(0, 10),
+    };
+  }, [allStocks]);
 
   const getMetricColor = (metric) => {
     if (metric >= 0.8) return "#4caf50"; // Green
@@ -288,62 +207,47 @@ const MetricsDashboard = () => {
               </TableCell>
               <TableCell>
                 <Typography variant="body2">
-                  {stock.companyName?.substring(0, 30)}
-                  {stock.companyName?.length > 30 ? "..." : ""}
+                  {stock.company_name?.substring(0, 30)}
+                  {stock.company_name?.length > 30 ? "..." : ""}
                 </Typography>
               </TableCell>
               <TableCell>
                 <Chip label={stock.sector} size="small" variant="outlined" />
               </TableCell>
               <TableCell align="center">
-                <Box
+                <Typography
+                  variant="h6"
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    color: getMetricColor(stock.composite_score || 0),
+                    fontWeight: "bold",
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      color: getMetricColor(stock.metrics.composite),
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {stock.metrics.composite.toFixed(3)}
-                  </Typography>
-                  <Tooltip
-                    title={`Confidence: ${stock.metadata.confidence.toFixed(2)}`}
-                  >
-                    <IconButton size="small">
-                      <Info fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </TableCell>
-              <TableCell align="center">
-                <Typography
-                  sx={{ color: getMetricColor(stock.metrics.quality) }}
-                >
-                  {stock.metrics.quality.toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                <Typography sx={{ color: getMetricColor(stock.metrics.value) }}>
-                  {stock.metrics.value.toFixed(3)}
+                  {(stock.composite_score || 0).toFixed(3)}
                 </Typography>
               </TableCell>
               <TableCell align="center">
                 <Typography
-                  sx={{ color: getMetricColor(stock.metrics.growth || 0) }}
+                  sx={{ color: getMetricColor(stock.quality_score || 0) }}
                 >
-                  {(stock.metrics.growth || 0).toFixed(3)}
+                  {(stock.quality_score || 0).toFixed(3)}
                 </Typography>
               </TableCell>
-              <TableCell>${stock.currentPrice?.toFixed(2) || "N/A"}</TableCell>
+              <TableCell align="center">
+                <Typography sx={{ color: getMetricColor(stock.value_score || 0) }}>
+                  {(stock.value_score || 0).toFixed(3)}
+                </Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography
+                  sx={{ color: getMetricColor(stock.growth_score || 0) }}
+                >
+                  {(stock.growth_score || 0).toFixed(3)}
+                </Typography>
+              </TableCell>
+              <TableCell>${stock.current_price?.toFixed(2) || "N/A"}</TableCell>
               <TableCell>
-                {stock.marketCap
-                  ? `$${(stock.marketCap / 1e9).toFixed(1)}B`
+                {stock.market_cap
+                  ? `$${(stock.market_cap / 1e9).toFixed(1)}B`
                   : "N/A"}
               </TableCell>
             </TableRow>
@@ -356,45 +260,27 @@ const MetricsDashboard = () => {
   const SectorAnalysis = () => (
     <Grid container spacing={3} sx={{ mt: 2 }}>
       {(sectors || []).map((sector) => (
-        <Grid item xs={12} md={6} lg={4} key={sector.sector}>
+        <Grid item xs={12} md={6} lg={4} key={sector.name}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                {sector.sector}
+                {sector.name}
               </Typography>
               <Typography variant="body2" color="textSecondary" gutterBottom>
-                {sector.stockCount} stocks
+                {sector.count} stocks
               </Typography>
 
               <MetricProgressBar
-                metric={parseFloat(sector.averageMetrics.composite)}
+                metric={parseFloat(sector.avgComposite) || 0}
                 label="Composite"
                 icon={<Assessment />}
               />
-              <MetricProgressBar
-                metric={parseFloat(sector.averageMetrics.quality)}
-                label="Quality"
-                icon={<AccountBalance />}
-              />
-              <MetricProgressBar
-                metric={parseFloat(sector.averageMetrics.value)}
-                label="Value"
-                icon={<AttachMoney />}
-              />
-              <MetricProgressBar
-                metric={parseFloat(sector.averageMetrics.growth || 0)}
-                label="Growth"
-                icon={<TrendingUp />}
-              />
 
               <Box
-                sx={{ mt: 2, display: "flex", justifyContent: "space-between" }}
+                sx={{ mt: 2, display: "flex", justifyContent: "center" }}
               >
-                <Typography variant="caption">
-                  Range: {sector.metricRange.min} - {sector.metricRange.max}
-                </Typography>
-                <Typography variant="caption">
-                  Vol: {sector.metricRange.volatility}
+                <Typography variant="caption" color="text.secondary">
+                  Average metric score
                 </Typography>
               </Box>
             </CardContent>
@@ -406,7 +292,7 @@ const MetricsDashboard = () => {
 
   const TopStocks = () => (
     <Grid container spacing={3} sx={{ mt: 2 }}>
-      {Object.entries(topStocks).map(([category, stocks]) => (
+      {Object.entries(topStocksData).map(([category, stocks]) => (
         <Grid item xs={12} md={6} key={category}>
           <Card>
             <CardContent>
@@ -418,45 +304,46 @@ const MetricsDashboard = () => {
                 Top {category === "composite" ? "Overall" : category} Stocks
               </Typography>
               <Box sx={{ maxHeight: 400, overflow: "auto" }}>
-                {stocks.slice(0, 10).map((stock, index) => (
-                  <Box
-                    key={stock.symbol}
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      py: 1,
-                      borderBottom: index < 9 ? "1px solid #eee" : "none",
-                    }}
-                  >
-                    <Box>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: "bold" }}
-                      >
-                        {index + 1}. {stock.symbol}
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {stock.companyName?.substring(0, 25)}
-                        {stock.companyName?.length > 25 ? "..." : ""}
-                      </Typography>
+                {(stocks || []).slice(0, 10).map((stock, index) => {
+                  const scoreKey = category === "composite" ? "composite_score" : category === "quality" ? "quality_score" : "value_score";
+                  const scoreValue = stock[scoreKey] || 0;
+                  return (
+                    <Box
+                      key={stock.symbol}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        py: 1,
+                        borderBottom: index < 9 ? "1px solid #eee" : "none",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                          {index + 1}. {stock.symbol}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {stock.company_name?.substring(0, 25)}
+                          {stock.company_name?.length > 25 ? "..." : ""}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: getMetricColor(scoreValue),
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {scoreValue.toFixed(3)}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {stock.sector}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Box sx={{ textAlign: "right" }}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: getMetricColor(stock.categoryMetric),
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {stock.categoryMetric.toFixed(3)}
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {stock.sector}
-                      </Typography>
-                    </Box>
-                  </Box>
-                ))}
+                  );
+                })}
               </Box>
             </CardContent>
           </Card>

@@ -3,7 +3,7 @@
  * Real-time analysis, recommendations, and trade execution
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box, Container, Paper, Grid, Card, CardContent, Button, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, CircularProgress,
@@ -14,44 +14,23 @@ import {
   TrendingUp, TrendingDown, Warning, CheckCircle
 } from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { api as axios } from '../services/api';
+import { useApiQuery } from '../hooks/useApiQuery';
+import api from '../services/api';
 
 export default function PortfolioOptimizerNew() {
-  const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState(null);
-  const [error, setError] = useState(null);
+  const [refetchKey, setRefetchKey] = useState(0);
 
   // Color palette for pie chart
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1', '#d084d0', '#a4de6c', '#ffb347'];
 
-  // Fetch optimization analysis
-  const fetchAnalysis = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get('/api/optimization/analysis');
-      console.log('[PortfolioOptimizerNew] API Response:', response.data);
-      // Extract analysis data from unified response format {success: true, data: {...}}
-      const analysisData = response.data?.data?.analysis || response.data?.data || response.data?.analysis || response.data;
-      console.log('[PortfolioOptimizerNew] Analysis Data:', analysisData);
-      if (!analysisData) {
-        setError('No analysis data returned from server');
-        setAnalysis(null);
-      } else {
-        setAnalysis(analysisData);
-      }
-    } catch (err) {
-      console.error('[PortfolioOptimizerNew] Fetch Error:', err);
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
+  const { data: analysis, loading, error, refetch } = useApiQuery(
+    ['portfolioAnalysis', refetchKey],
+    () => api.get('/api/optimization/analysis')
+  );
+
+  const handleRefetch = () => {
+    setRefetchKey(prev => prev + 1);
   };
-
-
-  useEffect(() => {
-    fetchAnalysis();
-  }, []);
 
   if (loading && !analysis) {
     return (
@@ -70,7 +49,7 @@ export default function PortfolioOptimizerNew() {
             <Typography variant="body2">{error}</Typography>
             <Button
               variant="outlined"
-              onClick={fetchAnalysis}
+              onClick={handleRefetch}
               sx={{ mt: 2 }}
             >
               Try Again
@@ -152,7 +131,7 @@ export default function PortfolioOptimizerNew() {
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4">Portfolio Optimizer</Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="contained" onClick={fetchAnalysis} disabled={loading}>
+          <Button variant="contained" onClick={handleRefetch} disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Refresh Analysis'}
           </Button>
         </Box>

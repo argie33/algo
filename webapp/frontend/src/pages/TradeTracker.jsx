@@ -136,8 +136,8 @@ function TradesView() {
   );
   const refetch = () => { rp(); rt(); };
 
-  const openPositions = positions?.items || [];
-  const closedTrades = (trades?.items || []).filter(t => t.status === 'closed');
+  const openPositions = (Array.isArray(positions) ? positions : positions?.items) || [];
+  const closedTrades = ((Array.isArray(trades) ? trades : trades?.items) || []).filter(t => t.status === 'closed');
 
   const rows = useMemo(() => {
     const sym = symbolFilter.trim().toUpperCase();
@@ -324,7 +324,7 @@ function ActivityView() {
   );
 
   const items = useMemo(() => {
-    let rows = log?.items || [];
+    let rows = (Array.isArray(log) ? log : log?.items) || [];
     if (search) {
       const s = search.toLowerCase();
       rows = rows.filter(r =>
