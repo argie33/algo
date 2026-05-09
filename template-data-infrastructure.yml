@@ -366,6 +366,61 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: !If [HasAlertTopic, [!Ref AlertTopicArn], []]
 
+  ### 10) CloudWatch Monitoring Dashboard ###
+  DataInfrastructureDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${AWS::StackName}-data-infrastructure'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", {"stat": "Average"}],
+                  [".", "FreeStorageSpace", {"stat": "Average"}],
+                  [".", "DatabaseConnections", {"stat": "Average"}],
+                  [".", "ReadLatency", {"stat": "Average"}],
+                  [".", "WriteLatency", {"stat": "Average"}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "RDS Database Metrics",
+                "dimensions": {
+                  "DBInstanceIdentifier": "${StocksDBInstance}"
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ECS", "RegisteredContainerInstancesCount", {"stat": "Average"}],
+                  [".", "RunningCount", {"stat": "Average"}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "ECS Cluster Status",
+                "dimensions": {
+                  "ClusterName": "${StocksEcsCluster}"
+                }
+              }
+            },
+            {
+              "type": "log",
+              "properties": {
+                "query": "fields @timestamp, @message | stats count() as error_count by @logStream | sort error_count desc",
+                "region": "${AWS::Region}",
+                "title": "Loader Task Errors (Last Hour)",
+                "queryId": "loader-errors"
+              }
+            }
+          ]
+        }
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
