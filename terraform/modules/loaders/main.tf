@@ -162,6 +162,7 @@ locals {
     "signals_etf_monthly"        = "loadbuysell_etf_monthly.py"
     "etf_signals"                = "loadetfsignals.py"
     "algo_metrics_daily"         = "load_algo_metrics_daily.py"
+    "eod_bulk_refresh"           = "load_eod_bulk.py"
   }
 
   scheduled_loaders = {
@@ -358,6 +359,13 @@ locals {
       schedule    = "cron(25 22 ? * MON-FRI *)"
       description = "Algo metrics - 5:25pm ET"
     }
+
+    # 5:00am UTC (midnight ET) next trading day - EOD bulk refresh for all symbols
+    # Runs TUE-SAT to cover MON-FRI (US market days)
+    "eod_bulk_refresh" = {
+      schedule    = "cron(0 5 ? * TUE-SAT *)"
+      description = "EOD bulk price refresh - all 5000+ symbols in 5 minutes"
+    }
   }
 }
 
@@ -431,6 +439,9 @@ locals {
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600 }
+
+    # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
+    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600 }
   }
 
   # For backward compatibility
@@ -441,7 +452,7 @@ locals {
     "stock_prices_daily", "stock_prices_weekly", "stock_prices_monthly",
     "etf_prices_daily", "etf_prices_weekly", "etf_prices_monthly",
     "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly", "etf_signals",
-    "algo_metrics_daily"
+    "algo_metrics_daily", "eod_bulk_refresh"
   ])
 }
 

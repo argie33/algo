@@ -49,14 +49,14 @@ AWS Lambda Function (algo-orchestrator)
 - **`lambda/algo_orchestrator/__init__.py`**
   - Makes it a Python package
 
-### Infrastructure
-- **`template-algo-orchestrator.yml`** (260 lines)
-  - CloudFormation template
-  - Lambda function (512MB, 15 min timeout)
-  - EventBridge rule (5:30pm ET daily)
-  - IAM role with permissions
-  - SNS topic for alerts
-  - CloudWatch alarms and logs
+### Infrastructure (Terraform)
+- **`terraform/modules/services/main.tf`** 
+  - Lambda function (Algo orchestrator: 512MB memory, 5 min timeout)
+  - EventBridge Scheduler rule (5:30pm ET weekdays)
+  - IAM role with database/SNS permissions
+  - SNS topic for critical alerts
+  - CloudWatch alarms for errors and duration
+  - VPC configuration for database access
 
 ---
 
@@ -153,7 +153,7 @@ aws logs tail /aws/lambda/algo-orchestrator --follow
 
 ### Environment Variables
 
-Set via CloudFormation parameters:
+Set via Terraform variables in terraform.tfvars:
 
 | Variable | Default | Options |
 |----------|---------|---------|
@@ -217,17 +217,16 @@ aws logs tail /aws/lambda/algo-orchestrator --follow
 - Missing database → Verify RDS endpoint is correct
 - Python import errors → Verify dependencies are packaged in zip
 
-### EventBridge rule not firing
+### EventBridge Scheduler not firing
 
-**Check rule:**
+**Check schedule:**
 ```bash
-aws events describe-rule --name algo-eod-orchestrator
-aws events list-targets-by-rule --rule algo-eod-orchestrator
+aws scheduler get-schedule --name algo-algo-schedule-dev
 ```
 
-**Enable rule:**
+**Enable schedule:**
 ```bash
-aws events enable-rule --name algo-eod-orchestrator
+aws scheduler update-schedule --name algo-algo-schedule-dev --state ENABLED
 ```
 
 ### Dry-run shows errors but live trades execute anyway
@@ -245,19 +244,19 @@ aws events enable-rule --name algo-eod-orchestrator
 
 ### Disable scheduled execution
 ```bash
-aws events disable-rule --name algo-eod-orchestrator
+aws scheduler update-schedule --name algo-algo-schedule-dev --state DISABLED
 ```
 
 ### Re-enable scheduled execution
 ```bash
-aws events enable-rule --name algo-eod-orchestrator
+aws scheduler update-schedule --name algo-algo-schedule-dev --state ENABLED
 ```
 
 ### Delete and redeploy
 ```bash
-aws cloudformation delete-stack --stack-name stocks-algo-orchestrator
-# Wait for deletion to complete
-git push origin main  # Or manually trigger workflow
+# Redeploy via Terraform
+terraform plan -out=tfplan
+terraform apply tfplan
 ```
 
 ---

@@ -43,16 +43,9 @@ gh workflow run deploy-webapp.yml
 gh workflow run deploy-algo-orchestrator.yml
 ```
 
-Or from the console:
-```bash
-cd aws
-aws cloudformation deploy --template-file template-core.yml \
-  --stack-name stocks-core --region us-east-1 --capabilities CAPABILITY_IAM
-```
-
 ---
 
-## 6 CloudFormation Templates (What They Create)
+## Infrastructure Modules (Terraform)
 
 ### 1. template-bootstrap.yml (One-Time)
 **Purpose:** GitHub OIDC provider
@@ -60,59 +53,46 @@ aws cloudformation deploy --template-file template-core.yml \
 **Deploy:** `gh workflow run bootstrap-oidc.yml`
 **Note:** Only run once; skip on subsequent deployments
 
-### 2. template-core.yml
-**Purpose:** Foundation networking
-**Creates:**
+### 1. VPC Module (terraform/modules/vpc)
 - VPC (10.0.0.0/16)
-- 3 public subnets (for NAT, bastion, load balancers)
-- 3 private subnets (for RDS, ECS, Lambda)
-- 7 VPC endpoints (S3, Secrets Manager, DynamoDB, CloudWatch, EventBridge, SQS, SNS)
-- ECR registry (for Docker images)
-- S3 buckets (code, templates, logs, frontend, data)
+- 3 public subnets, 3 private subnets across 3 AZs
+- Security groups (RDS, ECS, Lambda, bastion)
+- VPC endpoints (S3, Secrets, DynamoDB, CloudWatch, EventBridge, SQS, SNS)
+- Bastion host for SSH access
+- NAT Gateway (optional)
 
-**Exports:** 9 values (VPC ID, subnet IDs, SG IDs, ECR URI)
+### 2. Database Module (terraform/modules/database)
+- RDS PostgreSQL (db.t3.micro, 20GB auto-scaling)
+- Secrets Manager (DB credentials, email config, Alpaca secrets)
+- Parameter group (PostgreSQL 14 optimization)
+- Enhanced monitoring & alarms
+- DynamoDB table for watermarks (incremental loading)
 
-### 3. template-app-stocks.yml
-**Purpose:** Database, cluster, secrets
-**Creates:**
-- RDS PostgreSQL (db.t3.micro, 61GB storage, 5-day backups)
-- ECS cluster (stocks-data-cluster)
-- Secrets Manager (DB credentials, Alpaca API keys)
-- CloudWatch log groups (7-day retention + S3 archive)
-- IAM roles for ECS and Lambda
+### 3. Compute Module (terraform/modules/compute)
+- ECR repository (Docker images)
+- ECS cluster (Fargate + Spot capacity)
+- CloudWatch log groups (30-day retention)
+- Capacity providers (on-demand, spot pricing)
 
-**Exports:** 8 values (RDS endpoint, cluster ARN, secret ARNs)
+### 4. Loaders Module (terraform/modules/loaders)
+- 40 ECS task definitions (data loaders)
+- EventBridge rules (staggered daily schedule, 3:30am-10:25pm ET)
+- CloudWatch alarms (failed tasks, stale data)
+- SQS dead-letter queue (failed executions)
 
-### 4. template-app-ecs-tasks.yml
-**Purpose:** Data loader task definitions
-**Creates:** 39 ECS task definitions
-- 18 stock loaders (symbols, daily/weekly/monthly price, scores, signals)
-- 18 ETF loaders (SPY, QQQ, IWM versions)
-- 3 multi-loader tasks (run all stocks, all ETFs, all at once)
-
-**Each task:** 512 MB memory, 256 CPU units, auto-retries
-
-### 5. template-webapp-lambda.yml
-**Purpose:** REST API and frontend
-**Creates:**
-- Lambda function (Node.js 20, ARM64, SnapStart)
-- API Gateway (HTTP API, CORS enabled)
+### 5. Services Module (terraform/modules/services)
+- Lambda functions (REST API, Algo orchestrator)
+- API Gateway (HTTP, CORS, JWT auth)
 - CloudFront distribution (frontend CDN)
-- Cognito user pool (auth)
-- IAM execution role
+- Cognito user pool (authentication)
+- EventBridge Scheduler (5:30pm ET weekdays)
 
-**Endpoints:** `/api/stocks/*`, `/api/signals/*`, `/api/portfolio/*`
-
-### 6. template-algo-orchestrator.yml
-**Purpose:** Trading engine
-**Creates:**
-- Lambda function (Python 3.11, 1GB memory, 5-minute timeout)
-- EventBridge Scheduler (daily 5:30pm ET, weekdays only)
-- SQS DLQ (for failed executions)
-- SNS topic (critical alerts)
-- IAM execution role
-
-**Runs:** Every weekday at 5:30pm ET (market close + 30 min)
+### 6. IAM Module (terraform/modules/iam)
+- ECS task execution role
+- ECS task role (S3, Secrets, RDS)
+- Lambda roles (API, Algo)
+- GitHub Actions OIDC role
+- Service principal roles
 
 ---
 

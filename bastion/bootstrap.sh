@@ -24,15 +24,9 @@ DB_USER=$(echo "$CREDS" | jq -r .username)
 DB_PASS=$(echo "$CREDS" | jq -r .password)
 DB_NAME=$(echo "$CREDS" | jq -r .dbname)
 
-# 5) Lookup RDS endpoint & port
-DB_HOST=$(aws cloudformation describe-stacks \
-  --stack-name "${DB_STACK_NAME}" \
-  --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
-  --output text)
-DB_PORT=$(aws cloudformation describe-stacks \
-  --stack-name "${DB_STACK_NAME}" \
-  --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
-  --output text)
+# 5) Get RDS endpoint & port from environment (set by Terraform)
+DB_HOST=${RDS_ENDPOINT}
+DB_PORT=${RDS_PORT:-5432}
 
 # 6) Write .pgpass
 echo "${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASS}" \

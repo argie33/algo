@@ -61,22 +61,23 @@
   - MarketDashboard.jsx — SPY/QQQ/IWM trends, VIX, breadth
 - **webapp/lambda/routes/stocks.js** — REST API (deep-value, signals, portfolio)
 
-## Infrastructure (AWS CloudFormation)
+## Infrastructure (Terraform IaC)
 
-### 6 Templates (6 stacks)
-1. **template-bootstrap.yml** — GitHub OIDC setup (one-time)
-2. **template-core.yml** — VPC, subnets, security groups, ECR, S3 buckets
-3. **template-app-stocks.yml** — RDS PostgreSQL, ECS cluster, Secrets Manager, CloudWatch logs
-4. **template-app-ecs-tasks.yml** — 39 loader task definitions (18 stock loaders × 2 + 3 ETF loaders)
-5. **template-webapp-lambda.yml** — REST API Lambda (Node.js, ARM64, SnapStart), API Gateway, CloudFront, Cognito
-6. **template-algo-orchestrator.yml** — Algo Lambda (Python), EventBridge Scheduler (daily 5:30pm ET), SNS alerts, SQS DLQ
+**All infrastructure is managed exclusively by Terraform** — Infrastructure as Code (IaC) only.
 
-### 23 GitHub Workflows
-- **deploy-*.yml** — Deploy individual stacks
-- **deploy-all-infrastructure.yml** — Master orchestrator (deploys in dependency order)
-- **bootstrap-oidc.yml** — Setup GitHub OIDC (one-time)
-- **ci-*.yml** — Unit tests, linting, backtest regression
-- **cleanup-*.yml** — Clean orphaned resources or full stack nuke
+### 9 Terraform Modules
+1. **vpc** — VPC, subnets, security groups, VPC endpoints, bastion host
+2. **compute** — ECS cluster, ECR registry, capacity providers, CloudWatch logs
+3. **database** — RDS PostgreSQL, Secrets Manager, KMS encryption, parameter groups, monitoring
+4. **iam** — IAM roles, policies, GitHub OIDC, service principals, trust policies
+5. **storage** — S3 buckets (frontend, logs, data, artifacts), bucket policies, lifecycle
+6. **loaders** — 40 ECS task definitions, EventBridge rules, CloudWatch log groups, DLQ
+7. **services** — Lambda functions (API, Algo), API Gateway, CloudFront, Cognito, EventBridge Scheduler
+8. **batch** — AWS Batch compute environments, job queues, auto-scaling, spot instances
+9. **monitoring** — CloudWatch dashboards, metric alarms, log filters, SNS topics
+
+### GitHub Workflows (Deploy Only)
+- **deploy-all-infrastructure.yml** — Master orchestrator (Terraform apply only)
 
 ## Tech Choices
 
