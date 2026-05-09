@@ -52,6 +52,7 @@ jobs:
       algo_lambda_name: ${{ steps.outputs.outputs.algo_lambda_name }}
       frontend_bucket: ${{ steps.outputs.outputs.frontend_bucket }}
       cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
+      api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
     env:
       TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
       TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
@@ -115,12 +116,14 @@ jobs:
           ALGO=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
           BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
           CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
+          API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""')
 
           echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
           echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
           echo "algo_lambda_name=${ALGO}" >> $GITHUB_OUTPUT
           echo "frontend_bucket=${BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF}" >> $GITHUB_OUTPUT
+          echo "api_gateway_endpoint=${API_GW}" >> $GITHUB_OUTPUT
 
       - name: Summary
         run: |
@@ -315,7 +318,7 @@ jobs:
       - name: Build
         working-directory: webapp/frontend
         env:
-          VITE_API_URL: ${{ secrets.API_GATEWAY_URL }}
+          VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
           npm ci
           npm run build
