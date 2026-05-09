@@ -28,6 +28,7 @@ from filter_rejection_tracker import RejectionTracker
 from algo_earnings_blackout import EarningsBlackout
 from algo_trendline_support import TrendlineSupport
 from trade_status import PositionStatus
+from feature_flags import get_flags
 import logging
 
 logger = logging.getLogger(__name__)
@@ -318,6 +319,7 @@ class FilterPipeline:
 
     def evaluate_signal(self, symbol, signal_date, entry_price) -> Dict[str, Any]:
         """Evaluate single signal through all 5 tiers (short-circuits on first failure)."""
+        flags = get_flags()
         result = {
             'symbol': symbol,
             'signal_date': signal_date,
@@ -333,41 +335,64 @@ class FilterPipeline:
             'position_size_pct': 0.0,
         }
 
-        # Tier 1
-        t1 = self._tier1_data_quality(symbol)
-        result['tiers'][1] = t1
-        result['completeness_pct'] = t1.get('completeness_pct', 0)
-        if not t1['pass']:
-            return result
+        # Tier 1 (Data Quality)
+        if not flags.is_enabled("signal_tier_1_enabled", default=True):
+            result['tiers'][1] = {'pass': True, 'reason': 'Tier 1 disabled by feature flag'}
+            logger.info(f"    T1 disabled by feature flag (pass-through)")
+        else:
+            t1 = self._tier1_data_quality(symbol)
+            result['tiers'][1] = t1
+            result['completeness_pct'] = t1.get('completeness_pct', 0)
+            if not t1['pass']:
+                return result
 
         # Tier 2 (market health uses signal_date, falls back to most recent within 5 days)
-        t2 = self._tier2_market_health(signal_date)
-        result['tiers'][2] = t2
-        if not t2['pass']:
-            return result
+        if not flags.is_enabled("signal_tier_2_enabled", default=True):
+            result['tiers'][2] = {'pass': True, 'reason': 'Tier 2 disabled by feature flag'}
+            logger.info(f"    T2 disabled by feature flag (pass-through)")
+        else:
+            t2 = self._tier2_market_health(signal_date)
+            result['tiers'][2] = t2
+            if not t2['pass']:
+                return result
 
         # Tier 3 (trend template)
-        t3 = self._tier3_trend_template(symbol, signal_date)
-        result['tiers'][3] = t3
-        result['trend_score'] = t3.get('trend_score', 0)
-        result['stop_loss_price'] = t3.get('stop_loss_price')
-        if not t3['pass']:
-            return result
+        if not flags.is_enabled("signal_tier_3_enabled", default=True):
+            result['tiers'][3] = {'pass': True, 'reason': 'Tier 3 disabled by feature flag', 'trend_score': 0}
+            logger.info(f"    T3 disabled by feature flag (pass-through)")
+        else:
+            t3 = self._tier3_trend_template(symbol, signal_date)
+            result['tiers'][3] = t3
+            result['trend_score'] = t3.get('trend_score', 0)
+            result['stop_loss_price'] = t3.get('stop_loss_price')
+            if not t3['pass']:
+                return result
 
         # Tier 4 (signal quality)
-        t4 = self._tier4_signal_quality(symbol, signal_date)
-        result['tiers'][4] = t4
-        result['sqs'] = t4.get('sqs', 0)
-        if not t4['pass']:
-            return result
+        if not flags.is_enabled("signal_tier_4_enabled", default=True):
+            result['tiers'][4] = {'pass': True, 'reason': 'Tier 4 disabled by feature flag', 'sqs': 0}
+            logger.info(f"    T4 disabled by feature flag (pass-through)")
+        else:
+            t4 = self._tier4_signal_quality(symbol, signal_date)
+            result['tiers'][4] = t4
+            result['sqs'] = t4.get('sqs', 0)
+            if not t4['pass']:
+                return result
 
         # Tier 5 (portfolio health)
-        t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'], signal_date)
-        result['tiers'][5] = t5
-        result['shares'] = t5.get('shares', 0)
-        result['risk_dollars'] = t5.get('risk_dollars', 0.0)
-        result['position_size_pct'] = t5.get('position_size_pct', 0.0)
-        result['passed_all_tiers'] = t5['pass']
+        if not flags.is_enabled("signal_tier_5_enabled", default=True):
+            result['tiers'][5] = {'pass': True, 'reason': 'Tier 5 disabled by feature flag', 'shares': 0, 'risk_dollars': 0.0}
+            logger.info(f"    T5 disabled by feature flag (pass-through)")
+        else:
+            t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'], signal_date)
+            result['tiers'][5] = t5
+            result['shares'] = t5.get('shares', 0)
+            result['risk_dollars'] = t5.get('risk_dollars', 0.0)
+            result['position_size_pct'] = t5.get('position_size_pct', 0.0)
+            result['passed_all_tiers'] = t5['pass']
+            return result
+
+        result['passed_all_tiers'] = True
         return result
 
     # ---------- Tier implementations ----------
