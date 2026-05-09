@@ -22,6 +22,10 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
+# Centralized credential manager
+from credential_manager import get_credential_manager
+_cred_mgr = get_credential_manager()
+
 
 def validate_environment():
     """Validate that all required environment variables are set.
@@ -38,8 +42,14 @@ def validate_environment():
         logger.warning("WARNING: DB_NAME not set, using default 'stocks'")
 
     # Alpaca credentials are optional for paper trading, but check anyway
-    alpaca_key = os.getenv("APCA_API_KEY_ID")
-    alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
+    try:
+        alpaca_creds = _cred_mgr.get_alpaca_credentials()
+        alpaca_key = alpaca_creds.get('key')
+        alpaca_secret = alpaca_creds.get('secret')
+    except ValueError:
+        alpaca_key = os.getenv("APCA_API_KEY_ID")
+        alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
+
     if not alpaca_key or not alpaca_secret:
         logger.warning("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
 
@@ -53,13 +63,19 @@ except Exception as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
     raise
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
-    "database": os.getenv("DB_NAME", "stocks"),
-}
+try:
+    DB_CONFIG = _cred_mgr.get_db_credentials()
+except ValueError as e:
+    logger.error(f"Failed to load DB credentials: {e}")
+    # Fallback to env vars for backward compatibility during migration
+    DB_CONFIG = {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "user": os.getenv("DB_USER", "stocks"),
+        "password": os.getenv("DB_PASSWORD", ""),
+        "database": os.getenv("DB_NAME", "stocks"),
+    }
+    logger.warning("Using fallback DB credentials from environment — credential_manager failed")
 
 # Alias for backwards compatibility
 DATABASE_CONFIG = DB_CONFIG
