@@ -338,6 +338,15 @@ class TradeExecutor:
                     order_class='bracket',
                 )
                 if not order_result['success']:
+                    # Alert on Alpaca API failure
+                    try:
+                        from algo_alerts import AlertManager
+                        AlertManager().send_position_alert(
+                            symbol, 'EXECUTION_FAILURE', 'CRITICAL',
+                            f'Order submission failed: {order_result.get("message", "Unknown error")}'
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send execution failure alert: {e}")
                     return {
                         'success': False, 'trade_id': trade_id, 'status': 'failed',
                         'message': order_result.get('message', 'Order failed')
