@@ -507,6 +507,40 @@ variable "sns_alert_email" {
 
 
 # ============================================================
+# AWS Batch Configuration (buyselldaily Heavy Loader)
+# ============================================================
+
+variable "batch_max_vcpus" {
+  description = "Maximum vCPUs for Batch compute environment"
+  type        = number
+  default     = 256
+  validation {
+    condition     = var.batch_max_vcpus > 0 && var.batch_max_vcpus <= 1024
+    error_message = "Must be between 1 and 1024"
+  }
+}
+
+variable "batch_instance_types" {
+  description = "EC2 instance types for Batch compute environment (Spot Fleet)"
+  type        = list(string)
+  default     = ["c5.xlarge", "c5.2xlarge", "c6i.xlarge", "c6i.2xlarge", "m5.xlarge", "m5.2xlarge"]
+  validation {
+    condition     = length(var.batch_instance_types) > 0
+    error_message = "Must specify at least one instance type"
+  }
+}
+
+variable "batch_spot_bid_percentage" {
+  description = "Spot price bid percentage (70 = 70% of on-demand price = 30% cost savings)"
+  type        = number
+  default     = 70
+  validation {
+    condition     = var.batch_spot_bid_percentage >= 10 && var.batch_spot_bid_percentage <= 100
+    error_message = "Must be between 10 and 100"
+  }
+}
+
+# ============================================================
 # Logging Configuration
 # ============================================================
 
