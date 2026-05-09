@@ -587,7 +587,7 @@ resource "aws_scheduler_schedule" "price_data_loaders" {
       LaunchType     = "FARGATE"
       NetworkConfiguration = {
         awsvpcConfiguration = {
-          assignPublicIp = "ENABLED"
+          assignPublicIp = "DISABLED"
           subnets        = var.private_subnet_ids
           securityGroups = [var.ecs_tasks_security_group_id]
         }
