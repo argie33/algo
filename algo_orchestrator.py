@@ -390,23 +390,31 @@ class Orchestrator:
 
                     # Check for CRITICAL findings (missing symbols, low volume)
                     critical_findings = [f for f in findings if f[0] == 'CRITICAL']
+                    error_findings = [f for f in findings if f[0] == 'ERROR']
+
+                    if critical_findings or error_findings:
+                        self.alerts.send_loader_alert(findings)
+
                     if critical_findings:
                         messages = [f[2] for f in critical_findings]
-                        self.alerts.send_position_alert(
-                            'DATA',
-                            'LOADER_FAILURE_HALT',
-                            f'Loader failure detected: {"; ".join(messages)}',
-                            {'loader_findings': [{'severity': f[0], 'check': f[1], 'message': f[2]} for f in critical_findings]}
-                        )
                         self.log_phase_result(1, 'loader_health', 'halt',
                                               f'Loader critical: {"; ".join(messages)}')
                         return False
 
-                    # Warn on errors but don't block
-                    error_findings = [f for f in findings if f[0] == 'ERROR']
+                    # Fail-closed on ERROR if it's a data volume issue (0 symbols loaded today)
+                    volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
+                    if volume_error:
+                        for _, _, msg in volume_error:
+                            if '0 symbols' in msg:  # Zero data loaded today
+                                self.log_phase_result(1, 'loader_health', 'halt',
+                                                      f'No data loaded today: {msg}')
+                                return False
+
+                    # Other errors are just warnings
                     if error_findings and self.verbose:
                         for sev, check, msg in error_findings:
-                            logger.warning(f"  [LOADER ERROR] {check}: {msg}")
+                            if 'low_daily_load_volume' not in check:
+                                logger.warning(f"  [LOADER ERROR] {check}: {msg}")
                 finally:
                     monitor.disconnect()
             except Exception as e:
