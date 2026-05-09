@@ -81,11 +81,6 @@ resource "aws_lambda_function" "api" {
     size = var.api_lambda_ephemeral_storage
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.api_lambda_security_group_id]
-  }
-
   environment {
     variables = {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
@@ -513,11 +508,6 @@ resource "aws_lambda_function" "algo" {
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
-  }
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.algo_lambda_security_group_id]
   }
 
   environment {
