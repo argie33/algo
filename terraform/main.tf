@@ -214,7 +214,7 @@ module "monitoring" {
   apigw_5xx_alarm_name         = "stocks-apigw-5xx-${var.environment}"
   api_lambda_errors_alarm_name = "stocks-api-errors"
   sns_alerts_enabled           = var.sns_alerts_enabled
-  sns_alerts_topic_arn         = module.services.sns_alerts_topic_arn
+  sns_alerts_topic_arn         = coalesce(module.services.sns_alerts_topic_arn, "")
 }
 
 data "aws_caller_identity" "current" {}
