@@ -158,6 +158,8 @@ locals {
     "signals_weekly"             = "loadbuysellweekly.py"
     "signals_monthly"            = "loadbuysellmonthly.py"
     "signals_etf_daily"          = "loadbuysell_etf_daily.py"
+    "signals_etf_weekly"         = "loadbuysell_etf_weekly.py"
+    "signals_etf_monthly"        = "loadbuysell_etf_monthly.py"
     "etf_signals"                = "loadetfsignals.py"
     "algo_metrics_daily"         = "load_algo_metrics_daily.py"
   }
@@ -337,6 +339,14 @@ locals {
     "signals_etf_daily" = {
       schedule    = "cron(0 22 ? * MON-FRI *)"
       description = "Daily ETF signals - 5:00pm ET (parallel)"
+    }
+    "signals_etf_weekly" = {
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Weekly ETF signals - 5:00pm ET (parallel)"
+    }
+    "signals_etf_monthly" = {
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Monthly ETF signals - 5:00pm ET (parallel)"
     }
     "etf_signals" = {
       schedule    = "cron(0 22 ? * MON-FRI *)"
