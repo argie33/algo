@@ -70,11 +70,28 @@ router.get('/status', async (req, res) => {
       vix_level: 0
     };
 
+    // Get algo configuration
+    const configResult = await pool.query(`
+      SELECT key, value FROM algo_config
+      WHERE key IN ('enable_algo', 'execution_mode')
+    `);
+
+    let algo_enabled = true;
+    let execution_mode = 'paper';
+
+    configResult.rows.forEach(row => {
+      if (row.key === 'enable_algo') {
+        algo_enabled = row.value.toLowerCase() === 'true';
+      } else if (row.key === 'execution_mode') {
+        execution_mode = row.value;
+      }
+    });
+
     return res.json({
       success: true,
       data: {
-        algo_enabled: true,
-        execution_mode: 'paper',
+        algo_enabled: algo_enabled,
+        execution_mode: execution_mode,
         status: 'operational',
         portfolio: {
           total_value: snapshot.total_portfolio_value || 0,

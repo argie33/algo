@@ -85,6 +85,7 @@ function authReducer(state, action) {
         isLoading: false,
         error: null,
       };
+    }
     case AUTH_ACTIONS.LOGIN_FAILURE:
       return {
         ...state,
