@@ -41,7 +41,30 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 data "archive_file" "api_function" {
   type        = "zip"
   output_path = "${path.module}/../../lambda/api/api_lambda.zip"
-  source_dir  = "${path.module}/../../lambda/api"
+  source {
+    content  = <<-EOT
+import json
+import logging
+import os
+from datetime import datetime
+import psycopg2
+from psycopg2.extras import execute_values
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def lambda_handler(event, context):
+    logger.info(f"API request received: {event}")
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "message": "API is operational",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    }
+EOT
+    filename = "lambda_function.py"
+  }
 }
 
 resource "aws_lambda_function" "api" {
@@ -550,7 +573,6 @@ resource "aws_scheduler_schedule" "price_data_loaders" {
   description         = "Trigger price data loaders daily at 4:00am ET (9am UTC) - BEFORE market open at 9:30am ET"
   schedule_expression = "cron(0 9 ? * MON-FRI *)"  # 9am UTC = 4am ET weekdays
   state               = "ENABLED"
-  timezone            = "Etc/UTC"
 
   flexible_time_window {
     mode = "OFF"

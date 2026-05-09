@@ -320,10 +320,6 @@ resource "aws_batch_compute_environment" "spot" {
   })
 
   depends_on = [aws_iam_role_policy_attachment.batch_service_policy]
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # ============================================================

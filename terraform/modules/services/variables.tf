@@ -242,8 +242,8 @@ variable "cognito_password_min_length" {
   type        = number
   default     = 12
   validation {
-    condition     = var.cognito_password_min_length >= 6 && (var.environment != "prod" || var.cognito_password_min_length >= 12)
-    error_message = "Minimum password length must be at least 6 (dev/staging) or 12 (production)"
+    condition     = var.cognito_password_min_length >= 6 && var.cognito_password_min_length <= 256
+    error_message = "Minimum password length must be between 6 and 256"
   }
 }
 

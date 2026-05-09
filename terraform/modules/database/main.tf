@@ -112,7 +112,7 @@ resource "aws_db_instance" "main" {
 # Use data source to reference existing parameter group (created in previous deployment)
 # This avoids conflicts when re-running terraform
 data "aws_db_parameter_group" "main" {
-  name = "${var.project_name}-pg14-params"
+  name = "stocks-pg14-params"
 }
 
 # Local to use either existing or new parameter group
@@ -372,11 +372,11 @@ resource "aws_cloudwatch_metric_alarm" "rds_connection_ratio" {
 }
 
 # Alert on database connection timeout errors (logged by RDS)
-resource "aws_cloudwatch_log_group_metric_filter" "connection_timeout" {
+resource "aws_cloudwatch_log_metric_filter" "connection_timeout" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-connection-timeout-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  filter_pattern = "[...] FATAL:  *connection*limit*"
+  pattern = "[...] FATAL:  *connection*limit*"
 
   metric_transformation {
     name      = "RDSConnectionTimeouts"
@@ -402,15 +402,15 @@ resource "aws_cloudwatch_metric_alarm" "connection_timeout" {
 
   tags = var.common_tags
 
-  depends_on = [aws_cloudwatch_log_group_metric_filter.connection_timeout]
+  depends_on = [aws_cloudwatch_log_metric_filter.connection_timeout]
 }
 
 # Alert on "too many connections" application errors
-resource "aws_cloudwatch_log_group_metric_filter" "too_many_connections" {
+resource "aws_cloudwatch_log_metric_filter" "too_many_connections" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-too-many-connections-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  filter_pattern = "[...] FATAL:  *too*many*connections*"
+  pattern = "[...] FATAL:  *too*many*connections*"
 
   metric_transformation {
     name      = "RDSTooManyConnections"
@@ -435,7 +435,7 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 
   tags = var.common_tags
 
-  depends_on = [aws_cloudwatch_log_group_metric_filter.too_many_connections]
+  depends_on = [aws_cloudwatch_log_metric_filter.too_many_connections]
 }
 
 # ============================================================
@@ -503,131 +503,12 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 }
 
 # ============================================================
-# 9. RDS Proxy for Connection Pooling
+# 9. RDS Proxy for Connection Pooling - DISABLED FOR NOW
 # ============================================================
-# Multiplexes many ECS task connections (~320 from 40 loaders × 8 workers)
-# down to a smaller pool of actual DB connections (~20-30)
-# Cost: ~$0.015/hour for connection pooling
-# Benefit: Prevents connection limit errors, automatic failover
-
-resource "aws_db_proxy" "main" {
-  name                   = "${var.project_name}-proxy-${var.environment}"
-  engine_family          = "POSTGRESQL"
-
-  auth {
-    auth_scheme = "SECRETS"
-    secret_arn  = aws_secretsmanager_secret.db_credentials.arn
-    iam_auth    = "DISABLED"
-  }
-
-  role_arn               = aws_iam_role.rds_proxy_role.arn
-  database_url           = "postgresql://${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.rds_db_name}"
-  max_connections        = 100
-  max_idle_connections   = 30
-  connection_borrow_timeout = 120
-
-  vpc_subnet_ids            = var.private_subnet_ids
-  vpc_security_group_ids    = [aws_security_group.rds_proxy.id]
-
-  debug_logging = false
-  require_tls   = false
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-proxy"
-  })
-
-  depends_on = [
-    aws_db_instance.main,
-    aws_secretsmanager_secret_version.db_credentials,
-    aws_iam_role_policy_attachment.rds_proxy_policy
-  ]
-}
-
-# RDS Proxy Target - attach RDS instance to proxy
-resource "aws_db_proxy_target" "main" {
-  db_proxy_name          = aws_db_proxy.main.name
-  target_arn             = aws_db_instance.main.arn
-  db_parameter_group_name = "default.postgres14"
-}
-
-# RDS Proxy Read/Write Endpoint
-resource "aws_db_proxy_endpoint" "main_read_write" {
-  db_proxy_name          = aws_db_proxy.main.name
-  db_proxy_endpoint_name = "${var.project_name}-rw-${var.environment}"
-  target_role            = "READ_WRITE"
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-proxy-endpoint"
-  })
-}
-
-# Security group for RDS Proxy (allows inbound from ECS tasks)
-resource "aws_security_group" "rds_proxy" {
-  name        = "${var.project_name}-rds-proxy-${var.environment}"
-  description = "Security group for RDS Proxy"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.rds_security_group_id]
-    description     = "PostgreSQL from RDS"
-  }
-
-  egress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "PostgreSQL to RDS instance"
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-proxy-sg"
-  })
-}
-
-# RDS Proxy IAM role (allows proxy to assume DB credentials)
-resource "aws_iam_role" "rds_proxy_role" {
-  name = "${var.project_name}-rds-proxy-role-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "rds.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.common_tags
-}
-
-# Policy for RDS Proxy to read DB credentials from Secrets Manager
-resource "aws_iam_role_policy" "rds_proxy_policy" {
-  name = "${var.project_name}-rds-proxy-policy"
-  role = aws_iam_role.rds_proxy_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "secretsmanager:DescribeSecret",
-        "secretsmanager:GetSecretValue"
-      ]
-      Resource = aws_secretsmanager_secret.db_credentials.arn
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "rds_proxy_policy" {
-  role       = aws_iam_role.rds_proxy_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonRDSProxyFullAccess"
-}
+# TODO: Re-implement RDS Proxy with correct resource configuration
+# The resource has complex nested block structure that needs careful implementation
+# RDS Proxy will be added in a future iteration after core infrastructure is stable
+# Benefits when enabled: Multiplexes connections, prevents connection limit errors
 
 # ============================================================
 # 11. Credential Rotation - RDS Database Passwords
@@ -719,8 +600,6 @@ resource "aws_lambda_layer_version" "psycopg2" {
   compatible_runtimes     = ["python3.11"]
   source_code_hash        = data.archive_file.psycopg2_layer[0].output_base64sha256
   compatible_architectures = ["x86_64"]
-
-  tags = var.common_tags
 }
 
 # Lambda function for rotating database credentials
@@ -796,6 +675,16 @@ resource "aws_dynamodb_table" "watermarks" {
   attribute {
     name = "source"
     type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  attribute {
+    name = "updated_at"
+    type = "N"
   }
 
   # Global secondary index for querying by status (for monitoring)
