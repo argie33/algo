@@ -1,19 +1,71 @@
-variable "project_name" { type = string }
-variable "environment" { type = string }
+variable "project_name" {
+  description = "Project name for resource naming"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment (dev, staging, prod)"
+  type        = string
+}
+
 variable "aws_account_id" {
-  type      = string
-  sensitive = true
+  description = "AWS account ID"
+  type        = string
+  sensitive   = true
 }
-variable "aws_region" { type = string }
-variable "ecr_repository_uri" { type = string }
-variable "vpc_id" { type = string }
-variable "private_subnet_ids" { type = list(string) }
-variable "ecs_cluster_name" { type = string }
-variable "ecs_cluster_arn" { type = string }
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "ecr_repository_uri" {
+  description = "ECR repository URI for loader container images"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID for loader resources"
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs for ECS task placement (requires 2+ for Fargate)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_ids) >= 2
+    error_message = "Must provide at least 2 private subnets for Fargate HA."
+  }
+}
+
+variable "ecs_cluster_name" {
+  description = "ECS cluster name where loaders will run"
+  type        = string
+}
+
+variable "ecs_cluster_arn" {
+  description = "ECS cluster ARN"
+  type        = string
+}
+
 variable "db_secret_arn" {
-  type      = string
-  sensitive = true
+  description = "ARN of Secrets Manager secret containing DB credentials (username:password)"
+  type        = string
+  sensitive   = true
 }
-variable "ecs_tasks_sg_id" { type = string }
-variable "task_execution_role_arn" { type = string }
-variable "common_tags" { type = map(string) }
+
+variable "ecs_tasks_sg_id" {
+  description = "Security group ID for ECS tasks (must allow egress to RDS + internet)"
+  type        = string
+}
+
+variable "task_execution_role_arn" {
+  description = "IAM role ARN for ECS task execution (ECR pull, CloudWatch logs)"
+  type        = string
+}
+
+variable "common_tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+}

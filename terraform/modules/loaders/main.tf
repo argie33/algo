@@ -2,14 +2,16 @@
  * Loaders Module - ECS Task Definitions, EventBridge Scheduled Rules
  *
  * Creates:
- * - 65 ECS task definitions (data loaders)
- * - 4 EventBridge scheduled rules for evening loaders
- * - IAM role for EventBridge to run ECS tasks
+ * - 40 ECS task definitions (all data loaders)
+ * - 33 EventBridge scheduled rules (staggered ET schedule)
+ * - IAM roles for EventBridge and ECS task execution
  *
- * Reference: template-loader-tasks.yml
+ * All loaders run on Fargate in private subnets with proper resource allocation
  */
 
-# This module is substantial - ~2000 lines in template-loader-tasks.yml
+# ============================================================
+# IAM Roles & Policies
+# ============================================================
 
 # EventBridge role to run ECS tasks
 resource "aws_iam_role" "eventbridge_run_task" {
@@ -27,8 +29,11 @@ resource "aws_iam_role" "eventbridge_run_task" {
       }
     ]
   })
+
+  tags = var.common_tags
 }
 
+# EventBridge IAM policy to run ECS tasks
 resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
   name = "${var.project_name}-eventbridge-run-task-policy"
   role = aws_iam_role.eventbridge_run_task.id
@@ -37,18 +42,22 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowRunTask"
         Effect = "Allow"
         Action = [
           "ecs:RunTask"
         ]
-        Resource = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*"
+        Resource = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*:*"
       },
       {
+        Sid    = "AllowPassRole"
         Effect = "Allow"
         Action = [
           "iam:PassRole"
         ]
-        Resource = "${var.task_execution_role_arn}"
+        Resource = [
+          var.task_execution_role_arn
+        ]
       }
     ]
   })
@@ -258,17 +267,17 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
   name                = "${var.project_name}-${each.key}-schedule"
   description         = each.value.description
   schedule_expression = each.value.schedule
-  is_enabled          = true
+  state               = "ENABLED"
 
   tags = var.common_tags
 }
 
 locals {
   all_loaders = {
-    # Reference data (3:30am ET)
-    "stock_symbols"          = { cpu = 128, memory = 256, timeout = 300 }
+    # Reference data (3:30am ET) - FARGATE: 256 CPU = min 512 MB
+    "stock_symbols"          = { cpu = 256, memory = 512, timeout = 300 }
 
-    # Price data loaders (4:00am ET) - HIGH CPU/MEMORY
+    # Price data loaders (4:00am ET) - HIGH CPU/MEMORY - FARGATE: 512 CPU = 1024-4096 MB
     "stock_prices_daily"     = { cpu = 512, memory = 1024, timeout = 600 }
     "stock_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600 }
     "stock_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600 }
@@ -276,7 +285,7 @@ locals {
     "etf_prices_weekly"      = { cpu = 512, memory = 1024, timeout = 600 }
     "etf_prices_monthly"     = { cpu = 512, memory = 1024, timeout = 600 }
 
-    # Financial statements (10:00am ET)
+    # Financial statements (10:00am ET) - FARGATE: 256 CPU = min 512 MB
     "financials_annual_income"     = { cpu = 256, memory = 512, timeout = 1200 }
     "financials_annual_balance"    = { cpu = 256, memory = 512, timeout = 1200 }
     "financials_annual_cashflow"   = { cpu = 256, memory = 512, timeout = 1200 }
@@ -286,40 +295,40 @@ locals {
     "financials_ttm_income"        = { cpu = 256, memory = 512, timeout = 1200 }
     "financials_ttm_cashflow"      = { cpu = 256, memory = 512, timeout = 1200 }
 
-    # Earnings data (11:00am ET)
+    # Earnings data (11:00am ET) - FARGATE: 256 CPU = min 512 MB
     "earnings_history"   = { cpu = 256, memory = 512, timeout = 600 }
     "earnings_revisions" = { cpu = 256, memory = 512, timeout = 600 }
     "earnings_surprise"  = { cpu = 256, memory = 512, timeout = 600 }
     "earnings_sp500"     = { cpu = 256, memory = 512, timeout = 600 }
 
-    # Market & economic data (12:00pm ET - 6:00pm ET)
-    "market_overview"    = { cpu = 256, memory = 256, timeout = 300 }
-    "market_indices"     = { cpu = 256, memory = 256, timeout = 300 }
-    "sector_performance" = { cpu = 256, memory = 256, timeout = 300 }
-    "relative_performance" = { cpu = 256, memory = 256, timeout = 300 }
-    "seasonality"        = { cpu = 256, memory = 256, timeout = 300 }
-    "econ_data"          = { cpu = 256, memory = 256, timeout = 300 }
-    "aaiidata"           = { cpu = 256, memory = 256, timeout = 300 }
-    "naaim_data"         = { cpu = 256, memory = 256, timeout = 300 }
-    "feargreed"          = { cpu = 256, memory = 256, timeout = 300 }
-    "calendar"           = { cpu = 256, memory = 256, timeout = 300 }
+    # Market & economic data (12:00pm ET - 6:00pm ET) - FARGATE: 256 CPU = min 512 MB
+    "market_overview"    = { cpu = 256, memory = 512, timeout = 300 }
+    "market_indices"     = { cpu = 256, memory = 512, timeout = 300 }
+    "sector_performance" = { cpu = 256, memory = 512, timeout = 300 }
+    "relative_performance" = { cpu = 256, memory = 512, timeout = 300 }
+    "seasonality"        = { cpu = 256, memory = 512, timeout = 300 }
+    "econ_data"          = { cpu = 256, memory = 512, timeout = 300 }
+    "aaiidata"           = { cpu = 256, memory = 512, timeout = 300 }
+    "naaim_data"         = { cpu = 256, memory = 512, timeout = 300 }
+    "feargreed"          = { cpu = 256, memory = 512, timeout = 300 }
+    "calendar"           = { cpu = 256, memory = 512, timeout = 300 }
 
-    # Sentiment & analysis (1:00pm ET)
-    "analyst_sentiment"  = { cpu = 256, memory = 256, timeout = 600 }
-    "analyst_upgrades"   = { cpu = 256, memory = 256, timeout = 600 }
-    "social_sentiment"   = { cpu = 256, memory = 256, timeout = 600 }
-    "factor_metrics"     = { cpu = 256, memory = 256, timeout = 600 }
-    "stock_scores"       = { cpu = 256, memory = 256, timeout = 600 }
+    # Sentiment & analysis (1:00pm ET) - FARGATE: 256 CPU = min 512 MB
+    "analyst_sentiment"  = { cpu = 256, memory = 512, timeout = 600 }
+    "analyst_upgrades"   = { cpu = 256, memory = 512, timeout = 600 }
+    "social_sentiment"   = { cpu = 256, memory = 512, timeout = 600 }
+    "factor_metrics"     = { cpu = 256, memory = 512, timeout = 600 }
+    "stock_scores"       = { cpu = 256, memory = 512, timeout = 600 }
 
-    # Trading signals (5:00pm ET)
+    # Trading signals (5:00pm ET) - FARGATE: 256 CPU = min 512 MB
     "signals_daily"      = { cpu = 256, memory = 512, timeout = 900 }
     "signals_weekly"     = { cpu = 256, memory = 512, timeout = 900 }
     "signals_monthly"    = { cpu = 256, memory = 512, timeout = 900 }
     "signals_etf_daily"  = { cpu = 256, memory = 512, timeout = 900 }
     "etf_signals"        = { cpu = 256, memory = 512, timeout = 900 }
 
-    # Algo metrics (5:15pm ET - after signals)
-    "algo_metrics_daily" = { cpu = 256, memory = 256, timeout = 600 }
+    # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
+    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600 }
   }
 
   # For backward compatibility
@@ -327,6 +336,7 @@ locals {
 }
 
 # ECS Task Definitions for all 40 data loaders
+# NOTE: CPU/memory in container definition are removed - only task-level values matter for Fargate
 resource "aws_ecs_task_definition" "loader" {
   for_each = local.all_loaders
 
@@ -335,8 +345,6 @@ resource "aws_ecs_task_definition" "loader" {
     {
       name      = "${var.project_name}-${each.key}"
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
-      cpu       = each.value.cpu
-      memory    = each.value.memory
       essential = true
 
       logConfiguration = {
@@ -363,6 +371,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "LOADER_TYPE"
           value = each.key
+        },
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
         }
       ]
     }
@@ -387,14 +399,6 @@ resource "aws_cloudwatch_log_group" "loader" {
   tags = var.common_tags
 }
 
-resource "aws_cloudwatch_event_rule" "fear_greed_schedule" {
-  name                = "${var.project_name}-fear-greed-evening-schedule"
-  description         = "Run fear&greed loader at 7pm ET (11pm UTC)"
-  schedule_expression = "cron(0 23 ? * MON-FRI *)"
-
-  tags = var.common_tags
-}
-
 # ============================================================
 # EventBridge Targets - ECS Task Execution (All 40 Loaders)
 # ============================================================
@@ -403,8 +407,8 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
   for_each = local.scheduled_loaders
 
   rule      = aws_cloudwatch_event_rule.scheduled_loader[each.key].name
-  target_id = "${upper(replace(each.key, \"_\", \"\"))}Target"
-  arn       = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.ecs_cluster_name}"
+  target_id = "${upper(replace(each.key, "_", ""))}Target"
+  arn       = aws_ecs_task_definition.loader[each.key].arn
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
@@ -412,20 +416,11 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
     task_definition_arn = aws_ecs_task_definition.loader[each.key].arn
     task_count          = 1
     platform_version    = "LATEST"
-    cluster             = var.ecs_cluster_name
+
     network_configuration {
       subnets          = var.private_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
       assign_public_ip = false
     }
-  }
-
-  retry_policy {
-    maximum_event_age       = 3600
-    maximum_retry_attempts  = 2
-  }
-
-  dead_letter_config {
-    arn = null
   }
 }
