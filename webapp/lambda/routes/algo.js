@@ -1288,6 +1288,90 @@ router.get('/trade/:tradeId', async (req, res) => {
 });
 
 // ============================================================
+// PRE-TRADE POSITION PREVIEW
+// ============================================================
+router.post('/preview', async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+
+  try {
+    const { symbol, entry_price, stop_loss_price } = req.body;
+
+    if (!symbol || !entry_price || !stop_loss_price) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, entry_price, stop_loss_price'
+      });
+    }
+
+    // Spawn Python script to calculate preview
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const child = spawn('python3', [
+      'algo_preview.py',
+      String(symbol),
+      String(entry_price),
+      String(stop_loss_price)
+    ], {
+      cwd: repoRoot,
+      env: process.env,
+      timeout: 10000
+    });
+
+    let output = '';
+    let errorOutput = '';
+
+    child.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        return res.status(500).json({
+          success: false,
+          error: `Preview calculation failed: ${errorOutput || output}`
+        });
+      }
+
+      try {
+        const preview = JSON.parse(output);
+        if (preview.error) {
+          return res.status(400).json({
+            success: false,
+            error: preview.error
+          });
+        }
+
+        return res.json({
+          success: true,
+          preview: preview,
+          timestamp: new Date()
+        });
+      } catch (parseErr) {
+        return res.status(500).json({
+          success: false,
+          error: `Failed to parse preview: ${parseErr.message}`
+        });
+      }
+    });
+
+    // Timeout protection
+    setTimeout(() => {
+      try { child.kill('SIGTERM'); } catch (_e) {}
+    }, 15000);
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================
 // CIRCUIT BREAKERS — current state of all 7 kill-switches (admin only)
 // ============================================================
 router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {

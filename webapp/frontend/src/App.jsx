@@ -49,6 +49,7 @@ import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
 import AlgoTradingDashboard from "./pages/AlgoTradingDashboard";
 import SignalIntelligence from "./pages/SignalIntelligence";
+import AuditViewer from "./pages/AuditViewer";
 
 import { useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -429,6 +430,7 @@ function App() {
 
           {/* Admin & Settings */}
           <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />
+          <Route path="/app/audit" element={<ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute>} />
           <Route path="/app/settings" element={<ProtectedRoute requireAuth><Settings /></ProtectedRoute>} />
         </Routes>
 

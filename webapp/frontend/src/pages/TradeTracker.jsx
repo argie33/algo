@@ -12,9 +12,10 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, ChevronDown, ChevronUp, Inbox, AlertCircle,
-  Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle,
+  Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle, Eye,
 } from 'lucide-react';
 import { api } from '../services/api';
+import PreviewModal from '../components/PreviewModal';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
@@ -38,6 +39,13 @@ const Pnl = ({ value, suffix = '' }) => {
 // ─── main ──────────────────────────────────────────────────────────────────
 export default function TradeTracker() {
   const [tab, setTab] = useState('trades');
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const handlePreviewConfirm = (data) => {
+    console.log('Trade preview confirmed:', data);
+    // TODO: integrate with actual trade entry flow
+  };
+
   return (
     <div className="main-content">
       <div className="page-head">
@@ -47,6 +55,9 @@ export default function TradeTracker() {
             Every action the algo takes — entries, exits, stops, pyramids, halts, skipped signals
           </div>
         </div>
+        <button onClick={() => setPreviewOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }} className="btn">
+          <Eye size={16} /> Preview Trade
+        </button>
       </div>
 
       <Tabs
@@ -62,6 +73,12 @@ export default function TradeTracker() {
         {tab === 'activity' && <ActivityView />}
         {tab === 'notifications' && <NotificationsView />}
       </div>
+
+      <PreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        onConfirm={handlePreviewConfirm}
+      />
     </div>
   );
 }
