@@ -61,6 +61,9 @@ DB_CONFIG = {
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
+# Alias for backwards compatibility
+DATABASE_CONFIG = DB_CONFIG
+
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""
 
