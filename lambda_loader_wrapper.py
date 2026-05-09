@@ -16,8 +16,6 @@ USAGE (Lambda):
     Env vars: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, etc.
 
 DEPLOYMENT:
-    Via CloudFormation template-loader-lambda.yml or manually:
-
     aws lambda create-function --function-name econ-data-loader \
       --runtime python3.11 --handler lambda_loader_wrapper.handler \
       --memory-size 512 --timeout 300 \

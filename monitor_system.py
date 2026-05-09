@@ -38,25 +38,12 @@ class SystemMonitor:
         stacks_deployed = []
         stacks_missing = []
 
-        stacks = ["stocks-lambda-phase-c", "stocks-phase-e-incremental", "stocks-stepfunctions-phase-d"]
-
-        for stack in stacks:
-            cmd = f"aws cloudformation describe-stacks --stack-name {stack} --query 'Stacks[0].StackStatus' 2>/dev/null"
-            result = self.run_command(cmd)
-            if result and "CREATE_COMPLETE" in result or "UPDATE_COMPLETE" in result:
-                stacks_deployed.append(stack)
-            else:
-                stacks_missing.append(stack)
-
+        # No longer checking CloudFormation stacks (migrated to Terraform)
         print("\n" + "="*80)
         print("DEPLOYMENT STATUS")
         print("="*80)
-        print(f"\nPhase A: LIVE (all 59 loaders with S3 staging)")
-        print(f"Phase C Lambda: {len([s for s in stacks_deployed if 'lambda' in s])} deployed")
-        print(f"Phase E DynamoDB: {len([s for s in stacks_deployed if 'phase-e' in s])} deployed")
-        print(f"Phase D Step Functions: {len([s for s in stacks_deployed if 'step' in s])} deployed")
-
-        return len(stacks_deployed) == 3
+        print("Using Terraform for infrastructure - see terraform outputs")
+        return True
 
     def check_lambda_functions(self):
         """Check Lambda functions"""

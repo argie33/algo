@@ -4,7 +4,7 @@ Universal Lambda handler for running Python data loaders.
 This allows any loader (loadpricedaily.py, loadeodhd.py, etc.) to run on AWS Lambda
 instead of ECS Fargate, reducing costs by 70% for small loaders (<5min, <512MB).
 
-Usage (CloudFormation or Lambda console):
+Usage (Lambda console or API):
     - Function: PythonLoaderExecutor (or similar)
     - Runtime: Python 3.11+ with pandas, psycopg2, yfinance, etc.
     - Environment: LOADER_NAME, DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, ALPACA_API_KEY, etc.
