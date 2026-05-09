@@ -151,6 +151,8 @@ locals {
     "analyst_upgrades"           = "loadanalystupgradedowngrade.py"
     "social_sentiment"           = "loadsentiment.py"
     "factor_metrics"             = "loadfactormetrics.py"
+    "trend_template_data"        = "load_trend_template_data.py"
+    "technicals_daily"           = "loadtechnicalsdaily.py"
     "stock_scores"               = "loadstockscores.py"
     "signals_daily"              = "loadbuyselldaily.py"
     "signals_weekly"             = "loadbuysellweekly.py"
@@ -191,6 +193,16 @@ locals {
     "etf_prices_monthly" = {
       schedule    = "cron(0 9 ? * MON-FRI *)"
       description = "Monthly ETF prices - 4:00am ET (parallel with stock prices)"
+    }
+
+    # 4:15am ET = 9:15am UTC Mon-Fri (after prices, before scores)
+    "trend_template_data" = {
+      schedule    = "cron(15 9 ? * MON-FRI *)"
+      description = "Trend template data - 4:15am ET (dependency for signals)"
+    }
+    "technicals_daily" = {
+      schedule    = "cron(15 9 ? * MON-FRI *)"
+      description = "Daily technical indicators - 4:15am ET (parallel)"
     }
 
     # 10:00am ET = 3pm UTC Mon-Fri

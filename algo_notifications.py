@@ -188,7 +188,11 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                 logger.info(f"[NOTIF] Saved to DB: {title}")
         except Exception as e:
             logger.error(f"[NOTIF] DB save failed: {e}")
-            self.conn.rollback()
+            if self.conn:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass  # Connection already broken
 
     def _send_notification(self, subject: str, message: str, kind: str = "trade",
                           severity: str = "info", symbol: str = None, details: dict = None):

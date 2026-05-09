@@ -150,7 +150,11 @@ class DatabaseHelper:
                     self.conn.commit()
                 except Exception as e:
                     logger.error(f"{table_name}: Batch commit failed: {e}")
-                    self.conn.rollback()
+                    if self.conn:
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass  # Connection already broken
 
             if skipped > 0:
                 logger.info(f"{table_name}: Inserted {inserted}/{len(rows)} rows (skipped {skipped} duplicates)")
