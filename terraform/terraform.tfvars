@@ -63,6 +63,17 @@ cloudwatch_log_retention_days  = 30
 enable_bastion_cloudwatch_logs = true
 
 # ============================================================
+# Alpaca Trading
+# ============================================================
+
+# Note: Alpaca API credentials will be provided via environment variables if needed
+# APCA_API_KEY_ID and APCA_API_SECRET_KEY are set in the algo Lambda environment
+alpaca_api_key_id     = ""
+alpaca_api_secret_key = ""
+alpaca_api_base_url   = "https://paper-api.alpaca.markets"
+alpaca_paper_trading  = "true"
+
+# ============================================================
 # Storage
 # ============================================================
 

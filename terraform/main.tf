@@ -69,6 +69,10 @@ module "database" {
   rds_storage_alarm_threshold     = 10737418240
   rds_connections_alarm_threshold = 50
   notification_email              = var.notification_email
+  alpaca_api_key_id               = var.alpaca_api_key_id
+  alpaca_api_secret_key           = var.alpaca_api_secret_key
+  alpaca_api_base_url             = var.alpaca_api_base_url
+  alpaca_paper_trading            = var.alpaca_paper_trading
   cloudwatch_log_retention_days   = var.cloudwatch_log_retention_days
   common_tags                     = local.common_tags
 }

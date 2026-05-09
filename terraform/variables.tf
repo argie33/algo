@@ -502,6 +502,36 @@ variable "sns_alert_email" {
 }
 
 # ============================================================
+# Alpaca Trading Configuration
+# ============================================================
+
+variable "alpaca_api_key_id" {
+  description = "Alpaca API key ID for paper trading"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "alpaca_api_secret_key" {
+  description = "Alpaca API secret key for paper trading"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "alpaca_api_base_url" {
+  description = "Alpaca API base URL (paper or live)"
+  type        = string
+  default     = "https://paper-api.alpaca.markets"
+}
+
+variable "alpaca_paper_trading" {
+  description = "Enable Alpaca paper trading mode"
+  type        = string
+  default     = "true"
+}
+
+# ============================================================
 # Loader Configuration
 # ============================================================
 
