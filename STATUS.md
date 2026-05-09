@@ -1,6 +1,7 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-08 (Deployment blockers resolved)
+**Last Updated:** 2026-05-09 (Frontend improvements + notification system complete)
+**Project Status:** Development — all core systems operational, data loading needs EventBridge configuration
 **Next Scheduled Run:** Weekdays at 10:30pm UTC / 5:30pm ET (EventBridge)
 
 ## Deployment Status ✅
@@ -40,6 +41,26 @@ Check Logs      → aws logs tail /aws/lambda/algo-orchestrator --follow
 RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 ```
 
+## Work in Progress / Next Phase
+
+**High Impact (ready to implement)**
+- [ ] EventBridge Scheduler Configuration — set up daily data loader triggers at 4am ET
+- [ ] TimescaleDB Migration — enable on RDS for 10-100x query speedup on time-series data
+- [ ] Performance Metrics Dashboard — show query times, API latencies, system health trends
+- [ ] Data Quality Auditor UI — visualize table staleness, data integrity checks in real-time
+
+**Medium Impact**
+- [ ] API Documentation — expand from current 5 endpoints to all 25+ with request/response examples
+- [ ] Performance Optimization — identify slow queries, add caching strategies
+- [ ] Enhanced Error Handling — better user-facing error messages, retry strategies
+- [ ] Test Coverage — expand E2E tests for data load → algo run → trade execution scenarios
+
+**Lower Priority**
+- [ ] Lambda VPC Migration — move to VPC with NAT gateway for enhanced security (prod planning)
+- [ ] RDS Multi-AZ — enable for high availability (cost/benefit analysis needed)
+- [ ] Disaster Recovery Runbook — documented procedures for common failure scenarios
+- [ ] Advanced Analytics — cohort analysis, factor attribution, strategy backtesting
+
 ## Known Limitations (Intentional Development Choices)
 - ⚠️ **RDS publicly accessible** (0.0.0.0/0) — prod hardening deferred
 - ⚠️ **Paper trading only** — no real money until "green light"
@@ -48,12 +69,56 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 
 (See `memory/aws_deployment_state_2026_05_05.md` for why)
 
+## Frontend Status — May 2026 ✅
+
+All major frontend pages complete with professional design and full API integration:
+
+**Market Analysis** (5 pages)
+- ✅ Market Overview — indices, technicals, sentiment, volatility, correlation
+- ✅ Sector Analysis — sector performance, rotation, heatmaps
+- ✅ Economic Dashboard — recession nowcasting, Fed policy, credit spreads, yield curves
+- ✅ Commodities Analysis — COT positioning, correlations, sector rotation
+- ✅ Sentiment Analysis — fear/greed, AI sentiment, contrarian indicators
+
+**Stock Research** (4 pages)
+- ✅ Stock Scores — multi-factor scoring with drill-downs
+- ✅ Trading Signals — swing patterns, mean reversion, range trading
+- ✅ Deep Value Picks — DCF-based screener with generational opportunities
+- ✅ Swing Candidates — technical pattern recognition and momentum
+
+**Portfolio & Trading** (4 pages)
+- ✅ Portfolio Dashboard — holdings, allocations, P&L tracking
+- ✅ Trade Tracker — execution history, slippage analysis, performance
+- ✅ Optimizer — mean-variance optimization with constraints
+- ✅ Hedge Helper — dynamic hedging strategy simulation
+
+**Algo & Research** (3 pages)
+- ✅ Algo Dashboard — live position tracking, signal metrics, P&L
+- ✅ Signal Intelligence — signal performance, confidence scoring, factor attribution
+- ✅ Backtest Results — strategy validation, equity curves, trade-by-trade analysis
+
+**Admin & System** (5 pages)
+- ✅ Service Health — data freshness, patrol findings, source status
+- ✅ Notifications — real-time alerts, trade events, risk breaches (with filtering)
+- ✅ Audit Trail — complete action log with filtering by type and status
+- ✅ Settings — user preferences, theme toggle, API credentials
+- ✅ Markets Health — data source monitoring, uptime tracking
+
+**Design Improvements** (May 2026)
+- ✅ Font: Switched from Inter to **DM Sans** for superior financial data readability
+- ✅ Econ Page: Complete redesign with recession nowcasting models (Sahm Rule, yield spreads, VIX, credit spreads)
+- ✅ Commodities: Added COT (Commitment of Traders) positioning and correlation analysis
+- ✅ Notification System: Real-time dashboard with kind/severity filtering + mark-as-read/delete
+
+**All 25 API Endpoints Verified** ✅
+- Data loading, stock scores, signals, backtests, portfolio, economic, commodities, audit logs — all working
+
 ## Recent Changes (Last 5 Commits)
-1. f147d5a3a — iac: Fix Terraform deployment blockers and verify infrastructure
-2. 768929395 — workflows: Add data population + integration testing + schema init
-3. cf4cdbf7a — iac: Complete IaC-first implementation plan + local dev setup
-4. a4d9bb404 — schema: Create comprehensive 60+ table database schema
-5. 649aa93a6 — Fix: Terraform configuration errors and deploy infrastructure
+1. e2fdb16b6 — chore: Migrate all credentials to centralized credential_manager
+2. 259cd4558 — feat: Add pre-trade position preview - backend endpoint and frontend modal
+3. 0875c6b0f — fix: Fix 5 critical webapp issues: database routing, API endpoints, code patterns
+4. 901ee3d32 — feat: Add dedicated LoginPage component for /login route
+5. 1b893cd8e — test: Fix integration tests and backtest regression baseline
 
 ## Health Check (Manual)
 ```bash
