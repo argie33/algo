@@ -49,28 +49,6 @@ Resources:
                 token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
 
   # ============================================================
-  # IAM Policy - CloudFormation Permissions
-  # ============================================================
-  CloudFormationPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: cloudformation-policy
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Action:
-              - cloudformation:CreateStack
-              - cloudformation:UpdateStack
-              - cloudformation:DeleteStack
-              - cloudformation:DescribeStacks
-              - cloudformation:ListStackResources
-              - cloudformation:DescribeStackResource
-              - cloudformation:DescribeStackEvents
-              - cloudformation:ValidateTemplate
-            Resource: !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/${ProjectName}-*"
-
-  # ============================================================
   # IAM Policy - S3 Terraform State Backend
   # ============================================================
   S3StatePolicy:
