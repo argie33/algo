@@ -115,17 +115,27 @@ resource "aws_iam_role_policy" "batch_ec2_access" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:*"
+        # FIXED: Issue #9 - Scope to project secrets only (was Resource: "secret:*")
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+      },
+      {
+        Sid    = "AllowECRAuthToken"
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        # GetAuthorizationToken requires wildcard (AWS API design)
+        Resource = "*"
       },
       {
         Sid    = "AllowECRPull"
         Effect = "Allow"
+        # FIXED: Issue #7 - Scope to project ECR repository
         Action = [
-          "ecr:GetAuthorizationToken",
           "ecr:BatchGetImage",
           "ecr:GetDownloadUrlForLayer"
         ]
-        Resource = "*"
+        Resource = "arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/${var.project_name}*"
       }
     ]
   })

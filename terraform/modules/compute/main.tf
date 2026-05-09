@@ -308,8 +308,9 @@ resource "aws_iam_role_policy" "bastion_stop" {
 data "aws_iam_policy_document" "bastion_stop" {
   count = var.bastion_enabled ? 1 : 0
 
+  # FIXED: Issue #6 - Scope to bastion ASG only (was Resource: "*")
   statement {
-    sid    = "TerminateASGInstances"
+    sid    = "TerminateBastion"
     effect = "Allow"
 
     actions = [
@@ -317,17 +318,27 @@ data "aws_iam_policy_document" "bastion_stop" {
       "ec2:TerminateInstances"
     ]
 
-    resources = ["*"]
+    # Scope to bastion ASG and instances in bastion ASG
+    resources = [
+      "arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:autoScalingGroup:*:autoScalingGroupName/${var.project_name}-bastion-asg",
+      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:instance/*"
+    ]
 
     condition {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
       values   = [var.aws_account_id]
     }
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Name"
+      values   = ["${var.project_name}-bastion"]
+    }
   }
 
   statement {
-    sid    = "DescribeASG"
+    sid    = "DescribeBastion"
     effect = "Allow"
 
     actions = [
@@ -335,7 +346,14 @@ data "aws_iam_policy_document" "bastion_stop" {
       "ec2:DescribeInstances"
     ]
 
+    # Describe is read-only, but still scope to account and bastion context
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
   }
 }
 
