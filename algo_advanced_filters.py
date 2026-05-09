@@ -30,11 +30,14 @@ from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
 import os
+import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from algo_signals import SignalComputer
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

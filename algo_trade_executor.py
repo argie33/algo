@@ -15,6 +15,7 @@ from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
 import os
+import json
 import psycopg2
 import uuid
 from pathlib import Path
