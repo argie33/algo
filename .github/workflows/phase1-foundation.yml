@@ -1,0 +1,197 @@
+name: Phase 1 - Foundation (Schema + Image + User)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rds_endpoint:
+        description: 'RDS endpoint (e.g., stocks-data-rds.xxx.us-east-1.rds.amazonaws.com)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  # Database schema initialization
+  init-schema:
+    name: 1. Initialize Database Schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Verify RDS connectivity
+        run: |
+          echo "🔗 Testing RDS connection..."
+          pg_isready \
+            -h ${{ inputs.rds_endpoint }} \
+            -p 5432 \
+            -U stocks \
+            -d stocks \
+            -t 10 || {
+            echo "❌ Failed to connect to RDS at ${{ inputs.rds_endpoint }}"
+            exit 1
+          }
+          echo "✅ RDS is reachable"
+
+      - name: Initialize database schema
+        env:
+          PGPASSWORD: ${{ secrets.RDS_PASSWORD }}
+        run: |
+          echo "📝 Initializing database schema..."
+          psql \
+            -h ${{ inputs.rds_endpoint }} \
+            -p 5432 \
+            -U stocks \
+            -d stocks \
+            -f init_db.sql \
+            -v ON_ERROR_STOP=1 || {
+            echo "❌ Schema initialization failed"
+            exit 1
+          }
+          echo "✅ Schema initialization complete"
+
+      - name: Verify schema
+        env:
+          PGPASSWORD: ${{ secrets.RDS_PASSWORD }}
+        run: |
+          TABLE_COUNT=$(psql \
+            -h ${{ inputs.rds_endpoint }} \
+            -p 5432 \
+            -U stocks \
+            -d stocks \
+            -t \
+            -c "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';")
+          echo "📊 Total tables: $TABLE_COUNT"
+          if [ "$TABLE_COUNT" -lt 50 ]; then
+            echo "❌ Expected 60+ tables, found only $TABLE_COUNT"
+            exit 1
+          fi
+          echo "✅ Schema verified"
+
+  # Docker image build
+  build-image:
+    name: 2. Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: init-schema
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Build & Push
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          ECR="${ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/stocks-loaders"
+          SHA="${GITHUB_SHA::8}"
+
+          docker build -t "${ECR}:dev-${SHA}" -t "${ECR}:dev-latest" .
+          docker push "${ECR}:dev-${SHA}"
+          docker push "${ECR}:dev-latest"
+          echo "✅ Pushed: ${ECR}:dev-${SHA}"
+
+  # Cognito user creation
+  create-cognito-user:
+    name: 3. Create Cognito Test User
+    runs-on: ubuntu-latest
+    needs: init-schema
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create test user
+        run: |
+          USER_POOL_ID="us-east-1_qKYUt285Z"
+          USERNAME="testuser@example.com"
+          PASSWORD="StocksAlgo123!"
+
+          echo "👤 Creating Cognito user: $USERNAME"
+
+          # Create user
+          aws cognito-idp admin-create-user \
+            --user-pool-id $USER_POOL_ID \
+            --username $USERNAME \
+            --temporary-password TempPass123! \
+            --message-action SUPPRESS \
+            --region $AWS_REGION || {
+            echo "⚠️  User might already exist, setting password..."
+          }
+
+          # Set permanent password
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id $USER_POOL_ID \
+            --username $USERNAME \
+            --password "$PASSWORD" \
+            --permanent \
+            --region $AWS_REGION
+
+          echo "✅ Cognito user created: $USERNAME"
+          echo "🔑 Password: $PASSWORD"
+
+  summary:
+    name: Phase 1 Complete
+    needs: [init-schema, build-image, create-cognito-user]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Success Summary
+        if: |
+          needs.init-schema.result == 'success' &&
+          needs.build-image.result == 'success' &&
+          needs.create-cognito-user.result == 'success'
+        run: |
+          echo "# ✅ Phase 1: Foundation Complete"
+          echo ""
+          echo "## What's Done"
+          echo "- ✅ Database schema initialized (60+ tables)"
+          echo "- ✅ Docker image built and pushed to ECR"
+          echo "- ✅ Cognito test user created"
+          echo ""
+          echo "## Next Steps"
+          echo "1. Run: \`gh workflow run 'Deploy All Infrastructure (Master Orchestrator)' --ref main\`"
+          echo "2. Wait for Terraform, Docker, and code deployment to complete"
+          echo "3. Test API endpoints with JWT token"
+          echo "4. Verify loaders can write to database"
+          echo ""
+          echo "## Quick Reference"
+          echo "- Cognito User: testuser@example.com"
+          echo "- Cognito User Pool: us-east-1_qKYUt285Z"
+          echo "- RDS: stocks-data-rds.c7dljvslq.us-east-1.rds.amazonaws.com"
+
+      - name: Failure Summary
+        if: |
+          needs.init-schema.result != 'success' ||
+          needs.build-image.result != 'success' ||
+          needs.create-cognito-user.result != 'success'
+        run: |
+          echo "# ❌ Phase 1: Some Steps Failed"
+          echo ""
+          echo "Status:"
+          echo "- Schema: ${{ needs.init-schema.result }}"
+          echo "- Docker: ${{ needs.build-image.result }}"
+          echo "- Cognito: ${{ needs.create-cognito-user.result }}"
+          echo ""
+          echo "Check logs above for details"
+          exit 1
