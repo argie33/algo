@@ -5,17 +5,13 @@
  * Tabs: Markets / Setups / Positions / Trades / Workflow / Data / Config
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  Box, Card, CardContent, Grid, Typography, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Chip, LinearProgress, Alert, Button,
-  Tabs, Tab, Paper, Tooltip, Stack, Divider, IconButton, Collapse,
-} from '@mui/material';
-import {
-  TrendingUp, TrendingDown, CheckCircle, ErrorOutline, Warning, ExpandMore,
-  ExpandLess, FiberManualRecord, Bolt, ShieldOutlined, GpsFixed,
-} from '@mui/icons-material';
+  TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Zap, Shield,
+  ChevronDown, ChevronUp, RefreshCw, Target,
+} from 'lucide-react';
 import { api } from '../services/api';
+import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartTooltip, ResponsiveContainer, ReferenceLine, Cell,
@@ -24,376 +20,320 @@ import PerformanceTab from './components/PerformanceTab';
 import RiskTab from './components/RiskTab';
 
 // ============================================================================
-// THEME / STYLE TOKENS
+// THEME / COLOR UTILITIES
 // ============================================================================
-const C = {
-  bg: '#0e1116',
-  card: '#161b22',
-  cardAlt: '#1c232c',
-  border: '#30363d',
-  text: '#c9d1d9',
-  textDim: '#8b949e',
-  textBright: '#f0f6fc',
-  green: '#3fb950',
-  greenDark: '#238636',
-  red: '#f85149',
-  redDark: '#da3633',
-  yellow: '#d29922',
-  orange: '#fb950c',
-  blue: '#388bfd',
-  purple: '#a371f7',
+const TOOLTIP_STYLE = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-sm)',
+  fontSize: 'var(--t-xs)',
+  padding: 'var(--space-2) var(--space-3)',
 };
 
 const tierColor = (n) => ({
-  confirmed_uptrend: C.green, healthy_uptrend: '#56b97a',
-  pressure: C.yellow, caution: C.orange, correction: C.red,
-}[n] || C.textDim);
+  confirmed_uptrend: 'var(--success)',
+  healthy_uptrend: '#56b97a',
+  pressure: 'var(--amber)',
+  caution: 'var(--amber)',
+  correction: 'var(--danger)',
+}[n] || 'var(--text-muted)');
 
 const gradeColor = (g) => ({
-  'A+': C.green, 'A': C.greenDark, 'B': C.blue,
-  'C': C.yellow, 'D': C.orange, 'F': C.red,
-}[g] || C.textDim);
+  'A+': 'var(--success)',
+  'A': 'var(--success)',
+  'B': 'var(--brand)',
+  'C': 'var(--amber)',
+  'D': 'var(--amber)',
+  'F': 'var(--danger)',
+}[g] || 'var(--text-muted)');
 
 const statusBg = (s) => ({
-  ok: C.green, stale: C.orange, empty: C.red, error: C.red,
-}[s] || C.textDim);
+  ok: 'var(--success)',
+  stale: 'var(--amber)',
+  empty: 'var(--danger)',
+  error: 'var(--danger)',
+}[s] || 'var(--text-muted)');
 
 // Reusable styled card
 const SectionCard = ({ title, action, children, sx = {} }) => (
-  <Card sx={{ bgcolor: C.card, color: C.text, border: `1px solid ${C.border}`, ...sx }}>
+  <div className="card" style={{ marginBottom: 'var(--space-4)', ...sx }}>
     {title && (
-      <Box sx={{
-        px: 2, py: 1, borderBottom: `1px solid ${C.border}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        bgcolor: C.cardAlt,
-      }}>
-        <Typography variant="overline" sx={{ color: C.textBright, letterSpacing: 1, fontWeight: 600 }}>
-          {title}
-        </Typography>
-        {action}
-      </Box>
+      <div className="card-head">
+        <div>
+          <div className="card-title">{title}</div>
+        </div>
+        {action && <div className="card-actions">{action}</div>}
+      </div>
     )}
-    <CardContent sx={{ '&:last-child': { pb: 2 } }}>{children}</CardContent>
-  </Card>
+    <div className="card-body">{children}</div>
+  </div>
 );
 
 const Stat = ({ label, value, sub, color }) => (
-  <Box>
-    <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem',
-      letterSpacing: 1.2, fontWeight: 600 }}>{label}</Typography>
-    <Typography variant="h5" sx={{ color: color || C.textBright, fontFamily: 'monospace',
-      fontWeight: 600, lineHeight: 1.2 }}>{value}</Typography>
-    {sub && <Typography variant="caption" sx={{ color: C.textDim }}>{sub}</Typography>}
-  </Box>
+  <div>
+    <div className="t-2xs muted strong">{label}</div>
+    <div className="mono tnum" style={{ color: color || 'var(--text-2)', fontSize: 'var(--t-lg)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>{value}</div>
+    {sub && <div className="t-2xs muted" style={{ marginTop: 4 }}>{sub}</div>}
+  </div>
 );
 
 const FactorBar = ({ label, pts, max, detail, expanded, onToggle }) => {
   const pct = max > 0 ? (pts / max * 100) : 0;
-  const barColor = pct >= 70 ? C.green : pct >= 40 ? C.yellow : C.red;
+  const barColor = pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--amber)' : 'var(--danger)';
   return (
-    <Box sx={{ mb: 1.5, cursor: 'pointer' }} onClick={onToggle}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {onToggle && (expanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />)}
-          <Typography variant="caption" sx={{ color: C.text, fontSize: '0.75rem', fontWeight: 600 }}>
-            {label}
-          </Typography>
-        </Box>
-        <Typography variant="caption" sx={{ color: barColor, fontFamily: 'monospace', fontWeight: 700 }}>
-          {pts.toFixed(1)} / {max}
-        </Typography>
-      </Box>
-      <Box sx={{ width: '100%', height: 6, bgcolor: C.bg, borderRadius: 1, overflow: 'hidden' }}>
-        <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: barColor, transition: 'width 0.3s' }} />
-      </Box>
-      <Collapse in={expanded}>
-        <Box sx={{ mt: 0.5, pl: 2, fontFamily: 'monospace', fontSize: '0.7rem', color: C.textDim }}>
+    <div style={{ marginBottom: 12, cursor: 'pointer' }} onClick={onToggle}>
+      <div className="flex justify-between items-center" style={{ marginBottom: 4 }}>
+        <div className="flex items-center gap-2">
+          {onToggle && (expanded ? <ChevronUp size={14} className="muted" /> : <ChevronDown size={14} className="muted" />)}
+          <span className="t-xs strong">{label}</span>
+        </div>
+        <span className="mono tnum t-xs" style={{ color: barColor }}>{pts.toFixed(1)} / {max}</span>
+      </div>
+      <div className="bar">
+        <div className="bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+      </div>
+      {expanded && (
+        <div className="t-2xs muted mono" style={{ marginTop: 8, paddingLeft: 16 }}>
           {detail && Object.entries(detail).filter(([k]) => !['pts', 'max', 'score_factor'].includes(k))
             .map(([k, v]) => (
-              <Box key={k}>{k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</Box>
+              <div key={k}>{k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
             ))}
-        </Box>
-      </Collapse>
-    </Box>
+        </div>
+      )}
+    </div>
   );
 };
 
 // ============================================================================
 function AlgoTradingDashboard() {
-  const [data, setData] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [tab, setTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const fetchAll = async () => {
-    try {
-      setError(null);
-      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR, perfR, auditR, notifR, equityR, circuitR, dqR, funnelR] =
-        await Promise.all([
-          api.get('/algo/status').catch(() => null),
-          api.get('/algo/markets').catch(() => null),
-          api.get('/algo/swing-scores?limit=100').catch(() => null),
-          api.get('/algo/positions').catch(() => null),
-          api.get('/algo/trades?limit=200').catch(() => null),
-          api.get('/algo/config').catch(() => null),
-          api.get('/algo/data-status').catch(() => null),
-          api.get('/algo/exposure-policy').catch(() => null),
-          api.get('/algo/evaluate').catch(() => null),
-          api.get('/algo/patrol-log?limit=30&min_severity=info').catch(() => null),
-          api.get('/algo/performance').catch(() => null),
-          api.get('/algo/audit-log?limit=200').catch(() => null),
-          api.get('/algo/notifications').catch(() => null),
-          api.get('/algo/equity-curve?limit=365').catch(() => null),
-          api.get('/algo/circuit-breakers').catch(() => null),
-          api.get('/algo/data-quality').catch(() => null),
-          api.get('/algo/rejection-funnel').catch(() => null),
-        ]);
-      setData({
-        status: statusR?.data?.data,
-        markets: marketsR?.data?.data,
-        scores: scoresR?.data?.items || [],
-        positions: posR?.data?.items || [],
-        trades: tradesR?.data?.items || [],
-        config: configR?.data?.data,
-        dataStatus: dataR?.data?.data,
-        policy: policyR?.data?.data,
-        evaluated: evalR?.data?.data,
-        patrolLog: patrolR?.data?.items || [],
-        performance: perfR?.data?.data,
-        auditLog: auditR?.data?.items || [],
-        notifications: notifR?.data?.items || [],
-        equityCurve: equityR?.data?.items || [],
-        circuitBreakers: circuitR?.data?.data,
-        dataQuality: dqR?.data,
-        rejectionFunnel: funnelR?.data,
-      });
-      setLoading(false);
-    } catch (err) {
-      setError(err.message || 'Failed to fetch algo data');
-      setLoading(false);
-    }
+  const qOpts = { refetchInterval: autoRefresh ? 30000 : false };
+  const adminOpts = { ...qOpts, retry: false }; // don't retry on 401/403
+
+  // One hook per endpoint — React Query deduplicates and caches
+  const { data: status,      isLoading: loading, refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
+  const { data: markets,                          refetch: r1  } = useApiQuery(['algo','markets'],       () => api.get('/api/algo/markets'), qOpts);
+  const { items: scores,                          refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
+  const { items: positions,                       refetch: r3  } = useApiPaginatedQuery(['algo','positions'], () => api.get('/api/algo/positions'), qOpts);
+  const { items: trades,                          refetch: r4  } = useApiPaginatedQuery(['algo','trades'],    () => api.get('/api/algo/trades?limit=200'), qOpts);
+  const { data: config,                           refetch: r5  } = useApiQuery(['algo','config'],        () => api.get('/api/algo/config'), qOpts);
+  const { data: dataStatus,                       refetch: r6  } = useApiQuery(['algo','data-status'],   () => api.get('/api/algo/data-status'), qOpts);
+  const { data: policy,                           refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
+  const { data: evaluated,                        refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
+  const { items: patrolLog,                       refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
+  const { data: performance,                      refetch: r10 } = useApiQuery(['algo','performance'],   () => api.get('/api/algo/performance'), qOpts);
+  const { items: auditLog,                        refetch: r11 } = useApiPaginatedQuery(['algo','audit'],     () => api.get('/api/algo/audit-log?limit=200'), adminOpts);
+  const { items: notifications,                   refetch: r12 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
+  const { items: equityCurve,                     refetch: r13 } = useApiPaginatedQuery(['algo','equity'],    () => api.get('/api/algo/equity-curve?limit=365'), qOpts);
+  const { data: circuitBreakers,                  refetch: r14 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,                      refetch: r15 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
+  const { data: rejectionFunnel,                  refetch: r16 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
+
+  const refetchAll = useCallback(() => {
+    [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
+  }, [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16]);
+
+  // Stable data shape consumed by sub-components
+  const data = {
+    status,
+    scores:        scores        || [],
+    positions:     positions     || [],
+    trades:        trades        || [],
+    config,
+    dataStatus,
+    policy,
+    evaluated,
+    patrolLog:     patrolLog     || [],
+    performance,
+    auditLog:      auditLog      || [],
+    notifications: notifications || [],
+    equityCurve:   equityCurve   || [],
+    circuitBreakers,
+    dataQuality,
+    rejectionFunnel,
   };
 
-  useEffect(() => {
-    fetchAll();
-    if (autoRefresh) {
-      const id = setInterval(fetchAll, 30000);
-      return () => clearInterval(id);
-    }
-  }, [autoRefresh]);
+  const portfolio = status?.portfolio || {};
+  const market = markets;
 
-  if (loading) {
+  if (loading && !status) {
     return (
-      <Box sx={{ bgcolor: C.bg, minHeight: '100vh', p: 3 }}>
-        <LinearProgress sx={{ bgcolor: C.cardAlt }} />
-      </Box>
+      <div className="main-content">
+        <div className="empty"><div className="empty-title">Loading…</div></div>
+      </div>
     );
   }
 
-  const portfolio = data.status?.portfolio || {};
-  const market = data.markets;
-
   return (
-    <Box sx={{ bgcolor: C.bg, minHeight: '100vh', color: C.text, p: 2 }}>
+    <div className="main-content">
       {/* HEADER */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Box>
-          <Typography variant="h4" sx={{ color: C.textBright, fontWeight: 700, letterSpacing: -0.5 }}>
-            SWING TRADING ALGO
-          </Typography>
-          <Typography variant="caption" sx={{ color: C.textDim, fontFamily: 'monospace' }}>
-            Pine signals × multi-factor scoring × composite market exposure × hedge-fund discipline
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1}>
-          <Chip size="small" label={data.dataStatus?.ready_to_trade ? 'DATA READY' : 'DATA STALE'}
-            sx={{ bgcolor: data.dataStatus?.ready_to_trade ? C.greenDark : C.redDark, color: 'white' }} />
-          <Button variant="contained" size="small" onClick={fetchAll}
-            sx={{ bgcolor: C.blue }}>Refresh</Button>
-          <Button variant={autoRefresh ? 'contained' : 'outlined'} size="small"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            sx={{ color: autoRefresh ? 'white' : C.text, borderColor: C.border }}>
+      <div className="page-head">
+        <div>
+          <div className="page-head-title">Swing Trading Algo</div>
+          <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
+        </div>
+        <div className="page-head-actions">
+          <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
+            {data.dataStatus?.ready_to_trade ? 'DATA READY' : 'DATA STALE'}
+          </span>
+          <button className="btn btn-outline btn-sm" onClick={refetchAll}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+          <button className={`btn ${autoRefresh ? 'btn-primary' : 'btn-outline'} btn-sm`}
+            onClick={() => setAutoRefresh(!autoRefresh)}>
             {autoRefresh ? 'AUTO 30s' : 'MANUAL'}
-          </Button>
-        </Stack>
-      </Box>
-
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          </button>
+        </div>
+      </div>
 
       {/* TOP STRIP — 4 KPI CARDS */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{
-            bgcolor: tierColor(market?.active_tier?.name),
-            color: 'white', border: 'none', height: '100%',
-          }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Box>
-                  <Typography variant="overline" sx={{ opacity: 0.85, letterSpacing: 1.5 }}>
-                    MARKET EXPOSURE
-                  </Typography>
-                  <Typography variant="h2" sx={{ fontWeight: 800, lineHeight: 1, fontFamily: 'monospace' }}>
-                    {market?.current?.exposure_pct ?? '--'}<span style={{ fontSize: '1.5rem' }}>%</span>
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
-                    {market?.active_tier?.name?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>
-                    {market?.active_tier?.description}
-                  </Typography>
-                </Box>
-                <ShieldOutlined sx={{ fontSize: 36, opacity: 0.7 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SectionCard sx={{ height: '100%' }}>
-            <Stat label="PORTFOLIO VALUE"
+      <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card" style={{ background: tierColor(market?.active_tier?.name), color: 'white', border: 'none' }}>
+          <div style={{ padding: 'var(--space-4)' }}>
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="eyebrow" style={{ color: 'rgba(255,255,255,0.85)', opacity: 0.85 }}>Market Exposure</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-bold)', lineHeight: 1, marginTop: 8 }}>
+                  {market?.current?.exposure_pct ?? '--'}<span style={{ fontSize: 'var(--t-lg)', marginLeft: 4 }}>%</span>
+                </div>
+                <div style={{ fontWeight: 'var(--w-semibold)', marginTop: 8, opacity: 0.95 }}>
+                  {market?.active_tier?.name?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
+                </div>
+                <div className="t-xs" style={{ opacity: 0.85, marginTop: 4 }}>
+                  {market?.active_tier?.description}
+                </div>
+              </div>
+              <Shield size={28} style={{ opacity: 0.7 }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-body">
+            <Stat label="Portfolio Value"
               value={`$${(portfolio.total_value || 0).toLocaleString()}`}
               sub={
-                <Box component="span" sx={{
-                  color: portfolio.unrealized_pnl_pct >= 0 ? C.green : C.red,
-                  fontWeight: 600, fontFamily: 'monospace',
+                <span style={{
+                  color: portfolio.unrealized_pnl_pct >= 0 ? 'var(--success)' : 'var(--danger)',
+                  fontWeight: 'var(--w-semibold)',
                 }}>
                   {portfolio.unrealized_pnl_pct >= 0 ? '+' : ''}
                   {portfolio.unrealized_pnl_pct?.toFixed(2)}% unrealized
-                </Box>
+                </span>
               }
             />
-            <Divider sx={{ my: 1, borderColor: C.border }} />
-            <Stack direction="row" spacing={2}>
-              <Stat label="DAILY" value={
-                <span style={{ color: portfolio.daily_return_pct >= 0 ? C.green : C.red }}>
+            <div style={{ height: 1, background: 'var(--border)', margin: 'var(--space-3) 0' }} />
+            <div className="flex gap-4">
+              <Stat label="Daily" value={
+                <span style={{ color: portfolio.daily_return_pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                   {portfolio.daily_return_pct >= 0 ? '+' : ''}{portfolio.daily_return_pct?.toFixed(2)}%
                 </span>
               } />
-              <Stat label="POSITIONS" value={`${data.positions?.length || 0}/${data.config?.max_positions?.value || 6}`} />
-            </Stack>
-          </SectionCard>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SectionCard sx={{ height: '100%' }}>
-            <Typography variant="overline" sx={{ color: C.textDim, letterSpacing: 1.2, fontWeight: 600 }}>
-              ACTIVE TIER POLICY
-            </Typography>
-            <Box sx={{ mt: 1 }}>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Risk multiplier</Typography>
-                <Typography variant="caption" sx={{ color: C.textBright, fontFamily: 'monospace' }}>
-                  {market?.active_tier?.risk_mult ?? '--'}x
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Max new / day</Typography>
-                <Typography variant="caption" sx={{ color: C.textBright, fontFamily: 'monospace' }}>
-                  {market?.active_tier?.max_new ?? '--'}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Min grade</Typography>
-                <Chip size="small" label={market?.active_tier?.min_grade || '--'}
-                  sx={{ bgcolor: gradeColor(market?.active_tier?.min_grade), color: 'white',
-                    height: 18, fontSize: '0.65rem', fontWeight: 700 }} />
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Entries</Typography>
-                <Typography variant="caption" sx={{
-                  color: market?.active_tier?.halt ? C.red : C.green,
-                  fontWeight: 700, fontFamily: 'monospace',
-                }}>
+              <Stat label="Positions" value={`${data.positions?.length || 0}/${data.config?.max_positions?.value || 6}`} />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-body">
+            <div className="eyebrow">Active Tier Policy</div>
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Risk multiplier</span>
+                <span className="mono tnum t-xs">{market?.active_tier?.risk_mult ?? '--'}x</span>
+              </div>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Max new / day</span>
+                <span className="mono tnum t-xs">{market?.active_tier?.max_new ?? '--'}</span>
+              </div>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Min grade</span>
+                <span className={`badge ${market?.active_tier?.min_grade?.startsWith('A') ? 'badge-success' : market?.active_tier?.min_grade === 'B' ? 'badge-cyan' : market?.active_tier?.min_grade === 'C' ? 'badge-amber' : 'badge'}`}
+                  style={{ fontSize: 'var(--t-2xs)' }}>
+                  {market?.active_tier?.min_grade || '--'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="t-xs muted">Entries</span>
+                <span className={`mono tnum t-xs ${market?.active_tier?.halt ? 'down' : 'up'}`}>
                   {market?.active_tier?.halt ? 'HALTED' : 'ALLOWED'}
-                </Typography>
-              </Stack>
-            </Box>
-          </SectionCard>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <SectionCard sx={{ height: '100%' }}>
-            <Typography variant="overline" sx={{ color: C.textDim, letterSpacing: 1.2, fontWeight: 600 }}>
-              MARKET INTERNALS
-            </Typography>
-            <Box sx={{ mt: 1 }}>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Distribution days (4w)</Typography>
-                <Typography variant="caption" sx={{
-                  color: market?.current?.distribution_days >= 5 ? C.red :
-                    market?.current?.distribution_days >= 4 ? C.yellow : C.green,
-                  fontFamily: 'monospace', fontWeight: 700,
-                }}>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-body">
+            <div className="eyebrow">Market Internals</div>
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Distribution days (4w)</span>
+                <span className={`mono tnum t-xs ${
+                  market?.current?.distribution_days >= 5 ? 'down' :
+                  market?.current?.distribution_days >= 4 ? '' : 'up'
+                }`}>
                   {market?.current?.distribution_days ?? '--'}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Trend</Typography>
-                <Typography variant="caption" sx={{ color: C.text, fontFamily: 'monospace' }}>
-                  {market?.market_health?.market_trend || '--'}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>Stage</Typography>
-                <Typography variant="caption" sx={{ color: C.text, fontFamily: 'monospace' }}>
-                  {market?.market_health?.market_stage || '--'}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim }}>VIX</Typography>
-                <Typography variant="caption" sx={{ color: C.text, fontFamily: 'monospace' }}>
-                  {market?.market_health?.vix_level ?? '--'}
-                </Typography>
-              </Stack>
-            </Box>
-          </SectionCard>
-        </Grid>
-      </Grid>
+                </span>
+              </div>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Trend</span>
+                <span className="mono tnum t-xs">{market?.market_health?.market_trend || '--'}</span>
+              </div>
+              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="t-xs muted">Stage</span>
+                <span className="mono tnum t-xs">{market?.market_health?.market_stage || '--'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="t-xs muted">VIX</span>
+                <span className="mono tnum t-xs">{market?.market_health?.vix_level ?? '--'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* HALT REASONS BANNER */}
       {market?.current?.halt_reasons && (
-        <Alert severity="warning" sx={{
-          mb: 2, bgcolor: '#3a2a00', color: '#fed7aa', border: `1px solid ${C.orange}`,
-          '& .MuiAlert-icon': { color: C.orange },
-        }}>
-          <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
-            ACTIVE EXPOSURE VETOES: {market.current.halt_reasons}
-          </Typography>
-        </Alert>
+        <div className="alert alert-warn" style={{ marginBottom: 'var(--space-4)' }}>
+          <span className="mono tnum strong">ACTIVE EXPOSURE VETOES: {market.current.halt_reasons}</span>
+        </div>
       )}
 
       {/* TABS */}
-      <Paper sx={{ bgcolor: C.card, border: `1px solid ${C.border}`, color: C.text }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)}
-          variant="scrollable"
-          sx={{
-            borderBottom: `1px solid ${C.border}`,
-            '& .MuiTab-root': { color: C.textDim, fontWeight: 600, letterSpacing: 0.8 },
-            '& .Mui-selected': { color: `${C.textBright} !important` },
-            '& .MuiTabs-indicator': { backgroundColor: C.blue },
-          }}>
-          <Tab label="MARKETS" />
-          <Tab label={`SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`} />
-          <Tab label={`POSITIONS (${data.positions?.length || 0})`} />
-          <Tab label={`TRADES (${data.trades?.length || 0})`} />
-          <Tab label="PERFORMANCE" />
-          <Tab label={`RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`} />
-          <Tab label="AUDIT" />
-          <Tab label="PIPELINE" />
-          <Tab label="DATA HEALTH" />
-          <Tab label="CONFIG" />
-        </Tabs>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          {['MARKETS', `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, `POSITIONS (${data.positions?.length || 0})`, `TRADES (${data.trades?.length || 0})`, 'PERFORMANCE', `RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`, 'AUDIT', 'PIPELINE', 'DATA HEALTH', 'CONFIG'].map((label, i) => (
+            <button key={i} type="button" onClick={() => setTab(i)} style={{
+              background: 'transparent',
+              border: 'none',
+              borderBottom: `2px solid ${tab === i ? 'var(--brand)' : 'transparent'}`,
+              color: tab === i ? 'var(--brand)' : 'var(--text-muted)',
+              fontWeight: tab === i ? 'var(--w-semibold)' : 'var(--w-medium)',
+              fontSize: 'var(--t-sm)',
+              padding: 'var(--space-3) var(--space-4)',
+              cursor: 'pointer',
+              marginBottom: -1,
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {tab === 0 && <MarketsTab markets={market} />}
         {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} />}
         {tab === 2 && <PositionsTab positions={data.positions} />}
         {tab === 3 && <TradesTab trades={data.trades} />}
-        {tab === 4 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} C={C} SectionCard={SectionCard} />}
-        {tab === 5 && <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} C={C} SectionCard={SectionCard} />}
+        {tab === 4 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} />}
+        {tab === 5 && <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} />}
         {tab === 6 && <AuditTab auditLog={data.auditLog} />}
         {tab === 7 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} />}
         {tab === 8 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
         {tab === 9 && <ConfigTab config={data.config} />}
-      </Paper>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -406,11 +346,9 @@ function MarketsTab({ markets }) {
 
   if (!markets) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>
-          No markets data — run algo_market_exposure.py
-        </Alert>
-      </Box>
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="alert alert-info">No markets data — run algo_market_exposure.py</div>
+      </div>
     );
   }
 
@@ -428,169 +366,138 @@ function MarketsTab({ markets }) {
   ];
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Grid container spacing={2}>
+    <div style={{ padding: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
         {/* 9-FACTOR EXPOSURE BREAKDOWN */}
-        <Grid item xs={12} lg={5}>
-          <SectionCard title="9-Factor Exposure Composite" action={
-            <Stack direction="row" spacing={1}>
-              <Chip size="small" label={`raw ${markets.current?.raw_score}`}
-                sx={{ bgcolor: C.cardAlt, color: C.textDim, fontFamily: 'monospace' }} />
-              <Chip size="small" label={`final ${markets.current?.exposure_pct}%`}
-                sx={{ bgcolor: tierColor(markets.active_tier?.name), color: 'white', fontWeight: 700 }} />
-            </Stack>
-          }>
-            {factorList.map(([key, label, max]) => (
-              <FactorBar
-                key={key}
-                label={label}
-                pts={parseFloat(factors[key]?.pts || 0)}
-                max={max}
-                detail={factors[key]}
-                expanded={expanded[key]}
-                onToggle={() => toggle(key)}
-              />
-            ))}
-          </SectionCard>
-        </Grid>
+        <SectionCard title="9-Factor Exposure Composite" action={
+          <div className="flex gap-2">
+            <span className="badge mono tnum">{markets.current?.raw_score}</span>
+            <span className="badge mono tnum" style={{ background: tierColor(markets.active_tier?.name), color: 'white' }}>
+              {markets.current?.exposure_pct}%
+            </span>
+          </div>
+        }>
+          {factorList.map(([key, label, max]) => (
+            <FactorBar
+              key={key}
+              label={label}
+              pts={parseFloat(factors[key]?.pts || 0)}
+              max={max}
+              detail={factors[key]}
+              expanded={expanded[key]}
+              onToggle={() => toggle(key)}
+            />
+          ))}
+        </SectionCard>
 
         {/* SECTOR RANKING */}
-        <Grid item xs={12} lg={7}>
-          <SectionCard title="Sector Strength (today)">
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>#</TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>SECTOR</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>MOMENTUM</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>1W AGO</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>4W AGO</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>12W</TableCell>
-                    <TableCell align="center" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>TREND</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(markets.sectors || []).map(s => {
-                    const w1Delta = s.rank_1w_ago ? s.rank_1w_ago - s.rank : 0;
-                    const w4Delta = s.rank_4w_ago ? s.rank_4w_ago - s.rank : 0;
-                    return (
-                      <TableRow key={s.name}>
-                        <TableCell sx={{ color: C.textBright, borderColor: C.border, fontFamily: 'monospace', fontWeight: 700 }}>
-                          #{s.rank}
-                        </TableCell>
-                        <TableCell sx={{ color: C.text, borderColor: C.border, fontWeight: 600 }}>{s.name}</TableCell>
-                        <TableCell align="right" sx={{
-                          color: s.momentum >= 0 ? C.green : C.red, borderColor: C.border, fontFamily: 'monospace',
-                        }}>
-                          {s.momentum >= 0 ? '+' : ''}{s.momentum?.toFixed(2)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.rank_1w_ago || '-'}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.rank_4w_ago || '-'}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.rank_12w_ago || '-'}
-                        </TableCell>
-                        <TableCell align="center" sx={{ borderColor: C.border }}>
-                          {w4Delta > 1 ? <TrendingUp sx={{ color: C.green, fontSize: 18 }} /> :
-                            w4Delta < -1 ? <TrendingDown sx={{ color: C.red, fontSize: 18 }} /> :
-                            <FiberManualRecord sx={{ color: C.textDim, fontSize: 10 }} />}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </SectionCard>
-        </Grid>
+        <SectionCard title="Sector Strength (Today)">
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Sector</th>
+                  <th className="num">Momentum</th>
+                  <th className="num">1W Ago</th>
+                  <th className="num">4W Ago</th>
+                  <th className="num">12W</th>
+                  <th className="num">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(markets.sectors || []).map(s => {
+                  const w1Delta = s.rank_1w_ago ? s.rank_1w_ago - s.rank : 0;
+                  const w4Delta = s.rank_4w_ago ? s.rank_4w_ago - s.rank : 0;
+                  return (
+                    <tr key={s.name}>
+                      <td className="mono tnum strong">#{s.rank}</td>
+                      <td className="strong">{s.name}</td>
+                      <td className={`num mono tnum ${s.momentum >= 0 ? 'up' : 'down'}`}>
+                        {s.momentum >= 0 ? '+' : ''}{s.momentum?.toFixed(2)}
+                      </td>
+                      <td className="num mono tnum muted">{s.rank_1w_ago || '—'}</td>
+                      <td className="num mono tnum muted">{s.rank_4w_ago || '—'}</td>
+                      <td className="num mono tnum muted">{s.rank_12w_ago || '—'}</td>
+                      <td className="num">
+                        {w4Delta > 1 ? <TrendingUp size={16} className="up" style={{ display: 'inline' }} /> :
+                          w4Delta < -1 ? <TrendingDown size={16} className="down" style={{ display: 'inline' }} /> :
+                          <span className="muted">•</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      </div>
 
+      <div className="grid grid-2" style={{ gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
         {/* AAII SENTIMENT */}
-        <Grid item xs={12} lg={6}>
-          <SectionCard title="AAII Investor Sentiment (contrarian indicator)">
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>WEEK</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>BULL %</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>BEAR %</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>NEUT %</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>SPREAD</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(markets.sentiment || []).slice(0, 10).map(s => {
-                    const sp = (s.bullish || 0) - (s.bearish || 0);
-                    return (
-                      <TableRow key={s.date}>
-                        <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>{s.date}</TableCell>
-                        <TableCell align="right" sx={{ color: C.green, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.bullish?.toFixed(1)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: C.red, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.bearish?.toFixed(1)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontFamily: 'monospace' }}>
-                          {s.neutral?.toFixed(1)}
-                        </TableCell>
-                        <TableCell align="right" sx={{
-                          color: sp >= 0 ? C.green : C.red, borderColor: C.border,
-                          fontFamily: 'monospace', fontWeight: 700,
-                        }}>
-                          {sp >= 0 ? '+' : ''}{sp.toFixed(1)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </SectionCard>
-        </Grid>
+        <SectionCard title="AAII Investor Sentiment (Contrarian Indicator)">
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th className="num">Bull %</th>
+                  <th className="num">Bear %</th>
+                  <th className="num">Neut %</th>
+                  <th className="num">Spread</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(markets.sentiment || []).slice(0, 10).map(s => {
+                  const sp = (s.bullish || 0) - (s.bearish || 0);
+                  return (
+                    <tr key={s.date}>
+                      <td className="mono tnum">{s.date}</td>
+                      <td className="num mono tnum up">{s.bullish?.toFixed(1)}</td>
+                      <td className="num mono tnum down">{s.bearish?.toFixed(1)}</td>
+                      <td className="num mono tnum muted">{s.neutral?.toFixed(1)}</td>
+                      <td className={`num mono tnum ${sp >= 0 ? 'up' : 'down'}`}>
+                        {sp >= 0 ? '+' : ''}{sp.toFixed(1)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
 
         {/* HISTORY */}
-        <Grid item xs={12} lg={6}>
-          <SectionCard title={`Exposure History (${(markets.history || []).length} days)`}>
-            <Box sx={{ maxHeight: 280, overflowY: 'auto' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>DATE</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>EXPOSURE</TableCell>
-                    <TableCell align="right" sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>DD</TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>REGIME</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {[...(markets.history || [])].reverse().slice(0, 30).map(h => (
-                    <TableRow key={h.date}>
-                      <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                        {h.date}
-                      </TableCell>
-                      <TableCell align="right" sx={{
-                        color: tierColor(h.regime), fontWeight: 700, fontFamily: 'monospace', borderColor: C.border,
-                      }}>
-                        {h.exposure_pct?.toFixed(0)}%
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>
-                        {h.distribution_days || 0}
-                      </TableCell>
-                      <TableCell sx={{ color: tierColor(h.regime), fontSize: '0.7rem', borderColor: C.border, fontFamily: 'monospace' }}>
-                        {h.regime}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          </SectionCard>
-        </Grid>
-      </Grid>
-    </Box>
+        <SectionCard title={`Exposure History (${(markets.history || []).length} days)`}>
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th className="num">Exposure</th>
+                  <th className="num">DD</th>
+                  <th>Regime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...(markets.history || [])].reverse().slice(0, 30).map(h => (
+                  <tr key={h.date}>
+                    <td className="mono tnum">{h.date}</td>
+                    <td className="num mono tnum strong" style={{ color: tierColor(h.regime) }}>
+                      {h.exposure_pct?.toFixed(0)}%
+                    </td>
+                    <td className="num mono tnum">{h.distribution_days || 0}</td>
+                    <td className="mono tnum" style={{ color: tierColor(h.regime), fontSize: 'var(--t-xs)' }}>
+                      {h.regime}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      </div>
+    </div>
   );
 }
 
@@ -603,45 +510,40 @@ function SetupsTab({ scores, evaluated }) {
   const blocked = (scores || []).filter(s => !s.pass_gates);
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Stat label="RAW BUY SIGNALS" value={evaluated?.total_buy_signals || 0} />
-        <Stat label="PASSING SCORE" value={passing.length} color={C.green} />
-        <Stat label="BLOCKED" value={blocked.length} color={C.orange} />
-        <Stat label="LATEST DATE" value={scores?.[0]?.eval_date || '--'} />
-      </Box>
+    <div style={{ padding: 'var(--space-4)' }}>
+      <div className="flex gap-4 flex-wrap" style={{ marginBottom: 'var(--space-4)' }}>
+        <Stat label="Raw Buy Signals" value={evaluated?.total_buy_signals || 0} />
+        <Stat label="Passing Score" value={passing.length} color="var(--success)" />
+        <Stat label="Blocked" value={blocked.length} color="var(--amber)" />
+        <Stat label="Latest Date" value={scores?.[0]?.eval_date || '—'} />
+      </div>
 
-      <Typography variant="caption" sx={{ color: C.textDim, fontFamily: 'monospace', display: 'block', mb: 2 }}>
-        weights: 25% setup · 20% trend · 20% momentum · 12% volume · 10% fundamentals · 8% sector · 5% multi-tf
-      </Typography>
+      <div className="t-xs mono muted" style={{ marginBottom: 'var(--space-4)', display: 'block' }}>
+        Weights: 25% setup · 20% trend · 20% momentum · 12% volume · 10% fundamentals · 8% sector · 5% multi-tf
+      </div>
 
       <SectionCard title={`Top Setups (${passing.length})`}>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {['SYM', 'GRADE', 'SCORE', 'SETUP', 'TREND', 'MOM', 'VOL', 'FUND', 'SEC', 'MTF', 'SECTOR', 'INDUSTRY'].map(h => (
-                  <TableCell key={h} sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700 }}>
-                    {h}
-                  </TableCell>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                {['Sym', 'Grade', 'Score', 'Setup', 'Trend', 'Mom', 'Vol', 'Fund', 'Sec', 'MTF', 'Sector', 'Industry'].map(h => (
+                  <th key={h} style={{ fontSize: 'var(--t-2xs)', letterSpacing: 0.8 }}>{h}</th>
                 ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
+              </tr>
+            </thead>
+            <tbody>
               {passing.map(s => (
                 <React.Fragment key={s.symbol}>
-                  <TableRow hover sx={{ cursor: 'pointer' }}
-                    onClick={() => setExpandedRow(expandedRow === s.symbol ? null : s.symbol)}>
-                    <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
-                      {s.symbol}
-                    </TableCell>
-                    <TableCell sx={{ borderColor: C.border }}>
-                      <Chip size="small" label={s.grade}
-                        sx={{ bgcolor: gradeColor(s.grade), color: 'white', fontWeight: 700, height: 20, fontSize: '0.7rem' }} />
-                    </TableCell>
-                    <TableCell sx={{ color: C.textBright, fontFamily: 'monospace', fontWeight: 700, borderColor: C.border }}>
-                      {s.swing_score.toFixed(1)}
-                    </TableCell>
+                  <tr onClick={() => setExpandedRow(expandedRow === s.symbol ? null : s.symbol)} style={{ cursor: 'pointer' }}>
+                    <td className="strong mono">{s.symbol}</td>
+                    <td>
+                      <span className={`badge ${s.grade?.startsWith('A') ? 'badge-success' : s.grade === 'B' ? 'badge-cyan' : s.grade === 'C' ? 'badge-amber' : 'badge'}`}
+                        style={{ fontSize: 'var(--t-2xs)' }}>
+                        {s.grade}
+                      </span>
+                    </td>
+                    <td className="num strong mono">{s.swing_score.toFixed(1)}</td>
                     <ScoreCell value={s.components.setup} max={25} />
                     <ScoreCell value={s.components.trend} max={20} />
                     <ScoreCell value={s.components.momentum} max={20} />
@@ -649,62 +551,58 @@ function SetupsTab({ scores, evaluated }) {
                     <ScoreCell value={s.components.fundamentals} max={10} />
                     <ScoreCell value={s.components.sector} max={8} />
                     <ScoreCell value={s.components.multi_tf} max={5} />
-                    <TableCell sx={{ color: C.text, borderColor: C.border, fontSize: '0.75rem' }}>{s.sector}</TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>{s.industry}</TableCell>
-                  </TableRow>
+                    <td className="t-xs">{s.sector}</td>
+                    <td className="t-2xs muted">{s.industry}</td>
+                  </tr>
                   {expandedRow === s.symbol && (
-                    <TableRow sx={{ bgcolor: C.bg }}>
-                      <TableCell colSpan={12} sx={{ borderColor: C.border, p: 2 }}>
+                    <tr style={{ background: 'var(--bg)' }}>
+                      <td colSpan={12} style={{ padding: 'var(--space-4)', borderColor: 'var(--border)' }}>
                         <ScoreDetailExpanded details={s.details} symbol={s.symbol} />
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )}
                 </React.Fragment>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
       </SectionCard>
 
       {blocked.length > 0 && (
-        <Box sx={{ mt: 2 }}>
-          <SectionCard title={`Blocked Candidates (${blocked.length}) — failed hard gates`}>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>SYMBOL</TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>FAIL REASON</TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.7rem' }}>SECTOR</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {blocked.slice(0, 30).map(s => (
-                    <TableRow key={s.symbol}>
-                      <TableCell sx={{ color: C.text, fontWeight: 600, borderColor: C.border, fontFamily: 'monospace' }}>{s.symbol}</TableCell>
-                      <TableCell sx={{ color: C.orange, borderColor: C.border, fontSize: '0.75rem' }}>{s.fail_reason}</TableCell>
-                      <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.75rem' }}>{s.sector}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </SectionCard>
-        </Box>
+        <SectionCard title={`Blocked Candidates (${blocked.length}) — Failed Hard Gates`} style={{ marginTop: 'var(--space-4)' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Fail Reason</th>
+                  <th>Sector</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocked.slice(0, 30).map(s => (
+                  <tr key={s.symbol}>
+                    <td className="strong mono">{s.symbol}</td>
+                    <td className="t-xs" style={{ color: 'var(--amber)' }}>{s.fail_reason}</td>
+                    <td className="t-xs muted">{s.sector}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
       )}
-    </Box>
+    </div>
   );
 }
 
 const ScoreCell = ({ value, max }) => {
   const pct = max > 0 ? (value / max) : 0;
-  const color = pct >= 0.7 ? C.green : pct >= 0.4 ? C.yellow : C.red;
+  const color = pct >= 0.7 ? 'var(--success)' : pct >= 0.4 ? 'var(--amber)' : 'var(--danger)';
   return (
-    <TableCell align="right" sx={{
-      color: color, fontFamily: 'monospace', borderColor: C.border, fontSize: '0.8rem',
-    }}>
+    <td className="num mono tnum" style={{ color, fontSize: 'var(--t-xs)' }}>
       {value.toFixed(1)}
-    </TableCell>
+    </td>
   );
 };
 
@@ -712,23 +610,23 @@ const ScoreDetailExpanded = ({ details, symbol }) => {
   if (!details) return null;
   const ent = Object.entries(details);
   return (
-    <Grid container spacing={1}>
+    <div className="grid grid-2" style={{ gap: 'var(--space-4)' }}>
       {ent.map(([key, info]) => (
-        <Grid item xs={12} md={6} key={key}>
-          <Typography variant="caption" sx={{ color: C.blue, fontFamily: 'monospace', fontWeight: 700, fontSize: '0.7rem' }}>
-            {key.toUpperCase()}: {info?.pts?.toFixed?.(1) ?? '-'} / {info?.max ?? '-'}
-          </Typography>
+        <div key={key}>
+          <div className="t-xs mono strong" style={{ color: 'var(--brand)' }}>
+            {key.toUpperCase()}: {info?.pts?.toFixed?.(1) ?? '—'} / {info?.max ?? '—'}
+          </div>
           {info?.detail && (
-            <Box sx={{ pl: 1, fontSize: '0.7rem', color: C.textDim, fontFamily: 'monospace' }}>
+            <div className="t-2xs muted mono" style={{ marginTop: 4 }}>
               {Object.entries(info.detail).filter(([k]) => !['pts', 'max'].includes(k))
                 .map(([k, v]) => (
                   <div key={k}>{k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
                 ))}
-            </Box>
+            </div>
           )}
-        </Grid>
+        </div>
       ))}
-    </Grid>
+    </div>
   );
 };
 
@@ -737,56 +635,63 @@ const ScoreDetailExpanded = ({ details, symbol }) => {
 // ============================================================================
 function PositionsTab({ positions }) {
   if (!positions || positions.length === 0)
-    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>No active positions</Alert></Box>;
+    return (
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="alert alert-info">No active positions</div>
+      </div>
+    );
   return (
-    <Box sx={{ p: 2 }}>
+    <div style={{ padding: 'var(--space-4)' }}>
       <SectionCard title="Active Positions">
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {['SYMBOL', 'QTY', 'ENTRY', 'CURRENT', 'STOP', 'VALUE', 'P&L $', 'P&L %', 'DAYS', 'TARGETS', 'STAGE'].map(h => (
-                  <TableCell key={h} align={h === 'SYMBOL' ? 'left' : ['QTY', 'DAYS', 'TARGETS'].includes(h) ? 'center' : 'right'}
-                    sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700 }}>
-                    {h}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th className="num">Qty</th>
+                <th className="num">Entry</th>
+                <th className="num">Current</th>
+                <th className="num">Stop</th>
+                <th className="num">Value</th>
+                <th className="num">P&L $</th>
+                <th className="num">P&L %</th>
+                <th className="num">Days</th>
+                <th className="num">Targets</th>
+                <th>Stage</th>
+              </tr>
+            </thead>
+            <tbody>
               {positions.map(p => {
-                const pnlColor = p.unrealized_pnl >= 0 ? C.green : C.red;
+                const pnlClass = p.unrealized_pnl >= 0 ? 'up' : 'down';
                 return (
-                  <TableRow key={p.position_id}>
-                    <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
-                      {p.symbol}
-                    </TableCell>
-                    <TableCell align="center" sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>{p.quantity}</TableCell>
-                    <TableCell align="right" sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>${p.avg_entry_price?.toFixed(2)}</TableCell>
-                    <TableCell align="right" sx={{ color: C.textBright, fontFamily: 'monospace', fontWeight: 700, borderColor: C.border }}>${p.current_price?.toFixed(2)}</TableCell>
-                    <TableCell align="right" sx={{ color: C.orange, fontFamily: 'monospace', borderColor: C.border }}>
-                      ${(p.current_stop_price || p.stop_loss_price)?.toFixed(2) || '-'}
-                    </TableCell>
-                    <TableCell align="right" sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>${p.position_value?.toLocaleString()}</TableCell>
-                    <TableCell align="right" sx={{ color: pnlColor, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
+                  <tr key={p.position_id}>
+                    <td className="strong mono">{p.symbol}</td>
+                    <td className="num mono tnum">{p.quantity}</td>
+                    <td className="num mono tnum">${p.avg_entry_price?.toFixed(2)}</td>
+                    <td className={`num strong mono tnum ${pnlClass}`}>${p.current_price?.toFixed(2)}</td>
+                    <td className="num mono tnum" style={{ color: 'var(--amber)' }}>
+                      ${(p.current_stop_price || p.stop_loss_price)?.toFixed(2) || '—'}
+                    </td>
+                    <td className="num mono tnum">${p.position_value?.toLocaleString()}</td>
+                    <td className={`num strong mono tnum ${pnlClass}`}>
                       ${p.unrealized_pnl?.toFixed(2)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ color: pnlColor, fontFamily: 'monospace', fontWeight: 700, borderColor: C.border }}>
+                    </td>
+                    <td className={`num strong mono tnum ${pnlClass}`}>
                       {p.unrealized_pnl_pct?.toFixed(2)}%
-                    </TableCell>
-                    <TableCell align="center" sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>{p.days_since_entry || 0}</TableCell>
-                    <TableCell align="center" sx={{ color: C.blue, fontFamily: 'monospace', fontWeight: 700, borderColor: C.border }}>
+                    </td>
+                    <td className="num mono tnum">{p.days_since_entry || 0}</td>
+                    <td className="num mono tnum" style={{ color: 'var(--brand)' }}>
                       {p.target_levels_hit || 0}/3
-                    </TableCell>
-                    <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.75rem' }}>{p.stage_in_exit_plan || '-'}</TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="t-xs muted">{p.stage_in_exit_plan || '—'}</td>
+                  </tr>
                 );
               })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
       </SectionCard>
-    </Box>
+    </div>
   );
 }
 
@@ -795,7 +700,11 @@ function PositionsTab({ positions }) {
 // ============================================================================
 function TradesTab({ trades }) {
   if (!trades || trades.length === 0)
-    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>No trade history</Alert></Box>;
+    return (
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="alert alert-info">No trade history</div>
+      </div>
+    );
 
   const closed = trades.filter(t => t.status === 'closed');
   const wins = closed.filter(t => t.profit_loss_dollars > 0);
@@ -804,79 +713,71 @@ function TradesTab({ trades }) {
   const avgR = closed.reduce((s, t) => s + (parseFloat(t.exit_r_multiple) || 0), 0) / Math.max(1, closed.length);
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{ mb: 2, display: 'flex', gap: 3 }}>
-        <Stat label="CLOSED TRADES" value={closed.length} />
-        <Stat label="WIN RATE" value={`${winRate}%`} color={parseFloat(winRate) >= 50 ? C.green : C.red} />
-        <Stat label="AVG R" value={avgR.toFixed(2)} color={avgR > 0 ? C.green : C.red} />
-        <Stat label="TOTAL P&L" value={`$${totalPnl.toFixed(2)}`}
-          color={totalPnl >= 0 ? C.green : C.red} />
-      </Box>
+    <div style={{ padding: 'var(--space-4)' }}>
+      <div className="flex gap-6 flex-wrap" style={{ marginBottom: 'var(--space-4)' }}>
+        <Stat label="Closed Trades" value={closed.length} />
+        <Stat label="Win Rate" value={`${winRate}%`} color={parseFloat(winRate) >= 50 ? 'var(--success)' : 'var(--danger)'} />
+        <Stat label="Avg R" value={avgR.toFixed(2)} color={avgR > 0 ? 'var(--success)' : 'var(--danger)'} />
+        <Stat label="Total P&L" value={`$${totalPnl.toFixed(2)}`}
+          color={totalPnl >= 0 ? 'var(--success)' : 'var(--danger)'} />
+      </div>
 
       <SectionCard title="Trade History">
-        <TableContainer sx={{ maxHeight: 600 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                {['SYMBOL', 'DATE', 'ENTRY', 'EXIT', 'P&L $', 'P&L %', 'R-MULT', 'DAYS', 'EXIT REASON', 'PARTIAL CHAIN', 'STATUS'].map(h => (
-                  <TableCell key={h} sx={{
-                    bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border,
-                    fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700,
-                  }}>
-                    {h}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <div style={{ overflowX: 'auto', maxHeight: 600 }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th className="num">Date</th>
+                <th className="num">Entry</th>
+                <th className="num">Exit</th>
+                <th className="num">P&L $</th>
+                <th className="num">P&L %</th>
+                <th className="num">R-Mult</th>
+                <th className="num">Days</th>
+                <th>Exit Reason</th>
+                <th>Partial Chain</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
               {trades.map(t => {
-                const pnlColor = t.profit_loss_dollars >= 0 ? C.green : C.red;
+                const pnlClass = t.profit_loss_dollars >= 0 ? 'up' : 'down';
                 return (
-                  <TableRow key={t.trade_id}>
-                    <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
-                      {t.symbol}
-                    </TableCell>
-                    <TableCell sx={{ color: C.textDim, fontFamily: 'monospace', fontSize: '0.7rem', borderColor: C.border }}>{t.trade_date}</TableCell>
-                    <TableCell sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>${t.entry_price?.toFixed(2)}</TableCell>
-                    <TableCell sx={{ color: t.exit_price ? C.text : C.textDim, fontFamily: 'monospace', borderColor: C.border }}>
-                      {t.exit_price ? `$${t.exit_price.toFixed(2)}` : '-'}
-                    </TableCell>
-                    <TableCell sx={{ color: pnlColor, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
-                      {t.profit_loss_dollars?.toFixed(2) || '-'}
-                    </TableCell>
-                    <TableCell sx={{ color: pnlColor, fontFamily: 'monospace', borderColor: C.border }}>
+                  <tr key={t.trade_id}>
+                    <td className="strong mono">{t.symbol}</td>
+                    <td className="num mono tnum muted t-xs">{t.trade_date}</td>
+                    <td className="num mono tnum">${t.entry_price?.toFixed(2)}</td>
+                    <td className={`num mono tnum ${t.exit_price ? '' : 'muted'}`}>
+                      {t.exit_price ? `$${t.exit_price.toFixed(2)}` : '—'}
+                    </td>
+                    <td className={`num strong mono tnum ${pnlClass}`}>
+                      ${t.profit_loss_dollars?.toFixed(2) || '—'}
+                    </td>
+                    <td className={`num mono tnum ${pnlClass}`}>
                       {t.profit_loss_pct?.toFixed(2)}%
-                    </TableCell>
-                    <TableCell sx={{ color: t.exit_r_multiple > 0 ? C.green : t.exit_r_multiple < 0 ? C.red : C.text,
-                      fontFamily: 'monospace', fontWeight: 700, borderColor: C.border }}>
-                      {t.exit_r_multiple ? `${t.exit_r_multiple > 0 ? '+' : ''}${t.exit_r_multiple.toFixed(2)}R` : '-'}
-                    </TableCell>
-                    <TableCell sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>{t.trade_duration_days || 0}</TableCell>
-                    <TableCell sx={{ color: C.text, fontSize: '0.7rem', borderColor: C.border, maxWidth: 200 }}>
-                      {t.exit_reason || '-'}
-                    </TableCell>
-                    <TableCell sx={{
-                      color: C.purple, fontFamily: 'monospace', fontSize: '0.65rem',
-                      maxWidth: 280, whiteSpace: 'pre-wrap', borderColor: C.border,
-                    }}>
-                      {t.partial_exits_log || '-'}
-                    </TableCell>
-                    <TableCell sx={{ borderColor: C.border }}>
-                      <Chip size="small" label={t.status}
-                        sx={{
-                          bgcolor: t.status === 'closed' ? C.cardAlt : C.blue,
-                          color: t.status === 'closed' ? C.textDim : 'white',
-                          height: 18, fontSize: '0.65rem', fontWeight: 700,
-                        }} />
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                    <td className={`num strong mono tnum ${t.exit_r_multiple > 0 ? 'up' : t.exit_r_multiple < 0 ? 'down' : ''}`}>
+                      {t.exit_r_multiple ? `${t.exit_r_multiple > 0 ? '+' : ''}${t.exit_r_multiple.toFixed(2)}R` : '—'}
+                    </td>
+                    <td className="num mono tnum">{t.trade_duration_days || 0}</td>
+                    <td className="t-xs" style={{ maxWidth: 200 }}>{t.exit_reason || '—'}</td>
+                    <td className="t-2xs mono" style={{ maxWidth: 280, whiteSpace: 'pre-wrap', color: 'var(--purple)' }}>
+                      {t.partial_exits_log || '—'}
+                    </td>
+                    <td>
+                      <span className={`badge ${t.status === 'closed' ? '' : 'badge-brand'}`} style={{ fontSize: 'var(--t-2xs)' }}>
+                        {t.status}
+                      </span>
+                    </td>
+                  </tr>
                 );
               })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
       </SectionCard>
-    </Box>
+    </div>
   );
 }
 
@@ -887,156 +788,170 @@ function PipelineTab({ policy, markets, dataQuality, rejectionFunnel, circuitBre
   const loaders = dataQuality?.checks || [];
   const funnelTiers = rejectionFunnel?.tiers || [];
   const overallStatus = dataQuality?.status || 'unknown';
-  const statusColor2 = overallStatus === 'ok' ? C.green : overallStatus === 'warning' ? C.yellow : C.red;
+  const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
   const PHASES = [
-    { n: '1', name: 'DATA FRESHNESS', desc: 'Halt if any CRITICAL data > 7d stale', mode: 'fail-closed',
+    { n: '1', name: 'Data Freshness', desc: 'Halt if any CRITICAL data > 7d stale', mode: 'fail-closed',
       live: overallStatus === 'ok' ? 'ok' : overallStatus === 'warning' ? 'warn' : 'fail' },
-    { n: '2', name: 'CIRCUIT BREAKERS', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
+    { n: '2', name: 'Circuit Breakers', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
       live: circuitBreakers?.any_triggered ? 'fail' : 'ok' },
-    { n: '3', name: 'POSITION MONITOR', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
-    { n: '3b', name: 'EXPOSURE POLICY', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
-    { n: '4', name: 'EXIT EXECUTION', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
-    { n: '5', name: 'SIGNAL GENERATION', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
-    { n: '6', name: 'ENTRY EXECUTION', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
-    { n: '7', name: 'RECONCILIATION', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
+    { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
+    { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
+    { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
+    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
+    { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
+    { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
   ];
 
-  const liveColor = (s) => s === 'ok' ? C.green : s === 'warn' ? C.yellow : C.red;
+  const liveColor = (s) => s === 'ok' ? 'var(--success)' : s === 'warn' ? 'var(--amber)' : 'var(--danger)';
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Grid container spacing={2}>
+    <div style={{ padding: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ gap: 'var(--space-4)' }}>
         {/* Phase status */}
-        <Grid item xs={12} md={5}>
-          <SectionCard title="7-PHASE DAILY WORKFLOW — LIVE STATUS">
-            {PHASES.map(ph => (
-              <Box key={ph.n} sx={{
-                py: 1.5, px: 2, mb: 1, bgcolor: C.cardAlt, border: `1px solid ${C.border}`,
-                borderLeft: `4px solid ${liveColor(ph.live)}`, borderRadius: 1,
-              }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="caption" sx={{ color: C.blue, fontFamily: 'monospace', fontWeight: 700 }}>PHASE {ph.n}</Typography>
-                    <Typography variant="body2" sx={{ color: C.textBright, fontWeight: 700 }}>{ph.name}</Typography>
-                    <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.7rem' }}>{ph.desc}</Typography>
-                  </Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Chip size="small" label={ph.live === 'ok' ? '✓ OK' : ph.live === 'warn' ? '! WARN' : '✗ FAIL'}
-                      sx={{ bgcolor: liveColor(ph.live) + '33', color: liveColor(ph.live), height: 20, fontSize: '0.65rem', fontWeight: 700, fontFamily: 'monospace' }} />
-                    <Chip size="small" label={ph.mode}
-                      sx={{ bgcolor: ph.mode === 'fail-closed' ? C.redDark : C.cardAlt, color: ph.mode === 'fail-closed' ? 'white' : C.text, height: 20, fontSize: '0.6rem', fontFamily: 'monospace' }} />
-                  </Stack>
-                </Stack>
-              </Box>
-            ))}
-          </SectionCard>
-        </Grid>
+        <SectionCard title="7-Phase Daily Workflow — Live Status">
+          {PHASES.map(ph => (
+            <div key={ph.n} style={{
+              padding: 'var(--space-3)',
+              marginBottom: 'var(--space-2)',
+              background: 'var(--surface-2)',
+              border: `1px solid var(--border)`,
+              borderLeft: `4px solid ${liveColor(ph.live)}`,
+              borderRadius: 'var(--r-md)',
+            }}>
+              <div className="flex justify-between items-center">
+                <div style={{ flex: 1 }}>
+                  <div className="t-2xs strong mono" style={{ color: 'var(--brand)' }}>PHASE {ph.n}</div>
+                  <div className="strong">{ph.name}</div>
+                  <div className="t-2xs muted">{ph.desc}</div>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <span className={`badge ${ph.live === 'ok' ? 'badge-success' : ph.live === 'warn' ? 'badge-amber' : 'badge-danger'}`}
+                    style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)' }}>
+                    {ph.live === 'ok' ? '✓ OK' : ph.live === 'warn' ? '⚠ WARN' : '✗ FAIL'}
+                  </span>
+                  <span className={`badge ${ph.mode === 'fail-closed' ? 'badge-danger' : ''}`}
+                    style={{ fontSize: 'var(--t-2xs)' }}>
+                    {ph.mode}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </SectionCard>
 
-        <Grid item xs={12} md={7}>
+        <div>
           {/* Signal Rejection Funnel */}
           {funnelTiers.length > 0 && (
-            <SectionCard title={`SIGNAL FILTER FUNNEL — ${rejectionFunnel?.total_signals || 0} total signals`} sx={{ mb: 2 }}>
-              <Box sx={{ height: 160 }}>
+            <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.total_signals || 0} total)`} style={{ marginBottom: 'var(--space-4)' }}>
+              <div style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funnelTiers} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                    <XAxis dataKey="name" tick={{ fill: C.textDim, fontSize: 9 }} />
-                    <YAxis tick={{ fill: C.textDim, fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                    <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
+                    <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
                     <RechartTooltip
-                      contentStyle={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, fontSize: 11 }}
+                      contentStyle={TOOLTIP_STYLE}
                       formatter={(v, n) => [v, n === 'pass' ? 'Pass' : 'Reject']}
                     />
-                    <Bar dataKey="pass" fill={C.green} stackId="a" name="pass" />
-                    <Bar dataKey="reject" fill={C.red} stackId="a" name="reject" />
+                    <Bar dataKey="pass" fill="var(--success)" stackId="a" name="pass" />
+                    <Bar dataKey="reject" fill="var(--danger)" stackId="a" name="reject" />
                   </BarChart>
                 </ResponsiveContainer>
-              </Box>
+              </div>
             </SectionCard>
           )}
 
           {/* Data Loader Status */}
-          <SectionCard title={`DATA LOADERS — overall: `} action={
-            <Chip size="small" label={overallStatus.toUpperCase()} sx={{ bgcolor: statusColor2 + '33', color: statusColor2, fontSize: '0.65rem', fontWeight: 700, height: 18 }} />
+          <SectionCard title={`Data Loaders`} action={
+            <span className={`badge ${statusColor2 === 'var(--success)' ? 'badge-success' : statusColor2 === 'var(--amber)' ? 'badge-amber' : 'badge-danger'}`}
+              style={{ fontSize: 'var(--t-2xs)' }}>
+              {overallStatus.toUpperCase()}
+            </span>
           }>
             {loaders.length === 0 ? (
-              <Typography variant="caption" sx={{ color: C.textDim }}>No loader data available</Typography>
+              <div className="t-xs muted">No loader data available</div>
             ) : (
-              <TableContainer sx={{ maxHeight: 280 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      {['LOADER', 'TABLE', 'LATEST DATE', 'AGE (h)', 'STATUS'].map(h => (
-                        <TableCell key={h} sx={{ bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border, fontSize: '0.6rem', fontWeight: 700 }}>{h}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+              <div style={{ overflowX: 'auto', maxHeight: 280 }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Loader</th>
+                      <th>Table</th>
+                      <th>Latest Date</th>
+                      <th className="num">Age (h)</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {loaders.map((l, i) => {
                       const s = l.status || 'unknown';
-                      const sc = s === 'OK' ? C.green : s === 'WARNING' ? C.yellow : C.red;
+                      const sc = s === 'OK' ? 'badge-success' : s === 'WARNING' ? 'badge-amber' : 'badge-danger';
                       return (
-                        <TableRow key={i}>
-                          <TableCell sx={{ color: C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.loader}</TableCell>
-                          <TableCell sx={{ color: C.textDim, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.table}</TableCell>
-                          <TableCell sx={{ color: C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.latest_date || '-'}</TableCell>
-                          <TableCell sx={{ color: l.age_hours > (l.max_age_hours || 24) ? C.red : C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>
-                            {l.age_hours != null ? l.age_hours.toFixed(1) : '-'}
-                          </TableCell>
-                          <TableCell sx={{ borderColor: C.border }}>
-                            <Chip size="small" label={s} sx={{ bgcolor: sc + '33', color: sc, height: 16, fontSize: '0.6rem', fontWeight: 700 }} />
-                          </TableCell>
-                        </TableRow>
+                        <tr key={i}>
+                          <td className="mono t-xs">{l.loader}</td>
+                          <td className="muted t-xs">{l.table}</td>
+                          <td className="mono t-xs">{l.latest_date || '—'}</td>
+                          <td className={`num mono tnum t-xs ${l.age_hours > (l.max_age_hours || 24) ? 'down' : ''}`}>
+                            {l.age_hours != null ? l.age_hours.toFixed(1) : '—'}
+                          </td>
+                          <td><span className={`badge ${sc}`} style={{ fontSize: 'var(--t-2xs)' }}>{s}</span></td>
+                        </tr>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  </tbody>
+                </table>
+              </div>
             )}
           </SectionCard>
 
           {/* Exposure Policy Matrix */}
-          <SectionCard title="EXPOSURE TIER POLICY MATRIX" sx={{ mt: 2 }}>
-            <Typography variant="caption" sx={{ color: C.textDim, display: 'block', mb: 1 }}>
-              Current exposure: {policy?.current_exposure_pct ?? '--'}% → tier{' '}
-              <span style={{ color: C.textBright, fontWeight: 700 }}>{policy?.active_tier?.name?.toUpperCase()}</span>
-            </Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {['TIER', 'RANGE', 'RISK', 'NEW/DAY', 'GRADE', 'HALT'].map(h => (
-                      <TableCell key={h} sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', fontWeight: 700 }}>{h}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+          <SectionCard title="Exposure Tier Policy Matrix" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)' }}>
+              Current exposure: {policy?.current_exposure_pct ?? '—'}% → tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Tier</th>
+                    <th>Range</th>
+                    <th>Risk</th>
+                    <th>New/Day</th>
+                    <th>Grade</th>
+                    <th>Halt</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {(policy?.all_tiers || []).map(t => {
                     const isActive = t.name === policy?.active_tier?.name;
                     return (
-                      <TableRow key={t.name} sx={{ bgcolor: isActive ? C.cardAlt : 'transparent' }}>
-                        <TableCell sx={{ borderColor: C.border, color: tierColor(t.name), fontWeight: 700, fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                      <tr key={t.name} style={{ background: isActive ? 'var(--surface-2)' : '' }}>
+                        <td className="strong mono t-xs" style={{ color: tierColor(t.name) }}>
                           {isActive && '▶ '}{t.name}
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.min_pct}-{t.max_pct}%</TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.risk_multiplier}x</TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.max_new_positions_today}</TableCell>
-                        <TableCell sx={{ borderColor: C.border }}>
-                          <Chip size="small" label={t.min_swing_grade} sx={{ bgcolor: gradeColor(t.min_swing_grade), color: 'white', height: 16, fontSize: '0.6rem', fontWeight: 700 }} />
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: t.halt_new_entries ? C.red : C.green, fontFamily: 'monospace', fontWeight: 700, fontSize: '0.7rem' }}>
+                        </td>
+                        <td className="mono t-xs">{t.min_pct}-{t.max_pct}%</td>
+                        <td className="mono t-xs">{t.risk_multiplier}x</td>
+                        <td className="mono t-xs">{t.max_new_positions_today}</td>
+                        <td>
+                          <span className={`badge ${t.min_swing_grade?.startsWith('A') ? 'badge-success' : t.min_swing_grade === 'B' ? 'badge-cyan' : t.min_swing_grade === 'C' ? 'badge-amber' : 'badge'}`}
+                            style={{ fontSize: 'var(--t-2xs)' }}>
+                            {t.min_swing_grade}
+                          </span>
+                        </td>
+                        <td className={`strong mono t-xs ${t.halt_new_entries ? 'down' : 'up'}`}>
                           {t.halt_new_entries ? 'HALT' : 'allow'}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                </tbody>
+              </table>
+            </div>
           </SectionCard>
-        </Grid>
-      </Grid>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1055,137 +970,112 @@ function DataStatusTab({ dataStatus, patrolLog }) {
     }
     setRunning(false);
   };
-  if (!dataStatus) return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>Data status not loaded</Alert></Box>;
+  if (!dataStatus) return <div style={{ padding: 'var(--space-3)' }}><div className="alert alert-info">Data status not loaded</div></div>;
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{
-        p: 2, mb: 2, borderRadius: 1,
-        bgcolor: dataStatus.ready_to_trade ? '#0e2a18' : '#3a1414',
-        border: `1px solid ${dataStatus.ready_to_trade ? C.greenDark : C.redDark}`,
+    <div style={{ padding: 'var(--space-3)' }}>
+      <div style={{
+        padding: 'var(--space-3)', marginBottom: 'var(--space-3)', borderRadius: 'var(--r-md)',
+        background: dataStatus.ready_to_trade ? '#0e2a18' : '#3a1414',
+        border: `1px solid ${dataStatus.ready_to_trade ? 'var(--success)' : 'var(--danger)'}`,
       }}>
-        <Stack direction="row" alignItems="center" spacing={2}>
+        <div className="flex items-center gap-3">
           {dataStatus.ready_to_trade ?
-            <CheckCircle sx={{ color: C.green, fontSize: 28 }} /> :
-            <Warning sx={{ color: C.red, fontSize: 28 }} />}
-          <Box>
-            <Typography variant="h6" sx={{ color: C.textBright, fontWeight: 700 }}>
+            <CheckCircle size={28} style={{ color: 'var(--success)' }} /> :
+            <AlertTriangle size={28} style={{ color: 'var(--danger)' }} />}
+          <div>
+            <div style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)', fontSize: 'var(--t-lg)' }}>
               {dataStatus.ready_to_trade ? 'READY TO TRADE' : 'DATA STALE — ALGO WILL FAIL-CLOSE'}
-            </Typography>
-            <Typography variant="caption" sx={{ color: C.textDim, fontFamily: 'monospace' }}>
+            </div>
+            <div className="mono t-xs muted" style={{ marginTop: 4 }}>
               {dataStatus.summary.ok} ok · {dataStatus.summary.stale} stale · {dataStatus.summary.empty} empty · {dataStatus.summary.error} error
-            </Typography>
+            </div>
             {!dataStatus.ready_to_trade && (
-              <Typography variant="caption" sx={{ color: C.red, display: 'block', fontFamily: 'monospace', mt: 0.5 }}>
+              <div className="mono t-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>
                 Critical stale: {dataStatus.critical_stale.join(', ')}
-              </Typography>
+              </div>
             )}
-          </Box>
-        </Stack>
-      </Box>
+          </div>
+        </div>
+      </div>
 
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="contained" size="small" onClick={runPatrol} disabled={running}
-          sx={{ bgcolor: C.blue }}>
+      <div style={{ marginBottom: 'var(--space-3)', display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary btn-sm" onClick={runPatrol} disabled={running}>
           {running ? 'RUNNING...' : 'RUN DATA PATROL NOW'}
-        </Button>
-      </Box>
+        </button>
+      </div>
 
       {patrolLog && patrolLog.length > 0 && (
-        <SectionCard title={`Recent Patrol Findings (${patrolLog.length})`} sx={{ mb: 2 }}>
-          <TableContainer sx={{ maxHeight: 400 }}>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
+        <SectionCard title={`Recent Patrol Findings (${patrolLog.length})`}>
+          <div style={{ overflowX: 'auto', maxHeight: 400 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
                   {['SEVERITY', 'CHECK', 'TARGET', 'MESSAGE', 'WHEN'].map(h => (
-                    <TableCell key={h} sx={{
-                      bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border,
-                      fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700,
-                    }}>{h}</TableCell>
+                    <th key={h} style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)', letterSpacing: '1px' }}>{h}</th>
                   ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
+                </tr>
+              </thead>
+              <tbody>
                 {patrolLog.map(log => (
-                  <TableRow key={log.id}>
-                    <TableCell sx={{ borderColor: C.border }}>
-                      <Chip size="small" label={log.severity.toUpperCase()}
-                        sx={{
-                          bgcolor: statusBg(log.severity === 'critical' ? 'error' :
-                                            log.severity === 'error' ? 'error' :
-                                            log.severity === 'warn' ? 'stale' : 'ok'),
-                          color: 'white', height: 18, fontSize: '0.65rem', fontWeight: 700,
-                        }} />
-                    </TableCell>
-                    <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                      {log.check_name}
-                    </TableCell>
-                    <TableCell sx={{ color: C.textBright, fontWeight: 600, borderColor: C.border, fontSize: '0.75rem' }}>
-                      {log.target_table}
-                    </TableCell>
-                    <TableCell sx={{ color: C.text, borderColor: C.border, fontSize: '0.75rem', maxWidth: 400 }}>
-                      {log.message}
-                    </TableCell>
-                    <TableCell sx={{ color: C.textDim, fontSize: '0.7rem', borderColor: C.border, fontFamily: 'monospace' }}>
-                      {new Date(log.created_at).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
+                  <tr key={log.id}>
+                    <td>
+                      <span className={`badge ${log.severity === 'critical' || log.severity === 'error' ? 'badge-danger' : log.severity === 'warn' ? 'badge-warn' : 'badge-success'}`}>
+                        {log.severity.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="mono t-xs">{log.check_name}</td>
+                    <td className="strong mono">{log.target_table}</td>
+                    <td className="t-xs">{log.message}</td>
+                    <td className="mono t-xs muted">{new Date(log.created_at).toLocaleString()}</td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </tbody>
+            </table>
+          </div>
         </SectionCard>
       )}
 
       <SectionCard title={`Data Sources (${(dataStatus.sources || []).length})`}>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
                 {['STATUS', 'TABLE', 'FREQUENCY', 'ROLE', 'LATEST', 'AGE', 'ROWS'].map(h => (
-                  <TableCell key={h} sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', fontWeight: 700, letterSpacing: 1 }}>
+                  <th key={h} style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)', letterSpacing: '1px' }}>
                     {h}
-                  </TableCell>
+                  </th>
                 ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
+              </tr>
+            </thead>
+            <tbody>
               {(dataStatus.sources || []).map(s => (
-                <TableRow key={s.table}>
-                  <TableCell sx={{ borderColor: C.border }}>
-                    <Box sx={{
-                      display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                      bgcolor: statusBg(s.status), mr: 1,
-                    }} />
-                    <span style={{ color: statusBg(s.status), fontFamily: 'monospace',
-                      fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700 }}>
-                      {s.status}
-                    </span>
-                  </TableCell>
-                  <TableCell sx={{ color: C.textBright, fontWeight: 600, fontFamily: 'monospace', borderColor: C.border }}>
-                    {s.table}
-                  </TableCell>
-                  <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {s.frequency}
-                  </TableCell>
-                  <TableCell sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.75rem' }}>
-                    {s.role}
-                  </TableCell>
-                  <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {s.latest || '-'}
-                  </TableCell>
-                  <TableCell sx={{ color: s.age_days > 7 ? C.orange : C.text, borderColor: C.border, fontFamily: 'monospace' }}>
+                <tr key={s.table}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                        background: statusBg(s.status),
+                      }} />
+                      <span className="mono t-xs strong" style={{ textTransform: 'uppercase', color: statusBg(s.status) }}>
+                        {s.status}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="strong mono">{s.table}</td>
+                  <td className="mono t-xs">{s.frequency}</td>
+                  <td className="t-xs muted">{s.role}</td>
+                  <td className="mono t-xs">{s.latest || '-'}</td>
+                  <td className="mono" style={{ color: s.age_days > 7 ? 'var(--amber)' : 'var(--text)' }}>
                     {s.age_days !== null ? `${s.age_days}d` : '-'}
-                  </TableCell>
-                  <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace' }}>
-                    {s.rows?.toLocaleString() || '-'}
-                  </TableCell>
-                </TableRow>
+                  </td>
+                  <td className="mono">{s.rows?.toLocaleString() || '-'}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
       </SectionCard>
-    </Box>
+    </div>
   );
 }
 
@@ -1193,35 +1083,30 @@ function DataStatusTab({ dataStatus, patrolLog }) {
 // CONFIG TAB
 // ============================================================================
 function ConfigTab({ config }) {
-  if (!config) return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>Config not loaded</Alert></Box>;
+  if (!config) return <div style={{ padding: 'var(--space-3)' }}><div className="alert alert-info">Config not loaded</div></div>;
   const entries = Object.entries(config).sort((a, b) => a[0].localeCompare(b[0]));
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="caption" sx={{ color: C.textDim, mb: 2, display: 'block' }}>
+    <div style={{ padding: 'var(--space-3)' }}>
+      <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
         {entries.length} configuration parameters · all hot-reload via /api/algo/config/:key
-      </Typography>
-      <Grid container spacing={1}>
+      </div>
+      <div className="grid grid-4" style={{ gap: 'var(--space-2)' }}>
         {entries.map(([key, val]) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={key}>
-            <Card variant="outlined" sx={{ bgcolor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem', letterSpacing: 1, fontWeight: 600 }}>
-                  {key.toUpperCase()}
-                </Typography>
-                <Typography variant="body2" sx={{
-                  color: C.textBright, fontFamily: 'monospace', fontWeight: 700, fontSize: '0.95rem',
-                }}>
-                  {String(val.value)}
-                </Typography>
-                <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.7rem', display: 'block' }}>
-                  {val.description}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+          <div key={key} className="card" style={{ padding: 'var(--space-3)' }}>
+            <div className="t-2xs muted strong" style={{ letterSpacing: '1px', marginBottom: 8 }}>
+              {key.toUpperCase()}
+            </div>
+            <div className="mono strong" style={{
+              color: 'var(--text-2)', fontWeight: 'var(--w-bold)', fontSize: 'var(--t-base)',
+              marginBottom: 8
+            }}>
+              {String(val.value)}
+            </div>
+            <div className="t-2xs muted">{val.description}</div>
+          </div>
         ))}
-      </Grid>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -1230,66 +1115,50 @@ function ConfigTab({ config }) {
 // ============================================================================
 function AuditTab({ auditLog }) {
   if (!auditLog || auditLog.length === 0) {
-    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>
+    return <div style={{ padding: 'var(--space-3)' }}><div className="alert alert-info">
       No audit entries yet
-    </Alert></Box>;
+    </div></div>;
   }
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="caption" sx={{ color: C.textDim, mb: 2, display: 'block' }}>
+    <div style={{ padding: 'var(--space-3)' }}>
+      <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
         Every algo decision logged with timestamp, actor, status, and full details JSON.
-      </Typography>
+      </div>
       <SectionCard title={`Audit Trail (${auditLog.length} most recent)`}>
-        <TableContainer sx={{ maxHeight: 600 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
+        <div style={{ overflowX: 'auto', maxHeight: 600 }}>
+          <table className="data-table">
+            <thead>
+              <tr>
                 {['WHEN', 'ACTION', 'SYMBOL', 'ACTOR', 'STATUS', 'DETAILS'].map(h => (
-                  <TableCell key={h} sx={{
-                    bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border,
-                    fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700,
-                  }}>{h}</TableCell>
+                  <th key={h} style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)', letterSpacing: '1px' }}>{h}</th>
                 ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
+              </tr>
+            </thead>
+            <tbody>
               {auditLog.map(a => (
-                <TableRow key={a.id}>
-                  <TableCell sx={{ color: C.textDim, fontFamily: 'monospace', fontSize: '0.7rem', borderColor: C.border }}>
-                    {new Date(a.created_at).toLocaleString()}
-                  </TableCell>
-                  <TableCell sx={{ color: C.text, fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem', borderColor: C.border }}>
-                    {a.action_type}
-                  </TableCell>
-                  <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
-                    {a.symbol || '-'}
-                  </TableCell>
-                  <TableCell sx={{ color: C.textDim, fontSize: '0.75rem', borderColor: C.border }}>
-                    {a.actor || '-'}
-                  </TableCell>
-                  <TableCell sx={{ borderColor: C.border }}>
-                    <Chip size="small" label={a.status || '-'}
-                      sx={{
-                        bgcolor: a.status === 'success' ? C.green :
-                                 a.status === 'halt' ? C.orange :
-                                 a.status === 'error' ? C.red : C.cardAlt,
-                        color: 'white', height: 18, fontSize: '0.65rem',
-                      }} />
-                  </TableCell>
-                  <TableCell sx={{
-                    color: C.textDim, fontFamily: 'monospace', fontSize: '0.65rem',
+                <tr key={a.id}>
+                  <td className="mono t-2xs muted">{new Date(a.created_at).toLocaleString()}</td>
+                  <td className="mono t-xs">{a.action_type}</td>
+                  <td className="strong mono">{a.symbol || '-'}</td>
+                  <td className="t-xs muted">{a.actor || '-'}</td>
+                  <td>
+                    <span className={`badge ${a.status === 'success' ? 'badge-success' : a.status === 'halt' ? 'badge-warn' : a.status === 'error' ? 'badge-danger' : 'badge-secondary'}`}>
+                      {a.status || '-'}
+                    </span>
+                  </td>
+                  <td className="mono t-2xs muted" style={{
                     maxWidth: 500, overflow: 'hidden', textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap', borderColor: C.border,
+                    whiteSpace: 'nowrap',
                   }}>
                     {a.details ? JSON.stringify(a.details).substring(0, 200) : '-'}
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
       </SectionCard>
-    </Box>
+    </div>
   );
 }
 
