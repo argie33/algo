@@ -1,0 +1,253 @@
+{
+  "timestamp": "2026-05-09T21:53:40.965Z",
+  "totalPagesTested": 5,
+  "pagesWithIssues": 0,
+  "totalErrors": 34,
+  "missingElements": [
+    {
+      "page": "Sectors",
+      "expectedSelectors": [
+        "[class*=\"sector\"]",
+        "[class*=\"industry\"]"
+      ]
+    },
+    {
+      "page": "Trading Signals",
+      "expectedSelectors": [
+        "[class*=\"signal\"]",
+        "[class*=\"table\"]"
+      ]
+    },
+    {
+      "page": "Portfolio",
+      "expectedSelectors": [
+        "[class*=\"portfolio\"]",
+        "[class*=\"holdings\"]"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "path": "/",
+      "name": "Home Page",
+      "title": "Financial Dashboard",
+      "url": "http://localhost:5176/",
+      "status": "OK",
+      "contentLength": 5180,
+      "errorMessages": 0,
+      "emptyStates": 0,
+      "foundElements": [
+        {
+          "selector": "h1",
+          "count": 1
+        },
+        {
+          "selector": "h2",
+          "count": 3
+        },
+        {
+          "selector": "button",
+          "count": 21
+        }
+      ],
+      "consoleErrors": 0
+    },
+    {
+      "path": "/app/market",
+      "name": "Market Overview",
+      "title": "Financial Dashboard",
+      "url": "http://localhost:5176/app/market",
+      "status": "OK",
+      "contentLength": 1610,
+      "errorMessages": 0,
+      "emptyStates": 2,
+      "foundElements": [
+        {
+          "selector": "[class*=\"chart\"]",
+          "count": 1
+        }
+      ],
+      "consoleErrors": 24
+    },
+    {
+      "path": "/app/sectors",
+      "name": "Sectors",
+      "title": "Financial Dashboard",
+      "url": "http://localhost:5176/app/sectors",
+      "status": "OK",
+      "contentLength": 2482,
+      "errorMessages": 0,
+      "emptyStates": 16,
+      "foundElements": [],
+      "consoleErrors": 48
+    },
+    {
+      "path": "/app/trading-signals",
+      "name": "Trading Signals",
+      "title": "Financial Dashboard",
+      "url": "http://localhost:5176/app/trading-signals",
+      "status": "OK",
+      "contentLength": 2469,
+      "errorMessages": 0,
+      "emptyStates": 13,
+      "foundElements": [],
+      "consoleErrors": 60
+    },
+    {
+      "path": "/app/portfolio",
+      "name": "Portfolio",
+      "title": "Financial Dashboard",
+      "url": "http://localhost:5176/login",
+      "status": "OK",
+      "contentLength": 1303,
+      "errorMessages": 0,
+      "emptyStates": 0,
+      "foundElements": [],
+      "consoleErrors": 64
+    },
+    {
+      "name": "Authentication Status",
+      "authFormElements": 0,
+      "requiresAuth": false
+    }
+  ],
+  "issues": [],
+  "apiErrors": [
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/notifications",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/sentiment?range=30d",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/top-movers",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/technicals",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/seasonality",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/sentiment?range=30d",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/top-movers",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/technicals",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/market/seasonality",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/notifications",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-breadth",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-stage2",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-rotation?limit=180",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/sectors?limit=20&page=1",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/industries?limit=500",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-breadth",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-stage2",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/sector-rotation?limit=180",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/sectors?limit=20&page=1",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/industries?limit=500",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/notifications",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/signals/stocks?timeframe=daily&limit=500",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/swing-scores?limit=2000&min_score=0",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/signals/stocks?timeframe=daily&limit=500",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/swing-scores?limit=2000&min_score=0",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/notifications",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/markets",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3001/api/algo/notifications",
+      "method": "GET"
+    }
+  ]
+}

@@ -57,11 +57,17 @@ credential_manager = get_credential_manager()
 import os
 import sys
 import psycopg2
-import json
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
+from typing import Dict, List, Any, Optional, Tuple
+from algo_alerts import AlertManager
+from algo_market_calendar import MarketCalendar
+from trade_status import PositionStatus
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -79,7 +85,7 @@ DB_CONFIG = {
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True):
+    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
         from algo_config import get_config
         self.config = config or get_config()
         self.run_date = run_date or _date.today()
@@ -91,21 +97,36 @@ class Orchestrator:
         self._lock_acquired = False
         self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
+        self.alerts = AlertManager()
+
+        if init_db:
+            self._ensure_schema_initialized()
 
     # ---------- Database health monitoring (B4) ----------
 
     def _check_db_connectivity(self):
         """Test if database is reachable. Returns True if OK, False if failed."""
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
             cur.execute("SELECT 1")
-            cur.close()
-            conn.close()
             return True
         except Exception as e:
-            print(f"  [ERROR] Database connectivity check failed: {e}")
+            logger.error(f"  [ERROR] Database connectivity check failed: {e}")
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _increment_db_failure_counter(self):
         """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
@@ -127,6 +148,49 @@ class Orchestrator:
         except Exception:
             pass
 
+    def _ensure_schema_initialized(self):
+        """Initialize database schema if not already present. Idempotent."""
+        conn = None
+        cur = None
+        try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name IN ('stock_symbols', 'algo_positions', 'algo_trades')
+            """)
+            table_count = cur.fetchone()[0]
+
+            if table_count >= 3:
+                if self.verbose:
+                    logger.info("  [SCHEMA] Database schema already initialized")
+                return
+
+            if self.verbose:
+                logger.info("  [SCHEMA] Initializing database schema...")
+
+            import init_database
+            init_database.main()
+
+            if self.verbose:
+                logger.info("  [SCHEMA] Database schema initialized successfully")
+        except Exception as e:
+            if self.verbose:
+                logger.error(f"  [WARN] Schema initialization check failed: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     def _check_data_patrol(self, cur):
         """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -142,7 +206,7 @@ class Orchestrator:
             latest_run = cur.fetchone()
             if not latest_run:
                 if self.verbose:
-                    print("  [WARN] No patrol data available")
+                    logger.warning("  [WARN] No patrol data available")
                 return True
 
             latest_run_id = latest_run[0]
@@ -152,7 +216,9 @@ class Orchestrator:
                 SELECT MAX(severity) as worst_severity,
                        COUNT(*) as total_findings,
                        COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
-                       COUNT(CASE WHEN severity = 'error' THEN 1 END) as error_count
+                       COUNT(CASE WHEN severity = 'error' THEN 1 END) as error_count,
+                       COUNT(CASE WHEN severity = 'warn' THEN 1 END) as warn_count,
+                       COUNT(CASE WHEN severity = 'info' THEN 1 END) as info_count
                 FROM data_patrol_log
                 WHERE patrol_run_id = %s
             """, (latest_run_id,))
@@ -161,19 +227,37 @@ class Orchestrator:
             if not row or not row[0]:
                 # No patrol findings (shouldn't happen, but safe to proceed)
                 if self.verbose:
-                    print("  [PATROL] No findings in latest patrol")
+                    logger.info("  [PATROL] No findings in latest patrol")
                 return True
 
-            worst_severity, total_findings, critical_count, error_count = row
+            worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
 
             if self.verbose:
-                print(f"  [PATROL] {latest_run_id}: {total_findings} findings "
-                      f"(critical={critical_count}, error={error_count})")
+                logger.info(f"  [PATROL] {latest_run_id}: {total_findings} findings "
+                            f"(critical={critical_count}, error={error_count}, warn={warn_count})")
+
+            # Fetch flagged findings for alerting
+            cur.execute("""
+                SELECT check_name, severity, target_table, message
+                FROM data_patrol_log
+                WHERE patrol_run_id = %s AND severity IN ('critical', 'error')
+                ORDER BY severity DESC
+            """, (latest_run_id,))
+            flagged = [{'check': r[0], 'severity': r[1], 'target': r[2], 'message': r[3]}
+                       for r in cur.fetchall()]
+
+            # Send alerts on CRITICAL or ERROR
+            if critical_count > 0 or error_count > 0:
+                self.alerts.send_patrol_alert(
+                    latest_run_id,
+                    {'critical': critical_count, 'error': error_count, 'warn': warn_count, 'info': info_count},
+                    flagged
+                )
 
             # FAIL-CLOSED: critical findings always block
             if critical_count and critical_count > 0:
                 if self.verbose:
-                    print(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
+                    logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
                 self.log_phase_result(1, 'data_patrol', 'halt',
                                       f'Critical data quality issues: {critical_count} critical findings')
                 return False
@@ -181,7 +265,7 @@ class Orchestrator:
             # FAIL-CLOSED: too many errors block in auto mode
             if error_count and error_count > 2:
                 if self.verbose:
-                    print(f"  [HALT] Data patrol found {error_count} ERROR issues")
+                    logger.error(f"  [HALT] Data patrol found {error_count} ERROR issues")
                 self.log_phase_result(1, 'data_patrol', 'halt',
                                       f'Data quality errors: {error_count} findings')
                 return False
@@ -189,14 +273,14 @@ class Orchestrator:
             # Warnings are just logged, not blocking
             if error_count == 1 or error_count == 2:
                 if self.verbose:
-                    print(f"  [WARN] Data patrol found {error_count} error(s)")
+                    logger.error(f"  [WARN] Data patrol found {error_count} error(s)")
 
             return True
 
         except Exception as e:
             # If patrol check fails, don't block (assume manual run/oversight)
             if self.verbose:
-                print(f"  [WARN] Could not check data patrol: {e}")
+                logger.warning(f"  [WARN] Could not check data patrol: {e}")
             return True
 
     # ---------- Logging helpers ----------
@@ -215,22 +299,22 @@ class Orchestrator:
                 if lock_content:
                     old_pid = int(lock_content)
                     if self._pid_alive(old_pid):
-                        print(f"ERROR: Orchestrator already running (PID {old_pid})")
+                        logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
                         return False
                     else:
-                        print(f"Stale lock from PID {old_pid} — acquiring")
+                        logger.info(f"Stale lock from PID {old_pid} — acquiring")
             except Exception as e:
-                print(f"Warning: Could not read lock file: {e}")
+                logger.warning(f"Warning: Could not read lock file: {e}")
 
         # Acquire lock
         try:
             self.lock_file.write_text(str(os.getpid()))
             self._lock_acquired = True
             if self.verbose:
-                print(f"Lock acquired (PID {os.getpid()})")
+                logger.info(f"Lock acquired (PID {os.getpid()})")
             return True
         except Exception as e:
-            print(f"ERROR: Could not create lock file: {e}")
+            logger.error(f"ERROR: Could not create lock file: {e}")
             return False
 
     def _release_run_lock(self):
@@ -244,18 +328,21 @@ class Orchestrator:
 
     def log_phase_start(self, phase_num, name):
         if self.verbose:
-            print(f"\n{'='*70}")
-            print(f"PHASE {phase_num}: {name}")
-            print(f"{'='*70}")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"PHASE {phase_num}: {name}")
+            logger.info(f"{'='*70}")
 
     def log_phase_result(self, phase_num, name, status, summary):
+        import json
         self.phase_results[phase_num] = {
             'name': name,
             'status': status,
             'summary': summary,
         }
         if self.verbose:
-            print(f"\n-> Phase {phase_num} {status}: {summary}")
+            logger.info(f"\n-> Phase {phase_num} {status}: {summary}")
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
@@ -271,18 +358,90 @@ class Orchestrator:
                 ),
             )
             conn.commit()
-            cur.close()
-            conn.close()
         except Exception as e:
-            print(f"Warning: Could not persist audit log entry: {e}")
+            logger.warning(f"Warning: Could not persist audit log entry: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ---------- Phase implementations ----------
 
-    def phase_1_data_freshness(self):
+    def phase_1_data_freshness(self) -> bool:
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
+
+            # Check critical loader SLA status first — fail-closed if data didn't load
+            try:
+                from loader_sla_tracker import get_tracker
+                tracker = get_tracker()
+                all_critical_ok, failures = tracker.check_critical_loaders()
+
+                if not all_critical_ok:
+                    failure_msg = "; ".join(failures)
+                    self.log_phase_result(1, 'loader_sla_check', 'halt',
+                                          f'Critical loaders failed SLA: {failure_msg}')
+                    logger.critical(f"Algo halted: {failure_msg}")
+                    return False
+
+                logger.info("  [OK] All critical loaders have fresh data")
+
+            except Exception as e:
+                logger.warning(f"  [WARN] SLA check failed: {e}")
+                # Don't fail-close on SLA check error, just warn
+
+            # Check loader health via monitor — fail-closed if critical data missing
+            try:
+                from algo_loader_monitor import LoaderMonitor
+                monitor = LoaderMonitor()
+                monitor.connect()
+                try:
+                    critical_symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY']
+                    findings = monitor.audit_all(critical_symbols=critical_symbols)
+
+                    # Check for CRITICAL findings (missing symbols, low volume)
+                    critical_findings = [f for f in findings if f[0] == 'CRITICAL']
+                    error_findings = [f for f in findings if f[0] == 'ERROR']
+
+                    if critical_findings or error_findings:
+                        self.alerts.send_loader_alert(findings)
+
+                    if critical_findings:
+                        messages = [f[2] for f in critical_findings]
+                        self.log_phase_result(1, 'loader_health', 'halt',
+                                              f'Loader critical: {"; ".join(messages)}')
+                        return False
+
+                    # Fail-closed on ERROR if it's a data volume issue (0 symbols loaded today)
+                    volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
+                    if volume_error:
+                        for _, _, msg in volume_error:
+                            if '0 symbols' in msg:  # Zero data loaded today
+                                self.log_phase_result(1, 'loader_health', 'halt',
+                                                      f'No data loaded today: {msg}')
+                                return False
+
+                    # Other errors are just warnings
+                    if error_findings and self.verbose:
+                        for sev, check, msg in error_findings:
+                            if 'low_daily_load_volume' not in check:
+                                logger.warning(f"  [LOADER ERROR] {check}: {msg}")
+                finally:
+                    monitor.disconnect()
+            except Exception as e:
+                logger.warning(f"  [WARN] Loader health check failed: {e}")
+                # Don't fail-close on monitor error, just warn
             cur.execute(
                 """
                 SELECT
@@ -314,23 +473,42 @@ class Orchestrator:
                         stale_items.append(f"{name}: {age}d old")
                     if self.verbose:
                         flag = '[OK]' if age <= max_stale else '[STALE]'
-                        print(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
+                        logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
             if stale_items:
-                cur.close()
-                conn.close()
+                self.alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_HALT',
+                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
+                    {'stale_items': stale_items, 'max_age_days': max_stale}
+                )
                 self.log_phase_result(1, 'data_freshness', 'fail',
                                       f'Stale: {"; ".join(stale_items)}')
                 return False
 
-            # NEW: Check data patrol results (quality gate) - cursor still open
             patrol_ok = self._check_data_patrol(cur)
-
-            cur.close()
-            conn.close()
 
             if not patrol_ok:
                 return False
+
+            # Margin health check (Phase 1 - production safeguard)
+            try:
+                from algo_margin_monitor import MarginMonitor
+                mm = MarginMonitor()
+                margin_info = mm.get_margin_usage()
+                if margin_info and margin_info['margin_usage_pct'] > 70:
+                    self.alerts.send_position_alert(
+                        'ACCOUNT',
+                        'MARGIN_ALERT',
+                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
+                        margin_info
+                    )
+                    if self.verbose:
+                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
+                elif self.verbose and margin_info:
+                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
+            except Exception as e:
+                logger.warning(f'Margin check failed: {e}')
 
             self.log_phase_result(1, 'data_freshness', 'success',
                                   'All data fresh within window')
@@ -338,8 +516,19 @@ class Orchestrator:
         except Exception as e:
             self.log_phase_result(1, 'data_freshness', 'error', str(e))
             return False
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
-    def phase_2_circuit_breakers(self):
+    def phase_2_circuit_breakers(self) -> bool:
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
         try:
             from algo_circuit_breaker import CircuitBreaker
@@ -349,11 +538,40 @@ class Orchestrator:
             if self.verbose:
                 for name, state in result['checks'].items():
                     flag = '[HALT]' if state.get('halted') else '[OK]  '
-                    print(f"  {flag} {name:22s}: {state.get('reason', '')}")
+                    logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
+
+            # Check market circuit breakers (market-wide halts, L1/L2/L3)
+            try:
+                from algo_market_events import MarketEventHandler
+                meh = MarketEventHandler(self.config)
+                cb_result = meh.check_market_circuit_breaker()
+                if cb_result and cb_result.get('triggered'):
+                    halt_level = cb_result.get('level', '?')
+                    halt_reason = cb_result.get('reason', 'circuit breaker triggered')
+                    if self.verbose:
+                        logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                    self.alerts.send_position_alert(
+                        'PORTFOLIO',
+                        'MARKET_CIRCUIT_BREAKER',
+                        f'Market circuit breaker L{halt_level} triggered: {halt_reason}',
+                        {'level': halt_level, 'reason': halt_reason}
+                    )
+                    self.log_phase_result(2, 'market_circuit_breaker', 'halt',
+                                        f'L{halt_level} breaker active: {halt_reason}')
+                    return False
+            except Exception as e:
+                self.log_phase_result(2, 'market_circuit_breaker', 'warn', f'check failed: {e}')
 
             if result['halted']:
+                halt_reasons = result.get("halt_reasons", ["unknown"])
+                self.alerts.send_position_alert(
+                    'PORTFOLIO',
+                    'ACCOUNT_CIRCUIT_BREAKER',
+                    f'Account circuit breaker triggered: {"; ".join(halt_reasons)}',
+                    {'halt_reasons': halt_reasons}
+                )
                 self.log_phase_result(2, 'circuit_breakers', 'halt',
-                                      f'Halted: {"; ".join(result["halt_reasons"])}')
+                                      f'Halted: {"; ".join(halt_reasons)}')
                 return False
             self.log_phase_result(2, 'circuit_breakers', 'success', 'all clear')
             return True
@@ -362,11 +580,45 @@ class Orchestrator:
             self.log_phase_result(2, 'circuit_breakers', 'error', str(e))
             return False
 
-    def phase_3_position_monitor(self):
+    def phase_3_position_monitor(self) -> List[Dict[str, Any]]:
         self.log_phase_start(3, 'POSITION MONITOR')
         try:
             from algo_position_monitor import PositionMonitor
             monitor = PositionMonitor(self.config)
+
+            # Check for single-stock halts on open positions
+            try:
+                from algo_market_events import MarketEventHandler
+                from algo_position_monitor import PositionMonitor
+                pm = PositionMonitor(self.config)
+                meh = MarketEventHandler(self.config)
+                # Get open positions from position monitor
+                open_positions = pm.get_open_positions() or []
+                halts_found = []
+                for pos in open_positions:
+                    halt_check = meh.check_single_stock_halt(pos.get('symbol') or pos.get('name', ''))
+                    if halt_check and halt_check.get('halted'):
+                        symbol = pos.get('symbol') or pos.get('name', '')
+                        halts_found.append(symbol)
+                        if self.verbose:
+                            logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
+                if halts_found:
+                    self.log_phase_result(3, 'single_stock_halts', 'warn',
+                                        f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
+            except Exception as e:
+                # Halt check is non-critical; fail gracefully
+                pass
+
+            # Check for stale orders first
+            stale_result = monitor.check_stale_orders(self.run_date)
+            if stale_result['status'] == 'STALE_ORDERS_FOUND':
+                self.alerts.send_position_alert(
+                    'STALE_ORDERS',
+                    'STALE_ORDER_ALERT',
+                    f'{stale_result["count"]} orders pending >1 hour',
+                    {'orders': stale_result['count']}
+                )
+
             recommendations = monitor.review_positions(self.run_date)
 
             n_raise_stop = sum(1 for r in recommendations if r['action'] == 'RAISE_STOP')
@@ -384,7 +636,48 @@ class Orchestrator:
             self._position_recs = []
             return True   # fail-open
 
-    def phase_3b_exposure_policy(self):
+    def phase_3a_reconciliation(self) -> Dict[str, Any]:
+        """Check that DB positions match Alpaca account holdings.
+
+        FAIL-OPEN: alerts on divergence but doesn't block trading.
+        """
+        self.log_phase_start('3a', 'POSITION RECONCILIATION')
+        try:
+            from algo_reconciliation import PositionReconciler
+            reconciler = PositionReconciler()
+            result = reconciler.reconcile()
+
+            if result.get('status') in ('skipped', 'error'):
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      result.get('reason', 'unknown issue'))
+            elif result.get('critical_count', 0) > 0:
+                self.alerts.send_position_alert(
+                    'RECONCILIATION',
+                    'CRITICAL',
+                    f'{result["critical_count"]} untracked Alpaca positions',
+                    result.get('issues', [])[:5]
+                )
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      f'Critical divergence: {result["critical_count"]} issues')
+            elif result.get('error_count', 0) > 0:
+                self.alerts.send_position_alert(
+                    'RECONCILIATION',
+                    'ERROR',
+                    f'{result["error_count"]} missing/closed positions in Alpaca',
+                    result.get('issues', [])[:5]
+                )
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      f'{result["error_count"]} position errors')
+            else:
+                self.log_phase_result('3a', 'reconciliation', 'success',
+                                      f'{result.get("db_positions", 0)} positions reconciled OK')
+            return True  # fail-open
+        except Exception as e:
+            traceback.print_exc()
+            self.log_phase_result('3a', 'reconciliation', 'error', str(e))
+            return True  # fail-open
+
+    def phase_3b_exposure_policy(self) -> Dict[str, Any]:
         """Apply market exposure tier policy to existing positions.
 
         Tighten stops on extended winners, force partial profits, and force-exit
@@ -397,25 +690,25 @@ class Orchestrator:
             from algo_market_exposure_policy import ExposurePolicy
             me = MarketExposure()
             exposure = me.compute(self.run_date)
-            print(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
+            logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
             if exposure.get('halt_reasons'):
-                print(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
+                logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 
             policy = ExposurePolicy(self.config)
             constraints = policy.get_entry_constraints(self.run_date)
             self._exposure_constraints = constraints
             if constraints:
-                print(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
-                print(f"    risk_mult={constraints['risk_multiplier']}, "
-                      f"max_new/day={constraints['max_new_positions_today']}, "
-                      f"min_grade={constraints['min_swing_grade']}, "
-                      f"halt_entries={constraints['halt_new_entries']}")
+                logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
+                logger.info(f"    risk_mult={constraints['risk_multiplier']}, "
+                            f"max_new/day={constraints['max_new_positions_today']}, "
+                            f"min_grade={constraints['min_swing_grade']}, "
+                            f"halt_entries={constraints['halt_new_entries']}")
 
             actions = policy.review_existing_positions(self.run_date)
             self._exposure_actions = actions
 
             if not actions:
-                print(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
+                logger.info(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
                 self.log_phase_result('3b', 'exposure_policy', 'success',
                                       f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
                 return True
@@ -424,10 +717,10 @@ class Orchestrator:
             for action in actions:
                 counts[action['action']] = counts.get(action['action'], 0) + 1
 
-            print(f"\n  {len(actions)} exposure-policy actions:")
+            logger.info(f"\n  {len(actions)} exposure-policy actions:")
             for a in actions:
-                print(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
-                      f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
+                logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
+                            f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
 
             self.log_phase_result(
                 '3b', 'exposure_policy', 'success',
@@ -444,7 +737,7 @@ class Orchestrator:
             self._exposure_constraints = None
             return True  # fail-open
 
-    def phase_4_exit_execution(self):
+    def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(4, 'EXIT EXECUTION')
         try:
             from algo_trade_executor import TradeExecutor
@@ -460,8 +753,8 @@ class Orchestrator:
                 try:
                     if self.dry_run:
                         if self.verbose:
-                            print(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
-                                  f"({action['reason']})")
+                            logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
+                                        f"({action['reason']})")
                         continue
 
                     if action['action'] == 'force_exit':
@@ -480,7 +773,7 @@ class Orchestrator:
                             finally:
                                 cur_tmp.close()
                         except Exception as e:
-                            print(f"  Warning: Could not fetch price for force_exit: {e}")
+                            logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
                         finally:
                             try:
                                 conn_tmp.close()
@@ -488,7 +781,7 @@ class Orchestrator:
                                 pass
 
                         if cur_price <= 0:
-                            print(f"  ERROR: force_exit cannot proceed — no valid current price")
+                            logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
                             continue
 
                         result = executor.exit_trade(
@@ -500,7 +793,7 @@ class Orchestrator:
                         )
                         if result.get('success'):
                             exit_count += 1
-                            print(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                            logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
                         else:
                             errors += 1
 
@@ -520,7 +813,7 @@ class Orchestrator:
                             finally:
                                 cur.close()
                         except Exception as e:
-                            print(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
+                            logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                         finally:
                             try:
                                 conn.close()
@@ -537,7 +830,7 @@ class Orchestrator:
                             )
                             if result.get('success'):
                                 exit_count += 1
-                                print(f"  EXPOSURE PARTIAL: {result['message']}")
+                                logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
                     elif action['action'] == 'tighten_stop':
                         try:
@@ -551,12 +844,12 @@ class Orchestrator:
                                 conn.commit()
                                 stop_raises += 1
                                 if self.verbose:
-                                    print(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                                    logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
                             finally:
                                 cur.close()
                         except Exception as e:
                             errors += 1
-                            print(f"  Tighten failed for {action['symbol']}: {e}")
+                            logger.error(f"  Tighten failed for {action['symbol']}: {e}")
                         finally:
                             try:
                                 conn.close()
@@ -564,14 +857,14 @@ class Orchestrator:
                                 pass
                 except Exception as e:
                     errors += 1
-                    print(f"  Error on exposure action {action.get('symbol')}: {e}")
+                    logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
 
             # 4a. Apply position monitor recommendations (early exits + stop raises)
             for rec in getattr(self, '_position_recs', []):
                 try:
                     if self.dry_run:
                         if self.verbose:
-                            print(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
+                            logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                         continue
 
                     if rec['action'] == 'EARLY_EXIT':
@@ -585,31 +878,41 @@ class Orchestrator:
                         if result.get('success'):
                             exit_count += 1
                             if self.verbose:
-                                print(f"  EARLY EXIT: {result['message']}")
+                                logger.info(f"  EARLY EXIT: {result['message']}")
                         else:
                             errors += 1
                     elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
-                        # Raise stop without exiting via direct UPDATE
+                        conn = None
+                        cur = None
                         try:
                             conn = psycopg2.connect(**DB_CONFIG)
                             cur = conn.cursor()
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s "
-                                "WHERE position_id = %s AND status = 'open'",
-                                (rec['new_stop_recommended'], rec['position_id']),
+                                "WHERE position_id = %s AND status = %s",
+                                (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
                             )
                             conn.commit()
-                            cur.close()
-                            conn.close()
                             stop_raises += 1
                             if self.verbose:
-                                print(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
+                                logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
                         except Exception as e:
                             errors += 1
-                            print(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                            logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                        finally:
+                            if cur:
+                                try:
+                                    cur.close()
+                                except Exception:
+                                    pass
+                            if conn:
+                                try:
+                                    conn.close()
+                                except Exception:
+                                    pass
                 except Exception as e:
                     errors += 1
-                    print(f"  Error on {rec.get('symbol')}: {e}")
+                    logger.error(f"  Error on {rec.get('symbol')}: {e}")
 
             # 4b. Exit engine — tiered targets, stops, time, Minervini break
             if not self.dry_run:
@@ -627,7 +930,7 @@ class Orchestrator:
             self.log_phase_result(4, 'exit_execution', 'error', str(e))
             return True
 
-    def phase_4b_pyramid_adds(self):
+    def phase_4b_pyramid_adds(self) -> List[Dict[str, Any]]:
         """Add to winners (Livermore) — runs after exits, before new entries."""
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
         try:
@@ -642,13 +945,13 @@ class Orchestrator:
             executed = 0
             for r in recs:
                 if self.dry_run:
-                    print(f"  [DRY-RUN] PYRAMID {r['symbol']} #{r['add_number']}: "
-                          f"+{r['add_size_shares']} sh @ ${r['add_price']:.2f}")
+                    logger.info(f"  [DRY-RUN] PYRAMID {r['symbol']} #{r['add_number']}: "
+                                f"+{r['add_size_shares']} sh @ ${r['add_price']:.2f}")
                     continue
                 result = engine.execute_add(r)
                 if result.get('success'):
                     executed += 1
-                    print(f"  PYRAMID: {result['message']}")
+                    logger.info(f"  PYRAMID: {result['message']}")
 
             self.log_phase_result('4b', 'pyramid_adds', 'success',
                                   f'{len(recs)} recommended, {executed} executed')
@@ -658,11 +961,14 @@ class Orchestrator:
             self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
             return True
 
-    def phase_5_signal_generation(self):
+    def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         try:
             from algo_filter_pipeline import FilterPipeline
-            pipeline = FilterPipeline()
+            exposure_mult = 1.0
+            if hasattr(self, '_exposure_constraints') and self._exposure_constraints:
+                exposure_mult = self._exposure_constraints.get('risk_multiplier', 1.0)
+            pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
             qualified = pipeline.evaluate_signals(self.run_date)
 
             self._qualified_trades = qualified
@@ -677,7 +983,7 @@ class Orchestrator:
             self._qualified_trades = []
             return True
 
-    def phase_6_entry_execution(self):
+    def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(6, 'ENTRY EXECUTION')
         try:
             from algo_trade_executor import TradeExecutor
@@ -719,19 +1025,30 @@ class Orchestrator:
                         grade_order.index(t.get('swing_grade', 'F')) >= min_grade_idx)
                 ]
                 if len(qualified) < before:
-                    print(f"  Tier filter: {before} -> {len(qualified)} "
-                          f"(min_score={min_score}, min_grade={min_grade})")
+                    logger.info(f"  Tier filter: {before} -> {len(qualified)} "
+                                f"(min_score={min_score}, min_grade={min_grade})")
 
             # Determine open slots
+            conn = None
+            cur = None
             try:
                 conn = psycopg2.connect(**DB_CONFIG)
                 cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
                 open_count = cur.fetchone()[0] or 0
-                cur.close()
-                conn.close()
             except Exception:
                 open_count = 0
+            finally:
+                if cur:
+                    try:
+                        cur.close()
+                    except Exception:
+                        pass
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             max_positions = int(self.config.get('max_positions', 6))
             open_slots = max(0, max_positions - open_count)
 
@@ -740,9 +1057,9 @@ class Orchestrator:
                 daily_cap = constraints.get('max_new_positions_today', 5)
                 open_slots = min(open_slots, daily_cap)
 
-            print(f"  Open positions: {open_count}/{max_positions}, slots available: {open_slots}")
+            logger.info(f"  Open positions: {open_count}/{max_positions}, slots available: {open_slots}")
             if constraints:
-                print(f"  Tier '{constraints['tier_name']}' caps daily entries at {constraints['max_new_positions_today']}")
+                logger.info(f"  Tier '{constraints['tier_name']}' caps daily entries at {constraints['max_new_positions_today']}")
 
             if open_slots == 0:
                 self.log_phase_result(6, 'entry_execution', 'success',
@@ -753,15 +1070,31 @@ class Orchestrator:
                                       'No qualified trades meet tier requirements')
                 return True
 
+            # Margin entry gate (Phase 6 - production safeguard)
+            try:
+                from algo_margin_monitor import MarginMonitor
+                mm = MarginMonitor()
+                can_enter, margin_reason = mm.can_enter_new_position()
+                if not can_enter:
+                    self.log_phase_result(
+                        6, 'entry_execution', 'success',
+                        f'Margin gate blocked entries: {margin_reason}'
+                    )
+                    return True
+                elif self.verbose:
+                    logger.info(f"  [OK] Margin gate: Can enter new positions")
+            except Exception as e:
+                logger.warning(f'Margin gate check failed: {e}')
+
             entered = 0
             blocked = 0
             errors = 0
             for trade in qualified[:open_slots]:
                 if self.dry_run:
                     if self.verbose:
-                        print(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "
-                              f"{trade['shares']}sh @ ${trade['entry_price']:.2f} "
-                              f"stop ${trade['stop_loss_price']:.2f}")
+                        logger.info(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "
+                                    f"{trade['shares']}sh @ ${trade['entry_price']:.2f} "
+                                    f"stop ${trade['stop_loss_price']:.2f}")
                     continue
                 try:
                     # Pull stage_phase + base_type detail from advanced components
@@ -803,15 +1136,15 @@ class Orchestrator:
                     if result.get('success'):
                         entered += 1
                         if self.verbose:
-                            print(f"  ENTERED: {result['message']}")
+                            logger.info(f"  ENTERED: {result['message']}")
                     elif result.get('duplicate'):
                         blocked += 1
                     else:
                         errors += 1
-                        print(f"  Failed {trade['symbol']}: {result.get('message')}")
+                        logger.error(f"  Failed {trade['symbol']}: {result.get('message')}")
                 except Exception as e:
                     errors += 1
-                    print(f"  Exception on {trade['symbol']}: {e}")
+                    logger.info(f"  Exception on {trade['symbol']}: {e}")
 
             self.log_phase_result(
                 6, 'entry_execution', 'success',
@@ -823,7 +1156,7 @@ class Orchestrator:
             self.log_phase_result(6, 'entry_execution', 'error', str(e))
             return True
 
-    def phase_7_reconcile(self):
+    def phase_7_reconcile(self) -> Dict[str, Any]:
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
         try:
             from algo_daily_reconciliation import DailyReconciliation
@@ -836,6 +1169,57 @@ class Orchestrator:
                 f'unrealized P&L ${result.get("unrealized_pnl", 0):+,.2f}'
             ) if result.get('success') else result.get('error', 'unknown')
             self.log_phase_result(7, 'reconciliation', status, summary)
+
+            # Compute and log live performance metrics (Phase 4)
+            perf_status = 'warn'
+            perf_summary = 'N/A'
+            try:
+                from algo_performance import LivePerformance
+                perf = LivePerformance(self.config)
+                perf_report = perf.generate_daily_report(self.run_date)
+                if perf_report and perf_report.get('status') == 'ok':
+                    perf_status = 'success'
+                    perf_summary = (
+                        f"Sharpe {perf_report.get('rolling_sharpe_252d', 'N/A')}, "
+                        f"Win rate {perf_report.get('win_rate_50t', 'N/A')}%, "
+                        f"Expectancy {perf_report.get('expectancy', 'N/A')}"
+                    )
+                elif perf_report:
+                    perf_summary = perf_report.get('message', 'insufficient data')
+                else:
+                    perf_summary = 'failed to generate report'
+            except Exception as e:
+                perf_summary = f'error: {str(e)[:60]}'
+            finally:
+                self.log_phase_result(7, 'performance', perf_status, perf_summary)
+
+            # Compute and log portfolio risk metrics (Phase 8)
+            # IMPORTANT: Each module handles its own DB connection/transaction
+            # Do NOT assume previous module's transaction is clean
+            risk_status = 'warn'
+            risk_summary = 'N/A'
+            try:
+                from algo_var import PortfolioRisk
+                risk = PortfolioRisk(self.config)
+                risk_report = risk.generate_daily_risk_report(self.run_date)
+                if risk_report and risk_report.get('status') == 'ok':
+                    risk_status = 'success'
+                    var_pct = risk_report.get('var_metrics', {}).get('var_pct', 'N/A') if risk_report.get('var_metrics') else 'N/A'
+                    conc_pct = risk_report.get('concentration', {}).get('top_5_concentration_pct', 'N/A') if risk_report.get('concentration') else 'N/A'
+                    alerts_count = len(risk_report.get('alerts', []))
+                    risk_summary = (
+                        f"VaR {var_pct}%, Concentration {conc_pct}%"
+                        + (f", {alerts_count} alerts" if alerts_count else "")
+                    )
+                elif risk_report:
+                    risk_summary = risk_report.get('message', 'insufficient data')
+                else:
+                    risk_summary = 'failed to generate report'
+            except Exception as e:
+                risk_summary = f'error: {str(e)[:60]}'
+            finally:
+                self.log_phase_result(7, 'risk_metrics', risk_status, risk_summary)
+
             return True
         except Exception as e:
             traceback.print_exc()
@@ -844,11 +1228,18 @@ class Orchestrator:
 
     # ---------- Main entrypoint ----------
 
-    def run(self):
-        print(f"\n{'#'*70}")
-        print(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
-        print(f"#   run_id: {self.run_id}")
-        print(f"{'#'*70}")
+    def run(self) -> Dict[str, Any]:
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
+        logger.info(f"#   run_id: {self.run_id}")
+        logger.info(f"{'#'*70}")
+
+        # Check market calendar
+        if not MarketCalendar.is_trading_day(self.run_date):
+            status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
+            logger.info(f"\n⏸️  Market closed: {status['reason']}")
+            logger.info("Skipping all trading phases.\n")
+            return {'success': False, 'error': f"Market closed: {status['reason']}"}
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
@@ -859,11 +1250,11 @@ class Orchestrator:
                 existing_pid = int(lock_path.read_text().strip())
                 # Check if PID is alive
                 if self._pid_alive(existing_pid):
-                    print(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
-                          "Wait for it to finish or kill it.")
+                    logger.error(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
+                                 "Wait for it to finish or kill it.")
                     return {'success': False, 'error': f'lock held by PID {existing_pid}'}
                 else:
-                    print(f"  (Stale lock from PID {existing_pid} — clearing)")
+                    logger.info(f"  (Stale lock from PID {existing_pid} — clearing)")
             except Exception:
                 pass
 
@@ -871,16 +1262,41 @@ class Orchestrator:
         try:
             lock_path.write_text(str(os.getpid()))
         except Exception as e:
-            print(f"  (warning: couldn't write lock file: {e})")
+            logger.warning(f"  (warning: couldn't write lock file: {e})")
 
         try:
+            # Run data patrol first (before DB check, but will silently fail if DB down)
+            # Note: Use quick=True for the 5 critical checks only (staleness, universe, zeros, corp actions, DB constraints)
+            # Full patrol (16 checks) is run separately on a slower schedule
+            logger.info("\nRunning critical data patrol checks...")
+            try:
+                from algo_data_patrol import DataPatrol
+                patrol = DataPatrol()
+                patrol.run(quick=True)  # Only run the 5 critical checks, not the full 16-check suite
+            except Exception as e:
+                logger.error(f"  [WARN] Data patrol failed: {e}")
+
+            # Load stock quality scores (daily quality/growth/momentum/value ratings)
+            # This populates the stock_scores table used by advanced filters
+            logger.info("\nLoading stock quality scores...")
+            try:
+                from loadstockscores import StockScoresLoader
+                loader = StockScoresLoader()
+                stats = loader.run(parallelism=4)  # Moderate parallelism, doesn't block trading
+                if self.verbose:
+                    logger.info(f"  Stock scores loaded: {stats.get('symbols_loaded', 0)} symbols, "
+                               f"{stats.get('symbols_failed', 0)} failures")
+                loader.close()
+            except Exception as e:
+                logger.warning(f"  [WARN] Stock scores load failed (won't block trading): {e}")
+
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
                 if failures >= 3:
                     self.degraded_mode = True
-                    print(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
-                    print("Skipping all trading phases. Continuing with monitoring only.")
+                    logger.error(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
+                    logger.info("Skipping all trading phases. Continuing with monitoring only.")
                     try:
                         from algo_notifications import notify
                         notify(
@@ -894,25 +1310,35 @@ class Orchestrator:
                     self.phase_7_reconcile()
                     return self._final_report()
                 else:
-                    print(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
+                    logger.error(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
                     return self._final_report()
             else:
                 self._reset_db_failure_counter()
 
             if getattr(self, 'skip_freshness', False):
-                print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
-            elif not self.phase_1_data_freshness():
-                print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
-                return self._final_report()
+                logger.info("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
+                self.log_phase_result(1, 'freshness_bypassed', 'override',
+                                     '--skip-freshness flag used — data freshness check skipped')
+            else:
+                try:
+                    if not self.phase_1_data_freshness():
+                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                        return self._final_report()
+                except Exception as e:
+                    logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
+                    self.log_phase_result(1, 'data_freshness', 'error', str(e))
+                    return self._final_report()
 
             if not self.phase_2_circuit_breakers():
-                print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+                logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+                self.phase_3a_reconciliation()
                 self.phase_3_position_monitor()
                 self.phase_3b_exposure_policy()
                 self.phase_4_exit_execution()
                 self.phase_7_reconcile()
                 return self._final_report()
 
+            self.phase_3a_reconciliation()
             self.phase_3_position_monitor()
             self.phase_3b_exposure_policy()
             self.phase_4_exit_execution()
@@ -968,9 +1394,9 @@ class Orchestrator:
         except Exception as e:
             mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
             if mode == 'auto':
-                print(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
+                logger.error(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
                 return False
-            print(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
+            logger.error(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
             return True
 
     def _pid_alive(self, pid):
@@ -992,9 +1418,9 @@ class Orchestrator:
             return False
 
     def _final_report(self):
-        print(f"\n{'#'*70}")
-        print(f"#   FINAL REPORT — {self.run_id}")
-        print(f"{'#'*70}")
+        logger.info(f"\n{'#'*70}")
+        logger.info(f"#   FINAL REPORT — {self.run_id}")
+        logger.info(f"{'#'*70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
                 'success': '[OK] ',
@@ -1002,15 +1428,34 @@ class Orchestrator:
                 'fail':    '[FAIL]',
                 'error':   '[ERR] ',
             }.get(info['status'], '[?]   ')
-            print(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
-        print(f"{'#'*70}\n")
+            logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
+        logger.info(f"{'#'*70}\n")
 
-        return {
+        result = {
             'run_id': self.run_id,
             'run_date': self.run_date.isoformat(),
             'phases': self.phase_results,
             'success': all(p['status'] in ('success', 'halt') for p in self.phase_results.values()),
         }
+
+        # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
+        try:
+            import boto3
+            cw = boto3.client('cloudwatch', region_name='us-east-1')
+            metric_name = 'AlgoRunCompleted' if result['success'] else 'AlgoRunFailed'
+            cw.put_metric_data(
+                Namespace='AlgoTrading',
+                MetricData=[{
+                    'MetricName': metric_name,
+                    'Value': 1,
+                    'Unit': 'Count',
+                }]
+            )
+        except Exception as e:
+            # Silently continue — metrics publishing must never fail the trading system
+            logger.error(f"  (CloudWatch metric publish failed: {e})")
+
+        return result
 
 
 if __name__ == "__main__":
@@ -1027,6 +1472,6 @@ if __name__ == "__main__":
     orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
     if args.skip_freshness:
         orch.skip_freshness = True
-        print("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
+        logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
     final = orch.run()
     sys.exit(0 if final['success'] else 1)

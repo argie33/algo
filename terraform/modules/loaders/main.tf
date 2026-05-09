@@ -89,7 +89,8 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
           "iam:PassRole"
         ]
         Resource = [
-          var.task_execution_role_arn
+          var.task_execution_role_arn,
+          var.task_role_arn
         ]
       }
     ]

@@ -3,12 +3,6 @@
 name: deploy-loaders (deprecated)
 
 on:
-  push:
-    paths:
-      - 'terraform/modules/loaders/**'
-      - '.github/workflows/deploy-loaders.yml'
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       auto_approve:

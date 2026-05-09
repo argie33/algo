@@ -11,7 +11,9 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   // API URL configuration - use loadEnv to properly read .env file
-  const apiUrl = env.VITE_API_URL || (isDevelopment ? "http://localhost:3001" : "");
+  // In development: leave empty so api.js uses relative paths and Vite proxy handles routing
+  // In production: use explicit URL from environment or build-time config
+  const apiUrl = env.VITE_API_URL || (isDevelopment ? "" : "");
 
   console.log("Vite Config:", {
     mode,

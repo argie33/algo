@@ -78,7 +78,8 @@ const Stat = ({ label, value, sub, color }) => (
 );
 
 const FactorBar = ({ label, pts, max, detail, expanded, onToggle }) => {
-  const pct = max > 0 ? (pts / max * 100) : 0;
+  const numPts = Number(pts) || 0;
+  const pct = max > 0 ? (numPts / max * 100) : 0;
   const barColor = pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--amber)' : 'var(--danger)';
   return (
     <div style={{ marginBottom: 12, cursor: 'pointer' }} onClick={onToggle}>
@@ -87,7 +88,7 @@ const FactorBar = ({ label, pts, max, detail, expanded, onToggle }) => {
           {onToggle && (expanded ? <ChevronUp size={14} className="muted" /> : <ChevronDown size={14} className="muted" />)}
           <span className="t-xs strong">{label}</span>
         </div>
-        <span className="mono tnum t-xs" style={{ color: barColor }}>{pts.toFixed(1)} / {max}</span>
+        <span className="mono tnum t-xs" style={{ color: barColor }}>{numPts.toFixed(1)} / {max}</span>
       </div>
       <div className="bar">
         <div className="bar-fill" style={{ width: `${pct}%`, background: barColor }} />
@@ -216,19 +217,19 @@ function AlgoTradingDashboard() {
               value={`$${(portfolio.total_value || 0).toLocaleString()}`}
               sub={
                 <span style={{
-                  color: portfolio.unrealized_pnl_pct >= 0 ? 'var(--success)' : 'var(--danger)',
+                  color: (Number(portfolio.unrealized_pnl_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)',
                   fontWeight: 'var(--w-semibold)',
                 }}>
-                  {portfolio.unrealized_pnl_pct >= 0 ? '+' : ''}
-                  {portfolio.unrealized_pnl_pct?.toFixed(2)}% unrealized
+                  {(Number(portfolio.unrealized_pnl_pct) || 0) >= 0 ? '+' : ''}
+                  {(Number(portfolio.unrealized_pnl_pct) || 0).toFixed(2)}% unrealized
                 </span>
               }
             />
             <div style={{ height: 1, background: 'var(--border)', margin: 'var(--space-3) 0' }} />
             <div className="flex gap-4">
               <Stat label="Daily" value={
-                <span style={{ color: portfolio.daily_return_pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {portfolio.daily_return_pct >= 0 ? '+' : ''}{portfolio.daily_return_pct?.toFixed(2)}%
+                <span style={{ color: (Number(portfolio.daily_return_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {(Number(portfolio.daily_return_pct) || 0) >= 0 ? '+' : ''}{(Number(portfolio.daily_return_pct) || 0).toFixed(2)}%
                 </span>
               } />
               <Stat label="Positions" value={`${data.positions?.length || 0}/${data.config?.max_positions?.value || 6}`} />
@@ -414,7 +415,7 @@ function MarketsTab({ markets }) {
                       <td className="mono tnum strong">#{s.rank}</td>
                       <td className="strong">{s.name}</td>
                       <td className={`num mono tnum ${s.momentum >= 0 ? 'up' : 'down'}`}>
-                        {s.momentum >= 0 ? '+' : ''}{s.momentum?.toFixed(2)}
+                        {(Number(s.momentum) || 0) >= 0 ? '+' : ''}{(Number(s.momentum) || 0).toFixed(2)}
                       </td>
                       <td className="num mono tnum muted">{s.rank_1w_ago || '—'}</td>
                       <td className="num mono tnum muted">{s.rank_4w_ago || '—'}</td>
@@ -453,11 +454,11 @@ function MarketsTab({ markets }) {
                   return (
                     <tr key={s.date}>
                       <td className="mono tnum">{s.date}</td>
-                      <td className="num mono tnum up">{s.bullish?.toFixed(1)}</td>
-                      <td className="num mono tnum down">{s.bearish?.toFixed(1)}</td>
-                      <td className="num mono tnum muted">{s.neutral?.toFixed(1)}</td>
-                      <td className={`num mono tnum ${sp >= 0 ? 'up' : 'down'}`}>
-                        {sp >= 0 ? '+' : ''}{sp.toFixed(1)}
+                      <td className="num mono tnum up">{(Number(s.bullish) || 0).toFixed(1)}</td>
+                      <td className="num mono tnum down">{(Number(s.bearish) || 0).toFixed(1)}</td>
+                      <td className="num mono tnum muted">{(Number(s.neutral) || 0).toFixed(1)}</td>
+                      <td className={`num mono tnum ${(Number(sp) || 0) >= 0 ? 'up' : 'down'}`}>
+                        {(Number(sp) || 0) >= 0 ? '+' : ''}{(Number(sp) || 0).toFixed(1)}
                       </td>
                     </tr>
                   );
@@ -543,7 +544,7 @@ function SetupsTab({ scores, evaluated }) {
                         {s.grade}
                       </span>
                     </td>
-                    <td className="num strong mono">{s.swing_score.toFixed(1)}</td>
+                    <td className="num strong mono">{(Number(s.swing_score) || 0).toFixed(1)}</td>
                     <ScoreCell value={s.components.setup} max={25} />
                     <ScoreCell value={s.components.trend} max={20} />
                     <ScoreCell value={s.components.momentum} max={20} />
@@ -597,11 +598,12 @@ function SetupsTab({ scores, evaluated }) {
 }
 
 const ScoreCell = ({ value, max }) => {
-  const pct = max > 0 ? (value / max) : 0;
+  const numValue = Number(value) || 0;
+  const pct = max > 0 ? (numValue / max) : 0;
   const color = pct >= 0.7 ? 'var(--success)' : pct >= 0.4 ? 'var(--amber)' : 'var(--danger)';
   return (
     <td className="num mono tnum" style={{ color, fontSize: 'var(--t-xs)' }}>
-      {value.toFixed(1)}
+      {numValue.toFixed(1)}
     </td>
   );
 };
@@ -667,17 +669,17 @@ function PositionsTab({ positions }) {
                   <tr key={p.position_id}>
                     <td className="strong mono">{p.symbol}</td>
                     <td className="num mono tnum">{p.quantity}</td>
-                    <td className="num mono tnum">${p.avg_entry_price?.toFixed(2)}</td>
-                    <td className={`num strong mono tnum ${pnlClass}`}>${p.current_price?.toFixed(2)}</td>
+                    <td className="num mono tnum">${(Number(p.avg_entry_price) || 0).toFixed(2)}</td>
+                    <td className={`num strong mono tnum ${pnlClass}`}>${(Number(p.current_price) || 0).toFixed(2)}</td>
                     <td className="num mono tnum" style={{ color: 'var(--amber)' }}>
-                      ${(p.current_stop_price || p.stop_loss_price)?.toFixed(2) || '—'}
+                      ${(Number(p.current_stop_price || p.stop_loss_price) || 0).toFixed(2)}
                     </td>
                     <td className="num mono tnum">${p.position_value?.toLocaleString()}</td>
                     <td className={`num strong mono tnum ${pnlClass}`}>
-                      ${p.unrealized_pnl?.toFixed(2)}
+                      ${(Number(p.unrealized_pnl) || 0).toFixed(2)}
                     </td>
                     <td className={`num strong mono tnum ${pnlClass}`}>
-                      {p.unrealized_pnl_pct?.toFixed(2)}%
+                      {(Number(p.unrealized_pnl_pct) || 0).toFixed(2)}%
                     </td>
                     <td className="num mono tnum">{p.days_since_entry || 0}</td>
                     <td className="num mono tnum" style={{ color: 'var(--brand)' }}>
