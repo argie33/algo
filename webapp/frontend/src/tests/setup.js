@@ -38,6 +38,30 @@ Object.defineProperty(window, "matchMedia", {
 process.env.VITE_API_URL = "http://localhost:3001";
 process.env.NODE_ENV = "test";
 
+// Mock aws-amplify auth module
+vi.mock("aws-amplify/auth", () => ({
+  fetchAuthSession: vi.fn(() =>
+    Promise.resolve({
+      tokens: { accessToken: "test-token", idToken: "test-id" },
+    })
+  ),
+  signIn: vi.fn(() => Promise.resolve({ userId: "test-user" })),
+  signUp: vi.fn(() => Promise.resolve({ userId: "test-user" })),
+  confirmSignUp: vi.fn(() => Promise.resolve()),
+  resendSignUpCode: vi.fn(() => Promise.resolve()),
+  signOut: vi.fn(() => Promise.resolve()),
+  resetPassword: vi.fn(() => Promise.resolve()),
+  confirmResetPassword: vi.fn(() => Promise.resolve()),
+  getCurrentUser: vi.fn(() =>
+    Promise.resolve({ userId: "test-user", username: "testuser" })
+  ),
+}));
+
+// Mock amplify config
+vi.mock("../config/amplify", () => ({
+  isCognitoConfigured: false,
+}));
+
 // Mock recharts components globally to avoid canvas issues
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children, ...props }) =>
