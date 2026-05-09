@@ -36,11 +36,12 @@ logger = logging.getLogger(__name__)
 class OptimizedLoader:
     """Base class for optimized data loaders with batching and connection pooling."""
 
-    def __init__(self, batch_size: int = 500, commit_every_n_symbols: int = 10):
+    def __init__(self, batch_size: int = 500, commit_every_n_symbols: int = 50):
         """
         Args:
             batch_size: How many rows to INSERT in one statement (default: 500)
-            commit_every_n_symbols: Commit database changes after processing N symbols (default: 10)
+            commit_every_n_symbols: Commit database changes after processing N symbols (default: 50)
+                Increased from 10 for better throughput (fewer transaction roundtrips)
         """
         self.batch_size = batch_size
         self.commit_every_n_symbols = commit_every_n_symbols

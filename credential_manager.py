@@ -196,13 +196,13 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     try:
         db_creds = get_db_credentials()
-        print("✓ DB credentials loaded")
+        print("[OK] DB credentials loaded")
     except ValueError as e:
-        print(f"✗ DB credentials: {e}")
+        print(f"[ERROR] DB credentials: {e}")
 
     try:
         alpaca_creds = get_alpaca_credentials()
         if alpaca_creds['key']:
-            print("✓ Alpaca credentials loaded")
+            print("[OK] Alpaca credentials loaded")
     except ValueError as e:
-        print(f"✗ Alpaca credentials: {e}")
+        print(f"[ERROR] Alpaca credentials: {e}")
