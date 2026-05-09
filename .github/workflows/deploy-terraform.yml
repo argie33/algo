@@ -21,6 +21,8 @@ jobs:
     defaults:
       run:
         working-directory: ./terraform
+    env:
+      TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -45,7 +47,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="bucket=stocks-terraform-state-${{ secrets.AWS_ACCOUNT_ID }}-us-east-1" \
+            -backend-config="bucket=stocks-terraform-state" \
             -backend-config="key=stocks/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"

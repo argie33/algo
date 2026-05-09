@@ -325,7 +325,6 @@ class CircuitBreaker:
         try:
             from algo_notifications import notify
             notify(
-                kind='circuit_breaker',
                 severity='critical',
                 title='Trading Halted by Circuit Breaker',
                 message='; '.join(results.get('halt_reasons', [])),

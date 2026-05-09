@@ -54,24 +54,25 @@ def get_performance_metrics():
         win_rate = (wins / len(pnls) * 100) if pnls else 0
         
         # Avg win/loss
-        avg_win = np.mean([p for p in pnls if p > 0]) if wins > 0 else 0
-        avg_loss = np.mean([p for p in pnls if p < 0]) if losses > 0 else 0
-        profit_factor = abs(avg_win * wins / (avg_loss * losses)) if losses > 0 else 0
+        avg_win = float(np.mean([p for p in pnls if p > 0])) if wins > 0 else 0
+        avg_loss = float(np.mean([p for p in pnls if p < 0])) if losses > 0 else 0
+        profit_factor = float(abs(avg_win * wins / (avg_loss * losses)) if losses > 0 else 0)
         
         # Sharpe ratio (assuming 252 trading days, 0% risk-free rate)
         daily_returns = np.array(pnl_pcts) / 100
-        sharpe = (np.mean(daily_returns) / np.std(daily_returns) * np.sqrt(252)) if np.std(daily_returns) > 0 else 0
-        
+        std_daily = np.std(daily_returns)
+        sharpe = float((np.mean(daily_returns) / std_daily * np.sqrt(252)) if std_daily > 0 else 0)
+
         # Sortino ratio (only downside volatility)
         downside_returns = np.array([r for r in daily_returns if r < 0])
         downside_vol = np.std(downside_returns) if len(downside_returns) > 0 else 0
-        sortino = (np.mean(daily_returns) / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0
-        
+        sortino = float((np.mean(daily_returns) / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0)
+
         # Max drawdown
         cumulative = np.cumprod(1 + daily_returns)
         running_max = np.maximum.accumulate(cumulative)
         drawdown = (cumulative - running_max) / running_max
-        max_dd = np.min(drawdown) if len(drawdown) > 0 else 0
+        max_dd = float(np.min(drawdown) if len(drawdown) > 0 else 0)
         
         # Total P&L
         total_pnl = sum(pnls)
@@ -91,7 +92,7 @@ def get_performance_metrics():
             'sharpe_ratio': round(sharpe, 2),
             'sortino_ratio': round(sortino, 2),
             'max_drawdown_pct': round(max_dd * 100, 2),
-            'avg_holding_days': round(np.mean([t['holding_days'] for t in trades if t['holding_days']]), 1),
+            'avg_holding_days': round(float(np.mean([t['holding_days'] for t in trades if t['holding_days']])), 1),
         }
     except Exception as e:
         return {'error': str(e)}

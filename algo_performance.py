@@ -392,6 +392,7 @@ class LivePerformance:
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
 
             # Upsert into database with fresh connection (insert or replace if already exists for this date)
+            # Convert numpy scalars to Python floats to prevent "schema 'np'" errors in psycopg2
             conn = None
             cur = None
             try:
@@ -403,29 +404,38 @@ class LivePerformance:
                     database=self.db_name,
                 )
                 cur = conn.cursor()
+
+                # Convert all values to Python native types (float, int, etc.) to avoid numpy type issues
+                sharpe_val = float(sharpe) if sharpe is not None else None
+                win_rate_val = float(wr['win_rate_pct']) if wr else None
+                avg_win_r_val = float(wr['avg_win_r']) if wr else None
+                avg_loss_r_val = float(wr['avg_loss_r']) if wr else None
+                expectancy_val = float(expectancy) if expectancy is not None else None
+                max_dd_val = float(max_dd) if max_dd is not None else None
+
                 cur.execute(
                     """
                     INSERT INTO algo_performance_daily (
                         report_date, rolling_sharpe_252d, win_rate_50t,
-                        avg_win_r, avg_loss_r, expectancy,
+                        avg_win_r_50t, avg_loss_r_50t, expectancy,
                         max_drawdown_pct, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (report_date) DO UPDATE SET
                         rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                         win_rate_50t = EXCLUDED.win_rate_50t,
-                        avg_win_r = EXCLUDED.avg_win_r,
-                        avg_loss_r = EXCLUDED.avg_loss_r,
+                        avg_win_r_50t = EXCLUDED.avg_win_r_50t,
+                        avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
                         expectancy = EXCLUDED.expectancy,
                         max_drawdown_pct = EXCLUDED.max_drawdown_pct
                     """,
                     (
                         report_date,
-                        sharpe,
-                        wr['win_rate_pct'] if wr else None,
-                        wr['avg_win_r'] if wr else None,
-                        wr['avg_loss_r'] if wr else None,
-                        expectancy,
-                        max_dd,
+                        sharpe_val,
+                        win_rate_val,
+                        avg_win_r_val,
+                        avg_loss_r_val,
+                        expectancy_val,
+                        max_dd_val,
                     )
                 )
                 conn.commit()

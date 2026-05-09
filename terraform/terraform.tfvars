@@ -26,7 +26,7 @@ enable_vpc_endpoints = true
 # Database
 # ============================================================
 
-rds_username                = "stocks"
+rds_username = "stocks"
 # rds_password will be provided via TF_VAR_rds_password environment variable
 # REQUIRED: Set environment variable before terraform apply
 rds_db_name                 = "stocks"
