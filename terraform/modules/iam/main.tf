@@ -55,26 +55,95 @@ resource "aws_iam_role_policy" "github_actions" {
 }
 
 data "aws_iam_policy_document" "github_actions" {
-  # CloudFormation permissions (scoped to stocks-* stacks)
+  # Terraform resource management - EC2, VPC, Security Groups
   statement {
-    sid    = "CloudFormationStackManagement"
+    sid    = "TerraformEC2VPC"
     effect = "Allow"
 
     actions = [
-      "cloudformation:CreateStack",
-      "cloudformation:UpdateStack",
-      "cloudformation:DeleteStack",
-      "cloudformation:DescribeStacks",
-      "cloudformation:GetTemplate",
-      "cloudformation:ListStacks",
-      "cloudformation:DescribeStackResource",
-      "cloudformation:ValidateTemplate",
-      "cloudformation:GetTemplateSummary"
+      "ec2:*",
+      "vpc:*",
+      "elasticnetwork:*"
     ]
 
-    resources = [
-      "arn:aws:cloudformation:${var.aws_region}:${var.aws_account_id}:stack/${var.project_name}-*/*"
+    resources = ["*"]
+  }
+
+  # Terraform resource management - RDS
+  statement {
+    sid    = "TerraformRDS"
+    effect = "Allow"
+
+    actions = [
+      "rds:*",
+      "rds-db:*"
     ]
+
+    resources = ["*"]
+  }
+
+  # Terraform resource management - Lambda
+  statement {
+    sid    = "TerraformLambda"
+    effect = "Allow"
+
+    actions = [
+      "lambda:*",
+      "apigateway:*"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Terraform resource management - ECS
+  statement {
+    sid    = "TerraformECS"
+    effect = "Allow"
+
+    actions = [
+      "ecs:*",
+      "autoscaling:*"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Terraform resource management - IAM
+  statement {
+    sid    = "TerraformIAM"
+    effect = "Allow"
+
+    actions = [
+      "iam:*"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Terraform resource management - Cognito
+  statement {
+    sid    = "TerraformCognito"
+    effect = "Allow"
+
+    actions = [
+      "cognito-idp:*",
+      "cognito-identity:*"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Terraform resource management - CloudFront
+  statement {
+    sid    = "TerraformCloudFront"
+    effect = "Allow"
+
+    actions = [
+      "cloudfront:*",
+      "acm:*"
+    ]
+
+    resources = ["*"]
   }
 
   # Terraform state management (S3 + DynamoDB)

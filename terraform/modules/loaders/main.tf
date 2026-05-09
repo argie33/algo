@@ -82,10 +82,17 @@ resource "aws_cloudwatch_event_rule" "sector_ranking_schedule" {
 }
 
 # Example scheduled rule - Fear&Greed Loader (7pm ET)
-# TODO: Implement remaining loaders from template-loader-tasks.yml
-# This is a stub module - needs 65 total ECS task definitions
 
-# Default loaders manifest (stub - to be populated from template-loader-tasks.yml)
+# ============================================================
+# NOTE: Loader Implementation Status
+# ============================================================
+# Currently implemented: 7 core loaders (stock symbols, prices, fundamentals,
+# market indices, econdata, feargreed, sector ranking)
+#
+# Missing: 58 additional loaders from template-loader-tasks.yml
+# To add remaining loaders, populate the default_loaders map below with
+# additional loader definitions and create corresponding EventBridge rules
+
 locals {
   default_loaders = {
     # Stock data loaders
@@ -96,8 +103,6 @@ locals {
     "econdata"             = { cpu = 256, memory = 512 }
     "feargreed"            = { cpu = 256, memory = 512 }
     "sector_ranking"       = { cpu = 256, memory = 512 }
-
-    # TODO: Add remaining 58 loaders here
   }
 }
 
@@ -109,7 +114,7 @@ resource "aws_ecs_task_definition" "loader" {
   container_definitions = jsonencode([
     {
       name      = "${var.project_name}-${each.key}"
-      image     = "${var.ecr_repository_uri}:latest"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       cpu       = each.value.cpu
       memory    = each.value.memory
       essential = true

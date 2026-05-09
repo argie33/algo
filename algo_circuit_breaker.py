@@ -23,6 +23,7 @@ When a circuit breaker fires:
 """
 
 import os
+import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

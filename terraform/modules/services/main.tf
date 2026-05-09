@@ -371,12 +371,12 @@ resource "aws_cognito_user_pool_client" "main" {
 
   callback_urls = concat(
     var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/callback"] : [],
-    ["http://localhost:3000/callback", "http://localhost:5173/callback"]
+    var.environment == "dev" ? ["http://localhost:3000/callback", "http://localhost:5173/callback"] : []
   )
 
   logout_urls = concat(
     var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/logout"] : [],
-    ["http://localhost:3000/logout", "http://localhost:5173/logout"]
+    var.environment == "dev" ? ["http://localhost:3000/logout", "http://localhost:5173/logout"] : []
   )
 
   allowed_oauth_flows                  = ["code"]

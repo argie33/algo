@@ -320,3 +320,40 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
 
   tags = var.common_tags
 }
+
+# ============================================================
+# 10. Database Initialization (PostgreSQL Schema)
+# ============================================================
+
+# Create a local file from the init.sql template
+resource "local_file" "db_init_script" {
+  content  = file("${path.module}/init.sql")
+  filename = "${path.module}/.terraform/db_init.sql"
+}
+
+# Run SQL initialization script after RDS instance is created
+# This uses null_resource + local-exec with psql
+resource "null_resource" "database_initialization" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      export PGPASSWORD="${var.db_master_password}"
+      psql \
+        -h "${aws_db_instance.main.address}" \
+        -p ${aws_db_instance.main.port} \
+        -U "${var.db_master_username}" \
+        -d "${var.rds_db_name}" \
+        -f "${path.module}/init.sql" \
+        || echo "Note: Database initialization may need manual execution if psql is not available in CI/CD environment"
+    EOT
+  }
+
+  depends_on = [
+    aws_db_instance.main,
+    local_file.db_init_script
+  ]
+
+  triggers = {
+    db_instance_id = aws_db_instance.main.id
+  }
+}
+

@@ -420,9 +420,9 @@ resource "aws_batch_job_definition" "buyselldaily" {
       attempts = 2
     }
 
-    # Timeout in seconds (15 minutes = 900 seconds, could be up to 3600)
+    # Timeout in seconds - 1 hour per attempt (buyselldaily heavy loader)
     timeout = {
-      attemptDurationSeconds = 1800 # 30 minutes max per attempt
+      attemptDurationSeconds = 3600
     }
   })
 

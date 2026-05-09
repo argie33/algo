@@ -211,8 +211,8 @@ module "monitoring" {
   rds_identifier = module.database.rds_identifier
 
   # Alarm configuration
-  apigw_5xx_alarm_name         = "stocks-apigw-5xx-${var.environment}"
-  api_lambda_errors_alarm_name = "stocks-api-errors"
+  apigw_5xx_alarm_name         = "${var.project_name}-apigw-5xx-${var.environment}"
+  api_lambda_errors_alarm_name = "${var.project_name}-api-${var.environment}-errors"
   sns_alerts_enabled           = var.sns_alerts_enabled
   sns_alerts_topic_arn         = coalesce(module.services.sns_alerts_topic_arn, "")
 }
