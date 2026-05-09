@@ -7,7 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { RefreshCw, Inbox, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine,
+  Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area,
 } from 'recharts';
 import { useCommodities } from '../hooks/useDataApi';
 import { useApiQuery } from '../hooks/useApiQuery';

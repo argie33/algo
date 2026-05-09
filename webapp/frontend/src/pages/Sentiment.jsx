@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useMarketSentiment } from '../hooks/useDataApi';
 import {

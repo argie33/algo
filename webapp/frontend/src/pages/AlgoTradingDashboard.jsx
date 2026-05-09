@@ -1227,6 +1227,7 @@ function ConfigTab({ config }) {
 // PERFORMANCE TAB
 // ============================================================================
 function PerformanceTab({ performance, equityCurve = [] }) {
+  const p = performance;
   const PerfCard = ({ label, value, color, hint }) => (
     <Box sx={{
       p: 2, bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1,

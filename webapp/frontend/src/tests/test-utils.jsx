@@ -216,10 +216,8 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 });
 
-// Re-export commonly used testing utilities
-export { render, screen, waitFor, fireEvent } from "@testing-library/react";
+// Additional exports
 export { act } from "@testing-library/react";
-export { userEvent } from "@testing-library/user-event";
 
 // Compatibility helper for legacy render calls
 export const renderSync = (ui, options = {}) => {

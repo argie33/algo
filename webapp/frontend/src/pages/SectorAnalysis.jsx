@@ -8,6 +8,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSectors, useIndustries } from '../hooks/useDataApi';
 import {

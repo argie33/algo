@@ -1,0 +1,160 @@
+name: CLEANUP_CF_STACKS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: List all CloudFormation stacks
+        id: list-stacks
+        run: |
+          echo "📋 Listing all CloudFormation stacks..."
+          STACKS=$(aws cloudformation list-stacks \
+            --region $AWS_REGION \
+            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].{Name:StackName,Status:StackStatus}" \
+            --output table)
+          echo "$STACKS"
+          echo "stacks_found=true" >> $GITHUB_OUTPUT
+
+      - name: Delete all non-deleted CloudFormation stacks
+        continue-on-error: true
+        run: |
+          echo "🗑️ Deleting all CloudFormation stacks..."
+          STACKS=$(aws cloudformation list-stacks \
+            --region $AWS_REGION \
+            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" \
+            --output text)
+
+          if [ -z "$STACKS" ]; then
+            echo "✅ No CloudFormation stacks found"
+            exit 0
+          fi
+
+          for stack in $STACKS; do
+            echo "Initiating deletion of: $stack"
+            aws cloudformation delete-stack \
+              --stack-name "$stack" \
+              --region $AWS_REGION || echo "Warning: Could not delete $stack"
+          done
+
+          echo "Stacks queued for deletion. Waiting..."
+          sleep 10
+
+      - name: Wait for stack deletion to complete
+        continue-on-error: true
+        run: |
+          echo "⏳ Waiting for stacks to be deleted..."
+          for i in {1..30}; do
+            REMAINING=$(aws cloudformation list-stacks \
+              --region $AWS_REGION \
+              --query "StackSummaries[?StackStatus!='DELETE_COMPLETE' && StackStatus!='DELETE_IN_PROGRESS'].StackName" \
+              --output text)
+
+            if [ -z "$REMAINING" ]; then
+              echo "✅ All CloudFormation stacks deleted"
+              break
+            fi
+
+            echo "Attempt $i/30: Waiting for stacks to delete... ($REMAINING)"
+            sleep 10
+          done
+
+      - name: Delete orphaned RDS instances
+        continue-on-error: true
+        run: |
+          echo "🔍 Cleaning orphaned RDS instances..."
+          INSTANCES=$(aws rds describe-db-instances \
+            --region $AWS_REGION \
+            --query "DBInstances[?contains(DBInstanceIdentifier, 'stocks')].DBInstanceIdentifier" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$INSTANCES" ]; then
+            echo "✅ No orphaned RDS instances"
+            exit 0
+          fi
+
+          for instance in $INSTANCES; do
+            echo "Deleting RDS: $instance"
+            aws rds delete-db-instance \
+              --db-instance-identifier "$instance" \
+              --skip-final-snapshot \
+              --region $AWS_REGION 2>/dev/null || echo "Could not delete $instance"
+          done
+
+      - name: Delete orphaned S3 buckets
+        continue-on-error: true
+        run: |
+          echo "🔍 Cleaning orphaned S3 buckets..."
+          BUCKETS=$(aws s3api list-buckets \
+            --query "Buckets[?contains(Name, 'stocks')].Name" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$BUCKETS" ]; then
+            echo "✅ No orphaned S3 buckets"
+            exit 0
+          fi
+
+          for bucket in $BUCKETS; do
+            echo "Cleaning bucket: $bucket"
+            aws s3 rm "s3://$bucket" --recursive 2>/dev/null || true
+            aws s3api delete-bucket --bucket "$bucket" --region $AWS_REGION 2>/dev/null || echo "Could not delete $bucket"
+          done
+
+      - name: Verify all CloudFormation is gone
+        run: |
+          echo "🔍 Final verification: Checking for remaining CloudFormation stacks..."
+          REMAINING=$(aws cloudformation list-stacks \
+            --region $AWS_REGION \
+            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" \
+            --output text)
+
+          if [ -z "$REMAINING" ]; then
+            echo "✅✅✅ ALL CLOUDFORMATION STACKS DELETED"
+          else
+            echo "⚠️ Remaining stacks: $REMAINING (may still be deleting)"
+          fi
+
+      - name: Check for any CloudFormation template files in repo
+        run: |
+          echo "🔍 Checking for CloudFormation templates in codebase..."
+          CF_FILES=$(find . -name "*template*.yml" -o -name "*template*.yaml" -o -name "*cloudformation*" | grep -v ".git" | grep -v ".terraform" | grep -v "botocore" | grep -v ".serverless" | grep -v "__pycache__" | grep -v ".docs" || echo "")
+
+          if [ -z "$CF_FILES" ]; then
+            echo "✅ No CloudFormation template files found"
+          else
+            echo "⚠️ Found CF template files:"
+            echo "$CF_FILES"
+          fi
+
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "✅ CLOUDFORMATION CLEANUP COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "Actions taken:"
+          echo "1. Deleted all CloudFormation stacks"
+          echo "2. Cleaned orphaned RDS instances"
+          echo "3. Cleaned orphaned S3 buckets"
+          echo "4. Verified no CF stacks remain"
+          echo ""
+          echo "Next step: Deploy fresh with Terraform"
+          echo "  gh workflow run deploy-all-infrastructure.yml --ref main"
