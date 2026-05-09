@@ -4,13 +4,17 @@
  */
 
 
-import { render } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Import the real AuthContext - NO MOCKS
 import { createContext } from "react";
+
+// Re-export testing library utilities for convenience
+export { render, screen, waitFor, userEvent };
 
 // Create a fallback AuthContext for testing
 const TestAuthContext = createContext({
