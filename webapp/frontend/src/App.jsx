@@ -21,7 +21,6 @@ import {
 } from "@mui/icons-material";
 
 // Dashboard pages - Lazy-loaded for code splitting
-const MarketOverview = React.lazy(() => import("./pages/MarketOverview"));
 const MarketsHealth = React.lazy(() => import("./pages/MarketsHealth"));
 const StockDetail = React.lazy(() => import("./pages/StockDetail"));
 const DeepValueStocks = React.lazy(() => import("./pages/DeepValueStocks"));
