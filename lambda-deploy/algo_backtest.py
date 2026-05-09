@@ -203,11 +203,14 @@ class Backtester:
         }
 
     def _entries_pipeline(self, day):
-        """Filtered / Advanced: run through the filter pipeline."""
-        from algo_filter_pipeline import FilterPipeline
-        from algo_config import get_config
-        config = get_config()
-        candidates = self._eval_pipeline(day, config)
+        """Filtered / Advanced: inline backtest-safe filter evaluation.
+
+        Avoids pre-computed tables (data_completeness_scores, algo_signals_evaluated)
+        which suffer from incomplete local data and look-ahead bias.
+        All quality checks are computed directly from price_daily and other
+        time-series tables using data available on or before `day`.
+        """
+        candidates = self._eval_pipeline_backtest(day)
         if not candidates:
             return
         slots = min(self.max_positions - len(self.positions), self.max_trades_per_day)
@@ -229,56 +232,134 @@ class Backtester:
                 sqs=cand.get("sqs", 0), composite=cand.get("composite_score", 0),
             )
 
-    def _eval_pipeline(self, day, config):
-        from algo_filter_pipeline import FilterPipeline
-        pipeline = FilterPipeline()
-        pipeline.connect()
-        try:
-            equity = self._equity()
-            pipeline._portfolio_state_cache = {
-                "position_count": len(self.positions),
-                "symbols": set(self.positions.keys()),
-                "positions_value": sum(p["quantity"] * p["mark_price"] for p in self.positions.values()),
-                "portfolio_value": equity,
-                "drawdown_pct": max(0.0, (self.peak_equity - equity) / self.peak_equity * 100.0) if self.peak_equity > 0 else 0,
-                "risk_adjustment": 1.0,
-            }
-            use_adv = (self.strategy == "advanced")
-            if use_adv:
-                from algo_advanced_filters import AdvancedFilters
-                pipeline.advanced = AdvancedFilters(config, cur=pipeline.cur)
-                pipeline.advanced.load_market_context(day)
-            pipeline.cur.execute(
-                "SELECT symbol, date, signal, entry_price FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'",
-                (day,),
+    def _eval_pipeline_backtest(self, day):
+        """Backtest-safe inline filter evaluation.
+
+        Quality checks computed directly from historical data — no pre-computed
+        completeness scores (which have look-ahead bias and are incomplete for
+        local dev datasets).
+
+        Filters applied in order (short-circuit on first failure):
+          T1  Price >= $5, 50d avg volume >= $2M traded (price × volume)
+          T2  Market health: VIX < 35, distribution days <= 4, stage == 2
+              (skipped gracefully if market_health_daily has no data for day)
+          T3  Trend template: stock Weinstein stage == 2, Minervini score >= 7
+              for 'filtered'; >= 8 with 52w-high proximity for 'advanced'
+              (skipped gracefully if trend_template_data has no data for day)
+          T4  Valid stop: stoplevel in buy_sell_daily must be < entry (already
+              in signal data). Falls back to 2×ATR, then 8% floor.
+        """
+        self.cur.execute(
+            "SELECT symbol, entry_price, stoplevel, atr FROM buy_sell_daily "
+            "WHERE date = %s AND signal = 'BUY' ORDER BY symbol",
+            (day,),
+        )
+        raw_signals = self.cur.fetchall()
+        if not raw_signals:
+            return []
+
+        # --- T2: market health (cached per day) ---
+        self.cur.execute(
+            "SELECT market_stage, distribution_days_4w, vix_level FROM market_health_daily "
+            "WHERE date <= %s AND date >= %s::date - INTERVAL '5 days' ORDER BY date DESC LIMIT 1",
+            (day, day),
+        )
+        mh = self.cur.fetchone()
+        if mh is not None:
+            mkt_stage, dist_days, vix = (int(mh[0] or 0), int(mh[1] or 0), float(mh[2] or 0))
+            if vix > 35.0 or dist_days > 4 or mkt_stage != 2:
+                return []  # Market-wide reject: no trades today
+
+        # --- Pre-fetch trend template data for all symbols on this day ---
+        symbols = [r[0] for r in raw_signals]
+        self.cur.execute(
+            """
+            SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score,
+                   percent_from_52w_high, percent_from_52w_low, sma_50, atr
+            FROM trend_template_data
+            WHERE symbol = ANY(%s) AND date <= %s
+              AND date >= %s::date - INTERVAL '10 days'
+            ORDER BY symbol, date DESC
+            """,
+            (symbols, day, day),
+        )
+        trend_rows = {r[0]: r[1:] for r in self.cur.fetchall()}
+
+        # --- Per-symbol evaluation ---
+        qualified = []
+        for symbol, entry_price, stop_level, sig_atr in raw_signals:
+            if symbol in self.positions:
+                continue
+            if entry_price is None or float(entry_price) <= 0:
+                continue
+            entry = float(entry_price)
+
+            # T1: price floor
+            if entry < 5.0:
+                continue
+
+            # T1: volume check — 50d avg dollar volume >= $2M
+            self.cur.execute(
+                "SELECT AVG(close * volume) FROM ("
+                "  SELECT close, volume FROM price_daily WHERE symbol=%s AND date <= %s"
+                "  ORDER BY date DESC LIMIT 50) sub",
+                (symbol, day),
             )
-            signals = pipeline.cur.fetchall()
-            qualified = []
-            for symbol, signal_date, _signal, entry_price in signals:
-                result = pipeline.evaluate_signal(symbol, signal_date, float(entry_price))
-                if not result["passed_all_tiers"]:
+            vrow = self.cur.fetchone()
+            avg_dollar_vol = float(vrow[0]) if vrow and vrow[0] else 0
+            if avg_dollar_vol < 2_000_000:
+                continue
+
+            # T3: trend template (skip gracefully if no data)
+            trend = trend_rows.get(symbol)
+            if trend is not None:
+                stock_stage = int(trend[0]) if trend[0] is not None else 0
+                minervini = int(trend[1]) if trend[1] is not None else 0
+                pct_from_high = float(trend[2]) if trend[2] is not None else 100.0
+                pct_from_low = float(trend[3]) if trend[3] is not None else 0.0
+                sma_50 = float(trend[4]) if trend[4] is not None else None
+                tt_atr = float(trend[5]) if trend[5] is not None else None
+
+                min_score = 8 if self.strategy == "advanced" else 7
+                if stock_stage != 2:
                     continue
-                if use_adv:
-                    si = pipeline._get_sector_info(symbol) or {"sector": "", "industry": ""}
-                    adv = pipeline.advanced.evaluate_candidate(
-                        symbol, signal_date, float(entry_price), si["sector"], si["industry"]
-                    )
-                    if not adv["pass"]:
-                        continue
-                    composite = adv["composite_score"]
-                else:
-                    composite = result.get("sqs", 0)
-                qualified.append({
-                    "symbol": symbol,
-                    "entry_price": float(entry_price),
-                    "stop_loss_price": result["stop_loss_price"],
-                    "sqs": result["sqs"],
-                    "composite_score": composite,
-                })
-            qualified.sort(key=lambda x: x["composite_score"], reverse=True)
-            return qualified
-        finally:
-            pipeline.disconnect()
+                if minervini < min_score:
+                    continue
+                # Advanced: also require within 25% of 52w high
+                if self.strategy == "advanced" and pct_from_high > 25.0:
+                    continue
+            else:
+                sma_50 = None
+                tt_atr = sig_atr
+
+            # T4: compute stop
+            atr_val = float(tt_atr) if tt_atr is not None else (float(sig_atr) if sig_atr else None)
+            if stop_level is not None and float(stop_level) > 0 and float(stop_level) < entry:
+                stop = float(stop_level)
+            elif atr_val and atr_val > 0:
+                stop = entry - 2.0 * atr_val
+            elif sma_50 and sma_50 < entry:
+                stop = sma_50 * 0.97
+            else:
+                stop = entry * 0.92
+            stop = max(stop, entry * 0.92)
+            if stop >= entry:
+                continue
+
+            # Composite score: for 'advanced', prefer better Minervini scores
+            composite = minervini if trend is not None else 0
+
+            qualified.append({
+                "symbol": symbol,
+                "entry_price": entry,
+                "stop_loss_price": stop,
+                "sqs": composite,
+                "composite_score": composite,
+            })
+
+        # Rank by composite score descending
+        qualified.sort(key=lambda x: x["composite_score"], reverse=True)
+        return qualified
 
     def _close_position(self, symbol, price, reason, day, partial=False):
         pos = self.positions.get(symbol)

@@ -265,6 +265,28 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  # Policy: Allow CloudWatch Logs to write archive
+  LogArchiveBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LogArchiveBucket
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudWatchLogsWrite
+            Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action:
+              - s3:PutObject
+            Resource: !Sub '${LogArchiveBucket.Arn}/*'
+          - Sid: AllowCloudWatchLogsGetBucketVersioning
+            Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action: s3:GetBucketVersioning
+            Resource: !GetAtt LogArchiveBucket.Arn
+
   ### 9) CloudWatch Alarms — Monitor critical infrastructure ###
   RDSCPUAlarm:
     Type: AWS::CloudWatch::Alarm

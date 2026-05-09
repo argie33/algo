@@ -143,6 +143,7 @@ Resources:
       Handler: lambda_function.lambda_handler
       Timeout: 900  # 15 minutes
       MemorySize: 512
+      ReservedConcurrentExecutions: 1  # Only one concurrent execution (scheduled task)
       # Dev: Public Lambda for cost savings. Prod: Add VpcConfig when adding NAT Gateway.
       Code:
         S3Bucket: !Ref LambdaFunctionCodeBucket

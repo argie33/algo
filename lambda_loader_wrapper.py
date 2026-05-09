@@ -13,7 +13,7 @@ USAGE (Lambda):
     Handler: lambda_loader_wrapper.handler
     Memory: 512 MB
     Timeout: 300 seconds
-    Env vars: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, ALPACA_API_KEY, etc.
+    Env vars: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, etc.
 
 DEPLOYMENT:
     Via CloudFormation template-loader-lambda.yml or manually:
