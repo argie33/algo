@@ -263,6 +263,10 @@ Resources:
       MinSize: '0'
       MaxSize: '1'
       DesiredCapacity: '0'
+      TerminationPolicies:
+        - OldestInstance
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 300
       Tags:
         - Key: Name
           Value: stocks-bastion
@@ -408,6 +412,8 @@ Resources:
   ### 9c) Data Loading Bucket (for loaders to stage results) ###
   DataLoadingBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       VersioningConfiguration:
         Status: Enabled
@@ -431,7 +437,6 @@ Resources:
   VpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: stocks-vpc-endpoint-sg
       GroupDescription: Security group for VPC endpoints (HTTPS from VPC)
       VpcId: !Ref StocksVPC
       SecurityGroupIngress:

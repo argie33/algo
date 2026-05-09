@@ -44,8 +44,6 @@ Resources:
   ### 1) RDS Subnet Group (private) ###
   StocksDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       DBSubnetGroupDescription: Private subnet group for RDS
       SubnetIds:
@@ -54,7 +52,6 @@ Resources:
   ### 2) RDS Security Group ###
   StocksDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    DeletionPolicy: Retain
     Properties:
       GroupDescription: "Allow Postgres access from ECS tasks, Bastion, and Lambdas (dev: wide open, prod: lock down)"
       VpcId: !ImportValue StocksCore-VpcId
@@ -84,7 +81,6 @@ Resources:
   # native to vanilla PostgreSQL and require no extension.
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Retain
     DependsOn:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
@@ -103,13 +99,15 @@ Resources:
       PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false
+      SkipFinalSnapshot: true
+      BackupRetentionPeriod: 7
       Tags:
         - Key: StorageUpdate
           Value: "fixed-61gb-current-allocation"
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
     DependsOn: StocksDBInstance
     Properties:
       Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-001
@@ -126,6 +124,7 @@ Resources:
   ### 4.1) Secrets Manager: Email Configuration ###
   EmailConfigSecret:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub stocks-email-config-${AWS::StackName}-${AWS::Region}
       Description: Email notification configuration
@@ -138,6 +137,7 @@ Resources:
   ### 4.2) Secrets Manager: Algo runtime secrets (Alpaca paper-trading) ###
   AlgoSecretsSecret:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub stocks-algo-secrets-${AWS::StackName}-${AWS::Region}
       Description: "Alpaca API credentials + algo runtime secrets — read by algo orchestrator + alpaca portfolio sync ECS tasks"
