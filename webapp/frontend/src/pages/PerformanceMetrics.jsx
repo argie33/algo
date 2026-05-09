@@ -1,41 +1,71 @@
 import React from "react";
 import { useApiQuery } from "../hooks/useApiQuery";
-import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
-import { getApiConfig } from "../services/api";
+import { BarChart3, RefreshCw } from "lucide-react";
+import { api } from "../services/api";
 
-const Card = ({ label, value, unit = "", color = "white" }) => (
-  <div style={{ padding: "16px", background: "var(--bg-secondary)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
-    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px" }}>{label}</div>
-    <div style={{ fontSize: "24px", fontWeight: "bold", color }}>{typeof value === "number" ? value.toFixed(2) : value}{unit}</div>
+const MetricCard = ({ label, value, unit = "", color = "var(--text)" }) => (
+  <div style={{ padding: "16px", background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
+    <div style={{ fontSize: "var(--t-xs)", color: "var(--text-2)", marginBottom: "8px" }}>{label}</div>
+    <div style={{ fontSize: "var(--t-xl)", fontWeight: "var(--w-bold)", color }}>
+      {value == null || isNaN(Number(value)) ? "—" : Number(value).toFixed(2)}{unit}
+    </div>
   </div>
 );
 
 export default function PerformanceMetrics() {
-  const { apiUrl } = getApiConfig();
-  const { data, loading, error, refetch } = useApiQuery(["performance"], async () => {
-    const res = await fetch();
-    if (!res.ok) throw new Error("Failed");
-    return res.json();
-  }, { staleTime: 60000 });
+  const { data: m = {}, loading, error, refetch } = useApiQuery(
+    ["performance"],
+    () => api.get("/api/algo/performance"),
+    { staleTime: 60000 }
+  );
 
-  const m = data?.data || {};
-
-  if (loading) return <div style={{ padding: "20px" }}>Loading...</div>;
-  if (error) return <div style={{ padding: "20px", color: "red" }}>Error: {error}</div>;
+  if (loading) return <div className="main-content"><div className="muted t-sm" style={{ padding: "40px" }}>Loading…</div></div>;
+  if (error) return <div className="main-content"><div className="alert alert-danger" style={{ margin: "20px" }}>Error: {error}</div></div>;
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1 style={{ display: "flex", alignItems: "center", gap: "8px" }}><BarChart3 /> Performance</h1>
-      <button onClick={() => refetch()}>Refresh</button>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginTop: "20px" }}>
-        <Card label="Trades" value={m.total_trades} />
-        <Card label="Win Rate" value={m.win_rate_pct} unit="%" color={m.win_rate_pct > 50 ? "green" : "red"} />
-        <Card label="Total P&L" value={m.total_pnl_dollars} unit=" USD" color={m.total_pnl_dollars > 0 ? "green" : "red"} />
-        <Card label="Sharpe" value={m.sharpe_annualized} />
-        <Card label="Sortino" value={m.sortino_annualized} />
-        <Card label="Max DD" value={m.max_drawdown_pct} unit="%" color="orange" />
-        <Card label="Profit Factor" value={m.profit_factor} />
-        <Card label="Calmar" value={m.calmar_ratio} />
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <div className="page-head-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <BarChart3 size={20} /> Performance
+          </div>
+          <div className="page-head-sub">Algo trading performance metrics</div>
+        </div>
+        <div className="page-head-actions">
+          <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+        <MetricCard label="Total Trades" value={m.total_trades} unit="" />
+        <MetricCard
+          label="Win Rate"
+          value={m.win_rate_pct}
+          unit="%"
+          color={m.win_rate_pct > 50 ? "var(--success)" : "var(--danger)"}
+        />
+        <MetricCard
+          label="Total P&L"
+          value={m.total_pnl_dollars}
+          unit=" USD"
+          color={m.total_pnl_dollars > 0 ? "var(--success)" : "var(--danger)"}
+        />
+        <MetricCard label="Sharpe (Ann.)" value={m.sharpe_annualized} />
+        <MetricCard label="Sortino (Ann.)" value={m.sortino_annualized} />
+        <MetricCard label="Max Drawdown" value={m.max_drawdown_pct} unit="%" color="var(--amber)" />
+        <MetricCard label="Profit Factor" value={m.profit_factor} />
+        <MetricCard label="Calmar Ratio" value={m.calmar_ratio} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "12px" }}>
+        <MetricCard label="Total Return" value={m.total_return_pct} unit="%" color={m.total_return_pct >= 0 ? "var(--success)" : "var(--danger)"} />
+        <MetricCard label="Avg Win" value={m.avg_win_pct} unit="%" color="var(--success)" />
+        <MetricCard label="Avg Loss" value={m.avg_loss_pct} unit="%" color="var(--danger)" />
+        <MetricCard label="Expectancy R" value={m.expectancy_r} />
+        <MetricCard label="Avg Hold Days" value={m.avg_hold_days} />
+        <MetricCard label="Portfolio Snapshots" value={m.portfolio_snapshots} unit="" />
       </div>
     </div>
   );

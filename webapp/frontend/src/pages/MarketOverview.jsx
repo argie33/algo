@@ -305,10 +305,7 @@ const _DataTable = ({ title, columns, data }) => (
 // Fetch 3 separate market endpoints
 const fetchMarketTechnicals = async () => {
   try {
-    console.log("📊 Fetching market technicals...");
-    const response = await getMarketTechnicals();
-    console.log("📊 Market technicals response:", response);
-    return response;
+    return await getMarketTechnicals();
   } catch (error) {
     _logger.error("Market technicals error:", error.message || error.toString());
     throw error;
@@ -317,10 +314,7 @@ const fetchMarketTechnicals = async () => {
 
 const fetchMarketSentiment = async (range = "30d") => {
   try {
-    console.log("😊 Fetching market sentiment...");
-    const response = await getMarketSentimentData(range);
-    console.log("😊 Market sentiment response:", response);
-    return response;
+    return await getMarketSentimentData(range);
   } catch (error) {
     _logger.error("Market sentiment error:", error.message || error.toString());
     throw error;
@@ -329,10 +323,7 @@ const fetchMarketSentiment = async (range = "30d") => {
 
 const fetchMarketSeasonality = async () => {
   try {
-    console.log("📅 Fetching market seasonality...");
-    const response = await getMarketSeasonalityData();
-    console.log("📅 Market seasonality response:", response);
-    return response;
+    return await getMarketSeasonalityData();
   } catch (error) {
     _logger.error("Market seasonality error:", error.message || error.toString());
     throw error;
@@ -429,11 +420,9 @@ const handleTabChange = (event, newValue) => {
   };
 
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
-  const techData = technicalsData?.data || {};
-  const sentData = sentimentData?.data || {};
-  const seasonData = seasonalityData?.data || {};
-
-  console.log("📊 Market data structure:", { techData, sentData, seasonData });
+  const techData = technicalsData || {};
+  const sentData = sentimentData || {};
+  const seasonData = seasonalityData || {};
 
   // Extract technicals data (techData already contains all the nested properties)
   const breadth = techData?.breadth || {};
@@ -607,13 +596,6 @@ const handleTabChange = (event, newValue) => {
   const naaimHistory = sentData?.naaim || [];
   const aaiiHistory = sentData?.aaii || [];
 
-  console.log("✅ Data extraction:", {
-    hasBreadth: !!breadth,
-    hasFearGreed: fearGreedHistory.length,
-    hasAAII: aaiiHistory.length,
-    hasNAAIM: naaimHistory.length
-  });
-
   // Merge by date for multi-line chart - only include dates with actual data
   const dateMap = {};
   fearGreedHistory.forEach((item) => {
@@ -661,11 +643,6 @@ const handleTabChange = (event, newValue) => {
       return cleanData;
     })
     .slice(-30);
-  console.log("sentimentChartData after filtering:", {
-    total_dates: sentimentChartData.length,
-    sample: sentimentChartData.length > 0 ? sentimentChartData[0] : null
-  });
-
   // Get current AAII from the latest AAII sentiment data
   const latestAAII = (aaiiHistory && aaiiHistory.length > 0) ? aaiiHistory[0] : {};
 
@@ -1116,7 +1093,7 @@ const handleTabChange = (event, newValue) => {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <MarketExposure
-            marketData={{ data: { indices: indicesData?.data?.items || [] } }}
+            marketData={{ data: { indices: Array.isArray(indicesData) ? indicesData : [] } }}
             breadthData={{ data: breadth }}
             distributionDaysData={distributionDays}
           />
@@ -1124,7 +1101,7 @@ const handleTabChange = (event, newValue) => {
       </Grid>
 
       {/* Top Movers Section */}
-      {topMoversData?.data && (topMoversData.data.gainers?.length > 0 || topMoversData.data.losers?.length > 0) && (
+      {topMoversData && (topMoversData.gainers?.length > 0 || topMoversData.losers?.length > 0) && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} md={6}>
             <AnimatedCard delay={2}>
@@ -1141,7 +1118,7 @@ const handleTabChange = (event, newValue) => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {topMoversData.data.gainers?.slice(0, 10).map((stock) => (
+                      {topMoversData.gainers?.slice(0, 10).map((stock) => (
                         <TableRow key={stock.symbol} hover>
                           <TableCell sx={{ fontWeight: 500 }}>{stock.symbol}</TableCell>
                           <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
@@ -1170,7 +1147,7 @@ const handleTabChange = (event, newValue) => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {topMoversData.data.losers?.slice(0, 10).map((stock) => (
+                      {topMoversData.losers?.slice(0, 10).map((stock) => (
                         <TableRow key={stock.symbol} hover>
                           <TableCell sx={{ fontWeight: 500 }}>{stock.symbol}</TableCell>
                           <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
@@ -1188,7 +1165,7 @@ const handleTabChange = (event, newValue) => {
       )}
 
       {/* Market Cap Distribution Section */}
-      {marketCapData?.data && marketCapData.data.length > 0 && (
+      {Array.isArray(marketCapData) && marketCapData.length > 0 && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12}>
             <AnimatedCard delay={2}>
@@ -1197,7 +1174,7 @@ const handleTabChange = (event, newValue) => {
                   💰 Market Cap Distribution
                 </Typography>
                 <Grid container spacing={2}>
-                  {marketCapData.data.map((tier, idx) => (
+                  {marketCapData.map((tier, idx) => (
                     <Grid item xs={12} sm={6} md={3} key={idx}>
                       <Box
                         sx={{

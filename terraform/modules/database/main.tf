@@ -114,6 +114,12 @@ resource "aws_db_parameter_group" "main" {
   description = "PostgreSQL 14 parameter group for ${var.project_name} (TimescaleDB-enabled)"
   family      = "postgres14"
 
+  # Enable TimescaleDB extension for time-series data
+  parameter {
+    name  = "shared_preload_libraries"
+    value = "timescaledb"
+  }
+
   tags = var.common_tags
 
   lifecycle {
@@ -428,36 +434,118 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 # ============================================================
 # 10. Database Initialization (PostgreSQL Schema)
 # ============================================================
+# Lambda function executes SQL schema initialization on RDS
+# Runs after RDS instance is available; idempotent (uses IF NOT EXISTS)
 
-# Create a local file from the init.sql template
-resource "local_file" "db_init_script" {
-  content  = file("${path.module}/init.sql")
-  filename = "${path.module}/.terraform/db_init.sql"
+# IAM role for database init Lambda
+resource "aws_iam_role" "db_init_lambda" {
+  name = "${var.project_name}-db-init-lambda-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
-# Run SQL initialization script after RDS instance is created
-# This uses null_resource + local-exec with psql
-resource "null_resource" "database_initialization" {
+# VPC execution policy
+resource "aws_iam_role_policy_attachment" "db_init_lambda_vpc" {
+  role       = aws_iam_role.db_init_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+# CloudWatch logs policy
+resource "aws_iam_role_policy_attachment" "db_init_lambda_logs" {
+  role       = aws_iam_role.db_init_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# Lambda function for database initialization
+data "archive_file" "db_init_lambda_zip" {
+  type        = "zip"
+  output_path = "${path.module}/.terraform/db_init_lambda.zip"
+
+  source {
+    content  = file("${path.module}/init.sql")
+    filename = "schema.sql"
+  }
+
+  # Inline Python code for executing SQL
+  source {
+    content = templatefile("${path.module}/db_init_lambda.py", {
+      db_host      = aws_db_instance.main.address
+      db_port      = aws_db_instance.main.port
+      db_name      = var.rds_db_name
+      db_user      = var.db_master_username
+      db_password  = var.db_master_password
+      schema_file  = "schema.sql"
+    })
+    filename = "lambda_function.py"
+  }
+}
+
+resource "aws_lambda_function" "db_init" {
+  filename      = data.archive_file.db_init_lambda_zip.output_path
+  function_name = "${var.project_name}-db-init-${var.environment}"
+  role          = aws_iam_role.db_init_lambda.arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.11"
+  timeout       = 60
+  memory_size   = 256
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.rds_security_group_id]
+  }
+
+  environment {
+    variables = {
+      DB_HOST     = aws_db_instance.main.address
+      DB_PORT     = aws_db_instance.main.port
+      DB_NAME     = var.rds_db_name
+      DB_USER     = var.db_master_username
+      DB_PASSWORD = var.db_master_password
+    }
+  }
+
+  source_code_hash = data.archive_file.db_init_lambda_zip.output_base64sha256
+
+  layers = try([aws_lambda_layer_version.psycopg2[0].arn], [])
+
+  depends_on = [
+    aws_iam_role_policy_attachment.db_init_lambda_vpc,
+    aws_iam_role_policy_attachment.db_init_lambda_logs
+  ]
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-db-init"
+  })
+}
+
+# Invoke Lambda after RDS is ready
+resource "null_resource" "invoke_db_init" {
   provisioner "local-exec" {
     command = <<-EOT
-      export PGPASSWORD="${var.db_master_password}"
-      psql \
-        -h "${aws_db_instance.main.address}" \
-        -p ${aws_db_instance.main.port} \
-        -U "${var.db_master_username}" \
-        -d "${var.rds_db_name}" \
-        -f "${path.module}/init.sql" \
-        || echo "Note: Database initialization may need manual execution if psql is not available in CI/CD environment"
+      aws lambda invoke \
+        --function-name ${aws_lambda_function.db_init.function_name} \
+        --region ${var.aws_region} \
+        --payload '{}' \
+        /tmp/db-init-response.json && \
+        echo "Database initialization Lambda invoked successfully"
     EOT
   }
 
-  depends_on = [
-    aws_db_instance.main,
-    local_file.db_init_script
-  ]
+  depends_on = [aws_lambda_function.db_init, aws_db_instance.main]
 
   triggers = {
-    db_instance_id = aws_db_instance.main.id
+    rds_instance_id = aws_db_instance.main.id
   }
 }
 

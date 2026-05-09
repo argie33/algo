@@ -34,48 +34,41 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 }
 
 # ============================================================
-# API Lambda Function - Real Implementation
+# API Lambda Function
 # ============================================================
-# Points to the actual API implementation at lambda/api/lambda_function.py
+# Uses S3-based code packages built and uploaded by GitHub Actions.
+# Fallback to local file if S3 not configured.
 
-data "archive_file" "api_function" {
+# Conditional: use S3 if bucket provided, else local file
+locals {
+  api_lambda_use_s3 = var.api_lambda_s3_bucket != ""
+}
+
+# For local fallback: archive local code (for dev/testing)
+data "archive_file" "api_function_local" {
+  count       = local.api_lambda_use_s3 ? 0 : 1
   type        = "zip"
-  output_path = "${path.module}/../../lambda/api/api_lambda.zip"
+  output_path = "${path.module}/../../${var.api_lambda_code_file}"
   source {
-    content  = <<-EOT
-import json
-import logging
-import os
-from datetime import datetime
-import psycopg2
-from psycopg2.extras import execute_values
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-def lambda_handler(event, context):
-    logger.info(f"API request received: {event}")
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "message": "API is operational",
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    }
-EOT
+    content  = "# API Lambda stub - use S3 for production"
     filename = "lambda_function.py"
   }
 }
 
 resource "aws_lambda_function" "api" {
-  filename         = data.archive_file.api_function.output_path
   function_name    = local.api_lambda_name
   role             = var.api_lambda_role_arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.11"
   timeout          = var.api_lambda_timeout
   memory_size      = var.api_lambda_memory
-  source_code_hash = data.archive_file.api_function.output_base64sha256
+
+  # Use S3 package if available, otherwise local file
+  s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
+  s3_key            = local.api_lambda_use_s3 ? var.api_lambda_s3_key : null
+  s3_object_version = local.api_lambda_use_s3 && var.api_lambda_s3_object_version != "" ? var.api_lambda_s3_object_version : null
+  filename          = !local.api_lambda_use_s3 ? data.archive_file.api_function_local[0].output_path : null
+  source_code_hash  = !local.api_lambda_use_s3 ? data.archive_file.api_function_local[0].output_base64sha256 : null
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage

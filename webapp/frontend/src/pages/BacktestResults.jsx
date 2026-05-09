@@ -12,7 +12,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { useApiQuery } from '../hooks/useApiQuery';
+import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
@@ -37,7 +37,7 @@ export default function BacktestResults() {
   });
   const [selectedRun, setSelectedRun] = useState(null);
 
-  const queryResult = useApiQuery(
+  const { items: runs, pagination, loading: isLoading, error: listErr, refetch } = useApiPaginatedQuery(
     ['backtest-runs', filters],
     () => {
       const p = new URLSearchParams();
@@ -49,16 +49,12 @@ export default function BacktestResults() {
       return api.get(`/api/research/backtests?${p.toString()}`);
     }
   );
-  const { data: list, loading: isLoading, error: listErr, refetch } = queryResult;
 
   const { data: detail } = useApiQuery(
     ['backtest-detail', selectedRun],
     () => api.get(`/api/research/backtests/${selectedRun}`),
     { enabled: !!selectedRun }
   );
-
-  const runs = list?.items || [];
-  const pagination = list?.pagination || { total: 0, page: 1, totalPages: 1 };
 
   if (selectedRun && detail) {
     return <RunDetail detail={detail} onBack={() => setSelectedRun(null)} />;

@@ -403,17 +403,54 @@ variable "api_gateway_log_retention_days" {
 }
 
 # ============================================================
-# Lambda Code Configuration
+# Lambda Code Configuration (S3-based)
 # ============================================================
 
+variable "api_lambda_s3_bucket" {
+  description = "S3 bucket containing API Lambda deployment package"
+  type        = string
+  default     = ""
+}
+
+variable "api_lambda_s3_key" {
+  description = "S3 key (path) for API Lambda deployment package"
+  type        = string
+  default     = "lambda/api_lambda.zip"
+}
+
+variable "api_lambda_s3_object_version" {
+  description = "S3 object version ID for API Lambda (enables updates via versioning)"
+  type        = string
+  default     = ""
+}
+
+variable "algo_lambda_s3_bucket" {
+  description = "S3 bucket containing algo Lambda deployment package"
+  type        = string
+  default     = ""
+}
+
+variable "algo_lambda_s3_key" {
+  description = "S3 key (path) for algo Lambda deployment package"
+  type        = string
+  default     = "lambda/algo_lambda.zip"
+}
+
+variable "algo_lambda_s3_object_version" {
+  description = "S3 object version ID for algo Lambda (enables updates via versioning)"
+  type        = string
+  default     = ""
+}
+
+# Fallback: local files (for dev/testing)
 variable "api_lambda_code_file" {
-  description = "Path to API Lambda deployment package (zip file)"
+  description = "Local path to API Lambda deployment package (fallback if S3 not configured)"
   type        = string
   default     = "lambda_api.zip"
 }
 
 variable "algo_lambda_code_file" {
-  description = "Path to algo Lambda deployment package (zip file)"
+  description = "Local path to algo Lambda deployment package (fallback if S3 not configured)"
   type        = string
   default     = "lambda_algo.zip"
 }

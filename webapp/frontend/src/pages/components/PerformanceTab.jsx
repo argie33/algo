@@ -5,33 +5,7 @@ import {
   Tooltip as RechartTooltip, ReferenceLine
 } from 'recharts';
 
-// Color scheme
-const C = {
-  card: '#1a1f3a',
-  cardAlt: '#232838',
-  border: '#2a2f42',
-  text: '#e8eaf4',
-  textBright: '#f5f7ff',
-  textDim: '#8891b0',
-  textFaint: '#6b7a99',
-  blue: '#5b6ef5',
-  greenDark: '#0e2a18',
-  green: '#22c55e',
-  redDark: '#3a1414',
-  red: '#ef4444',
-  yellow: '#f59e0b',
-};
-
-function SectionCard({ title, children, sx }) {
-  return (
-    <Box sx={{ bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1, p: 2, ...sx }}>
-      {title && <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>{title}</Typography>}
-      {children}
-    </Box>
-  );
-}
-
-function PerfCard({ label, value, color, hint }) {
+function PerfCard({ label, value, color, hint, C }) {
   return (
     <Box sx={{
       p: 2, bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1,
@@ -50,7 +24,7 @@ function PerfCard({ label, value, color, hint }) {
   );
 }
 
-export default function PerformanceTab({ performance, equityCurve = [] }) {
+export default function PerformanceTab({ performance, equityCurve = [], C, SectionCard }) {
   const p = performance;
   const numColor = (n, threshold = 0) => (n > threshold ? C.green : n < threshold ? C.red : C.textDim);
 
@@ -80,6 +54,10 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
   const startValue = equityCurve[0]?.total_portfolio_value;
   const endValue = equityCurve[equityCurve.length - 1]?.total_portfolio_value;
   const totalReturn = startValue > 0 ? ((endValue - startValue) / startValue * 100).toFixed(1) : null;
+
+  if (!C || !SectionCard) {
+    return <Alert severity="error">PerformanceTab: Missing color scheme or SectionCard component</Alert>;
+  }
 
   return (
     <Box sx={{ p: 2 }}>
@@ -133,7 +111,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {monthlyReturns.map(m => {
               const pct = Math.round(m.total * 10) / 10;
-              const bg = pct > 5 ? C.greenDark : pct > 0 ? '#1a3a20' : pct > -5 ? '#3a1414' : C.redDark;
+              const bg = pct > 5 ? C.greenDark : pct > 0 ? '#238636' : pct > -5 ? '#3d2620' : C.redDark;
               const col = pct > 0 ? C.green : C.red;
               return (
                 <Box key={m.key} sx={{ p: 1.5, borderRadius: 1, bgcolor: bg, border: `1px solid ${C.border}`, minWidth: 72, textAlign: 'center' }}>
@@ -159,7 +137,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
       {performance && <>
         <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>Trade Statistics</Typography>
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6} sm={3}><PerfCard label="TOTAL TRADES" value={p.total_trades} hint={`${p.winning_trades}W / ${p.losing_trades}L`} /></Grid>
+          <Grid item xs={6} sm={3}><PerfCard label="TOTAL TRADES" value={p.total_trades} hint={`${p.winning_trades}W / ${p.losing_trades}L`} C={C} /></Grid>
           <Grid item xs={6} sm={3}><PerfCard label="WIN RATE" value={`${p.win_rate_pct}%`} color={numColor(p.win_rate_pct, 50)} hint="of closed trades" /></Grid>
           <Grid item xs={6} sm={3}><PerfCard label="EXPECTANCY" value={`${p.expectancy_r >= 0 ? '+' : ''}${p.expectancy_r}R`} color={numColor(p.expectancy_r)} hint="per trade" /></Grid>
           <Grid item xs={6} sm={3}><PerfCard label="PROFIT FACTOR" value={p.profit_factor || '∞'} color={numColor((p.profit_factor || 0) - 1)} hint="gross win / gross loss" /></Grid>
