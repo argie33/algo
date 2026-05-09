@@ -13,6 +13,7 @@ import sys
 import psycopg2
 from pathlib import Path
 from datetime import date, timedelta, datetime
+from decimal import Decimal
 from dotenv import load_dotenv
 
 # Load .env.local or .env.test
@@ -139,7 +140,7 @@ def seed_test_data():
         print(f"  [FAIL] Failed to seed data: {e}")
         try:
             conn.rollback()
-                except Exception:
+        except Exception:
             pass
         raise
 
