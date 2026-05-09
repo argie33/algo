@@ -43,12 +43,13 @@ class EarningsBlackout:
             cur = conn.cursor()
 
             # Check if earnings exists within the blackout window
+            # Use earnings_calendar (has actual earnings_date)
             cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s
                    AND earnings_date >= %s
                    AND earnings_date <= %s
-                   LIMIT 1""",
+                   ORDER BY earnings_date LIMIT 1""",
                 (
                     symbol,
                     eval_date - timedelta(days=self.days_before),
@@ -72,7 +73,7 @@ class EarningsBlackout:
                 'reason': f'No earnings in ±{self.days_before}/{self.days_after}d window',
             }
         except Exception as e:
-            logger.warning(f"Earnings blackout check error: {e}")
+            logger.warning(f"Earnings blackout check error for {symbol}: {e}")
             return {'pass': True, 'reason': 'Earnings check skipped (error)'}
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
@@ -82,7 +83,7 @@ class EarningsBlackout:
             cur = conn.cursor()
 
             cur.execute(
-                """SELECT earnings_date, earnings_time FROM earnings_calendar
+                """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s
                    AND earnings_date >= %s
                    AND earnings_date <= %s
@@ -97,9 +98,9 @@ class EarningsBlackout:
             cur.close()
             conn.close()
 
-            return [{'date': row[0], 'time': row[1]} for row in rows]
+            return [{'date': row[0]} for row in rows]
         except Exception as e:
-            logger.warning(f"Failed to fetch earnings: {e}")
+            logger.warning(f"Failed to fetch earnings for {symbol}: {e}")
             return []
 
 

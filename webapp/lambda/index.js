@@ -58,6 +58,7 @@ const meanReversionSignalsRoutes = require("./routes/meanReversionSignals");
 const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const pricesRoutes = require("./routes/prices");
+const performanceRoutes = require("./routes/performance");
 
 const app = express();
 
@@ -182,34 +183,48 @@ app.use((req, res, next) => {
 app.options('*', (req, res) => {
   const origin = req.headers.origin;
 
-  // Allow CloudFront, localhost, and any configured domain
-  let allowedOrigin = '*'; // Default to allow all for API Gateway
+  // FIXED: Use exact domain matching instead of substring patterns
+  // List of explicitly allowed origins - no wildcards or substring matching
+  const allowedOrigins = [
+    process.env.CLOUDFRONT_DOMAIN,
+    process.env.API_GATEWAY_URL,
+    "https://example.com",
+    "https://www.example.com",
+    "https://admin.example.com",
+    "https://www.admin.example.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:5177",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:5176",
+    "http://127.0.0.1:5177",
+    process.env.FRONTEND_URL
+  ].filter(Boolean); // Remove undefined values
 
-  if (origin) {
-    // Explicitly allow CloudFront domains and localhost
-    if (origin.includes('.cloudfront.net') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-      allowedOrigin = origin;
-    }
-    // Allow configured CloudFront domain from env
-    else if (process.env.CLOUDFRONT_DOMAIN && origin === process.env.CLOUDFRONT_DOMAIN) {
-      allowedOrigin = origin;
-    }
-    // In development, allow any origin for local testing
-    else if (process.env.NODE_ENV === 'development') {
-      allowedOrigin = origin;
-    }
+  let allowedOrigin = null;
+
+  if (origin && allowedOrigins.includes(origin)) {
+    allowedOrigin = origin;
   }
 
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin');
-  res.header('Access-Control-Max-Age', '86400');
+  if (allowedOrigin) {
+    res.header('Access-Control-Allow-Origin', allowedOrigin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin');
+    res.header('Access-Control-Max-Age', '86400');
+  }
 
   res.status(200).end();
 });
 
-// CORS configuration (allow specific origins including CloudFront)
+// CORS configuration - FIXED: Use exact domain matching only, no wildcard patterns
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -221,14 +236,11 @@ app.use(
       // In test environment, allow additional test domains for CORS testing
       const isTestEnv = process.env.NODE_ENV === "test";
 
-      // Specific allowed origins
-      const cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN;
-      const apiGatewayUrl = process.env.API_GATEWAY_URL;
-
-      const allowedOrigins = [
+      // Specific allowed origins - EXACT MATCHING ONLY
+      const baseAllowedOrigins = [
         // CloudFront & AWS Endpoints - must be set via environment variables
-        ...(cloudFrontDomain ? [cloudFrontDomain] : []),
-        ...(apiGatewayUrl ? [apiGatewayUrl] : []),
+        process.env.CLOUDFRONT_DOMAIN,
+        process.env.API_GATEWAY_URL,
 
         // Production domains - update these with your actual domains
         "https://example.com",           // Site A - Markets & Stocks (public)
@@ -249,29 +261,22 @@ app.use(
         "http://127.0.0.1:5175",
         "http://127.0.0.1:5176",
         "http://127.0.0.1:5177",
-      ];
+        process.env.FRONTEND_URL
+      ].filter(Boolean); // Remove undefined/null values
 
       // Test-only origins for CORS testing
       const testOnlyOrigins = [
-        "https://example.com",
         "https://test.example.com",
         "http://test-domain.local"
       ];
 
       // Combine origins based on environment
       const finalAllowedOrigins = isTestEnv ?
-        [...allowedOrigins, ...testOnlyOrigins] :
-        allowedOrigins;
+        [...baseAllowedOrigins, ...testOnlyOrigins] :
+        baseAllowedOrigins;
 
-      // Allow specific origins or patterns
-      if (
-        finalAllowedOrigins.includes(origin) ||
-        origin.includes(".execute-api.") ||
-        origin.includes(".cloudfront.net") ||
-        origin.includes("localhost") ||
-        origin.includes("127.0.0.1") ||
-        origin === process.env.FRONTEND_URL
-      ) {
+      // FIXED: Use exact matching only - no substring patterns like .includes()
+      if (finalAllowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         console.warn("CORS blocked origin:", origin);
@@ -469,8 +474,25 @@ app.get("/api/debug/test-error", (req, res) => {
   }
 
   try {
-    // Try to run a problematic query to see the exact error
+    // FIXED: Use whitelist validation instead of string interpolation
+    const allowedTables = [
+      'stock_scores', 'algo_positions', 'algo_portfolio_snapshots',
+      'algo_trades', 'buy_sell_daily', 'technical_data_daily',
+      'signal_quality_scores', 'market_health_daily', 'price_daily'
+    ];
+
     const tableName = req.query.table || 'stock_scores';
+
+    // Validate table name against whitelist
+    if (!allowedTables.includes(tableName.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid table name. Allowed tables: ${allowedTables.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Use parameterized query with validated table name
     const testQuery = `SELECT COUNT(*) FROM ${tableName}`;
 
     query(testQuery).then(() => {
@@ -486,7 +508,6 @@ app.get("/api/debug/test-error", (req, res) => {
         code: err.code,
         detail: err.detail,
         hint: err.hint,
-        query: testQuery,
         table: tableName,
         timestamp: new Date().toISOString(),
         recommendation: err.code === '42P01'
@@ -752,6 +773,9 @@ app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 // Status and price routes
 app.use("/api/status", cacheMiddleware(30), statusRoutes);
 app.use("/api/prices", cacheMiddleware(30), pricesRoutes);
+
+// Performance metrics routes
+app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 
 // Swing trading algo routes
 app.use("/api/algo", require("./routes/algo"));

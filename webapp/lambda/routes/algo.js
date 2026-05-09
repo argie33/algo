@@ -802,7 +802,9 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
     // For simplicity we'll do synchronous version with timeout
     const result = await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (e) {}
+        try { child.kill('SIGTERM'); } catch (_e) {
+          // Ignore error if process already exited
+        }
         resolve({ timeout: true, exitCode: -1, output });
       }, 180000);  // 3 minute timeout
 
@@ -854,7 +856,9 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
 
     const result = await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (e) {}
+        try { child.kill('SIGTERM'); } catch (_e) {
+          // Ignore error if process already exited
+        }
         resolve({ timeout: true, exitCode: -1, output });
       }, 60000);
 
@@ -993,7 +997,9 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
     const output = [];
     const result = await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (e) {}
+        try { child.kill('SIGTERM'); } catch (_e) {
+          // Ignore error if process already exited
+        }
         resolve({ timeout: true, exitCode: -1, output });
       }, 120000);
       child.stdout.on('data', (c) => output.push(c.toString()));
@@ -1850,6 +1856,58 @@ router.get('/execution-quality', async (req, res) => {
       error: error.message,
       timestamp: new Date()
     });
+  }
+});
+
+// ============================================================
+// SIGNAL PERFORMANCE BY PATTERN — aggregated win rates per base_type
+// ============================================================
+router.get('/signal-performance-by-pattern', async (req, res) => {
+  try {
+    const pool = getPool();
+    const days = Math.min(parseInt(req.query.days) || 180, 365);
+
+    const result = await pool.query(`
+      SELECT
+        COALESCE(base_type, 'Unknown') AS base_type,
+        COUNT(*) AS total_trades,
+        SUM(CASE WHEN win THEN 1 ELSE 0 END) AS wins,
+        AVG(r_multiple) AS avg_r,
+        AVG(realized_pnl_pct) AS avg_pnl_pct,
+        SUM(realized_pnl) AS total_pnl,
+        AVG(hold_days) AS avg_hold,
+        SUM(CASE WHEN target_1_hit THEN 1 ELSE 0 END) AS t1_hits,
+        SUM(CASE WHEN target_2_hit THEN 1 ELSE 0 END) AS t2_hits
+      FROM signal_trade_performance
+      WHERE exit_date >= CURRENT_DATE - INTERVAL $1
+      GROUP BY base_type
+      ORDER BY total_trades DESC
+    `, [`${days} days`]);
+
+    return res.json({
+      success: true,
+      patterns: result.rows.map(r => ({
+        base_type: r.base_type,
+        total_trades: parseInt(r.total_trades),
+        wins: parseInt(r.wins || 0),
+        losses: parseInt(r.total_trades) - parseInt(r.wins || 0),
+        win_rate_pct: parseInt(r.total_trades) > 0
+          ? Math.round(parseInt(r.wins || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+        avg_r_multiple: parseFloat((r.avg_r || 0).toFixed(2)),
+        avg_pnl_pct: parseFloat((r.avg_pnl_pct || 0).toFixed(2)),
+        total_pnl: parseFloat((r.total_pnl || 0).toFixed(2)),
+        avg_hold_days: parseFloat((r.avg_hold || 0).toFixed(1)),
+        t1_hit_rate: parseInt(r.total_trades) > 0
+          ? Math.round(parseInt(r.t1_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+        t2_hit_rate: parseInt(r.total_trades) > 0
+          ? Math.round(parseInt(r.t2_hits || 0) / parseInt(r.total_trades) * 1000) / 10 : 0,
+      })),
+      period_days: days,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/signal-performance-by-pattern:', error);
+    return res.json({ success: true, patterns: [], error: error.message, timestamp: new Date() });
   }
 });
 

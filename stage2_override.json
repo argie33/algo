@@ -1,0 +1,8 @@
+{
+  "containerOverrides": [
+    {
+      "name": "stock_prices_loader",
+      "command": ["python3", "loadpricedaily.py", "--symbols", "BRK.B,LEN.B,WSO.B", "--parallelism", "2"]
+    }
+  ]
+}

@@ -42,10 +42,13 @@ import ScoresDashboard from "./pages/ScoresDashboard";
 import MetricsDashboard from "./pages/MetricsDashboard";
 import TradeTracker from "./pages/TradeTracker";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
+import PerformanceMetrics from "./pages/PerformanceMetrics";
 import HedgeHelper from "./pages/HedgeHelper";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
 import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
+import AlgoTradingDashboard from "./pages/AlgoTradingDashboard";
+import SignalIntelligence from "./pages/SignalIntelligence";
 
 import { useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -112,6 +115,12 @@ const menuItems = [
     text: "Trade History",
     icon: <SwapHorizIcon />,
     path: "/app/trades",
+    category: "portfolio",
+  },
+  {
+    text: "Performance",
+    icon: <TrendingUpIcon />,
+    path: "/app/performance",
     category: "portfolio",
   },
 
@@ -407,11 +416,16 @@ function App() {
           {/* Portfolio & Trading */}
           <Route path="/app/portfolio" element={<ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute>} />
           <Route path="/app/trades" element={<ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute>} />
+          <Route path="/app/performance" element={<ProtectedRoute requireAuth><PerformanceMetrics /></ProtectedRoute>} />
           <Route path="/app/optimizer" element={<ProtectedRoute requireAuth><PortfolioOptimizerNew /></ProtectedRoute>} />
           <Route path="/app/hedge-helper" element={<HedgeHelper />} />
 
           {/* Research & Testing */}
           <Route path="/app/backtests" element={<BacktestResults />} />
+
+          {/* Algo */}
+          <Route path="/app/algo-dashboard" element={<AlgoTradingDashboard />} />
+          <Route path="/app/signal-performance" element={<SignalIntelligence />} />
 
           {/* Admin & Settings */}
           <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />

@@ -17,6 +17,7 @@ import {
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, Sliders, GitBranch,
   HeartPulse, Zap, Boxes, ShieldCheck, Crosshair,
+  Bot, BarChart2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -52,6 +53,13 @@ const NAV_SECTIONS = [
       { text: 'Portfolio',     icon: Wallet,  path: '/app/portfolio' },
       { text: 'Trade Tracker', icon: History, path: '/app/trades' },
       { text: 'Optimizer',     icon: Sliders, path: '/app/optimizer' },
+    ],
+  },
+  {
+    title: 'Algo',
+    items: [
+      { text: 'Algo Dashboard',      icon: Bot,       path: '/app/algo-dashboard' },
+      { text: 'Signal Intelligence', icon: BarChart2, path: '/app/signal-performance' },
     ],
   },
   {

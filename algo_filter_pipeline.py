@@ -22,6 +22,8 @@ from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
 from filter_rejection_tracker import RejectionTracker
+from algo_earnings_blackout import EarningsBlackout
+from algo_trendline_support import TrendlineSupport
 from trade_status import PositionStatus
 import logging
 
@@ -115,12 +117,51 @@ class FilterPipeline:
             # NEW: Initialize rejection tracker (Phase 3 integration)
             tracker = RejectionTracker()
 
+            # Initialize earnings blackout and trendline checks
+            earnings_blackout = EarningsBlackout(self.config)
+            trendline = TrendlineSupport(cur=self.cur)
+
             for symbol, signal_date, _signal in signals:
+                # Check earnings blackout FIRST (fail-closed on earnings risk)
+                blackout_check = earnings_blackout.run(symbol, signal_date)
+                if not blackout_check['pass']:
+                    logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
+                    continue
+
+                # Check Stage 2 + RS > 70 (HIGH-CONFIDENCE entries only)
+                self.cur.execute(
+                    """SELECT stage_number, rs_rating, volume, avg_volume_50d FROM buy_sell_daily
+                       WHERE symbol = %s AND date = %s LIMIT 1""",
+                    (symbol, signal_date),
+                )
+                stage_rs = self.cur.fetchone()
+                if stage_rs:
+                    stage_number, rs_rating, volume, avg_vol_50d = stage_rs
+                    if stage_number != 2:
+                        logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2 only)")
+                        continue
+                    if rs_rating is None or rs_rating < 70:
+                        logger.info(f"  SKIP {symbol}: RS {rs_rating} (need RS > 70)")
+                        continue
+                    # Check volume breakout (required for valid breakout)
+                    if volume and avg_vol_50d and avg_vol_50d > 0:
+                        vol_ratio = volume / avg_vol_50d
+                        if vol_ratio < 1.0:
+                            logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.1f}x 50-day avg (need >1.0x)")
+                            continue
+
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
                 entry_date = self._get_next_trading_day(signal_date)
                 entry_price = self._get_market_close(symbol, entry_date)
                 if entry_price is None:
                     continue
+
+                # Validate entry near trendline support (optional confluence check)
+                trendline_check = trendline.validate_entry_near_trendline(symbol, signal_date, float(entry_price))
+                if not trendline_check['near_trendline']:
+                    logger.info(f"  WARN {symbol}: {trendline_check['reason']}")
+                    # Note: This is a soft check (warn, not skip) - trendline is optional confluence
+
                 result = self.evaluate_signal(symbol, signal_date, float(entry_price))
                 for t in (1, 2, 3, 4, 5):
                     if result['tiers'][t]['pass']:

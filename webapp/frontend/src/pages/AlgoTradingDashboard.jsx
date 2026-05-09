@@ -16,6 +16,10 @@ import {
   ExpandLess, FiberManualRecord, Bolt, ShieldOutlined, GpsFixed,
 } from '@mui/icons-material';
 import { api } from '../services/api';
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartTooltip, ResponsiveContainer, ReferenceLine, Cell,
+} from 'recharts';
 
 // ============================================================================
 // THEME / STYLE TOKENS
@@ -123,7 +127,7 @@ function AlgoTradingDashboard() {
   const fetchAll = async () => {
     try {
       setError(null);
-      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR, perfR, auditR, notifR] =
+      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR, perfR, auditR, notifR, equityR, circuitR, dqR, funnelR] =
         await Promise.all([
           api.get('/algo/status').catch(() => null),
           api.get('/algo/markets').catch(() => null),
@@ -138,6 +142,10 @@ function AlgoTradingDashboard() {
           api.get('/algo/performance').catch(() => null),
           api.get('/algo/audit-log?limit=200').catch(() => null),
           api.get('/algo/notifications').catch(() => null),
+          api.get('/algo/equity-curve?limit=365').catch(() => null),
+          api.get('/algo/circuit-breakers').catch(() => null),
+          api.get('/algo/data-quality').catch(() => null),
+          api.get('/algo/rejection-funnel').catch(() => null),
         ]);
       setData({
         status: statusR?.data?.data,
@@ -153,6 +161,10 @@ function AlgoTradingDashboard() {
         performance: perfR?.data?.data,
         auditLog: auditR?.data?.items || [],
         notifications: notifR?.data?.items || [],
+        equityCurve: equityR?.data?.items || [],
+        circuitBreakers: circuitR?.data?.data,
+        dataQuality: dqR?.data,
+        rejectionFunnel: funnelR?.data,
       });
       setLoading(false);
     } catch (err) {
@@ -362,8 +374,9 @@ function AlgoTradingDashboard() {
           <Tab label={`POSITIONS (${data.positions?.length || 0})`} />
           <Tab label={`TRADES (${data.trades?.length || 0})`} />
           <Tab label="PERFORMANCE" />
+          <Tab label={`RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`} />
           <Tab label="AUDIT" />
-          <Tab label="WORKFLOW" />
+          <Tab label="PIPELINE" />
           <Tab label="DATA HEALTH" />
           <Tab label="CONFIG" />
         </Tabs>
@@ -371,11 +384,12 @@ function AlgoTradingDashboard() {
         {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} />}
         {tab === 2 && <PositionsTab positions={data.positions} />}
         {tab === 3 && <TradesTab trades={data.trades} />}
-        {tab === 4 && <PerformanceTab performance={data.performance} />}
-        {tab === 5 && <AuditTab auditLog={data.auditLog} />}
-        {tab === 6 && <WorkflowTab policy={data.policy} markets={market} />}
-        {tab === 7 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
-        {tab === 8 && <ConfigTab config={data.config} />}
+        {tab === 4 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} />}
+        {tab === 5 && <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} />}
+        {tab === 6 && <AuditTab auditLog={data.auditLog} />}
+        {tab === 7 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} />}
+        {tab === 8 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
+        {tab === 9 && <ConfigTab config={data.config} />}
       </Paper>
     </Box>
   );
@@ -865,39 +879,52 @@ function TradesTab({ trades }) {
 }
 
 // ============================================================================
-// WORKFLOW TAB
+// PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
-function WorkflowTab({ policy, markets }) {
+function PipelineTab({ policy, markets, dataQuality, rejectionFunnel, circuitBreakers }) {
+  const loaders = dataQuality?.checks || [];
+  const funnelTiers = rejectionFunnel?.tiers || [];
+  const overallStatus = dataQuality?.status || 'unknown';
+  const statusColor2 = overallStatus === 'ok' ? C.green : overallStatus === 'warning' ? C.yellow : C.red;
+
+  const PHASES = [
+    { n: '1', name: 'DATA FRESHNESS', desc: 'Halt if any CRITICAL data > 7d stale', mode: 'fail-closed',
+      live: overallStatus === 'ok' ? 'ok' : overallStatus === 'warning' ? 'warn' : 'fail' },
+    { n: '2', name: 'CIRCUIT BREAKERS', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
+      live: circuitBreakers?.any_triggered ? 'fail' : 'ok' },
+    { n: '3', name: 'POSITION MONITOR', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
+    { n: '3b', name: 'EXPOSURE POLICY', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
+    { n: '4', name: 'EXIT EXECUTION', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
+    { n: '5', name: 'SIGNAL GENERATION', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
+    { n: '6', name: 'ENTRY EXECUTION', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
+    { n: '7', name: 'RECONCILIATION', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
+  ];
+
+  const liveColor = (s) => s === 'ok' ? C.green : s === 'warn' ? C.yellow : C.red;
+
   return (
     <Box sx={{ p: 2 }}>
       <Grid container spacing={2}>
+        {/* Phase status */}
         <Grid item xs={12} md={5}>
-          <SectionCard title="7-Phase Daily Workflow">
-            {[
-              ['1', 'DATA FRESHNESS', 'Halt if any CRITICAL data > 7d stale', 'fail-closed'],
-              ['2', 'CIRCUIT BREAKERS', 'Drawdown / consec losses / VIX / breadth / data', 'fail-closed'],
-              ['3', 'POSITION MONITOR', 'RS, sector, time decay, earnings — flag for action', 'fail-open'],
-              ['3b', 'EXPOSURE POLICY', 'Tier-based stops, partials, force-exit losers', 'fail-open'],
-              ['4', 'EXIT EXECUTION', 'Stops, T1/T2/T3, time, TD, RS-break, distribution', 'fail-open'],
-              ['5', 'SIGNAL GENERATION', 'Pine BUYs → 6 tiers → swing_score ranking', 'fail-open'],
-              ['6', 'ENTRY EXECUTION', 'Idempotent fills, tier caps, grade filter', 'fail-open'],
-              ['7', 'RECONCILIATION', 'Alpaca sync, P&L, snapshot, audit trail', 'fail-open'],
-            ].map(([n, name, desc, mode]) => (
-              <Box key={n} sx={{
+          <SectionCard title="7-PHASE DAILY WORKFLOW — LIVE STATUS">
+            {PHASES.map(ph => (
+              <Box key={ph.n} sx={{
                 py: 1.5, px: 2, mb: 1, bgcolor: C.cardAlt, border: `1px solid ${C.border}`,
-                borderLeft: `4px solid ${C.blue}`, borderRadius: 1,
+                borderLeft: `4px solid ${liveColor(ph.live)}`, borderRadius: 1,
               }}>
-                <Stack direction="row" justifyContent="space-between">
-                  <Box>
-                    <Typography variant="caption" sx={{ color: C.blue, fontFamily: 'monospace', fontWeight: 700 }}>PHASE {n}</Typography>
-                    <Typography variant="body2" sx={{ color: C.textBright, fontWeight: 700 }}>{name}</Typography>
-                    <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.7rem' }}>{desc}</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="caption" sx={{ color: C.blue, fontFamily: 'monospace', fontWeight: 700 }}>PHASE {ph.n}</Typography>
+                    <Typography variant="body2" sx={{ color: C.textBright, fontWeight: 700 }}>{ph.name}</Typography>
+                    <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.7rem' }}>{ph.desc}</Typography>
                   </Box>
-                  <Chip size="small" label={mode} sx={{
-                    bgcolor: mode === 'fail-closed' ? C.redDark : C.cardAlt,
-                    color: mode === 'fail-closed' ? 'white' : C.text,
-                    height: 20, fontSize: '0.65rem', fontFamily: 'monospace',
-                  }} />
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Chip size="small" label={ph.live === 'ok' ? '✓ OK' : ph.live === 'warn' ? '! WARN' : '✗ FAIL'}
+                      sx={{ bgcolor: liveColor(ph.live) + '33', color: liveColor(ph.live), height: 20, fontSize: '0.65rem', fontWeight: 700, fontFamily: 'monospace' }} />
+                    <Chip size="small" label={ph.mode}
+                      sx={{ bgcolor: ph.mode === 'fail-closed' ? C.redDark : C.cardAlt, color: ph.mode === 'fail-closed' ? 'white' : C.text, height: 20, fontSize: '0.6rem', fontFamily: 'monospace' }} />
+                  </Stack>
                 </Stack>
               </Box>
             ))}
@@ -905,8 +932,70 @@ function WorkflowTab({ policy, markets }) {
         </Grid>
 
         <Grid item xs={12} md={7}>
-          <SectionCard title="Exposure Tier Policy Matrix">
-            <Typography variant="caption" sx={{ color: C.textDim, display: 'block', mb: 2 }}>
+          {/* Signal Rejection Funnel */}
+          {funnelTiers.length > 0 && (
+            <SectionCard title={`SIGNAL FILTER FUNNEL — ${rejectionFunnel?.total_signals || 0} total signals`} sx={{ mb: 2 }}>
+              <Box sx={{ height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={funnelTiers} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                    <XAxis dataKey="name" tick={{ fill: C.textDim, fontSize: 9 }} />
+                    <YAxis tick={{ fill: C.textDim, fontSize: 10 }} />
+                    <RechartTooltip
+                      contentStyle={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, fontSize: 11 }}
+                      formatter={(v, n) => [v, n === 'pass' ? 'Pass' : 'Reject']}
+                    />
+                    <Bar dataKey="pass" fill={C.green} stackId="a" name="pass" />
+                    <Bar dataKey="reject" fill={C.red} stackId="a" name="reject" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            </SectionCard>
+          )}
+
+          {/* Data Loader Status */}
+          <SectionCard title={`DATA LOADERS — overall: `} action={
+            <Chip size="small" label={overallStatus.toUpperCase()} sx={{ bgcolor: statusColor2 + '33', color: statusColor2, fontSize: '0.65rem', fontWeight: 700, height: 18 }} />
+          }>
+            {loaders.length === 0 ? (
+              <Typography variant="caption" sx={{ color: C.textDim }}>No loader data available</Typography>
+            ) : (
+              <TableContainer sx={{ maxHeight: 280 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      {['LOADER', 'TABLE', 'LATEST DATE', 'AGE (h)', 'STATUS'].map(h => (
+                        <TableCell key={h} sx={{ bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border, fontSize: '0.6rem', fontWeight: 700 }}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loaders.map((l, i) => {
+                      const s = l.status || 'unknown';
+                      const sc = s === 'OK' ? C.green : s === 'WARNING' ? C.yellow : C.red;
+                      return (
+                        <TableRow key={i}>
+                          <TableCell sx={{ color: C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.loader}</TableCell>
+                          <TableCell sx={{ color: C.textDim, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.table}</TableCell>
+                          <TableCell sx={{ color: C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>{l.latest_date || '-'}</TableCell>
+                          <TableCell sx={{ color: l.age_hours > (l.max_age_hours || 24) ? C.red : C.text, fontFamily: 'monospace', fontSize: '0.65rem', borderColor: C.border }}>
+                            {l.age_hours != null ? l.age_hours.toFixed(1) : '-'}
+                          </TableCell>
+                          <TableCell sx={{ borderColor: C.border }}>
+                            <Chip size="small" label={s} sx={{ bgcolor: sc + '33', color: sc, height: 16, fontSize: '0.6rem', fontWeight: 700 }} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </SectionCard>
+
+          {/* Exposure Policy Matrix */}
+          <SectionCard title="EXPOSURE TIER POLICY MATRIX" sx={{ mt: 2 }}>
+            <Typography variant="caption" sx={{ color: C.textDim, display: 'block', mb: 1 }}>
               Current exposure: {policy?.current_exposure_pct ?? '--'}% → tier{' '}
               <span style={{ color: C.textBright, fontWeight: 700 }}>{policy?.active_tier?.name?.toUpperCase()}</span>
             </Typography>
@@ -914,10 +1003,8 @@ function WorkflowTab({ policy, markets }) {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    {['TIER', 'RANGE', 'RISK', 'NEW/DAY', 'GRADE', 'TIGHTEN @', 'PARTIAL @', 'HALT', 'FORCE EXIT'].map(h => (
-                      <TableCell key={h} sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', fontWeight: 700, letterSpacing: 1 }}>
-                        {h}
-                      </TableCell>
+                    {['TIER', 'RANGE', 'RISK', 'NEW/DAY', 'GRADE', 'HALT'].map(h => (
+                      <TableCell key={h} sx={{ color: C.textDim, borderColor: C.border, fontSize: '0.65rem', fontWeight: 700 }}>{h}</TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
@@ -926,35 +1013,17 @@ function WorkflowTab({ policy, markets }) {
                     const isActive = t.name === policy?.active_tier?.name;
                     return (
                       <TableRow key={t.name} sx={{ bgcolor: isActive ? C.cardAlt : 'transparent' }}>
-                        <TableCell sx={{ borderColor: C.border, color: tierColor(t.name), fontWeight: 700, fontFamily: 'monospace' }}>
+                        <TableCell sx={{ borderColor: C.border, color: tierColor(t.name), fontWeight: 700, fontFamily: 'monospace', fontSize: '0.7rem' }}>
                           {isActive && '▶ '}{t.name}
                         </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace' }}>
-                          {t.min_pct}-{t.max_pct}%
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace' }}>
-                          {t.risk_multiplier}x
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace' }}>
-                          {t.max_new_positions_today}
-                        </TableCell>
+                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.min_pct}-{t.max_pct}%</TableCell>
+                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.risk_multiplier}x</TableCell>
+                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.7rem' }}>{t.max_new_positions_today}</TableCell>
                         <TableCell sx={{ borderColor: C.border }}>
-                          <Chip size="small" label={t.min_swing_grade}
-                            sx={{ bgcolor: gradeColor(t.min_swing_grade), color: 'white', height: 18, fontSize: '0.65rem', fontWeight: 700 }} />
+                          <Chip size="small" label={t.min_swing_grade} sx={{ bgcolor: gradeColor(t.min_swing_grade), color: 'white', height: 16, fontSize: '0.6rem', fontWeight: 700 }} />
                         </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                          {t.tighten_winners_at_r ? `+${t.tighten_winners_at_r}R` : '-'}
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: C.text, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                          {t.force_partial_at_r ? `+${t.force_partial_at_r}R` : '-'}
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: t.halt_new_entries ? C.red : C.green,
-                          fontFamily: 'monospace', fontWeight: 700 }}>
-                          {t.halt_new_entries ? 'YES' : 'no'}
-                        </TableCell>
-                        <TableCell sx={{ borderColor: C.border, color: t.force_exit_negative_r ? C.red : C.textDim,
-                          fontFamily: 'monospace', fontWeight: 700 }}>
-                          {t.force_exit_negative_r ? 'CUT LOSERS' : '-'}
+                        <TableCell sx={{ borderColor: C.border, color: t.halt_new_entries ? C.red : C.green, fontFamily: 'monospace', fontWeight: 700, fontSize: '0.7rem' }}>
+                          {t.halt_new_entries ? 'HALT' : 'allow'}
                         </TableCell>
                       </TableRow>
                     );
@@ -1157,13 +1226,7 @@ function ConfigTab({ config }) {
 // ============================================================================
 // PERFORMANCE TAB
 // ============================================================================
-function PerformanceTab({ performance }) {
-  if (!performance) {
-    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>
-      No performance data — needs closed trades + portfolio snapshots
-    </Alert></Box>;
-  }
-  const p = performance;
+function PerformanceTab({ performance, equityCurve = [] }) {
   const PerfCard = ({ label, value, color, hint }) => (
     <Box sx={{
       p: 2, bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1,
@@ -1182,8 +1245,129 @@ function PerformanceTab({ performance }) {
   );
   const numColor = (n, threshold = 0) => (n > threshold ? C.green : n < threshold ? C.red : C.textDim);
 
+  // Compute drawdown series from equity curve
+  const drawdownData = React.useMemo(() => {
+    if (!equityCurve.length) return [];
+    let peak = 0;
+    return equityCurve.map(pt => {
+      peak = Math.max(peak, pt.total_portfolio_value);
+      const dd = peak > 0 ? -((peak - pt.total_portfolio_value) / peak * 100) : 0;
+      return { date: pt.snapshot_date, drawdown: Math.round(dd * 100) / 100 };
+    });
+  }, [equityCurve]);
+
+  // Monthly returns heatmap data
+  const monthlyReturns = React.useMemo(() => {
+    if (!equityCurve.length) return [];
+    const byMonth = {};
+    equityCurve.forEach(pt => {
+      const d = new Date(pt.snapshot_date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!byMonth[key]) byMonth[key] = { key, label: d.toLocaleDateString('default', { month: 'short', year: '2-digit' }), total: 0 };
+      byMonth[key].total += pt.daily_return_pct || 0;
+    });
+    return Object.values(byMonth).slice(-12);
+  }, [equityCurve]);
+
+  const chartFmt = (v) => `$${(v / 1000).toFixed(0)}k`;
+  const startValue = equityCurve[0]?.total_portfolio_value;
+  const endValue = equityCurve[equityCurve.length - 1]?.total_portfolio_value;
+  const totalReturn = startValue > 0 ? ((endValue - startValue) / startValue * 100).toFixed(1) : null;
+
   return (
     <Box sx={{ p: 2 }}>
+
+      {/* EQUITY CURVE */}
+      {equityCurve.length > 1 && (
+        <SectionCard title={`EQUITY CURVE${totalReturn != null ? `  ·  ${totalReturn >= 0 ? '+' : ''}${totalReturn}% total return` : ''}`} sx={{ mb: 2 }}>
+          <Box sx={{ height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={equityCurve} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.blue} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={C.blue} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="snapshot_date" tick={{ fill: C.textDim, fontSize: 10 }}
+                  tickFormatter={v => v?.slice(5)} interval="preserveStartEnd" />
+                <YAxis tickFormatter={chartFmt} tick={{ fill: C.textDim, fontSize: 10 }} width={48} />
+                <RechartTooltip
+                  contentStyle={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, fontSize: 11 }}
+                  formatter={(v) => [`$${v?.toLocaleString()}`, 'Portfolio']}
+                  labelFormatter={v => v}
+                />
+                <Area type="monotone" dataKey="total_portfolio_value" stroke={C.blue}
+                  fill="url(#eqGrad)" strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Box>
+        </SectionCard>
+      )}
+
+      {/* DRAWDOWN CHART */}
+      {drawdownData.length > 1 && (
+        <SectionCard title="DRAWDOWN FROM PEAK" sx={{ mb: 2 }}>
+          <Box sx={{ height: 140 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={drawdownData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.red} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={C.red} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="date" tick={{ fill: C.textDim, fontSize: 10 }}
+                  tickFormatter={v => v?.slice(5)} interval="preserveStartEnd" />
+                <YAxis tickFormatter={v => `${v}%`} tick={{ fill: C.textDim, fontSize: 10 }} width={40} />
+                <ReferenceLine y={0} stroke={C.border} />
+                <RechartTooltip
+                  contentStyle={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, fontSize: 11 }}
+                  formatter={(v) => [`${v}%`, 'Drawdown']}
+                />
+                <Area type="monotone" dataKey="drawdown" stroke={C.red}
+                  fill="url(#ddGrad)" strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Box>
+        </SectionCard>
+      )}
+
+      {/* MONTHLY RETURNS HEATMAP */}
+      {monthlyReturns.length > 0 && (
+        <SectionCard title="MONTHLY RETURNS (last 12 months)" sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {monthlyReturns.map(m => {
+              const pct = Math.round(m.total * 10) / 10;
+              const bg = pct > 5 ? C.greenDark : pct > 0 ? '#1a3a20' : pct > -5 ? '#3a1414' : C.redDark;
+              const col = pct > 0 ? C.green : C.red;
+              return (
+                <Box key={m.key} sx={{
+                  p: 1.5, borderRadius: 1, bgcolor: bg,
+                  border: `1px solid ${C.border}`, minWidth: 72, textAlign: 'center',
+                }}>
+                  <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem', display: 'block' }}>
+                    {m.label}
+                  </Typography>
+                  <Typography sx={{ color: col, fontFamily: 'monospace', fontWeight: 700, fontSize: '1rem' }}>
+                    {pct >= 0 ? '+' : ''}{pct}%
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        </SectionCard>
+      )}
+
+      {!performance && (
+        <Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text, mb: 2 }}>
+          No performance data — needs closed trades + portfolio snapshots
+        </Alert>
+      )}
+
+      {performance && <>
       <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>Trade Statistics</Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} sm={3}>
@@ -1254,6 +1438,160 @@ function PerformanceTab({ performance }) {
         <Grid item xs={6} sm={3}>
           <PerfCard label="SAMPLE SIZE" value={`${p.portfolio_snapshots} snapshots`}
             hint={p.portfolio_snapshots < 30 ? '(too few for solid stats)' : ''} />
+        </Grid>
+      </Grid>
+      </>}
+    </Box>
+  );
+}
+
+// ============================================================================
+// RISK TAB
+// ============================================================================
+function RiskTab({ circuitBreakers, markets, positions = [] }) {
+  const breakers = circuitBreakers?.breakers || [];
+  const anyTriggered = circuitBreakers?.any_triggered;
+
+  // Aggregate sector exposure from open positions
+  const sectorExposure = React.useMemo(() => {
+    const totals = {};
+    positions.forEach(p => {
+      const s = p.sector || 'Unknown';
+      totals[s] = (totals[s] || 0) + (p.position_value || 0);
+    });
+    const total = Object.values(totals).reduce((a, b) => a + b, 0);
+    return Object.entries(totals)
+      .map(([sector, value]) => ({ sector, value, pct: total > 0 ? Math.round(value / total * 1000) / 10 : 0 }))
+      .sort((a, b) => b.value - a.value);
+  }, [positions]);
+
+  const statusColor = (triggered) => triggered ? C.red : C.green;
+  const breakerBg = (triggered) => triggered ? '#3a1414' : '#0e2a18';
+  const breakerBorder = (triggered) => triggered ? C.redDark : C.greenDark;
+
+  const getPct = (current, threshold) => threshold > 0 ? Math.min(current / threshold * 100, 100) : 0;
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* Alert banner */}
+      {anyTriggered && (
+        <Alert severity="error" sx={{ mb: 2, bgcolor: '#3a1414', color: C.red, border: `1px solid ${C.redDark}` }}>
+          {circuitBreakers.triggered_count} circuit breaker{circuitBreakers.triggered_count !== 1 ? 's' : ''} triggered — new entries halted
+        </Alert>
+      )}
+
+      {/* Circuit Breakers */}
+      <SectionCard title="CIRCUIT BREAKERS — KILL-SWITCH STATUS" sx={{ mb: 2 }}>
+        <Grid container spacing={1.5}>
+          {breakers.map(b => (
+            <Grid item xs={12} sm={6} md={4} key={b.id}>
+              <Box sx={{
+                p: 1.5, borderRadius: 1,
+                bgcolor: breakerBg(b.triggered),
+                border: `1px solid ${breakerBorder(b.triggered)}`,
+                borderLeft: `4px solid ${statusColor(b.triggered)}`,
+              }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700 }}>
+                      {b.label}
+                    </Typography>
+                    <Stack direction="row" alignItems="baseline" spacing={0.5}>
+                      <Typography sx={{ color: statusColor(b.triggered), fontFamily: 'monospace', fontWeight: 700, fontSize: '1.1rem' }}>
+                        {b.current}{b.unit}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: C.textDim }}>
+                        / {b.threshold}{b.unit}
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ mt: 0.5, height: 4, bgcolor: C.bg, borderRadius: 1, overflow: 'hidden' }}>
+                      <Box sx={{
+                        width: `${getPct(b.current, b.threshold)}%`,
+                        height: '100%',
+                        bgcolor: statusColor(b.triggered),
+                        transition: 'width 0.3s',
+                      }} />
+                    </Box>
+                  </Box>
+                  <Chip size="small" label={b.triggered ? 'TRIGGERED' : 'OK'}
+                    sx={{
+                      bgcolor: b.triggered ? C.redDark : C.greenDark,
+                      color: 'white', height: 18, fontSize: '0.6rem', fontWeight: 700, ml: 1,
+                    }} />
+                </Stack>
+                <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem', mt: 0.5, display: 'block' }}>
+                  {b.description}
+                </Typography>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+      </SectionCard>
+
+      <Grid container spacing={2}>
+        {/* Sector Exposure */}
+        <Grid item xs={12} md={6}>
+          <SectionCard title={`SECTOR EXPOSURE (${positions.length} open positions)`}>
+            {sectorExposure.length === 0 ? (
+              <Typography variant="caption" sx={{ color: C.textDim }}>No open positions</Typography>
+            ) : (
+              <Box sx={{ height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sectorExposure} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
+                    <XAxis type="number" tickFormatter={v => `${v}%`} tick={{ fill: C.textDim, fontSize: 10 }} />
+                    <YAxis type="category" dataKey="sector" tick={{ fill: C.text, fontSize: 10 }} width={80} />
+                    <RechartTooltip
+                      contentStyle={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, fontSize: 11 }}
+                      formatter={(v, n, p) => [`${p.payload.pct}% ($${p.payload.value?.toLocaleString()})`, 'Exposure']}
+                    />
+                    <Bar dataKey="pct" radius={[0, 3, 3, 0]}>
+                      {sectorExposure.map((_, i) => (
+                        <Cell key={i} fill={[C.blue, C.purple, C.green, C.yellow, C.orange, C.red][i % 6]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            )}
+          </SectionCard>
+        </Grid>
+
+        {/* Position Risk Table */}
+        <Grid item xs={12} md={6}>
+          <SectionCard title="POSITION RISK SUMMARY">
+            {positions.length === 0 ? (
+              <Typography variant="caption" sx={{ color: C.textDim }}>No open positions</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['SYMBOL', 'VALUE', 'STOP DIST', 'AT RISK $', 'SECTOR'].map(h => (
+                        <TableCell key={h} sx={{ bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border, fontSize: '0.65rem', fontWeight: 700 }}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {positions.map(p => (
+                      <TableRow key={p.symbol}>
+                        <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>{p.symbol}</TableCell>
+                        <TableCell sx={{ color: C.text, fontFamily: 'monospace', borderColor: C.border }}>
+                          ${Math.round(p.position_value || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell sx={{ color: p.distance_to_stop_pct < 3 ? C.red : C.yellow, fontFamily: 'monospace', borderColor: C.border }}>
+                          {p.distance_to_stop_pct != null ? `${p.distance_to_stop_pct.toFixed(1)}%` : '-'}
+                        </TableCell>
+                        <TableCell sx={{ color: C.red, fontFamily: 'monospace', borderColor: C.border }}>
+                          {p.open_risk_dollars != null ? `$${Math.round(p.open_risk_dollars).toLocaleString()}` : '-'}
+                        </TableCell>
+                        <TableCell sx={{ color: C.textDim, fontSize: '0.7rem', borderColor: C.border }}>{p.sector || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </SectionCard>
         </Grid>
       </Grid>
     </Box>
