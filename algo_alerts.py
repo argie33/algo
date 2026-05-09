@@ -144,6 +144,57 @@ class AlertManager:
         if self.webhook_url:
             self._send_webhook_simple(subject, message, alert_type)
 
+    def send_loader_alert(self, findings):
+        """Send alert when loader fails or data is stale.
+
+        Args:
+            findings: list of (severity, check, message) tuples from LoaderMonitor
+        """
+        critical = [f for f in findings if f[0] == 'CRITICAL']
+        errors = [f for f in findings if f[0] == 'ERROR']
+
+        if not critical and not errors:
+            return
+
+        severity = 'CRITICAL' if critical else 'ERROR'
+        subject = f'[ALGO ALERT] {severity}: Data Loader Failure'
+
+        body_lines = [
+            f'Loader Health Alert — {datetime.now().isoformat()}',
+            '',
+            f'Severity: {severity}',
+            '',
+        ]
+
+        if critical:
+            body_lines.append('CRITICAL FINDINGS:')
+            for _, check, msg in critical:
+                body_lines.append(f'  • [{check}] {msg}')
+            body_lines.append('')
+
+        if errors:
+            body_lines.append('ERROR FINDINGS:')
+            for _, check, msg in errors:
+                body_lines.append(f'  • [{check}] {msg}')
+            body_lines.append('')
+
+        body_lines.extend([
+            'ACTION REQUIRED:',
+            '1. Check loader status: python3 algo_loader_monitor.py --check-freshness',
+            '2. Trigger loaders manually: python3 loadpricedaily.py',
+            '3. Check logs: tail -f /tmp/algo_loaders.log',
+            '',
+            f'Report time: {datetime.now().isoformat()}',
+        ])
+
+        body_text = '\n'.join(body_lines)
+
+        if self.email_to:
+            self._send_email(subject, body_text)
+
+        if self.webhook_url:
+            self._send_webhook_simple(subject, f'{severity}: Data loaders failing', 'LOADER_FAILURE')
+
     def _send_email(self, subject, body):
         """Send email via SMTP."""
         if not self.email_to or not self.smtp_user or not self.smtp_password:
