@@ -105,19 +105,19 @@ Resources:
   StockScoresLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/stock-scores-loader
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-stock-scores'
       RetentionInDays: 7
 
   FactormetricsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/factormetrics-loader
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-factormetrics'
       RetentionInDays: 7
 
   MomentumLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/ecs/momentum-loader
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-momentum'
       RetentionInDays: 7
 
   PositioningLogGroup:
