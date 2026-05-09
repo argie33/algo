@@ -7,10 +7,10 @@
 # ============================================================
 
 resource "aws_db_subnet_group" "main" {
-  name            = "${var.project_name}-db-subnet-group"
-  description     = "Private subnet group for ${var.project_name} RDS"
-  subnet_ids      = var.private_subnet_ids
-  tags            = var.common_tags
+  name        = "${var.project_name}-db-subnet-group"
+  description = "Private subnet group for ${var.project_name} RDS"
+  subnet_ids  = var.private_subnet_ids
+  tags        = var.common_tags
 
   # Prevent accidental deletion
   lifecycle {
@@ -24,11 +24,11 @@ resource "aws_db_subnet_group" "main" {
 
 resource "aws_db_instance" "main" {
   identifier            = "${var.project_name}-db"
-  db_name              = var.rds_db_name
-  engine               = "postgres"
-  engine_version       = "14" # PostgreSQL 14
-  instance_class       = var.db_instance_class
-  allocated_storage    = var.db_allocated_storage
+  db_name               = var.rds_db_name
+  engine                = "postgres"
+  engine_version        = "14" # PostgreSQL 14
+  instance_class        = var.db_instance_class
+  allocated_storage     = var.db_allocated_storage
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null
 
   username               = var.db_master_username
@@ -39,9 +39,9 @@ resource "aws_db_instance" "main" {
 
   # Backup & Recovery
   backup_retention_period = var.db_backup_retention_days
-  backup_window          = "03:00-04:00"        # UTC (10 PM - 11 PM EST)
-  maintenance_window     = "mon:04:00-mon:05:00" # UTC
-  copy_tags_to_snapshot  = true
+  backup_window           = "03:00-04:00"         # UTC (10 PM - 11 PM EST)
+  maintenance_window      = "mon:04:00-mon:05:00" # UTC
+  copy_tags_to_snapshot   = true
 
   # Performance & Optimization
   multi_az            = var.db_multi_az
@@ -49,20 +49,20 @@ resource "aws_db_instance" "main" {
   publicly_accessible = false # Private subnet, no public endpoint
 
   # Encryption
-  storage_encrypted            = true
-  kms_key_id                   = var.enable_rds_kms_encryption ? var.rds_kms_key_id : null
+  storage_encrypted                   = true
+  kms_key_id                          = var.enable_rds_kms_encryption ? var.rds_kms_key_id : null
   iam_database_authentication_enabled = true
 
   # Monitoring & Logs
   enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
   monitoring_interval             = 60
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
-  performance_insights_enabled     = false # Additional cost, disable for dev
+  performance_insights_enabled    = false # Additional cost, disable for dev
 
   # Deletion Protection
-  deletion_protection         = var.environment == "prod" ? true : false
-  skip_final_snapshot         = var.environment != "prod"
-  final_snapshot_identifier   = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  deletion_protection       = var.environment == "prod" ? true : false
+  skip_final_snapshot       = var.environment != "prod"
+  final_snapshot_identifier = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"
@@ -84,14 +84,15 @@ resource "aws_db_instance" "main" {
 }
 
 # ============================================================
-# 3. RDS Parameter Group (PostgreSQL 15 optimization)
+# 3. RDS Parameter Group (PostgreSQL 14 + TimescaleDB optimization)
 # ============================================================
 
 resource "aws_db_parameter_group" "main" {
   name        = "${var.project_name}-pg14-params"
-  description = "PostgreSQL 14 parameter group for ${var.project_name}"
+  description = "PostgreSQL 14 parameter group for ${var.project_name} (TimescaleDB-enabled)"
   family      = "postgres14"
 
+  # Logging
   parameter {
     name  = "log_statement"
     value = var.environment == "prod" ? "none" : "ddl"
@@ -100,6 +101,36 @@ resource "aws_db_parameter_group" "main" {
   parameter {
     name  = "log_min_duration_statement"
     value = var.environment == "prod" ? "5000" : "1000"
+  }
+
+  # TimescaleDB-specific optimizations
+  # Shared memory for TimescaleDB background worker
+  parameter {
+    name  = "shared_preload_libraries"
+    value = "timescaledb"
+  }
+
+  # Enable parallel workers for improved query performance on hypertables
+  parameter {
+    name  = "max_parallel_workers_per_gather"
+    value = "4"
+  }
+
+  parameter {
+    name  = "max_parallel_workers"
+    value = "8"
+  }
+
+  # Increase work_mem for better query performance on large time-series aggregations
+  parameter {
+    name  = "work_mem"
+    value = "65536" # 64MB per operation
+  }
+
+  # Increase maintenance_work_mem for faster index creation on hypertables
+  parameter {
+    name  = "maintenance_work_mem"
+    value = "262144" # 256MB for maintenance ops
   }
 
   tags = var.common_tags
@@ -182,7 +213,7 @@ resource "aws_secretsmanager_secret_version" "email_config" {
   secret_id = aws_secretsmanager_secret.email_config.id
   secret_string = jsonencode({
     contact_notification_email = var.notification_email
-    email_from                = "noreply@bullseyefinancial.com"
+    email_from                 = "noreply@bullseyefinancial.com"
   })
 }
 

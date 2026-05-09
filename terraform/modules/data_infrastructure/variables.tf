@@ -1,24 +1,24 @@
 variable "project_name" { type = string }
 variable "environment" { type = string }
 variable "aws_account_id" {
-  type = string
+  type      = string
   sensitive = true
 }
 variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "ecs_cluster_subnet_ids" { type = list(string) }
 variable "rds_sg_id" {
-  type = optional(string)
+  type    = optional(string)
   default = null
 }
 variable "ecs_tasks_sg_id" {
-  type = optional(string)
+  type    = optional(string)
   default = null
 }
 variable "db_name" { type = string }
 variable "db_user" { type = string }
 variable "db_password" {
-  type = string
+  type      = string
   sensitive = true
 }
 variable "db_instance_class" { type = string }

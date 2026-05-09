@@ -367,12 +367,12 @@ resource "aws_batch_job_queue" "spot" {
 # ============================================================
 
 resource "aws_batch_job_definition" "buyselldaily" {
-  name                  = "${var.project_name}-buyselldaily"
-  type                  = "container"
+  name = "${var.project_name}-buyselldaily"
+  type = "container"
   container_properties = jsonencode({
-    image  = "${var.ecr_repository_uri}:loadbuyselldaily-latest"
-    vcpus  = 4
-    memory = 4096
+    image      = "${var.ecr_repository_uri}:loadbuyselldaily-latest"
+    vcpus      = 4
+    memory     = 4096
     jobRoleArn = aws_iam_role.batch_job_role.arn
 
     logConfiguration = {

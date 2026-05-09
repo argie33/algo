@@ -98,9 +98,9 @@ resource "aws_ecr_lifecycle_policy" "main" {
         rulePriority = 1
         description  = "Keep last 10 images, delete older ones"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"
@@ -128,10 +128,10 @@ resource "aws_cloudwatch_log_group" "ecs" {
 # ============================================================
 
 resource "aws_launch_template" "bastion" {
-  count                = var.bastion_enabled ? 1 : 0
-  name                 = "${var.project_name}-bastion-lt"
-  image_id            = data.aws_ami.amazon_linux_2[0].id
-  instance_type       = var.bastion_instance_type
+  count         = var.bastion_enabled ? 1 : 0
+  name          = "${var.project_name}-bastion-lt"
+  image_id      = data.aws_ami.amazon_linux_2[0].id
+  instance_type = var.bastion_instance_type
   iam_instance_profile {
     name = var.bastion_instance_profile_name
   }
@@ -212,12 +212,12 @@ data "aws_ami" "amazon_linux_2" {
 
 # Bastion Auto Scaling Group
 resource "aws_autoscaling_group" "bastion" {
-  count                = var.bastion_enabled ? 1 : 0
-  name                 = "${var.project_name}-bastion-asg"
-  vpc_zone_identifier  = var.public_subnet_ids
-  min_size             = 1
-  max_size             = 1
-  desired_capacity     = 1
+  count               = var.bastion_enabled ? 1 : 0
+  name                = "${var.project_name}-bastion-asg"
+  vpc_zone_identifier = var.public_subnet_ids
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
   launch_template {
     id      = aws_launch_template.bastion[0].id
     version = "$Latest"
@@ -236,7 +236,7 @@ resource "aws_autoscaling_group" "bastion" {
   lifecycle {
     create_before_destroy = true
     ignore_changes = [
-      launch_template  # Ignore launch template version changes that don't require replacement
+      launch_template # Ignore launch template version changes that don't require replacement
     ]
   }
 

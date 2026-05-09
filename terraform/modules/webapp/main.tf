@@ -75,8 +75,8 @@ resource "aws_cognito_user_pool_client" "main" {
   callback_urls = var.cognito_callback_urls
   logout_urls   = var.cognito_logout_urls
 
-  allowed_oauth_flows          = ["code", "implicit"]
-  allowed_oauth_scopes         = ["email", "openid", "profile"]
+  allowed_oauth_flows                  = ["code", "implicit"]
+  allowed_oauth_scopes                 = ["email", "openid", "profile"]
   allowed_oauth_flows_user_pool_client = true
 
   access_token_validity  = 1

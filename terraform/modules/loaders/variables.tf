@@ -1,7 +1,7 @@
 variable "project_name" { type = string }
 variable "environment" { type = string }
 variable "aws_account_id" {
-  type = string
+  type      = string
   sensitive = true
 }
 variable "aws_region" { type = string }
@@ -11,7 +11,7 @@ variable "private_subnet_ids" { type = list(string) }
 variable "ecs_cluster_name" { type = string }
 variable "ecs_cluster_arn" { type = string }
 variable "db_secret_arn" {
-  type = string
+  type      = string
   sensitive = true
 }
 variable "ecs_tasks_sg_id" { type = string }

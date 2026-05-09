@@ -55,9 +55,9 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 
 # DynamoDB table for Terraform state locking
 resource "aws_dynamodb_table" "terraform_locks" {
-  name           = "${var.project_name}-terraform-locks"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "LockID"
+  name         = "${var.project_name}-terraform-locks"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
 
   attribute {
     name = "LockID"
@@ -78,7 +78,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
 
 # Create OIDC provider for GitHub Actions (one-time bootstrap)
 resource "aws_iam_openid_connect_provider" "github" {
-  client_id_list  = ["sts.amazonaws.com"]
+  client_id_list = ["sts.amazonaws.com"]
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "1b511abead59c6ce207077c0bf4113469e1f0b03"

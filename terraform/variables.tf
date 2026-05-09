@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Root Module - Input Variables
 # ============================================================
 
@@ -236,7 +236,7 @@ variable "ecs_default_capacity_provider_strategy" {
 variable "bastion_enabled" {
   description = "Whether to create Bastion host"
   type        = bool
-  default     = false  # Disabled to avoid ASG conflicts; enable after core infrastructure is stable
+  default     = false # Disabled to avoid ASG conflicts; enable after core infrastructure is stable
 }
 
 variable "bastion_instance_type" {

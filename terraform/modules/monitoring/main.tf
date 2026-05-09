@@ -142,10 +142,10 @@ resource "aws_cloudwatch_dashboard" "main" {
           metrics = [
             ["AWS/Lambda", "Duration", { stat = "Maximum" }],
           ]
-          period = 300
-          stat   = "Maximum"
-          region = var.aws_region
-          title  = "Algo Lambda - Max Duration (4 min timeout)"
+          period    = 300
+          stat      = "Maximum"
+          region    = var.aws_region
+          title     = "Algo Lambda - Max Duration (4 min timeout)"
           threshold = 240000
           dimensions = {
             FunctionName = var.algo_lambda_name
@@ -214,7 +214,7 @@ resource "aws_cloudwatch_dashboard" "main" {
       {
         type = "log"
         properties = {
-          query = "fields @timestamp, @message, @duration | filter @message like /ERROR/ | stats count() as error_count by bin(5m)"
+          query  = "fields @timestamp, @message, @duration | filter @message like /ERROR/ | stats count() as error_count by bin(5m)"
           region = var.aws_region
           title  = "Recent API Errors (5 min buckets)"
         }
@@ -233,10 +233,10 @@ resource "aws_cloudwatch_dashboard" "main" {
 
 # Composite alarm: API is unhealthy (5xx + errors)
 resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
-  alarm_name          = "${var.project_name}-api-unhealthy-${var.environment}"
-  alarm_description   = "Composite alarm: API Gateway returning 5xx OR Lambda errors exceed threshold"
-  actions_enabled     = var.sns_alerts_enabled
-  alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+  alarm_name        = "${var.project_name}-api-unhealthy-${var.environment}"
+  alarm_description = "Composite alarm: API Gateway returning 5xx OR Lambda errors exceed threshold"
+  actions_enabled   = var.sns_alerts_enabled
+  alarm_actions     = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
   # Trigger if either 5xx errors OR Lambda errors are high
   alarm_rule = "ALARM(${var.apigw_5xx_alarm_name}) OR ALARM(${var.api_lambda_errors_alarm_name})"
@@ -246,14 +246,14 @@ resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
 
 # Composite alarm: Database is unhealthy (high CPU + connection issues)
 resource "aws_cloudwatch_composite_alarm" "database_unhealthy" {
-  alarm_name          = "${var.project_name}-database-unhealthy-${var.environment}"
-  alarm_description   = "Composite alarm: RDS CPU high OR connection errors detected"
-  actions_enabled     = var.sns_alerts_enabled
-  alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+  alarm_name        = "${var.project_name}-database-unhealthy-${var.environment}"
+  alarm_description = "Composite alarm: RDS CPU high OR connection errors detected"
+  actions_enabled   = var.sns_alerts_enabled
+  alarm_actions     = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
   # Note: Individual RDS alarms must be created separately in database module
   # This is a placeholder for the alarm rule once they exist
-  alarm_rule = "OK"  # Update this when RDS alarms are added
+  alarm_rule = "OK" # Update this when RDS alarms are added
 
   tags = var.common_tags
 }

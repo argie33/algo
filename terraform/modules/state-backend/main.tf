@@ -15,12 +15,12 @@ terraform {
 # ============================================================
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket              = "${var.state_bucket_name}"
-  force_destroy       = false  # CRITICAL: Never auto-destroy state bucket
-  object_lock_enabled = false  # Can enable if you want immutability
+  bucket              = var.state_bucket_name
+  force_destroy       = false # CRITICAL: Never auto-destroy state bucket
+  object_lock_enabled = false # Can enable if you want immutability
 
   tags = merge(var.common_tags, {
-    Name        = "terraform-state"
+    Name          = "terraform-state"
     CriticalAsset = "true"
   })
 }
@@ -34,7 +34,7 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 
   versioning_configuration {
     status     = "Enabled"
-    mfa_delete = "Disabled"  # Set to Enabled if MFA protection desired
+    mfa_delete = "Disabled" # Set to Enabled if MFA protection desired
   }
 }
 
@@ -199,9 +199,9 @@ resource "aws_s3_bucket_logging" "terraform_state" {
 # ============================================================
 
 resource "aws_dynamodb_table" "terraform_locks" {
-  name           = "${var.state_bucket_name}-locks"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "LockID"
+  name         = "${var.state_bucket_name}-locks"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
   stream_specification {
     stream_view_type = "NEW_AND_OLD_IMAGES"
   }
@@ -241,7 +241,7 @@ resource "aws_cloudwatch_metric_alarm" "state_bucket_puts" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    BucketName = aws_s3_bucket.terraform_state.id
+    BucketName  = aws_s3_bucket.terraform_state.id
     StorageType = "AllStorageTypes"
   }
 

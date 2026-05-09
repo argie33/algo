@@ -67,22 +67,22 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier            = "${var.project_name}-db"
-  allocated_storage    = var.db_allocated_storage
-  storage_type         = "gp2"
-  engine                = "postgres"
-  engine_version        = "14"
-  instance_class        = var.db_instance_class
-  db_name               = var.db_name
-  username              = var.db_user
-  password              = var.db_password
-  db_subnet_group_name  = aws_db_subnet_group.main.name
+  identifier             = "${var.project_name}-db"
+  allocated_storage      = var.db_allocated_storage
+  storage_type           = "gp2"
+  engine                 = "postgres"
+  engine_version         = "14"
+  instance_class         = var.db_instance_class
+  db_name                = var.db_name
+  username               = var.db_user
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.rds_sg_id != null ? var.rds_sg_id : aws_security_group.rds[0].id]
 
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
   backup_retention_period   = 7
-  multi_az                  = false  # Set to true for production
+  multi_az                  = false # Set to true for production
   publicly_accessible       = false
   storage_encrypted         = true
 

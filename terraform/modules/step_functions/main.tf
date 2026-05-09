@@ -139,21 +139,21 @@ locals {
           StartAt = "ProcessSymbol"
           States = {
             ProcessSymbol = {
-              Type       = "Task"
-              Resource   = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.lambda_signal_worker_name}"
+              Type           = "Task"
+              Resource       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.lambda_signal_worker_name}"
               TimeoutSeconds = 60
               Retry = [
                 {
-                  ErrorEquals = ["States.TaskFailed"]
+                  ErrorEquals     = ["States.TaskFailed"]
                   IntervalSeconds = 2
-                  MaxAttempts = 3
-                  BackoffRate = 2.0
+                  MaxAttempts     = 3
+                  BackoffRate     = 2.0
                 }
               ]
               Catch = [
                 {
                   ErrorEquals = ["States.ALL"]
-                  Next = "HandleSymbolError"
+                  Next        = "HandleSymbolError"
                 }
               ]
               End = true
@@ -163,8 +163,8 @@ locals {
               Type = "Pass"
               Parameters = {
                 "symbol.$" = "$.symbol"
-                "status" = "error"
-                "error.$" = "$$.State.Cause"
+                "status"   = "error"
+                "error.$"  = "$$.State.Cause"
               }
               End = true
             }
@@ -173,11 +173,11 @@ locals {
       }
 
       AggregateResults = {
-        Type = "Task"
+        Type     = "Task"
         Resource = "arn:aws:states:::lambda:invoke"
         Parameters = {
           "FunctionName" = var.lambda_results_aggregator_arn
-          "Payload.$" = "$"
+          "Payload.$"    = "$"
         }
         Next = "UpdateExecutionTracker"
       }
@@ -216,9 +216,9 @@ locals {
 # ============================================================
 
 resource "aws_dynamodb_table" "execution_tracker" {
-  name           = "${var.project_name}-stepfunctions-tracker"
-  billing_mode   = "PAY_PER_REQUEST" # On-demand pricing (cheaper for bursty workloads)
-  hash_key       = "execution_id"
+  name         = "${var.project_name}-stepfunctions-tracker"
+  billing_mode = "PAY_PER_REQUEST" # On-demand pricing (cheaper for bursty workloads)
+  hash_key     = "execution_id"
   stream_specification {
     stream_view_type = "NEW_AND_OLD_IMAGES"
   }
@@ -265,9 +265,9 @@ resource "aws_cloudwatch_dashboard" "step_functions_monitor" {
       {
         type = "log"
         properties = {
-          query   = "fields @timestamp, @message | filter @message like /execution|error/ | stats count() as errors by bin(5m)"
-          region  = var.aws_region
-          title   = "Execution Errors (5-min bins)"
+          query  = "fields @timestamp, @message | filter @message like /execution|error/ | stats count() as errors by bin(5m)"
+          region = var.aws_region
+          title  = "Execution Errors (5-min bins)"
         }
       }
     ]
@@ -296,13 +296,13 @@ resource "aws_cloudwatch_event_target" "step_functions_target" {
   role_arn  = aws_iam_role.eventbridge_stepfunctions_role.arn
 
   input = jsonencode({
-    symbols   = []
+    symbols       = []
     backfill_days = var.backfill_days
   })
 
   retry_policy {
-    maximum_event_age       = 3600
-    maximum_retry_attempts  = 2
+    maximum_event_age      = 3600
+    maximum_retry_attempts = 2
   }
 
   dead_letter_config {

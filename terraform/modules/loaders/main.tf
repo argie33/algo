@@ -89,13 +89,13 @@ resource "aws_cloudwatch_event_rule" "sector_ranking_schedule" {
 locals {
   default_loaders = {
     # Stock data loaders
-    "stock_symbols"          = { cpu = 256, memory = 512 }
-    "stock_prices"           = { cpu = 256, memory = 512 }
-    "company_fundamentals"   = { cpu = 256, memory = 512 }
-    "market_indices"         = { cpu = 256, memory = 512 }
-    "econdata"               = { cpu = 256, memory = 512 }
-    "feargreed"              = { cpu = 256, memory = 512 }
-    "sector_ranking"         = { cpu = 256, memory = 512 }
+    "stock_symbols"        = { cpu = 256, memory = 512 }
+    "stock_prices"         = { cpu = 256, memory = 512 }
+    "company_fundamentals" = { cpu = 256, memory = 512 }
+    "market_indices"       = { cpu = 256, memory = 512 }
+    "econdata"             = { cpu = 256, memory = 512 }
+    "feargreed"            = { cpu = 256, memory = 512 }
+    "sector_ranking"       = { cpu = 256, memory = 512 }
 
     # TODO: Add remaining 58 loaders here
   }
@@ -144,10 +144,10 @@ resource "aws_ecs_task_definition" "loader" {
   ])
 
   requires_compatibilities = ["FARGATE"]
-  network_mode            = "awsvpc"
-  cpu                     = "256"
-  memory                  = "512"
-  execution_role_arn      = var.task_execution_role_arn
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = var.task_execution_role_arn
 
   tags = var.common_tags
 }

@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Services Module - REST API, CloudFront, Cognito, Algo
 # ============================================================
 
@@ -95,11 +95,11 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = local.api_cors_origins
-    allow_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-    allow_headers = ["Content-Type", "Authorization", "Accept", "X-Requested-With"]
+    allow_origins  = local.api_cors_origins
+    allow_methods  = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    allow_headers  = ["Content-Type", "Authorization", "Accept", "X-Requested-With"]
     expose_headers = ["Content-Length", "Content-Type", "X-Request-Id"]
-    max_age       = 3600
+    max_age        = 3600
   }
 
   tags = merge(var.common_tags, {
@@ -108,10 +108,10 @@ resource "aws_apigatewayv2_api" "main" {
 }
 
 resource "aws_apigatewayv2_integration" "api_lambda" {
-  api_id           = aws_apigatewayv2_api.main.id
-  integration_type = "AWS_PROXY"
-  integration_method = "POST"
-  integration_uri  = aws_lambda_function.api.invoke_arn
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = aws_lambda_function.api.invoke_arn
   payload_format_version = "2.0"
 }
 
@@ -143,16 +143,16 @@ resource "aws_apigatewayv2_stage" "api" {
     content {
       destination_arn = aws_cloudwatch_log_group.api_gateway[0].arn
       format = jsonencode({
-        requestId      = "$context.requestId"
-        ip             = "$context.identity.sourceIp"
-        requestTime    = "$context.requestTime"
-        httpMethod     = "$context.httpMethod"
-        resourcePath   = "$context.resourcePath"
-        status         = "$context.status"
-        protocol       = "$context.protocol"
-        responseLength = "$context.responseLength"
+        requestId          = "$context.requestId"
+        ip                 = "$context.identity.sourceIp"
+        requestTime        = "$context.requestTime"
+        httpMethod         = "$context.httpMethod"
+        resourcePath       = "$context.resourcePath"
+        status             = "$context.status"
+        protocol           = "$context.protocol"
+        responseLength     = "$context.responseLength"
         integrationLatency = "$context.integration.latency"
-        error          = "$context.error.message"
+        error              = "$context.error.message"
       })
     }
   }
@@ -182,19 +182,19 @@ locals {
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  count           = var.cloudfront_enabled && local.existing_oac_id == null ? 1 : 0
-  name            = "${var.project_name}-frontend-oac-${var.environment}"
+  count                             = var.cloudfront_enabled && local.existing_oac_id == null ? 1 : 0
+  name                              = "${var.project_name}-frontend-oac-${var.environment}"
   origin_access_control_origin_type = "s3"
-  signing_behavior = "always"
-  signing_protocol = "sigv4"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
   count = var.cloudfront_enabled ? 1 : 0
 
   origin {
-    domain_name            = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
-    origin_id              = "S3Frontend"
+    domain_name = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+    origin_id   = "S3Frontend"
     # Use existing OAC if found, otherwise use newly created one
     origin_access_control_id = local.existing_oac_id != null ? local.existing_oac_id : aws_cloudfront_origin_access_control.frontend[0].id
   }
@@ -210,7 +210,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  enabled = true
+  enabled             = true
   default_root_object = "index.html"
 
   default_cache_behavior {
@@ -338,7 +338,7 @@ resource "aws_cognito_user_pool" "main" {
     enabled = var.cognito_mfa_configuration != "OFF" ? true : false
   }
 
-  auto_verified_attributes = ["email"]
+  auto_verified_attributes   = ["email"]
   email_verification_message = "Your verification code is {####}"
   email_verification_subject = "Stocks Analytics - Email Verification"
 
@@ -363,7 +363,7 @@ resource "aws_cognito_user_pool" "main" {
 }
 
 resource "aws_cognito_user_pool_client" "main" {
-  count                = var.cognito_enabled ? 1 : 0
+  count               = var.cognito_enabled ? 1 : 0
   user_pool_id        = aws_cognito_user_pool.main[0].id
   name                = "${var.project_name}-app-client-${var.environment}"
   generate_secret     = true
@@ -381,10 +381,10 @@ resource "aws_cognito_user_pool_client" "main" {
     "http://localhost:5173/logout"
   ] : ["http://localhost:3000/logout", "http://localhost:5173/logout"]
 
-  allowed_oauth_flows            = ["code"]
-  allowed_oauth_scopes           = ["openid", "email", "profile"]
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
   allowed_oauth_flows_user_pool_client = true
-  prevent_user_existence_errors   = "ENABLED"
+  prevent_user_existence_errors        = "ENABLED"
 
   access_token_validity  = var.cognito_session_duration_hours
   id_token_validity      = var.cognito_session_duration_hours
@@ -454,10 +454,10 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DB_SECRET_ARN      = var.rds_credentials_secret_arn
-      DB_ENDPOINT        = var.rds_endpoint
-      DB_NAME            = var.rds_database_name
-      ALERTS_SNS_TOPIC   = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      DB_SECRET_ARN    = var.rds_credentials_secret_arn
+      DB_ENDPOINT      = var.rds_endpoint
+      DB_NAME          = var.rds_database_name
+      ALERTS_SNS_TOPIC = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
     }
   }
 
@@ -479,9 +479,9 @@ resource "aws_lambda_function" "algo" {
 # ============================================================
 
 resource "aws_sns_topic" "algo_alerts" {
-  count           = var.sns_alerts_enabled ? 1 : 0
-  name            = "${var.project_name}-algo-alerts-${var.environment}"
-  display_name    = "Algo Trading Alerts - ${var.environment}"
+  count             = var.sns_alerts_enabled ? 1 : 0
+  name              = "${var.project_name}-algo-alerts-${var.environment}"
+  display_name      = "Algo Trading Alerts - ${var.environment}"
   kms_master_key_id = "alias/aws/sns"
 
   tags = merge(var.common_tags, {
@@ -501,11 +501,11 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 # ============================================================
 
 resource "aws_scheduler_schedule" "algo_orchestrator" {
-  count                = var.algo_schedule_enabled ? 1 : 0
-  name                 = "${var.project_name}-algo-schedule-${var.environment}"
-  description          = "Trigger algo orchestrator Lambda at scheduled time"
-  schedule_expression  = var.algo_schedule_expression
-  state                = "ENABLED"
+  count               = var.algo_schedule_enabled ? 1 : 0
+  name                = "${var.project_name}-algo-schedule-${var.environment}"
+  description         = "Trigger algo orchestrator Lambda at scheduled time"
+  schedule_expression = var.algo_schedule_expression
+  state               = "ENABLED"
 
   flexible_time_window {
     mode = "OFF"
@@ -559,7 +559,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
   namespace           = "AWS/Lambda"
   period              = 60
   statistic           = "Average"
-  threshold           = 3000  # 3 seconds
+  threshold           = 3000 # 3 seconds
   alarm_description   = "Alert when API Lambda average duration exceeds 3 seconds"
   alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
 
@@ -579,7 +579,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
   namespace           = "AWS/Lambda"
   period              = 300
   statistic           = "Sum"
-  threshold           = 1  # Alert on any error
+  threshold           = 1 # Alert on any error
   alarm_description   = "Alert when Algo Lambda has errors"
   alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
 
@@ -599,7 +599,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration" {
   namespace           = "AWS/Lambda"
   period              = 60
   statistic           = "Maximum"
-  threshold           = 240000  # 4 minutes
+  threshold           = 240000 # 4 minutes
   alarm_description   = "Alert when Algo Lambda exceeds 4 minute timeout threshold"
   alarm_actions       = var.sns_alerts_enabled ? [aws_sns_topic.algo_alerts[0].arn] : []
 

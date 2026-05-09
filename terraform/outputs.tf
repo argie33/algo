@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Root Module - Outputs
 # ============================================================
 
@@ -24,13 +24,13 @@ output "private_subnet_ids" {
 output "vpc_endpoint_ids" {
   description = "VPC endpoint IDs"
   value = {
-    s3               = module.vpc.s3_endpoint_id
-    dynamodb         = module.vpc.dynamodb_endpoint_id
-    secretsmanager   = module.vpc.secretsmanager_endpoint_id
-    ecr_api          = module.vpc.ecr_api_endpoint_id
-    ecr_dkr          = module.vpc.ecr_dkr_endpoint_id
-    logs             = module.vpc.logs_endpoint_id
-    sns              = module.vpc.sns_endpoint_id
+    s3             = module.vpc.s3_endpoint_id
+    dynamodb       = module.vpc.dynamodb_endpoint_id
+    secretsmanager = module.vpc.secretsmanager_endpoint_id
+    ecr_api        = module.vpc.ecr_api_endpoint_id
+    ecr_dkr        = module.vpc.ecr_dkr_endpoint_id
+    logs           = module.vpc.logs_endpoint_id
+    sns            = module.vpc.sns_endpoint_id
   }
 }
 
@@ -41,12 +41,12 @@ output "vpc_endpoint_ids" {
 output "storage_buckets" {
   description = "S3 bucket names"
   value = {
-    code_bucket              = module.storage.code_bucket_name
-    cf_templates_bucket      = module.storage.cf_templates_bucket_name
-    lambda_artifacts_bucket  = module.storage.lambda_artifacts_bucket_name
-    data_loading_bucket      = module.storage.data_loading_bucket_name
-    log_archive_bucket       = module.storage.log_archive_bucket_name
-    frontend_bucket          = module.storage.frontend_bucket_name
+    code_bucket             = module.storage.code_bucket_name
+    cf_templates_bucket     = module.storage.cf_templates_bucket_name
+    lambda_artifacts_bucket = module.storage.lambda_artifacts_bucket_name
+    data_loading_bucket     = module.storage.data_loading_bucket_name
+    log_archive_bucket      = module.storage.log_archive_bucket_name
+    frontend_bucket         = module.storage.frontend_bucket_name
   }
 }
 
@@ -213,10 +213,10 @@ output "database_health_alarm_name" {
 output "deployment_summary" {
   description = "Deployment summary"
   value = {
-    project_name = var.project_name
-    environment  = var.environment
-    aws_region   = var.aws_region
-    deployed_at  = timestamp()
+    project_name  = var.project_name
+    environment   = var.environment
+    aws_region    = var.aws_region
+    deployed_at   = timestamp()
     dashboard_url = module.monitoring.dashboard_url
   }
 }

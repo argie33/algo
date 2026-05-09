@@ -82,7 +82,7 @@ resource "aws_sns_topic" "algo_alerts" {
 resource "aws_cloudwatch_event_rule" "algo_schedule" {
   name                = "${var.project_name}-algo-schedule"
   description         = "Daily algorithm orchestrator trigger"
-  schedule_expression = "cron(30 0 ? * * *)"  # 12:30 AM UTC
+  schedule_expression = "cron(30 0 ? * * *)" # 12:30 AM UTC
 
   tags = var.common_tags
 }
@@ -99,9 +99,9 @@ resource "aws_lambda_function" "algo_orchestrator" {
 
   environment {
     variables = {
-      DB_SECRET_ARN      = var.db_secret_arn
-      ARTIFACTS_BUCKET   = var.algo_artifacts_bucket_name
-      AWS_REGION         = var.aws_region
+      DB_SECRET_ARN    = var.db_secret_arn
+      ARTIFACTS_BUCKET = var.algo_artifacts_bucket_name
+      AWS_REGION       = var.aws_region
     }
   }
 

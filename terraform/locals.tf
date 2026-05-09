@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Root Module - Local Values
 # ============================================================
 
@@ -6,10 +6,10 @@ locals {
   # Standardized common tags for all resources
   common_tags = merge(
     {
-      Project   = var.project_name
+      Project     = var.project_name
       Environment = var.environment
-      ManagedBy = "terraform"
-      Region    = var.aws_region
+      ManagedBy   = "terraform"
+      Region      = var.aws_region
     },
     var.additional_tags
   )
