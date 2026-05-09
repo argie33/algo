@@ -24,34 +24,23 @@ if env_file.exists():
 
 # Centralized credential manager
 from credential_manager import get_credential_manager
+from credential_validator import assert_credentials
+
 _cred_mgr = get_credential_manager()
 
 
 def validate_environment():
     """Validate that all required environment variables are set.
 
-    Called on module load. Raises RuntimeError if critical vars are missing.
+    Called on module load. Logs issues and continues; raises on critical failures.
+    Uses credential_validator for centralized validation.
     """
-    # Check for DB credentials (can use defaults, but warn if none set)
-    db_host = os.getenv("DB_HOST")
-    db_name = os.getenv("DB_NAME")
-
-    if not db_host:
-        logger.warning("WARNING: DB_HOST not set, using default 'localhost'")
-    if not db_name:
-        logger.warning("WARNING: DB_NAME not set, using default 'stocks'")
-
-    # Alpaca credentials are optional for paper trading, but check anyway
+    # Run credential validation (logs warnings/errors, fails on critical issues)
     try:
-        alpaca_creds = _cred_mgr.get_alpaca_credentials()
-        alpaca_key = alpaca_creds.get('key')
-        alpaca_secret = alpaca_creds.get('secret')
-    except ValueError:
-        alpaca_key = os.getenv("APCA_API_KEY_ID")
-        alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
-
-    if not alpaca_key or not alpaca_secret:
-        logger.warning("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
+        assert_credentials(on_failure="warn")  # Log issues but continue
+    except Exception as e:
+        logger.error(f"Credential validation failed: {e}")
+        raise RuntimeError(f"Critical credential error: {e}")
 
     return True
 
