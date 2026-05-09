@@ -894,6 +894,99 @@ CREATE TABLE IF NOT EXISTS staging_prices (
 );
 
 -- =============================================================================
+-- LOADER SLA TRACKING
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS loader_sla_status (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    latest_data_date DATE,
+    row_count_today INT DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'UNKNOWN',
+    error_message TEXT,
+    last_check_at TIMESTAMP DEFAULT NOW(),
+    load_started_at TIMESTAMP,
+    load_completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE (loader_name, table_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_loader_sla_date ON loader_sla_status(last_check_at DESC);
+CREATE INDEX IF NOT EXISTS idx_loader_sla_status ON loader_sla_status(status);
+
+-- Loader Execution History (for audit trail)
+CREATE TABLE IF NOT EXISTS loader_execution_history (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    execution_date DATE NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    rows_attempted INT,
+    rows_succeeded INT,
+    rows_rejected INT,
+    error_message TEXT,
+    started_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP NOT NULL,
+    duration_seconds FLOAT,
+    data_source VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_loader_execution_loader_date ON loader_execution_history(loader_name, execution_date);
+CREATE INDEX IF NOT EXISTS idx_loader_execution_status ON loader_execution_history(status);
+CREATE INDEX IF NOT EXISTS idx_loader_execution_created ON loader_execution_history(created_at DESC);
+
+-- Daily SLA Summary (for dashboard)
+CREATE TABLE IF NOT EXISTS loader_daily_summary (
+    date DATE PRIMARY KEY,
+    total_loaders INT,
+    loaders_succeeded INT,
+    loaders_failed INT,
+    loaders_partial INT,
+    avg_row_count INT,
+    data_freshness_score FLOAT,
+    summary_text TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- View: Today's Loader Status (Quick Dashboard)
+CREATE OR REPLACE VIEW v_loader_status_today AS
+SELECT
+    loader_name,
+    table_name,
+    latest_data_date,
+    row_count_today,
+    status,
+    CASE
+        WHEN status = 'OK' THEN 'Success'
+        WHEN status = 'WARN' THEN 'Warning (partial)'
+        WHEN status = 'ERROR' THEN 'Failed'
+        ELSE 'Unknown'
+    END as status_display,
+    last_check_at,
+    EXTRACT(HOUR FROM NOW() - last_check_at) as hours_since_check,
+    EXTRACT(DAY FROM NOW()::DATE - latest_data_date) as data_age_days
+FROM loader_sla_status
+ORDER BY status ASC, last_check_at DESC;
+
+-- View: Loader Success Rate (Last 7 Days)
+CREATE OR REPLACE VIEW v_loader_success_rate_7d AS
+SELECT
+    loader_name,
+    COUNT(*) as total_runs,
+    SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) as successful_runs,
+    ROUND(100.0 * SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) / COUNT(*), 1) as success_rate_pct,
+    AVG(rows_succeeded) as avg_rows_loaded,
+    MAX(completed_at) as last_run
+FROM loader_execution_history
+WHERE created_at >= NOW() - INTERVAL '7 days'
+GROUP BY loader_name
+ORDER BY success_rate_pct DESC;
+
+-- =============================================================================
 -- INITIAL DATA
 -- =============================================================================
 

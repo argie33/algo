@@ -20,7 +20,7 @@ import {
 import { isCognitoConfigured } from "../config/amplify";
 import { setRefreshCallback } from "../services/api";
 import { tokenManager } from "../services/tokenManager";
-import devAuth from "../services/devAuth"; // eslint-disable-line import/no-unused-modules
+import devAuth from "../services/devAuth";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
 

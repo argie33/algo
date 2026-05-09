@@ -234,13 +234,12 @@ def create_feature_flags_table():
                     metadata JSONB DEFAULT '{}',
                     enabled BOOLEAN DEFAULT true,
                     created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW(),
-
-                    INDEX (flag_name),
-                    INDEX (flag_type),
-                    INDEX (updated_at DESC)
+                    updated_at TIMESTAMP DEFAULT NOW()
                 )
             """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_name ON feature_flags(flag_name)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_type ON feature_flags(flag_type)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_updated ON feature_flags(updated_at DESC)")
             conn.commit()
             conn.close()
             logger.info("Feature flags table created")

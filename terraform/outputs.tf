@@ -42,7 +42,6 @@ output "storage_buckets" {
   description = "S3 bucket names"
   value = {
     code_bucket             = module.storage.code_bucket_name
-    cf_templates_bucket     = module.storage.cf_templates_bucket_name
     lambda_artifacts_bucket = module.storage.lambda_artifacts_bucket_name
     data_loading_bucket     = module.storage.data_loading_bucket_name
     log_archive_bucket      = module.storage.log_archive_bucket_name
