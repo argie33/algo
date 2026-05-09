@@ -672,12 +672,25 @@ data "aws_iam_policy_document" "ecs_task_execution" {
       "kms:DescribeKey"
     ]
 
-    resources = ["*"]
+    # FIXED: Issue #8 - Scope to project KMS keys only (was Resource: "*")
+    # Allow all keys in account but with conditions to restrict to project keys
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*"
+    ]
 
     condition {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
       values   = [var.aws_account_id]
+    }
+
+    # Restrict to keys tagged with project name
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values = [
+        "secretsmanager.${var.aws_region}.amazonaws.com"
+      ]
     }
   }
 

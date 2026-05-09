@@ -408,7 +408,7 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
 
   rule      = aws_cloudwatch_event_rule.scheduled_loader[each.key].name
   target_id = "${upper(replace(each.key, "_", ""))}Target"
-  arn       = aws_ecs_task_definition.loader[each.key].arn
+  arn       = var.ecs_cluster_arn
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {

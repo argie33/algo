@@ -64,9 +64,7 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot = var.environment != "prod"  # prod=false (takes snapshot), dev=true (skips)
 
   # CRITICAL: Always explicitly name final snapshots to prevent accidental loss
-  final_snapshot_identifier = var.environment == "prod" ?
-    "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" :
-    null
+  final_snapshot_identifier = var.environment == "prod" ? "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"
