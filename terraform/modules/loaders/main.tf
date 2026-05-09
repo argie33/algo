@@ -33,6 +33,39 @@ resource "aws_iam_role" "eventbridge_run_task" {
   tags = var.common_tags
 }
 
+# ============================================================
+# SQS Dead-Letter Queue for EventBridge loader failures
+# ============================================================
+
+resource "aws_sqs_queue" "loader_dlq" {
+  name                      = "${var.project_name}-loader-dlq-${var.environment}"
+  message_retention_seconds = 1209600 # 14 days
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-dlq"
+  })
+}
+
+resource "aws_sqs_queue_policy" "loader_dlq" {
+  queue_url = aws_sqs_queue.loader_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowEventBridgeSend"
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.loader_dlq.arn
+      Condition = {
+        ArnLike = {
+          "aws:SourceArn" = "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/${var.project_name}-*"
+        }
+      }
+    }]
+  })
+}
+
 # EventBridge IAM policy to run ECS tasks
 resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
   name = "${var.project_name}-eventbridge-run-task-policy"
@@ -82,6 +115,51 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 # - 5:15pm ET (10:15pm UTC): algo metrics (after signals)
 
 locals {
+  # Maps each Terraform loader key to the actual Python script filename.
+  # entrypoint.sh reads LOADER_FILE to determine which script to exec.
+  loader_file_map = {
+    "stock_symbols"              = "loadstocksymbols.py"
+    "stock_prices_daily"         = "loadpricedaily.py"
+    "stock_prices_weekly"        = "loadpriceweekly.py"
+    "stock_prices_monthly"       = "loadpricemonthly.py"
+    "etf_prices_daily"           = "loadetfpricedaily.py"
+    "etf_prices_weekly"          = "loadetfpriceweekly.py"
+    "etf_prices_monthly"         = "loadetfpricemonthly.py"
+    "financials_annual_income"   = "loadannualincomestatement.py"
+    "financials_annual_balance"  = "loadannualbalancesheet.py"
+    "financials_annual_cashflow" = "loadannualcashflow.py"
+    "financials_quarterly_income"   = "loadquarterlyincomestatement.py"
+    "financials_quarterly_balance"  = "loadquarterlybalancesheet.py"
+    "financials_quarterly_cashflow" = "loadquarterlycashflow.py"
+    "financials_ttm_income"      = "loadttmincomestatement.py"
+    "financials_ttm_cashflow"    = "loadttmcashflow.py"
+    "earnings_history"           = "loadearningshistory.py"
+    "earnings_revisions"         = "loadearningsrevisions.py"
+    "earnings_surprise"          = "loadearningsestimates.py"
+    "earnings_sp500"             = "loadearningshistory.py"
+    "market_overview"            = "loadmarket.py"
+    "market_indices"             = "loadmarketindices.py"
+    "sector_performance"         = "loadsectors.py"
+    "relative_performance"       = "loadrelativeperformance.py"
+    "seasonality"                = "loadseasonality.py"
+    "econ_data"                  = "loadecondata.py"
+    "aaiidata"                   = "loadaaiidata.py"
+    "naaim_data"                 = "loadnaaim.py"
+    "feargreed"                  = "loadfeargreed.py"
+    "calendar"                   = "loadcalendar.py"
+    "analyst_sentiment"          = "loadanalystsentiment.py"
+    "analyst_upgrades"           = "loadanalystupgradedowngrade.py"
+    "social_sentiment"           = "loadsentiment.py"
+    "factor_metrics"             = "loadfactormetrics.py"
+    "stock_scores"               = "loadstockscores.py"
+    "signals_daily"              = "loadbuyselldaily.py"
+    "signals_weekly"             = "loadbuysellweekly.py"
+    "signals_monthly"            = "loadbuysellmonthly.py"
+    "signals_etf_daily"          = "loadbuysell_etf_daily.py"
+    "etf_signals"                = "loadetfsignals.py"
+    "algo_metrics_daily"         = "load_algo_metrics_daily.py"
+  }
+
   scheduled_loaders = {
     # 3:30am ET = 8:30am UTC Mon-Fri
     "stock_symbols" = {
@@ -95,24 +173,24 @@ locals {
       description = "Daily stock prices - 4:00am ET"
     }
     "stock_prices_weekly" = {
-      schedule    = "cron(5 9 ? * MON-FRI *)"
-      description = "Weekly stock prices - 4:05am ET"
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Weekly stock prices - 4:00am ET (parallel with daily)"
     }
     "stock_prices_monthly" = {
-      schedule    = "cron(10 9 ? * MON-FRI *)"
-      description = "Monthly stock prices - 4:10am ET"
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Monthly stock prices - 4:00am ET (parallel with daily)"
     }
     "etf_prices_daily" = {
-      schedule    = "cron(15 9 ? * MON-FRI *)"
-      description = "Daily ETF prices - 4:15am ET"
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Daily ETF prices - 4:00am ET (parallel with stock prices)"
     }
     "etf_prices_weekly" = {
-      schedule    = "cron(20 9 ? * MON-FRI *)"
-      description = "Weekly ETF prices - 4:20am ET"
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Weekly ETF prices - 4:00am ET (parallel with stock prices)"
     }
     "etf_prices_monthly" = {
-      schedule    = "cron(25 9 ? * MON-FRI *)"
-      description = "Monthly ETF prices - 4:25am ET"
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Monthly ETF prices - 4:00am ET (parallel with stock prices)"
     }
 
     # 10:00am ET = 3pm UTC Mon-Fri
@@ -121,32 +199,32 @@ locals {
       description = "Annual income statements - 10:00am ET"
     }
     "financials_annual_balance" = {
-      schedule    = "cron(5 15 ? * MON-FRI *)"
-      description = "Annual balance sheets - 10:05am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "Annual balance sheets - 10:00am ET (parallel)"
     }
     "financials_annual_cashflow" = {
-      schedule    = "cron(10 15 ? * MON-FRI *)"
-      description = "Annual cash flow - 10:10am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "Annual cash flow - 10:00am ET (parallel)"
     }
     "financials_quarterly_income" = {
-      schedule    = "cron(15 15 ? * MON-FRI *)"
-      description = "Quarterly income statements - 10:15am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "Quarterly income statements - 10:00am ET (parallel)"
     }
     "financials_quarterly_balance" = {
-      schedule    = "cron(20 15 ? * MON-FRI *)"
-      description = "Quarterly balance sheets - 10:20am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "Quarterly balance sheets - 10:00am ET (parallel)"
     }
     "financials_quarterly_cashflow" = {
-      schedule    = "cron(25 15 ? * MON-FRI *)"
-      description = "Quarterly cash flow - 10:25am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "Quarterly cash flow - 10:00am ET (parallel)"
     }
     "financials_ttm_income" = {
-      schedule    = "cron(30 15 ? * MON-FRI *)"
-      description = "TTM income statements - 10:30am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "TTM income statements - 10:00am ET (parallel)"
     }
     "financials_ttm_cashflow" = {
-      schedule    = "cron(35 15 ? * MON-FRI *)"
-      description = "TTM cash flow - 10:35am ET"
+      schedule    = "cron(0 15 ? * MON-FRI *)"
+      description = "TTM cash flow - 10:00am ET (parallel)"
     }
 
     # 11:00am ET = 4pm UTC Mon-Fri
@@ -155,16 +233,16 @@ locals {
       description = "Earnings history - 11:00am ET"
     }
     "earnings_revisions" = {
-      schedule    = "cron(5 16 ? * MON-FRI *)"
-      description = "Earnings revisions - 11:05am ET"
+      schedule    = "cron(0 16 ? * MON-FRI *)"
+      description = "Earnings revisions - 11:00am ET (parallel)"
     }
     "earnings_surprise" = {
-      schedule    = "cron(10 16 ? * MON-FRI *)"
-      description = "Earnings surprise - 11:10am ET"
+      schedule    = "cron(0 16 ? * MON-FRI *)"
+      description = "Earnings surprise - 11:00am ET (parallel)"
     }
     "earnings_sp500" = {
-      schedule    = "cron(15 16 ? * MON-FRI *)"
-      description = "S&P 500 earnings - 11:15am ET"
+      schedule    = "cron(0 16 ? * MON-FRI *)"
+      description = "S&P 500 earnings - 11:00am ET (parallel)"
     }
 
     # 12:00pm ET = 5pm UTC Mon-Fri
@@ -173,40 +251,40 @@ locals {
       description = "Market overview - 12:00pm ET"
     }
     "market_indices" = {
-      schedule    = "cron(5 17 ? * MON-FRI *)"
-      description = "Market indices - 12:05pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Market indices - 12:00pm ET (parallel)"
     }
     "sector_performance" = {
-      schedule    = "cron(10 17 ? * MON-FRI *)"
-      description = "Sector performance - 12:10pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Sector performance - 12:00pm ET (parallel)"
     }
     "relative_performance" = {
-      schedule    = "cron(15 17 ? * MON-FRI *)"
-      description = "Relative performance - 12:15pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Relative performance - 12:00pm ET (parallel)"
     }
     "seasonality" = {
-      schedule    = "cron(20 17 ? * MON-FRI *)"
-      description = "Seasonality - 12:20pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Seasonality - 12:00pm ET (parallel)"
     }
     "econ_data" = {
-      schedule    = "cron(25 17 ? * MON-FRI *)"
-      description = "Economic data - 12:25pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Economic data - 12:00pm ET (parallel)"
     }
     "aaiidata" = {
-      schedule    = "cron(30 17 ? * MON-FRI *)"
-      description = "AAII data - 12:30pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "AAII data - 12:00pm ET (parallel)"
     }
     "naaim_data" = {
-      schedule    = "cron(35 17 ? * MON-FRI *)"
-      description = "NAAIM data - 12:35pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "NAAIM data - 12:00pm ET (parallel)"
     }
     "feargreed" = {
-      schedule    = "cron(40 17 ? * MON-FRI *)"
-      description = "Fear & Greed Index - 12:40pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Fear & Greed Index - 12:00pm ET (parallel)"
     }
     "calendar" = {
-      schedule    = "cron(45 17 ? * MON-FRI *)"
-      description = "Economic calendar - 12:45pm ET"
+      schedule    = "cron(0 17 ? * MON-FRI *)"
+      description = "Economic calendar - 12:00pm ET (parallel)"
     }
 
     # 1:00pm ET = 6pm UTC Mon-Fri
@@ -215,20 +293,20 @@ locals {
       description = "Analyst sentiment - 1:00pm ET"
     }
     "analyst_upgrades" = {
-      schedule    = "cron(5 18 ? * MON-FRI *)"
-      description = "Analyst upgrades - 1:05pm ET"
+      schedule    = "cron(0 18 ? * MON-FRI *)"
+      description = "Analyst upgrades - 1:00pm ET (parallel)"
     }
     "social_sentiment" = {
-      schedule    = "cron(10 18 ? * MON-FRI *)"
-      description = "Social sentiment - 1:10pm ET"
+      schedule    = "cron(0 18 ? * MON-FRI *)"
+      description = "Social sentiment - 1:00pm ET (parallel)"
     }
     "factor_metrics" = {
-      schedule    = "cron(15 18 ? * MON-FRI *)"
-      description = "Factor metrics - 1:15pm ET"
+      schedule    = "cron(0 18 ? * MON-FRI *)"
+      description = "Factor metrics - 1:00pm ET (parallel)"
     }
     "stock_scores" = {
-      schedule    = "cron(20 18 ? * MON-FRI *)"
-      description = "Stock scores - 1:20pm ET"
+      schedule    = "cron(0 18 ? * MON-FRI *)"
+      description = "Stock scores - 1:00pm ET (parallel)"
     }
 
     # 5:00pm ET = 10pm UTC Mon-Fri
@@ -237,20 +315,20 @@ locals {
       description = "Daily trading signals - 5:00pm ET"
     }
     "signals_weekly" = {
-      schedule    = "cron(5 22 ? * MON-FRI *)"
-      description = "Weekly trading signals - 5:05pm ET"
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Weekly trading signals - 5:00pm ET (parallel)"
     }
     "signals_monthly" = {
-      schedule    = "cron(10 22 ? * MON-FRI *)"
-      description = "Monthly trading signals - 5:10pm ET"
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Monthly trading signals - 5:00pm ET (parallel)"
     }
     "signals_etf_daily" = {
-      schedule    = "cron(15 22 ? * MON-FRI *)"
-      description = "Daily ETF signals - 5:15pm ET"
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Daily ETF signals - 5:00pm ET (parallel)"
     }
     "etf_signals" = {
-      schedule    = "cron(20 22 ? * MON-FRI *)"
-      description = "ETF signals - 5:20pm ET"
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "ETF signals - 5:00pm ET (parallel)"
     }
 
     # 5:25pm ET = 10:25pm UTC Mon-Fri (after signals complete)
@@ -377,6 +455,10 @@ resource "aws_ecs_task_definition" "loader" {
 
       environment = [
         {
+          name  = "LOADER_FILE"
+          value = local.loader_file_map[each.key]
+        },
+        {
           name  = "LOADER_TYPE"
           value = each.key
         },
@@ -441,5 +523,9 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
       security_groups  = [var.ecs_tasks_sg_id]
       assign_public_ip = false
     }
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.loader_dlq.arn
   }
 }

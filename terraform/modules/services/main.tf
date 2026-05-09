@@ -44,7 +44,7 @@ data "archive_file" "api_placeholder" {
   type        = "zip"
   output_path = "${path.module}/api_placeholder.zip"
   source {
-    content = <<-EOT
+    content  = <<-EOT
 import json
 import logging
 
@@ -161,10 +161,39 @@ resource "aws_lambda_permission" "api_gateway" {
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
+# ============================================================
+# Cognito JWT Authorizer
+# ============================================================
+
+resource "aws_apigatewayv2_authorizer" "cognito" {
+  count           = var.cognito_enabled ? 1 : 0
+  api_id          = aws_apigatewayv2_api.main.id
+  authorizer_type = "JWT"
+  name            = "${var.project_name}-cognito-authorizer-${var.environment}"
+
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    audience = [aws_cognito_user_pool_client.main[0].id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main[0].id}"
+  }
+}
+
+# All API routes require a valid Cognito JWT token
 resource "aws_apigatewayv2_route" "api_default" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
+  authorizer_id      = var.cognito_enabled ? aws_apigatewayv2_authorizer.cognito[0].id : null
+}
+
+# Health check is unauthenticated so monitors and load balancers can reach it
+resource "aws_apigatewayv2_route" "health" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /health"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_stage" "api" {
@@ -253,8 +282,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "S3Frontend"
     compress         = true
 
-    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
-    viewer_protocol_policy   = "redirect-to-https"
+    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    viewer_protocol_policy = "redirect-to-https"
   }
 
   ordered_cache_behavior {
@@ -264,9 +293,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "APIGateway"
     compress         = true
 
-    cache_policy_id            = "4135ea3d-c35d-46eb-81d7-d492a330732d" # Managed-CachingDisabled
-    origin_request_policy_id   = "216adef5-5c7f-47e4-b989-5492eafa07d3" # Managed-AllViewerExceptHostHeader
-    viewer_protocol_policy     = "https-only"
+    cache_policy_id          = "4135ea3d-c35d-46eb-81d7-d492a330732d" # Managed-CachingDisabled
+    origin_request_policy_id = "216adef5-5c7f-47e4-b989-5492eafa07d3" # Managed-AllViewerExceptHostHeader
+    viewer_protocol_policy   = "https-only"
   }
 
   ordered_cache_behavior {
@@ -276,8 +305,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "S3Frontend"
     compress         = true
 
-    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
-    viewer_protocol_policy   = "redirect-to-https"
+    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    viewer_protocol_policy = "redirect-to-https"
   }
 
   restrictions {
@@ -438,7 +467,7 @@ data "archive_file" "algo_placeholder" {
   type        = "zip"
   output_path = "${path.module}/algo_placeholder.zip"
   source {
-    content = <<-EOT
+    content  = <<-EOT
 import json
 import logging
 import os

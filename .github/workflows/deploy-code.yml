@@ -1,0 +1,269 @@
+name: Deploy Application Code
+
+# Deploys Lambda functions (algo + API) and frontend to S3/CloudFront.
+# Infrastructure must already exist (run deploy-all-infrastructure first).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'algo_*.py'
+      - 'lambda/**'
+      - 'lambda_function.py'
+      - 'webapp/lambda/**'
+      - 'webapp/frontend/src/**'
+      - 'webapp/frontend/public/**'
+      - 'webapp/frontend/package.json'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  # Resolve Terraform outputs once; share across jobs
+  # ──────────────────────────────────────────────────────────────
+  resolve-infra:
+    name: Resolve Infrastructure Outputs
+    runs-on: ubuntu-latest
+    outputs:
+      api_lambda_name: ${{ steps.names.outputs.api_lambda_name }}
+      algo_lambda_name: ${{ steps.names.outputs.algo_lambda_name }}
+      frontend_bucket: ${{ steps.names.outputs.frontend_bucket }}
+      cloudfront_id: ${{ steps.names.outputs.cloudfront_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+          terraform_wrapper: false
+
+      - name: Terraform Init (read-only)
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=stocks-terraform-state" \
+            -backend-config="key=stocks/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="encrypt=true" \
+            -reconfigure
+
+      - name: Read Terraform Outputs
+        id: names
+        working-directory: terraform
+        run: |
+          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+
+          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"')
+          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
+          FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
+          CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
+
+          # Fall back to listing if TF outputs are empty
+          if [ -z "$FRONTEND_BUCKET" ]; then
+            FRONTEND_BUCKET=$(aws s3api list-buckets \
+              --query 'Buckets[?starts_with(Name, `stocks-frontend`)].Name | [0]' \
+              --output text 2>/dev/null || echo "")
+          fi
+          if [ -z "$CF_ID" ]; then
+            CF_ID=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].Id' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          echo "api_lambda_name=${API_LAMBDA}" >> $GITHUB_OUTPUT
+          echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
+          echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=${CF_ID}" >> $GITHUB_OUTPUT
+
+          echo "API Lambda:  ${API_LAMBDA}"
+          echo "Algo Lambda: ${ALGO_LAMBDA}"
+          echo "Frontend S3: ${FRONTEND_BUCKET}"
+          echo "CloudFront:  ${CF_ID}"
+
+  # ──────────────────────────────────────────────────────────────
+  # Algo Lambda
+  # ──────────────────────────────────────────────────────────────
+  deploy-algo-lambda:
+    name: Deploy Algo Lambda
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Package Algo Lambda
+        run: |
+          mkdir -p lambda-pkg
+          # Lambda handler
+          cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
+          # All algo modules (signals, orchestrator, config, etc.)
+          cp algo_*.py lambda-pkg/ 2>/dev/null || true
+          # Shared utility modules that algo imports
+          for f in db_helper.py signal_utils.py data_source_router.py \
+                   optimal_loader.py bloom_dedup.py trade_status.py \
+                   loader_safety.py; do
+            [ -f "$f" ] && cp "$f" lambda-pkg/ || true
+          done
+          # Install binary-compatible dependencies
+          pip install -r lambda/algo_orchestrator/requirements.txt \
+            -t lambda-pkg/ --only-binary=:all: --quiet
+          cd lambda-pkg
+          zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*"
+          cd ..
+          echo "Package size: $(du -sh algo_lambda.zip | cut -f1)"
+
+      - name: Deploy Algo Lambda
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          aws lambda update-function-code \
+            --function-name "$FUNC" \
+            --zip-file fileb://algo_lambda.zip \
+            --region $AWS_REGION
+          aws lambda wait function-updated \
+            --function-name "$FUNC" \
+            --region $AWS_REGION
+          echo "✅ Algo Lambda deployed: $FUNC"
+
+  # ──────────────────────────────────────────────────────────────
+  # API Lambda
+  # ──────────────────────────────────────────────────────────────
+  deploy-api-lambda:
+    name: Deploy API Lambda
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Package API Lambda
+        working-directory: webapp/lambda
+        run: |
+          # Production-only install into a temp dir, then zip
+          npm ci --omit=dev
+          zip -r ../../api_lambda.zip . \
+            -x "*.git*" \
+            -x "node_modules/.cache/*" \
+            -x "tests/*" \
+            -x "coverage/*" \
+            -x "**/*.test.js" \
+            -x ".env*" \
+            -x "scripts/*"
+          echo "Package size: $(du -sh ../../api_lambda.zip | cut -f1)"
+
+      - name: Deploy API Lambda
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          aws lambda update-function-code \
+            --function-name "$FUNC" \
+            --zip-file fileb://api_lambda.zip \
+            --region $AWS_REGION
+          aws lambda wait function-updated \
+            --function-name "$FUNC" \
+            --region $AWS_REGION
+          echo "✅ API Lambda deployed: $FUNC"
+
+  # ──────────────────────────────────────────────────────────────
+  # Frontend
+  # ──────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: Build & Deploy Frontend
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Install & Build
+        working-directory: webapp/frontend
+        env:
+          VITE_API_URL: ${{ secrets.API_GATEWAY_URL }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync to S3
+        run: |
+          BUCKET="${{ needs.resolve-infra.outputs.frontend_bucket }}"
+          if [ -z "$BUCKET" ]; then
+            echo "ERROR: frontend bucket not resolved"
+            exit 1
+          fi
+
+          # Long-lived assets (hashed filenames) get max cache
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html"
+
+          # HTML files must not be cached (always fetch fresh)
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+          echo "✅ Frontend synced to s3://${BUCKET}/"
+
+      - name: Invalidate CloudFront
+        if: ${{ needs.resolve-infra.outputs.cloudfront_id != '' }}
+        run: |
+          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$CF_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "✅ CloudFront invalidation created: $INVALIDATION_ID"

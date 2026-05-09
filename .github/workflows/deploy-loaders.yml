@@ -1,4 +1,6 @@
-name: Deploy Loaders (Terraform)
+# DEPRECATED — loaders are ECS tasks defined in Terraform. Use deploy-all-infrastructure.yml.
+# Docker image is built by build-push-ecr.yml.
+name: deploy-loaders (deprecated)
 
 on:
   push:

@@ -125,6 +125,26 @@ output "api_lambda_arn" {
   value       = module.services.api_lambda_arn
 }
 
+output "api_lambda_function_name" {
+  description = "API Lambda function name"
+  value       = module.services.api_lambda_function_name
+}
+
+output "algo_lambda_function_name" {
+  description = "Algo Lambda function name"
+  value       = module.services.algo_lambda_function_name
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID"
+  value       = module.services.cloudfront_distribution_id
+}
+
+output "frontend_bucket_name" {
+  description = "S3 bucket name for frontend assets"
+  value       = module.storage.frontend_bucket_name
+}
+
 output "cloudfront_domain" {
   description = "CloudFront domain name"
   value       = module.services.cloudfront_domain_name

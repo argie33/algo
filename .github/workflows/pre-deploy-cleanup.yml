@@ -1,4 +1,6 @@
-name: Pre-Deployment Cleanup
+# DEPRECATED — pre-deploy cleanup is no longer needed with Terraform IaC.
+# Kept as stub so deploy-all-infrastructure.yml references don't break.
+name: pre-deploy-cleanup (deprecated)
 
 # Run before any deployment to ensure clean state
 on:

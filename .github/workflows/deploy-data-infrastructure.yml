@@ -1,4 +1,6 @@
-name: Deploy Infrastructure (RDS/ECS/Secrets)
+# DEPRECATED — replaced by deploy-all-infrastructure.yml (Terraform-only)
+# Infrastructure is now managed entirely by Terraform.
+name: deploy-data-infrastructure (deprecated)
 
 on:
   push:
