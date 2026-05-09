@@ -215,39 +215,6 @@ class SectorRotationDetector:
         oldest = float(row[1])
         return (recent - oldest) / oldest if oldest > 0 else None
 
-    def _compute_persistence(self, eval_date):
-        """Count weeks (last 4) where defensive avg outperformed cyclical avg."""
-        weeks = 0
-        for w in range(4):
-            check_date = eval_date - (eval_date.resolution * (w * 7) if False else
-                                       _date.fromisoformat(str(eval_date)).__class__.fromordinal(
-                                           eval_date.toordinal() - w * 7))
-            check_date = _date.fromordinal(eval_date.toordinal() - w * 7)
-            try:
-                spy_4w = self._period_return('SPY', check_date, 20)
-                if spy_4w is None:
-                    continue
-                def_excess = []
-                cyc_excess = []
-                for sec in DEFENSIVE_SECTORS:
-                    etf = SECTOR_ETF.get(sec)
-                    if not etf: continue
-                    r = self._period_return(etf, check_date, 20)
-                    if r is None: continue
-                    def_excess.append(r - spy_4w)
-                for sec in CYCLICAL_SECTORS:
-                    etf = SECTOR_ETF.get(sec)
-                    if not etf: continue
-                    r = self._period_return(etf, check_date, 20)
-                    if r is None: continue
-                    cyc_excess.append(r - spy_4w)
-                if def_excess and cyc_excess:
-                    if sum(def_excess) / len(def_excess) > sum(cyc_excess) / len(cyc_excess):
-                        weeks += 1
-            except Exception:
-                pass
-        return weeks
-
     def _persist(self, eval_date, result):
         try:
             self.cur.execute(
@@ -283,13 +250,15 @@ if __name__ == "__main__":
         print(f"  Signal:               {result['signal']}")
         print(f"  Defensive lead score: {result['defensive_lead_score']}/100")
         print(f"  Cyclical weak score:  {result['cyclical_weak_score']}/100")
-        print(f"  Defensive avg RS 4w:  {result['defensive_avg_rs_4w']}%")
-        print(f"  Cyclical avg RS 4w:   {result['cyclical_avg_rs_4w']}%")
-        print(f"  Spread:               {result['spread_4w']}%")
-        print(f"  Weeks persistent:     {result['weeks_persistent']}/4")
+        print(f"  Defensive rank imp 4w: {result['defensive_rank_improvement_4w']:.2f}")
+        print(f"  Cyclical rank imp 4w:  {result['cyclical_rank_improvement_4w']:.2f}")
+        print(f"  Spread 4w:            {result['spread_4w']:.2f}")
+        print(f"  Weeks persistent:     {result['weeks_persistent']}/3")
         print(f"  Recommended exp drop: {result['reduce_exposure_pts']} pts")
-        print(f"\n  Per-sector RS:")
-        for sec, d in sorted(result['sector_data'].items(),
-                              key=lambda x: x[1]['rs_excess_4w'], reverse=True):
-            tag = '[DEF]' if d['is_defensive'] else '[CYC]' if d['is_cyclical'] else '[   ]'
-            print(f"    {tag} {sec:25s} {d['etf']:5s}  RS_4w={d['rs_excess_4w']:+6.2f}%  RS_12w={d['rs_excess_12w']:+6.2f}%")
+        print(f"\n  Per-sector detail:")
+        for sec, sd in sorted(result['sector_data'].items(),
+                               key=lambda x: x[1]['rank']):
+            tag = '[DEF]' if sd['is_defensive'] else '[CYC]' if sd['is_cyclical'] else '[   ]'
+            print(f"    {tag} {sec:25s}  rank={sd['rank']:2d}  "
+                  f"imp_4w={sd['rank_improvement_4w']:+.0f}  "
+                  f"imp_12w={sd['rank_improvement_12w']:+.0f}")

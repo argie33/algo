@@ -175,6 +175,7 @@ class BuySellDailyLoader(OptimalLoader):
         df["sma_50"] = df["close"].rolling(50).mean()
         df["sma_200"] = df["close"].rolling(200).mean()
         df["ema_21"] = df["close"].ewm(span=21).mean()
+        df["avg_volume_50d"] = df["volume"].rolling(50).mean()
 
         signals = []
         for _, row in df.iterrows():
@@ -334,6 +335,7 @@ class BuySellDailyLoader(OptimalLoader):
             "pivot_price": pivot_price,
             "buy_zone_start": buy_zone_start,
             "buy_zone_end": buy_zone_end,
+            "avg_volume_50d": _f(row.get("avg_volume_50d")),
         }
 
     def transform(self, rows):

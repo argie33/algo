@@ -61,14 +61,14 @@ def load_technicals(days_back=365, symbol_filter=None):
         if symbol_filter:
             print(f"  Symbol filter: {symbol_filter}")
 
-    # Build the WHERE clause
-    where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
-    if symbol_filter:
-        where += f" AND symbol = '{symbol_filter}'"
+        # Build the WHERE clause
+        where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
+        if symbol_filter:
+            where += f" AND symbol = '{symbol_filter}'"
 
-    # ========== STEP 1: SMAs and ROCs (single query, fast) ==========
-    print("\n  Step 1: SMAs + ROC indicators...")
-    cur.execute(f"""
+        # ========== STEP 1: SMAs and ROCs (single query, fast) ==========
+        print("\n  Step 1: SMAs + ROC indicators...")
+        cur.execute(f"""
         WITH base AS (
             SELECT symbol, date, close, high, low, volume,
                    AVG(close) OVER w20 AS sma_20,
@@ -111,39 +111,18 @@ def load_technicals(days_back=365, symbol_filter=None):
             roc_60d = EXCLUDED.roc_60d,
             roc_120d = EXCLUDED.roc_120d,
             roc_252d = EXCLUDED.roc_252d
-    """)
-    sma_count = cur.rowcount
-    conn.commit()
-    print(f"    {sma_count:,} rows updated (SMA + ROC)")
+        """)
+        sma_count = cur.rowcount
+        conn.commit()
+        print(f"    {sma_count:,} rows updated (SMA + ROC)")
 
-    # ========== STEP 2: True EMAs (recursive, requires per-symbol pass) ==========
-    print("\n  Step 2: EMAs (12, 26)...")
-    # PostgreSQL recursive CTE for proper EMA. Initialize with first SMA, then recurse.
-    cur.execute(f"""
-        WITH RECURSIVE ema_calc AS (
-            -- Anchor: first close per symbol, seeded EMA = close itself
-            SELECT
-                symbol, date, close,
-                close::numeric AS ema_12,
-                close::numeric AS ema_26,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date) AS rn
-            FROM price_daily
-            WHERE date = (SELECT MIN(date) FROM price_daily pd2
-                          WHERE pd2.symbol = price_daily.symbol
-                            AND pd2.date >= CURRENT_DATE - INTERVAL '{days_back} days')
-        )
-        SELECT 1
-    """)
-    # Note: True EMA recursion in pure SQL is expensive on 5M+ rows. For pragmatic
-    # speed, we approximate EMA with SMA shorter-window (already done above) and
-    # mark this loader as completing the SMA-based approach. Real EMA computed
-    # only when actually needed by the algo (algo_signals.py recomputes).
-    conn.rollback()  # discard the stub recursive query
-    print("    EMAs left as approximations (computed on-demand by algo_signals.py)")
+        # ========== STEP 2: True EMAs (recursive, requires per-symbol pass) ==========
+        print("\n  Step 2: EMAs (12, 26)...")
+        print("    EMAs left as approximations (computed on-demand by algo_signals.py)")
 
-    # ========== STEP 3: RSI (Wilder's, 14-period) ==========
-    print("\n  Step 3: RSI (14-period)...")
-    cur.execute(f"""
+        # ========== STEP 3: RSI (Wilder's, 14-period) ==========
+        print("\n  Step 3: RSI (14-period)...")
+        cur.execute(f"""
         WITH gains_losses AS (
             SELECT symbol, date, close, prev_close,
                    GREATEST(close - prev_close, 0) AS gain,
@@ -169,14 +148,14 @@ def load_technicals(days_back=365, symbol_filter=None):
                   END
         FROM smoothed s
         WHERE t.symbol = s.symbol AND t.date = s.date
-    """)
-    rsi_count = cur.rowcount
-    conn.commit()
-    print(f"    {rsi_count:,} RSI values computed")
+        """)
+        rsi_count = cur.rowcount
+        conn.commit()
+        print(f"    {rsi_count:,} RSI values computed")
 
-    # ========== STEP 4: ATR (14-period, simple average of True Range) ==========
-    print("\n  Step 4: ATR (14-period)...")
-    cur.execute(f"""
+        # ========== STEP 4: ATR (14-period, simple average of True Range) ==========
+        print("\n  Step 4: ATR (14-period)...")
+        cur.execute(f"""
         WITH tr AS (
             SELECT symbol, date,
                    GREATEST(
@@ -197,14 +176,14 @@ def load_technicals(days_back=365, symbol_filter=None):
         SET atr = a.atr
         FROM avg_tr a
         WHERE t.symbol = a.symbol AND t.date = a.date
-    """)
-    atr_count = cur.rowcount
-    conn.commit()
-    print(f"    {atr_count:,} ATR values computed")
+        """)
+        atr_count = cur.rowcount
+        conn.commit()
+        print(f"    {atr_count:,} ATR values computed")
 
-    # ========== STEP 5: MACD ==========
-    print("\n  Step 5: MACD (12-26-9)...")
-    cur.execute(f"""
+        # ========== STEP 5: MACD ==========
+        print("\n  Step 5: MACD (12-26-9)...")
+        cur.execute(f"""
         WITH closes AS (
             SELECT symbol, date, close,
                    AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS sma_12,
@@ -224,18 +203,18 @@ def load_technicals(days_back=365, symbol_filter=None):
             macd_hist = m.macd - m.macd_signal
         FROM macd_calc m
         WHERE t.symbol = m.symbol AND t.date = m.date
-    """)
-    macd_count = cur.rowcount
-    conn.commit()
-    print(f"    {macd_count:,} MACD values computed")
+        """)
+        macd_count = cur.rowcount
+        conn.commit()
+        print(f"    {macd_count:,} MACD values computed")
 
-    # ========== Final stats ==========
-    cur.execute(f"""
+        # ========== Final stats ==========
+        cur.execute(f"""
         SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(date), MAX(date)
         FROM technical_data_daily
         WHERE date >= CURRENT_DATE - INTERVAL '{days_back} days'
-    """)
-    total, symbols, min_d, max_d = cur.fetchone()
+        """)
+        total, symbols, min_d, max_d = cur.fetchone()
 
         elapsed = (datetime.now() - start).total_seconds()
         print(f"\n{'='*70}")
