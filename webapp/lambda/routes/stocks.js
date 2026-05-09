@@ -94,14 +94,31 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// GET /api/stocks/gainers - Top gaining stocks
+// GET /api/stocks/gainers - Top gaining stocks (by daily price change)
 router.get("/gainers", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 10000);
     const result = await query(
-      `SELECT symbol, security_name as name, market_category as category, exchange
-       FROM stock_symbols
-       ORDER BY symbol ASC
+      `SELECT
+         s.symbol,
+         s.security_name as name,
+         s.market_category as category,
+         s.exchange,
+         p.open as open_price,
+         p.close as close_price,
+         p.high as high_price,
+         p.low as low_price,
+         p.volume,
+         ROUND(
+           ((p.close - p.open) / p.open * 100)::NUMERIC,
+           2
+         ) as change_pct,
+         p.date as price_date
+       FROM stock_symbols s
+       LEFT JOIN price_daily p ON s.symbol = p.symbol
+         AND p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
+       WHERE p.close IS NOT NULL
+       ORDER BY change_pct DESC
        LIMIT $1`,
       [limit]
     );

@@ -935,6 +935,65 @@ CREATE TABLE IF NOT EXISTS loader_execution_history (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Signal Performance Tracking (for signal-performance endpoint)
+CREATE TABLE IF NOT EXISTS signal_trade_performance (
+    id BIGSERIAL PRIMARY KEY,
+    signal_id VARCHAR(100) UNIQUE,
+    signal_date DATE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    signal_type VARCHAR(50),
+    entry_price DECIMAL(12,4),
+    current_price DECIMAL(12,4),
+    exit_price DECIMAL(12,4),
+    pnl DECIMAL(12,4),
+    pnl_pct DECIMAL(8,4),
+    status VARCHAR(50),
+    trades_count INT DEFAULT 0,
+    avg_win_pct DECIMAL(8,4),
+    avg_loss_pct DECIMAL(8,4),
+    win_rate DECIMAL(5,2),
+    expectancy DECIMAL(8,4),
+    confidence_score DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+SELECT create_hypertable('signal_trade_performance', 'signal_date', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_signal_perf_symbol ON signal_trade_performance(symbol, signal_date DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_perf_status ON signal_trade_performance(status);
+
+-- Order Execution Log (for execution-quality and pending-orders endpoints)
+CREATE TABLE IF NOT EXISTS order_execution_log (
+    id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(100) UNIQUE,
+    trade_id VARCHAR(100),
+    execution_date DATE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    order_type VARCHAR(50),
+    side VARCHAR(10),
+    quantity INT,
+    price DECIMAL(12,4),
+    fill_price DECIMAL(12,4),
+    status VARCHAR(50),
+    execution_time TIMESTAMP,
+    latency_ms INT,
+    slippage DECIMAL(12,4),
+    slippage_pct DECIMAL(8,4),
+    partial_fills INT DEFAULT 0,
+    avg_fill_price DECIMAL(12,4),
+    commission DECIMAL(12,4),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+SELECT create_hypertable('order_execution_log', 'execution_date', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_order_exec_symbol ON order_execution_log(symbol, execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_order_exec_status ON order_execution_log(status);
+CREATE INDEX IF NOT EXISTS idx_order_exec_trade_id ON order_execution_log(trade_id);
+
 CREATE INDEX IF NOT EXISTS idx_loader_execution_loader_date ON loader_execution_history(loader_name, execution_date);
 CREATE INDEX IF NOT EXISTS idx_loader_execution_status ON loader_execution_history(status);
 CREATE INDEX IF NOT EXISTS idx_loader_execution_created ON loader_execution_history(created_at DESC);
