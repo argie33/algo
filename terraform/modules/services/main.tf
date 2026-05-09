@@ -189,11 +189,6 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   origin_access_control_origin_type = "s3"
   signing_behavior = "always"
   signing_protocol = "sigv4"
-
-  lifecycle {
-    # Prevent accidental deletion
-    prevent_destroy = true
-  }
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
@@ -431,15 +426,24 @@ resource "aws_cloudwatch_log_group" "algo_lambda" {
 # Algo Lambda Function (placeholder)
 # ============================================================
 
+data "archive_file" "algo_placeholder" {
+  type        = "zip"
+  output_path = "${path.module}/algo_placeholder.zip"
+  source {
+    content  = "def handler(event, context):\n    return {'statusCode': 200, 'body': 'algo placeholder'}\n"
+    filename = "index.py"
+  }
+}
+
 resource "aws_lambda_function" "algo" {
-  filename         = var.algo_lambda_code_file
-  function_name   = local.algo_lambda_name
-  role            = var.algo_lambda_role_arn
-  handler         = "index.handler"
-  runtime         = "python3.11"
-  timeout         = var.algo_lambda_timeout
-  memory_size     = var.algo_lambda_memory
-  source_code_hash = filebase64sha256(var.algo_lambda_code_file)
+  filename         = data.archive_file.algo_placeholder.output_path
+  function_name    = local.algo_lambda_name
+  role             = var.algo_lambda_role_arn
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  timeout          = var.algo_lambda_timeout
+  memory_size      = var.algo_lambda_memory
+  source_code_hash = data.archive_file.algo_placeholder.output_base64sha256
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
@@ -462,6 +466,10 @@ resource "aws_lambda_function" "algo" {
   depends_on = [
     aws_cloudwatch_log_group.algo_lambda
   ]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   tags = merge(var.common_tags, {
     Name = local.algo_lambda_name

@@ -61,7 +61,7 @@ resource "aws_db_instance" "main" {
 
   # Deletion Protection
   deletion_protection         = var.environment == "prod" ? true : false
-  skip_final_snapshot         = var.environment == "prod" ? false : false
+  skip_final_snapshot         = var.environment != "prod"
   final_snapshot_identifier   = "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = merge(var.common_tags, {

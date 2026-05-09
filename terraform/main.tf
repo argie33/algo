@@ -5,13 +5,14 @@
 module "iam" {
   source = "./modules/iam"
 
-  project_name   = var.project_name
-  environment    = var.environment
-  aws_region     = var.aws_region
-  aws_account_id = data.aws_caller_identity.current.account_id
-  github_org     = local.github_org
-  github_repo    = local.github_repo
-  common_tags    = local.common_tags
+  project_name    = var.project_name
+  environment     = var.environment
+  aws_region      = var.aws_region
+  aws_account_id  = data.aws_caller_identity.current.account_id
+  github_org      = local.github_org
+  github_repo     = local.github_repo
+  bastion_enabled = var.bastion_enabled
+  common_tags     = local.common_tags
 }
 
 module "vpc" {
@@ -25,6 +26,7 @@ module "vpc" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
+  bastion_sg_enabled   = var.bastion_enabled
   common_tags          = local.common_tags
 }
 

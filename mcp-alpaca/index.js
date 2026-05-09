@@ -42,13 +42,14 @@ const server = new Server(
 );
 
 // Alpaca API Configuration
-const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
-const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
+const ALPACA_API_KEY = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
+const ALPACA_SECRET_KEY = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
 const ALPACA_BASE_URL = process.env.ALPACA_BASE_URL || "https://paper-api.alpaca.markets";
 const ALPACA_DATA_URL = process.env.ALPACA_DATA_URL || "https://data.alpaca.markets";
 
 if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
   console.error("❌ Missing Alpaca API credentials in environment variables");
+  console.error("   Please set APCA_API_KEY_ID and APCA_API_SECRET_KEY (or legacy ALPACA_API_KEY/ALPACA_API_SECRET)");
   process.exit(1);
 }
 

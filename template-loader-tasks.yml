@@ -13,7 +13,11 @@ Description: >
   Each loader is a Fargate task that can be triggered via aws ecs run-task.
   No services (DesiredCount=0) � loaders triggered manually or by EventBridge rules.
 
-Parameters: {}
+Parameters:
+  ContainerImageTag:
+    Type: String
+    Default: 'v1.0.0'
+    Description: 'Container image tag for all ECS loaders (use version tags, not "latest")'
 
 Resources:
   ECSExecutionRole:
@@ -156,7 +160,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: stocksymbols-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -206,7 +210,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: econdata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: LOG_GROUP
@@ -258,7 +262,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricedaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -308,7 +312,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: priceweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -358,7 +362,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: pricemonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -408,7 +412,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: etfpricedaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -458,7 +462,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: etfpriceweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -508,7 +512,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: etfpricemonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -558,7 +562,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: technicalsdaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -608,7 +612,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: calendar-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -658,7 +662,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: earningsestimate-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: LOADER_FILE
@@ -710,7 +714,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: earningshistory-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -760,7 +764,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: earningsmetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -810,7 +814,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: analystupgradedowngrade-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -860,7 +864,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: revenueestimate-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -910,7 +914,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: technicalsweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -960,7 +964,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: technicalsmonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1010,7 +1014,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: swingtrader-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: LOADER_FILE
@@ -1062,7 +1066,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysell-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1112,7 +1116,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latestpricedaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1162,7 +1166,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latestpriceweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1212,7 +1216,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latestpricemonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1262,7 +1266,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latesttechnicalsdaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1318,7 +1322,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latesttechnicalsweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1368,7 +1372,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: latesttechnicalsmonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1418,7 +1422,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: aaiidata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1468,7 +1472,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: feargreeddata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: LOADER_FILE
@@ -1520,7 +1524,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: naaimdata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: LOADER_FILE
@@ -1572,7 +1576,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: quarterlybalancesheet-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1622,7 +1626,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: annualbalancesheet-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1672,7 +1676,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: quarterlyincomestatement-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1722,7 +1726,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: annualincomestatement-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1772,7 +1776,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: quarterlycashflow-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1822,7 +1826,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: annualcashflow-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1872,7 +1876,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: ttmincomestatement-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1922,7 +1926,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: ttmcashflow-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -1972,7 +1976,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buyselldaily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2022,7 +2026,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysellweekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2072,7 +2076,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysellmonthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2122,7 +2126,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysell_etf_daily-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2172,7 +2176,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysell_etf_weekly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2222,7 +2226,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: buysell_etf_monthly-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2272,7 +2276,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: factormetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 1024
           Memory: 2048
           Essential: true
@@ -2324,7 +2328,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: sentiment-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2374,7 +2378,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: analystsentiment-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2424,7 +2428,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: qualitymetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 512
           Memory: 1024
           Essential: true
@@ -2481,7 +2485,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: growthmetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 1024
           Memory: 2048
           Essential: true
@@ -2538,7 +2542,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: value-metrics-calculator
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 1024
           Memory: 2048
           Essential: true
@@ -2594,7 +2598,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: stockscores-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 512
           Memory: 1024
           Essential: true
@@ -2644,7 +2648,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: benchmarks-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Secrets:
             - Name: DB_USER
@@ -2693,7 +2697,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: loadcompanyprofile-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2743,7 +2747,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: loadfinancials-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2793,7 +2797,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: loadhistorical-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2843,7 +2847,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: sectordata-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2893,7 +2897,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: sectors-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -2937,7 +2941,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: positioning-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 512
           Memory: 1024
           Essential: true
@@ -2983,7 +2987,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: momentum-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Cpu: 512
           Memory: 1024
           Essential: true
@@ -3029,7 +3033,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: riskmetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -3073,7 +3077,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: fundamentalmetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -3426,7 +3430,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: trend-template-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Command:
             - load_trend_template_data.py
@@ -3474,7 +3478,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: market-health-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Command:
             - load_market_health_daily.py
@@ -3522,7 +3526,7 @@ Resources:
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: algo-metrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "latest"]]
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ContainerImageTag]]
           Essential: true
           Command:
             - load_algo_metrics_daily.py

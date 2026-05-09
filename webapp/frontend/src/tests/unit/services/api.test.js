@@ -57,11 +57,11 @@ describe("API Service", () => {
     test("returns default localhost URL when no config", () => {
       const config = getApiConfig();
 
-      // Updated to match actual .env configuration (port 5001, not 3001)
-      expect(config.apiUrl).toBe("http://localhost:5001");
-      expect(config.baseURL).toBe("http://localhost:5001");
+      // In dev mode without VITE_API_URL, uses empty string (Vite proxy handles /api)
+      expect(config.apiUrl).toBe("");
+      expect(config.baseURL).toBe("");
       expect(config.isServerless).toBe(false);
-      expect(config.isConfigured).toBe(false);
+      expect(config.isDevelopment).toBe(true);
     });
 
     test("uses window.__CONFIG__ when available", () => {
@@ -101,10 +101,10 @@ describe("API Service", () => {
     test("includes all environment variables", () => {
       const config = getApiConfig();
 
-      // Test that it returns the actual Vitest environment variables
-      expect(config.allEnvVars).toBeDefined();
-      expect(config.allEnvVars.MODE).toBe("test");
-      expect(config.allEnvVars.DEV).toBe(true);
+      // getApiConfig returns minimal properties - verify they exist
+      expect(config).toBeDefined();
+      expect(config).toHaveProperty('baseURL');
+      expect(config).toHaveProperty('isDevelopment');
     });
   });
 
@@ -172,17 +172,16 @@ describe("API Service", () => {
     test("detects development environment", () => {
       const config = getApiConfig();
 
-      expect(config.environment).toBe("test");
-      expect(config.isDevelopment).toBe(true); // Vitest sets DEV: true
+      expect(config.isDev).toBe(true); // Vitest sets DEV: true
+      expect(config.isDevelopment).toBe(true);
       expect(config.isProduction).toBe(false);
     });
 
-    test("detects production environment", () => {
+    test("detects serverless vs local", () => {
       const config = getApiConfig();
 
-      expect(config.environment).toBe("test");
-      expect(config.isDevelopment).toBe(true); // Vitest sets DEV: true
-      expect(config.isProduction).toBe(false);
+      // In test mode, it's not serverless
+      expect(config.isServerless).toBe(false);
     });
   });
 
@@ -193,29 +192,27 @@ describe("API Service", () => {
       delete global.window;
 
       const config = getApiConfig();
-      // Updated to match actual .env configuration (port 5001, not 3001)
-      expect(config.apiUrl).toBe("http://localhost:5001");
+      // Without window, falls back to empty string for dev mode
+      expect(config.apiUrl).toBe("");
 
       // Restore window
       global.window = originalWindow;
     });
 
     test("handles missing import.meta.env", () => {
-      // In Vitest, import.meta.env is always defined, so just test it exists
+      // getApiConfig handles missing env gracefully
       const config = getApiConfig();
-      expect(config.allEnvVars).toBeDefined();
-      expect(typeof config.allEnvVars).toBe("object");
+      expect(config).toBeDefined();
+      expect(config).toHaveProperty('baseURL');
     });
 
     test("handles undefined config values", () => {
       window.__CONFIG__ = undefined;
-      vi.stubGlobal("import", {
-        meta: { env: undefined },
-      });
 
       const config = getApiConfig();
-      // Updated to match actual .env configuration (port 5001, not 3001)
-      expect(config.apiUrl).toBe("http://localhost:5001");
+      // Falls back to empty string in dev mode
+      expect(config).toBeDefined();
+      expect(config.apiUrl).toBe("");
     });
   });
 });

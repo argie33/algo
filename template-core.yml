@@ -298,6 +298,9 @@ Resources:
       Runtime: python3.9
       Handler: index.handler
       Role: !GetAtt BastionStopRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
       Code:
         ZipFile: |
           import boto3, os
@@ -312,6 +315,15 @@ Resources:
         Variables:
           ASG_NAME: stocks-bastion-asg
 
+  EventFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-event-failures'
+      MessageRetentionPeriod: 86400
+      Tags:
+        - Key: Name
+          Value: EventBridge DLQ
+
   BastionStopRule:
     Type: AWS::Events::Rule
     Properties:
@@ -321,6 +333,8 @@ Resources:
       Targets:
         - Arn: !GetAtt BastionStopFunction.Arn
           Id: StopBastionTarget
+          DeadLetterConfig:
+            Arn: !GetAtt EventFailureQueue.Arn
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -368,6 +382,36 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
+  # Policy: Allow deployment roles to read/write
+  CodeBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CodeBucket
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowDeploymentAccess
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${CodeBucket.Arn}/*'
+          - Sid: AllowListBucket
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt CodeBucket.Arn
+
   ### 9) CloudFormation Templates Bucket ###
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
@@ -385,6 +429,29 @@ Resources:
         RestrictPublicBuckets: true
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
+
+  # Policy: Allow CloudFormation to read templates
+  CfTemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CfTemplatesBucket
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub '${CfTemplatesBucket.Arn}/*'
+          - Sid: AllowListBucket
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt CfTemplatesBucket.Arn
 
   ### 9b) Algo Artifacts Bucket ###
   AlgoArtifactsBucket:
@@ -409,6 +476,30 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
+  # Policy: Allow Lambda to read/write artifacts
+  AlgoArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AlgoArtifactsBucket
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaArtifactAccess
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${AlgoArtifactsBucket.Arn}/*'
+          - Sid: AllowListBucket
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt AlgoArtifactsBucket.Arn
+
   ### 9c) Data Loading Bucket (for loaders to stage results) ###
   DataLoadingBucket:
     Type: AWS::S3::Bucket
@@ -432,6 +523,39 @@ Resources:
             Status: Enabled
             ExpirationInDays: 30
             NoncurrentVersionExpirationInDays: 7
+
+  # Policy: Allow ECS loaders to write, Lambda to read
+  DataLoadingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DataLoadingBucket
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowECSLoaderWrite
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+            Resource: !Sub '${DataLoadingBucket.Arn}/*'
+          - Sid: AllowLambdaRead
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub '${DataLoadingBucket.Arn}/*'
+          - Sid: AllowListBucket
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - lambda.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt DataLoadingBucket.Arn
 
   ### 10) VPC ENDPOINTS — Cost Optimization (eliminates NAT Gateway ~$20/month) ###
   VpcEndpointSecurityGroup:

@@ -30,7 +30,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
         trades_executed: [],
         trades_failed: [],
         recommendations: {
-          action: "Configure Alpaca API credentials (ALPACA_API_KEY, ALPACA_SECRET_KEY)",
+          action: "Configure Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY)",
           fallback: "Trades were recorded in database but not executed via Alpaca",
         },
       };

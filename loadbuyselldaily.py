@@ -340,7 +340,7 @@ class BuySellDailyLoader(OptimalLoader):
             "pivot_price": pivot_price,
             "buy_zone_start": buy_zone_start,
             "buy_zone_end": buy_zone_end,
-            "avg_volume_50d": _f(row.get("avg_volume_50d")),
+            "avg_volume_50d": int(row.get("avg_volume_50d")) if row.get("avg_volume_50d") is not None and not pd.isna(row.get("avg_volume_50d")) else None,
         }
 
     def transform(self, rows):
