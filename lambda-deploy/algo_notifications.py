@@ -51,7 +51,12 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
     """Write a notification. Severity: info | warning | error | critical.
 
     Note: algo_notifications table is created by init_database.py (schema as code).
+    Fallback: if DB fails, attempt direct AlertManager send.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    notif_id = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
@@ -71,12 +76,26 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
         if recipient and severity in ('critical', 'error'):
             try:
                 _send_email(recipient, severity, title, message, symbol)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Email send failed: {e}")
 
         return notif_id
     except Exception as e:
-        print(f"  (notify failed: {e})")
+        logger.error(f"notify() DB write failed: {e}. Attempting AlertManager fallback.")
+
+        # Fallback: send via AlertManager if DB is down
+        try:
+            from algo_alerts import AlertManager
+            alerts = AlertManager()
+            alerts.send_patrol_alert(
+                f'notification_{kind}',
+                {severity: 1},
+                [{'severity': severity, 'check': kind, 'target': symbol or 'system', 'message': f'{title}: {message}'}]
+            )
+            logger.info(f"Fallback AlertManager notification sent for {kind}")
+        except Exception as e2:
+            logger.critical(f"Both notify() and AlertManager fallback failed: {e2}")
+
         return None
 
 

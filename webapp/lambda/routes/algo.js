@@ -220,7 +220,7 @@ router.get('/evaluate', async (req, res) => {
  * Get active positions enriched with stop/target levels (from latest open trade),
  * sector (from company_profile), and Minervini stage / RS (from trend_template_data).
  */
-router.get('/positions', async (req, res) => {
+router.get('/positions', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
 
@@ -348,7 +348,7 @@ router.get('/positions', async (req, res) => {
  * GET /api/algo/trades
  * Get trade history
  */
-router.get('/trades', async (req, res) => {
+router.get('/trades', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const limit = parseInt(req.query.limit) || 50;
@@ -1088,7 +1088,7 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
 // ============================================================
 // PERFORMANCE METRICS — Sharpe, Sortino, Calmar, max DD, profit factor
 // ============================================================
-router.get('/performance', async (req, res) => {
+router.get('/performance', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
 
@@ -1243,7 +1243,7 @@ router.get('/performance', async (req, res) => {
  * Time-series of portfolio value from algo_portfolio_snapshots
  * Used by Portfolio Dashboard equity-curve chart.
  */
-router.get('/equity-curve', async (req, res) => {
+router.get('/equity-curve', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const limit = parseInt(req.query.limit) || 180;
@@ -1899,7 +1899,7 @@ router.get('/signal-performance', async (req, res) => {
  * GET /api/algo/orders/pending
  * Pre-execution order review
  */
-router.get('/orders/pending', async (req, res) => {
+router.get('/orders/pending', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const result = await pool.query(`
@@ -1950,7 +1950,7 @@ router.get('/orders/pending', async (req, res) => {
  * GET /api/algo/execution-quality?days=30
  * Execution metrics: fill rate, slippage, etc.
  */
-router.get('/execution-quality', async (req, res) => {
+router.get('/execution-quality', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const days = parseInt(req.query.days) || 30;
