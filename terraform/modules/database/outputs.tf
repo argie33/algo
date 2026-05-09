@@ -91,3 +91,19 @@ output "rds_log_group_name" {
   description = "CloudWatch log group for RDS"
   value       = aws_cloudwatch_log_group.rds_postgresql.name
 }
+
+# RDS Proxy (Connection Pooling)
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for connection pooling"
+  value       = aws_db_proxy_endpoint.main_read_write.endpoint
+}
+
+output "rds_proxy_name" {
+  description = "RDS Proxy name"
+  value       = aws_db_proxy.main.name
+}
+
+output "rds_proxy_arn" {
+  description = "ARN of RDS Proxy"
+  value       = aws_db_proxy.main.arn
+}

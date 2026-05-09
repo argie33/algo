@@ -380,3 +380,160 @@ resource "null_resource" "database_initialization" {
   }
 }
 
+# ============================================================
+# RDS Proxy - Connection Pooling
+# ============================================================
+# Multiplexes many ECS task connections (40 loaders × 8 workers)
+# down to a smaller pool of actual DB connections (~20-30).
+# Cost: ~$0.015/hour for db.t3.micro
+# Benefit: Prevents connection limit errors, automatic failover
+
+# Security group for RDS Proxy (allows inbound from ECS tasks)
+resource "aws_security_group" "rds_proxy" {
+  name        = "${var.project_name}-rds-proxy-${var.environment}"
+  description = "Security group for RDS Proxy"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [var.rds_security_group_id]
+    description     = "PostgreSQL from ECS tasks"
+  }
+
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "PostgreSQL to RDS instance"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy"
+  })
+}
+
+# RDS Proxy IAM role (allows proxy to assume DB credentials)
+resource "aws_iam_role" "rds_proxy_role" {
+  name = "${var.project_name}-rds-proxy-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "rds.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = var.common_tags
+}
+
+# Policy for RDS Proxy to read DB credentials from Secrets Manager
+resource "aws_iam_role_policy" "rds_proxy_policy" {
+  name = "${var.project_name}-rds-proxy-policy"
+  role = aws_iam_role.rds_proxy_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue"
+      ]
+      Resource = aws_secretsmanager_secret.db_credentials.arn
+    }]
+  })
+}
+
+# Store DB credentials in Secrets Manager for RDS Proxy to use
+resource "aws_secretsmanager_secret" "db_credentials" {
+  name                    = "${var.project_name}/rds-db-credentials-${var.environment}"
+  description             = "RDS database credentials for connection pooling"
+  recovery_window_in_days = 7
+
+  tags = var.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "db_credentials" {
+  secret_id = aws_secretsmanager_secret.db_credentials.id
+  secret_string = jsonencode({
+    username = var.db_master_username
+    password = var.db_master_password
+  })
+}
+
+# RDS Proxy itself
+resource "aws_db_proxy" "main" {
+  name                   = "${var.project_name}-proxy-${var.environment}"
+  engine_family          = "POSTGRESQL"
+  auth {
+    auth_scheme = "SECRETS"
+    secret_arn  = aws_secretsmanager_secret.db_credentials.arn
+    iam_auth    = "DISABLED"
+  }
+
+  role_arn               = aws_iam_role.rds_proxy_role.arn
+  database_url           = "postgresql://${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.rds_db_name}"
+  max_connections        = 100
+  max_connection_idle_in_minutes = 30
+
+  # Connection pool settings
+  client_borrow_timeout = 120
+  connection_borrow_timeout = 120
+  session_pinning_filters = ["EXCLUDE_VARIABLE_SETS"]
+
+  vpc_subnet_ids            = var.private_subnet_ids
+  vpc_security_group_ids    = [aws_security_group.rds_proxy.id]
+
+  debug_logging = false
+  require_tls   = false  # Set to true if using encrypted connections
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy"
+  })
+
+  depends_on = [
+    aws_db_instance.main,
+    aws_secretsmanager_secret_version.db_credentials
+  ]
+}
+
+# RDS Proxy Target Group (links proxy to the RDS instance)
+resource "aws_db_proxy_target_group" "main" {
+  db_proxy_name          = aws_db_proxy.main.name
+  name                   = "default"
+  db_parameter_group_name = "default.postgres14"
+
+  connection_pool_settings {
+    connection_borrow_timeout    = 120
+    connection_reuse_percent     = 100
+    init_query                   = ""
+    max_connections              = 100
+    max_idle_connections         = 30
+    session_pinning_filters      = ["EXCLUDE_VARIABLE_SETS"]
+  }
+}
+
+# RDS Proxy Target (the actual RDS instance)
+resource "aws_db_proxy_target" "main" {
+  db_proxy_name         = aws_db_proxy.main.name
+  target_group_name     = aws_db_proxy_target_group.main.name
+  db_instance_identifier = aws_db_instance.main.identifier
+}
+
+resource "aws_db_proxy_endpoint" "main_read_write" {
+  db_proxy_name          = aws_db_proxy.main.name
+  db_proxy_endpoint_name = "${var.project_name}-rw-${var.environment}"
+  target_role            = "READ_WRITE"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-proxy-endpoint"
+  })
+}
+
