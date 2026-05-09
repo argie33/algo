@@ -199,13 +199,9 @@ locals {
     }
 
     # 4:15am ET = 9:15am UTC Mon-Fri (after prices, before scores)
-    "trend_template_data" = {
-      schedule    = "cron(15 9 ? * MON-FRI *)"
-      description = "Trend template data - 4:15am ET (dependency for signals)"
-    }
     "technicals_daily" = {
       schedule    = "cron(15 9 ? * MON-FRI *)"
-      description = "Daily technical indicators - 4:15am ET (parallel)"
+      description = "Daily technical indicators - 4:15am ET (parallel with prices)"
     }
 
     # 10:00am ET = 3pm UTC Mon-Fri
@@ -393,8 +389,7 @@ locals {
     "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600 }
     "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600 }
 
-    # Trend & technical data (4:15am ET, after prices) - FARGATE: 256 CPU = min 512 MB
-    "trend_template_data" = { cpu = 256, memory = 512, timeout = 300 }
+    # Technical data (4:15am ET, after prices) - FARGATE: 256 CPU = min 512 MB
     "technicals_daily"    = { cpu = 256, memory = 512, timeout = 300 }
 
     # Financial statements (10:00am ET) - FARGATE: 256 CPU = min 512 MB

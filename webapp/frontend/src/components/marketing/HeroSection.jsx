@@ -1,19 +1,10 @@
 import React from 'react';
-import { Box, Container, Typography, Button, Grid, useTheme, useMediaQuery, alpha } from '@mui/material';
+import { Box, Container, Typography, Button, Grid, useTheme, alpha } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import ImagePlaceholder from './ImagePlaceholder';
-import {
-  TrendingUp as TrendingUpIcon,
-  Psychology as PsychologyIcon,
-  Analytics as AnalyticsIcon,
-  Event as EventIcon,
-  ArrowForward as ArrowForwardIcon,
-} from '@mui/icons-material';
 
 const HeroSection = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
     <Box
@@ -68,7 +59,7 @@ const HeroSection = () => {
                   maxWidth: '95%',
                 }}
               >
-                We're tired of watching Wall Street have all the advantages. That ends now.
+                We&apos;re tired of watching Wall Street have all the advantages. That ends now.
               </Typography>
 
               <Typography
@@ -82,7 +73,7 @@ const HeroSection = () => {
                   maxWidth: '95%',
                 }}
               >
-                Bullseye harnesses cutting-edge AI and advanced technology to deliver institutional-grade research completely free. Quantitative insights, fundamental analysis, technical research—everything the big guys pay millions for. We're using the same tools and tech that power Wall Street to level the playing field and give individual investors a real competitive edge.
+                Bullseye harnesses cutting-edge AI and advanced technology to deliver institutional-grade research completely free. Quantitative insights, fundamental analysis, technical research&mdash;everything the big guys pay millions for. We&apos;re using the same tools and tech that power Wall Street to level the playing field and give individual investors a real competitive edge.
               </Typography>
 
               {/* CTA Button */}
