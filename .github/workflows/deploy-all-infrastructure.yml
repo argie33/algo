@@ -1,7 +1,8 @@
-name: Deploy All Infrastructure (Terraform + Code)
+name: Deploy All Infrastructure (Terraform)
 
-# Master deploy: runs terraform, then builds all application code in parallel.
+# Master deploy: runs terraform apply, then builds all application code in parallel.
 # Trigger: push to main (full stack), or manual dispatch for selective deploys.
+# NOTE: This is the ONLY deployment workflow. All infrastructure uses Terraform (IaC).
 
 on:
   push:
