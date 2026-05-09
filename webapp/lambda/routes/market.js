@@ -743,7 +743,7 @@ router.get("/distribution-days", async (req, res) => {
     const result = await query(distributionQuery);
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return sendNotFound(res, "No distribution days data found");
+      return sendSuccess(res, {});
     }
 
     // Format response with index names
