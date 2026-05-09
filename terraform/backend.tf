@@ -1,29 +1,18 @@
 # ============================================================
 # Root Module - Backend Configuration
 # ============================================================
-# NOTE: For initial deployment, you may need to:
-# 1. Create S3 bucket: stocks-terraform-state-dev
-# 2. Create DynamoDB table: stocks-terraform-locks
-# 3. Or temporarily use local backend (see below)
+# State bucket must exist before first apply:
+#   aws s3api create-bucket --bucket stocks-terraform-state --region us-east-1
+#   aws s3api put-bucket-versioning --bucket stocks-terraform-state \
+#     --versioning-configuration Status=Enabled
 #
-# To bootstrap the state bucket, run:
-#   aws s3api create-bucket --bucket stocks-terraform-state-dev --region us-east-1
-#   aws dynamodb create-table --table-name stocks-terraform-locks \
-#     --attribute-definitions AttributeName=LockID,AttributeType=S \
-#     --key-schema AttributeName=LockID,KeyType=HASH \
-#     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+# deploy-all-infrastructure.yml passes backend config via -backend-config flags:
+#   bucket  = stocks-terraform-state
+#   key     = stocks/terraform.tfstate
+#   region  = us-east-1
+#   encrypt = true
 # ============================================================
 
 terraform {
-  # Local backend for testing (use S3 in production)
-  backend "local" {
-    path = ".terraform.local/terraform.tfstate"
-  }
-  # For production, use S3:
-  # backend "s3" {
-  #   bucket  = "stocks-terraform-state-{ACCOUNT_ID}-us-east-1"
-  #   key     = "stocks/terraform.tfstate"
-  #   region  = "us-east-1"
-  #   encrypt = true
-  # }
+  backend "s3" {}
 }

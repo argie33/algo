@@ -16,7 +16,7 @@ import {
   Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, Sliders, GitBranch,
-  HeartPulse, Zap, Boxes, ShieldCheck, Crosshair,
+  HeartPulse, Zap, Boxes, Crosshair,
   Bot, BarChart2, Bell,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
