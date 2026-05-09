@@ -41,24 +41,40 @@ Check Logs      → aws logs tail /aws/lambda/algo-orchestrator --follow
 RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 ```
 
+## Production-Grade Systems Completed ✅
+
+**Core Infrastructure & Safety:**
+- [x] **Week 1: Credential Security** — Centralized credential_manager with Secrets Manager + env var fallback
+- [x] **Week 3: Data Loading Reliability** — SLA tracking, zero-load detection, fail-closed algo behavior
+- [x] **Week 4: Observability Phase 1** — Structured JSON logging, trace IDs, smart alert routing (SMS/Email/Slack)
+- [x] **Week 6: Feature Flags** — Emergency disable, A/B testing, gradual rollout (no redeploy)
+- [x] **Week 7: Order Reconciliation** — Continuous sync, orphan/stuck order detection, manual recovery tools
+- [x] **Week 10: Operational Runbooks** — Step-by-step incident recovery for 10+ failure scenarios
+
+**Enhancements Just Completed (May 9, 2026):**
+- ✅ Technical indicators expansion: ROC (10d/20d/60d/120d/252d), MACD signal/histogram
+- ✅ Multi-timeframe signal support (timeframe column in buy_sell_daily)
+- ✅ Lightweight watermark system (in-memory tracking, no external dependency)
+- ✅ Terraform refinements (RDS parameter group, psycopg2 layer, loader variables)
+
 ## Work in Progress / Next Phase
 
 **High Impact (ready to implement)**
-- [ ] EventBridge Scheduler Configuration — set up daily data loader triggers at 4am ET
+- [ ] **Week 11: Incident Response Culture** — Post-mortem process, blameless investigation, continuous learning
+- [ ] **Week 2: API Integration Testing** — Test 30+ endpoints, data load → algo → trade flow
 - [ ] TimescaleDB Migration — enable on RDS for 10-100x query speedup on time-series data
 - [ ] Performance Metrics Dashboard — show query times, API latencies, system health trends
-- [ ] Data Quality Auditor UI — visualize table staleness, data integrity checks in real-time
+- [ ] **Week 9: Canary Deployments** — Staged rollout with feature flags before full release
 
 **Medium Impact**
 - [ ] API Documentation — expand from current 5 endpoints to all 25+ with request/response examples
 - [ ] Performance Optimization — identify slow queries, add caching strategies
 - [ ] Enhanced Error Handling — better user-facing error messages, retry strategies
-- [ ] Test Coverage — expand E2E tests for data load → algo run → trade execution scenarios
+- [ ] **Week 5: Finalization** — Polish & complete edge cases in weeks 1-4
 
 **Lower Priority**
 - [ ] Lambda VPC Migration — move to VPC with NAT gateway for enhanced security (prod planning)
 - [ ] RDS Multi-AZ — enable for high availability (cost/benefit analysis needed)
-- [ ] Disaster Recovery Runbook — documented procedures for common failure scenarios
 - [ ] Advanced Analytics — cohort analysis, factor attribution, strategy backtesting
 
 ## Known Limitations (Intentional Development Choices)
