@@ -284,7 +284,7 @@ EOF
 # ============================================================
 
 resource "aws_batch_compute_environment" "spot" {
-  compute_environment_name = "${var.project_name}-batch-spot-${substr(md5(aws_iam_role.batch_service_role.arn), 0, 6)}"
+  compute_environment_name = "${var.project_name}-batch-spot-${var.environment}"
   type                     = "MANAGED"
   state                    = "ENABLED"
   service_role             = aws_iam_role.batch_service_role.arn

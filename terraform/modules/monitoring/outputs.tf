@@ -19,5 +19,5 @@ output "api_unhealthy_alarm_name" {
 
 output "database_unhealthy_alarm_name" {
   description = "Composite alarm name for database health status"
-  value       = aws_cloudwatch_composite_alarm.database_unhealthy.alarm_name
+  value       = var.sns_alerts_enabled ? aws_cloudwatch_composite_alarm.database_unhealthy[0].alarm_name : null
 }

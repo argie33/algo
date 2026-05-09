@@ -499,10 +499,6 @@ variable "sns_alert_email" {
   description = "Email for SNS alerts (required when sns_alerts_enabled=true)"
   type        = string
   default     = ""
-  validation {
-    condition     = var.sns_alerts_enabled == false || var.sns_alert_email != ""
-    error_message = "sns_alert_email is required when sns_alerts_enabled is true"
-  }
 }
 
 # ============================================================
