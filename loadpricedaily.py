@@ -14,7 +14,7 @@ Demonstrates the new pattern combining:
 Deployment: 2026-05-04 AWS ECS with GitHub Actions workflow
 
 Run:
-    python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 4]
+    python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
 
@@ -163,7 +163,7 @@ def get_active_symbols() -> List[str]:
 def main():
     parser = argparse.ArgumentParser(description="Optimal price_daily loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=4, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
     if args.symbols:
