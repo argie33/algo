@@ -17,9 +17,9 @@ version: '3.9'
 # ============================================================
 
 services:
-  # PostgreSQL Database - mirrors AWS RDS configuration
+  # PostgreSQL Database with TimescaleDB - mirrors AWS RDS configuration
   postgres:
-    image: postgres:15
+    image: timescaledb/timescaledb:15-latest
     container_name: stocks_postgres_local
     hostname: postgres.local
 
@@ -29,7 +29,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-stocks}
 
-      # PostgreSQL configuration
+      # PostgreSQL configuration + TimescaleDB optimization
       POSTGRES_INITDB_ARGS: >
         -c max_connections=100
         -c shared_buffers=256MB
@@ -38,6 +38,10 @@ services:
         -c checkpoint_completion_target=0.9
         -c wal_buffers=16MB
         -c default_statistics_target=100
+        -c shared_preload_libraries=timescaledb
+        -c max_parallel_workers_per_gather=4
+        -c max_parallel_workers=8
+        -c work_mem=65536
 
     ports:
       - "5432:5432"

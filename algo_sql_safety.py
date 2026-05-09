@@ -21,6 +21,10 @@ SAFE_TABLES = {
     'stock_fundamentals', 'stock_ownership', 'stock_ratings',
     'sector_performance', 'market_calendar',
     'data_quality_log', 'data_patrol_log',
+    'technical_data_daily', 'buy_sell_daily', 'trend_template_data',
+    'signal_quality_scores', 'sector_ranking', 'industry_ranking',
+    'insider_transactions', 'analyst_upgrade_downgrade', 'stock_scores',
+    'aaii_sentiment', 'growth_metrics', 'earnings_history',
 }
 
 # Known safe columns (whitelist for dynamic column names)
@@ -32,6 +36,7 @@ SAFE_COLUMNS = {
     'unrealized_pnl', 'profit_loss', 'profit_loss_pct',
     'signal_date', 'trade_date', 'exit_date',
     'target_levels_hit', 'current_price', 'current_stop_price',
+    'date_recorded', 'transaction_date', 'action_date', 'score_date', 'quarter',
 }
 
 

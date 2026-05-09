@@ -378,6 +378,40 @@ class Orchestrator:
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
+
+            # Check loader health first — fail-closed if critical data missing
+            try:
+                from algo_loader_monitor import LoaderMonitor
+                monitor = LoaderMonitor()
+                monitor.connect()
+                try:
+                    critical_symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY']
+                    findings = monitor.audit_all(critical_symbols=critical_symbols)
+
+                    # Check for CRITICAL findings (missing symbols, low volume)
+                    critical_findings = [f for f in findings if f[0] == 'CRITICAL']
+                    if critical_findings:
+                        messages = [f[2] for f in critical_findings]
+                        self.alerts.send_position_alert(
+                            'DATA',
+                            'LOADER_FAILURE_HALT',
+                            f'Loader failure detected: {"; ".join(messages)}',
+                            {'loader_findings': [{'severity': f[0], 'check': f[1], 'message': f[2]} for f in critical_findings]}
+                        )
+                        self.log_phase_result(1, 'loader_health', 'halt',
+                                              f'Loader critical: {"; ".join(messages)}')
+                        return False
+
+                    # Warn on errors but don't block
+                    error_findings = [f for f in findings if f[0] == 'ERROR']
+                    if error_findings and self.verbose:
+                        for sev, check, msg in error_findings:
+                            logger.warning(f"  [LOADER ERROR] {check}: {msg}")
+                finally:
+                    monitor.disconnect()
+            except Exception as e:
+                logger.warning(f"  [WARN] Loader health check failed: {e}")
+                # Don't fail-close on monitor error, just warn
             cur.execute(
                 """
                 SELECT

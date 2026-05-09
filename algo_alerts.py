@@ -11,6 +11,7 @@ Configuration via environment variables:
 """
 
 import os
+import json
 import smtplib
 import requests
 from pathlib import Path
@@ -145,7 +146,8 @@ class AlertManager:
 
     def _send_email(self, subject, body):
         """Send email via SMTP."""
-        if not self.email_to:
+        if not self.email_to or not self.smtp_user or not self.smtp_password:
+            # Skip email if credentials not configured
             return
 
         try:
@@ -156,9 +158,8 @@ class AlertManager:
             msg.attach(MIMEText(body, 'plain'))
 
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                if self.smtp_user and self.smtp_password:
-                    server.starttls()
-                    server.login(self.smtp_user, self.smtp_password)
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
             print(f"[ALERT] Email sent: {subject}")
         except Exception as e:
