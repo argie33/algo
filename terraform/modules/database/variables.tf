@@ -262,3 +262,50 @@ variable "rds_maintenance_window" {
     error_message = "Maintenance window must be in format ddd:HH:MM-ddd:HH:MM"
   }
 }
+
+# ============================================================
+# Application Configuration (passed to Lambda env vars)
+# ============================================================
+
+variable "jwt_secret" {
+  description = "JWT secret for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "fred_api_key" {
+  description = "FRED API key for economic data (optional)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "execution_mode" {
+  description = "Algo execution mode (auto/manual/test)"
+  type        = string
+  default     = "auto"
+}
+
+variable "orchestrator_dry_run" {
+  description = "Run orchestrator in dry-run mode"
+  type        = bool
+  default     = false
+}
+
+variable "orchestrator_log_level" {
+  description = "Logging level for orchestrator"
+  type        = string
+  default     = "info"
+}
+
+variable "data_patrol_enabled" {
+  description = "Enable data patrol monitoring"
+  type        = bool
+  default     = true
+}
+
+variable "data_patrol_timeout_ms" {
+  description = "Data patrol timeout in milliseconds"
+  type        = number
+  default     = 30000
+}

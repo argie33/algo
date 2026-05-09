@@ -58,6 +58,13 @@ jobs:
       TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
       TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
       TF_VAR_notification_email: ${{ secrets.ALERT_EMAIL_ADDRESS }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
+      TF_VAR_execution_mode: ${{ secrets.EXECUTION_MODE }}
+      TF_VAR_orchestrator_dry_run: ${{ secrets.ORCHESTRATOR_DRY_RUN }}
+      TF_VAR_orchestrator_log_level: ${{ secrets.ORCHESTRATOR_LOG_LEVEL }}
+      TF_VAR_data_patrol_enabled: ${{ secrets.DATA_PATROL_ENABLED }}
+      TF_VAR_data_patrol_timeout_ms: ${{ secrets.DATA_PATROL_TIMEOUT_MS }}
 
     steps:
       - uses: actions/checkout@v4

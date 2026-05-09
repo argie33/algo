@@ -77,6 +77,13 @@ module "database" {
   alpaca_api_base_url             = var.alpaca_api_base_url
   alpaca_paper_trading            = var.alpaca_paper_trading
   cloudwatch_log_retention_days   = var.cloudwatch_log_retention_days
+  jwt_secret                      = var.jwt_secret
+  fred_api_key                    = var.fred_api_key
+  execution_mode                  = var.execution_mode
+  orchestrator_dry_run            = var.orchestrator_dry_run
+  orchestrator_log_level          = var.orchestrator_log_level
+  data_patrol_enabled             = var.data_patrol_enabled
+  data_patrol_timeout_ms          = var.data_patrol_timeout_ms
   common_tags                     = local.common_tags
 }
 

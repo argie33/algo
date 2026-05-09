@@ -627,6 +627,69 @@ variable "enable_bastion_cloudwatch_logs" {
 }
 
 # ============================================================
+# Application Configuration (Orchestrator & Monitoring)
+# ============================================================
+
+variable "jwt_secret" {
+  description = "JWT secret for authentication (sensitive)"
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(var.jwt_secret) >= 16
+    error_message = "JWT secret must be at least 16 characters"
+  }
+}
+
+variable "fred_api_key" {
+  description = "FRED API key for economic data (optional)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "execution_mode" {
+  description = "Algo execution mode (auto for automated, manual for testing)"
+  type        = string
+  default     = "auto"
+  validation {
+    condition     = contains(["auto", "manual", "test"], var.execution_mode)
+    error_message = "Execution mode must be auto, manual, or test"
+  }
+}
+
+variable "orchestrator_dry_run" {
+  description = "Run orchestrator in dry-run mode (no actual trades)"
+  type        = bool
+  default     = false
+}
+
+variable "orchestrator_log_level" {
+  description = "Logging level for orchestrator (debug, info, warning, error)"
+  type        = string
+  default     = "info"
+  validation {
+    condition     = contains(["debug", "info", "warning", "error"], var.orchestrator_log_level)
+    error_message = "Log level must be debug, info, warning, or error"
+  }
+}
+
+variable "data_patrol_enabled" {
+  description = "Enable data patrol monitoring for loader health checks"
+  type        = bool
+  default     = true
+}
+
+variable "data_patrol_timeout_ms" {
+  description = "Data patrol timeout in milliseconds"
+  type        = number
+  default     = 30000
+  validation {
+    condition     = var.data_patrol_timeout_ms > 0 && var.data_patrol_timeout_ms <= 300000
+    error_message = "Timeout must be between 1ms and 300s"
+  }
+}
+
+# ============================================================
 # Tags
 # ============================================================
 

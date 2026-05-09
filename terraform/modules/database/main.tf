@@ -507,11 +507,22 @@ resource "aws_lambda_function" "db_init" {
 
   environment {
     variables = {
-      DB_HOST     = aws_db_instance.main.address
-      DB_PORT     = aws_db_instance.main.port
-      DB_NAME     = var.rds_db_name
-      DB_USER     = var.db_master_username
-      DB_PASSWORD = var.db_master_password
+      DB_HOST                    = aws_db_instance.main.address
+      DB_PORT                    = aws_db_instance.main.port
+      DB_NAME                    = var.rds_db_name
+      DB_USER                    = var.db_master_username
+      DB_PASSWORD                = var.db_master_password
+      JWT_SECRET                 = var.jwt_secret
+      FRED_API_KEY               = var.fred_api_key
+      EXECUTION_MODE             = var.execution_mode
+      ORCHESTRATOR_DRY_RUN       = var.orchestrator_dry_run
+      ORCHESTRATOR_LOG_LEVEL     = var.orchestrator_log_level
+      DATA_PATROL_ENABLED        = var.data_patrol_enabled
+      DATA_PATROL_TIMEOUT_MS     = var.data_patrol_timeout_ms
+      APCA_API_KEY_ID            = var.alpaca_api_key_id
+      APCA_API_SECRET_KEY        = var.alpaca_api_secret_key
+      APCA_API_BASE_URL          = var.alpaca_api_base_url
+      ALPACA_PAPER_TRADING       = var.alpaca_paper_trading
     }
   }
 
