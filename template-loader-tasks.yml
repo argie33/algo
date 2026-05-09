@@ -1,5 +1,5 @@
 # ============================================================
-# Stock Analytics Platform � template-loader-tasks.yml
+# Stock Analytics Platform - template-loader-tasks.yml
 # Layer:   Loaders (ECS task definitions for data ingestion)
 # Stack:   stocks-loaders
 # Exports: StocksLoaders-* (task definition ARNs)
@@ -11,7 +11,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS task definitions for all data loaders (63 loaders).
   Each loader is a Fargate task that can be triggered via aws ecs run-task.
-  No services (DesiredCount=0) � loaders triggered manually or by EventBridge rules.
+  No services (DesiredCount=0) - loaders triggered manually or by EventBridge rules.
 
 Parameters:
   ContainerImageTag:
