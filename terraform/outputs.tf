@@ -183,6 +183,30 @@ output "all_loader_names" {
 }
 
 # ============================================================
+# Monitoring & Observability Outputs
+# ============================================================
+
+output "cloudwatch_dashboard_name" {
+  description = "CloudWatch dashboard name for platform monitoring"
+  value       = module.monitoring.dashboard_name
+}
+
+output "cloudwatch_dashboard_url" {
+  description = "URL to access CloudWatch dashboard"
+  value       = module.monitoring.dashboard_url
+}
+
+output "api_health_alarm_name" {
+  description = "Composite alarm name for API health"
+  value       = module.monitoring.api_unhealthy_alarm_name
+}
+
+output "database_health_alarm_name" {
+  description = "Composite alarm name for database health"
+  value       = module.monitoring.database_unhealthy_alarm_name
+}
+
+# ============================================================
 # Deployment Info
 # ============================================================
 
@@ -193,5 +217,6 @@ output "deployment_summary" {
     environment  = var.environment
     aws_region   = var.aws_region
     deployed_at  = timestamp()
+    dashboard_url = module.monitoring.dashboard_url
   }
 }

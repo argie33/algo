@@ -3,6 +3,11 @@
 # ============================================================
 
 # RDS Instance
+output "rds_identifier" {
+  description = "RDS database instance identifier"
+  value       = aws_db_instance.main.identifier
+}
+
 output "rds_endpoint" {
   description = "RDS database endpoint (host:port)"
   value       = aws_db_instance.main.endpoint

@@ -169,4 +169,27 @@ module "services" {
   common_tags                       = local.common_tags
 }
 
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name                   = var.project_name
+  environment                    = var.environment
+  aws_region                     = var.aws_region
+  common_tags                    = local.common_tags
+
+  # API & Lambda configuration
+  api_lambda_name                = module.services.api_lambda_function_name
+  algo_lambda_name               = module.services.algo_lambda_function_name
+  api_gateway_name               = module.services.api_gateway_id
+
+  # Database configuration
+  rds_identifier                 = module.database.rds_identifier
+
+  # Alarm configuration
+  apigw_5xx_alarm_name           = "stocks-apigw-5xx-${var.environment}"
+  api_lambda_errors_alarm_name   = "stocks-api-errors"
+  sns_alerts_enabled             = var.sns_alerts_enabled
+  sns_alerts_topic_arn           = module.services.sns_alerts_topic_arn
+}
+
 data "aws_caller_identity" "current" {}
