@@ -47,7 +47,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
   }
 }
 
-# GitHub Actions policy - CloudFormation & state management only
+# GitHub Actions policy - Terraform state management only
 resource "aws_iam_role_policy" "github_actions" {
   name   = "${var.project_name}-github-actions-policy"
   role   = aws_iam_role.github_actions.id
