@@ -35,6 +35,7 @@ variable "aws_region" {
 variable "github_repository" {
   description = "GitHub repository in format owner/repo for OIDC trust"
   type        = string
+  default     = "argie33/algo"
   validation {
     condition     = can(regex("^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$", var.github_repository))
     error_message = "Repository must be in format owner/repo"
@@ -54,6 +55,7 @@ variable "github_ref_path" {
 variable "notification_email" {
   description = "Email address for CloudWatch alarms and SNS notifications"
   type        = string
+  default     = "argeropolos@gmail.com"
   validation {
     condition     = can(regex("^[^@]+@[^@]+\\.[^@]+$", var.notification_email))
     error_message = "Must be a valid email address"
@@ -436,9 +438,9 @@ variable "cognito_enabled" {
 }
 
 variable "cognito_user_pool_name" {
-  description = "Cognito user pool name"
+  description = "Cognito user pool name (defaults to project-environment-users)"
   type        = string
-  default     = null
+  default     = null  # Will be set to "${var.project_name}-${var.environment}-users" in module if null
 }
 
 variable "cognito_password_min_length" {
@@ -496,9 +498,13 @@ variable "sns_alerts_enabled" {
 }
 
 variable "sns_alert_email" {
-  description = "Email for SNS alerts (required when sns_alerts_enabled=true)"
+  description = "Email for SNS alerts (defaults to notification_email)"
   type        = string
-  default     = ""
+  default     = "argeropolos@gmail.com"
+  validation {
+    condition     = var.sns_alert_email != ""
+    error_message = "SNS alert email cannot be empty"
+  }
 }
 
 # ============================================================
@@ -506,17 +512,25 @@ variable "sns_alert_email" {
 # ============================================================
 
 variable "alpaca_api_key_id" {
-  description = "Alpaca API key ID for paper trading"
+  description = "Alpaca API key ID for paper trading (set to empty string if not using)"
   type        = string
   sensitive   = true
   default     = ""
+  validation {
+    condition     = var.alpaca_api_key_id == "" || length(var.alpaca_api_key_id) > 10
+    error_message = "Alpaca API key must be empty or a valid key (>10 characters)"
+  }
 }
 
 variable "alpaca_api_secret_key" {
-  description = "Alpaca API secret key for paper trading"
+  description = "Alpaca API secret key for paper trading (set to empty string if not using)"
   type        = string
   sensitive   = true
   default     = ""
+  validation {
+    condition     = var.alpaca_api_secret_key == "" || length(var.alpaca_api_secret_key) > 10
+    error_message = "Alpaca API secret must be empty or a valid key (>10 characters)"
+  }
 }
 
 variable "alpaca_api_base_url" {
