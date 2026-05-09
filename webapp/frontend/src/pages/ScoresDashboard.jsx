@@ -202,7 +202,7 @@ export default function ScoresDashboard() {
     <div className="main-content">
       <div className="page-head">
         <div>
-          <div className="page-head-title">Scores</div>
+          <div className="page-head-title">Bullseye Stock Screener</div>
           <div className="page-head-sub">
             Multi-factor stock scoring · composite + 6 factors · S&amp;P 500 universe · click row for full factor breakdown
           </div>

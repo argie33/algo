@@ -275,7 +275,7 @@ class Backtester:
         self.cur.execute(
             """
             SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score,
-                   percent_from_52w_high, percent_from_52w_low, sma_50, atr
+                   percent_from_52w_high, percent_from_52w_low
             FROM trend_template_data
             WHERE symbol = ANY(%s) AND date <= %s
               AND date >= %s::date - INTERVAL '10 days'
@@ -312,42 +312,35 @@ class Backtester:
 
             # T3: trend template (skip gracefully if no data)
             trend = trend_rows.get(symbol)
+            minervini = 0
             if trend is not None:
                 stock_stage = int(trend[0]) if trend[0] is not None else 0
                 minervini = int(trend[1]) if trend[1] is not None else 0
                 pct_from_high = float(trend[2]) if trend[2] is not None else 100.0
-                pct_from_low = float(trend[3]) if trend[3] is not None else 0.0
-                sma_50 = float(trend[4]) if trend[4] is not None else None
-                tt_atr = float(trend[5]) if trend[5] is not None else None
 
                 min_score = 8 if self.strategy == "advanced" else 7
                 if stock_stage != 2:
                     continue
                 if minervini < min_score:
                     continue
-                # Advanced: also require within 25% of 52w high
+                # Advanced: also require within 25% of 52w high (not overextended)
                 if self.strategy == "advanced" and pct_from_high > 25.0:
                     continue
-            else:
-                sma_50 = None
-                tt_atr = sig_atr
 
-            # T4: compute stop
-            atr_val = float(tt_atr) if tt_atr is not None else (float(sig_atr) if sig_atr else None)
+            # T4: compute stop (use signal stoplevel → 2×ATR → 8% floor)
+            atr_val = float(sig_atr) if sig_atr else None
             if stop_level is not None and float(stop_level) > 0 and float(stop_level) < entry:
                 stop = float(stop_level)
             elif atr_val and atr_val > 0:
                 stop = entry - 2.0 * atr_val
-            elif sma_50 and sma_50 < entry:
-                stop = sma_50 * 0.97
             else:
                 stop = entry * 0.92
             stop = max(stop, entry * 0.92)
             if stop >= entry:
                 continue
 
-            # Composite score: for 'advanced', prefer better Minervini scores
-            composite = minervini if trend is not None else 0
+            # Composite score: rank by Minervini score for 'advanced'
+            composite = minervini
 
             qualified.append({
                 "symbol": symbol,
