@@ -187,7 +187,14 @@ variable "api_gateway_logging_enabled" {
 variable "api_cors_allowed_origins" {
   description = "CORS allowed origins for API (will include CloudFront domain automatically)"
   type        = list(string)
-  default     = ["http://localhost:5173", "http://localhost:3000"]
+  default = var.environment == "prod" ? [] : [
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ]
+  validation {
+    condition     = var.environment != "prod" || length([for origin in var.api_cors_allowed_origins if contains(["localhost", "127.0.0.1"], lower(split(":", origin)[1]))]) == 0
+    error_message = "Production CORS origins must not include localhost or 127.0.0.1"
+  }
 }
 
 # ============================================================
@@ -239,8 +246,8 @@ variable "cognito_password_min_length" {
   type        = number
   default     = 12
   validation {
-    condition     = var.cognito_password_min_length >= 6
-    error_message = "Minimum password length must be at least 6"
+    condition     = var.cognito_password_min_length >= 6 && (var.environment != "prod" || var.cognito_password_min_length >= 12)
+    error_message = "Minimum password length must be at least 6 (dev/staging) or 12 (production)"
   }
 }
 
