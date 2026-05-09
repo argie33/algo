@@ -63,7 +63,7 @@ class ErrorBoundary extends React.Component {
     );
 
     // Enhanced logging for .type access errors
-    if (error.message && error.message.includes("Cannot read properties of undefined (reading 'type')")) {
+    if (error && error.message && error.message.includes("Cannot read properties of undefined (reading 'type')")) {
       console.error("🔴 CRITICAL: .type access on undefined in component tree");
       console.error("Component that failed:", errorInfo?.componentStack?.split('\n')[0]);
       console.error("Full stack:", errorInfo?.componentStack);
