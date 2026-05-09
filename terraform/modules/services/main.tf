@@ -39,15 +39,24 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 # API Lambda Function (placeholder)
 # ============================================================
 
+data "archive_file" "api_placeholder" {
+  type        = "zip"
+  output_path = "${path.module}/api_placeholder.zip"
+  source {
+    content  = "def handler(event, context):\n    return {'statusCode': 200, 'body': 'placeholder'}\n"
+    filename = "index.py"
+  }
+}
+
 resource "aws_lambda_function" "api" {
-  filename         = var.api_lambda_code_file
-  function_name   = local.api_lambda_name
-  role            = var.api_lambda_role_arn
-  handler         = "index.handler"
-  runtime         = "python3.11"
-  timeout         = var.api_lambda_timeout
-  memory_size     = var.api_lambda_memory
-  source_code_hash = filebase64sha256(var.api_lambda_code_file)
+  filename         = data.archive_file.api_placeholder.output_path
+  function_name    = local.api_lambda_name
+  role             = var.api_lambda_role_arn
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  timeout          = var.api_lambda_timeout
+  memory_size      = var.api_lambda_memory
+  source_code_hash = data.archive_file.api_placeholder.output_base64sha256
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
@@ -69,6 +78,10 @@ resource "aws_lambda_function" "api" {
   depends_on = [
     aws_cloudwatch_log_group.api_lambda
   ]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   tags = merge(var.common_tags, {
     Name = local.api_lambda_name
