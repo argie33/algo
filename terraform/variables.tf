@@ -514,12 +514,12 @@ variable "sns_alerts_enabled" {
 }
 
 variable "sns_alert_email" {
-  description = "Email for SNS alerts (defaults to notification_email)"
+  description = "Email for SNS alerts (set via GitHub Secret ALERT_EMAIL_ADDRESS)"
   type        = string
-  default     = "argeropolos@gmail.com"
+  default     = ""
   validation {
-    condition     = var.sns_alert_email != ""
-    error_message = "SNS alert email cannot be empty"
+    condition     = var.sns_alert_email == "" || can(regex("^[^@]+@[^@]+\\.[^@]+$", var.sns_alert_email))
+    error_message = "Must be a valid email address or empty string (set via TF_VAR_sns_alert_email)"
   }
 }
 

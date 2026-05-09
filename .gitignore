@@ -69,3 +69,19 @@ paper_mode_reports/
 .aws-sam/
 **/lambda-build/
 .sam-tests/
+
+# Terraform (IaC)
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+**/.terraform.local/
+terraform.tfvars.local
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive (local development only)
+!.env.local.example  # Template is tracked, actual .env.local is not

@@ -447,57 +447,42 @@ resource "aws_cloudwatch_log_group" "algo_lambda" {
 # ============================================================
 # Algo Lambda Function (placeholder - to be replaced with actual code)
 # ============================================================
-# NOTE: This creates a minimal placeholder Lambda function for the algo orchestrator.
-# Replace the code by updating the function with your actual algo implementation.
-# You can deploy new code via: aws lambda update-function-code --function-name <name> --zip-file fileb://algo.zip
+# ============================================================
+# Algo Orchestrator Lambda Function
+# ============================================================
+# Uses S3-based code packages built and uploaded by GitHub Actions.
+# Fallback to local file if S3 not configured.
 
-data "archive_file" "algo_placeholder" {
+# Conditional: use S3 if bucket provided, else local file
+locals {
+  algo_lambda_use_s3 = var.algo_lambda_s3_bucket != ""
+}
+
+# For local fallback: archive local code (for dev/testing)
+data "archive_file" "algo_function_local" {
+  count       = local.algo_lambda_use_s3 ? 0 : 1
   type        = "zip"
-  output_path = "${path.module}/algo_placeholder.zip"
+  output_path = "${path.module}/../../${var.algo_lambda_code_file}"
   source {
-    content  = <<-EOT
-import json
-import logging
-import os
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-def handler(event, context):
-    """
-    Algo orchestrator Lambda handler for ${var.project_name}.
-    This is a placeholder - replace with actual implementation.
-    Triggered daily by EventBridge Scheduler.
-    """
-    try:
-        logger.info(f"Algo orchestrator triggered: {json.dumps(event)}")
-
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Algo orchestrator placeholder - deployment successful',
-                'service': '${var.project_name}-algo',
-                'environment': '${var.environment}',
-                'timestamp': context.aws_request_id
-            })
-        }
-    except Exception as e:
-        logger.error(f"Algo orchestrator error: {str(e)}", exc_info=True)
-        raise
-EOT
-    filename = "index.py"
+    content  = "# Algo Lambda stub - use S3 for production"
+    filename = "lambda_function.py"
   }
 }
 
 resource "aws_lambda_function" "algo" {
-  filename         = data.archive_file.algo_placeholder.output_path
   function_name    = local.algo_lambda_name
   role             = var.algo_lambda_role_arn
-  handler          = "index.handler"
+  handler          = "lambda_function.handler"
   runtime          = "python3.11"
   timeout          = var.algo_lambda_timeout
   memory_size      = var.algo_lambda_memory
-  source_code_hash = data.archive_file.algo_placeholder.output_base64sha256
+
+  # Use S3 package if available, otherwise local file
+  s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
+  s3_key            = local.algo_lambda_use_s3 ? var.algo_lambda_s3_key : null
+  s3_object_version = local.algo_lambda_use_s3 && var.algo_lambda_s3_object_version != "" ? var.algo_lambda_s3_object_version : null
+  filename          = !local.algo_lambda_use_s3 ? data.archive_file.algo_function_local[0].output_path : null
+  source_code_hash  = !local.algo_lambda_use_s3 ? data.archive_file.algo_function_local[0].output_base64sha256 : null
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
@@ -517,10 +502,6 @@ resource "aws_lambda_function" "algo" {
   depends_on = [
     aws_cloudwatch_log_group.algo_lambda
   ]
-
-  lifecycle {
-    ignore_changes = [filename, source_code_hash]
-  }
 
   tags = merge(var.common_tags, {
     Name = local.algo_lambda_name
