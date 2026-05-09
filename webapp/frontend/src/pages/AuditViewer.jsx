@@ -1,467 +1,127 @@
 import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Paper,
-  Card,
-  CardContent,
-  Grid,
-  TextField,
-  MenuItem,
-  Button,
-  Pagination,
-  CircularProgress,
-  Box,
-  Typography,
-  Chip,
-  Tabs,
-  Tab
-} from '@mui/material';
+import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { getApiConfig } from '../services/api';
 
 const AuditViewer = () => {
   const { apiUrl: API_BASE_URL } = getApiConfig();
-  const [currentTab, setCurrentTab] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
-  const [filters, setFilters] = useState({
-    symbol: '',
-  });
+  const [limit, setLimit] = useState(100);
+  const [expandedId, setExpandedId] = useState(null);
 
-  // Fetch trade audit logs
-  const {
-    data: tradeAuditData,
-    loading: tradeAuditLoading,
-    error: tradeAuditError,
-    refetch: refetchTradeAudit
-  } = useApiQuery(
-    ['auditTrades', page, limit, filters],
+  const { data: auditData, loading: auditLoading, error: auditError, refetch } = useApiQuery(
+    ['auditLog', limit],
     async () => {
-      const params = new URLSearchParams({
-        limit,
-        offset: (page - 1) * limit
-      });
-      if (filters.symbol) params.append('symbol', filters.symbol);
-
-      const response = await fetch(`${API_BASE_URL}/api/audit/trades?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch trade audit logs');
+      const response = await fetch(`${API_BASE_URL}/api/algo/audit-log?limit=${limit}`);
+      if (!response.ok) throw new Error('Failed to fetch audit logs');
       return response.json();
     },
     { staleTime: 30000 }
   );
 
-  // Fetch safeguard audit logs
-  const {
-    data: safeguardAuditData,
-    loading: safeguardAuditLoading,
-    error: safeguardAuditError,
-  } = useApiQuery(
-    ['auditSafeguards', page, limit, filters],
-    async () => {
-      const params = new URLSearchParams({
-        limit,
-        offset: (page - 1) * limit
-      });
-      if (filters.symbol) params.append('symbol', filters.symbol);
-
-      const response = await fetch(`${API_BASE_URL}/api/audit/safeguards?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch safeguard audit logs');
-      return response.json();
-    },
-    { staleTime: 30000 }
-  );
-
-  // Fetch config audit logs
-  const {
-    data: configAuditData,
-    loading: configAuditLoading,
-    error: configAuditError,
-  } = useApiQuery(
-    ['auditConfig', page, limit],
-    async () => {
-      const params = new URLSearchParams({
-        limit,
-        offset: (page - 1) * limit
-      });
-
-      const response = await fetch(`${API_BASE_URL}/api/audit/config?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch config audit logs');
-      return response.json();
-    },
-    { staleTime: 30000 }
-  );
-
-  // Fetch audit summary
-  const {
-    data: summaryData,
-  } = useApiQuery(
-    ['auditSummary'],
-    async () => {
-      const response = await fetch(`${API_BASE_URL}/api/audit/summary`);
-      if (!response.ok) throw new Error('Failed to fetch summary');
-      return response.json();
-    },
-    { staleTime: 30000 }
-  );
-
-  const summary = summaryData?.data || {};
-  const tradeAudits = tradeAuditData?.data || [];
-  const tradePagination = tradeAuditData?.pagination || {};
-  const safeguardAudits = safeguardAuditData?.data || [];
-  const safeguardPagination = safeguardAuditData?.pagination || {};
-  const configAudits = configAuditData?.data || [];
-  const configPagination = configAuditData?.pagination || {};
+  const items = auditData?.items || [];
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-      case 'success':
-        return 'success';
-      case 'pending':
-        return 'info';
-      case 'failed':
-      case 'error':
-        return 'error';
-      default:
-        return 'default';
-    }
+    if (!status) return '#999';
+    const s = status.toLowerCase();
+    if (s.includes('success') || s.includes('filled')) return '#10b981';
+    if (s.includes('pending')) return '#3b82f6';
+    if (s.includes('failed') || s.includes('error') || s.includes('rejected')) return '#ef4444';
+    return '#999';
   };
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    setPage(1);
+  const getActionTypeColor = (type) => {
+    if (!type) return '#666';
+    const t = type.toLowerCase();
+    if (t.includes('entry')) return '#8b5cf6';
+    if (t.includes('exit')) return '#f59e0b';
+    if (t.includes('circuit')) return '#dc2626';
+    if (t.includes('error')) return '#ef4444';
+    return '#666';
   };
-
-  const handleReset = () => {
-    setFilters({ symbol: '' });
-    setPage(1);
-  };
-
-  const isLoading = tradeAuditLoading || safeguardAuditLoading || configAuditLoading;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>
-        Audit Trail Viewer
-      </Typography>
+    <div style={{ padding: '20px', background: 'var(--bg-primary)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>Audit Trail</h2>
+        <button onClick={() => refetch()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <RefreshCw size={16} /> Refresh
+        </button>
+      </div>
 
-      {/* Summary Cards */}
-      <Grid container spacing={2} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Trade Actions
-              </Typography>
-              <Typography variant="h5">
-                {summary.trade_actions || 0}
-              </Typography>
-              {summary.last_trade_action && (
-                <Typography variant="caption">
-                  Last: {formatDate(summary.last_trade_action)}
-                </Typography>
+      {auditError && (
+        <div style={{ padding: '12px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', marginBottom: '16px' }}>
+          Error: {auditError}
+        </div>
+      )}
+
+      {auditLoading ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+          Loading audit logs...
+        </div>
+      ) : items.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+          No audit logs found
+        </div>
+      ) : (
+        <div>
+          {items.map((item, idx) => (
+            <div key={idx} style={{ marginBottom: '12px', border: '1px solid var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div onClick={() => setExpandedId(expandedId === idx ? null : idx)} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(item.status) }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <span style={{ padding: '2px 8px', borderRadius: '3px', fontSize: '12px', fontWeight: 'bold', background: getActionTypeColor(item.action_type), color: 'white' }}>
+                        {item.action_type || 'UNKNOWN'}
+                      </span>
+                      {item.symbol && <span style={{ fontWeight: 'bold', color: 'var(--accent-color)' }}>{item.symbol}</span>}
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{formatDate(item.created_at)}</span>
+                    </div>
+                  </div>
+                </div>
+                {expandedId === idx ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+
+              {expandedId === idx && (
+                <div style={{ padding: '16px', background: 'var(--bg-primary)' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Status:</span>
+                    <span style={{ marginLeft: '8px', fontWeight: 'bold', color: getStatusColor(item.status) }}>{item.status || 'UNKNOWN'}</span>
+                  </div>
+                  {item.actor && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Actor:</span>
+                      <span style={{ marginLeft: '8px', fontFamily: 'monospace' }}>{item.actor}</span>
+                    </div>
+                  )}
+                  {item.error_message && (
+                    <div style={{ marginBottom: '12px', padding: '8px', background: '#7f1d1d', borderRadius: '3px' }}>
+                      <span style={{ color: '#fca5a5', fontSize: '12px' }}>Error: {item.error_message}</span>
+                    </div>
+                  )}
+                  {item.details && (
+                    <div style={{ marginTop: '12px' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Details:</span>
+                      <pre style={{ background: 'var(--bg-secondary)', padding: '8px', borderRadius: '3px', overflow: 'auto', fontSize: '11px', maxHeight: '200px' }}>
+                        {typeof item.details === 'string' ? item.details : JSON.stringify(item.details, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Config Changes
-              </Typography>
-              <Typography variant="h5">
-                {summary.config_changes || 0}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Safeguard Activations
-              </Typography>
-              <Typography variant="h5">
-                {summary.safeguard_activations || 0}
-              </Typography>
-              {summary.last_safeguard && (
-                <Typography variant="caption">
-                  Last: {formatDate(summary.last_safeguard)}
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Filter by Symbol"
-              value={filters.symbol}
-              onChange={(e) => handleFilterChange('symbol', e.target.value.toUpperCase())}
-              placeholder="e.g., AAPL"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleReset}
-              fullWidth
-            >
-              Reset Filters
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {/* Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={currentTab}
-          onChange={(e, newValue) => {
-            setCurrentTab(newValue);
-            setPage(1);
-          }}
-        >
-          <Tab label="Trade Actions" />
-          <Tab label="Safeguard Activations" />
-          <Tab label="Config Changes" />
-        </Tabs>
-
-        {/* Trade Audit Tab */}
-        {currentTab === 0 && (
-          <Box sx={{ p: 2 }}>
-            {tradeAuditLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress />
-              </Box>
-            ) : tradeAuditError ? (
-              <Typography color="error">{tradeAuditError}</Typography>
-            ) : (
-              <>
-                <Box sx={{ overflowX: 'auto' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Action</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Details</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {tradeAudits.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                            No trade audit logs found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        tradeAudits.map((log, idx) => (
-                          <TableRow key={idx} hover>
-                            <TableCell>{formatDate(log.created_at)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={log.action_type}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell>{log.symbol || 'N/A'}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={log.status}
-                                size="small"
-                                color={getStatusColor(log.status)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {log.error_message ? (
-                                <Typography variant="caption" color="error">
-                                  {log.error_message}
-                                </Typography>
-                              ) : (
-                                <Typography variant="caption">
-                                  {log.details ? JSON.stringify(log.details).substring(0, 50) : 'N/A'}
-                                </Typography>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </Box>
-                {tradePagination.total > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                    <Pagination
-                      page={page}
-                      count={Math.ceil(tradePagination.total / limit)}
-                      onChange={(e, p) => setPage(p)}
-                    />
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        )}
-
-        {/* Safeguard Audit Tab */}
-        {currentTab === 1 && (
-          <Box sx={{ p: 2 }}>
-            {safeguardAuditLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress />
-              </Box>
-            ) : safeguardAuditError ? (
-              <Typography color="error">{safeguardAuditError}</Typography>
-            ) : (
-              <>
-                <Box sx={{ overflowX: 'auto' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Safeguard</TableCell>
-                        <TableCell>Decision</TableCell>
-                        <TableCell>Reason</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {safeguardAudits.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                            No safeguard audit logs found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        safeguardAudits.map((log, idx) => (
-                          <TableRow key={idx} hover>
-                            <TableCell>{formatDate(log.timestamp)}</TableCell>
-                            <TableCell>{log.symbol}</TableCell>
-                            <TableCell>
-                              <Chip label={log.safeguard} size="small" variant="outlined" />
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={log.decision}
-                                size="small"
-                                color={log.decision === 'BLOCKED' ? 'error' : 'success'}
-                              />
-                            </TableCell>
-                            <TableCell>{log.reason}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </Box>
-                {safeguardPagination.total > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                    <Pagination
-                      page={page}
-                      count={Math.ceil(safeguardPagination.total / limit)}
-                      onChange={(e, p) => setPage(p)}
-                    />
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        )}
-
-        {/* Config Audit Tab */}
-        {currentTab === 2 && (
-          <Box sx={{ p: 2 }}>
-            {configAuditLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress />
-              </Box>
-            ) : configAuditError ? (
-              <Typography color="error">{configAuditError}</Typography>
-            ) : (
-              <>
-                <Box sx={{ overflowX: 'auto' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Config Key</TableCell>
-                        <TableCell>Old Value</TableCell>
-                        <TableCell>New Value</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {configAudits.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
-                            No config changes found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        configAudits.map((log, idx) => (
-                          <TableRow key={idx} hover>
-                            <TableCell>{formatDate(log.changed_at)}</TableCell>
-                            <TableCell>{log.config_key}</TableCell>
-                            <TableCell>
-                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                                {log.old_value}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'green' }}>
-                                {log.new_value}
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </Box>
-                {configPagination.total > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                    <Pagination
-                      page={page}
-                      count={Math.ceil(configPagination.total / limit)}
-                      onChange={(e, p) => setPage(p)}
-                    />
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        )}
-      </Paper>
-    </Box>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
