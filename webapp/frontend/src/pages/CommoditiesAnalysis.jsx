@@ -521,6 +521,174 @@ function Stile({ label, value }) {
   );
 }
 
+// ─── COT (Commitment of Traders) ──────────────────────────────────────────
+function CotView({ data, loading, symbol, symbolData }) {
+  if (loading) return <Empty title="Loading COT data…" />;
+  if (!data) return <Empty title="Select a commodity and wait for data" desc="COT data sourced from CFTC weekly reports." />;
+
+  const history = data.cotHistory || [];
+  const analysis = data.analysis || {};
+  const sentColor = (s) => s === 'bullish' ? 'up' : s === 'bearish' ? 'down' : '';
+
+  return (
+    <>
+      {/* Header */}
+      <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">{data.commodityName || symbol} — Commitment of Traders</div>
+            <div className="card-sub">CFTC positioning data · Latest: {data.latestReportDate || '—'}</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="grid grid-4">
+            <Stile label="Commercial Sentiment"
+              value={<span className={sentColor(analysis.commercialSentiment)}>{analysis.commercialSentiment || '—'}</span>} />
+            <Stile label="Speculator Sentiment"
+              value={<span className={sentColor(analysis.speculatorSentiment)}>{analysis.speculatorSentiment || '—'}</span>} />
+            <Stile label="Divergence" value={analysis.divergence || '—'} />
+            <Stile label="Commercial Net"
+              value={<span className={analysis.latestCommercialNet > 0 ? 'up' : 'down'}>
+                {analysis.latestCommercialNet != null ? analysis.latestCommercialNet.toLocaleString() : '—'}
+              </span>} />
+          </div>
+          <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
+            Commercials (hedgers) are "smart money" — when they are net long, prices tend to rise.
+            Non-commercials (speculators/funds) follow momentum and can signal overcrowded trades.
+          </div>
+        </div>
+      </div>
+
+      {/* COT net positioning chart */}
+      {history.length > 0 && (
+        <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Net Positioning History</div>
+              <div className="card-sub">Commercial net (hedgers) vs Non-commercial net (speculators) — weekly CFTC</div>
+            </div>
+          </div>
+          <div className="card-body" style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={history} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                <XAxis dataKey="reportDate" stroke="var(--text-3)" fontSize={10} interval="preserveStartEnd"
+                  tickFormatter={d => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : ''} />
+                <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => v?.toLocaleString()} />
+                <Tooltip contentStyle={TT_STYLE}
+                  formatter={(v, n) => [v?.toLocaleString(), n === 'commercial.net' ? 'Commercial Net' : 'Speculator Net']} />
+                <Legend wrapperStyle={{ fontSize: 11 }}
+                  formatter={n => n === 'commercialNet' ? 'Commercial (Hedgers)' : 'Non-Commercial (Speculators)'} />
+                <ReferenceLine y={0} stroke="var(--border-2)" strokeDasharray="3 3" />
+                <Bar dataKey="commercial.net" name="commercialNet" fill="var(--brand)" fillOpacity={0.6} />
+                <Line type="monotone" dataKey="nonCommercial.net" name="nonCommercialNet"
+                  stroke="var(--amber)" strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Open interest */}
+      {history.length > 0 && (
+        <div className="card">
+          <div className="card-head"><div><div className="card-title">Open Interest</div><div className="card-sub">Total outstanding contracts</div></div></div>
+          <div className="card-body" style={{ height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={history} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="oiGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--purple)" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="var(--purple)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                <XAxis dataKey="reportDate" stroke="var(--text-3)" fontSize={10} interval="preserveStartEnd"
+                  tickFormatter={d => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : ''} />
+                <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => v?.toLocaleString()} />
+                <Tooltip contentStyle={TT_STYLE} formatter={v => [v?.toLocaleString(), 'Open Interest']} />
+                <Area type="monotone" dataKey="openInterest" stroke="var(--purple)" strokeWidth={2} fill="url(#oiGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Correlations ──────────────────────────────────────────────────────────
+function CorrelationsView({ data, loading, onSelect }) {
+  if (loading) return <Empty title="Computing correlations…" />;
+  if (!data?.correlations?.length) return <Empty title="No correlation data" desc="Requires price history for multiple commodities." />;
+
+  const correlations = data.correlations || [];
+  const corrColor = (c) => {
+    const abs = Math.abs(c);
+    if (abs >= 0.8) return c > 0 ? '#22c55e' : '#ef4444';
+    if (abs >= 0.5) return c > 0 ? '#86efac' : '#fca5a5';
+    return 'var(--text-muted)';
+  };
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Commodity Correlations</div>
+          <div className="card-sub">
+            {data.timeframe} rolling correlation · min |r| = {data.minCorrelation} ·
+            Strong &gt; 0.8 · Moderate 0.5–0.8
+          </div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Symbol 1</th>
+              <th>Symbol 2</th>
+              <th className="num">Correlation</th>
+              <th>Strength</th>
+              <th>Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {correlations.map((r, i) => (
+              <tr key={i}>
+                <td><span className="strong">{r.pair}</span></td>
+                <td>
+                  <button className="btn btn-ghost btn-sm" onClick={() => onSelect(r.symbol1)}
+                    style={{ padding: '2px 6px' }}>
+                    {r.symbol1}
+                  </button>
+                </td>
+                <td>
+                  <button className="btn btn-ghost btn-sm" onClick={() => onSelect(r.symbol2)}
+                    style={{ padding: '2px 6px' }}>
+                    {r.symbol2}
+                  </button>
+                </td>
+                <td className="num mono tnum" style={{ color: corrColor(r.coefficient), fontWeight: 'var(--w-semibold)' }}>
+                  {r.coefficient != null ? r.coefficient.toFixed(3) : '—'}
+                </td>
+                <td>
+                  <span className={`badge ${Math.abs(r.coefficient) >= 0.8 ? 'badge-danger' : Math.abs(r.coefficient) >= 0.5 ? 'badge-amber' : ''}`}>
+                    {r.strength || '—'}
+                  </span>
+                </td>
+                <td className={r.coefficient > 0 ? 'up' : 'down'}>
+                  {r.coefficient > 0 ? 'Positive' : 'Negative'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Empty({ title, desc }) {
   return (
     <div className="empty">

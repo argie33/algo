@@ -813,7 +813,7 @@ function CreditSpreadsPanel({ yieldData }) {
       </div>
       <div className="card-body" style={{ paddingTop: 0 }}>
         <div className="t-xs muted">
-          HY spread > 5%: stress zone · &gt;8%: systemic risk · IG spread > 1.5%: caution · widening divergence = credit deterioration
+          HY spread &gt;5%: stress zone · &gt;8%: systemic risk · IG spread &gt;1.5%: caution · widening divergence = credit deterioration
         </div>
       </div>
     </div>
