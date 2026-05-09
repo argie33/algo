@@ -81,11 +81,6 @@ variable "lambda_algo_role_arn" {
   type        = string
 }
 
-variable "batch_ecs_instance_role_arn" {
-  description = "ARN of Batch ECS instance role (for ECR pull permissions)"
-  type        = string
-}
-
 # ============================================================
 # ECS Configuration
 # ============================================================

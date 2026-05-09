@@ -99,19 +99,6 @@ resource "aws_ecr_repository_policy" "main" {
           "ecr:DescribeImages"
         ]
       },
-      {
-        Sid    = "AllowBatchComputeEnvironment"
-        Effect = "Allow"
-        Principal = {
-          AWS = var.batch_ecs_instance_role_arn
-        }
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:DescribeImages"
-        ]
-      }
     ]
   })
 }

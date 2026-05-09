@@ -71,8 +71,8 @@ resource "aws_lambda_function" "api" {
   filename         = data.archive_file.api_function.output_path
   function_name    = local.api_lambda_name
   role             = var.api_lambda_role_arn
-  handler          = "lambda_function.lambda_handler"
-  runtime          = "python3.11"
+  handler          = "index.handler"
+  runtime          = "nodejs20.x"
   timeout          = var.api_lambda_timeout
   memory_size      = var.api_lambda_memory
   source_code_hash = data.archive_file.api_function.output_base64sha256
@@ -97,6 +97,10 @@ resource "aws_lambda_function" "api" {
   depends_on = [
     aws_cloudwatch_log_group.api_lambda
   ]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   tags = merge(var.common_tags, {
     Name = local.api_lambda_name
@@ -400,7 +404,7 @@ resource "aws_cognito_user_pool_client" "main" {
   count               = var.cognito_enabled ? 1 : 0
   user_pool_id        = aws_cognito_user_pool.main[0].id
   name                = "${var.project_name}-app-client-${var.environment}"
-  generate_secret     = true
+  generate_secret     = false
   explicit_auth_flows = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
 
   callback_urls = concat(
@@ -518,10 +522,12 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DB_SECRET_ARN    = var.rds_credentials_secret_arn
-      DB_ENDPOINT      = var.rds_endpoint
-      DB_NAME          = var.rds_database_name
-      ALERTS_SNS_TOPIC = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      DATABASE_SECRET_ARN = var.rds_credentials_secret_arn
+      DB_ENDPOINT         = var.rds_endpoint
+      DB_NAME             = var.rds_database_name
+      DRY_RUN_MODE        = "false"
+      EXECUTION_MODE      = "paper"
+      ALERTS_SNS_TOPIC    = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
     }
   }
 

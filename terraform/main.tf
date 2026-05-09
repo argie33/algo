@@ -97,7 +97,6 @@ module "compute" {
   ecs_task_role_arn                      = module.iam.ecs_task_role_arn
   lambda_api_role_arn                    = module.iam.lambda_api_role_arn
   lambda_algo_role_arn                   = module.iam.lambda_algo_role_arn
-  batch_ecs_instance_role_arn            = module.batch.batch_ecs_instance_role_arn
   ecs_cluster_name                       = var.ecs_cluster_name
   ecs_capacity_providers                 = var.ecs_capacity_providers
   ecs_default_capacity_provider_strategy = var.ecs_default_capacity_provider_strategy

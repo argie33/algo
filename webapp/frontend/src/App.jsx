@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   Toolbar,
@@ -20,9 +20,9 @@ import {
   Grain as GrainIcon,
 } from "@mui/icons-material";
 
-// Dashboard pages - ALL 18 pages
-import MarketOverview from "./pages/MarketOverview";
-import MarketsHealth from "./pages/MarketsHealth";
+// Dashboard pages - Lazy-loaded for code splitting
+const MarketOverview = React.lazy(() => import("./pages/MarketOverview"));
+const MarketsHealth = React.lazy(() => import("./pages/MarketsHealth"));
 import StockDetail from "./pages/StockDetail";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
@@ -30,9 +30,9 @@ import SwingCandidates from "./pages/SwingCandidates";
 import BacktestResults from "./pages/BacktestResults";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import SectorAnalysis from "./pages/SectorAnalysis";
-import Sentiment from "./pages/Sentiment";
+const Sentiment = React.lazy(() => import("./pages/Sentiment"));
 import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
-import ScoresDashboard from "./pages/ScoresDashboard";
+const ScoresDashboard = React.lazy(() => import("./pages/ScoresDashboard"));
 import MetricsDashboard from "./pages/MetricsDashboard";
 import TradeTracker from "./pages/TradeTracker";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
@@ -41,7 +41,7 @@ import HedgeHelper from "./pages/HedgeHelper";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
 import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
-import AlgoTradingDashboard from "./pages/AlgoTradingDashboard";
+const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboard"));
 import SignalIntelligence from "./pages/SignalIntelligence";
 import AuditViewer from "./pages/AuditViewer";
 import NotificationCenter from "./pages/NotificationCenter";
@@ -390,7 +390,8 @@ function App() {
   return (
     <ErrorBoundary>
       <AppLayout>
-        <Routes>
+        <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
+          <Routes>
           {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
           <Route path="/app/markets" element={<MarketsHealth />} />
           <Route path="/app/market" element={<MarketsHealth />} />
@@ -429,6 +430,7 @@ function App() {
           <Route path="/app/audit" element={<ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute>} />
           <Route path="/app/settings" element={<ProtectedRoute requireAuth><Settings /></ProtectedRoute>} />
         </Routes>
+        </Suspense>
 
         {/* Authentication Modal */}
         <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />

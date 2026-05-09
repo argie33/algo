@@ -15,41 +15,11 @@ console.log(`ðŸ”§ Environment load result:`, {
 });
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-10-26 - Fixed CORS configuration (CloudFront: https://d1copuy2oqlazx.cloudfront.net)
+// Updated: 2026-05-09 - Fixed CORS configuration + auth flow
 
-// SECURITY: Validate critical security configuration at startup
-const validateSecurityConfig = () => {
-  const nodeEnv = process.env.NODE_ENV || 'production';
-
-  if (nodeEnv === 'production' || nodeEnv === 'prod') {
-    const jwtSecret = process.env.JWT_SECRET;
-
-    if (!jwtSecret || jwtSecret === 'development-jwt-secret-change-in-production') {
-      throw new Error(
-        'CRITICAL SECURITY ERROR: JWT_SECRET is using development default. ' +
-        'Set a strong JWT_SECRET in production environment. Minimum 32 characters.'
-      );
-    }
-
-    if (jwtSecret.length < 32) {
-      throw new Error(
-        `CRITICAL SECURITY ERROR: JWT_SECRET must be at least 32 characters (current: ${jwtSecret.length}). ` +
-        'Generate a strong random string: $(openssl rand -base64 32)'
-      );
-    }
-
-    console.log('✅ Security validation passed: JWT_SECRET strength OK');
-  }
-};
-
-// Run security validation
-try {
-  validateSecurityConfig();
-} catch (error) {
-  console.error('🔴 SECURITY VALIDATION FAILED:');
-  console.error(error.message);
-  process.exit(1);
-}
+// Note: Authentication is handled by API Gateway (Cognito JWT authorizer)
+// No custom JWT signing/verification is performed in this Lambda
+// The Cognito JWT token is validated at the API Gateway level before reaching this function
 
 const cors = require("cors");
 const express = require("express");
