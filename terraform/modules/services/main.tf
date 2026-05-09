@@ -71,8 +71,8 @@ resource "aws_lambda_function" "api" {
   filename         = data.archive_file.api_function.output_path
   function_name    = local.api_lambda_name
   role             = var.api_lambda_role_arn
-  handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.11"
   timeout          = var.api_lambda_timeout
   memory_size      = var.api_lambda_memory
   source_code_hash = data.archive_file.api_function.output_base64sha256

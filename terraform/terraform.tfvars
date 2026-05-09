@@ -1,5 +1,8 @@
 environment               = "dev"
 aws_region                = "us-east-1"
 project_name              = "algo"
-rds_password              = "StocksDevPassword123!"
 algo_schedule_expression  = "cron(30 17 ? * MON-FRI *)"  # 5:30pm ET weekdays
+
+# NOTE: rds_password is set via TF_VAR_rds_password environment variable
+# For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
+# Or create terraform.tfvars.local (gitignored) with: rds_password = "..."

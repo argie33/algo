@@ -43,7 +43,7 @@ services:
     image: localstack/localstack:latest
     container_name: stocks_localstack
     environment:
-      SERVICES: s3,secretsmanager,cloudwatch,logs,lambda,cloudformation,iam,eventbridge,scheduler
+      SERVICES: s3,secretsmanager,cloudwatch,logs,lambda,iam,eventbridge,scheduler
       DEBUG: 0
       DOCKER_HOST: unix:///var/run/docker.sock
       AWS_DEFAULT_REGION: us-east-1
