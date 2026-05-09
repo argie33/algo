@@ -9,20 +9,52 @@ const requireAuth = authenticateToken;
 // POST /api/contact - Submit contact form
 router.post("/", async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body;
+    let { name, email, subject, message } = req.body;
 
-    // Validation
+    // FIXED: Enhanced input validation with length limits and sanitization
+    const MAX_NAME_LEN = 100;
+    const MAX_EMAIL_LEN = 254;
+    const MAX_SUBJECT_LEN = 200;
+    const MAX_MESSAGE_LEN = 5000;
+
+    // Validate required fields
     if (!name || !email || !message) {
       return sendError(res, 400, "Name, email, and message are required", "MISSING_FIELDS");
     }
 
-    // Email validation
+    // Trim whitespace
+    name = (name || '').trim();
+    email = (email || '').trim();
+    subject = (subject || '').trim();
+    message = (message || '').trim();
+
+    // Validate field lengths
+    if (name.length === 0 || name.length > MAX_NAME_LEN) {
+      return sendError(res, 400, `Name must be 1-${MAX_NAME_LEN} characters`, "INVALID_NAME");
+    }
+    if (email.length === 0 || email.length > MAX_EMAIL_LEN) {
+      return sendError(res, 400, `Email must be 1-${MAX_EMAIL_LEN} characters`, "INVALID_EMAIL");
+    }
+    if (message.length === 0 || message.length > MAX_MESSAGE_LEN) {
+      return sendError(res, 400, `Message must be 1-${MAX_MESSAGE_LEN} characters`, "INVALID_MESSAGE");
+    }
+    if (subject && subject.length > MAX_SUBJECT_LEN) {
+      return sendError(res, 400, `Subject must be less than ${MAX_SUBJECT_LEN} characters`, "INVALID_SUBJECT");
+    }
+
+    // Email validation (RFC 5322 simplified)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return sendError(res, 400, "Invalid email format", "INVALID_EMAIL");
     }
 
-    // Save to database
+    // Prevent common injection patterns (additional layer)
+    const injectionPatterns = [/<script|javascript:|onerror=/i, /-->/i];
+    if (injectionPatterns.some(pattern => pattern.test(name) || pattern.test(message))) {
+      return sendError(res, 400, "Invalid characters in submission", "INVALID_CONTENT");
+    }
+
+    // Save to database (parameterized queries prevent SQL injection)
     const result = await query(
       `INSERT INTO contact_submissions (name, email, subject, message, submitted_at, status)
        VALUES ($1, $2, $3, $4, NOW(), 'new')

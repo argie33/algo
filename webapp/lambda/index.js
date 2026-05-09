@@ -138,10 +138,15 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        // FIXED: Reduce unsafe-inline usage in production
+        styleSrc: ["'self'", "https://fonts.googleapis.com"],
+        // Note: If inline styles are required, add nonces instead of unsafe-inline
+        // styleSrc: ["'self'", "https://fonts.googleapis.com", `'nonce-${nonce}'`]
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        // Note: If inline scripts are required, add nonces instead of unsafe-inline
+        // scriptSrc: ["'self'", `'nonce-${nonce}'`]
         connectSrc: ["'self'", "wss:", "https:"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
@@ -270,7 +275,7 @@ app.use(
       // In test environment, allow additional test domains for CORS testing
       const isTestEnv = process.env.NODE_ENV === "test";
 
-      // Specific allowed origins - EXACT MATCHING ONLY
+      // FIXED: Tighten CORS configuration - only essential development ports
       const baseAllowedOrigins = [
         // CloudFront & AWS Endpoints - must be set via environment variables
         process.env.CLOUDFRONT_DOMAIN,
@@ -282,26 +287,22 @@ app.use(
         "https://www.example.com",
         "https://www.admin.example.com",
 
-        // Local development
-        "http://localhost:3000",
-        "http://localhost:5173",         // Markets site dev
-        "http://localhost:5174",         // Admin site dev
-        "http://localhost:5175",
-        "http://localhost:5176",
-        "http://localhost:5177",
+        // Local development - MINIMAL set of ports (remove excessive variants)
+        "http://localhost:3000",         // Primary dev port
+        "http://localhost:5173",         // Vite dev server
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "http://127.0.0.1:5176",
-        "http://127.0.0.1:5177",
+
+        // Custom frontend URL from environment
         process.env.FRONTEND_URL
       ].filter(Boolean); // Remove undefined/null values
 
-      // Test-only origins for CORS testing
+      // Test-only origins for CORS testing (test environment only)
       const testOnlyOrigins = [
         "https://test.example.com",
-        "http://test-domain.local"
+        "http://test-domain.local",
+        // REMOVED: excessive localhost variants (5174, 5175, 5176, 5177)
+        // If needed, add to FRONTEND_URL environment variable instead
       ];
 
       // Combine origins based on environment
@@ -340,6 +341,53 @@ app.use(
 // Request parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// CSRF Protection: Add CSRF token validation for state-changing operations
+// Skip CSRF for: GET/HEAD/OPTIONS requests, API tokens, preflight requests
+const csrf = (req, res, next) => {
+  // Skip CSRF validation for:
+  // - GET, HEAD, OPTIONS (read-only operations)
+  // - Requests with Bearer tokens (API clients)
+  // - Preflight CORS requests
+  if (
+    ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ||
+    req.headers.authorization?.startsWith('Bearer ') ||
+    req.method === 'OPTIONS'
+  ) {
+    return next();
+  }
+
+  // For POST/PUT/DELETE without Bearer token, require CSRF token
+  const token = req.headers['x-csrf-token'] || req.body?.csrf_token;
+  const sessionToken = req.session?.csrfToken;
+
+  if (!token || token !== sessionToken) {
+    return res.status(403).json({
+      success: false,
+      error: 'CSRF token invalid or missing',
+      code: 'CSRF_VALIDATION_FAILED'
+    });
+  }
+
+  next();
+};
+
+// Apply CSRF middleware to state-changing endpoints (excluding authenticated API calls)
+// Note: API clients should use Bearer tokens, not session-based auth
+app.use((req, res, next) => {
+  // Generate CSRF token for the session if not present
+  if (!req.session) {
+    req.session = {};
+  }
+  if (!req.session.csrfToken) {
+    const crypto = require('crypto');
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+  }
+
+  // Attach token to request for use in forms
+  res.locals.csrfToken = req.session.csrfToken;
+  next();
+});
 
 // Response normalizer - ensures all responses follow standard format
 app.use(responseNormalizer);

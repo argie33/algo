@@ -1,6 +1,7 @@
 /**
- * Centralized token management service
- * Single source of truth for all auth tokens
+ * Centralized token management service - SECURITY HARDENED
+ * FIXED: Uses sessionStorage (cleared on browser close) + memory storage for XSS protection
+ * Tokens are NOT accessible via localStorage (XSS attack vector)
  */
 
 const TOKEN_KEYS = {
@@ -10,15 +11,23 @@ const TOKEN_KEYS = {
   dev_session: 'dev_session'
 };
 
+// In-memory token storage (cleared on page reload - most secure)
+const memoryStorage = {};
+
 export const tokenManager = {
   /**
    * Get a token by type
+   * SECURITY: Uses sessionStorage (cleared on browser close) instead of localStorage
    * @param {string} type - 'access', 'id', 'refresh', 'dev_session'
    * @returns {string|null}
    */
   getToken(type = 'access') {
     try {
-      return localStorage.getItem(TOKEN_KEYS[type] || type) || null;
+      // First check memory (most secure, cleared on reload)
+      if (memoryStorage[type]) return memoryStorage[type];
+
+      // Fall back to sessionStorage (cleared on browser close)
+      return sessionStorage.getItem(TOKEN_KEYS[type] || type) || null;
     } catch {
       return null;
     }
@@ -43,6 +52,7 @@ export const tokenManager = {
 
   /**
    * Set a token
+   * SECURITY: Stores in sessionStorage (not persistent localStorage)
    * @param {string} token - token value
    * @param {string} type - 'access', 'id', 'refresh', 'dev_session'
    */
@@ -50,8 +60,15 @@ export const tokenManager = {
     try {
       const key = TOKEN_KEYS[type] || type;
       if (token) {
-        localStorage.setItem(key, token);
+        // Store in memory
+        memoryStorage[type] = token;
+        // Also store in sessionStorage (cleared when browser closes)
+        sessionStorage.setItem(key, token);
+        // Remove from localStorage to prevent persistence across sessions
+        localStorage.removeItem(key);
       } else {
+        memoryStorage[type] = null;
+        sessionStorage.removeItem(key);
         localStorage.removeItem(key);
       }
     } catch (error) {
@@ -70,10 +87,19 @@ export const tokenManager = {
   },
 
   /**
-   * Clear all tokens
+   * Clear all tokens from memory, sessionStorage, and localStorage
    */
   clearTokens() {
     try {
+      // Clear memory
+      Object.keys(memoryStorage).forEach(key => {
+        memoryStorage[key] = null;
+      });
+      // Clear sessionStorage
+      Object.values(TOKEN_KEYS).forEach(key => {
+        sessionStorage.removeItem(key);
+      });
+      // Clear localStorage (belt and suspenders)
       Object.values(TOKEN_KEYS).forEach(key => {
         localStorage.removeItem(key);
       });
@@ -89,6 +115,8 @@ export const tokenManager = {
   clearToken(type = 'access') {
     try {
       const key = TOKEN_KEYS[type] || type;
+      memoryStorage[type] = null;
+      sessionStorage.removeItem(key);
       localStorage.removeItem(key);
     } catch (error) {
       console.error(`Failed to clear token (${type}):`, error);

@@ -5,12 +5,33 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const logger = require("../utils/logger");
 const router = express.Router();
 
+// FIXED: Safe pagination parameter parsing with validation
+const parsePaginationParams = (query, maxLimit = 10000, defaultLimit = 100) => {
+  const limitNum = parseInt(query.limit, 10);
+  const pageNum = parseInt(query.page, 10);
+
+  // Validate and constrain limit
+  const limit = isNaN(limitNum) || limitNum < 1
+    ? defaultLimit
+    : Math.min(limitNum, maxLimit);
+
+  // Validate and constrain page
+  const page = isNaN(pageNum) || pageNum < 1
+    ? 1
+    : pageNum;
+
+  // Return parsed values
+  return {
+    limit,
+    page,
+    offset: (page - 1) * limit
+  };
+};
+
 // Helper function to fetch stocks list
 async function fetchStocksList(req, res) {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
+    const { limit, page, offset } = parsePaginationParams(req.query, 10000, 100);
 
     const [result, countResult] = await Promise.all([
       query(
@@ -41,9 +62,7 @@ router.get("/", fetchStocksList);
 router.get("/search", async (req, res) => {
   try {
     const q = req.query.q || req.query.symbol || '';
-    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
+    const { limit, page, offset } = parsePaginationParams(req.query, 10000, 100);
 
     if (!q) {
       return sendPaginated(res, [], { limit, offset, total: 0, page: 1 });

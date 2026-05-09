@@ -397,14 +397,75 @@ const rateLimitByUser = (requestsPerMinute = 100) => {
   };
 };
 
-// Middleware to log API access
+// FIXED: Authentication-specific rate limiting to prevent brute force
+// Stricter limits on auth attempts than general API limits
+const rateLimitAuth = (attemptsPerWindow = 5, windowMinutes = 15) => {
+  const authAttempts = new Map();
+
+  return (req, res, next) => {
+    const clientId = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const windowMs = windowMinutes * 60 * 1000;
+    const windowStart = now - windowMs;
+
+    if (!authAttempts.has(clientId)) {
+      authAttempts.set(clientId, []);
+    }
+
+    const attempts = authAttempts.get(clientId);
+
+    // Remove old attempts outside the window
+    while (attempts.length > 0 && attempts[0] < windowStart) {
+      attempts.shift();
+    }
+
+    // Check if rate limit exceeded
+    if (attempts.length >= attemptsPerWindow) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many authentication attempts. Please try again in ${windowMinutes} minutes.`,
+        code: 'AUTH_RATE_LIMITED',
+        retryAfter: windowMinutes * 60
+      });
+    }
+
+    // Record this attempt
+    attempts.push(now);
+    authAttempts.set(clientId, attempts);
+
+    next();
+  };
+};
+
+// FIXED: Sanitize sensitive data in logs
+// Hash user IDs and redact sensitive paths to prevent information leakage
+const sanitizeForLogging = (userId, path) => {
+  const crypto = require('crypto');
+
+  // Hash user ID for logging (prevents user enumeration via logs)
+  const hashedId = userId ?
+    crypto.createHash('sha256').update(userId).digest('hex').substring(0, 8) :
+    'anonymous';
+
+  // Redact sensitive path parameters (e.g., /user/123 → /user/[ID])
+  const sanitizedPath = path
+    .replace(/\/\d+/g, '/[ID]')
+    .replace(/\/[a-f0-9-]{36}/g, '/[UUID]')
+    .replace(/user\/[^/]+/, 'user/[MASKED]')
+    .replace(/api_key=([^&]+)/, 'api_key=[REDACTED]');
+
+  return { hashedId, sanitizedPath };
+};
+
+// Middleware to log API access with sanitized data
 const logApiAccess = async (req, res, next) => {
   const startTime = Date.now();
 
-  // Log request
+  // Log request with sanitized data
   if (process.env.NODE_ENV !== 'test') {
+    const { hashedId, sanitizedPath } = sanitizeForLogging(req.user?.sub, req.path);
     console.log(
-      `${req.method} ${req.path} - User: ${req.user?.sub || "anonymous"} - IP: ${req.ip}`
+      `${req.method} ${sanitizedPath} - User: ${hashedId} - IP: ${req.ip}`
     );
   }
 
@@ -413,8 +474,9 @@ const logApiAccess = async (req, res, next) => {
   res.end = function (chunk, encoding) {
     const duration = Date.now() - startTime;
     if (process.env.NODE_ENV !== 'test') {
+      const { sanitizedPath } = sanitizeForLogging(null, req.path);
       console.log(
-        `${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`
+        `${req.method} ${sanitizedPath} - ${res.statusCode} - ${duration}ms`
       );
     }
 
@@ -433,5 +495,6 @@ module.exports = {
   requireApiKey,
   validateSession,
   rateLimitByUser,
+  rateLimitAuth,
   logApiAccess,
 };

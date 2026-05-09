@@ -40,9 +40,11 @@ describe("Tabs Components", () => {
   describe("TabsList Component", () => {
     it("renders MUI Tabs component", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tabsList = screen.getByRole("tablist");
@@ -54,9 +56,11 @@ describe("Tabs Components", () => {
 
     it("supports custom className", () => {
       renderWithProviders(
-        <TabsList className="custom-tabs" value="tab1">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList className="custom-tabs" value="tab1">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tabsList = screen.getByRole("tablist");
@@ -69,9 +73,11 @@ describe("Tabs Components", () => {
   describe("TabsTrigger Component", () => {
     it("renders as MUI Tab", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tab = screen.getByRole("tab");
@@ -81,9 +87,11 @@ describe("Tabs Components", () => {
 
     it("displays children as label", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1">My Tab Label</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1">My Tab Label</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tab = screen.getByRole("tab", { name: "My Tab Label" });
@@ -92,11 +100,13 @@ describe("Tabs Components", () => {
 
     it("supports custom className", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1" className="custom-tab">
-            Tab 1
-          </TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1" className="custom-tab">
+              Tab 1
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tab = screen.getByRole("tab");
@@ -105,9 +115,11 @@ describe("Tabs Components", () => {
 
     it("handles click events", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tab = screen.getByRole("tab");
@@ -196,9 +208,11 @@ describe("Tabs Components", () => {
   describe("Accessibility", () => {
     it("provides proper ARIA attributes for tabs", () => {
       renderWithProviders(
-        <TabsList>
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList>
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tablist = screen.getByRole("tablist");
@@ -210,10 +224,12 @@ describe("Tabs Components", () => {
 
     it("supports keyboard navigation", () => {
       renderWithProviders(
-        <TabsList>
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-          <TabsTrigger value="tab2">Tab 2</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList>
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+            <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const firstTab = screen.getByRole("tab", { name: "Tab 1" });
@@ -225,9 +241,11 @@ describe("Tabs Components", () => {
 
     it("supports custom ARIA labels", () => {
       renderWithProviders(
-        <TabsList aria-label="Navigation tabs">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList aria-label="Navigation tabs">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tablist = screen.getByRole("tablist");
@@ -238,9 +256,11 @@ describe("Tabs Components", () => {
   describe("Component Structure", () => {
     it("uses MUI components internally", () => {
       renderWithProviders(
-        <TabsList value="tab1">
-          <TabsTrigger value="tab1">Tab 1</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList value="tab1">
+            <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tablist = screen.getByRole("tablist");
@@ -288,9 +308,11 @@ describe("Tabs Components", () => {
 
     it("handles missing values gracefully", () => {
       renderWithProviders(
-        <TabsList>
-          <TabsTrigger>No Value Tab</TabsTrigger>
-        </TabsList>
+        <Tabs>
+          <TabsList>
+            <TabsTrigger>No Value Tab</TabsTrigger>
+          </TabsList>
+        </Tabs>
       );
 
       const tab = screen.getByRole("tab");
@@ -298,7 +320,11 @@ describe("Tabs Components", () => {
     });
 
     it("handles empty content gracefully", () => {
-      renderWithProviders(<TabsContent value="test" />);
+      renderWithProviders(
+        <Tabs>
+          <TabsContent value="test" />
+        </Tabs>
+      );
 
       // Should render empty content container
       expect(document.body).toBeInTheDocument();
