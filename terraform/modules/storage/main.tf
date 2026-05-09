@@ -215,6 +215,14 @@ resource "aws_s3_bucket_public_access_block" "data_loading" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_versioning" "data_loading" {
+  bucket = aws_s3_bucket.data_loading.id
+
+  versioning_configuration {
+    status = var.enable_versioning ? "Enabled" : "Suspended"
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "data_loading" {
   bucket = aws_s3_bucket.data_loading.id
 
@@ -272,6 +280,14 @@ resource "aws_s3_bucket_public_access_block" "log_archive" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "log_archive" {
+  bucket = aws_s3_bucket.log_archive.id
+
+  versioning_configuration {
+    status = var.enable_versioning ? "Enabled" : "Suspended"
+  }
 }
 
 # Intelligent-Tiering (auto cost optimization)
