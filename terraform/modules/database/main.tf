@@ -457,6 +457,27 @@ resource "aws_iam_role_policy_attachment" "rds_rotation_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+# Lambda Layer for psycopg2 (PostgreSQL driver)
+# Requires: python-psycopg2-layer.zip in module directory
+# See LAMBDA_LAYER_SETUP.md for how to build
+data "archive_file" "psycopg2_layer" {
+  count       = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
+  type        = "zip"
+  source_dir  = "${path.module}/.psycopg2-layer"
+  output_path = "${path.module}/.terraform/psycopg2-layer.zip"
+}
+
+resource "aws_lambda_layer_version" "psycopg2" {
+  count                   = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
+  filename                = data.archive_file.psycopg2_layer[0].output_path
+  layer_name              = "${var.project_name}-psycopg2-layer-${var.environment}"
+  compatible_runtimes     = ["python3.11"]
+  source_code_hash        = data.archive_file.psycopg2_layer[0].output_base64sha256
+  compatible_architectures = ["x86_64"]
+
+  tags = var.common_tags
+}
+
 # Lambda function for rotating database credentials
 resource "aws_lambda_function" "rds_rotation" {
   filename      = data.archive_file.rds_rotation_zip.output_path
@@ -465,6 +486,7 @@ resource "aws_lambda_function" "rds_rotation" {
   handler       = "index.handler"
   runtime       = "python3.11"
   timeout       = 60
+  layers        = try([aws_lambda_layer_version.psycopg2[0].arn], [])
 
   environment {
     variables = {

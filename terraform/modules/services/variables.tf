@@ -327,6 +327,37 @@ variable "algo_schedule_timezone" {
   default     = "America/New_York"
 }
 
+variable "loader_schedule_enabled" {
+  description = "Whether the price data loader schedule is enabled (critical for algo trading)"
+  type        = bool
+  default     = false
+  # NOTE: Set to true after ECS cluster is running and task definitions are created
+  # Runs daily at 4:00am ET (9am UTC) on weekdays — BEFORE market opens at 9:30am ET
+  # Must complete before algo orchestrator runs at 5:30pm ET
+}
+
+variable "ecs_cluster_name" {
+  description = "ECS cluster name for running loader tasks"
+  type        = string
+  default     = ""
+  # Required when loader_schedule_enabled = true
+}
+
+variable "price_loader_task_definition_arn" {
+  description = "ARN of ECS task definition for price data loaders"
+  type        = string
+  default     = ""
+  # Required when loader_schedule_enabled = true
+  # Should be something like: arn:aws:ecs:us-east-1:ACCOUNT:task-definition/stocks-loaders:1
+}
+
+variable "security_group_ids" {
+  description = "Security group IDs for ECS task network configuration"
+  type        = list(string)
+  default     = []
+  # Required when loader_schedule_enabled = true
+}
+
 # ============================================================
 # SNS Configuration
 # ============================================================

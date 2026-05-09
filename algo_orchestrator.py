@@ -1276,6 +1276,20 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"  [WARN] Data patrol failed: {e}")
 
+            # Load stock quality scores (daily quality/growth/momentum/value ratings)
+            # This populates the stock_scores table used by advanced filters
+            logger.info("\nLoading stock quality scores...")
+            try:
+                from loadstockscores import StockScoresLoader
+                loader = StockScoresLoader()
+                stats = loader.run(parallelism=4)  # Moderate parallelism, doesn't block trading
+                if self.verbose:
+                    logger.info(f"  Stock scores loaded: {stats.get('symbols_loaded', 0)} symbols, "
+                               f"{stats.get('symbols_failed', 0)} failures")
+                loader.close()
+            except Exception as e:
+                logger.warning(f"  [WARN] Stock scores load failed (won't block trading): {e}")
+
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
