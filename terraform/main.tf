@@ -65,7 +65,7 @@ module "database" {
   enable_rds_kms_encryption       = var.environment == "prod" # Enable KMS for prod only
   rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
   enable_rds_alarms               = var.environment != "dev"
-  alarm_sns_topic_arn             = null
+  alarm_sns_topic_arn             = module.services.sns_alerts_topic_arn
   rds_cpu_alarm_threshold         = 80
   rds_storage_alarm_threshold     = 10737418240
   rds_connections_alarm_threshold = 50

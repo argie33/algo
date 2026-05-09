@@ -74,6 +74,11 @@ resource "aws_lambda_function" "api" {
     size = var.api_lambda_ephemeral_storage
   }
 
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.api_lambda_security_group_id]
+  }
+
   environment {
     variables = {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
@@ -488,13 +493,16 @@ resource "aws_lambda_function" "algo" {
     size = var.algo_lambda_ephemeral_storage
   }
 
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.algo_lambda_security_group_id]
+  }
+
   environment {
     variables = {
       DATABASE_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT         = var.rds_endpoint
       DB_NAME             = var.rds_database_name
-      DRY_RUN_MODE        = "false"
-      EXECUTION_MODE      = "paper"
       ALERTS_SNS_TOPIC    = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
     }
   }
@@ -502,6 +510,10 @@ resource "aws_lambda_function" "algo" {
   depends_on = [
     aws_cloudwatch_log_group.algo_lambda
   ]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   tags = merge(var.common_tags, {
     Name = local.algo_lambda_name
