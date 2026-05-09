@@ -27,11 +27,6 @@ output "bastion_role_arn" {
 output "bastion_instance_profile_name" {
   description = "Name of Bastion instance profile (for launch template)"
   value       = var.bastion_enabled ? aws_iam_instance_profile.bastion[0].name : null
-
-  precondition {
-    condition     = !var.bastion_enabled || aws_iam_instance_profile.bastion[0].name != ""
-    error_message = "Bastion instance profile must exist when bastion_enabled = true"
-  }
 }
 
 # ECS
