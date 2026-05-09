@@ -1,9 +1,0 @@
-{
-  "last_timestamp": "2026-05-09T15:00:45.919287",
-  "source": "test_daily_prices",
-  "updated_at": "2026-05-09T15:00:45.927335",
-  "status": "success",
-  "last_load_at": "2026-05-09T15:00:45.927330",
-  "records_loaded": 1500,
-  "error": null
-}

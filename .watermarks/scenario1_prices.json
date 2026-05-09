@@ -1,9 +1,0 @@
-{
-  "last_timestamp": "2026-05-04T15:05:27.442761+00:00",
-  "source": "scenario1_prices",
-  "updated_at": "2026-05-09T15:05:27.456923",
-  "status": "success",
-  "last_load_at": "2026-05-09T15:05:27.456917",
-  "records_loaded": 50,
-  "error": null
-}
