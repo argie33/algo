@@ -75,46 +75,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "code" {
 }
 
 # ============================================================
-# 2. CloudFormation Templates Bucket (versioned)
-# ============================================================
-
-resource "aws_s3_bucket" "cf_templates" {
-  bucket        = "${var.project_name}-cf-templates-${var.aws_account_id}"
-  force_destroy = false # CRITICAL: Never auto-destroy buckets. Prevents accidental data loss.
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-cf-templates-bucket"
-  })
-}
-
-resource "aws_s3_bucket_versioning" "cf_templates" {
-  bucket = aws_s3_bucket.cf_templates.id
-
-  versioning_configuration {
-    status = var.enable_versioning ? "Enabled" : "Suspended"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "cf_templates" {
-  bucket = aws_s3_bucket.cf_templates.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "cf_templates" {
-  bucket                  = aws_s3_bucket.cf_templates.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# ============================================================
-# 3. Lambda Artifacts Bucket (versioned, 90-day expiration)
+# 2. Lambda Artifacts Bucket (versioned, 90-day expiration)
 # ============================================================
 
 resource "aws_s3_bucket" "lambda_artifacts" {
@@ -185,7 +146,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
 }
 
 # ============================================================
-# 4. Data Loading Bucket (30-day expiration)
+# 3. Data Loading Bucket (30-day expiration)
 # ============================================================
 
 resource "aws_s3_bucket" "data_loading" {

@@ -68,7 +68,7 @@ function authReducer(state, action) {
         ...state,
         isLoading: action.payload,
       };
-    case AUTH_ACTIONS.LOGIN_SUCCESS:
+    case AUTH_ACTIONS.LOGIN_SUCCESS: {
       const user = action.payload.user;
       const tokens = action.payload.tokens;
       const { groups, role } = extractGroupsFromIdToken(tokens?.idToken);

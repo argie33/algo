@@ -11,6 +11,7 @@ import {
   confirmSignUp,
   resetPassword,
   confirmResetPassword,
+  fetchAuthSession,
 } from 'aws-amplify/auth';
 import { isCognitoConfigured } from '../config/amplify';
 import { tokenManager } from '../services/tokenManager';
@@ -30,7 +31,7 @@ export const useAuthMethods = (dispatch, AUTH_ACTIONS) => {
         // Try Cognito first if configured
         if (cognitoConfigured && !forceDevAuth && !import.meta.env.DEV) {
           const user = await signIn({ username: email, password });
-          const session = await getAuthSession?.();
+          const session = await fetchAuthSession();
 
           if (user && session?.tokens) {
             const tokens = {

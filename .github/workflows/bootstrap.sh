@@ -30,8 +30,8 @@ if aws iam get-role --role-name "github-actions-role" --region "$REGION" 2>/dev/
   echo "✅ OIDC role exists: $ROLE_ARN"
 else
   echo "❌ ERROR: OIDC role 'github-actions-role' not found!"
-  echo "   Please run the bootstrap CloudFormation stack first:"
-  echo "   aws cloudformation deploy --template-file bootstrap/oidc.yml --stack-name stocks-oidc --region $REGION --capabilities CAPABILITY_NAMED_IAM"
+  echo "   Please create the OIDC role via Terraform:"
+  echo "   terraform init && terraform plan && terraform apply"
   exit 1
 fi
 

@@ -13,17 +13,6 @@ output "code_bucket_arn" {
   value       = aws_s3_bucket.code.arn
 }
 
-# CloudFormation Templates Bucket
-output "cf_templates_bucket_name" {
-  description = "Name of CloudFormation templates bucket"
-  value       = aws_s3_bucket.cf_templates.id
-}
-
-output "cf_templates_bucket_arn" {
-  description = "ARN of CloudFormation templates bucket"
-  value       = aws_s3_bucket.cf_templates.arn
-}
-
 # Lambda Artifacts Bucket
 output "lambda_artifacts_bucket_name" {
   description = "Name of Lambda artifacts bucket"
