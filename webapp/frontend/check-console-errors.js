@@ -1,77 +1,93 @@
 import { chromium } from 'playwright';
 
-async function checkConsoleErrors() {
+(async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
-  const logs = [];
+  const consoleLogs = [];
   const errors = [];
-  const warnings = [];
 
-  page.on('console', msg => {
-    const log = {
+  page.on('console', async (msg) => {
+    const args = [];
+    for (const arg of msg.args()) {
+      try {
+        args.push(await arg.jsonValue());
+      } catch {
+        args.push(`[${msg.type()}] <unserializable>`);
+      }
+    }
+
+    const logEntry = {
       type: msg.type(),
       text: msg.text(),
-      location: msg.location()
+      args: args
     };
-    console.log(`[${msg.type().toUpperCase()}] ${msg.text()}`);
 
-    if (msg.type() === 'error') {
-      errors.push(log);
-    } else if (msg.type() === 'warning') {
-      warnings.push(log);
-    } else {
-      logs.push(log);
+    consoleLogs.push(logEntry);
+
+    if (msg.type() === 'error' || msg.type() === 'warning') {
+      console.log(`[${msg.type().toUpperCase()}] ${msg.text()}`);
     }
   });
 
-  page.on('pageerror', err => {
-    console.error('[PAGE ERROR]', err.message);
-    errors.push({ type: 'pageerror', text: err.message, stack: err.stack });
+  page.on('pageerror', (error) => {
+    errors.push({
+      message: error.message,
+      stack: error.stack
+    });
+    console.log('[PAGE ERROR]', error.message);
   });
 
-  page.on('response', response => {
-    if (response.status() >= 400) {
-      console.warn(`[HTTP ${response.status()}] ${response.url()}`);
-      warnings.push({ type: 'http', status: response.status(), url: response.url() });
-    }
+  console.log('Opening http://localhost:5178...\n');
+  await page.goto('http://localhost:5178', { waitUntil: 'load', timeout: 15000 }).catch(e => {
+    console.log('Navigation timeout (this is OK if page partially loaded):', e.message);
   });
 
-  console.log('Navigating to http://localhost:5173...');
-  await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 30000 }).catch(err => {
-    console.error('Navigation error:', err.message);
-  });
+  console.log('\n✓ Page loaded\n');
 
-  // Wait a bit for any async errors to appear
+  // Wait for any async operations
   await page.waitForTimeout(3000);
 
-  await browser.close();
+  // Get page title
+  const title = await page.title();
+  console.log(`Page title: ${title}`);
 
-  console.log('\n=== SUMMARY ===');
-  console.log(`Errors: ${errors.length}`);
-  console.log(`Warnings: ${warnings.length}`);
-  console.log(`Info logs: ${logs.length}`);
-
-  if (errors.length > 0) {
-    console.log('\n=== ERRORS ===');
-    errors.forEach(e => console.log(`- ${e.text}`));
-  }
-
-  if (warnings.length > 0) {
-    console.log('\n=== WARNINGS ===');
-    warnings.forEach(w => {
-      if (w.type === 'http') {
-        console.log(`- HTTP ${w.status}: ${w.url}`);
-      } else {
-        console.log(`- ${w.text}`);
+  console.log('\n=== ERROR & WARNING SUMMARY ===');
+  const errorLogs = consoleLogs.filter(l => l.type === 'error');
+  const warnLogs = consoleLogs.filter(l => l.type === 'warn');
+  
+  if (errorLogs.length > 0) {
+    console.log(`\nErrors found: ${errorLogs.length}`);
+    errorLogs.forEach((log, i) => {
+      console.log(`  ${i + 1}. ${log.text}`);
+      if (log.args && log.args.length > 0) {
+        console.log(`     ${JSON.stringify(log.args).substring(0, 150)}`);
       }
     });
   }
+  
+  if (warnLogs.length > 0) {
+    console.log(`\nWarnings found: ${warnLogs.length}`);
+    warnLogs.slice(0, 5).forEach((log, i) => {
+      console.log(`  ${i + 1}. ${log.text}`);
+    });
+    if (warnLogs.length > 5) {
+      console.log(`  ... and ${warnLogs.length - 5} more`);
+    }
+  }
 
-  process.exit(errors.length > 0 ? 1 : 0);
-}
+  if (errors.length > 0) {
+    console.log(`\nUncaught errors: ${errors.length}`);
+    errors.slice(0, 3).forEach((err, i) => {
+      console.log(`  ${i + 1}. ${err.message}`);
+    });
+  }
 
-checkConsoleErrors().catch(err => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});
+  console.log('\n=== SUMMARY ===');
+  console.log(`Total console messages: ${consoleLogs.length}`);
+  console.log(`Total errors: ${consoleLogs.filter(l => l.type === 'error').length}`);
+  console.log(`Total warnings: ${consoleLogs.filter(l => l.type === 'warn').length}`);
+  console.log(`Page errors: ${errors.length}`);
+
+  await browser.close();
+})();

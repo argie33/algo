@@ -77,7 +77,6 @@ const MetricsDashboard = () => {
     } else if (activeTab === 2) {
       fetchTopStocks();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const fetchData = async () => {
