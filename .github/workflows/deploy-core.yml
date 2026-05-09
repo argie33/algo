@@ -235,7 +235,26 @@ jobs:
           # Pre-deployment cleanup: delete stacks and orphaned resources
           echo "=== PRE-DEPLOYMENT CLEANUP ==="
 
-          # 1. Delete existing stocks-core stack if it exists
+          # 1. Delete dependent stacks FIRST (they reference core resources)
+          echo "Checking for dependent stacks that must be deleted first..."
+
+          for DEPENDENT_STACK in stocks-data-infrastructure stocks-initialize-database stocks-webapp stocks-loaders stocks-algo; do
+            DEPENDENT_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$DEPENDENT_STACK" \
+              --region "$REGION" \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+            if [[ "$DEPENDENT_STATUS" != "DOES_NOT_EXIST" ]]; then
+              echo "Deleting dependent stack: $DEPENDENT_STACK (status: $DEPENDENT_STATUS)..."
+              aws cloudformation delete-stack --stack-name "$DEPENDENT_STACK" --region "$REGION" 2>/dev/null || true
+              echo "Waiting for $DEPENDENT_STACK deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "$DEPENDENT_STACK" --region "$REGION" 2>/dev/null || true
+              echo "Stack $DEPENDENT_STACK deletion complete"
+            fi
+          done
+
+          # 2. Delete existing stocks-core stack if it exists
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "${{ env.STACK_NAME }}" \
             --region "$REGION" \
