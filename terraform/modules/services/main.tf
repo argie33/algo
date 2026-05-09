@@ -553,9 +553,9 @@ resource "aws_scheduler_schedule" "price_data_loaders" {
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
-      Cluster        = var.ecs_cluster_name
-      LaunchType     = "FARGATE"
-      NetworkConfiguration = {
+      cluster        = var.ecs_cluster_name
+      launchType     = "FARGATE"
+      networkConfiguration = {
         awsvpcConfiguration = {
           assignPublicIp = "DISABLED"
           subnets        = var.private_subnet_ids
