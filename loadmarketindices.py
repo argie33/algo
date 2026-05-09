@@ -85,7 +85,7 @@ class MarketIndicesLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Market indices loader")
-    parser.add_argument("--parallelism", type=int, default=4, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
     # Load major market indices

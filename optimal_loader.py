@@ -65,7 +65,7 @@ class OptimalLoader(ABC):
     table_name: str = ""
     primary_key: Sequence[str] = ()
     watermark_field: str = "date"
-    chunk_size: int = 5_000
+    chunk_size: int = 10_000  # Increased from 5_000 for faster bulk inserts (fewer round trips to DB)
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self, backfill_days: Optional[int] = None):

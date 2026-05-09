@@ -88,7 +88,7 @@ class MarketLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Optimal market loader")
-    parser.add_argument("--parallelism", type=int, default=1, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
     loader = MarketLoader()

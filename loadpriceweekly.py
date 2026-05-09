@@ -125,7 +125,7 @@ def get_active_symbols() -> List[str]:
 def main():
     parser = argparse.ArgumentParser(description="Optimal price_weekly loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=4, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
     if args.symbols:
