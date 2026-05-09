@@ -60,9 +60,9 @@ module "database" {
   db_master_username              = var.rds_username
   db_master_password              = var.rds_password
   rds_db_name                     = var.rds_db_name
-  db_multi_az                     = false
-  enable_rds_kms_encryption       = false
-  rds_kms_key_id                  = null
+  db_multi_az                     = var.environment != "dev"  # Enable Multi-AZ for staging/prod
+  enable_rds_kms_encryption       = var.environment == "prod" # Enable KMS for prod only
+  rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
   enable_rds_alarms               = var.environment != "dev"
   alarm_sns_topic_arn             = null
   rds_cpu_alarm_threshold         = 80
@@ -146,6 +146,7 @@ module "loaders" {
   ecs_cluster_name        = module.compute.ecs_cluster_name
   ecs_cluster_arn         = module.compute.ecs_cluster_arn
   task_execution_role_arn = module.iam.ecs_task_execution_role_arn
+  task_role_arn           = module.iam.ecs_task_role_arn
   private_subnet_ids      = module.vpc.private_subnet_ids
   ecs_tasks_sg_id         = module.vpc.ecs_tasks_security_group_id
   db_secret_arn           = module.database.rds_credentials_secret_arn
@@ -164,6 +165,8 @@ module "services" {
   vpc_id                         = module.vpc.vpc_id
   private_subnet_ids             = module.vpc.private_subnet_ids
   ecs_tasks_security_group_id    = module.vpc.ecs_tasks_security_group_id
+  api_lambda_security_group_id   = module.vpc.api_lambda_security_group_id
+  algo_lambda_security_group_id  = module.vpc.algo_lambda_security_group_id
   rds_endpoint                   = module.database.rds_endpoint
   rds_database_name              = module.database.rds_database_name
   rds_credentials_secret_arn     = module.database.rds_credentials_secret_arn

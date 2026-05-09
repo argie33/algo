@@ -54,7 +54,17 @@ variable "private_subnet_ids" {
 }
 
 variable "ecs_tasks_security_group_id" {
-  description = "Security group ID for ECS tasks (Lambda will need this for database access)"
+  description = "Security group ID for ECS tasks"
+  type        = string
+}
+
+variable "api_lambda_security_group_id" {
+  description = "Security group ID for API Lambda (dedicated for REST API Lambda)"
+  type        = string
+}
+
+variable "algo_lambda_security_group_id" {
+  description = "Security group ID for Algo Lambda (dedicated for orchestrator Lambda)"
   type        = string
 }
 

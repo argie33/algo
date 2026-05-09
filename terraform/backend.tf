@@ -15,12 +15,15 @@
 # ============================================================
 
 terraform {
-  # S3 backend for remote state management
-  # Configuration provided via -backend-config flags during init
-  backend "s3" {
-    # bucket = "stocks-terraform-state-{ACCOUNT_ID}-us-east-1"
-    # key = "stocks/terraform.tfstate"
-    # region = "us-east-1"
-    # encrypt = true
+  # Local backend for testing (use S3 in production)
+  backend "local" {
+    path = ".terraform.local/terraform.tfstate"
   }
+  # For production, use S3:
+  # backend "s3" {
+  #   bucket  = "stocks-terraform-state-{ACCOUNT_ID}-us-east-1"
+  #   key     = "stocks/terraform.tfstate"
+  #   region  = "us-east-1"
+  #   encrypt = true
+  # }
 }

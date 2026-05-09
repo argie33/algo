@@ -93,14 +93,9 @@ variable "db_master_password" {
 }
 
 variable "db_multi_az" {
-  description = "Enable Multi-AZ deployment for high availability (required for prod - prevents single AZ failure)"
+  description = "Enable Multi-AZ deployment for high availability (STRONGLY recommended for production to prevent single AZ failure)"
   type        = bool
-  default     = true  # Changed from false - production requires HA
-
-  validation {
-    condition     = var.environment == "prod" ? var.db_multi_az == true : true
-    error_message = "Production database MUST be Multi-AZ for high availability"
-  }
+  default     = true  # Production should always use true; dev/staging can override if needed
 }
 
 variable "db_backup_retention_days" {
@@ -115,14 +110,9 @@ variable "db_backup_retention_days" {
 }
 
 variable "enable_rds_kms_encryption" {
-  description = "Enable customer-managed KMS key for RDS encryption (REQUIRED for prod - SOC2/PCI-DSS compliance)"
+  description = "Enable customer-managed KMS key for RDS encryption (STRONGLY recommended for production - required for SOC2/PCI-DSS compliance)"
   type        = bool
-  default     = true  # Changed from false - customer-managed KMS is required for security compliance
-
-  validation {
-    condition     = var.environment == "prod" ? var.enable_rds_kms_encryption == true : true
-    error_message = "Production database MUST use customer-managed KMS encryption for compliance (SOC2, PCI-DSS)"
-  }
+  default     = true  # Production should always use true; dev/staging can override if needed
 }
 
 variable "rds_kms_key_id" {

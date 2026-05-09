@@ -65,6 +65,11 @@ variable "task_execution_role_arn" {
   type        = string
 }
 
+variable "task_role_arn" {
+  description = "IAM role ARN for ECS task (S3, Secrets Manager access for loaders)"
+  type        = string
+}
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

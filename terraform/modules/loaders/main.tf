@@ -385,6 +385,7 @@ resource "aws_ecs_task_definition" "loader" {
   cpu                      = tostring(each.value.cpu)
   memory                   = tostring(each.value.memory)
   execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
 
   tags = var.common_tags
 }

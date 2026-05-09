@@ -179,6 +179,64 @@ resource "aws_security_group" "ecs_tasks" {
   })
 }
 
+# API Lambda Security Group
+resource "aws_security_group" "api_lambda" {
+  name        = "${var.project_name}-api-lambda-sg"
+  description = "Security group for API Lambda function (REST API)"
+  vpc_id      = aws_vpc.main.id
+
+  # Egress: allow HTTPS to VPC endpoints for Secrets Manager, CloudWatch Logs, SNS
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow HTTPS to VPC endpoints (Secrets Manager, CloudWatch Logs, SNS)"
+  }
+
+  # Egress: allow PostgreSQL to RDS
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow PostgreSQL to RDS"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-api-lambda-sg"
+  })
+}
+
+# Algo Lambda Security Group
+resource "aws_security_group" "algo_lambda" {
+  name        = "${var.project_name}-algo-lambda-sg"
+  description = "Security group for Algo Lambda function (orchestrator)"
+  vpc_id      = aws_vpc.main.id
+
+  # Egress: allow HTTPS to VPC endpoints for Secrets Manager, CloudWatch Logs, SNS
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow HTTPS to VPC endpoints (Secrets Manager, CloudWatch Logs, SNS)"
+  }
+
+  # Egress: allow PostgreSQL to RDS
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow PostgreSQL to RDS"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-algo-lambda-sg"
+  })
+}
+
 # RDS Security Group
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
@@ -192,6 +250,24 @@ resource "aws_security_group" "rds" {
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_tasks.id]
     description     = "Allow PostgreSQL from ECS tasks"
+  }
+
+  # Ingress: allow PostgreSQL from API Lambda
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.api_lambda.id]
+    description     = "Allow PostgreSQL from API Lambda"
+  }
+
+  # Ingress: allow PostgreSQL from Algo Lambda
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.algo_lambda.id]
+    description     = "Allow PostgreSQL from Algo Lambda"
   }
 
   # Ingress: allow PostgreSQL from Bastion
@@ -219,7 +295,7 @@ resource "aws_security_group" "rds" {
     Name = "${var.project_name}-rds-sg"
   })
 
-  depends_on = [aws_security_group.ecs_tasks]
+  depends_on = [aws_security_group.ecs_tasks, aws_security_group.api_lambda, aws_security_group.algo_lambda]
 }
 
 # VPC Endpoints Security Group (for services in private subnets to reach AWS services)

@@ -46,6 +46,16 @@ output "ecs_tasks_security_group_id" {
   value       = aws_security_group.ecs_tasks.id
 }
 
+output "api_lambda_security_group_id" {
+  description = "ID of API Lambda security group (dedicated for REST API Lambda)"
+  value       = aws_security_group.api_lambda.id
+}
+
+output "algo_lambda_security_group_id" {
+  description = "ID of Algo Lambda security group (dedicated for orchestrator Lambda)"
+  value       = aws_security_group.algo_lambda.id
+}
+
 output "rds_security_group_id" {
   description = "ID of RDS security group"
   value       = aws_security_group.rds.id

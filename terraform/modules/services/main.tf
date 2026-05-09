@@ -96,7 +96,7 @@ resource "aws_lambda_function" "api" {
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.ecs_tasks_security_group_id]
+    security_group_ids = [var.api_lambda_security_group_id]
   }
 
   environment {
@@ -513,7 +513,7 @@ resource "aws_lambda_function" "algo" {
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.ecs_tasks_security_group_id]
+    security_group_ids = [var.algo_lambda_security_group_id]
   }
 
   environment {
