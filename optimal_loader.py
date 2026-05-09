@@ -42,7 +42,10 @@ from abc import ABC, abstractmethod
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence
 
+from credential_manager import get_credential_manager
+
 log = logging.getLogger(__name__)
+_credential_manager = get_credential_manager()
 
 
 class OptimalLoader(ABC):
@@ -147,7 +150,7 @@ class OptimalLoader(ABC):
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_credential_manager.get_db_credentials()["password"],
             database=os.getenv("DB_NAME", "stocks"),
         )
         self._tls.conn = conn

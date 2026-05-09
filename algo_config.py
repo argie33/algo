@@ -57,14 +57,19 @@ try:
 except ValueError as e:
     logger.error(f"Failed to load DB credentials: {e}")
     # Fallback to env vars for backward compatibility during migration
+    try:
+        db_password = _cred_mgr.get_db_credentials()["password"]
+    except ValueError:
+        db_password = os.getenv("DB_PASSWORD", "")
+
     DB_CONFIG = {
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 5432)),
         "user": os.getenv("DB_USER", "stocks"),
-        "password": os.getenv("DB_PASSWORD", ""),
+        "password": db_password,
         "database": os.getenv("DB_NAME", "stocks"),
     }
-    logger.warning("Using fallback DB credentials from environment — credential_manager failed")
+    logger.warning("Using fallback DB credentials — credential_manager failed")
 
 # Alias for backwards compatibility
 DATABASE_CONFIG = DB_CONFIG

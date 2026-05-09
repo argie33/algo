@@ -26,6 +26,9 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from optimal_loader import OptimalLoader
+from credential_manager import get_credential_manager
+
+_credential_manager = get_credential_manager()
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath
@@ -78,7 +81,7 @@ class PriceDailyLoader(OptimalLoader):
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_credential_manager.get_db_credentials()["password"],
             database=os.getenv("DB_NAME", "stocks"),
         )
         try:
@@ -142,7 +145,7 @@ def get_active_symbols() -> List[str]:
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "stocks"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=credential_manager.get_db_credentials()["password"],
         database=os.getenv("DB_NAME", "stocks"),
     )
     try:
