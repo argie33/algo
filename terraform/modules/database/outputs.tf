@@ -70,6 +70,22 @@ output "algo_secrets_name" {
   value       = aws_secretsmanager_secret.algo_secrets.name
 }
 
+# KMS Encryption
+output "rds_kms_key_id" {
+  description = "KMS key ID for RDS encryption (if enabled)"
+  value       = var.enable_rds_kms_encryption ? aws_kms_key.rds[0].id : null
+}
+
+output "rds_kms_key_arn" {
+  description = "KMS key ARN for RDS encryption (if enabled)"
+  value       = var.enable_rds_kms_encryption ? aws_kms_key.rds[0].arn : null
+}
+
+output "rds_kms_key_alias" {
+  description = "KMS key alias for RDS encryption (if enabled)"
+  value       = var.enable_rds_kms_encryption ? aws_kms_alias.rds[0].name : null
+}
+
 # Monitoring
 output "rds_log_group_name" {
   description = "CloudWatch log group for RDS"

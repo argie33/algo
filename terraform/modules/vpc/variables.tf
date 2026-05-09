@@ -51,7 +51,7 @@ variable "public_subnet_cidrs" {
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets (one per AZ)"
   type        = list(string)
-  default     = ["10.0.101.0/24", "10.0.102.0/24"]
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
 
   validation {
     condition     = length(var.private_subnet_cidrs) >= 2
@@ -70,6 +70,12 @@ variable "availability_zones" {
 
 variable "bastion_sg_enabled" {
   description = "Whether to create bastion security group"
+  type        = bool
+  default     = true
+}
+
+variable "enable_vpc_endpoints" {
+  description = "Enable VPC endpoints (S3, Secrets Manager, ECR, CloudWatch Logs, SNS, DynamoDB)"
   type        = bool
   default     = true
 }

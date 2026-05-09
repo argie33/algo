@@ -25,10 +25,12 @@ const TT_STYLE = {
 };
 
 const TABS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'technicals', label: 'Technicals' },
-  { value: 'macro', label: 'Macro Drivers' },
-  { value: 'events', label: 'Events' },
+  { value: 'overview',    label: 'Overview' },
+  { value: 'technicals',  label: 'Technicals' },
+  { value: 'cot',         label: 'COT Positioning' },
+  { value: 'correlations',label: 'Correlations' },
+  { value: 'macro',       label: 'Macro Drivers' },
+  { value: 'events',      label: 'Events' },
   { value: 'seasonality', label: 'Seasonality' },
 ];
 
@@ -68,6 +70,24 @@ export default function CommoditiesAnalysis() {
     ['commodities-seasonality', selectedSymbol],
     () => api.get(`/api/commodities/seasonality/${selectedSymbol}`),
     { enabled: tab === 'seasonality' }
+  );
+
+  const cot = useApiQuery(
+    ['commodities-cot', selectedSymbol],
+    () => api.get(`/api/commodities/cot/${selectedSymbol}`),
+    { enabled: tab === 'cot' }
+  );
+
+  const correlations = useApiQuery(
+    ['commodities-correlations'],
+    () => api.get('/api/commodities/correlations'),
+    { enabled: tab === 'correlations' }
+  );
+
+  const marketSummary = useApiQuery(
+    ['commodities-market-summary'],
+    () => api.get('/api/commodities/market-summary'),
+    { staleTime: 2 * 60 * 1000 }
   );
 
   const categories = useMemo(() => {
@@ -116,6 +136,48 @@ export default function CommoditiesAnalysis() {
              sub={selectedCat?.category} />
         <Kpi label="Last Update" value={new Date().toLocaleTimeString()} sub="auto-refresh 2 min" />
       </div>
+
+      {/* Market summary — top gainers / losers */}
+      {marketSummary.data && (
+        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card">
+            <div className="card-head"><div><div className="card-title">Top Gainers</div></div></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              <table className="data-table">
+                <thead><tr><th>Symbol</th><th>Name</th><th className="num">Chg %</th><th className="num">Price</th></tr></thead>
+                <tbody>
+                  {(marketSummary.data.topGainers || []).map(c => (
+                    <tr key={c.symbol} onClick={() => setSelectedSymbol(c.symbol)} style={{ cursor: 'pointer' }}>
+                      <td className="strong">{c.symbol}</td>
+                      <td>{c.name}</td>
+                      <td className="num mono tnum up"><ArrowUpRight size={11} style={{ verticalAlign: '-2px' }} /> {pct(c.change)}</td>
+                      <td className="num mono tnum">{fmtMoney(c.price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-head"><div><div className="card-title">Top Losers</div></div></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              <table className="data-table">
+                <thead><tr><th>Symbol</th><th>Name</th><th className="num">Chg %</th><th className="num">Price</th></tr></thead>
+                <tbody>
+                  {(marketSummary.data.topLosers || []).map(c => (
+                    <tr key={c.symbol} onClick={() => setSelectedSymbol(c.symbol)} style={{ cursor: 'pointer' }}>
+                      <td className="strong">{c.symbol}</td>
+                      <td>{c.name}</td>
+                      <td className="num mono tnum down"><ArrowDownRight size={11} style={{ verticalAlign: '-2px' }} /> {pct(Math.abs(c.change))}</td>
+                      <td className="num mono tnum">{fmtMoney(c.price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
 
@@ -184,6 +246,14 @@ export default function CommoditiesAnalysis() {
         {tab === 'technicals' && (
           <TechnicalsView data={technicals.data} loading={technicals.isLoading}
                           symbol={selectedSymbol} symbolData={selectedData} category={selectedCat} />
+        )}
+
+        {tab === 'cot' && (
+          <CotView data={cot.data} loading={cot.isLoading} symbol={selectedSymbol} symbolData={selectedData} />
+        )}
+
+        {tab === 'correlations' && (
+          <CorrelationsView data={correlations.data} loading={correlations.isLoading} onSelect={(sym) => { setSelectedSymbol(sym); setTab('technicals'); }} />
         )}
 
         {tab === 'macro' && (

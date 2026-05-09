@@ -333,6 +333,7 @@ resource "aws_security_group" "vpc_endpoints" {
 
 # S3 Gateway Endpoint (no cost, no security group needed)
 resource "aws_vpc_endpoint" "s3" {
+  count             = var.enable_vpc_endpoints ? 1 : 0
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
@@ -345,6 +346,7 @@ resource "aws_vpc_endpoint" "s3" {
 
 # DynamoDB Gateway Endpoint (no cost, for future use)
 resource "aws_vpc_endpoint" "dynamodb" {
+  count             = var.enable_vpc_endpoints ? 1 : 0
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.dynamodb"
   vpc_endpoint_type = "Gateway"
@@ -357,6 +359,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
 
 # Secrets Manager Interface Endpoint
 resource "aws_vpc_endpoint" "secretsmanager" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.secretsmanager"
   vpc_endpoint_type   = "Interface"
@@ -371,6 +374,7 @@ resource "aws_vpc_endpoint" "secretsmanager" {
 
 # ECR API Interface Endpoint
 resource "aws_vpc_endpoint" "ecr_api" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
   vpc_endpoint_type   = "Interface"
@@ -385,6 +389,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 
 # ECR DKR (Docker) Interface Endpoint
 resource "aws_vpc_endpoint" "ecr_dkr" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
   vpc_endpoint_type   = "Interface"
@@ -399,6 +404,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 
 # CloudWatch Logs Interface Endpoint
 resource "aws_vpc_endpoint" "logs" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.logs"
   vpc_endpoint_type   = "Interface"
@@ -413,6 +419,7 @@ resource "aws_vpc_endpoint" "logs" {
 
 # SNS Interface Endpoint (for Lambda alerts from private subnet)
 resource "aws_vpc_endpoint" "sns" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.sns"
   vpc_endpoint_type   = "Interface"

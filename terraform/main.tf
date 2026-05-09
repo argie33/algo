@@ -27,6 +27,7 @@ module "vpc" {
   private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
   bastion_sg_enabled   = var.bastion_enabled
+  enable_vpc_endpoints = var.enable_vpc_endpoints
   common_tags          = local.common_tags
 }
 

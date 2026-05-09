@@ -69,35 +69,35 @@ output "vpc_endpoints_security_group_id" {
 # VPC Endpoints (for policies that need to reference them)
 output "s3_endpoint_id" {
   description = "ID of S3 gateway endpoint"
-  value       = aws_vpc_endpoint.s3.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.s3[0].id : null
 }
 
 output "dynamodb_endpoint_id" {
   description = "ID of DynamoDB gateway endpoint"
-  value       = aws_vpc_endpoint.dynamodb.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.dynamodb[0].id : null
 }
 
 output "secretsmanager_endpoint_id" {
   description = "ID of Secrets Manager interface endpoint"
-  value       = aws_vpc_endpoint.secretsmanager.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.secretsmanager[0].id : null
 }
 
 output "ecr_api_endpoint_id" {
   description = "ID of ECR API interface endpoint"
-  value       = aws_vpc_endpoint.ecr_api.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.ecr_api[0].id : null
 }
 
 output "ecr_dkr_endpoint_id" {
   description = "ID of ECR DKR interface endpoint"
-  value       = aws_vpc_endpoint.ecr_dkr.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.ecr_dkr[0].id : null
 }
 
 output "logs_endpoint_id" {
   description = "ID of CloudWatch Logs interface endpoint"
-  value       = aws_vpc_endpoint.logs.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.logs[0].id : null
 }
 
 output "sns_endpoint_id" {
   description = "ID of SNS interface endpoint"
-  value       = aws_vpc_endpoint.sns.id
+  value       = var.enable_vpc_endpoints ? aws_vpc_endpoint.sns[0].id : null
 }

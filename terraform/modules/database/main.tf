@@ -3,6 +3,27 @@
 # ============================================================
 
 # ============================================================
+# 0. KMS Key for RDS Encryption (Production)
+# ============================================================
+
+resource "aws_kms_key" "rds" {
+  count                   = var.enable_rds_kms_encryption ? 1 : 0
+  description             = "KMS key for RDS encryption in ${var.environment}"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-rds-kms"
+  })
+}
+
+resource "aws_kms_alias" "rds" {
+  count         = var.enable_rds_kms_encryption ? 1 : 0
+  name          = "alias/${var.project_name}-rds"
+  target_key_id = aws_kms_key.rds[0].key_id
+}
+
+# ============================================================
 # 1. RDS Subnet Group (Private Subnets)
 # ============================================================
 

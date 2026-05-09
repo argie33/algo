@@ -264,7 +264,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "APIGateway"
     compress         = true
 
-    cache_policy_id            = "4135ea3d-c35d-46eb-81d7-rewrite_this" # Managed-CachingDisabled
+    cache_policy_id            = "4135ea3d-c35d-46eb-81d7-d492a330732d" # Managed-CachingDisabled
     origin_request_policy_id   = "216adef5-5c7f-47e4-b989-5492eafa07d3" # Managed-AllViewerExceptHostHeader
     viewer_protocol_policy     = "https-only"
   }
@@ -274,18 +274,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3Frontend"
+    compress         = true
 
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 86400
+    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    viewer_protocol_policy   = "redirect-to-https"
   }
 
   restrictions {
@@ -338,7 +330,7 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
 
 resource "aws_cognito_user_pool" "main" {
   count = var.cognito_enabled ? 1 : 0
-  name  = coalesce(var.cognito_user_pool_name, "${var.project_name}-${var.environment}")
+  name  = coalesce(var.cognito_user_pool_name, "${var.project_name}-${var.environment}-users")
 
   password_policy {
     minimum_length    = var.cognito_password_min_length
@@ -684,6 +676,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
 
 # API Gateway 4xx Error Alarm (informational)
 resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors" {
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-apigw-4xx-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 3
@@ -694,6 +687,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors" {
   threshold           = 50
   alarm_description   = "Informational: 50+ API Gateway 4xx errors in 5 minutes (auth/validation issues)"
   treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
 
   dimensions = {
     ApiName = aws_apigatewayv2_api.main.name
