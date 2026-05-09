@@ -10,6 +10,9 @@ Configuration via environment variables:
   ALERT_WEBHOOK_URL: optional Slack/Teams/custom webhook
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import json
 import smtplib
@@ -40,7 +43,7 @@ class AlertManager:
         self.smtp_host = os.getenv('ALERT_SMTP_HOST', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', 587))
         self.smtp_user = os.getenv('ALERT_SMTP_USER', '')
-        self.smtp_password = os.getenv('ALERT_SMTP_PASSWORD', '')
+        self.smtp_password = credential_manager.get_password("smtp/password", default="")
         self.webhook_url = os.getenv('ALERT_WEBHOOK_URL', '')
 
         # SMS via Twilio

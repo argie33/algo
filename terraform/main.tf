@@ -125,7 +125,7 @@ module "batch" {
   ecs_tasks_security_group_id   = module.vpc.ecs_tasks_security_group_id
   data_bucket_name              = module.storage.data_loading_bucket_name
   ecr_repository_uri            = module.compute.ecr_repository_url
-  db_host                       = module.database.rds_endpoint
+  db_host                       = module.database.rds_address
   db_port                       = 5432
   db_name                       = var.rds_db_name
   db_user                       = var.rds_username

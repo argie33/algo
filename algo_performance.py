@@ -12,6 +12,9 @@ Metrics computed:
 - Live vs. backtest comparison
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import psycopg2
 import json
 import numpy as np
@@ -40,7 +43,7 @@ class LivePerformance:
         self.db_host = os.getenv('DB_HOST', 'localhost')
         self.db_port = int(os.getenv('DB_PORT', 5432))
         self.db_user = os.getenv('DB_USER', 'stocks')
-        self.db_password = os.getenv('DB_PASSWORD', '')
+        self.db_password = credential_manager.get_db_credentials()["password"]
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
     def connect(self):

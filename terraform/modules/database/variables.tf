@@ -95,7 +95,7 @@ variable "db_master_password" {
 variable "db_multi_az" {
   description = "Enable Multi-AZ deployment for high availability (STRONGLY recommended for production to prevent single AZ failure)"
   type        = bool
-  default     = true  # Production should always use true; dev/staging can override if needed
+  default     = true # Production should always use true; dev/staging can override if needed
 }
 
 variable "db_backup_retention_days" {
@@ -112,7 +112,7 @@ variable "db_backup_retention_days" {
 variable "enable_rds_kms_encryption" {
   description = "Enable customer-managed KMS key for RDS encryption (STRONGLY recommended for production - required for SOC2/PCI-DSS compliance)"
   type        = bool
-  default     = true  # Production should always use true; dev/staging can override if needed
+  default     = true # Production should always use true; dev/staging can override if needed
 }
 
 variable "rds_kms_key_id" {

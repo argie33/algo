@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "github_actions" {
       "ec2:Describe*"
     ]
 
-    resources = ["*"]  # AWS requires wildcard for Describe* actions
+    resources = ["*"] # AWS requires wildcard for Describe* actions
   }
 
   # Terraform resource management - EC2, VPC, Security Groups (modifications - scoped to project)

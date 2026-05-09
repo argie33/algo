@@ -19,6 +19,9 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import psycopg2
 import json
@@ -34,7 +37,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 

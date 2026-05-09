@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 def log_execution_start(loader_name: str) -> dict:
     """Log the start of a loader execution and return start_time dict"""
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
     return {
         'loader_name': loader_name,
         'start_time': datetime.now(),
@@ -46,7 +49,7 @@ def log_execution_complete(
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=os.getenv('DB_PASSWORD'),
+            password=credential_manager.get_db_credentials()["password"],
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )
@@ -104,7 +107,7 @@ def get_recent_performance(loader_name: str, limit: int = 10) -> list:
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=os.getenv('DB_PASSWORD'),
+            password=credential_manager.get_db_credentials()["password"],
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )
@@ -149,7 +152,7 @@ def print_performance_summary():
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=os.getenv('DB_PASSWORD'),
+            password=credential_manager.get_db_credentials()["password"],
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )

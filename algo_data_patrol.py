@@ -36,6 +36,9 @@ USAGE:
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import argparse
 import psycopg2
@@ -54,7 +57,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -564,8 +567,8 @@ class DataPatrol:
 
     def check_alpaca_cross_validate(self, top_n=10):
         """P6. Cross-validate top symbols vs Alpaca (uses existing free credentials)."""
-        key = os.getenv('APCA_API_KEY_ID')
-        secret = os.getenv('APCA_API_SECRET_KEY')
+        key = credential_manager.get_alpaca_credentials()["key"]
+        secret = credential_manager.get_alpaca_credentials()["secret"]
         base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         if not key or not secret:
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)

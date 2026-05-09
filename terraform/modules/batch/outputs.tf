@@ -3,8 +3,8 @@
 # ============================================================
 
 output "compute_environment_name" {
-  description = "Name of the Batch compute environment"
-  value       = aws_batch_compute_environment.spot.compute_environment_name
+  description = "ARN of the Batch compute environment (used for resource identification)"
+  value       = aws_batch_compute_environment.spot.arn
 }
 
 output "compute_environment_arn" {

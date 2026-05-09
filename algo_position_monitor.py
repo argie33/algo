@@ -19,6 +19,9 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import json
 import psycopg2
@@ -39,7 +42,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -577,8 +580,8 @@ class PositionMonitor:
 
             import requests
             alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
-            alpaca_key = os.getenv('APCA_API_KEY_ID')
-            alpaca_secret = os.getenv('APCA_API_SECRET_KEY')
+            alpaca_key = credential_manager.get_alpaca_credentials()["key"]
+            alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
 
             for pos_id, symbol, db_qty, db_stop, entry_price in positions:
                 try:

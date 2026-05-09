@@ -456,7 +456,7 @@ variable "cognito_enabled" {
 variable "cognito_user_pool_name" {
   description = "Cognito user pool name (defaults to project-environment-users)"
   type        = string
-  default     = null  # Will be set to "${var.project_name}-${var.environment}-users" in module if null
+  default     = null # Will be set to "${var.project_name}-${var.environment}-users" in module if null
 }
 
 variable "cognito_password_min_length" {
@@ -590,9 +590,9 @@ variable "batch_instance_types" {
   }
   validation {
     condition = alltrue([
-      for t in var.batch_instance_types : can(regex("^(t[23]|m[56]|c[56]|r[56]|i[34]|a[12]|t4g|m6[ig]|c6[ig]|r6[ig]|t3a|m5a|c5a|r5a)\\.", t))
+      for t in var.batch_instance_types : can(regex("^(t[234]|m[567]|c[567]|r[567]|i[34]|a[12]|t4g|m[67][aig]|c[67][aig]|r[67][aig])\\.", t))
     ])
-    error_message = "All instance types must be Spot-compatible (t2/t3, m5+, c5+, r5+, i3+, a1+, t4g, m6i, c6i, r6i, etc)"
+    error_message = "All instance types must be Spot-compatible (t2/t3/t4, m5+, c5+, r5+, i3+, a1+, t4g, m6i, c6i, r6i, m7i, c7i, r7i, etc)"
   }
 }
 

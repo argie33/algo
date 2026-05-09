@@ -71,7 +71,7 @@ resource "aws_db_instance" "main" {
 
   # Encryption
   storage_encrypted                   = true
-  kms_key_id                          = var.enable_rds_kms_encryption ? var.rds_kms_key_id : null
+  kms_key_id                          = var.enable_rds_kms_encryption ? aws_kms_key.rds[0].id : null
   iam_database_authentication_enabled = true
 
   # Monitoring & Logs
@@ -82,7 +82,7 @@ resource "aws_db_instance" "main" {
 
   # Deletion Protection
   deletion_protection = var.environment == "prod" ? true : false
-  skip_final_snapshot = var.environment != "prod"  # prod=false (takes snapshot), dev=true (skips)
+  skip_final_snapshot = var.environment != "prod" # prod=false (takes snapshot), dev=true (skips)
 
   # CRITICAL: Always explicitly name final snapshots to prevent accidental loss
   final_snapshot_identifier = var.environment == "prod" ? "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null

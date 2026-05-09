@@ -10,6 +10,9 @@ Execution:
 Expected: 10-50x faster than yfinance-only, 99.5% data quality
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import sys
 import asyncio
@@ -46,7 +49,7 @@ class MultiSourceOHLCVLoader:
             host=os.getenv("DB_HOST", "localhost"),
             port=os.getenv("DB_PORT", "5432"),
             user=os.getenv("DB_USER", "stocks"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=credential_manager.get_db_credentials()["password"],
             database=os.getenv("DB_NAME", "stocks")
         )
 

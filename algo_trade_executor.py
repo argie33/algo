@@ -11,6 +11,9 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import psycopg2
 import uuid
@@ -39,7 +42,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -49,8 +52,8 @@ class TradeExecutor:
 
     def __init__(self, config):
         self.config = config
-        self.alpaca_key = os.getenv('APCA_API_KEY_ID')
-        self.alpaca_secret = os.getenv('APCA_API_SECRET_KEY')
+        self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
+        self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         self.conn = None
         self.cur = None

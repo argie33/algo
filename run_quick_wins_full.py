@@ -4,6 +4,9 @@ Complete Quick Wins deployment test - validates all components work end-to-end.
 Runs: TimescaleDB setup + Multi-source OHLCV loading + Full validation.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import sys
 import psycopg2
@@ -28,7 +31,7 @@ class QuickWinsDeployment:
                 host=os.getenv("DB_HOST", "localhost"),
                 port=int(os.getenv("DB_PORT", "5432")),
                 user=os.getenv("DB_USER", "stocks"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=credential_manager.get_db_credentials()["password"],
                 database=os.getenv("DB_NAME", "stocks")
             )
             print("[OK] Connected to PostgreSQL")

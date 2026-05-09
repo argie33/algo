@@ -294,7 +294,6 @@ EOF
 # ============================================================
 
 resource "aws_batch_compute_environment" "spot" {
-  compute_environment_name = "${var.project_name}-batch-spot-${var.environment}"
   type                     = "MANAGED"
   state                    = "ENABLED"
   service_role             = aws_iam_role.batch_service_role.arn
@@ -448,7 +447,7 @@ resource "aws_batch_job_definition" "buyselldaily" {
 resource "aws_appautoscaling_target" "batch_compute_scaling" {
   max_capacity       = var.batch_max_vcpus
   min_capacity       = 0
-  resource_id        = "computeEnvironment/${aws_batch_compute_environment.spot.compute_environment_name}"
+  resource_id        = "computeEnvironment/${aws_batch_compute_environment.spot.arn}"
   scalable_dimension = "batch:computeEnvironment:desiredvCpus"
   service_namespace  = "batch"
 }

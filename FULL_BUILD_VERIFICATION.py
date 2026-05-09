@@ -15,6 +15,9 @@ Verifies EVERY component of the algo system against specifications:
 10. Frontend (dashboard ready)
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import sys
 import psycopg2
@@ -31,7 +34,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -324,8 +327,8 @@ class FullBuildVerification:
             self.log(valid_mode, "Execution mode", f"mode: {exec_mode}")
 
             # Verify Alpaca keys configured
-            alpaca_key = os.getenv('APCA_API_KEY_ID')
-            alpaca_secret = os.getenv('APCA_API_SECRET_KEY')
+            alpaca_key = credential_manager.get_alpaca_credentials()["key"]
+            alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
             has_keys = bool(alpaca_key and alpaca_secret)
             self.log(has_keys, "Alpaca credentials", "configured" if has_keys else "MISSING")
 

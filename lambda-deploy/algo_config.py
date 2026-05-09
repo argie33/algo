@@ -6,6 +6,9 @@ Centralized configuration from database. Changes take effect immediately without
 Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 try:
     import psycopg2
@@ -36,8 +39,8 @@ def validate_environment():
         print("WARNING: DB_NAME not set, using default 'stocks'")
 
     # Alpaca credentials are optional for paper trading, but check anyway
-    alpaca_key = os.getenv("APCA_API_KEY_ID")
-    alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
+    alpaca_key = credential_manager.get_alpaca_credentials()["key"]
+    alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
     if not alpaca_key or not alpaca_secret:
         print("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
 
@@ -55,7 +58,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 

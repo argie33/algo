@@ -51,6 +51,9 @@ After every phase, results are written to algo_audit_log so the dashboard
 can show exactly what happened and when.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import sys
 import psycopg2
@@ -68,7 +71,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -936,8 +939,8 @@ class Orchestrator:
         API failure so we don't trade when market status is unknown."""
         try:
             import requests
-            key = os.getenv('APCA_API_KEY_ID')
-            secret = os.getenv('APCA_API_SECRET_KEY')
+            key = credential_manager.get_alpaca_credentials()["key"]
+            secret = credential_manager.get_alpaca_credentials()["secret"]
             base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
             if not key or not secret:
                 mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()

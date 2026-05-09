@@ -14,6 +14,9 @@ Hard limits enforced:
 5. Duplicate prevention: block same symbol+side within 5 minutes
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import psycopg2
 import os
 import requests
@@ -33,13 +36,13 @@ class PreTradeChecks:
     def __init__(self, config, alpaca_base_url: str = None, alpaca_key: str = None, alpaca_secret: str = None):
         self.config = config
         self.alpaca_base_url = alpaca_base_url or os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
-        self.alpaca_key = alpaca_key or os.getenv('APCA_API_KEY_ID')
-        self.alpaca_secret = alpaca_secret or os.getenv('APCA_API_SECRET_KEY')
+        self.alpaca_key = alpaca_key or credential_manager.get_alpaca_credentials()["key"]
+        self.alpaca_secret = alpaca_secret or credential_manager.get_alpaca_credentials()["secret"]
 
         self.db_host = os.getenv('DB_HOST', 'localhost')
         self.db_port = int(os.getenv('DB_PORT', 5432))
         self.db_user = os.getenv('DB_USER', 'stocks')
-        self.db_password = os.getenv('DB_PASSWORD', '')
+        self.db_password = credential_manager.get_db_credentials()["password"]
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
         self.conn = None

@@ -3,6 +3,9 @@
 End-to-End Integration Test - Prove all phases work properly
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import sys
 import psycopg2
 import os
@@ -17,7 +20,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -110,8 +113,8 @@ class E2ETest:
             pretrade = PreTradeChecks(
                 config,
                 os.getenv('APCA_API_BASE_URL'),
-                os.getenv('APCA_API_KEY_ID'),
-                os.getenv('APCA_API_SECRET_KEY')
+                credential_manager.get_alpaca_credentials()["key"],
+                credential_manager.get_alpaca_credentials()["secret"]
             )
 
             passed, reason = pretrade.run_all(

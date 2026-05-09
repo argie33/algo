@@ -12,6 +12,9 @@ This test will:
 No filters, no hypotheticals - REAL execution.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import psycopg2
 from pathlib import Path
@@ -29,7 +32,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -75,8 +78,8 @@ except Exception as e:
 print("\n2. Connecting to Alpaca for live price...")
 try:
     api = TradingClient(
-        api_key=os.getenv('APCA_API_KEY_ID'),
-        secret_key=os.getenv('APCA_API_SECRET_KEY')
+        api_key=credential_manager.get_alpaca_credentials()["key"],
+        secret_key=credential_manager.get_alpaca_credentials()["secret"]
     )
 
     # Get live quote

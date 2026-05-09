@@ -185,16 +185,12 @@ variable "api_gateway_logging_enabled" {
 }
 
 variable "api_cors_allowed_origins" {
-  description = "CORS allowed origins for API (will include CloudFront domain automatically)"
+  description = "CORS allowed origins for API. For dev: defaults to localhost. For prod: must provide explicit origins without localhost."
   type        = list(string)
-  default = var.environment == "prod" ? [] : [
+  default = [
     "http://localhost:5173",
     "http://localhost:3000"
   ]
-  validation {
-    condition     = var.environment != "prod" || length([for origin in var.api_cors_allowed_origins if contains(["localhost", "127.0.0.1"], lower(split(":", origin)[1]))]) == 0
-    error_message = "Production CORS origins must not include localhost or 127.0.0.1"
-  }
 }
 
 # ============================================================

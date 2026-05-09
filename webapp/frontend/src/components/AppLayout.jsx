@@ -17,7 +17,7 @@ import {
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, Sliders, GitBranch,
   HeartPulse, Zap, Boxes, ShieldCheck, Crosshair,
-  Bot, BarChart2,
+  Bot, BarChart2, Bell,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -72,6 +72,7 @@ const NAV_SECTIONS = [
     title: 'System',
     items: [
       { text: 'Service Health', icon: HeartPulse, path: '/app/health' },
+      { text: 'Notifications', icon: Bell, path: '/app/notifications' },
     ],
   },
 ];

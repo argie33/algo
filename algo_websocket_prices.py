@@ -4,6 +4,9 @@ Alpaca WebSocket price stream - stream live prices to frontend clients.
 Connects to Alpaca Data WebSocket API for real-time quotes.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import json
 import asyncio
@@ -32,7 +35,7 @@ if env_file.exists():
 logger = logging.getLogger(__name__)
 
 ALPACA_WS_URL = "wss://data.alpaca.markets/v1beta1/crypto" if os.getenv('ALPACA_WS_MODE') == 'crypto' else "wss://data.alpaca.markets/v1beta3/news"
-ALPACA_API_KEY = os.getenv('APCA_API_KEY_ID')
+ALPACA_API_KEY = credential_manager.get_alpaca_credentials()["key"]
 
 
 class PriceStreamServer:
@@ -157,7 +160,7 @@ class AlpacaPriceConnector:
                 auth_msg = {
                     "action": "auth",
                     "key": ALPACA_API_KEY,
-                    "secret": os.getenv('APCA_API_SECRET_KEY'),
+                    "secret": credential_manager.get_alpaca_credentials()["secret"],
                 }
                 ws.send(json.dumps(auth_msg))
 

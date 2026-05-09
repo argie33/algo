@@ -11,6 +11,9 @@ Rules:
 - Max positions: 12 concurrent
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import psycopg2
 from pathlib import Path
@@ -25,7 +28,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
@@ -76,8 +79,8 @@ class PositionSizer:
     def _fetch_live_alpaca_equity(self):
         """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
         import requests
-        key = os.getenv('APCA_API_KEY_ID')
-        secret = os.getenv('APCA_API_SECRET_KEY')
+        key = credential_manager.get_alpaca_credentials()["key"]
+        secret = credential_manager.get_alpaca_credentials()["secret"]
         base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         if not key or not secret:
             return None

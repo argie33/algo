@@ -6,6 +6,9 @@ Prompts for credentials, validates, writes .env.local, tests everything.
 Safe: checks existing env vars, validates inputs, backs up old .env.local
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import os
 import sys
 import getpass
@@ -107,7 +110,7 @@ ALERT_WEBHOOK_URL={config.get('slack_webhook', '')}
 DB_HOST={os.getenv('DB_HOST', 'localhost')}
 DB_PORT={os.getenv('DB_PORT', '5432')}
 DB_USER={os.getenv('DB_USER', 'stocks')}
-DB_PASSWORD={os.getenv('DB_PASSWORD', '')}
+DB_PASSWORD={credential_manager.get_db_credentials()["password"]}
 DB_NAME={os.getenv('DB_NAME', 'stocks')}
 
 # ============================================================

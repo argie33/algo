@@ -10,6 +10,9 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import psycopg2
 import os
 import requests
@@ -29,13 +32,13 @@ class MarketEventHandler:
     def __init__(self, config):
         self.config = config
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
-        self.alpaca_key = os.getenv('APCA_API_KEY_ID')
-        self.alpaca_secret = os.getenv('APCA_API_SECRET_KEY')
+        self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
+        self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
 
         self.db_host = os.getenv('DB_HOST', 'localhost')
         self.db_port = int(os.getenv('DB_PORT', 5432))
         self.db_user = os.getenv('DB_USER', 'stocks')
-        self.db_password = os.getenv('DB_PASSWORD', '')
+        self.db_password = credential_manager.get_db_credentials()["password"]
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
         self.conn = None

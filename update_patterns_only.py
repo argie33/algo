@@ -3,6 +3,9 @@
 Update base_type patterns in database using proven Tier 1 algorithm
 Bypasses technical indicator issues - PATTERNS ONLY
 """
+from credential_manager import get_credential_manager
+credential_manager = get_credential_manager()
+
 import psycopg2
 from psycopg2.extras import execute_batch
 import pandas as pd
@@ -29,7 +32,7 @@ def get_db_connection():
         host=os.getenv('DB_HOST', 'localhost'),
         port=int(os.getenv('DB_PORT', 5432)),
         user=os.getenv('DB_USER', 'stocks'),
-        password=os.getenv('DB_PASSWORD', ''),
+        password=credential_manager.get_db_credentials()["password"],
         dbname=os.getenv('DB_NAME', 'stocks')
     )
 

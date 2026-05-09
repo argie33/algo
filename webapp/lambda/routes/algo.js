@@ -940,20 +940,39 @@ router.get('/notifications', async (req, res) => {
   try {
     const pool = getPool();
     const limit = parseInt(req.query.limit) || 50;
-    const result = await pool.query(
-      `SELECT id, kind, severity, title, message, symbol, details, seen, created_at
-       FROM algo_notifications
-       WHERE seen = FALSE
-       ORDER BY
-         CASE severity
-           WHEN 'critical' THEN 1
-           WHEN 'error' THEN 2
-           WHEN 'warning' THEN 3
-           ELSE 4 END,
-         created_at DESC
-       LIMIT $1`,
-      [limit]
-    );
+    const kind = req.query.kind || null;
+    const severity = req.query.severity || null;
+    const unread = req.query.unread === 'true';
+
+    let sql = `SELECT id, kind, severity, title, message, symbol, details, seen, created_at
+               FROM algo_notifications
+               WHERE 1=1`;
+    const params = [];
+
+    if (unread) {
+      sql += ` AND seen = FALSE`;
+    }
+    if (kind && kind !== 'all') {
+      sql += ` AND kind = $${params.length + 1}`;
+      params.push(kind);
+    }
+    if (severity && severity !== 'all') {
+      sql += ` AND severity = $${params.length + 1}`;
+      params.push(severity);
+    }
+
+    sql += ` ORDER BY
+               CASE severity
+                 WHEN 'critical' THEN 1
+                 WHEN 'error' THEN 2
+                 WHEN 'warning' THEN 3
+                 ELSE 4 END,
+               created_at DESC
+             LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await pool.query(sql, params);
+
     return res.json({
       success: true,
       items: result.rows,
@@ -964,6 +983,34 @@ router.get('/notifications', async (req, res) => {
   }
 });
 
+// Mark single notification as read (PATCH)
+router.patch('/notifications/:id/read', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { id } = req.params;
+    const result = await pool.query(
+      `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [id]
+    );
+    return res.json({ success: true, updated: result.rowCount, timestamp: new Date() });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete single notification
+router.delete('/notifications/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { id } = req.params;
+    const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
+    return res.json({ success: true, deleted: result.rowCount, timestamp: new Date() });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Batch mark as seen (legacy endpoint)
 router.post('/notifications/seen', requireAuth, async (req, res) => {
   try {
     const pool = getPool();

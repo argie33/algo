@@ -1,18 +1,10 @@
-# ============================================================
-# Root Module - Terraform & Provider Versions
-# ============================================================
-
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.0"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.0"
+      version = ">= 4.0"
     }
   }
 }
@@ -23,8 +15,4 @@ provider "aws" {
   default_tags {
     tags = local.common_tags
   }
-
-  # Prevent accidental deletion of critical resources
-  skip_credentials_validation = false
-  skip_requesting_account_id  = false
 }
