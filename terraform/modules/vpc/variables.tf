@@ -78,19 +78,3 @@ variable "common_tags" {
   description = "Common tags applied to all resources"
   type        = map(string)
 }
-
-# ============================================================
-# Optional: Existing VPC Reference
-# ============================================================
-
-variable "use_existing_vpc" {
-  description = "Whether to use existing VPC (if false, create new VPC)"
-  type        = bool
-  default     = false
-}
-
-variable "existing_vpc_id" {
-  description = "Existing VPC ID to use (only if use_existing_vpc is true)"
-  type        = string
-  default     = null
-}
