@@ -27,7 +27,8 @@ enable_vpc_endpoints = true
 # ============================================================
 
 rds_username                = "stocks"
-rds_password                = "StocksProd2024!" # REQUIRED: Change to a unique password for production
+# rds_password will be provided via TF_VAR_rds_password environment variable
+# REQUIRED: Set environment variable before terraform apply
 rds_db_name                 = "stocks"
 rds_instance_class          = "db.t3.micro"
 rds_allocated_storage       = 61
