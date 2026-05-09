@@ -513,6 +513,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 resource "aws_db_proxy" "main" {
   name                   = "${var.project_name}-proxy-${var.environment}"
   engine_family          = "POSTGRESQL"
+
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.db_credentials.arn
@@ -522,12 +523,8 @@ resource "aws_db_proxy" "main" {
   role_arn               = aws_iam_role.rds_proxy_role.arn
   database_url           = "postgresql://${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.rds_db_name}"
   max_connections        = 100
-  max_connection_idle_in_minutes = 30
-
-  # Connection pool settings
-  init_query             = ""
+  max_idle_connections   = 30
   connection_borrow_timeout = 120
-  session_pinning_filters = ["EXCLUDE_VARIABLE_SETS"]
 
   vpc_subnet_ids            = var.private_subnet_ids
   vpc_security_group_ids    = [aws_security_group.rds_proxy.id]

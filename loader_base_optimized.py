@@ -19,6 +19,13 @@ from psycopg2.extras import execute_values
 from typing import List, Tuple, Dict, Any
 import time
 
+try:
+    from connection_pool_monitor import get_pool_monitor, get_health_checker
+except ImportError:
+    # Monitor is optional - graceful fallback if module not available
+    get_pool_monitor = None
+    get_health_checker = None
+
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath
 try:
@@ -36,12 +43,12 @@ logger = logging.getLogger(__name__)
 class OptimizedLoader:
     """Base class for optimized data loaders with batching and connection pooling."""
 
-    def __init__(self, batch_size: int = 500, commit_every_n_symbols: int = 50):
+    def __init__(self, batch_size: int = 500, commit_every_n_symbols: int = 50, source_name: str = None):
         """
         Args:
             batch_size: How many rows to INSERT in one statement (default: 500)
             commit_every_n_symbols: Commit database changes after processing N symbols (default: 50)
-                Increased from 10 for better throughput (fewer transaction roundtrips)
+            source_name: Name for connection pool monitoring (e.g., 'loader_daily_prices')
         """
         self.batch_size = batch_size
         self.commit_every_n_symbols = commit_every_n_symbols
@@ -51,6 +58,13 @@ class OptimizedLoader:
         self.pending_rows = []  # Accumulate rows before batch insert
         self.symbols_processed = 0
         self.total_rows_inserted = 0
+
+        # Initialize connection pool monitor (optional)
+        self.monitor = None
+        self.health_checker = None
+        if get_pool_monitor and source_name:
+            self.monitor = get_pool_monitor(source_name)
+            self.health_checker = get_health_checker(source_name, auto_start=True)
 
     def _get_db_config(self) -> Dict[str, Any]:
         """Get database config from AWS Secrets Manager or env vars."""
@@ -88,21 +102,37 @@ class OptimizedLoader:
 
     def connect(self):
         """Establish database connection."""
+        start_time = time.time()
         try:
             self.conn = psycopg2.connect(**self.config)
             self.cur = self.conn.cursor()
+            wait_ms = (time.time() - start_time) * 1000
+            if self.monitor:
+                self.monitor.record_connection_wait(wait_ms)
             logger.info(f"Connected to {self.config['host']}:{self.config['port']}/{self.config['dbname']}")
         except Exception as e:
+            if self.monitor:
+                self.monitor.record_failed_connection(str(e))
             logger.error(f"Failed to connect: {e}")
             raise
 
     def disconnect(self):
         """Close database connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        logger.info("Database disconnected")
+        try:
+            if self.cur:
+                self.cur.close()
+            if self.conn:
+                self.conn.close()
+
+                # Record final connection stats before disconnect
+                if self.monitor:
+                    self.monitor.publish_metrics()
+
+            logger.info("Database disconnected")
+        finally:
+            # Stop health checker if running
+            if self.health_checker:
+                self.health_checker.stop()
 
     def add_row(self, row: Tuple) -> None:
         """Queue a row for batch insertion."""

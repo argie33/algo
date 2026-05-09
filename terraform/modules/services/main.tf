@@ -34,61 +34,25 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 }
 
 # ============================================================
-# API Lambda Function (placeholder - to be replaced with actual code)
+# API Lambda Function - Real Implementation
 # ============================================================
-# NOTE: This creates a minimal placeholder Lambda function.
-# Replace the code by updating the function with your actual API implementation.
-# You can deploy new code via: aws lambda update-function-code --function-name <name> --zip-file fileb://api.zip
+# Points to the actual API implementation at lambda/api/lambda_function.py
 
-data "archive_file" "api_placeholder" {
+data "archive_file" "api_function" {
   type        = "zip"
-  output_path = "${path.module}/api_placeholder.zip"
-  source {
-    content  = <<-EOT
-import json
-import logging
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-def handler(event, context):
-    """
-    API Gateway proxy handler for ${var.project_name} API.
-    This is a placeholder - replace with actual implementation.
-    """
-    try:
-        logger.info(f"Received request: {event['requestContext']['http']['method']} {event['rawPath']}")
-
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                'message': 'API placeholder - deployment successful',
-                'service': '${var.project_name}-api',
-                'environment': '${var.environment}'
-            })
-        }
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Internal server error'})
-        }
-EOT
-    filename = "index.py"
-  }
+  output_path = "${path.module}/../../lambda/api/api_lambda.zip"
+  source_dir  = "${path.module}/../../lambda/api"
 }
 
 resource "aws_lambda_function" "api" {
-  filename         = data.archive_file.api_placeholder.output_path
+  filename         = data.archive_file.api_function.output_path
   function_name    = local.api_lambda_name
   role             = var.api_lambda_role_arn
-  handler          = "index.handler"
+  handler          = "lambda_function.lambda_handler"
   runtime          = "python3.11"
   timeout          = var.api_lambda_timeout
   memory_size      = var.api_lambda_memory
-  source_code_hash = data.archive_file.api_placeholder.output_base64sha256
+  source_code_hash = data.archive_file.api_function.output_base64sha256
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
@@ -110,10 +74,6 @@ resource "aws_lambda_function" "api" {
   depends_on = [
     aws_cloudwatch_log_group.api_lambda
   ]
-
-  lifecycle {
-    ignore_changes = [filename, source_code_hash]
-  }
 
   tags = merge(var.common_tags, {
     Name = local.api_lambda_name
