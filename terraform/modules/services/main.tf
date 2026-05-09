@@ -2,8 +2,6 @@
 # Services Module - REST API, CloudFront, Cognito, Algo
 # ============================================================
 
-data "aws_caller_identity" "current" {}
-
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
@@ -309,7 +307,7 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
         Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
         Condition = {
           StringEquals = {
-            "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.frontend[0].id}"
+            "AWS:SourceArn" = "arn:aws:cloudfront::${var.aws_account_id}:distribution/${aws_cloudfront_distribution.frontend[0].id}"
           }
         }
       }
@@ -657,5 +655,5 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.algo.function_name
   principal     = "scheduler.amazonaws.com"
-  source_arn    = "arn:aws:scheduler:${var.aws_region}:${data.aws_caller_identity.current.account_id}:schedule/*/*"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }

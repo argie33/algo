@@ -237,7 +237,6 @@ resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
   alarm_description   = "Composite alarm: API Gateway returning 5xx OR Lambda errors exceed threshold"
   actions_enabled     = var.sns_alerts_enabled
   alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
-  actions_on_alarm    = true
 
   # Trigger if either 5xx errors OR Lambda errors are high
   alarm_rule = "ALARM(${var.apigw_5xx_alarm_name}) OR ALARM(${var.api_lambda_errors_alarm_name})"

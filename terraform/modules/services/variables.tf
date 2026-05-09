@@ -25,6 +25,15 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_account_id" {
+  description = "AWS account ID"
+  type        = string
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "AWS account ID must be 12 digits"
+  }
+}
+
 variable "common_tags" {
   description = "Common tags applied to all resources"
   type        = map(string)

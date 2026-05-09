@@ -126,6 +126,7 @@ module "services" {
   project_name                      = var.project_name
   environment                       = var.environment
   aws_region                        = var.aws_region
+  aws_account_id                    = data.aws_caller_identity.current.account_id
   vpc_id                            = module.vpc.vpc_id
   private_subnet_ids                = module.vpc.private_subnet_ids
   ecs_tasks_security_group_id       = module.vpc.ecs_tasks_security_group_id
