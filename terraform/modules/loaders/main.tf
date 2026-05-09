@@ -414,8 +414,10 @@ locals {
     "signals_daily"     = { cpu = 256, memory = 512, timeout = 900 }
     "signals_weekly"    = { cpu = 256, memory = 512, timeout = 900 }
     "signals_monthly"   = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_etf_daily" = { cpu = 256, memory = 512, timeout = 900 }
-    "etf_signals"       = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_etf_daily"   = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_etf_weekly"  = { cpu = 256, memory = 512, timeout = 900 }
+    "signals_etf_monthly" = { cpu = 256, memory = 512, timeout = 900 }
+    "etf_signals"         = { cpu = 256, memory = 512, timeout = 900 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600 }
@@ -428,7 +430,7 @@ locals {
   critical_loaders = toset([
     "stock_prices_daily", "stock_prices_weekly", "stock_prices_monthly",
     "etf_prices_daily", "etf_prices_weekly", "etf_prices_monthly",
-    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "etf_signals",
+    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly", "etf_signals",
     "algo_metrics_daily"
   ])
 }
