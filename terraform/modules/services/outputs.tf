@@ -52,26 +52,8 @@ output "website_url" {
   value       = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : null
 }
 
-output "cognito_user_pool_id" {
-  description = "Cognito user pool ID"
-  value       = var.cognito_enabled ? aws_cognito_user_pool.main[0].id : null
-}
-
-output "cognito_user_pool_arn" {
-  description = "Cognito user pool ARN"
-  value       = var.cognito_enabled ? aws_cognito_user_pool.main[0].arn : null
-}
-
-output "cognito_client_id" {
-  description = "Cognito app client ID"
-  value       = var.cognito_enabled ? aws_cognito_user_pool_client.main[0].id : null
-}
-
-output "cognito_client_secret" {
-  description = "Cognito app client secret (sensitive)"
-  value       = var.cognito_enabled ? aws_cognito_user_pool_client.main[0].client_secret : null
-  sensitive   = true
-}
+# Cognito outputs moved to root cognito.tf to avoid duplication
+# See cognito.tf for: cognito_user_pool_id, cognito_user_pool_client_id, cognito_domain_url
 
 output "algo_lambda_arn" {
   description = "ARN of the algo orchestrator Lambda function"

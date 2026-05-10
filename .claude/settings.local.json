@@ -199,7 +199,10 @@
       "Bash(sed -n '215,222p' algo_paper_mode_gates.py)",
       "Bash(tee orchestrator_test.log)",
       "Bash(pkill -f \"tail -f\")",
-      "Bash(jobs *)"
+      "Bash(jobs *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*dashboard*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 20)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ]
   }
 }

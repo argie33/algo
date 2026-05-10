@@ -154,10 +154,13 @@ resource "aws_apigatewayv2_authorizer" "cognito" {
   identity_sources = ["$request.header.Authorization"]
 
   jwt_configuration {
-    audience = [aws_cognito_user_pool_client.main[0].id]
-    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main[0].id}"
+    # Note: These values must be populated from root cognito module
+    audience = ["COGNITO_CLIENT_ID_FROM_ROOT_MODULE"]
+    issuer   = "COGNITO_ISSUER_FROM_ROOT_MODULE"
   }
 }
+
+# TODO: Wire cognito module outputs to authorizer after root module is applied
 
 # All API routes require a valid Cognito JWT token
 resource "aws_apigatewayv2_route" "api_default" {
@@ -348,87 +351,11 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
 
 # ============================================================
 # Cognito User Pool (Authentication)
+# NOTE: Cognito is now managed by root-level cognito module
+# (see ../cognito.tf for details)
 # ============================================================
-
-resource "aws_cognito_user_pool" "main" {
-  count = var.cognito_enabled ? 1 : 0
-  name  = coalesce(var.cognito_user_pool_name, "${var.project_name}-${var.environment}-users")
-
-  password_policy {
-    minimum_length    = var.cognito_password_min_length
-    require_uppercase = true
-    require_lowercase = true
-    require_numbers   = true
-    require_symbols   = true
-  }
-
-  mfa_configuration = var.cognito_mfa_configuration
-
-  # Software token MFA (required if MFA is enabled)
-  software_token_mfa_configuration {
-    enabled = var.cognito_mfa_configuration != "OFF" ? true : false
-  }
-
-  auto_verified_attributes   = ["email"]
-  email_verification_message = "Your verification code is {####}"
-  email_verification_subject = "Stocks Analytics - Email Verification"
-
-  account_recovery_setting {
-    recovery_mechanism {
-      name     = "verified_email"
-      priority = 1
-    }
-  }
-
-  user_attribute_update_settings {
-    attributes_require_verification_before_update = ["email"]
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-cognito-pool-${var.environment}"
-  })
-
-  lifecycle {
-    ignore_changes = [schema]
-  }
-}
-
-resource "aws_cognito_user_pool_client" "main" {
-  count               = var.cognito_enabled ? 1 : 0
-  user_pool_id        = aws_cognito_user_pool.main[0].id
-  name                = "${var.project_name}-app-client-${var.environment}"
-  generate_secret     = false
-  explicit_auth_flows = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
-
-  callback_urls = concat(
-    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/callback"] : [],
-    var.environment == "dev" ? ["http://localhost:3000/callback", "http://localhost:5173/callback"] : []
-  )
-
-  logout_urls = concat(
-    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}/logout"] : [],
-    var.environment == "dev" ? ["http://localhost:3000/logout", "http://localhost:5173/logout"] : []
-  )
-
-  allowed_oauth_flows                  = ["code"]
-  allowed_oauth_scopes                 = ["openid", "email", "profile"]
-  allowed_oauth_flows_user_pool_client = true
-  prevent_user_existence_errors        = "ENABLED"
-
-  access_token_validity  = var.cognito_session_duration_hours
-  id_token_validity      = var.cognito_session_duration_hours
-  refresh_token_validity = 30
-
-  token_validity_units {
-    access_token  = "hours"
-    id_token      = "hours"
-    refresh_token = "days"
-  }
-
-  depends_on = [
-    aws_cognito_user_pool.main
-  ]
-}
+# Removed duplicate resources to avoid conflict with root cognito module.
+# All Cognito configuration is now in modules/cognito/
 
 # ============================================================
 # Lambda Algo Role - Reference from IAM module
