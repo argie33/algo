@@ -98,42 +98,42 @@ export default function StockDetail() {
   const histLimit = { '1M': 30, '3M': 65, '6M': 130, '1Y': 260, '5Y': 1260, 'All': 5200 }[tf] || 130;
 
   // ── Queries ──
-  const { data: priceData, loading: priceLoading, refetch: refetchPrice } = useApiQuery(
+  const { data: priceData, loading: priceLoading, error: priceError, refetch: refetchPrice } = useApiQuery(
     ['stock-price', symbol, histLimit],
     () => api.get(`/api/prices/history/${symbol}?days=${Math.ceil(histLimit / 5)}&limit=${histLimit}`),
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
-  const { data: profileData } = useApiQuery(
+  const { data: profileData, error: profileError, refetch: refetchProfile } = useApiQuery(
     ['stock-profile', symbol],
     () => api.get(`/api/stocks/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Scores w/ all factor inputs (single-symbol path triggers full enrichment)
-  const scoreQueryResult = useApiQuery(
+  const { data: scoreData, error: scoreError, refetch: refetchScore } = useApiQuery(
     ['stock-scores-detail', symbol],
     () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
     { enabled: !!symbol }
   );
-  const scoreRow = scoreQueryResult.data?.[0] || null;
+  const scoreRow = scoreData?.[0] || null;
 
   // Key metrics (sector/industry + market cap + ownership %)
-  const { data: keyMetricsData } = useApiQuery(
+  const { data: keyMetricsData, error: keyMetricsError, refetch: refetchKeyMetrics } = useApiQuery(
     ['stock-keymetrics', symbol],
     () => api.get(`/api/financials/${symbol}/key-metrics`),
     { enabled: !!symbol }
   );
 
   // Signals (last 60d)
-  const { data: signalsData } = useApiQuery(
+  const { data: signalsData, error: signalsError, refetch: refetchSignals } = useApiQuery(
     ['stock-signals', symbol],
     () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=60`),
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
   // Algo swing-score (full eval)
-  const swingScoreQuery = useApiQuery(
+  const { data: swingScore, error: swingScoreError, refetch: refetchSwingScore } = useApiQuery(
     ['stock-swing-score', symbol],
     async () => {
       const r = await api.get(`/api/algo/swing-scores?limit=2000`);
@@ -142,31 +142,30 @@ export default function StockDetail() {
     },
     { enabled: !!symbol, staleTime: 60_000 }
   );
-  const swingScore = swingScoreQuery.data;
 
   // Analyst sentiment
-  const { data: analystData } = useApiQuery(
+  const { data: analystData, error: analystError, refetch: refetchAnalyst } = useApiQuery(
     ['stock-analyst', symbol],
     () => api.get(`/api/sentiment/analyst/insights/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Income statement
-  const { data: incomeData } = useApiQuery(
+  const { data: incomeData, error: incomeError, refetch: refetchIncome } = useApiQuery(
     ['stock-income', symbol],
     () => api.get(`/api/financials/${symbol}/income-statement?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Balance sheet
-  const { data: balanceData } = useApiQuery(
+  const { data: balanceData, error: balanceError, refetch: refetchBalance } = useApiQuery(
     ['stock-balance', symbol],
     () => api.get(`/api/financials/${symbol}/balance-sheet?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Cash flow
-  const { data: cashflowData } = useApiQuery(
+  const { data: cashflowData, error: cashflowError, refetch: refetchCashflow } = useApiQuery(
     ['stock-cashflow', symbol],
     () => api.get(`/api/financials/${symbol}/cash-flow?period=quarterly`),
     { enabled: !!symbol }
