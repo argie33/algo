@@ -82,14 +82,6 @@ jobs:
           terraform_version: 1.7.0
           terraform_wrapper: false
 
-      - name: Bootstrap AWS prerequisites (S3 state bucket + DynamoDB locks)
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        working-directory: ${{ github.workspace }}
-        run: |
-          bash .github/workflows/bootstrap.sh "${{ env.AWS_REGION }}" "${{ secrets.AWS_ACCOUNT_ID }}"
-
       - name: Terraform Init
         run: |
           terraform init \
