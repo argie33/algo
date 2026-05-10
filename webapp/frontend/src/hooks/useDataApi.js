@@ -57,7 +57,7 @@ export const usePriceHistory = (symbol, params = {}) => {
   const { days = 365, interval = 'daily' } = params;
   return useApiQuery(
     ['priceHistory', symbol, days, interval],
-    () => api.get(`/api/price/history/${symbol}`, { params: { days, interval } }),
+    () => api.get(`/api/prices/history/${symbol}`, { params: { days, interval } }),
     { enabled: !!symbol }
   );
 };

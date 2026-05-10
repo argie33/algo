@@ -950,7 +950,7 @@ function DataStatusTab({ dataStatus, patrolLog }) {
   const runPatrol = async () => {
     setRunning(true);
     try {
-      await api.post('/algo/patrol', { quick: false });
+      await api.post('/api/algo/patrol', { quick: false });
       window.location.reload();
     } catch (e) {
       console.error(e);
