@@ -59,6 +59,11 @@ class EconomicCalendar:
         if eval_time is None:
             eval_time = datetime.now()
 
+        # D4: FOMC Full-Day Gate — no entries on FOMC decision days
+        fomc_check = self.is_fomc_day(eval_time)
+        if not fomc_check['can_enter']:
+            return False, fomc_check['reason']
+
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
@@ -87,6 +92,49 @@ class EconomicCalendar:
         except Exception as e:
             logger.warning(f"Economic calendar check error: {e}")
             return True, "Calendar check skipped (error)"
+
+    def is_fomc_day(self, eval_time: Optional[datetime] = None) -> Dict[str, Any]:
+        """D4: FOMC Full-Day Gate — No new entries on FOMC decision days.
+
+        FOMC days see extreme volatility throughout the entire day, not just at announcement.
+        Returns {'can_enter': bool, 'reason': str}
+        """
+        if eval_time is None:
+            eval_time = datetime.now()
+
+        try:
+            conn = psycopg2.connect(**_get_db_config())
+            cur = conn.cursor()
+
+            # Check if today is an FOMC decision day
+            eval_date = eval_time.date()
+            cur.execute(
+                """SELECT event_name, scheduled_time FROM economic_calendar
+                   WHERE DATE(scheduled_time) = %s
+                   AND (event_name ILIKE '%FOMC%' OR event_name ILIKE '%Federal Open Market%')
+                   LIMIT 1""",
+                (eval_date,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if row:
+                event_name, event_time = row
+                return {
+                    'can_enter': False,
+                    'reason': f'FOMC decision day ({event_name}): no new entries',
+                    'is_fomc_day': True,
+                }
+
+            return {
+                'can_enter': True,
+                'reason': 'Not an FOMC day',
+                'is_fomc_day': False,
+            }
+        except Exception as e:
+            logger.warning(f"FOMC day check error: {e}")
+            return {'can_enter': True, 'reason': 'FOMC check error (continuing)', 'is_fomc_day': False}
 
     def get_market_quiet_period_status(self) -> Dict[str, Any]:
         """Get status of next major release. Returns dict with details."""

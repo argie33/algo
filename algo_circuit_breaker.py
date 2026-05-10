@@ -86,6 +86,7 @@ class CircuitBreaker:
 
             for name, fn in [
                 ('drawdown', self._check_drawdown),
+                ('drawdown_re_engagement', self._check_drawdown_re_engagement),  # C2: Re-engagement protocol
                 ('daily_loss', self._check_daily_loss),
                 ('consecutive_losses', self._check_consecutive_losses),
                 ('win_rate_floor', self._check_win_rate_floor),
@@ -159,6 +160,91 @@ class CircuitBreaker:
             'reason': f'Drawdown {dd:.2f}% >= {threshold:.0f}%' if dd >= threshold else f'Drawdown {dd:.2f}%',
             'value': round(dd, 2),
             'threshold': threshold,
+        }
+
+    def _check_drawdown_re_engagement(self, current_date: Any) -> Dict[str, Any]:
+        """C2: Drawdown Re-engagement Protocol.
+
+        After a drawdown halt, require conditions to resume:
+        1. Portfolio recovered to within N% of peak (not at peak)
+        2. Market shows Follow-Through Day signal (optional)
+        3. At least N days have passed since halt
+        """
+        threshold = float(self.config.get('halt_drawdown_pct', 15.0))
+
+        # First check: is current drawdown >= threshold? If not, no re-engagement needed
+        self.cur.execute(
+            """
+            SELECT MAX(total_portfolio_value),
+                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+            FROM algo_portfolio_snapshots
+            """
+        )
+        row = self.cur.fetchone()
+        if not row or not row[0] or not row[1]:
+            return {'halted': False, 'reason': 'No halt history'}
+
+        peak = float(row[0])
+        cur_val = float(row[1])
+        if peak <= 0 or cur_val <= 0:
+            return {'halted': False, 'reason': 'Invalid values'}
+
+        dd = ((peak - cur_val) / peak * 100.0)
+
+        # If NOT currently halted due to drawdown, no re-engagement check needed
+        if dd < threshold:
+            return {'halted': False, 'reason': 'Not in drawdown halt'}
+
+        # We ARE in drawdown halt. Check if we can resume.
+        recovery_threshold = float(self.config.get('re_engage_recovery_pct', 8.0))
+        min_days_elapsed = int(self.config.get('re_engage_min_days', 5))
+        require_ftd = bool(self.config.get('require_ftd_to_re_engage', True))
+
+        # Check 1: Has portfolio recovered to within recovery_threshold of peak?
+        recovery_pct = (peak - cur_val) / peak * 100.0  # Current distance from peak
+        if recovery_pct > recovery_threshold:
+            return {
+                'halted': True,
+                'reason': f'Drawdown {dd:.1f}%, need recovery to {recovery_threshold:.1f}% to resume (currently {recovery_pct:.1f}%)',
+            }
+
+        # Check 2: Has enough time elapsed since halt?
+        # Find the date of the latest drawdown halt event
+        self.cur.execute(
+            """
+            SELECT timestamp FROM algo_audit_log
+            WHERE action_type = 'circuit_breaker' AND details ILIKE '%drawdown%'
+            ORDER BY timestamp DESC LIMIT 1
+            """
+        )
+        halt_row = self.cur.fetchone()
+        if halt_row:
+            halt_date = halt_row[0]
+            days_elapsed = (current_date - halt_date.date()).days if isinstance(halt_date, datetime) else (current_date - halt_date).days
+            if days_elapsed < min_days_elapsed:
+                return {
+                    'halted': True,
+                    'reason': f'Halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume',
+                }
+
+        # Check 3: Require Follow-Through Day signal (optional)
+        if require_ftd:
+            # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
+            # For now, simplified check: market is in Stage 2
+            self.cur.execute(
+                "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1"
+            )
+            market_row = self.cur.fetchone()
+            if not market_row or market_row[0] != 2:
+                return {
+                    'halted': True,
+                    'reason': 'Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)',
+                }
+
+        # All conditions met — re-engagement approved
+        return {
+            'halted': False,
+            'reason': f'Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2',
         }
 
     def _check_daily_loss(self, current_date: Any) -> Dict[str, Any]:

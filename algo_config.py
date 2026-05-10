@@ -139,9 +139,16 @@ class AlgoConfig:
         'chandelier_atr_mult': ('3.0', 'float', 'ATR multiplier for chandelier stop'),
         'move_be_at_r': ('1.0', 'float', 'R-multiple to trigger breakeven stop raise'),
 
-        # Pyramid Entry
+        # Pyramid Entry (Sprint 3)
         'pyramid_enabled': ('true', 'bool', 'Enable multi-entry pyramiding'),
         'pyramid_split_pct': ('50,33,17', 'string', 'Entry size split %'),
+        'pyramid_add_1_gain_pct': ('2.0', 'float', 'Gain % to trigger Add #1'),
+        'pyramid_add_2_gain_pct': ('3.0', 'float', 'Additional gain % to trigger Add #2'),
+
+        # Drawdown Re-engagement (Sprint 3)
+        're_engage_recovery_pct': ('8.0', 'float', '% recovery from peak to resume trading'),
+        're_engage_min_days': ('5', 'int', 'Min days after halt before re-engagement'),
+        'require_ftd_to_re_engage': ('true', 'bool', 'Require Follow-Through Day signal'),
 
         # Execution Mode
         'execution_mode': ('paper', 'string', 'paper|dry|review|auto'),
