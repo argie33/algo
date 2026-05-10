@@ -46,16 +46,16 @@ jobs:
       - name: Get ECR repository URL
         id: ecr
         run: |
-          # ECR repo is named stocks-loaders-dev by Terraform convention
+          # ECR repo is named algo-registry by Terraform convention
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
           # Try to find the actual repo; fall back to constructed name
           ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-            --query 'repositories[?starts_with(repositoryName, `stocks`)].repositoryUri | [0]' \
+            --query 'repositories[?starts_with(repositoryName, `algo`)].repositoryUri | [0]' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
-            ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/stocks-loaders-dev"
+            ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/algo-registry"
           fi
 
           echo "ecr_url=${ECR_URL}" >> $GITHUB_OUTPUT
