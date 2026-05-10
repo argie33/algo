@@ -69,10 +69,13 @@ class BuySellDailyLoader(OptimalLoader):
         if not rows:
             return None
 
+        # Fetch SPY data for Mansfield RS calculation
+        spy_rows = self._fetch_price_daily('SPY', start, end)
+
         # Fetch trend template data for stage/trend info
         trend_data = self._fetch_trend_data(symbol, start, end)
 
-        signals = self._compute_signals(symbol, rows, trend_data)
+        signals = self._compute_signals(symbol, rows, trend_data, spy_rows)
         if not signals:
             # No signals computed at all (e.g., insufficient data)
             return None
@@ -147,7 +150,7 @@ class BuySellDailyLoader(OptimalLoader):
         except Exception:
             return {}
 
-    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None) -> Optional[List[dict]]:
+    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None, spy_rows: List[dict] = None) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 50:
             return None
@@ -174,6 +177,14 @@ class BuySellDailyLoader(OptimalLoader):
         if len(df) < 50:
             return None
 
+        # Prepare SPY data for Mansfield RS calculation
+        spy_df = None
+        if spy_rows:
+            spy_df = pd.DataFrame(spy_rows)
+            spy_df["close"] = pd.to_numeric(spy_df["close"], errors="coerce")
+            spy_df["date"] = pd.to_datetime(spy_df["date"])
+            spy_df = spy_df.dropna(subset=["close"]).set_index("date")
+
         df["rsi"] = self._compute_rsi(df["close"], 14)
         macd, signal_line = self._compute_macd(df["close"])
         df["macd"] = macd
@@ -187,7 +198,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         signals = []
         for _, row in df.iterrows():
-            sig = self._generate_signal_row(row, symbol, pd, trend_data)
+            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df)
             if sig:
                 signals.append(sig)
 
@@ -242,7 +253,7 @@ class BuySellDailyLoader(OptimalLoader):
         adx = dx.rolling(period).mean()
         return adx
 
-    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None):
+    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None, spy_df=None):
         """Generate buy/sell signal from indicators for one row."""
         if trend_data is None:
             trend_data = {}
@@ -301,10 +312,44 @@ class BuySellDailyLoader(OptimalLoader):
         # Derive market_stage from trend_direction (real data only)
         market_stage = trend_direction if trend_direction else None
 
-        # RS rating: convert RSI to 0-100 scale as integer (RSI is already 0-100)
-        # This is a simplified RS rating; real RS rating would compare to market benchmark
-        rsi_val = _f(rsi)
-        rs_rating = int(round(rsi_val)) if rsi_val is not None else None
+        # Compute Mansfield RS (relative strength vs SPY) if SPY data available
+        mansfield_rs = None
+        if spy_df is not None:
+            try:
+                # Get 60-day returns for both stock and SPY
+                date_pd = pd.to_datetime(date_val)
+                stock_60d_ago = date_pd - pd.Timedelta(days=60)
+
+                # Find closes around date and 60d ago
+                stock_recent = row.get("close")
+                if stock_recent and date_pd in spy_df.index:
+                    spy_recent = spy_df.loc[date_pd, "close"]
+                    stock_old = None
+                    spy_old = None
+
+                    # Search for closes ~60 days prior
+                    for i in range(50, 80):
+                        check_date = date_pd - pd.Timedelta(days=i)
+                        if check_date in spy_df.index:
+                            spy_old = spy_df.loc[check_date, "close"]
+                            break
+
+                    if spy_old and spy_recent and spy_old > 0:
+                        stock_return = (stock_recent - stock_old) / stock_old if stock_old > 0 else 0
+                        spy_return = (spy_recent - spy_old) / spy_old
+                        # Relative strength: 100 = tied, >100 = stock outperforming, <100 = underperforming
+                        if spy_return != -1:
+                            mansfield_rs = 100 * (1 + stock_return) / (1 + spy_return)
+            except Exception as e:
+                log.debug(f"Mansfield RS calc failed for {symbol} on {date_val}: {e}")
+
+        # RS rating: Mansfield RS if available, else RSI (0-100)
+        rs_rating = None
+        if mansfield_rs is not None:
+            rs_rating = int(round(mansfield_rs))
+        else:
+            rsi_val = _f(rsi)
+            rs_rating = int(round(rsi_val)) if rsi_val is not None else None
 
         # Base type detection (simplified)
         base_type = "Unknown"

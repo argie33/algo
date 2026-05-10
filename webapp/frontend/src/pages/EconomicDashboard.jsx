@@ -59,17 +59,19 @@ function deriveRegime(indicators, yieldData, recessionProb) {
 export default function EconomicDashboard() {
   const [tab, setTab] = useState('overview');
 
-  const leadQ = useApiQuery(['economic-leading'],   () => api.get('/api/economic/leading-indicators'), { refetchInterval: 120000 });
-  const yldQ  = useApiQuery(['economic-yield'],     () => api.get('/api/economic/yield-curve-full'),   { refetchInterval: 120000 });
-  const calQ  = useApiQuery(['economic-calendar'],  () => api.get('/api/economic/calendar'),           { refetchInterval: 120000 });
+  const leadQ  = useApiQuery(['economic-leading'],   () => api.get('/api/economic/leading-indicators'), { refetchInterval: 120000 });
+  const yldQ   = useApiQuery(['economic-yield'],     () => api.get('/api/economic/yield-curve-full'),   { refetchInterval: 120000 });
+  const calQ   = useApiQuery(['economic-calendar'],  () => api.get('/api/economic/calendar'),           { refetchInterval: 120000 });
+  const naaimQ = useApiQuery(['market-naaim'],       () => api.get('/api/market/naaim'),                { refetchInterval: 120000 });
 
   const isLoading = leadQ.loading || yldQ.loading;
-  const refetch   = () => { leadQ.refetch(); yldQ.refetch(); calQ.refetch(); };
+  const refetch   = () => { leadQ.refetch(); yldQ.refetch(); calQ.refetch(); naaimQ.refetch(); };
 
   const leading    = leadQ.data   || {};
   const yieldData  = yldQ.data    || null;
   const indicators = leading.indicators || [];
   const calRaw     = calQ.data?.events ?? (Array.isArray(calQ.data) ? calQ.data : []);
+  const naaimData  = naaimQ.data  || null;
 
   // helper to find indicator by partial name
   const ind = (name) => indicators.find(i => (i.name || '').toLowerCase().includes(name.toLowerCase()));
@@ -394,6 +396,9 @@ export default function EconomicDashboard() {
                 </div>
               )}
             </div>
+
+            {/* NAAIM professional positioning */}
+            {naaimData && <NaaimPanel naaim={naaimData} />}
 
             {/* Credit spreads history */}
             <CreditSpreadsPanel yieldData={yieldData} />
@@ -845,6 +850,84 @@ function RateVsInflationChart({ cpiHist, fedHist }) {
         <Line type="monotone" dataKey="fed" name="fed" stroke="var(--cyan)" strokeWidth={2} dot={false} />
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+function NaaimPanel({ naaim }) {
+  const current = naaim?.current ?? naaim?.naaim_number_mean;
+  if (current == null) return null;
+
+  const val = +current;
+  // Zone classification: <30 very defensive, 30-50 defensive, 50-75 healthy, >75 extended
+  const zone = val > 80 ? 'extended' : val >= 50 ? 'healthy' : val >= 30 ? 'defensive' : 'very_defensive';
+  const zoneColor = zone === 'healthy' ? 'var(--success)' : zone === 'extended' ? 'var(--amber)' : 'var(--danger)';
+  const zoneLabel = zone === 'healthy' ? 'Healthy Risk Appetite' : zone === 'extended' ? 'Extended — Watch for Reversion' : zone === 'defensive' ? 'Defensive Positioning' : 'Very Defensive — Capitulation Risk';
+
+  const history = naaim?.history || [];
+  const chartData = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">NAAIM Exposure Index</div>
+          <div className="card-sub">Professional active manager equity exposure · 0 = fully out, 100 = fully invested, 200 = leveraged long</div>
+        </div>
+        <span className="badge" style={{ background: `${zoneColor}20`, color: zoneColor, border: `1px solid ${zoneColor}50` }}>
+          {val.toFixed(1)}
+        </span>
+      </div>
+      <div className="card-body">
+        <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'flex-start', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
+          <div className="stile">
+            <div className="stile-label">Current Reading</div>
+            <div className="stile-value" style={{ color: zoneColor }}>{val.toFixed(1)}</div>
+            <div className="stile-sub muted t-xs">{zoneLabel}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Interpretation</div>
+            <div className="t-sm" style={{ marginTop: 4, maxWidth: 340, color: 'var(--text-2)' }}>
+              {zone === 'extended'
+                ? 'Pros are heavily long. Mean-reversion risk elevated — high exposure often precedes choppiness.'
+                : zone === 'healthy'
+                ? 'Professional managers have healthy exposure. Confirms market confidence without being over-leveraged.'
+                : zone === 'defensive'
+                ? 'Managers cutting equity. Watch for further selling or a contrarian buy signal if combined with fear extremes.'
+                : 'Extreme defensiveness — historically a contrarian bullish signal when other indicators confirm. Capitulation zone.'}
+            </div>
+          </div>
+        </div>
+
+        {chartData.length > 1 && (
+          <div style={{ height: 180 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="naaimGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={zoneColor} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={zoneColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM}
+                  interval={Math.max(0, Math.floor(chartData.length / 6))} />
+                <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 120]} />
+                <Tooltip contentStyle={TT} labelFormatter={fmtD}
+                  formatter={v => [v != null ? (+v).toFixed(1) : '—', 'NAAIM Exposure']} />
+                <ReferenceLine y={100} stroke="var(--border-2)" strokeDasharray="4 4" />
+                <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="2 6" />
+                <Area type="monotone" dataKey="naaim_number_mean" stroke={zoneColor}
+                  strokeWidth={2} fill="url(#naaimGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
+          Source: National Association of Active Investment Managers · Weekly survey · Long-run avg ~65-70
+        </div>
+      </div>
+    </div>
   );
 }
 

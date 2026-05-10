@@ -252,7 +252,7 @@ function RegimeBanner({ markets }) {
         <AlertTriangle size={18} />
         <div>
           <div style={{ fontWeight: 'var(--w-semibold)' }}>Exposure not yet computed</div>
-          <div className="muted t-sm">Run algo_market_exposure.py to populate the 9-factor regime.</div>
+          <div className="muted t-sm">Run algo_market_exposure.py to populate the 11-factor regime.</div>
         </div>
       </div>
     );
@@ -410,21 +410,30 @@ function IndexCell({ idx }) {
 function ExposureFactors({ markets }) {
   const factors = markets?.current?.factors || {};
   const list = [
-    ['ibd_state',       'MARKET STATE',           20],
-    ['trend_30wk',      '30-WEEK MA TREND',       15],
-    ['breadth_50dma',   'BREADTH (% > 50-DMA)',   15],
-    ['breadth_200dma',  'HEALTH (% > 200-DMA)',   10],
-    ['vix_regime',      'VIX REGIME',             10],
-    ['mcclellan',       'MCCLELLAN OSCILLATOR',   10],
-    ['new_highs_lows',  'NEW HIGHS - LOWS',       8],
-    ['ad_line',         'A/D LINE CONFIRMATION',  7],
-    ['aaii_sentiment',  'SENTIMENT (CONTRARIAN)', 5],
+    ['ibd_state',       'MARKET STATE',               18],
+    ['trend_30wk',      '30-WEEK MA TREND',           15],
+    ['breadth_50dma',   'BREADTH (% > 50-DMA)',       14],
+    ['breadth_200dma',  'HEALTH (% > 200-DMA)',       10],
+    ['mcclellan',       'MCCLELLAN OSCILLATOR',        9],
+    ['vix_regime',      'VIX REGIME',                  8],
+    ['new_highs_lows',  'NEW HIGHS - LOWS',            7],
+    ['credit_spread',   'HY CREDIT SPREAD',            7],
+    ['ad_line',         'A/D LINE CONFIRMATION',       5],
+    ['aaii_sentiment',  'AAII SENTIMENT (CONTRARIAN)', 4],
+    ['naaim',           'NAAIM PROFESSIONAL EXPOSURE', 3],
   ];
+
+  const eco = factors['economic_overlay'] || {};
+  const macroStress = eco.macro_stress_score;
+  const macroPenalty = eco.penalty;
+  const macroSignals = eco.signals || [];
+  const macroColor = macroStress >= 60 ? C.danger : macroStress >= 40 ? C.amber : C.success;
+
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">9-Factor Exposure Composite</div>
+          <div className="card-title">11-Factor Exposure Composite</div>
           <div className="card-sub">
             {markets?.current ? `Raw ${num(markets.current.raw_score, 1)} → capped ${markets.current.exposure_pct}%`
               : 'Each factor independently scored, summed for total exposure'}
@@ -443,6 +452,8 @@ function ExposureFactors({ markets }) {
           if (f.bull_bear_spread != null) sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
           if (f.new_highs != null) sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
           if (f.distribution_days_25d != null) sub.push(`${f.distribution_days_25d} dist days`);
+          if (f.widening_rapidly) sub.push('⚠ rapidly widening');
+          if (f.hy_20d_ago != null) sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
           return (
             <div key={key} style={{ marginBottom: 'var(--space-3)' }}>
               <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
@@ -458,6 +469,41 @@ function ExposureFactors({ markets }) {
             </div>
           );
         })}
+
+        {/* Economic Regime Overlay */}
+        {(macroStress != null || macroSignals.length > 0) && (
+          <div style={{
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-3) var(--space-4)',
+            borderRadius: 'var(--r-sm)',
+            background: `${macroColor}12`,
+            border: `1px solid ${macroColor}40`,
+          }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+              <span className="eyebrow" style={{ color: macroColor }}>MACRO REGIME OVERLAY</span>
+              <span className="mono tnum t-xs" style={{ color: macroColor }}>
+                {macroPenalty > 0 ? `−${macroPenalty} pts` : macroPenalty < 0 ? `+${Math.abs(macroPenalty)} pts (favourable)` : 'neutral'}
+                {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ''}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div style={{ flex: 1 }}>
+                <div className="bar">
+                  <div className="bar-fill" style={{ width: `${macroStress}%`, background: macroColor }} />
+                </div>
+              </div>
+              <span className="mono tnum t-xs muted">{macroStress != null ? `${macroStress}/100` : '—'}</span>
+            </div>
+            {macroSignals.length > 0 && (
+              <div className="t-2xs muted" style={{ marginTop: 6 }}>
+                {macroSignals.join(' · ')}
+              </div>
+            )}
+            <div className="t-2xs muted" style={{ marginTop: 4 }}>
+              Yield curve · HY credit trend · jobless claims — post-score macro adjustment
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
