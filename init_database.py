@@ -1920,6 +1920,10 @@ def init_database():
             cur.close()
             conn.close()
 
+def main():
+    """Public API for database initialization (called by orchestrator)."""
+    return init_database()
+
 if __name__ == "__main__":
     import sys
     success = init_database()
