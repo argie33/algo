@@ -15,7 +15,7 @@ O'Neil CAN SLIM, Bulkowski pattern stats, Connors backtests, Bassal):
     MULTI-TIMEFRAME    5%   weekly + monthly buy_sell alignment
 
 HARD-FAIL gates applied BEFORE scoring:
-    - Trend Template score < 7
+    - Trend Template score < 5 (Minervini 8-point; allows diverse candidates)
     - Stage != 2
     - Within 25% of 52-week high (not extended past) — already in Tier 3
     - Base count > 3
@@ -150,7 +150,7 @@ class SwingTraderScore:
     # ============= HARD GATES =============
 
     def _check_hard_gates(self, symbol, eval_date, sector, industry):
-        # 1. Trend template score >= 7
+        # 1. Trend template score >= 5 (allows more candidates, component scoring filters further)
         self.cur.execute(
             """SELECT minervini_trend_score, weinstein_stage, percent_from_52w_high, consolidation_flag
                FROM trend_template_data WHERE symbol = %s AND date <= %s
@@ -165,8 +165,8 @@ class SwingTraderScore:
         pct_from_high = float(row[2] or 100)
         in_consolidation = bool(row[3])
 
-        if trend_score < 7:
-            return {'pass': False, 'reason': f'Minervini score {trend_score}/8 < 7', 'trend_score': trend_score}
+        if trend_score < 5:
+            return {'pass': False, 'reason': f'Minervini score {trend_score}/8 < 5', 'trend_score': trend_score}
 
         # 2. Must be Stage 2
         if stage != 2:
