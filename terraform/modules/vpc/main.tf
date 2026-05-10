@@ -282,15 +282,6 @@ resource "aws_security_group" "rds" {
     }
   }
 
-  # Ingress: allow PostgreSQL from RDS security group itself (for db-init Lambda)
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.rds.id]
-    description     = "Allow PostgreSQL from RDS security group (db-init Lambda)"
-  }
-
   # Egress: allow all outbound (minimal, but safe)
   egress {
     from_port   = 0
@@ -305,6 +296,17 @@ resource "aws_security_group" "rds" {
   })
 
   depends_on = [aws_security_group.ecs_tasks, aws_security_group.api_lambda, aws_security_group.algo_lambda]
+}
+
+# RDS Security Group Rule: allow self-referential traffic (for db-init Lambda)
+resource "aws_security_group_rule" "rds_self_postgres" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  referenced_security_group_id = aws_security_group.rds.id
+  description              = "Allow PostgreSQL from RDS security group (db-init Lambda)"
 }
 
 # VPC Endpoints Security Group (for services in private subnets to reach AWS services)
