@@ -30,7 +30,20 @@ export const useApiQuery = (
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
       const response = await queryFn();
-      return extractData(response);
+      const bodyData = response.data || response;
+      // Return full response structure: either {items, pagination} or {data}
+      // Don't strip down to just items - preserve full structure
+      if (bodyData.items !== undefined) {
+        return bodyData; // Already has items + pagination
+      }
+      if (bodyData.data !== undefined) {
+        return bodyData; // Has data property
+      }
+      // Fallback: if it's an array, wrap it in items format
+      if (Array.isArray(bodyData)) {
+        return { items: bodyData };
+      }
+      return bodyData;
     },
     staleTime,
     gcTime,

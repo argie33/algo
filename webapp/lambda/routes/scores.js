@@ -185,7 +185,8 @@ async function getFactorMetricsInBatch(symbols) {
           // This ensures we get beta values when available
           metricsQuery = `
             SELECT DISTINCT ON (symbol)
-              symbol, * FROM ${table}
+              symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, date
+            FROM ${table}
             WHERE symbol IN (${placeholders})
             ORDER BY symbol, beta IS NOT NULL DESC, date DESC
           `;
@@ -193,7 +194,8 @@ async function getFactorMetricsInBatch(symbols) {
           // Default for momentum_metrics and other tables
           metricsQuery = `
             SELECT DISTINCT ON (symbol)
-              symbol, * FROM ${table}
+              symbol, momentum_3m, momentum_6m, momentum_12m, current_price, price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, date
+            FROM ${table}
             WHERE symbol IN (${placeholders})
             ORDER BY symbol, date DESC
           `;
@@ -441,7 +443,17 @@ const SCORE_COLUMNS = [
   'ss.stability_score',
   'st.security_name as company_name',
   'cp.sector',
-  'cp.industry'
+  'cp.industry',
+  'pd.close as current_price',
+  'CASE WHEN pd.open > 0 THEN ((pd.close - pd.open) / pd.open * 100) ELSE NULL END as change_percent',
+  'km.ebitda_margin_pct',
+  'km.total_cash',
+  'km.total_debt',
+  'km.operating_cashflow',
+  'km.free_cashflow',
+  'km.earnings_growth_pct',
+  'km.revenue_growth_pct',
+  'km.cash_per_share'
 ];
 
 // Allowed sort columns for safety
@@ -517,12 +529,14 @@ async function queryScores(options = {}) {
   const countResult = await query(countQuery, queryParams);
   const totalCount = safeInt(countResult.rows[0]?.total) || 0;
 
-  // Data query with pagination - JOIN company_profile for sector/industry, stock_symbols for name
+  // Data query with pagination - JOIN company_profile for sector/industry, stock_symbols for name, price_daily for current price, key_metrics for financial metrics
   const dataQuery = `
     SELECT ${selectCols}
     FROM stock_scores ss
     LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
     LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
+    LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ss.symbol)
+    LEFT JOIN key_metrics km ON ss.symbol = km.ticker
     ${whereClause}
     ORDER BY ss.${validatedSort} ${validatedOrder} NULLS LAST, ss.symbol ASC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -575,7 +589,9 @@ async function queryScores(options = {}) {
       quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
       growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
       positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
-      stability_score: row.stability_score == null ? null : parseFloat(row.stability_score)
+      stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
+      price: row.current_price == null ? null : parseFloat(row.current_price),
+      change_percent: row.change_percent == null ? null : parseFloat(row.change_percent)
     };
 
     // Momentum metrics are provided via quality_inputs from batch metrics fetch below
@@ -718,6 +734,18 @@ async function queryScores(options = {}) {
           stock.score_breakdown.smart_money = smartMoneyScore;
         }
       }
+    } else {
+      // Fallback: Include key_metrics fields even if detailed metrics aren't available (bulk requests)
+      stock.quality_inputs = {
+        ebitda_margin_pct: row.ebitda_margin_pct,
+        total_cash: row.total_cash,
+        total_debt: row.total_debt,
+        operating_cashflow: row.operating_cashflow,
+        free_cashflow: row.free_cashflow,
+        earnings_growth_pct: row.earnings_growth_pct,
+        revenue_growth_pct: row.revenue_growth_pct,
+        cash_per_share: row.cash_per_share
+      };
     }
     // NOTE: insider_transactions and insider_roster removed - not displayed in UI
 

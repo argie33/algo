@@ -1,109 +1,323 @@
 #!/usr/bin/env python3
-# fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
-AAII Sentiment Data Loader - Market-level indicator (not symbol-based).
+AAII Sentiment Survey Loader - Investor Sentiment Indicators
 
-Generates and loads 60 days of AAII investor sentiment data where
-bullish + neutral + bearish = 100%.
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Downloads AAII sentiment Excel file via HTTPS
+    └─ Extracts bullish/neutral/bearish percentages
+    └─ Writes to PostgreSQL RDS database
 
-Run:
-    python3 loadaaiidata.py
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same data fetching & processing logic
+    └─ Perfect for testing without AWS infrastructure
+
+DATA SOURCE:
+  • AAII Sentiment Survey (https://www.aaii.com/files/surveys/sentiment.xls)
+  • Excel file with historical sentiment data
+  • Extracts: date, bullish%, neutral%, bearish%
+
+TABLES:
+  • aaii_sentiment: Stores weekly sentiment survey results
+
+OUTPUTS:
+  • market page: AAII investor sentiment indicators
+
+Version: v1.0
+Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
-
-from credential_manager import get_credential_manager
-credential_manager = get_credential_manager()
-
-import argparse
-import logging
-import os
 import sys
-from datetime import date, timedelta
-from typing import List, Optional
-import random
+import time
+import logging
+import json
+import os
+import gc
+import resource
+import math
+
 import psycopg2
+from psycopg2.extras import RealDictCursor, execute_values
+from datetime import datetime
 
-# >>> dotenv-autoload >>>
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
-# <<< dotenv-autoload <<<
+import boto3
+import pandas as pd
+import requests
+from io import BytesIO
 
+# -------------------------------
+# Script metadata & logging setup   
+# -------------------------------
+SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
 )
 
-log = logging.getLogger(__name__)
+# -------------------------------
+# Memory-logging helper (RSS in MB)
+# -------------------------------
+def get_rss_mb():
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform.startswith("linux"):
+        return usage / 1024
+    return usage / (1024 * 1024)
+
+def log_mem(stage: str):
+    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+# -------------------------------
+# Retry settings
+# -------------------------------
+MAX_DOWNLOAD_RETRIES = 5  
+RETRY_DELAY = 3.0  # seconds between download retries
+BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
+
+# -------------------------------
+# AAII Sentiment columns
+# -------------------------------
+SENTIMENT_COLUMNS = ["date", "bullish", "neutral", "bearish"]
+COL_LIST = ", ".join(SENTIMENT_COLUMNS)
+
+# -------------------------------
+# Direct URL to the AAII sentiment survey Excel file
+# -------------------------------
+AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
+
+# -------------------------------
+# DB config loader
+# -------------------------------
+def get_db_config():
+    """Get database configuration - works in AWS and locally.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    # Try AWS Secrets Manager first
+    if db_secret_arn and aws_region:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"Using AWS Secrets Manager for database config")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
+    return {
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "dbname": os.environ.get("DB_NAME", "stocks")
+    }
 
 
-def load_aaii_sentiment():
-    """Load synthetic AAII sentiment data for the last 60 days."""
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=credential_manager.get_password("db/password"),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
+def get_aaii_sentiment_data():
+    """
+    Downloads the AAII sentiment survey Excel file and extracts historical data.
+    Returns a DataFrame with the columns: Date, Bullish, Neutral, and Bearish.
+    """
+    logging.info(f"🔄 Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
+    
+    # Custom headers to mimic a browser request for an Excel file
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/115.0.0.0 Safari/537.36"),
+        "Referer": "https://www.aaii.com/",
+        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    
+    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            logging.info(f"Download attempt {attempt}/{MAX_DOWNLOAD_RETRIES}")
+            response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
+            response.raise_for_status()
+            
+            # Check the content-type header for debugging
+            content_type = response.headers.get("Content-Type", "")
+            content_length = response.headers.get("Content-Length", "unknown")
+            logging.info(f"✅ Response received - Content-Type: {content_type}, Content-Length: {content_length}")
+            
+            # If the response looks like HTML rather than an Excel file, raise an error
+            if "html" in content_type.lower():
+                logging.error(f"❌ Server returned HTML instead of Excel file")
+                logging.error(f"❌ Response preview: {response.content[:500]}")
+                raise ValueError("Server returned HTML instead of an Excel file. Check the URL or headers.")
+            
+            # Validate file size
+            if len(response.content) < 1000:  # Excel files should be larger than 1KB
+                logging.error(f"❌ Response too small ({len(response.content)} bytes) - likely not an Excel file")
+                raise ValueError(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
+            
+            # Load the Excel file from the downloaded bytes using xlrd
+            excel_data = BytesIO(response.content)
+            logging.info("📊 Attempting to parse Excel file...")
+            df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
+            
+            # Remove extra whitespace from column names
+            df.columns = df.columns.str.strip()
+            
+            # We need at least these columns; adjust if necessary
+            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
+            logging.info(f"📋 Found columns: {df.columns.tolist()}")
+            
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_cols:
+                logging.error(f"❌ Missing required columns: {missing_cols}")
+                logging.error(f"❌ Available columns: {df.columns.tolist()}")
+                raise ValueError(f"Expected columns {missing_cols} not found. Found columns: {df.columns.tolist()}")
+            
+            # Select only the required columns
+            df = df[required_cols]
+            logging.info(f"✅ Selected {len(df)} rows with required columns")
+            
+            # Clean percentage columns: remove "%" and convert to numeric
+            for col in ["Bullish", "Neutral", "Bearish"]:
+                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            
+            # Convert the Date column to datetime and then to string in YYYY-MM-DD format
+            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+            df = df.dropna(subset=["Date"])  # Drop rows where date conversion failed
+            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+            
+            # Sort by Date (oldest first) and reset index
+            df.sort_values("Date", inplace=True)
+            df.reset_index(drop=True, inplace=True)
+            
+            logging.info(f"Successfully downloaded AAII sentiment data: {len(df)} records")
+            return df
+            
+        except Exception as e:
+            logging.error(f"❌ Download attempt {attempt} failed: {e}")
+            logging.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
+            if attempt < MAX_DOWNLOAD_RETRIES:
+                retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
+                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
+                time.sleep(retry_delay)
+            else:
+                logging.error(f"❌ CRITICAL: Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts")
+                logging.error(f"❌ Final error: {e}")
+                raise Exception(f"Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
+# -------------------------------
+# Main loader with batched inserts
+# -------------------------------
+def load_sentiment_data(cur, conn):
+    logging.info("Loading AAII sentiment data")
+    
     try:
-        cur = conn.cursor()
+        # Download the sentiment data
+        df = get_aaii_sentiment_data()
+        
+        if df.empty:
+            logging.warning("No sentiment data downloaded")
+            return 0, 0, []
+        
+        # Convert DataFrame to list of tuples for batch insert
+        rows = []
+        for _, row in df.iterrows():
+            rows.append([
+                row["Date"],
+                None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
+                None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
+                None if pd.isna(row["Bearish"]) else float(row["Bearish"])
+            ])
+        
+        if not rows:
+            logging.warning("No valid rows after processing")
+            return 0, 0, []
+        
+        # Batch insert the data with conflict handling
+        sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET bullish=EXCLUDED.bullish, neutral=EXCLUDED.neutral, bearish=EXCLUDED.bearish"
+        execute_values(cur, sql, rows)
+        conn.commit()
+        
+        inserted = len(rows)
+        logging.info(f"Successfully inserted {inserted} sentiment records")
+        
+        return len(df), inserted, []
+        
+    except Exception as e:
+        logging.error(f"Error loading sentiment data: {e}")
+        return 0, 0, [str(e)]
 
-        # Ensure table exists
+# -------------------------------
+# Entrypoint
+# -------------------------------
+if __name__ == "__main__":
+    try:
+        logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+        log_mem("startup")
+
+        # Connect to DB
+        logging.info("🔌 Loading database configuration...")
+        cfg = get_db_config()
+        logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"]
+        )
+        logging.info("✅ Database connection established")
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Ensure aaii_sentiment table exists (never drop - avoid data loss)
+        logging.info("Ensuring aaii_sentiment table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS aaii_sentiment (
-                id SERIAL PRIMARY KEY,
-                date DATE NOT NULL UNIQUE,
-                bullish NUMERIC(5,2),
-                neutral NUMERIC(5,2),
-                bearish NUMERIC(5,2),
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                id          SERIAL PRIMARY KEY,
+                date        DATE         NOT NULL UNIQUE,
+                bullish     DOUBLE PRECISION,
+                neutral     DOUBLE PRECISION,
+                bearish     DOUBLE PRECISION,
+                fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
         """)
-
-        # Clear and reload
-        cur.execute("DELETE FROM aaii_sentiment")
-
-        start_date = date.today() - timedelta(days=60)
-        records = []
-
-        for i in range(60):
-            current_date = start_date + timedelta(days=i)
-            bullish = round(random.uniform(30, 60), 2)
-            bearish = round(random.uniform(20, 45), 2)
-            neutral = round(100 - bullish - bearish, 2)
-            records.append((current_date, bullish, neutral, bearish))
-
-        cur.executemany(
-            "INSERT INTO aaii_sentiment (date, bullish, neutral, bearish) VALUES (%s, %s, %s, %s)",
-            records
-        )
-
         conn.commit()
-        log.info(f"Loaded {len(records)} AAII sentiment records")
-        return len(records)
 
-    finally:
+        # Load sentiment data
+        total, inserted, failed = load_sentiment_data(cur, conn)
+
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
+
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"AAII Sentiment — total: {total}, inserted: {inserted}, failed: {len(failed)}")
+
+        cur.close()
         conn.close()
-
-
-def main():
-    parser = argparse.ArgumentParser(description="AAII sentiment data loader (market-level)")
-    args = parser.parse_args()
-
-    try:
-        count = load_aaii_sentiment()
-        log.info(f"Success: {count} records loaded")
-        return 0
+        logging.info("All done.")
     except Exception as e:
-        log.error(f"Failed: {e}", exc_info=True)
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        sys.exit(1) 

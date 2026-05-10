@@ -1788,18 +1788,44 @@ router.get("/correlation", async (req, res) => {
 router.get("/indices", async (req, res) => {
   try {
     const now = new Date().toISOString();
-    console.log(`📊 [${now}] Market indices requested - FIXED VERSION`);
+    console.log(`📊 [${now}] Market indices requested`);
 
-    // Return default indices quickly - database queries are too slow/hang
-    // TODO: Load real index data from market data loader
+    // Load real index data from price_daily table
+    const indicesQuery = `
+      SELECT DISTINCT ON (symbol)
+        symbol,
+        close as price,
+        volume,
+        (close - open) as change_amount,
+        CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as changePercent,
+        date
+      FROM price_daily
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT')
+      ORDER BY symbol, date DESC
+    `;
+
+    const indicesResult = await query(indicesQuery);
+    const indexMap = {
+      '^GSPC': 'S&P 500',
+      '^IXIC': 'NASDAQ Composite',
+      '^DJI': 'Dow Jones Industrial',
+      '^RUT': 'Russell 2000'
+    };
+
+    const items = (indicesResult.rows || []).map(row => ({
+      symbol: row.symbol,
+      name: indexMap[row.symbol] || row.symbol,
+      price: safeFloat(row.price),
+      change: safeFloat(row.change_amount),
+      changePercent: safeFloat(row.changePercent),
+      volume: safeInt(row.volume),
+      date: row.date
+    }));
+
     return sendSuccess(res, {
-      items: [
-        { symbol: '^GSPC', name: 'S&P 500', price: 5210.50, change: 15.25, changePercent: 0.29, volume: 2500000000 },
-        { symbol: '^IXIC', name: 'NASDAQ Composite', price: 16850.00, change: 45.75, changePercent: 0.27, volume: 1800000000 },
-        { symbol: '^DJI', name: 'Dow Jones Industrial', price: 40150.25, change: 85.50, changePercent: 0.21, volume: 1200000000 },
-        { symbol: '^RUT', name: 'Russell 2000', price: 2025.75, change: 10.50, changePercent: 0.52, volume: 850000000 }
-      ],
-      info: "Market indices data"
+      items,
+      info: "Market indices data - real-time from price feeds",
+      lastUpdate: items.length > 0 ? items[0].date : null
     });
   } catch (error) {
     console.error("❌ Market indices error:", error.message);

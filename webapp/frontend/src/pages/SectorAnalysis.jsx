@@ -307,7 +307,9 @@ function SectorRelativeChart({ sectors }) {
       const all = {};
       for (const { name, trendData } of results) {
         if (!trendData || trendData.length === 0) continue;
-        const first = Number(trendData[0].avgPrice) || 1;
+        const firstPrice = trendData[0]?.avgPrice;
+        if (firstPrice == null) continue;
+        const first = Number(firstPrice) || 1;
         for (const r of trendData) {
           const dateKey = String(r.date).slice(0, 10);
           if (!all[dateKey]) all[dateKey] = { date: dateKey };

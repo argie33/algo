@@ -103,8 +103,8 @@ export default function ScoresDashboard() {
     () => api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true'),
     { refetchInterval: 60000 }
   );
-  const { data: rawData, loading: isLoading, refetch } = queryResult;
-  const items = (Array.isArray(rawData) ? rawData : rawData?.items) || [];
+  const { data: rawData, loading: isLoading, error: dataError, refetch } = queryResult;
+  const items = rawData?.items || [];
 
   useEffect(() => { setPage(1); }, [search, sector, sortBy, sortOrder, minScore]);
 
@@ -177,14 +177,23 @@ export default function ScoresDashboard() {
     if (!details[symbol]) {
       try {
         const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
-        const item = r.data?.items?.[0];
+        // Try multiple response shapes to be resilient to API changes
+        let item = r.data?.items?.[0];
+        if (!item) {
+          item = r.data?.data?.items?.[0];
+        }
+        if (!item && Array.isArray(r.data?.items)) {
+          console.error(`[ScoresDashboard] Detail fetch returned empty items array for ${symbol}`);
+        }
         if (item) {
           setDetails(d => ({ ...d, [symbol]: item }));
         } else {
           console.warn(`[ScoresDashboard] No detail item returned for ${symbol}`, r.data);
+          setDetails(d => ({ ...d, [symbol]: { symbol, error: 'No data returned from API' } }));
         }
       } catch (err) {
         console.error(`[ScoresDashboard] Failed to load detail for ${symbol}:`, err?.message || err);
+        setDetails(d => ({ ...d, [symbol]: { symbol, error: err?.message || 'Request failed' } }));
       }
     }
   };
@@ -220,8 +229,8 @@ export default function ScoresDashboard() {
              sub={`${stats.total ? Math.round(stats.top / stats.total * 100) : 0}% qualify`}
              tone={stats.top > 0 ? 'up' : ''} />
         <Kpi label="Market Avg" value={num(stats.avg, 1)} sub="composite score" />
-        <Kpi label="Top Decile" value={num(filtered[0]?.composite_score, 1)}
-             sub={filtered[0]?.symbol || '—'} tone="up" />
+        <Kpi label="Top Decile" value={filtered.length > 0 ? num(filtered[0].composite_score, 1) : '—'}
+             sub={filtered.length > 0 ? filtered[0].symbol : '—'} tone={filtered.length > 0 ? "up" : ""} />
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -570,7 +579,7 @@ function FactorScoreCard({ factor, stockScore, sectorAvg, marketAvg, symbol, sec
 }
 
 function FactorInputs({ title, inputs, schema }) {
-  if (!inputs || typeof inputs !== 'object') {
+  if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs)) {
     return (
       <div className="card">
         <div className="card-head"><div className="card-title">{title}</div></div>
@@ -578,11 +587,20 @@ function FactorInputs({ title, inputs, schema }) {
       </div>
     );
   }
+  if (!schema || !Array.isArray(schema)) {
+    console.error(`[FactorInputs] ${title}: Invalid schema - must be an array`, schema);
+    return (
+      <div className="card">
+        <div className="card-head"><div className="card-title">{title}</div></div>
+        <div className="card-body"><div className="t-xs muted">Configuration error: invalid schema</div></div>
+      </div>
+    );
+  }
   const expectedKeys = schema.map(s => s.key);
   const apiKeys = Object.keys(inputs);
   const rows = schema
     .map(s => ({ ...s, value: inputs[s.key] }))
-    .filter(r => r.value != null);
+    .filter(r => r.value != null && r.fmt && typeof r.fmt === 'function');
   if (rows.length === 0) {
     const missing = expectedKeys.filter(k => !(k in inputs));
     const allNull = expectedKeys.filter(k => k in inputs && inputs[k] == null);

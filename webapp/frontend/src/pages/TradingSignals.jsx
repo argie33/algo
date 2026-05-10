@@ -131,13 +131,13 @@ export default function TradingSignals() {
 
   const gateMap = useMemo(() => {
     const m = new Map();
-    const gatesArray = (Array.isArray(gatesData) ? gatesData : gatesData?.items) || [];
+    const gatesArray = gatesData?.items || [];
     gatesArray.forEach(g => m.set(g.symbol, g));
     return m;
   }, [gatesData]);
 
   // Store rows before filtering for total count KPI
-  const rows = (Array.isArray(data) ? data : data?.items) || [];
+  const rows = data?.items || [];
 
   // Enrich rows with gate / sqs info
   const enriched = useMemo(() => rows.map(r => {
@@ -808,7 +808,7 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                     <td className="muted t-xs">{r.sector || '—'}</td>
                     <td className="num">{fmtMoney(r.close)}</td>
                     <td className="num">
-                      <span className={r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
+                      <span className={r.close != null && r.buylevel != null && r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
                     </td>
                     <td className="num">{fmtMoney(r.stoplevel)}</td>
                     <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>

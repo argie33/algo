@@ -70,12 +70,13 @@ router.get("/analysis", async (req, res) => {
     const equalWeight = parseFloat((100 / n).toFixed(1));
 
     // Build allocations from real composite scores (score-weighted)
-    const totalScore = stocks.reduce((s, r) => s + (parseFloat(r.composite_score) || 0), 0);
+    const validScores = stocks.filter(r => r.composite_score != null).map(r => parseFloat(r.composite_score));
+    const totalScore = validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) : null;
     const allocations = stocks.map(r => ({
       symbol: r.symbol,
       company_name: r.company_name || r.symbol,
       sector: r.sector || "Unknown",
-      allocation: totalScore > 0
+      allocation: totalScore != null && totalScore > 0
         ? parseFloat(((parseFloat(r.composite_score) / totalScore) * 100).toFixed(1))
         : equalWeight,
       composite_score: parseFloat(r.composite_score) || null,
