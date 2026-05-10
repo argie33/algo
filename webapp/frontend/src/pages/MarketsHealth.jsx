@@ -110,27 +110,27 @@ export default function MarketsHealth() {
   const navigate = useNavigate();
   const [ts, setTs] = useState(new Date());
 
-  const { data: marketsData, loading: marketsLoading, refetch: refetchMarkets } = useApiQuery(
+  const { data: marketsData, loading: marketsLoading, error: mkError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
     { refetchInterval: 30000 }
   );
-  const { data: sentimentData } = useApiQuery(
+  const { data: sentimentData, error: sentError } = useApiQuery(
     ['market-sentiment-30d'],
     () => api.get('/api/market/sentiment?range=30d'),
     { refetchInterval: 60000 }
   );
-  const { data: moversData } = useApiQuery(
+  const { data: moversData, error: movError } = useApiQuery(
     ['market-top-movers'],
     () => api.get('/api/market/top-movers'),
     { refetchInterval: 60000 }
   );
-  const { data: technicalsData } = useApiQuery(
+  const { data: technicalsData, error: techError } = useApiQuery(
     ['market-technicals'],
     () => api.get('/api/market/technicals'),
     { refetchInterval: 60000 }
   );
-  const { data: seasonalityData } = useApiQuery(
+  const { data: seasonalityData, error: seasError } = useApiQuery(
     ['market-seasonality'],
     () => api.get('/api/market/seasonality'),
     { refetchInterval: 1000 * 60 * 60 }
@@ -161,22 +161,30 @@ export default function MarketsHealth() {
           <div className="page-head-sub">Updated {fmtAgo(ts)} · Auto-refresh 30s</div>
         </div>
         <div className="page-head-actions">
-          <button className="btn btn-outline btn-sm" onClick={refetchAll}>
+          {[mkError,sentError,movError,techError,seasError].some(Boolean) && (
+            <span className="badge badge-danger" title="One or more data sources failed">
+              ⚠ {[mkError,sentError,movError,techError,seasError].filter(Boolean).length} error(s)
+            </span>
+          )}
+          <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={marketsLoading}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
       </div>
 
-      <RegimeBanner markets={m} />
-      <IndicesStrip />
+      {mkError && <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>Failed to load market data - some sections unavailable</div>}
+      {!mkError && <RegimeBanner markets={m} />}
+      {!techError && <IndicesStrip />}
+      {techError && <div className="alert alert-warn" style={{marginBottom: 'var(--space-4)'}}>Technical data unavailable</div>}
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ExposureFactors markets={m} />
-        <MarketPulse markets={m} />
+        {!mkError ? <ExposureFactors markets={m} /> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
+        {!mkError ? <MarketPulse markets={m} /> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
       </div>
 
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <ExposureHistory markets={m} />
+        {!mkError && <ExposureHistory markets={m} />}
+        {mkError && <div className="card"><div className="card-body"><div className="alert alert-danger">Exposure history unavailable</div></div></div>}
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
