@@ -1,8 +1,35 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 (Frontend console errors fixed + stability hardened)
+**Last Updated:** 2026-05-10 14:50Z (Algo Lambda circular import fixed + EventBridge scheduler corrected + credential_manager deployment fixed)
 **Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, technical rules, correlation checks
-**Latest:** Fixed 5 console errors in frontend; API response data type handling corrected
+**Latest:** Fixed algo Lambda circular import + missing credential_manager in deployment + EventBridge rule schedule + deleted stale rule
+
+## 🐳 Local Development Infrastructure (2026-05-10) ✅
+
+**Docker Setup in WSL (Windows)**
+- ✅ WSL 2 Ubuntu 24.04 LTS installed with Docker + Docker Compose
+- ✅ PostgreSQL 16-alpine running on port 5432 (107 tables loaded, healthy)
+- ✅ Redis 7-alpine running on port 6379 (healthy)
+- ✅ LocalStack available (requires license token for full features)
+
+**How to Use:**
+```bash
+# From Windows PowerShell or WSL
+wsl -u argeropolos -e bash -c "cd /mnt/c/Users/arger/code/algo && docker-compose ps"
+
+# Or directly in WSL terminal
+cd /mnt/c/Users/arger/code/algo
+docker-compose up -d      # Start services
+docker-compose ps         # Check status
+docker-compose logs -f    # View logs
+docker-compose down       # Stop services
+```
+
+**Credentials:**
+- PostgreSQL user: `stocks`, password: `postgres`, database: `stocks`
+- Redis: no auth required (localhost:6379)
+
+**Next:** Ready to run loaders and orchestrator against local database for testing
 
 ## Algo Tuning Complete ✅ (2026-05-10)
 
@@ -50,6 +77,33 @@ The `useApiQuery` hook inconsistently wraps array responses in `{items:[]}` obje
 - Improved exits (pullback logic, re-entry cooldown)
 
 ---
+
+## AWS Deployment Audit (2026-05-10 14:40Z) - Critical Issues Fixed ✅
+
+**Issues Found & Fixed:**
+1. **Algo Lambda Circular Import** ❌→✅
+   - Root cause: `lambda/algo_orchestrator/__init__.py` was trying to import from itself ("from algo_orchestrator import Orchestrator"), creating infinite recursion
+   - Error: "cannot import name 'Orchestrator' from partially initialized module 'algo_orchestrator'"
+   - Fix: Deleted the problematic `__init__.py` file (deployment only copies handler, not package)
+   - Status: Fixed in commit edaa4cb84, redeployed successfully
+
+2. **Credential Manager Missing from Deployment** ❌→✅
+   - Root cause: `credential_manager.py` wasn't in the list of shared modules to copy in GitHub Actions workflow
+   - Error: "No module named 'credential_manager'" at Lambda runtime
+   - Fix: Added `credential_manager.py` to deploy-code.yml file copy list
+   - Status: Fixed in commit fce4ab6e4, redeploying now
+
+3. **EventBridge Scheduler Rule Wrong Schedule** ❌→✅
+   - Root cause: Old `stocks-algo-schedule` rule (EventBridge Events API) had wrong cron: `cron(30 0 ? * * *)` (12:30am UTC daily)
+   - Should be: `cron(30 22 ? * MON-FRI *)` (10:30pm UTC = 5:30pm ET weekdays)
+   - Second issue: Old rule had NO targets (wasn't triggering Lambda)
+   - Fix: Deleted old `stocks-algo-schedule` rule; Terraform-managed `algo-algo-schedule-dev` is correct
+   - Status: Verified correct rule is active and targeting algo-algo-dev Lambda
+
+4. **API Lambda 500 Errors** ⚠️ Under Investigation
+   - Status: Returns "Internal Server Error" on all endpoints (even /health)
+   - Likely cause: Database connection, environment variables, or initialization issue
+   - Next step: Check CloudWatch logs after latest deployment completes
 
 ## Deployment Status — May 2026 ✅ READY FOR PRODUCTION
 Infrastructure operational. Code validation complete. All 18 algo improvements verified + committed (2026-05-10):

@@ -7,8 +7,9 @@ services:
     container_name: stocks_db
     environment:
       POSTGRES_USER: stocks
-      POSTGRES_PASSWORD: ''  # empty for local dev
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: stocks
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
     volumes:
