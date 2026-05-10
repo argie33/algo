@@ -124,17 +124,14 @@ function AlgoTradingDashboard() {
   const { data: policy,                           refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
   const { data: evaluated,                        refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
   const { items: patrolLog,                       refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
-  const { data: performance,                      refetch: r10 } = useApiQuery(['algo','performance'],   () => api.get('/api/algo/performance'), qOpts);
-  const { items: auditLog,                        refetch: r11 } = useApiPaginatedQuery(['algo','audit'],     () => api.get('/api/algo/audit-log?limit=200'), adminOpts);
-  const { items: notifications,                   refetch: r12 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
-  const { items: equityCurve,                     refetch: r13 } = useApiPaginatedQuery(['algo','equity'],    () => api.get('/api/algo/equity-curve?limit=365'), qOpts);
-  const { data: circuitBreakers,                  refetch: r14 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
-  const { data: dataQuality,                      refetch: r15 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
-  const { data: rejectionFunnel,                  refetch: r16 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
+  const { items: notifications,                   refetch: r10 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
+  const { data: circuitBreakers,                  refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,                      refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
+  const { data: rejectionFunnel,                  refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
 
   const refetchAll = useCallback(() => {
-    [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
-  }, [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16]);
+    [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13].forEach(fn => fn?.());
+  }, [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13]);
 
   // Stable data shape consumed by sub-components
   const data = {
@@ -147,10 +144,7 @@ function AlgoTradingDashboard() {
     policy,
     evaluated,
     patrolLog:     patrolLog     || [],
-    performance,
-    auditLog:      auditLog      || [],
     notifications: notifications || [],
-    equityCurve:   equityCurve   || [],
     circuitBreakers,
     dataQuality,
     rejectionFunnel,

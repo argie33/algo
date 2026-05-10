@@ -42,8 +42,8 @@ export default function TradeTracker() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const handlePreviewConfirm = (data) => {
-    console.log('Trade preview confirmed:', data);
-    // TODO: integrate with actual trade entry flow
+    // Trade creation is now handled directly in PreviewModal via POST /api/trades/manual
+    // This callback is kept for future analytics or side effects if needed
   };
 
   return (
