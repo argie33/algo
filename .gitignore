@@ -23,7 +23,8 @@ lambda-deployment.tar.gz
 *.db
 *.sqlite
 *.sql
-!init_db.sql  # Docker Compose initialization script (intentionally tracked)
+!init_db.sql
+!terraform/modules/database/init.sql
 
 # Logs
 *.log
