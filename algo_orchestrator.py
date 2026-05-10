@@ -408,8 +408,13 @@ class Orchestrator:
                     elif table in ('buy_sell_daily', 'trend_template_data', 'technical_data_daily',
                                   'signal_quality_scores', 'swing_trader_scores', 'market_health_daily',
                                   'sector_ranking', 'industry_ranking', 'stock_scores'):
-                        # Most have a 'date' column; some might have 'date_recorded' or similar
-                        col = 'date' if table not in ('sector_ranking', 'industry_ranking') else 'date_recorded'
+                        # Different tables use different date column names
+                        if table == 'stock_scores':
+                            col = 'score_date'
+                        elif table in ('sector_ranking', 'industry_ranking'):
+                            col = 'date_recorded'
+                        else:
+                            col = 'date'
                         cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} >= %s", (five_days_ago,))
                     else:
                         cur.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
