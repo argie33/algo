@@ -1,8 +1,47 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 20:07Z (EXIT ENGINE HARDENING COMPLETE: Position lifecycle management validated)
-**Project Status:** ✅ **ORCHESTRATOR FULLY OPERATIONAL** — 7-phase pipeline executing without errors, position management validated, exit rules working, stop raises and partial exits confirmed
-**Latest:** ✅ Fixed exit engine None handling, ✅ Fixed JSON column type mismatch, ✅ Fixed schema column references, ✅ Validated position lifecycle (stops raised, partials executed), ✅ All 4 positions managed correctly
+**Last Updated:** 2026-05-10 20:15Z (INFRASTRUCTURE & IAM DEPLOYMENT IN PROGRESS: Database initialization staged)
+**Project Status:** 🔄 **INFRASTRUCTURE DEPLOYMENT** — IAM users being created via Terraform IaC, db-init Lambda fixed (psycopg2 dependency resolved, security group rule added), awaiting database schema initialization
+**Latest:** ✅ Fixed psycopg2 missing error in db-init Lambda, ✅ Added security group rule for Lambda-RDS connectivity, ✅ Exported IAM credentials in Terraform outputs, 🔄 db-init Lambda staging for database initialization
+
+---
+
+## 🔧 INFRASTRUCTURE & DATABASE INITIALIZATION SESSION (2026-05-10 20:07Z - ongoing)
+
+**Objective:** Deploy infrastructure via Terraform IaC, create IAM users with proper permissions, initialize database schema.
+
+**COMPLETED TASKS:**
+
+### 1. ✅ Fixed db-init Lambda psycopg2 Dependency
+- **Issue**: Lambda deployment had only 19KB (too small for dependencies)
+- **Root Cause**: Workflow used `--only-binary=:all:` without explicit platform flags
+- **Fix**: Updated workflow to use `--platform manylinux2014_x86_64 --python 311` for Lambda Python 3.11 binary compatibility
+- **Verification**: Workflow run 25638570495 successfully packaged psycopg2 with binary extension `_psycopg.cpython-311-x86_64-linux-gnu.so`
+- **Status**: ✅ COMPLETE
+
+### 2. ✅ Fixed db-init Lambda RDS Connectivity
+- **Issue**: "Connection timed out" to RDS endpoint
+- **Root Cause**: Lambda's security group (sg-0efd52dc5e807f2e0) had no ingress rule for port 5432 from itself
+- **Fix**: Added ingress rule to sg-0efd52dc5e807f2e0 allowing TCP 5432 from sg-0efd52dc5e807f2e0
+- **Verification**: Security group rule sgr-0561cc38a07002612 confirmed created
+- **Status**: ✅ COMPLETE
+
+### 3. 🔄 Database Schema Initialization (In Progress)
+- **Current Issue**: Lambda reports "No module named 'init_database'" (file not in deployment package from previous run)
+- **Action**: Workflow run 25638680359 triggered to redeploy with init_database.py included
+- **Expected Result**: Database tables created via init_database.py schema (100+ tables including algo_config)
+- **Status**: 🔄 WAITING FOR WORKFLOW COMPLETION
+
+### 4. 🔄 IAM User Creation via Terraform (In Progress)
+- **Defined Users**: 
+  - algo-github-deployer (✅ already created)
+  - algo-pipeline (🔄 pending Terraform apply)
+  - algo-developer (🔄 pending Terraform apply)
+- **Outputs Added**: terraform/outputs.tf now exports pipeline and developer user credentials
+- **Status**: 🔄 BLOCKED ON TERRAFORM VAR RESOLUTION (terraform.tfvars not available in local apply)
+
+**COMMITS THIS SESSION:**
+- 0c901d557: fix: Add IAM user credentials to Terraform outputs and improve db-init Lambda packaging
 
 ---
 
