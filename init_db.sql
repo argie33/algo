@@ -279,14 +279,17 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
 
 -- Growth metrics
 CREATE TABLE IF NOT EXISTS growth_metrics (
-    symbol VARCHAR(20) PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
     revenue_growth_5y DECIMAL(8, 4),
     revenue_growth_3y DECIMAL(8, 4),
     revenue_growth_1y DECIMAL(8, 4),
     eps_growth_5y DECIMAL(8, 4),
     eps_growth_3y DECIMAL(8, 4),
     eps_growth_1y DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
 -- Stability metrics
@@ -330,7 +333,8 @@ CREATE TABLE IF NOT EXISTS positioning_metrics (
 -- Overall stock quality score
 CREATE TABLE IF NOT EXISTS stock_scores (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL UNIQUE,
+    symbol VARCHAR(20) NOT NULL,
+    score_date DATE,
     composite_score DECIMAL(8, 2),
     quality_score DECIMAL(8, 2),
     growth_score DECIMAL(8, 2),
@@ -339,7 +343,8 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     momentum_score DECIMAL(8, 2),
     positioning_score DECIMAL(8, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, score_date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -474,7 +479,7 @@ CREATE TABLE IF NOT EXISTS insider_transactions (
     trade_type VARCHAR(20),
     shares BIGINT,
     trade_price DECIMAL(12, 4),
-    trade_date DATE,
+    transaction_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1396,14 +1401,14 @@ CREATE TABLE IF NOT EXISTS data_remediation_log (
 -- Market exposure daily snapshots
 CREATE TABLE IF NOT EXISTS market_exposure_daily (
     id SERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    market_exposure_pct DECIMAL(8, 4),
-    long_exposure_pct DECIMAL(8, 4),
-    short_exposure_pct DECIMAL(8, 4),
-    exposure_tier VARCHAR(30),
-    is_entry_allowed BOOLEAN,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(date)
+    date DATE NOT NULL UNIQUE,
+    exposure_pct DECIMAL(8, 4),
+    raw_score DECIMAL(8, 4),
+    regime VARCHAR(50),
+    distribution_days INTEGER,
+    factors JSONB,
+    halt_reasons TEXT[],
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Notifications for UI
@@ -1454,8 +1459,8 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (
     report_date DATE PRIMARY KEY,
-    var_pct_95 NUMERIC(8, 3),
-    cvar_pct_95 NUMERIC(8, 3),
+    var_95_pct NUMERIC(8, 3),
+    cvar_95_pct NUMERIC(8, 3),
     stressed_var_pct NUMERIC(8, 3),
     portfolio_beta NUMERIC(6, 2),
     top_5_concentration NUMERIC(6, 2),
