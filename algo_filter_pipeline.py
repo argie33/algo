@@ -568,6 +568,25 @@ class FilterPipeline:
                     'trend_score': trend_score,
                 }
 
+            # Minervini rule: RS-line (stock vs SPY) must be making new highs or near new highs
+            # Don't exit on Minervini break if RS line is strong
+            rs_check = self._check_rs_line_strength(symbol, signal_date)
+            if rs_check and not rs_check.get('pass', True):
+                return {
+                    'pass': False,
+                    'reason': rs_check.get('reason', 'RS line weak'),
+                    'trend_score': trend_score,
+                }
+
+            # Volume decay check: declining volume into breakout = false breakout (Minervini warning)
+            vol_check = self._check_volume_decay(symbol, signal_date)
+            if vol_check and not vol_check.get('pass', True):
+                return {
+                    'pass': False,
+                    'reason': vol_check.get('reason', 'Volume declining'),
+                    'trend_score': trend_score,
+                }
+
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
             stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
 
@@ -579,6 +598,94 @@ class FilterPipeline:
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
+
+    def _check_volume_decay(self, symbol, signal_date) -> Dict[str, Any]:
+        """Minervini warning: declining volume into breakout signals false breakout.
+
+        Checks if 10-day average volume is declining relative to 50-day average.
+        A breakout with declining volume = weak accumulation = false setup.
+        """
+        try:
+            self.cur.execute(
+                """
+                SELECT volume FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT 60
+                """,
+                (symbol, signal_date),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < 50:
+                return {'pass': True, 'reason': 'Insufficient volume history'}
+
+            volumes = [float(r[0]) for r in rows if r[0]]
+            if len(volumes) < 50:
+                return {'pass': True, 'reason': 'No volume data'}
+
+            # 10-day vs 50-day average volume
+            vol_10d_avg = sum(volumes[:10]) / 10.0
+            vol_50d_avg = sum(volumes) / len(volumes)
+
+            if vol_10d_avg > 0 and vol_50d_avg > 0:
+                vol_decline_pct = ((vol_50d_avg - vol_10d_avg) / vol_50d_avg) * 100.0
+
+                # If 10-day avg is >15% below 50-day avg, volume is declining (red flag)
+                if vol_decline_pct > 15.0:
+                    return {
+                        'pass': False,
+                        'reason': f'Volume declining: 10d avg {vol_decline_pct:.1f}% below 50d (sign of weak setup)',
+                    }
+
+            return {'pass': True, 'reason': 'Volume OK'}
+        except Exception as e:
+            logger.debug(f'Volume decay check failed for {symbol}: {e}')
+            return {'pass': True, 'reason': 'Volume check error (continuing)'}
+
+    def _check_rs_line_strength(self, symbol, signal_date) -> Dict[str, Any]:
+        """Minervini rule: RS-line (stock vs SPY) should be strong (at/near new highs).
+
+        Checks if the 60-day RS-line (stock close / SPY close) is within 5% of its
+        52-week high. If RS-line is weak/broken, it's a warning even if price looks good.
+        """
+        try:
+            # Get stock and SPY prices for RS-line calculation
+            self.cur.execute(
+                """
+                SELECT s.close, spy.close
+                FROM price_daily s
+                JOIN price_daily spy ON s.date = spy.date
+                WHERE s.symbol = %s AND spy.symbol = 'SPY'
+                  AND s.date <= %s
+                ORDER BY s.date DESC LIMIT 250
+                """,
+                (symbol, signal_date),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < 60:
+                return {'pass': True, 'reason': 'Insufficient data for RS check'}
+
+            # Compute RS-line (stock/SPY ratio) for last 60 and all available
+            rs_line = [float(r[0]) / float(r[1]) for r in rows if r[0] and r[1]]
+            if len(rs_line) < 60:
+                return {'pass': True, 'reason': 'Insufficient RS history'}
+
+            current_rs = rs_line[0]  # Most recent
+            rs_60day_high = max(rs_line[:60])  # 60-day high
+            rs_52week_high = max(rs_line)  # All-time high in available data
+
+            # RS should be within 5% of 52-week high
+            rs_pct_from_high = ((rs_52week_high - current_rs) / rs_52week_high * 100.0) if rs_52week_high > 0 else 0
+
+            if rs_pct_from_high > 5.0:
+                return {
+                    'pass': False,
+                    'reason': f'RS-line {rs_pct_from_high:.1f}% below 52w high (need <5% to trade)',
+                }
+
+            return {'pass': True, 'reason': f'RS-line strong: {rs_pct_from_high:.1f}% from high'}
+        except Exception as e:
+            logger.debug(f'RS-line check failed for {symbol}: {e}')
+            return {'pass': True, 'reason': 'RS check error (continuing)'}
 
     def _compute_stop_loss(self, symbol, signal_date, sma_50, atr) -> Dict[str, Any]:
         """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
