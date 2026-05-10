@@ -46,10 +46,11 @@
 ## Deployment Status — May 2026 ✅ READY FOR PRODUCTION
 Infrastructure operational. Code validation complete. All 18 algo improvements verified + committed (2026-05-10):
 
-**Recent Lambda Configuration Fixes:**
-- 🔧 API Lambda handler misconfiguration: was set to "lambda_function.lambda_handler" with runtime Python3.11, but deployment code is Node.js (webapp/lambda/index.js) — updating to handler="index.handler" with nodejs20.x runtime
-- 🔧 Algo Lambda handler naming mismatch: was "lambda_function.handler" but actual function is "lambda_handler" — corrected to "lambda_function.lambda_handler"
-- 🔧 API Lambda stub file: was creating lambda_function.py but should create index.js to match Node.js handler
+**Recent Lambda Configuration Fixes (2026-05-10):**
+- ✅ API Lambda runtime/handler: Corrected from Python3.11/lambda_function.lambda_handler to nodejs20.x/index.handler
+- ✅ Algo Lambda handler naming: Corrected from lambda_function.handler to lambda_function.lambda_handler
+- ✅ API Lambda code syntax: Fixed corrupted emoji characters in environment logging (causing SyntaxError)
+- ✅ Algo Lambda package: Now includes entire algo_orchestrator package directory + credential_manager + credential_validator
 
 **Resolved Earlier (2026-05-08-09):**
 - ✅ Storage bucket variables (added to root module)
@@ -64,8 +65,8 @@ Infrastructure operational. Code validation complete. All 18 algo improvements v
 **Stack Status:** 145 resources deployed
 - VPC & Networking: ✅ Complete
 - RDS PostgreSQL: ✅ Running (14.12)
-- Lambda API: 🔧 Updating configuration (nodejs20.x runtime, index.handler)
-- Lambda Algo: ✅ Fixed handler naming (stocks-algo-dev)
+- Lambda API: ✅ Running (nodejs20.x, index.handler) — Emoji encoding fixed
+- Lambda Algo: ✅ Running (python3.11, lambda_function.lambda_handler) — Package structure fixed
 - CloudFront CDN: ✅ Operational
 - Cognito Auth: ✅ Configured
 - EventBridge Scheduler: ✅ Active
