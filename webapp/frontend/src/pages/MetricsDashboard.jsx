@@ -97,19 +97,13 @@ const MetricsDashboard = () => {
 
   const topStocksData = useMemo(() => {
     const allList = Array.isArray(allStocks) ? allStocks : [];
+    const compositeList = [...allList].filter(s => s.composite_score !== null).sort((a, b) => b.composite_score - a.composite_score);
+    const qualityList = [...allList].filter(s => s.quality_score !== null).sort((a, b) => b.quality_score - a.quality_score);
+    const valueList = [...allList].filter(s => s.value_score !== null).sort((a, b) => b.value_score - a.value_score);
     return {
-      composite: [...allList]
-        .filter(s => s.composite_score !== null)
-        .sort((a, b) => b.composite_score - a.composite_score)
-        .slice(0, 10),
-      quality: [...allList]
-        .filter(s => s.quality_score !== null)
-        .sort((a, b) => b.quality_score - a.quality_score)
-        .slice(0, 10),
-      value: [...allList]
-        .filter(s => s.value_score !== null)
-        .sort((a, b) => b.value_score - a.value_score)
-        .slice(0, 10),
+      composite: { items: compositeList.slice(0, 10), total: compositeList.length },
+      quality: { items: qualityList.slice(0, 10), total: qualityList.length },
+      value: { items: valueList.slice(0, 10), total: valueList.length },
     };
   }, [allStocks]);
 
@@ -292,7 +286,10 @@ const MetricsDashboard = () => {
 
   const TopStocks = () => (
     <Grid container spacing={3} sx={{ mt: 2 }}>
-      {Object.entries(topStocksData).map(([category, stocks]) => (
+      {Object.entries(topStocksData).map(([category, data]) => {
+        const stocks = data?.items || [];
+        const total = data?.total || 0;
+        return (
         <Grid item xs={12} md={6} key={category}>
           <Card>
             <CardContent>
@@ -302,9 +299,10 @@ const MetricsDashboard = () => {
                 sx={{ textTransform: "capitalize" }}
               >
                 Top {category === "composite" ? "Overall" : category} Stocks
+                {total > 10 && <span style={{ fontSize: '0.75em', marginLeft: 8, color: '#999' }}>({stocks.length} of {total})</span>}
               </Typography>
               <Box sx={{ maxHeight: 400, overflow: "auto" }}>
-                {(stocks || []).slice(0, 10).map((stock, index) => {
+                {(stocks || []).map((stock, index) => {
                   const scoreKey = category === "composite" ? "composite_score" : category === "quality" ? "quality_score" : "value_score";
                   const scoreValue = stock[scoreKey] || 0;
                   return (
@@ -348,7 +346,8 @@ const MetricsDashboard = () => {
             </CardContent>
           </Card>
         </Grid>
-      ))}
+      );
+      })}
     </Grid>
   );
 

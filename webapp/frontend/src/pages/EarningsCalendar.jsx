@@ -178,12 +178,11 @@ function EarningsCalendar() {
                   {sectorTrendData.timeSeries.length > 0 &&
                     Object.keys(sectorTrendData.timeSeries[0])
                       .filter(key => key !== 'quarter')
-                      .slice(0, 8)
                       .map((sector, idx) => (
                         <Bar
                           key={sector}
                           dataKey={sector}
-                          fill={['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#FF5722', '#607D8B', '#8BC34A', '#E91E63'][idx]}
+                          fill={['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#FF5722', '#607D8B', '#8BC34A', '#E91E63'][idx % 8]}
                           stackId="a"
                         />
                       ))

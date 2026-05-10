@@ -234,8 +234,7 @@ function MomentumSpider({ sectors }) {
     if (!sectors || sectors.length === 0) return [];
     const top = sectors.slice()
       .filter(s => s.current_rank != null)
-      .sort((a, b) => (a.current_rank ?? 999) - (b.current_rank ?? 999))
-      .slice(0, 6);
+      .sort((a, b) => (a.current_rank ?? 999) - (b.current_rank ?? 999));
     if (top.length === 0) return [];
     const axes = [
       { key: 'performance_1d', label: '1D' },
@@ -292,7 +291,6 @@ function SectorRelativeChart({ sectors }) {
     if (!sectors) return [];
     return sectors
       .filter(s => s.sector_name || s.sector)
-      .slice(0, 8)
       .map(s => s.sector_name || s.sector);
   }, [sectors]);
 

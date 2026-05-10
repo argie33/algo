@@ -797,7 +797,7 @@ function InternalsCard({ data }) {
   const advPct = total ? (advancing / total) * 100 : 0;
   const decPct = total ? (declining / total) * 100 : 0;
   const adRatio = declining > 0 ? (advancing / declining) : 0;
-  const mcclellan = (data.mcclellan_oscillator || []).slice(0, 30).reverse().map(d => ({
+  const mcclellan = (data.mcclellan_oscillator || []).reverse().map(d => ({
     date: d.date, value: parseFloat(d.advance_decline_line || 0),
   }));
   return (
@@ -845,8 +845,8 @@ function InternalsCard({ data }) {
 
 function TopMoversCard({ data }) {
   if (!data) return <Empty title="Top Movers" desc="Loading" wrap />;
-  const gainers = (data.gainers || []).slice(0, 6);
-  const losers = (data.losers || []).slice(0, 6);
+  const gainers = (data.gainers || []);
+  const losers = (data.losers || []);
   return (
     <div className="card">
       <div className="card-head">
@@ -1614,7 +1614,7 @@ function EconomicCalendarCard() {
 
   if (loading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
   const allEvents = data || [];
-  const events = allEvents.slice(0, 25);
+  const events = allEvents;
 
   return (
     <div className="card">
@@ -1622,7 +1622,6 @@ function EconomicCalendarCard() {
         <div>
           <div className="card-title">
             Economic Calendar · next 7 days
-            {allEvents.length > 25 && <span className="t-xs muted" style={{ marginLeft: 8 }}>({events.length} of {allEvents.length})</span>}
           </div>
           <div className="card-sub">FOMC · CPI · NFP · GDP · expected vs prior</div>
         </div>
@@ -1700,7 +1699,7 @@ function EarningsCalendarCard({ onSelect }) {
 
   if (loading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
   const allRows = data || [];
-  const rows = allRows.slice(0, 20);
+  const rows = allRows;
 
   return (
     <div className="card">

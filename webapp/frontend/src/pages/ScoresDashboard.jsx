@@ -711,8 +711,7 @@ function SectorsTab({ items, sectors, onClick }) {
       {sectors.map(sec => {
         const rows = items
           .filter(s => s.sector === sec && s.composite_score != null)
-          .sort((a, b) => Number(b.composite_score) - Number(a.composite_score))
-          .slice(0, 8);
+          .sort((a, b) => Number(b.composite_score) - Number(a.composite_score));
         return (
           <div className="card" key={sec}>
             <div className="card-head">
@@ -960,11 +959,10 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
 
 // ─── tab: factor heatmap ──────────────────────────────────────────────────
 function HeatmapTab({ items, sectorFilter, onClick }) {
-  // Show top 50 by composite (or filtered by sector). Cell = factor score, color encodes value.
+  // Show all by composite (or filtered by sector). Cell = factor score, color encodes value.
   const arr = items.filter((s) => s.composite_score != null);
   const filtered = (sectorFilter ? arr.filter((s) => s.sector === sectorFilter) : arr)
-    .sort((a, b) => Number(b.composite_score) - Number(a.composite_score))
-    .slice(0, 50);
+    .sort((a, b) => Number(b.composite_score) - Number(a.composite_score));
 
   if (filtered.length === 0) {
     return (

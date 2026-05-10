@@ -318,7 +318,7 @@ export default function PortfolioDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.slice(0, 25).map((t, i) => (
+                  {trades.map((t, i) => (
                     <tr key={i}
                         onClick={() => navigate(`/app/stock/${encodeURIComponent(t.symbol)}`)}
                         style={{ cursor: 'pointer' }}>

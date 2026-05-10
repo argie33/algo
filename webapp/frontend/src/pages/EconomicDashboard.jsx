@@ -337,7 +337,7 @@ export default function EconomicDashboard() {
                   </div>
                   <div className="card-body" style={{ height: 260 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={fci.slice(-252)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <AreaChart data={fci} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="fciUp" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="var(--danger)" stopOpacity={0.4} />
@@ -374,7 +374,7 @@ export default function EconomicDashboard() {
                   </div>
                   <div className="card-body" style={{ height: 260 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={spreadHist.slice(-252)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <AreaChart data={spreadHist} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="spreadGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.4} />
@@ -459,7 +459,7 @@ export default function EconomicDashboard() {
                 </div>
                 <div className="card-body" style={{ height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={spreadHist.slice(-500)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <AreaChart data={spreadHist} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="spr2" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.4} />
@@ -773,7 +773,7 @@ function CreditSpreadsPanel({ yieldData }) {
     const map = new Map();
     hyHist.forEach(p => { const k = String(p.date).slice(0, 10); const cur = map.get(k) || { date: k }; cur.hy = +p.value; map.set(k, cur); });
     igHist.forEach(p => { const k = String(p.date).slice(0, 10); const cur = map.get(k) || { date: k }; cur.ig = +p.value; map.set(k, cur); });
-    return [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-252);
+    return [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
   })();
   return (
     <div className="card">
