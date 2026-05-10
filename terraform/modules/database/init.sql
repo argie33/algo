@@ -1,1080 +1,1724 @@
--- =============================================================================
--- COMPREHENSIVE POSTGRESQL DATABASE SCHEMA - FINANCIAL DASHBOARD
--- =============================================================================
--- Complete production schema with 60+ tables covering:
--- - User management & authentication
--- - Trading (positions, trades, portfolio)
--- - Market data & technical indicators
--- - Signals & signal quality
--- - Financial fundamentals
--- - Economic indicators
--- - Backtesting infrastructure
--- =============================================================================
+-- ════════════════════════════════════════════════════════════════════════════
+-- CORE TABLES - Required for all systems
+-- ════════════════════════════════════════════════════════════════════════════
 
--- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- =============================================================================
--- PART 1: CORE DATA (existing + enhanced)
--- =============================================================================
-
--- Stock symbols with metadata
+-- Stock symbols and identifiers
 CREATE TABLE IF NOT EXISTS stock_symbols (
     symbol VARCHAR(20) PRIMARY KEY,
-    name VARCHAR(255),
+    exchange VARCHAR(50),
     security_name VARCHAR(255),
-    sector VARCHAR(100),
-    industry VARCHAR(100),
-    market_cap BIGINT,
     market_category VARCHAR(50),
-    exchange VARCHAR(20),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    is_sp500 BOOLEAN DEFAULT FALSE,
+    etf VARCHAR(5),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Daily prices (hypertable)
+-- Daily OHLCV price data
 CREATE TABLE IF NOT EXISTS price_daily (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
     volume BIGINT,
-    PRIMARY KEY (symbol, date)
+    adj_close DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
-SELECT create_hypertable('price_daily', 'date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_daily', INTERVAL '1 month');
-CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily (symbol, date DESC);
-
--- Weekly prices
+-- Weekly price data
 CREATE TABLE IF NOT EXISTS price_weekly (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    week_start DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
     volume BIGINT,
-    PRIMARY KEY (symbol, week_start)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
-SELECT create_hypertable('price_weekly', 'week_start', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_weekly', INTERVAL '3 months');
-
--- Monthly prices
+-- Monthly price data
 CREATE TABLE IF NOT EXISTS price_monthly (
-    symbol VARCHAR(20) NOT NULL,
-    month_start DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    PRIMARY KEY (symbol, month_start)
-);
-
-SELECT create_hypertable('price_monthly', 'month_start', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('price_monthly', INTERVAL '6 months');
-
--- ETF prices
-CREATE TABLE IF NOT EXISTS etf_price_daily (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
     volume BIGINT,
-    PRIMARY KEY (symbol, date)
-);
-
-SELECT create_hypertable('etf_price_daily', 'date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('etf_price_daily', INTERVAL '1 month');
-
--- Trading signals with extended metadata
-CREATE TABLE IF NOT EXISTS buy_sell_daily (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    timeframe VARCHAR(10) NOT NULL DEFAULT 'daily',
-    signal_date DATE NOT NULL,
-    signal VARCHAR(10),
-    base_type VARCHAR(50),
-    confidence DECIMAL(5,3),
-    reason TEXT,
-    signal_type VARCHAR(50),
-    signal_triggered_date DATE,
-    entry_price DECIMAL(12,4),
-    buylevel DECIMAL(12,4),
-    stoplevel DECIMAL(12,4),
-    strength DECIMAL(10,4),
-    signal_strength DECIMAL(10,4),
-    inposition BOOLEAN,
-    pivot_price DECIMAL(12,4),
-    buy_zone_start DECIMAL(12,4),
-    buy_zone_end DECIMAL(12,4),
-    exit_trigger_1_price DECIMAL(12,4),
-    exit_trigger_2_price DECIMAL(12,4),
-    exit_trigger_3_price DECIMAL(12,4),
-    exit_trigger_4_price DECIMAL(12,4),
-    initial_stop DECIMAL(12,4),
-    trailing_stop DECIMAL(12,4),
-    sell_level DECIMAL(12,4),
-    base_length_days INT,
-    avg_volume_50d BIGINT,
-    volume_surge_pct DECIMAL(10,4),
-    rs_rating DECIMAL(10,4),
-    breakout_quality DECIMAL(10,4),
-    risk_reward_ratio DECIMAL(10,4),
-    mansfield_rs DECIMAL(10,4),
-    sata_score DECIMAL(10,4),
-    current_gain_pct DECIMAL(10,4),
-    days_in_position INT,
-    entry_quality_score DECIMAL(10,4),
-    risk_pct DECIMAL(10,4),
-    position_size_recommendation DECIMAL(10,4),
-    profit_target_8pct DECIMAL(12,4),
-    profit_target_20pct DECIMAL(12,4),
-    profit_target_25pct DECIMAL(12,4),
-    market_stage VARCHAR(50),
-    stage_number INT,
-    stage_confidence DECIMAL(10,4),
-    substage VARCHAR(50),
-    rsi DECIMAL(10,4),
-    adx DECIMAL(10,4),
-    atr DECIMAL(12,4),
-    macd DECIMAL(10,4),
-    signal_line DECIMAL(10,4),
-    sma_20 DECIMAL(12,4),
-    sma_50 DECIMAL(12,4),
-    sma_200 DECIMAL(12,4),
-    ema_21 DECIMAL(12,4),
-    ema_26 DECIMAL(12,4),
-    pct_from_ema21 DECIMAL(10,4),
-    pct_from_sma50 DECIMAL(10,4),
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('buy_sell_daily', 'signal_date', if_not_exists => TRUE);
-SELECT set_chunk_time_interval('buy_sell_daily', INTERVAL '1 month');
-CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, signal_date DESC);
-
--- =============================================================================
--- PART 2: USER MANAGEMENT & AUTHENTICATION
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    cognito_id VARCHAR(255),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    deleted_at TIMESTAMP,
-    active BOOLEAN DEFAULT true,
-    roles TEXT[] DEFAULT ARRAY['user']
-);
-
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_cognito_id ON users(cognito_id);
-
-CREATE TABLE IF NOT EXISTS user_api_keys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    key_name VARCHAR(255) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL,
-    secret_hash VARCHAR(255),
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_used_at TIMESTAMP,
-    active BOOLEAN DEFAULT true,
-    UNIQUE(user_id, key_name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
-
-CREATE TABLE IF NOT EXISTS user_portfolio (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    alpaca_account_id VARCHAR(255),
-    initial_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
-    portfolio_type VARCHAR(50) DEFAULT 'swing_trader',
-    risk_tolerance VARCHAR(50) DEFAULT 'moderate',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS user_dashboard_settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    theme VARCHAR(50) DEFAULT 'dark',
-    default_chart_timeframe VARCHAR(20) DEFAULT 'daily',
-    default_sort VARCHAR(100),
-    show_portfolio BOOLEAN DEFAULT true,
-    show_watchlist BOOLEAN DEFAULT true,
-    show_signals BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- =============================================================================
--- PART 3: TRADING & POSITIONS
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS trades (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,
-    quantity DECIMAL(15,4) NOT NULL,
-    execution_price DECIMAL(12,4) NOT NULL,
-    execution_date TIMESTAMP NOT NULL,
-    order_value DECIMAL(15,2),
-    commission DECIMAL(10,4) DEFAULT 0,
-    source VARCHAR(50) DEFAULT 'manual',
-    broker VARCHAR(50) DEFAULT 'alpaca',
-    order_id VARCHAR(255),
-    trade_id VARCHAR(255),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_trades_symbol_date ON trades(symbol, execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_trades_user_date ON trades(user_id, execution_date DESC);
-
-CREATE TABLE IF NOT EXISTS algo_positions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    symbol VARCHAR(20) NOT NULL,
-    entry_date DATE NOT NULL,
-    entry_price DECIMAL(12,4) NOT NULL,
-    quantity DECIMAL(15,4) NOT NULL,
-    stop_loss DECIMAL(12,4),
-    profit_target_1 DECIMAL(12,4),
-    profit_target_2 DECIMAL(12,4),
-    profit_target_3 DECIMAL(12,4),
-    position_value DECIMAL(15,2),
-    unrealized_pl DECIMAL(15,2),
-    unrealized_pl_pct DECIMAL(10,4),
-    status VARCHAR(20) NOT NULL DEFAULT 'open',
-    exit_date DATE,
-    exit_price DECIMAL(12,4),
-    realized_pl DECIMAL(15,2),
-    realized_pl_pct DECIMAL(10,4),
-    exit_reason TEXT,
-    signal_id BIGINT,
-    trade_id UUID REFERENCES trades(id),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol ON algo_positions(symbol);
-CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
-
-CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
-    id BIGSERIAL PRIMARY KEY,
-    snapshot_date DATE NOT NULL,
-    total_portfolio_value DECIMAL(15,2),
-    cash_balance DECIMAL(15,2),
-    position_count INT,
-    open_position_count INT,
-    unrealized_pnl DECIMAL(15,2),
-    unrealized_pnl_pct DECIMAL(10,4),
-    realized_pnl_day DECIMAL(15,2),
-    realized_pnl_ytd DECIMAL(15,2),
-    daily_return_pct DECIMAL(10,4),
-    market_health_status VARCHAR(50),
-    circuitbreaker_status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('algo_portfolio_snapshots', 'snapshot_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS algo_trades (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    signal_date DATE NOT NULL,
-    entry_date DATE,
-    entry_price DECIMAL(12,4),
-    quantity DECIMAL(15,4),
-    stop_loss DECIMAL(12,4),
-    profit_targets TEXT,
-    exit_date DATE,
-    exit_price DECIMAL(12,4),
-    exit_reason VARCHAR(100),
-    realized_pnl DECIMAL(15,2),
-    realized_pnl_pct DECIMAL(10,4),
-    status VARCHAR(20),
-    signal_type VARCHAR(50),
-    base_type VARCHAR(50),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('algo_trades', 'signal_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS manual_positions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    symbol VARCHAR(20) NOT NULL,
-    entry_date DATE NOT NULL,
-    entry_price DECIMAL(12,4) NOT NULL,
-    quantity DECIMAL(15,4) NOT NULL,
-    stop_loss DECIMAL(12,4),
-    profit_target DECIMAL(12,4),
-    position_value DECIMAL(15,2),
-    notes TEXT,
-    status VARCHAR(20) DEFAULT 'open',
-    exit_date DATE,
-    exit_price DECIMAL(12,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS portfolio_holdings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    symbol VARCHAR(20) NOT NULL,
-    quantity DECIMAL(15,4) NOT NULL,
-    average_cost DECIMAL(12,4),
-    current_price DECIMAL(12,4),
-    position_value DECIMAL(15,2),
-    unrealized_pl DECIMAL(15,2),
-    unrealized_pl_pct DECIMAL(10,4),
-    last_updated TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, symbol)
-);
-
--- =============================================================================
--- PART 4: MARKET STATE & TECHNICAL INDICATORS
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS market_health_daily (
-    id BIGSERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    market_trend VARCHAR(50),
-    market_stage INT,
-    stage_name VARCHAR(50),
-    stage_confidence DECIMAL(5,2),
-    distribution_days_4w INT,
-    follow_through_signal BOOLEAN,
-    market_breadth_positive BOOLEAN,
-    market_breadth_ratio DECIMAL(8,4),
-    advance_decline_line INT,
-    vix_level DECIMAL(8,2),
-    vix_trend VARCHAR(50),
-    fed_rate DECIMAL(5,2),
-    gdp_growth DECIMAL(5,2),
-    inflation_rate DECIMAL(5,2),
-    unemployment_rate DECIMAL(5,2),
-    consumer_confidence INT,
-    circuit_breaker_status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('market_health_daily', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS technical_data_daily (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    close DECIMAL(12,4),
-    volume BIGINT,
-    rsi DECIMAL(10,4),
-    adx DECIMAL(10,4),
-    atr DECIMAL(12,4),
-    macd DECIMAL(10,4),
-    signal_line DECIMAL(10,4),
-    histogram DECIMAL(10,4),
-    sma_20 DECIMAL(12,4),
-    sma_50 DECIMAL(12,4),
-    sma_200 DECIMAL(12,4),
-    ema_12 DECIMAL(12,4),
-    ema_26 DECIMAL(12,4),
-    ema_21 DECIMAL(12,4),
-    bollinger_upper DECIMAL(12,4),
-    bollinger_middle DECIMAL(12,4),
-    bollinger_lower DECIMAL(12,4),
-    stoch_k DECIMAL(10,4),
-    stoch_d DECIMAL(10,4),
-    obv BIGINT,
-    cmf DECIMAL(10,4),
-    williams_r DECIMAL(10,4),
-    price_from_52w_high DECIMAL(10,4),
-    price_from_52w_low DECIMAL(10,4),
-    roc_10d DECIMAL(10,4),
-    roc_20d DECIMAL(10,4),
-    roc_60d DECIMAL(10,4),
-    roc_120d DECIMAL(10,4),
-    roc_252d DECIMAL(10,4),
-    macd_signal DECIMAL(10,4),
-    macd_hist DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
 
-SELECT create_hypertable('technical_data_daily', 'date', if_not_exists => TRUE);
-CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_data_daily(symbol, date DESC);
+-- ════════════════════════════════════════════════════════════════════════════
+-- EARNINGS & FINANCIAL DATA
+-- ════════════════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS trend_template_data (
-    id BIGSERIAL PRIMARY KEY,
+-- Historical and forward-looking earnings data
+CREATE TABLE IF NOT EXISTS earnings_estimates (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    minervini_trend_score DECIMAL(10,4),
-    percent_from_52w_low DECIMAL(10,4),
-    percent_from_52w_high DECIMAL(10,4),
-    trend_strength VARCHAR(50),
-    trend_direction VARCHAR(20),
-    trend_confirmation BOOLEAN,
-    weinstein_stage INTEGER,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
+    quarter DATE,
+    fiscal_quarter INTEGER,
+    fiscal_year INTEGER,
+    earnings_date DATE,
+    estimated BOOLEAN,
+    eps_actual DECIMAL(12, 4),
+    revenue_actual DECIMAL(16, 2),
+    eps_estimate DECIMAL(12, 4),
+    revenue_estimate DECIMAL(16, 2),
+    eps_surprise_pct DECIMAL(8, 2),
+    revenue_surprise_pct DECIMAL(8, 2),
+    eps_difference DECIMAL(12, 4),
+    revenue_difference DECIMAL(16, 2),
+    beat_miss_flag VARCHAR(20),
+    surprise_percent DECIMAL(8, 2),
+    estimate_revision_days INTEGER,
+    estimate_revision_count INTEGER,
+    fetched_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, quarter)
 );
 
-SELECT create_hypertable('trend_template_data', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS signal_quality_scores (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    signal_type VARCHAR(50),
-    base_type VARCHAR(50),
-    composite_sqs DECIMAL(10,4),
-    entry_quality DECIMAL(10,4),
-    risk_reward_score DECIMAL(10,4),
-    momentum_score DECIMAL(10,4),
-    technical_confirmation DECIMAL(10,4),
-    volume_confirmation DECIMAL(10,4),
-    trend_alignment DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date, signal_type)
+-- Earnings history (actual reported earnings + estimates)
+CREATE TABLE IF NOT EXISTS earnings_history (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    quarter DATE,
+    fiscal_quarter INTEGER,
+    fiscal_year INTEGER,
+    earnings_date DATE,
+    estimated BOOLEAN,
+    eps_actual DECIMAL(12, 4),
+    revenue_actual DECIMAL(16, 2),
+    eps_estimate DECIMAL(12, 4),
+    revenue_estimate DECIMAL(16, 2),
+    eps_surprise_pct DECIMAL(8, 2),
+    revenue_surprise_pct DECIMAL(8, 2),
+    eps_difference DECIMAL(12, 4),
+    revenue_difference DECIMAL(16, 2),
+    beat_miss_flag VARCHAR(20),
+    surprise_percent DECIMAL(8, 2),
+    estimate_revision_days INTEGER,
+    estimate_revision_count INTEGER,
+    fetched_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, quarter)
 );
 
-SELECT create_hypertable('signal_quality_scores', 'date', if_not_exists => TRUE);
+-- ════════════════════════════════════════════════════════════════════════════
+-- ANALYST DATA
+-- ════════════════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS data_completeness_scores (
-    id BIGSERIAL PRIMARY KEY,
+-- Analyst rating changes
+CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    composite_completeness_pct DECIMAL(10,2),
-    price_data_complete BOOLEAN,
-    volume_data_complete BOOLEAN,
-    technical_data_complete BOOLEAN,
-    fundamental_data_complete BOOLEAN,
-    sentiment_data_complete BOOLEAN,
-    missing_fields TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('data_completeness_scores', 'date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 5: FINANCIAL DATA
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS company_profile (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL UNIQUE,
+    action_date DATE,
+    firm VARCHAR(100),
+    old_rating VARCHAR(50),
+    new_rating VARCHAR(50),
+    action VARCHAR(20),
     company_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Analyst sentiment summary
+CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    analyst_count INTEGER,
+    bullish_count INTEGER,
+    bearish_count INTEGER,
+    neutral_count INTEGER,
+    target_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    upside_downside_percent DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- TECHNICAL INDICATORS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Daily technical indicators
+CREATE TABLE IF NOT EXISTS technical_data_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    mom DECIMAL(12, 4),
+    roc DECIMAL(8, 4),
+    roc_10d DECIMAL(8, 4),
+    roc_20d DECIMAL(8, 4),
+    roc_60d DECIMAL(8, 4),
+    roc_120d DECIMAL(8, 4),
+    roc_252d DECIMAL(8, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_12 DECIMAL(12, 4),
+    ema_26 DECIMAL(12, 4),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 4),
+    plus_di DECIMAL(8, 4),
+    minus_di DECIMAL(8, 4),
+    mansfield_rs DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Weekly technical indicators
+CREATE TABLE IF NOT EXISTS technical_data_weekly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_12 DECIMAL(12, 4),
+    ema_26 DECIMAL(12, 4),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Monthly technical indicators
+CREATE TABLE IF NOT EXISTS technical_data_monthly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_12 DECIMAL(12, 4),
+    ema_26 DECIMAL(12, 4),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- TRADING SIGNALS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Daily buy/sell signals
+CREATE TABLE IF NOT EXISTS buy_sell_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    reason VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Weekly buy/sell signals
+CREATE TABLE IF NOT EXISTS buy_sell_weekly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    reason VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Monthly buy/sell signals
+CREATE TABLE IF NOT EXISTS buy_sell_monthly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    reason VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- QUALITY METRICS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Profitability and efficiency metrics
+CREATE TABLE IF NOT EXISTS quality_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    operating_margin DECIMAL(8, 4),
+    net_margin DECIMAL(8, 4),
+    roe DECIMAL(8, 4),
+    roa DECIMAL(8, 4),
+    debt_to_equity DECIMAL(8, 4),
+    current_ratio DECIMAL(8, 4),
+    quick_ratio DECIMAL(8, 4),
+    interest_coverage DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Growth metrics
+CREATE TABLE IF NOT EXISTS growth_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    revenue_growth_5y DECIMAL(8, 4),
+    revenue_growth_3y DECIMAL(8, 4),
+    revenue_growth_1y DECIMAL(8, 4),
+    eps_growth_5y DECIMAL(8, 4),
+    eps_growth_3y DECIMAL(8, 4),
+    eps_growth_1y DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stability metrics
+CREATE TABLE IF NOT EXISTS stability_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    volatility_30d DECIMAL(8, 4),
+    volatility_60d DECIMAL(8, 4),
+    volatility_252d DECIMAL(8, 4),
+    beta DECIMAL(8, 4),
+    debt_to_assets DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Value metrics
+CREATE TABLE IF NOT EXISTS value_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    pe_ratio DECIMAL(8, 4),
+    pb_ratio DECIMAL(8, 4),
+    ps_ratio DECIMAL(8, 4),
+    peg_ratio DECIMAL(8, 4),
+    dividend_yield DECIMAL(8, 4),
+    fcf_yield DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Positioning metrics
+CREATE TABLE IF NOT EXISTS positioning_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    institutional_ownership DECIMAL(8, 4),
+    insider_ownership DECIMAL(8, 4),
+    short_interest_percent DECIMAL(8, 4),
+    shares_short_prior_month BIGINT,
+    short_interest_trend VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMPOSITE SCORES
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Overall stock quality score
+CREATE TABLE IF NOT EXISTS stock_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL UNIQUE,
+    composite_score DECIMAL(8, 2),
+    quality_score DECIMAL(8, 2),
+    growth_score DECIMAL(8, 2),
+    stability_score DECIMAL(8, 2),
+    value_score DECIMAL(8, 2),
+    momentum_score DECIMAL(8, 2),
+    positioning_score DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- USER MANAGEMENT & SYSTEM TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- User accounts and authentication
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(100) UNIQUE,
+    password_hash VARCHAR(255),
+    role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Migration for existing deployments:
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user'));
+
+-- User dashboard settings and preferences
+CREATE TABLE IF NOT EXISTS user_dashboard_settings (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    theme VARCHAR(20) DEFAULT 'light',
+    notifications BOOLEAN DEFAULT TRUE,
+    preferences JSONB,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User alerts for stock price changes
+CREATE TABLE IF NOT EXISTS user_alerts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    symbol VARCHAR(20) NOT NULL,
+    alert_type VARCHAR(50),
+    threshold DECIMAL(12, 4),
+    triggered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User API keys for integrations
+CREATE TABLE IF NOT EXISTS user_api_keys (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    broker VARCHAR(50),
+    api_key VARCHAR(500),
+    api_secret VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP
+);
+
+-- Manual trades entered by users
+CREATE TABLE IF NOT EXISTS trades (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    symbol VARCHAR(20) NOT NULL,
+    side VARCHAR(10),
+    quantity DECIMAL(12, 2),
+    execution_price DECIMAL(12, 4),
+    trade_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Manual portfolio positions
+CREATE TABLE IF NOT EXISTS manual_positions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    symbol VARCHAR(20) NOT NULL,
+    quantity DECIMAL(12, 2),
+    average_cost DECIMAL(12, 4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Community feature signups
+CREATE TABLE IF NOT EXISTS community_signups (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Contact form submissions
+CREATE TABLE IF NOT EXISTS contact_submissions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    subject VARCHAR(255),
+    message TEXT,
+    status VARCHAR(20) DEFAULT 'new',
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMPANY & FUNDAMENTAL DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Company profile and basic information
+CREATE TABLE IF NOT EXISTS company_profile (
+    ticker VARCHAR(20) PRIMARY KEY,
+    symbol VARCHAR(20),
+    short_name VARCHAR(255),
+    long_name VARCHAR(255),
+    display_name VARCHAR(255),
     sector VARCHAR(100),
     industry VARCHAR(100),
+    exchange VARCHAR(50),
     website VARCHAR(255),
-    description TEXT,
-    ceo VARCHAR(255),
-    employees INT,
-    founded_year INT,
+    employees BIGINT,
+    currency_code VARCHAR(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Key financial metrics per company
+CREATE TABLE IF NOT EXISTS key_metrics (
+    ticker VARCHAR(20) PRIMARY KEY,
+    symbol VARCHAR(20),
     market_cap BIGINT,
-    pe_ratio DECIMAL(10,2),
-    eps DECIMAL(10,2),
-    dividend_yield DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    held_percent_insiders DECIMAL(8, 4),
+    held_percent_institutions DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    buy_count INT,
-    hold_count INT,
-    sell_count INT,
-    strong_buy_count INT,
-    strong_sell_count INT,
-    consensus_rating VARCHAR(50),
-    average_target_price DECIMAL(12,4),
-    consensus_pct_upside DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('analyst_sentiment_analysis', 'date', if_not_exists => TRUE);
-
+-- Insider transaction data
 CREATE TABLE IF NOT EXISTS insider_transactions (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    transaction_date DATE NOT NULL,
-    insider_name VARCHAR(255),
-    insider_title VARCHAR(100),
-    transaction_type VARCHAR(50),
-    shares INT,
-    share_price DECIMAL(12,4),
-    transaction_value DECIMAL(15,2),
-    shares_owned INT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('insider_transactions', 'transaction_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS insider_roster (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    insider_name VARCHAR(255) NOT NULL,
-    title VARCHAR(100),
-    shares_owned INT,
-    shares_traded INT,
-    last_trade_date DATE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, insider_name)
-);
-
-CREATE TABLE IF NOT EXISTS earnings_history (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    earnings_date DATE NOT NULL,
-    quarter VARCHAR(10),
-    fiscal_year INT,
-    eps_actual DECIMAL(10,4),
-    eps_estimate DECIMAL(10,4),
-    revenue_actual BIGINT,
-    revenue_estimate BIGINT,
-    beat_miss VARCHAR(10),
-    surprise_pct DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, earnings_date)
-);
-
-SELECT create_hypertable('earnings_history', 'earnings_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS earnings_estimates (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    fiscal_year INT NOT NULL,
-    quarter VARCHAR(10),
-    eps_estimate DECIMAL(10,4),
-    revenue_estimate BIGINT,
-    estimate_date DATE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, fiscal_year, quarter)
-);
-
-CREATE TABLE IF NOT EXISTS quality_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    roe DECIMAL(10,4),
-    roa DECIMAL(10,4),
-    debt_to_equity DECIMAL(10,4),
-    current_ratio DECIMAL(10,4),
-    quick_ratio DECIMAL(10,4),
-    interest_coverage DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('quality_metrics', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS growth_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    revenue_growth_yoy DECIMAL(10,4),
-    earnings_growth_yoy DECIMAL(10,4),
-    fcf_growth_yoy DECIMAL(10,4),
-    avg_revenue_growth_3y DECIMAL(10,4),
-    avg_earnings_growth_3y DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('growth_metrics', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS value_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    pe_ratio DECIMAL(10,2),
-    peg_ratio DECIMAL(10,2),
-    pb_ratio DECIMAL(10,2),
-    ps_ratio DECIMAL(10,2),
-    price_to_fcf DECIMAL(10,2),
-    ev_to_ebitda DECIMAL(10,2),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('value_metrics', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS stability_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    beta DECIMAL(10,4),
-    volatility_30d DECIMAL(10,4),
-    volatility_90d DECIMAL(10,4),
-    sharpe_ratio DECIMAL(10,4),
-    max_drawdown DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(symbol, date)
-);
-
-SELECT create_hypertable('stability_metrics', 'date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 6: ADDITIONAL SIGNAL TABLES
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    signal VARCHAR(10),
-    mean_reversion_score DECIMAL(10,4),
-    deviation_from_mean DECIMAL(10,4),
-    zscore DECIMAL(10,4),
-    confidence DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('mean_reversion_signals_daily', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS range_signals_daily (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    signal VARCHAR(10),
-    resistance_level DECIMAL(12,4),
-    support_level DECIMAL(12,4),
-    range_strength DECIMAL(10,4),
-    breakout_confirmation BOOLEAN,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('range_signals_daily', 'date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 7: BACKTESTING & PERFORMANCE
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS backtest_runs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    strategy_name VARCHAR(255),
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    initial_capital DECIMAL(15,2) NOT NULL,
-    final_value DECIMAL(15,2),
-    total_return_pct DECIMAL(10,4),
-    annual_return_pct DECIMAL(10,4),
-    sharpe_ratio DECIMAL(10,4),
-    max_drawdown_pct DECIMAL(10,4),
-    win_rate_pct DECIMAL(10,4),
-    total_trades INT,
-    winning_trades INT,
-    losing_trades INT,
-    avg_win DECIMAL(15,2),
-    avg_loss DECIMAL(15,2),
-    profit_factor DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS backtest_trades (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    backtest_id UUID NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
-    symbol VARCHAR(20) NOT NULL,
-    entry_date DATE NOT NULL,
-    entry_price DECIMAL(12,4),
-    quantity INT,
-    exit_date DATE,
-    exit_price DECIMAL(12,4),
-    pnl DECIMAL(15,2),
-    pnl_pct DECIMAL(10,4),
-    status VARCHAR(20),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- =============================================================================
--- PART 8: MONITORING & LOGGING
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS data_patrol_log (
-    id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    patrol_date DATE,
-    issue_type VARCHAR(100),
-    severity VARCHAR(20),
-    description TEXT,
-    resolved BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS algo_audit_log (
-    id BIGSERIAL PRIMARY KEY,
-    run_date DATE NOT NULL,
-    run_time TIMESTAMP NOT NULL,
-    phase_name VARCHAR(100),
-    phase_number INT,
-    status VARCHAR(50),
-    summary TEXT,
-    trades_executed INT,
-    errors_count INT,
-    warnings_count INT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('algo_audit_log', 'run_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS filter_rejection_log (
-    id BIGSERIAL PRIMARY KEY,
-    signal_date DATE NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    filter_name VARCHAR(100),
-    rejection_reason TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('filter_rejection_log', 'signal_date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 9: ECONOMIC & MACRO
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS economic_calendar (
-    id BIGSERIAL PRIMARY KEY,
-    event_name VARCHAR(255) NOT NULL,
-    event_date DATE NOT NULL,
-    country VARCHAR(50),
-    importance VARCHAR(20),
-    forecast DECIMAL(15,4),
-    actual DECIMAL(15,4),
-    previous DECIMAL(15,4),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('economic_calendar', 'event_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS economic_data (
-    id BIGSERIAL PRIMARY KEY,
-    indicator_name VARCHAR(255) NOT NULL,
-    data_date DATE NOT NULL,
-    country VARCHAR(50) DEFAULT 'USA',
-    value DECIMAL(15,4),
-    previous_value DECIMAL(15,4),
-    change DECIMAL(10,4),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(indicator_name, data_date, country)
-);
-
-SELECT create_hypertable('economic_data', 'data_date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS fear_greed_index (
-    id BIGSERIAL PRIMARY KEY,
-    date DATE NOT NULL UNIQUE,
-    index_value DECIMAL(10,4),
-    index_category VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-SELECT create_hypertable('fear_greed_index', 'date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 10: COMMODITIES
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS commodity_prices (
-    id BIGSERIAL PRIMARY KEY,
-    commodity_symbol VARCHAR(20) NOT NULL,
-    commodity_name VARCHAR(255),
-    date DATE NOT NULL,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
-    volume BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(commodity_symbol, date)
-);
-
-SELECT create_hypertable('commodity_prices', 'date', if_not_exists => TRUE);
-
-CREATE TABLE IF NOT EXISTS commodity_correlations (
-    id BIGSERIAL PRIMARY KEY,
-    commodity_1 VARCHAR(20) NOT NULL,
-    commodity_2 VARCHAR(20) NOT NULL,
-    correlation DECIMAL(10,4),
-    calculation_date DATE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(commodity_1, commodity_2, calculation_date)
-);
-
-SELECT create_hypertable('commodity_correlations', 'calculation_date', if_not_exists => TRUE);
-
--- =============================================================================
--- PART 11: LEGACY TABLES (kept for compatibility)
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS balance_sheet (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    total_assets BIGINT,
-    total_liabilities BIGINT,
-    total_equity BIGINT,
-    current_assets BIGINT,
-    current_liabilities BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS income_statement (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    revenue BIGINT,
-    operating_income BIGINT,
-    net_income BIGINT,
-    gross_profit BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS cash_flow (
-    symbol VARCHAR(20) NOT NULL,
-    period_date DATE NOT NULL,
-    period_type VARCHAR(10),
-    operating_cash_flow BIGINT,
-    investing_cash_flow BIGINT,
-    financing_cash_flow BIGINT,
-    free_cash_flow BIGINT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (symbol, period_date, period_type)
-);
-
-CREATE TABLE IF NOT EXISTS loader_watermarks (
     id SERIAL PRIMARY KEY,
-    loader VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20),
-    granularity VARCHAR(50) DEFAULT 'default',
-    watermark TEXT NOT NULL,
-    rows_loaded BIGINT DEFAULT 0,
-    last_run_at TIMESTAMPTZ DEFAULT NOW(),
-    last_success_at TIMESTAMPTZ,
-    error_count INT DEFAULT 0,
-    last_error TEXT,
-    UNIQUE (loader, symbol, granularity)
+    symbol VARCHAR(20) NOT NULL,
+    insider_name VARCHAR(255),
+    title VARCHAR(255),
+    trade_type VARCHAR(20),
+    shares BIGINT,
+    trade_price DECIMAL(12, 4),
+    trade_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_loader_watermarks_loader_run
-    ON loader_watermarks (loader, last_run_at DESC);
+-- Institutional ownership positioning
+CREATE TABLE IF NOT EXISTS institutional_positioning (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    shares_held BIGINT,
+    percent_held DECIMAL(8, 4),
+    change_from_prior BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE TABLE IF NOT EXISTS staging_prices (
+-- Positioning metrics summary
+CREATE TABLE IF NOT EXISTS positioning_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    institutional_ownership DECIMAL(8, 4),
+    insider_ownership DECIMAL(8, 4),
+    short_interest_percent DECIMAL(8, 4),
+    shares_short_prior_month BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMMODITY & MARKET DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Commodity prices and data
+CREATE TABLE IF NOT EXISTS commodity_prices (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    name VARCHAR(255),
+    price DECIMAL(12, 4),
+    date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Commodity price history
+CREATE TABLE IF NOT EXISTS commodity_price_history (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Commodity categories and relationships
+CREATE TABLE IF NOT EXISTS commodity_categories (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(100),
+    symbols TEXT
+);
+
+-- COT (Commitments of Traders) data
+CREATE TABLE IF NOT EXISTS cot_data (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    commercial_long BIGINT,
+    commercial_short BIGINT,
+    non_commercial_long BIGINT,
+    non_commercial_short BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Market distribution days
+CREATE TABLE IF NOT EXISTS distribution_days (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    distribution_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- General market data
+CREATE TABLE IF NOT EXISTS market_data (
+    id SERIAL PRIMARY KEY,
+    metric_name VARCHAR(100),
+    value DECIMAL(12, 4),
+    date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SENTIMENT & PSYCHOLOGICAL DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- AAII investor sentiment survey
+CREATE TABLE IF NOT EXISTS aaii_sentiment (
+    id SERIAL PRIMARY KEY,
+    date DATE UNIQUE,
+    bullish DECIMAL(8, 4),
+    neutral DECIMAL(8, 4),
+    bearish DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- NAAIM market strategists index
+CREATE TABLE IF NOT EXISTS naaim (
+    id SERIAL PRIMARY KEY,
+    date DATE UNIQUE,
+    naaim_number_mean DECIMAL(8, 4),
+    bullish DECIMAL(8, 4),
+    bearish DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Fear and Greed Index
+CREATE TABLE IF NOT EXISTS fear_greed_index (
+    id SERIAL PRIMARY KEY,
+    date DATE UNIQUE,
+    fear_greed_value DECIMAL(8, 4),
+    fear_greed_label VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Analyst sentiment analysis for stocks
+CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
     date DATE,
-    open DECIMAL(12,4),
-    high DECIMAL(12,4),
-    low DECIMAL(12,4),
-    close DECIMAL(12,4),
+    analyst_count INTEGER,
+    bullish_count INTEGER,
+    bearish_count INTEGER,
+    neutral_count INTEGER,
+    total_analysts INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- OPTIONS DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Options chains for stocks
+CREATE TABLE IF NOT EXISTS options_chains (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    contract_symbol VARCHAR(50),
+    option_type VARCHAR(10),
+    expiration_date DATE,
+    strike_price DECIMAL(12, 4),
+    bid DECIMAL(12, 4),
+    ask DECIMAL(12, 4),
+    last_price DECIMAL(12, 4),
     volume BIGINT,
-    source VARCHAR(20)
+    open_interest BIGINT,
+    data_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================================================
--- LOADER SLA TRACKING
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS loader_sla_status (
+-- Options Greeks (Delta, Gamma, Theta, Vega, Rho)
+CREATE TABLE IF NOT EXISTS options_greeks (
     id SERIAL PRIMARY KEY,
-    loader_name VARCHAR(255) NOT NULL,
-    table_name VARCHAR(255) NOT NULL,
-    latest_data_date DATE,
-    row_count_today INT DEFAULT 0,
-    status VARCHAR(50) DEFAULT 'UNKNOWN',
-    error_message TEXT,
-    last_check_at TIMESTAMP DEFAULT NOW(),
-    load_started_at TIMESTAMP,
-    load_completed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-
-    UNIQUE (loader_name, table_name)
+    symbol VARCHAR(20) NOT NULL,
+    contract_symbol VARCHAR(50),
+    delta DECIMAL(8, 4),
+    gamma DECIMAL(8, 4),
+    theta DECIMAL(8, 4),
+    vega DECIMAL(8, 4),
+    rho DECIMAL(8, 4),
+    data_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_loader_sla_date ON loader_sla_status(last_check_at DESC);
-CREATE INDEX IF NOT EXISTS idx_loader_sla_status ON loader_sla_status(status);
-
--- Loader Execution History (for audit trail)
-CREATE TABLE IF NOT EXISTS loader_execution_history (
+-- Implied volatility history
+CREATE TABLE IF NOT EXISTS iv_history (
     id SERIAL PRIMARY KEY,
-    loader_name VARCHAR(255) NOT NULL,
-    table_name VARCHAR(255) NOT NULL,
-    execution_date DATE NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    rows_attempted INT,
-    rows_succeeded INT,
-    rows_rejected INT,
-    error_message TEXT,
-    started_at TIMESTAMP NOT NULL,
-    completed_at TIMESTAMP NOT NULL,
-    duration_seconds FLOAT,
-    data_source VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW()
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    iv_30d DECIMAL(8, 4),
+    iv_60d DECIMAL(8, 4),
+    iv_180d DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Signal Performance Tracking (for signal-performance endpoint)
-CREATE TABLE IF NOT EXISTS signal_trade_performance (
-    id BIGSERIAL PRIMARY KEY,
-    signal_id VARCHAR(100) UNIQUE,
+-- ════════════════════════════════════════════════════════════════════════════
+-- PORTFOLIO & HOLDINGS DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Portfolio holdings for users
+CREATE TABLE IF NOT EXISTS portfolio_holdings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    symbol VARCHAR(20) NOT NULL,
+    quantity DECIMAL(12, 4),
+    average_cost DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Portfolio performance metrics
+CREATE TABLE IF NOT EXISTS portfolio_performance (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    date DATE,
+    total_value DECIMAL(16, 2),
+    total_gain_loss DECIMAL(16, 2),
+    total_return_pct DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ECONOMIC & MARKET INDEX DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Economic calendar events
+CREATE TABLE IF NOT EXISTS economic_calendar (
+    id SERIAL PRIMARY KEY,
+    date DATE,
+    event_name VARCHAR(255),
+    country VARCHAR(50),
+    importance VARCHAR(20),
+    forecast DECIMAL(12, 4),
+    actual DECIMAL(12, 4),
+    previous DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Economic data time series
+CREATE TABLE IF NOT EXISTS economic_data (
+    id SERIAL PRIMARY KEY,
+    series_id VARCHAR(50),
+    date DATE,
+    value DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index metrics (market breadth, etc.)
+CREATE TABLE IF NOT EXISTS index_metrics (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE,
+    closing_price DECIMAL(12, 4),
+    momentum DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SECTOR & INDUSTRY ANALYSIS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Sector performance rankings
+CREATE TABLE IF NOT EXISTS sector_ranking (
+    id SERIAL PRIMARY KEY,
+    sector_name VARCHAR(100),
+    date_recorded DATE,
+    current_rank INTEGER,
+    momentum_score DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sector performance data
+CREATE TABLE IF NOT EXISTS sector_performance (
+    id SERIAL PRIMARY KEY,
+    sector VARCHAR(100),
+    date DATE,
+    return_pct DECIMAL(8, 4),
+    relative_strength DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Industry rankings
+CREATE TABLE IF NOT EXISTS industry_ranking (
+    id SERIAL PRIMARY KEY,
+    industry VARCHAR(100),
+    date_recorded DATE,
+    current_rank INTEGER,
+    momentum_score DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Industry performance data
+CREATE TABLE IF NOT EXISTS industry_performance (
+    id SERIAL PRIMARY KEY,
+    industry VARCHAR(100),
+    date DATE,
+    return_pct DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SEASONALITY DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Day of week seasonality
+CREATE TABLE IF NOT EXISTS seasonality_day_of_week (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    day_of_week INTEGER,
+    avg_return_pct DECIMAL(8, 4),
+    win_rate_pct DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Monthly seasonality patterns
+CREATE TABLE IF NOT EXISTS seasonality_monthly_stats (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    month INTEGER,
+    avg_return_pct DECIMAL(8, 4),
+    win_rate_pct DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- STRATEGY & ANALYSIS DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Covered call opportunities
+CREATE TABLE IF NOT EXISTS covered_call_opportunities (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    strike_price DECIMAL(12, 4),
+    expiration_date DATE,
+    annual_return_pct DECIMAL(8, 4),
+    probability_profit DECIMAL(8, 4),
+    data_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- EARNINGS & FINANCIAL FORECASTS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Earnings estimate trends
+CREATE TABLE IF NOT EXISTS earnings_estimate_trends (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    quarter DATE,
+    fiscal_year INTEGER,
+    period VARCHAR(20),
+    current_estimate DECIMAL(12, 4),
+    prior_estimate DECIMAL(12, 4),
+    change_estimate DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Earnings estimate revisions
+CREATE TABLE IF NOT EXISTS earnings_estimate_revisions (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    quarter DATE,
+    fiscal_year INTEGER,
+    revision_date DATE,
+    estimate_before DECIMAL(12, 4),
+    estimate_after DECIMAL(12, 4),
+    revision_type VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ALTERNATIVE METRICS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Momentum metrics for stocks
+CREATE TABLE IF NOT EXISTS momentum_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    momentum_1m DECIMAL(8, 4),
+    momentum_3m DECIMAL(8, 4),
+    momentum_6m DECIMAL(8, 4),
+    momentum_12m DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Beta and volatility validation
+CREATE TABLE IF NOT EXISTS beta_validation (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) UNIQUE,
+    beta_yfinance DECIMAL(8, 4),
+    beta_calculated DECIMAL(8, 4),
+    validation_status VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- FINANCIAL STATEMENTS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Annual income statements
+CREATE TABLE IF NOT EXISTS annual_income_statement (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    revenue DECIMAL(16, 2),
+    cost_of_revenue DECIMAL(16, 2),
+    gross_profit DECIMAL(16, 2),
+    operating_income DECIMAL(16, 2),
+    net_income DECIMAL(16, 2),
+    earnings_per_share DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Annual balance sheets
+CREATE TABLE IF NOT EXISTS annual_balance_sheet (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    total_assets DECIMAL(16, 2),
+    current_assets DECIMAL(16, 2),
+    total_liabilities DECIMAL(16, 2),
+    stockholders_equity DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Annual cash flows
+CREATE TABLE IF NOT EXISTS annual_cash_flow (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    operating_cash_flow DECIMAL(16, 2),
+    investing_cash_flow DECIMAL(16, 2),
+    financing_cash_flow DECIMAL(16, 2),
+    free_cash_flow DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Quarterly income statements
+CREATE TABLE IF NOT EXISTS quarterly_income_statement (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    fiscal_quarter INTEGER,
+    revenue DECIMAL(16, 2),
+    net_income DECIMAL(16, 2),
+    earnings_per_share DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
+);
+
+-- Quarterly balance sheets
+CREATE TABLE IF NOT EXISTS quarterly_balance_sheet (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    fiscal_quarter INTEGER,
+    total_assets DECIMAL(16, 2),
+    total_liabilities DECIMAL(16, 2),
+    stockholders_equity DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
+);
+
+-- Quarterly cash flows
+CREATE TABLE IF NOT EXISTS quarterly_cash_flow (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    fiscal_year INTEGER,
+    fiscal_quarter INTEGER,
+    operating_cash_flow DECIMAL(16, 2),
+    free_cash_flow DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
+);
+
+-- TTM (Trailing Twelve Months) income statement
+CREATE TABLE IF NOT EXISTS ttm_income_statement (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    item_name VARCHAR(255),
+    value DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- TTM cash flow statement
+CREATE TABLE IF NOT EXISTS ttm_cash_flow (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    item_name VARCHAR(255),
+    value DECIMAL(16, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ETF DATA
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- ETF price data - Daily
+CREATE TABLE IF NOT EXISTS etf_price_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ETF price data - Weekly
+CREATE TABLE IF NOT EXISTS etf_price_weekly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ETF price data - Monthly
+CREATE TABLE IF NOT EXISTS etf_price_monthly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ETF buy/sell signals - Daily
+CREATE TABLE IF NOT EXISTS buy_sell_daily_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ETF buy/sell signals - Weekly
+CREATE TABLE IF NOT EXISTS buy_sell_weekly_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ETF buy/sell signals - Monthly
+CREATE TABLE IF NOT EXISTS buy_sell_monthly_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CALENDAR & NEWS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Calendar events (earnings, dividends, etc)
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    event_type VARCHAR(50),
+    event_date DATE,
+    event_description VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SWING TRADING ALGO SYSTEM
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Algo configuration (hot-reload enabled, no restart needed)
+CREATE TABLE IF NOT EXISTS algo_config (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value TEXT,
+    value_type VARCHAR(20),
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100)
+);
+
+-- Market health daily (market breadth, distribution days, trend)
+CREATE TABLE IF NOT EXISTS market_health_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    market_trend VARCHAR(20),
+    market_stage INTEGER,
+    distribution_days_4w INTEGER,
+    distribution_days_20d INTEGER,
+    up_volume_percent DECIMAL(8, 2),
+    advance_decline_ratio DECIMAL(10, 2),
+    new_highs_count INTEGER,
+    new_lows_count INTEGER,
+    breadth_momentum_10d DECIMAL(8, 4),
+    vix_level DECIMAL(8, 2),
+    put_call_ratio DECIMAL(8, 4),
+    yield_curve_slope DECIMAL(8, 4),
+    fed_rate_environment VARCHAR(50),
+    market_comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trend template fields per symbol (52w highs/lows, MA slopes, stages)
+CREATE TABLE IF NOT EXISTS trend_template_data (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    price_52w_high DECIMAL(12, 4),
+    price_52w_low DECIMAL(12, 4),
+    percent_from_52w_low DECIMAL(8, 2),
+    percent_from_52w_high DECIMAL(8, 2),
+    sma_50_slope DECIMAL(8, 4),
+    sma_200_slope DECIMAL(8, 4),
+    price_above_sma50 BOOLEAN,
+    price_above_sma200 BOOLEAN,
+    sma50_above_sma200 BOOLEAN,
+    ma_spread_percent DECIMAL(8, 4),
+    minervini_trend_score INTEGER,
+    weinstein_stage INTEGER,
+    trend_direction VARCHAR(20),
+    consolidation_flag BOOLEAN,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- CAN SLIM fundamentals per symbol
+CREATE TABLE IF NOT EXISTS can_slim_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    eps_growth_current DECIMAL(8, 4),
+    eps_growth_5y DECIMAL(8, 4),
+    sales_growth_current DECIMAL(8, 4),
+    profit_margin DECIMAL(8, 4),
+    roe DECIMAL(8, 4),
+    institutional_ownership_pct DECIMAL(8, 2),
+    shares_float_millions INTEGER,
+    new_product_catalyst TEXT,
+    relative_price_strength DECIMAL(8, 4),
+    can_slim_score INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- VCP detection (Volatility Contraction Pattern)
+CREATE TABLE IF NOT EXISTS vcp_patterns (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    atr_30d_avg DECIMAL(12, 4),
+    atr_current DECIMAL(12, 4),
+    atr_compression_pct DECIMAL(8, 2),
+    range_30d_avg DECIMAL(12, 4),
+    range_current DECIMAL(12, 4),
+    vcp_strength INTEGER,
+    breakout_volume_ratio DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Signal Quality Score composite ranking
+CREATE TABLE IF NOT EXISTS signal_quality_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    trend_template_score INTEGER,
+    base_quality_score INTEGER,
+    volume_confirmation_score INTEGER,
+    distance_from_high_score INTEGER,
+    institutional_ownership_score INTEGER,
+    market_stage_score INTEGER,
+    vcp_pattern_score INTEGER,
+    distribution_days_score INTEGER,
+    earnings_proximity_score INTEGER,
+    composite_sqs INTEGER,
+    rank_vs_all_signals INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Data completeness score per symbol
+CREATE TABLE IF NOT EXISTS data_completeness_scores (
+    symbol VARCHAR(20) PRIMARY KEY,
+    price_data_pct DECIMAL(8, 2),
+    technical_data_pct DECIMAL(8, 2),
+    earnings_data_pct DECIMAL(8, 2),
+    analyst_coverage_pct DECIMAL(8, 2),
+    institutional_data_pct DECIMAL(8, 2),
+    composite_completeness_pct DECIMAL(8, 2),
+    is_tradeable BOOLEAN,
+    completeness_comment TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Theme and correlation tags
+CREATE TABLE IF NOT EXISTS signal_themes (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    sector_theme VARCHAR(100),
+    thematic_group VARCHAR(100),
+    correlation_cluster VARCHAR(100),
+    correlation_to_spy DECIMAL(8, 4),
+    correlation_to_qqq DECIMAL(8, 4),
+    correlation_to_iwm DECIMAL(8, 4),
+    relative_strength_group VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Signals evaluated through filter pipeline
+CREATE TABLE IF NOT EXISTS algo_signals_evaluated (
+    id SERIAL PRIMARY KEY,
     signal_date DATE NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    signal_type VARCHAR(50),
-    entry_price DECIMAL(12,4),
-    current_price DECIMAL(12,4),
-    exit_price DECIMAL(12,4),
-    pnl DECIMAL(12,4),
-    pnl_pct DECIMAL(8,4),
-    status VARCHAR(50),
-    trades_count INT DEFAULT 0,
-    avg_win_pct DECIMAL(8,4),
-    avg_loss_pct DECIMAL(8,4),
-    win_rate DECIMAL(5,2),
-    expectancy DECIMAL(8,4),
-    confidence_score DECIMAL(5,2),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    source_table VARCHAR(50),
+    source_timeframe VARCHAR(20),
+    raw_signal VARCHAR(20),
+    entry_price DECIMAL(12, 4),
+    filter_tier_1_pass BOOLEAN,
+    filter_tier_2_pass BOOLEAN,
+    filter_tier_3_pass BOOLEAN,
+    filter_tier_4_pass BOOLEAN,
+    filter_tier_5_pass BOOLEAN,
+    final_signal_quality_score INTEGER,
+    final_risk_score DECIMAL(8, 2),
+    evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    evaluation_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(signal_date, symbol, source_timeframe)
 );
 
-SELECT create_hypertable('signal_trade_performance', 'signal_date', if_not_exists => TRUE);
-
-CREATE INDEX IF NOT EXISTS idx_signal_perf_symbol ON signal_trade_performance(symbol, signal_date DESC);
-CREATE INDEX IF NOT EXISTS idx_signal_perf_status ON signal_trade_performance(status);
-
--- Order Execution Log (for execution-quality and pending-orders endpoints)
-CREATE TABLE IF NOT EXISTS order_execution_log (
-    id BIGSERIAL PRIMARY KEY,
-    order_id VARCHAR(100) UNIQUE,
-    trade_id VARCHAR(100),
-    execution_date DATE NOT NULL,
+-- Trades executed by algo
+CREATE TABLE IF NOT EXISTS algo_trades (
+    id SERIAL PRIMARY KEY,
+    trade_id VARCHAR(100) UNIQUE NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    order_type VARCHAR(50),
-    side VARCHAR(10),
-    quantity INT,
-    price DECIMAL(12,4),
-    fill_price DECIMAL(12,4),
-    status VARCHAR(50),
-    execution_time TIMESTAMP,
-    latency_ms INT,
-    slippage DECIMAL(12,4),
-    slippage_pct DECIMAL(8,4),
-    partial_fills INT DEFAULT 0,
-    avg_fill_price DECIMAL(12,4),
-    commission DECIMAL(12,4),
+    signal_date DATE NOT NULL,
+    trade_date DATE NOT NULL,
+    entry_price DECIMAL(12, 4) NOT NULL,
+    entry_time TIMESTAMP,
+    entry_quantity INTEGER NOT NULL,
+    entry_reason TEXT,
+    position_size_pct DECIMAL(8, 2),
+    stop_loss_price DECIMAL(12, 4),
+    stop_loss_method VARCHAR(50),
+    target_1_price DECIMAL(12, 4),
+    target_1_r_multiple DECIMAL(8, 2),
+    target_2_price DECIMAL(12, 4),
+    target_2_r_multiple DECIMAL(8, 2),
+    target_3_price DECIMAL(12, 4),
+    target_3_r_multiple DECIMAL(8, 2),
+    status VARCHAR(20),
+    exit_date DATE,
+    exit_time TIMESTAMP,
+    exit_price DECIMAL(12, 4),
+    exit_reason VARCHAR(100),
+    exit_r_multiple DECIMAL(8, 2),
+    profit_loss_dollars DECIMAL(12, 2),
+    profit_loss_pct DECIMAL(8, 4),
+    trade_duration_days INTEGER,
+    execution_mode VARCHAR(20),
+    alpaca_order_id VARCHAR(100),
+    alpaca_trade_id VARCHAR(100),
+    signal_quality_score INTEGER,
+    trend_template_score DECIMAL(8, 4),
+    swing_score DECIMAL(8, 4),
+    swing_grade VARCHAR(20),
+    base_type VARCHAR(50),
+    base_quality VARCHAR(50),
+    stage_phase INTEGER,
+    sector VARCHAR(50),
+    industry VARCHAR(100),
+    rs_percentile DECIMAL(8, 4),
+    market_exposure_at_entry DECIMAL(8, 4),
+    exposure_tier_at_entry VARCHAR(30),
+    stop_method VARCHAR(50),
+    stop_reasoning TEXT,
+    swing_components JSONB,
+    advanced_components JSONB,
+    bracket_order BOOLEAN DEFAULT FALSE,
+    reentry_count INTEGER DEFAULT 0,
+    prior_trade_id VARCHAR(100),
+    partial_exits_log JSONB,
+    partial_exit_count INTEGER DEFAULT 0,
+    last_partial_exit_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, signal_date, entry_price)
+);
+
+-- Active positions tracking
+CREATE TABLE IF NOT EXISTS algo_positions (
+    id SERIAL PRIMARY KEY,
+    position_id VARCHAR(100) UNIQUE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    quantity INTEGER NOT NULL,
+    avg_entry_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    position_value DECIMAL(14, 2),
+    unrealized_pnl DECIMAL(12, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    trade_ids VARCHAR(1000),
+    trade_ids_arr TEXT[],
+    status VARCHAR(20),
+    stage_in_exit_plan VARCHAR(50),
+    distribution_day_count INTEGER,
+    profit_loss_dollars DECIMAL(12, 2),
+    trade_duration_days INTEGER,
+    days_since_entry INTEGER,
+    target_levels_hit INTEGER DEFAULT 0,
+    current_stop_price DECIMAL(12, 4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Daily portfolio snapshots
+CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL UNIQUE,
+    total_portfolio_value DECIMAL(14, 2),
+    total_cash DECIMAL(14, 2),
+    total_equity DECIMAL(14, 2),
+    position_count INTEGER,
+    largest_position_pct DECIMAL(8, 2),
+    average_position_size_pct DECIMAL(8, 2),
+    concentration_risk_pct DECIMAL(8, 2),
+    realized_pnl_today DECIMAL(12, 2),
+    unrealized_pnl_total DECIMAL(12, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    win_count_today INTEGER,
+    loss_count_today INTEGER,
+    daily_return_pct DECIMAL(8, 4),
+    cumulative_return_pct DECIMAL(8, 4),
+    max_drawdown_pct DECIMAL(8, 4),
+    sharpe_ratio DECIMAL(8, 4),
+    distribution_days_market INTEGER,
+    market_health_status VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit log for all algo actions (compliance + debugging)
+CREATE TABLE IF NOT EXISTS algo_audit_log (
+    id SERIAL PRIMARY KEY,
+    action_type VARCHAR(50) NOT NULL,
+    symbol VARCHAR(20),
+    action_date TIMESTAMP NOT NULL,
+    details JSONB,
+    actor VARCHAR(100),
+    status VARCHAR(20),
     error_message TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-SELECT create_hypertable('order_execution_log', 'execution_date', if_not_exists => TRUE);
-
-CREATE INDEX IF NOT EXISTS idx_order_exec_symbol ON order_execution_log(symbol, execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_order_exec_status ON order_execution_log(status);
-CREATE INDEX IF NOT EXISTS idx_order_exec_trade_id ON order_execution_log(trade_id);
-
-CREATE INDEX IF NOT EXISTS idx_loader_execution_loader_date ON loader_execution_history(loader_name, execution_date);
-CREATE INDEX IF NOT EXISTS idx_loader_execution_status ON loader_execution_history(status);
-CREATE INDEX IF NOT EXISTS idx_loader_execution_created ON loader_execution_history(created_at DESC);
-
--- Daily SLA Summary (for dashboard)
-CREATE TABLE IF NOT EXISTS loader_daily_summary (
-    date DATE PRIMARY KEY,
-    total_loaders INT,
-    loaders_succeeded INT,
-    loaders_failed INT,
-    loaders_partial INT,
-    avg_row_count INT,
-    data_freshness_score FLOAT,
-    summary_text TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
+-- Pyramid add tracking (for position scaling)
+CREATE TABLE IF NOT EXISTS algo_trade_adds (
+    id SERIAL PRIMARY KEY,
+    trade_id VARCHAR(20) NOT NULL,
+    add_number INTEGER NOT NULL,
+    add_date DATE NOT NULL,
+    add_price DECIMAL(15, 4) NOT NULL,
+    add_quantity INTEGER NOT NULL,
+    fraction_of_original DECIMAL(5, 4),
+    r_multiple_at_add DECIMAL(5, 2),
+    trigger_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(trade_id, add_number)
 );
 
--- View: Today's Loader Status (Quick Dashboard)
-CREATE OR REPLACE VIEW v_loader_status_today AS
-SELECT
-    loader_name,
-    table_name,
-    latest_data_date,
-    row_count_today,
-    status,
-    CASE
-        WHEN status = 'OK' THEN 'Success'
-        WHEN status = 'WARN' THEN 'Warning (partial)'
-        WHEN status = 'ERROR' THEN 'Failed'
-        ELSE 'Unknown'
-    END as status_display,
-    last_check_at,
-    EXTRACT(HOUR FROM NOW() - last_check_at) as hours_since_check,
-    EXTRACT(DAY FROM NOW()::DATE - latest_data_date) as data_age_days
-FROM loader_sla_status
-ORDER BY status ASC, last_check_at DESC;
+-- Data loader status monitoring
+CREATE TABLE IF NOT EXISTS data_loader_status (
+    table_name VARCHAR(80) PRIMARY KEY,
+    frequency VARCHAR(20),
+    role VARCHAR(80),
+    latest_date DATE,
+    age_days INTEGER,
+    row_count BIGINT,
+    stale_threshold_days INTEGER,
+    status VARCHAR(20),
+    last_audit_at TIMESTAMP,
+    error_message TEXT
+);
 
--- View: Loader Success Rate (Last 7 Days)
-CREATE OR REPLACE VIEW v_loader_success_rate_7d AS
-SELECT
-    loader_name,
-    COUNT(*) as total_runs,
-    SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) as successful_runs,
-    ROUND(100.0 * SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) / COUNT(*), 1) as success_rate_pct,
-    AVG(rows_succeeded) as avg_rows_loaded,
-    MAX(completed_at) as last_run
-FROM loader_execution_history
-WHERE created_at >= NOW() - INTERVAL '7 days'
-GROUP BY loader_name
-ORDER BY success_rate_pct DESC;
+-- Data patrol audit log
+CREATE TABLE IF NOT EXISTS data_patrol_log (
+    id SERIAL PRIMARY KEY,
+    patrol_run_id VARCHAR(100),
+    check_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20),
+    target_table VARCHAR(80),
+    message TEXT,
+    details JSONB,
+    status VARCHAR(20),
+    patrol_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- =============================================================================
--- INITIAL DATA
--- =============================================================================
+-- Data remediation log
+CREATE TABLE IF NOT EXISTS data_remediation_log (
+    id SERIAL PRIMARY KEY,
+    remediation_date DATE NOT NULL,
+    table_name VARCHAR(80) NOT NULL,
+    fix_type VARCHAR(50),
+    rows_affected INTEGER,
+    status VARCHAR(20),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-INSERT INTO stock_symbols (symbol, name, security_name, sector, industry, market_cap, exchange)
-VALUES
-    ('AAPL', 'Apple Inc.', 'APPLE', 'Technology', 'Consumer Electronics', 2800000000000, 'NASDAQ'),
-    ('MSFT', 'Microsoft Corp', 'MICROSOFT', 'Technology', 'Software', 2700000000000, 'NASDAQ'),
-    ('GOOGL', 'Alphabet Inc.', 'ALPHABET INC', 'Technology', 'Internet Search', 1700000000000, 'NASDAQ')
-ON CONFLICT (symbol) DO NOTHING;
+-- Market exposure daily snapshots
+CREATE TABLE IF NOT EXISTS market_exposure_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    market_exposure_pct DECIMAL(8, 4),
+    long_exposure_pct DECIMAL(8, 4),
+    short_exposure_pct DECIMAL(8, 4),
+    exposure_tier VARCHAR(30),
+    is_entry_allowed BOOLEAN,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date)
+);
 
--- =============================================================================
--- FINAL SETUP
--- =============================================================================
+-- Notifications for UI
+CREATE TABLE IF NOT EXISTS algo_notifications (
+    id SERIAL PRIMARY KEY,
+    kind VARCHAR(40) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT,
+    symbol VARCHAR(20),
+    details JSONB,
+    seen BOOLEAN DEFAULT FALSE,
+    seen_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-ANALYZE;
+-- Transaction Cost Analysis (TCA) - Execution quality tracking
+CREATE TABLE IF NOT EXISTS algo_tca (
+    tca_id SERIAL PRIMARY KEY,
+    trade_id INTEGER REFERENCES algo_trades(id) ON DELETE CASCADE,
+    symbol VARCHAR(10) NOT NULL,
+    signal_date DATE NOT NULL,
+    signal_price DECIMAL(12, 4) NOT NULL,
+    fill_price DECIMAL(12, 4) NOT NULL,
+    shares_requested INTEGER NOT NULL,
+    shares_filled INTEGER NOT NULL,
+    fill_rate_pct DECIMAL(6, 2),
+    slippage_bps DECIMAL(10, 2),
+    side VARCHAR(4) NOT NULL,
+    execution_latency_ms INTEGER,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
 
-\echo ''
-\echo '=========================================='
-\echo '✅ COMPREHENSIVE DATABASE SETUP COMPLETE'
-\echo '=========================================='
-\echo 'Tables created: 60+'
-\echo '  - User management (users, api_keys, portfolio, settings)'
-\echo '  - Trading (trades, positions, snapshots, portfolio holdings)'
-\echo '  - Market data (60+ tables for prices, signals, technical, fundamentals)'
-\echo '  - Quality & monitoring (audit logs, data patrol, filters)'
-\echo ''
-\echo 'TimescaleDB: Enabled (25+ hypertables for time-series)'
-\echo 'Indexes: Created for optimal performance'
-\echo ''
-\echo 'Ready for production! 🚀'
-\echo '=========================================='
-\echo ''
+-- Live Performance Metrics - Daily aggregation for institutional comparison
+CREATE TABLE IF NOT EXISTS algo_performance_daily (
+    report_date DATE PRIMARY KEY,
+    rolling_sharpe_252d NUMERIC(8, 4),
+    win_rate_50t NUMERIC(6, 2),
+    avg_win_r_50t NUMERIC(6, 3),
+    avg_loss_r_50t NUMERIC(6, 3),
+    expectancy NUMERIC(6, 4),
+    max_drawdown_pct NUMERIC(8, 2),
+    live_vs_backtest_ratio NUMERIC(6, 4),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
+CREATE TABLE IF NOT EXISTS algo_risk_daily (
+    report_date DATE PRIMARY KEY,
+    var_pct_95 NUMERIC(8, 3),
+    cvar_pct_95 NUMERIC(8, 3),
+    stressed_var_pct NUMERIC(8, 3),
+    portfolio_beta NUMERIC(6, 2),
+    top_5_concentration NUMERIC(6, 2),
+    status VARCHAR(20) DEFAULT 'ok',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Sector rotation signals
+CREATE TABLE IF NOT EXISTS sector_rotation_signal (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    sector VARCHAR(50) NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    rank INTEGER,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, sector)
+);
+
+-- Swing trader scores
+CREATE TABLE IF NOT EXISTS swing_trader_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    score DECIMAL(8, 4),
+    components JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Model Registry - Track deployed strategies and parameters
+CREATE TABLE IF NOT EXISTS algo_model_registry (
+    registry_id SERIAL PRIMARY KEY,
+    strategy_name VARCHAR(100) NOT NULL,
+    git_commit_hash VARCHAR(40) NOT NULL,
+    param_snapshot JSONB NOT NULL,
+    backtest_sharpe NUMERIC(8, 4),
+    backtest_max_dd NUMERIC(8, 4),
+    backtest_win_rate NUMERIC(6, 4),
+    walk_forward_efficiency NUMERIC(6, 4),
+    paper_sharpe NUMERIC(8, 4),
+    paper_period_start DATE,
+    paper_period_end DATE,
+    deployed_at TIMESTAMPTZ,
+    deployed_by VARCHAR(100),
+    status VARCHAR(20) DEFAULT 'active',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Configuration Audit Log - Track all parameter changes
+CREATE TABLE IF NOT EXISTS algo_config_audit (
+    audit_id SERIAL PRIMARY KEY,
+    config_key VARCHAR(100) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    changed_by VARCHAR(100),
+    change_reason TEXT,
+    changed_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Champion/Challenger Results - A/B test results
+CREATE TABLE IF NOT EXISTS algo_champion_challenger (
+    trial_id SERIAL PRIMARY KEY,
+    trial_date DATE NOT NULL,
+    champion_registry_id INTEGER REFERENCES algo_model_registry(registry_id),
+    challenger_registry_id INTEGER REFERENCES algo_model_registry(registry_id),
+    champion_trades INTEGER,
+    challenger_trades INTEGER,
+    champion_pnl_pct NUMERIC(8, 2),
+    challenger_pnl_pct NUMERIC(8, 2),
+    t_statistic NUMERIC(8, 4),
+    p_value NUMERIC(8, 6),
+    winner VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Information Coefficient - Signal quality metric
+CREATE TABLE IF NOT EXISTS algo_information_coefficient (
+    ic_date DATE PRIMARY KEY,
+    signal_name VARCHAR(100),
+    lookback_days INTEGER,
+    ic_pearson NUMERIC(8, 4),
+    ic_spearman NUMERIC(8, 4),
+    ic_interpretation VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- OPERATIONAL MONITORING & EXECUTION TRACKING (PHASE 1-4 INTEGRATION)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Loader SLA Status - Data freshness monitoring per loader
+CREATE TABLE IF NOT EXISTS loader_sla_status (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    table_name VARCHAR(80) NOT NULL,
+    expected_frequency VARCHAR(20),
+    max_age_hours INTEGER DEFAULT 24,
+    latest_data_date DATE,
+    row_count_today BIGINT,
+    status VARCHAR(20) DEFAULT 'OK',
+    alert_sent_at TIMESTAMP,
+    last_check_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, table_name)
+);
+
+-- Signal Trade Performance Attribution - Link trades to signals for win rate analysis
+CREATE TABLE IF NOT EXISTS signal_trade_performance (
+    id SERIAL PRIMARY KEY,
+    trade_id INTEGER REFERENCES algo_trades(id) ON DELETE CASCADE,
+    symbol VARCHAR(20) NOT NULL,
+    signal_date DATE NOT NULL,
+    entry_price DECIMAL(12, 4),
+    base_type VARCHAR(50),
+    sqs INTEGER,
+    swing_score DECIMAL(8, 2),
+    swing_grade VARCHAR(5),
+    trend_score INTEGER,
+    stage_at_entry VARCHAR(50),
+    sector VARCHAR(100),
+    rs_percentile INTEGER,
+    market_exposure_at_entry DECIMAL(8, 2),
+    exit_price DECIMAL(12, 4),
+    exit_date DATE,
+    hold_days INTEGER,
+    realized_pnl DECIMAL(12, 2),
+    realized_pnl_pct DECIMAL(8, 4),
+    r_multiple DECIMAL(8, 2),
+    win BOOLEAN,
+    target_1_hit BOOLEAN DEFAULT FALSE,
+    target_2_hit BOOLEAN DEFAULT FALSE,
+    target_3_hit BOOLEAN DEFAULT FALSE,
+    exit_by_stop BOOLEAN DEFAULT FALSE,
+    exit_by_time BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(trade_id)
+);
+
+-- Filter Pipeline Rejection Log - Track why signals were rejected
+CREATE TABLE IF NOT EXISTS filter_rejection_log (
+    id SERIAL PRIMARY KEY,
+    eval_date DATE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    entry_price DECIMAL(12, 4),
+    rejected_at_tier INTEGER,
+    rejection_reason VARCHAR(300),
+    tier_1_pass BOOLEAN,
+    tier_2_pass BOOLEAN,
+    tier_2_reason VARCHAR(200),
+    tier_3_pass BOOLEAN,
+    tier_3_reason VARCHAR(200),
+    tier_4_pass BOOLEAN,
+    tier_4_reason VARCHAR(200),
+    tier_5_pass BOOLEAN,
+    tier_5_reason VARCHAR(200),
+    advanced_checks_reason VARCHAR(200),
+    swing_score_min_reason VARCHAR(200),
+    base_type VARCHAR(50),
+    sqs INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Order Execution Audit Trail - Track every order attempt, fill, rejection
+CREATE TABLE IF NOT EXISTS order_execution_log (
+    id SERIAL PRIMARY KEY,
+    trade_id INTEGER REFERENCES algo_trades(id) ON DELETE CASCADE,
+    symbol VARCHAR(20) NOT NULL,
+    order_sequence_num INTEGER,
+    order_timestamp TIMESTAMP,
+    order_type VARCHAR(20),
+    side VARCHAR(10),
+    requested_shares INTEGER,
+    requested_price DECIMAL(12, 4),
+    order_status VARCHAR(50),
+    filled_shares INTEGER,
+    filled_price DECIMAL(12, 4),
+    fill_rate_pct DECIMAL(6, 2),
+    slippage_bps DECIMAL(10, 2),
+    alpaca_order_id VARCHAR(100),
+    rejection_reason VARCHAR(200),
+    execution_latency_ms INTEGER,
+    retry_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- INDEXES for Performance
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_price_daily_symbol ON price_daily(symbol);
+CREATE INDEX IF NOT EXISTS idx_price_daily_date ON price_daily(date);
+CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
+
+CREATE INDEX IF NOT EXISTS idx_technical_daily_symbol ON technical_data_daily(symbol);
+CREATE INDEX IF NOT EXISTS idx_technical_daily_date ON technical_data_daily(date);
+
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
+CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);
+CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbol);
+CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON analyst_sentiment_analysis(symbol);
+
+-- Algo system indexes
+CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);
+CREATE INDEX IF NOT EXISTS idx_trend_template_symbol ON trend_template_data(symbol);
+CREATE INDEX IF NOT EXISTS idx_trend_template_date ON trend_template_data(date);
+CREATE INDEX IF NOT EXISTS idx_vcp_patterns_symbol_date ON vcp_patterns(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_signal_quality_symbol_date ON signal_quality_scores(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_evaluated_date ON algo_signals_evaluated(signal_date);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_evaluated_symbol ON algo_signals_evaluated(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol ON algo_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_status ON algo_trades(status);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol ON algo_positions(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON algo_audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_date ON algo_audit_log(action_date);
+
+-- Indexes for TCA
+CREATE INDEX IF NOT EXISTS idx_algo_tca_trade_id ON algo_tca(trade_id);
+CREATE INDEX IF NOT EXISTS idx_algo_tca_symbol ON algo_tca(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_tca_signal_date ON algo_tca(signal_date);
+
+-- Indexes for Performance metrics
+CREATE INDEX IF NOT EXISTS idx_algo_performance_daily_date ON algo_performance_daily(report_date);
+
+-- Indexes for Risk metrics
+CREATE INDEX IF NOT EXISTS idx_algo_risk_daily_date ON algo_risk_daily(report_date);
+
+-- Indexes for Model Governance
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_commit ON algo_model_registry(git_commit_hash);
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_status ON algo_model_registry(status);
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_deployed_at ON algo_model_registry(deployed_at);
+CREATE INDEX IF NOT EXISTS idx_algo_config_audit_key ON algo_config_audit(config_key);
+CREATE INDEX IF NOT EXISTS idx_algo_config_audit_date ON algo_config_audit(changed_at);
+CREATE INDEX IF NOT EXISTS idx_algo_champion_challenger_date ON algo_champion_challenger(trial_date);
+CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_information_coefficient(ic_date);
+
+-- Indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+CREATE INDEX IF NOT EXISTS idx_data_remediation_log_date ON data_remediation_log(remediation_date);
+CREATE INDEX IF NOT EXISTS idx_market_exposure_daily_date ON market_exposure_daily(date);
+CREATE INDEX IF NOT EXISTS idx_notif_unseen ON algo_notifications(seen, created_at) WHERE seen = FALSE;
+CREATE INDEX IF NOT EXISTS idx_notif_severity ON algo_notifications(severity);
+CREATE INDEX IF NOT EXISTS idx_sector_rotation_date ON sector_rotation_signal(date);
+CREATE INDEX IF NOT EXISTS idx_sector_rotation_sector ON sector_rotation_signal(sector);
+CREATE INDEX IF NOT EXISTS idx_swing_scores_symbol_date ON swing_trader_scores(symbol, date);
+
+-- Indexes for new operational tables
+CREATE INDEX IF NOT EXISTS idx_loader_sla_status_check ON loader_sla_status(last_check_at);
+CREATE INDEX IF NOT EXISTS idx_signal_perf_symbol_date ON signal_trade_performance(symbol, signal_date);
+CREATE INDEX IF NOT EXISTS idx_signal_perf_base_type ON signal_trade_performance(base_type);
+CREATE INDEX IF NOT EXISTS idx_signal_perf_win ON signal_trade_performance(win);
+CREATE INDEX IF NOT EXISTS idx_rejection_eval_date ON filter_rejection_log(eval_date);
+CREATE INDEX IF NOT EXISTS idx_rejection_tier ON filter_rejection_log(rejected_at_tier);
+CREATE INDEX IF NOT EXISTS idx_rejection_symbol ON filter_rejection_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_order_trade_id ON order_execution_log(trade_id);
+CREATE INDEX IF NOT EXISTS idx_order_status ON order_execution_log(order_status);
+CREATE INDEX IF NOT EXISTS idx_order_timestamp ON order_execution_log(order_timestamp DESC);

@@ -115,7 +115,7 @@ class PNLLeakageMonitor:
             'favorable': favorable,
         }
 
-    def analyze_closed_trades(self, days_back: int = 30) -> Dict[str, any]:
+    def analyze_closed_trades(self, days_back: int = 30) -> Dict[str, Any]:
         """
         Analyze closed trades from the last N days.
 
