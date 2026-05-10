@@ -98,6 +98,7 @@ export default function TradingSignals() {
     { refetchInterval: 60000 }
   );
 
+  // Gate data for enrichment (swing scores evaluated today)
   const { data: gatesData } = useApiQuery(
     ['signals-gates'],
     () => api.get('/api/algo/swing-scores?limit=2000&min_score=0'),
@@ -111,6 +112,7 @@ export default function TradingSignals() {
     return m;
   }, [gatesData]);
 
+  // Store rows before filtering for total count KPI
   const rows = (Array.isArray(data) ? data : data?.items) || [];
 
   // Enrich rows with gate / sqs info
@@ -164,10 +166,16 @@ export default function TradingSignals() {
     return r;
   }, [enriched, search, stageFilter, sectorFilter, scoreRange, maxAge, gatesOnly, baseTypeFilter]);
 
-  // KPI calculations
+  // KPI calculations - show both total available AND filtered stats
   const kpi = useMemo(() => {
+    // Total available (all data from API, no filters)
+    const totalBuys = enriched.filter(r => (r.signal || '').toUpperCase() === 'BUY');
+    const totalSells = enriched.filter(r => (r.signal || '').toUpperCase() === 'SELL');
+
+    // Filtered stats (after user applies filters)
     const buys = filtered.filter(r => (r.signal || '').toUpperCase() === 'BUY');
     const sells = filtered.filter(r => (r.signal || '').toUpperCase() === 'SELL');
+
     // Crossing: close is near MA (within 2% above), indicating potential crossover setup
     const cross50 = filtered.filter(r => {
       const c = Number(r.close);
@@ -179,27 +187,35 @@ export default function TradingSignals() {
       const ma = Number(r.sma_200);
       return !isNaN(c) && !isNaN(ma) && c > ma && c < ma * 1.02;
     }).length;
+
     // Fresh: BUYs within last 3 days
     const fresh = buys.filter(r => {
       const age = Number(r._age);
       return !isNaN(age) && age != null && age >= 0 && age <= 3;
     }).length;
+
     // High quality: BUYs with SQS > 80
     const hq = buys.filter(r => {
       const sqs = Number(r._sqs);
       return !isNaN(sqs) && sqs != null && sqs > 80;
     }).length;
+
     return {
+      // Filtered counts (what user sees in table)
       total: filtered.length,
       buys: buys.length,
       sells: sells.length,
       ratio: sells.length === 0 ? '∞' : (buys.length / sells.length).toFixed(2),
+      // Total available (before filters) for reference
+      totalAvailable: enriched.length,
+      totalBuysAvailable: totalBuys.length,
+      // Crossing and quality stats are for filtered data
       cross50,
       cross200,
       fresh,
       hq,
     };
-  }, [filtered]);
+  }, [filtered, enriched]);
 
   return (
     <div className="main-content">
@@ -233,7 +249,11 @@ export default function TradingSignals() {
 
       {/* Enhanced KPI strip */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-3)' }}>
-        <div className="kpi"><div className="kpi-label">Total Signals</div><div className="kpi-value">{kpi.total}</div></div>
+        <div className="kpi">
+          <div className="kpi-label">Total Signals</div>
+          <div className="kpi-value">{kpi.total}</div>
+          <div className="kpi-sub">{kpi.total !== kpi.totalAvailable ? `${kpi.totalAvailable} available` : 'no filters'}</div>
+        </div>
         <div className="kpi"><div className="kpi-label">BUY</div><div className="kpi-value up">{kpi.buys}</div></div>
         <div className="kpi"><div className="kpi-label">SELL</div><div className="kpi-value down">{kpi.sells}</div></div>
         <div className="kpi">
@@ -513,7 +533,7 @@ function RecentPerformance({ rows, timeframe }) {
       (r.signal || '').toUpperCase() === 'BUY' &&
       r._age != null && r._age >= 5 && r._age <= 30 &&
       r.symbol && r.close != null
-    ).slice(0, 40),  // cap to keep request count sane
+    ),  // No arbitrary limit; fetch all 5-30d BUY signals
   [rows]);
 
   const symbols = recentBuys.map(r => r.symbol).join(',');
@@ -522,8 +542,9 @@ function RecentPerformance({ rows, timeframe }) {
     queryKey: ['signal-perf', symbols, timeframe],
     queryFn: async () => {
       if (!recentBuys.length) return [];
-      // Fetch price history for recent buys, capped at 25 to avoid overload
-      const promises = recentBuys.slice(0, 25).map(r =>
+      // Fetch price history for recent buys (up to 100 to keep reasonable)
+      const toFetch = recentBuys.slice(0, 100);
+      const promises = toFetch.map(r =>
         api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`)
            .then(res => {
              const items = res?.data?.data?.items || res?.data?.items || [];
@@ -531,7 +552,7 @@ function RecentPerformance({ rows, timeframe }) {
            })
            .catch(err => {
              console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
-             return { symbol: r.symbol, items: [], entry: r };
+             return { symbol: r.symbol, items: [], entry: r, error: true };
            })
       );
       return Promise.all(promises);
@@ -543,8 +564,10 @@ function RecentPerformance({ rows, timeframe }) {
   const stats = useMemo(() => {
     if (!perfData || perfData.length === 0) return null;
     const r5 = [], r20 = [], wins20 = [];
-    perfData.forEach(({ items, entry }) => {
-      if (!items || items.length < 6) return;
+    let successful = 0;
+    perfData.forEach(({ items, entry, error }) => {
+      if (error || !items || items.length < 6) return;
+      successful++;
       // Sort oldest-first to look forward in time
       const sorted = [...items].sort((a, b) => new Date(a.date) - new Date(b.date));
       const sigDate = new Date(entry.signal_triggered_date || entry.date).getTime();
@@ -567,7 +590,8 @@ function RecentPerformance({ rows, timeframe }) {
     });
     const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
     return {
-      sample: perfData.length,
+      sample: successful,
+      attempted: perfData.length,
       avg5: avg(r5),
       avg20: avg(r20),
       hit20: wins20.length ? (wins20.filter(x => x).length / wins20.length) * 100 : null,
@@ -645,25 +669,45 @@ function SqsHistogram({ rows }) {
         {maxCount === 1 && data.every(d => d.count === 0) ? (
           <Empty title="No SQS data" desc="No quality scores joined to current signals." />
         ) : (
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-                <XAxis dataKey="range" stroke="var(--text-3)" fontSize={11} tickLine={false} interval={0} />
-                <YAxis stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} width={32} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {data.map((b, i) => (
-                    <Cell key={i}
-                      fill={b.lo >= 80 ? 'var(--success)'
-                        : b.lo >= 60 ? 'var(--brand)'
-                        : b.lo >= 40 ? 'var(--amber)' : 'var(--danger)'}
-                      fillOpacity={0.85} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <XAxis dataKey="range" stroke="var(--text-3)" fontSize={11} tickLine={false} interval={0} />
+                  <YAxis stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} width={32} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {data.map((b, i) => (
+                      <Cell key={i}
+                        fill={b.lo >= 80 ? 'var(--success)'
+                          : b.lo >= 60 ? 'var(--brand)'
+                          : b.lo >= 40 ? 'var(--amber)' : 'var(--danger)'}
+                        fillOpacity={0.85} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex gap-4" style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-2xs)', flexWrap: 'wrap' }}>
+              <div className="flex items-center gap-1">
+                <div style={{ width: 12, height: 12, background: 'var(--success)', borderRadius: 2 }} />
+                <span className="muted">≥80 Excellent</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div style={{ width: 12, height: 12, background: 'var(--brand)', borderRadius: 2 }} />
+                <span className="muted">60–79 Good</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div style={{ width: 12, height: 12, background: 'var(--amber)', borderRadius: 2 }} />
+                <span className="muted">40–59 Fair</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div style={{ width: 12, height: 12, background: 'var(--danger)', borderRadius: 2 }} />
+                <span className="muted">&lt;40 Poor</span>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>
