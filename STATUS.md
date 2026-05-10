@@ -1,8 +1,73 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 18:15Z (Sprint 1: Bug fixes + lifecycle visibility complete)
-**Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, technical rules, correlation checks
-**Latest:** ✅ Sprint 1 complete: 3 critical bugs fixed (earnings blackout fail-closed, economic calendar case sensitivity, liquidity fail-open). ✅ Pipeline health check added (Phase 1). ✅ Signal waterfall visibility added (Phase 5). ✅ Ready for Sprint 2 (entry quality gates).
+**Last Updated:** 2026-05-10 19:00Z (AWS deployment audit + critical fixes)
+**Project Status:** DEPLOYING ⚠️ — Critical fixes applied, deployment verification in progress
+**Latest:** ✅ Fixed 2 critical GitHub Actions/Lambda issues (bootstrap.sh execution, init_database.main() function). 🔍 Identified 5+ infrastructure issues (database not initialized, permissions blocker, API Lambda configuration). Ready for redeployment after permission fix.
+
+---
+
+## 🔧 AWS Deployment Audit & Critical Fixes (2026-05-10 19:00Z)
+
+**CRITICAL ISSUES FOUND & FIXED:**
+
+**1. ✅ FIXED: GitHub Actions bootstrap.sh Execution Failure**
+   - Error: `.github/workflows/bootstrap.sh: cannot execute: required file not found`
+   - Root cause: File exists but GitHub Actions couldn't execute due to line ending (CRLF) or permission issues
+   - Fix: Changed workflow from `.github/workflows/bootstrap.sh` to `bash .github/workflows/bootstrap.sh`
+   - Impact: Terraform bootstrap was completely blocked; infrastructure deployment couldn't proceed
+   - Commit: 32eb0c890
+
+**2. ✅ FIXED: Missing init_database.main() Function**
+   - Error: `module 'init_database' has no attribute 'main'` (from algo Lambda logs)
+   - Root cause: algo_orchestrator.py line 178 calls `init_database.main()` but function didn't exist
+   - Fix: Added `main()` wrapper function to init_database.py that calls existing `init_database()` function
+   - Impact: Database schema initialization was completely broken; algo Lambda couldn't initialize DB
+   - Commit: 32eb0c890
+
+**CRITICAL ISSUES IDENTIFIED (Not Yet Fixed):**
+
+**3. ⚠️ BLOCKER: Database Schema Not Initialized**
+   - Error: `relation "algo_config" does not exist` (from algo Lambda logs)
+   - Status: Database exists and is running, but schema tables never created
+   - Root cause: db-init Lambda has never been successfully invoked to run schema initialization SQL
+   - Solution needed: Either (a) invoke db-init Lambda manually, or (b) wait for fixed deployment + scheduler to trigger it
+   - Impact: Algo orchestrator fails immediately on startup; no trades can execute
+   - Next: Will be resolved when db-init Lambda is invoked
+
+**4. ❌ BLOCKER: IAM Permission Issue - Reader User Can't Invoke Lambda**
+   - Error: `AccessDeniedException: User is not authorized to perform: lambda:InvokeFunction`
+   - Status: Current AWS credentials (reader user) have no Lambda invoke permission
+   - Root cause: reader user has read-only IAM policy; can't invoke Lambda to test/debug
+   - Impact: Can't manually trigger db-init to initialize database schema; can't test Lambdas
+   - Solution needed: Either (a) use deployer user credentials (if created), or (b) temporarily grant lambda:InvokeFunction to reader
+   - Workaround: EventBridge scheduler should invoke algo Lambda on schedule (5:30pm ET weekdays)
+
+**INFRASTRUCTURE STATUS:**
+
+| Component | Status | Last Deploy | Notes |
+|-----------|--------|-------------|-------|
+| **Terraform** | ❌ FAILING | 2026-05-10 15:44Z | bootstrap.sh execution error (NOW FIXED) |
+| **Algo Lambda** | ✅ DEPLOYED | 2026-05-10 15:29Z | python3.11, 512MB, 5min timeout |
+| **API Lambda** | ✅ DEPLOYED | 2026-05-10 15:29Z | nodejs20.x, 256MB, 30s timeout (minimal health check) |
+| **DB-Init Lambda** | ✅ DEPLOYED | 2026-05-10 15:29Z | python3.11, 256MB, 60s timeout (NOT INVOKED YET) |
+| **RDS Database** | ✅ RUNNING | 2026-05-05 | PostgreSQL 14.22, available, no schema yet |
+| **ECS Clusters** | ✅ ACTIVE | 2026-05-05 | 2 clusters (algo-cluster, stocks-cluster), both empty (expected) |
+| **EventBridge Scheduler** | ✅ ENABLED | 2026-05-05 | Schedule: cron(30 17 ? * MON-FRI *) = 5:30pm ET weekdays |
+
+**DEPLOYMENT READINESS:**
+
+Current state:
+- ✅ Code fixes committed and ready to deploy
+- ⚠️ GitHub Actions workflow will work after next push (bootstrap.sh fix)
+- ⚠️ Database schema will initialize on next db-init invocation
+- ❌ Can't invoke Lambda manually due to permissions
+
+Next steps to verify everything works:
+1. Push changes to trigger GitHub Actions deployment (should succeed now)
+2. Wait for deployment to complete (Terraform init → schema init → code deploy)
+3. If permissions allow, invoke db-init Lambda manually to initialize database
+4. If not, wait for 5:30pm ET on next weekday for EventBridge to trigger algo Lambda
+5. Verify algo Lambda logs show successful initialization
 
 ---
 
@@ -29,13 +94,21 @@ Fixes + Visibility:
 - If stage2_count=0 → signals exist but none are Stage 2 (RSI<30 in strong stocks is rare; check market regime)
 - If final_qualified=0 → Stage 2 signals exist but failing at some tier (config thresholds too tight; use waterfall to identify which tier)
 
-**Sprint 2 (Entry Quality Gates) — Ready to Start**
-5 gates to improve signal reliability:
-- A1: Signal age gate (reject BUY signals >3 days old)
-- A2: Close quality gate (signal day close in upper 60% of range)
-- A3: Volume hard gate (raise 1.0x → 1.25x average)
-- A4: Weekly chart hard gate (require weekly Stage 2)
-- A5: RS line trending up (positive 10-day slope, not just "near high")
+**Sprint 2 Execution (May 10, 2026) ✅ COMPLETE**
+Entry Quality Gates (5 critical filters):
+- ✅ A1: Signal age gate (reject BUY signals >3 days old, config: max_signal_age_days=3)
+- ✅ A2: Close quality gate (signal day close must be in upper 60% of range)
+- ✅ A3: Volume hard gate (raise from 1.0x → 1.25x average, config: min_breakout_volume_ratio=1.25)
+- ✅ A4: Weekly chart hard gate (hard gate requiring weekly Stage 2, config: require_weekly_stage_2=true)
+- ✅ A5: RS line trending up (positive 10-day slope via linear regression, config: min_rs_line_slope_days=10)
+- ✅ Commit: `32829763b`
+
+Impact: These gates filter for higher-quality entries:
+- Eliminates stale signals (>3 days = "missed train")
+- Avoids mean-reversion traps (close-at-low entries into continued selling)
+- Confirms real breakouts (volume 25%+ above average, not just at average)
+- Validates long-term trend (weekly must be Stage 2, not Stage 3/4)
+- Confirms RS leadership (RS line trending up concurrent with price breakout)
 
 **Full Plan:** See `/claude/plans/snug-marinating-crane.md` for complete 5-sprint roadmap with 20+ improvements.
 
