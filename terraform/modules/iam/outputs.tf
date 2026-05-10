@@ -104,3 +104,42 @@ output "github_deployer_secret_access_key" {
   value       = aws_iam_access_key.github_deployer.secret
   sensitive   = true
 }
+
+# Pipeline/Automation User
+output "pipeline_user_name" {
+  description = "Name of pipeline automation IAM user"
+  value       = aws_iam_user.pipeline.name
+}
+
+output "pipeline_user_arn" {
+  description = "ARN of pipeline automation IAM user"
+  value       = aws_iam_user.pipeline.arn
+}
+
+output "pipeline_access_key_id" {
+  description = "Access key ID for pipeline automation"
+  value       = aws_iam_access_key.pipeline.id
+  sensitive   = true
+}
+
+output "pipeline_secret_access_key" {
+  description = "Secret access key for pipeline automation (keep secure!)"
+  value       = aws_iam_access_key.pipeline.secret
+  sensitive   = true
+}
+
+# Developer User
+output "developer_user_name" {
+  description = "Name of developer IAM user (for user login)"
+  value       = aws_iam_user.developer.name
+}
+
+output "developer_user_arn" {
+  description = "ARN of developer IAM user"
+  value       = aws_iam_user.developer.arn
+}
+
+output "developer_console_login_url" {
+  description = "AWS Console login URL for developer user"
+  value       = "https://${var.aws_account_id}.signin.aws.amazon.com/console"
+}

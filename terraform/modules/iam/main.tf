@@ -1199,3 +1199,248 @@ data "aws_iam_policy_document" "github_deployer" {
 resource "aws_iam_access_key" "github_deployer" {
   user = aws_iam_user.github_deployer.name
 }
+
+# ============================================================
+# 9. Pipeline/Automation IAM User
+# ============================================================
+# For executing operations: invoke Lambda, read logs, execute workflows
+# No infrastructure creation/deletion (read + invoke only)
+
+resource "aws_iam_user" "pipeline" {
+  name  = "${var.project_name}-pipeline"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-pipeline"
+  })
+}
+
+resource "aws_iam_user_policy" "pipeline" {
+  name   = "${var.project_name}-pipeline-policy"
+  user   = aws_iam_user.pipeline.name
+  policy = data.aws_iam_policy_document.pipeline.json
+}
+
+data "aws_iam_policy_document" "pipeline" {
+  # Lambda invocation (execute functions for testing/operations)
+  statement {
+    sid    = "LambdaInvoke"
+    effect = "Allow"
+
+    actions = [
+      "lambda:InvokeFunction",
+      "lambda:InvokeAsync",
+      "lambda:GetFunction",
+      "lambda:ListFunctions"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # CloudWatch Logs (read execution logs)
+  statement {
+    sid    = "CloudWatchLogsRead"
+    effect = "Allow"
+
+    actions = [
+      "logs:GetLogEvents",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup"
+    ]
+
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*"
+    ]
+  }
+
+  # RDS (read-only database operations for testing)
+  statement {
+    sid    = "RDSRead"
+    effect = "Allow"
+
+    actions = [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters",
+      "rds:ListTagsForResource"
+    ]
+
+    resources = [
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*"
+    ]
+  }
+
+  # Secrets Manager (read DB credentials for pipeline operations)
+  statement {
+    sid    = "SecretsManagerRead"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret"
+    ]
+
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+    ]
+  }
+
+  # KMS (decrypt secrets)
+  statement {
+    sid    = "KMSDecrypt"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey"
+    ]
+
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*"
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+  }
+
+  # CloudWatch Metrics (read metrics for monitoring)
+  statement {
+    sid    = "CloudWatchMetricsRead"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:GetMetricStatistics",
+      "cloudwatch:ListMetrics",
+      "cloudwatch:GetMetricData"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+  }
+}
+
+# Access key for pipeline user
+resource "aws_iam_access_key" "pipeline" {
+  user = aws_iam_user.pipeline.name
+}
+
+# ============================================================
+# 10. Developer IAM User (for user login - alternative to root)
+# ============================================================
+# For the project owner to log in and manage resources
+# Read-most things, invoke Lambda, read logs, but no root access
+
+resource "aws_iam_user" "developer" {
+  name  = "${var.project_name}-developer"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-developer"
+  })
+}
+
+# Attach read-only policy
+resource "aws_iam_user_policy_attachment" "developer_readonly" {
+  user       = aws_iam_user.developer.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Add specific invoke + execution permissions
+resource "aws_iam_user_policy" "developer" {
+  name   = "${var.project_name}-developer-policy"
+  user   = aws_iam_user.developer.name
+  policy = data.aws_iam_policy_document.developer.json
+}
+
+data "aws_iam_policy_document" "developer" {
+  # Lambda invocation (for testing)
+  statement {
+    sid    = "LambdaInvoke"
+    effect = "Allow"
+
+    actions = [
+      "lambda:InvokeFunction",
+      "lambda:InvokeAsync"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # CloudWatch Logs (full write access for troubleshooting)
+  statement {
+    sid    = "CloudWatchLogsWrite"
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents"
+    ]
+
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*"
+    ]
+  }
+
+  # CloudFront invalidation (clear cache if needed)
+  statement {
+    sid    = "CloudFrontInvalidate"
+    effect = "Allow"
+
+    actions = [
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Secrets Manager (read-only, for checking configuration)
+  statement {
+    sid    = "SecretsManagerRead"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret"
+    ]
+
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+    ]
+  }
+
+  # KMS (decrypt secrets for verification)
+  statement {
+    sid    = "KMSDecrypt"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey"
+    ]
+
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*"
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+  }
+}
