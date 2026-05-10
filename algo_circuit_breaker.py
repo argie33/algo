@@ -92,6 +92,7 @@ class CircuitBreaker:
                 ('total_risk', self._check_total_risk),
                 ('vix_spike', self._check_vix_spike),
                 ('market_stage', self._check_market_stage),
+                ('intraday_market_health', self._check_intraday_market_health),
                 ('weekly_loss', self._check_weekly_loss),
                 ('sector_concentration', self._check_sector_concentration),
                 ('daily_profit_cap', self._check_daily_profit_cap),
@@ -345,6 +346,50 @@ class CircuitBreaker:
             'value': days_stale,
             'threshold': threshold,
         }
+
+    def _check_intraday_market_health(self, current_date: Any) -> Dict[str, Any]:
+        """Intraday check: has SPY dropped >2% from yesterday's close (market crash)?
+
+        Unlike EOD circuit breakers, this catches intraday crashes early.
+        """
+        try:
+            self.cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                  AND date <= %s
+                ORDER BY date DESC LIMIT 2
+                """,
+                (current_date,),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < 2:
+                return {'halted': False, 'reason': 'Insufficient price history'}
+
+            latest = float(rows[0][0]) if rows[0][0] else None
+            prior = float(rows[1][0]) if rows[1][0] else None
+
+            if not latest or not prior or prior <= 0:
+                return {'halted': False, 'reason': 'Invalid price data'}
+
+            intraday_change = ((latest - prior) / prior * 100.0)
+
+            # Halt if down >2% from yesterday's close (market crash level)
+            if intraday_change <= -2.0:
+                return {
+                    'halted': True,
+                    'reason': f'Market down {intraday_change:.2f}% (intraday crash)',
+                    'market_change_pct': round(intraday_change, 2),
+                }
+
+            return {
+                'halted': False,
+                'reason': f'SPY {intraday_change:+.2f}%',
+                'market_change_pct': round(intraday_change, 2),
+            }
+        except Exception as e:
+            logger.debug(f'Intraday check failed: {e}')
+            return {'halted': False, 'reason': 'Intraday check error'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
         """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""

@@ -44,6 +44,80 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _detect_base_type(df, pd):
+    """Detect base type: flat base, VCP (volatility contraction), or pullback.
+
+    Returns dict with type, length_days, quality, pivot_price, zone_start, zone_end.
+    """
+    try:
+        if len(df) < 20:
+            return {'type': 'Unknown', 'quality': 'B'}
+
+        # Look at last 30 days of data
+        recent = df.tail(30)
+        if len(recent) < 10:
+            return {'type': 'Unknown', 'quality': 'B'}
+
+        high_max = recent['high'].max()
+        low_min = recent['low'].min()
+        close_curr = recent['close'].iloc[-1]
+
+        # Consolidation range as percentage
+        if high_max > 0:
+            consol_pct = ((high_max - low_min) / low_min) * 100.0
+        else:
+            return {'type': 'Unknown', 'quality': 'B'}
+
+        # Detect base type
+        if consol_pct < 3.0:
+            # Tight base = Flat base (good setup)
+            return {
+                'type': 'Flat Base',
+                'length_days': len(recent),
+                'quality': 'A',  # Tight consolidation is higher quality
+                'pivot_price': low_min,
+                'zone_start': low_min,
+                'zone_end': high_max,
+            }
+        elif 3.0 <= consol_pct < 8.0:
+            # Moderate consolidation - could be VCP or normal consolidation
+            # Check if ranges have been contracting (VCP signature)
+            widths = [(recent['high'].iloc[i] - recent['low'].iloc[i]) for i in range(len(recent))]
+            if len(widths) > 10:
+                avg_early = sum(widths[-20:-10]) / 10.0
+                avg_recent = sum(widths[-10:]) / 10.0
+                if avg_recent < avg_early * 0.8:  # Ranges contracting
+                    return {
+                        'type': 'VCP',
+                        'length_days': len(recent),
+                        'quality': 'A',
+                        'pivot_price': low_min,
+                        'zone_start': low_min,
+                        'zone_end': high_max,
+                    }
+            return {
+                'type': 'Consolidation',
+                'length_days': len(recent),
+                'quality': 'B',
+                'pivot_price': low_min,
+                'zone_start': low_min,
+                'zone_end': high_max,
+            }
+        else:
+            # Wide consolidation - likely pullback/retest setup
+            return {
+                'type': 'Pullback',
+                'length_days': len(recent),
+                'quality': 'B',
+                'pivot_price': low_min,
+                'zone_start': low_min,
+                'zone_end': high_max,
+            }
+    except Exception as e:
+        log.debug(f"Base detection failed: {e}")
+        return {'type': 'Unknown', 'quality': 'B'}
+
+
 class BuySellDailyLoader(OptimalLoader):
     table_name = "buy_sell_daily"
     primary_key = ("symbol", "timeframe", "date")
@@ -351,13 +425,14 @@ class BuySellDailyLoader(OptimalLoader):
             rsi_val = _f(rsi)
             rs_rating = int(round(rsi_val)) if rsi_val is not None else None
 
-        # Base type detection (simplified)
-        base_type = "Unknown"
-        base_length_days = None
-        breakout_quality = "B"
-        pivot_price = close_price
-        buy_zone_start = entry_price
-        buy_zone_end = entry_price
+        # Base type detection: flat base vs VCP vs pullback
+        base_info = _detect_base_type(df, pd)
+        base_type = base_info.get('type', 'Unknown')
+        base_length_days = base_info.get('length_days')
+        breakout_quality = base_info.get('quality', 'B')
+        pivot_price = base_info.get('pivot_price', close_price)
+        buy_zone_start = base_info.get('zone_start', entry_price)
+        buy_zone_end = base_info.get('zone_end', entry_price)
 
         return {
             "symbol": symbol,
