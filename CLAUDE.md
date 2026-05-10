@@ -7,6 +7,7 @@ Master deploy: `gh workflow run deploy-all-infrastructure.yml --repo argie33/alg
 | Status | STATUS.md |
 | Deploy | deployment-reference.md |
 | Code changes | DECISION_MATRIX.md |
+| **Local dev** | **WSL Docker: `docker-compose up -d` in algo/ dir** |
 | Local test | memory/local_testing_setup.md |
 | Troubleshoot | troubleshooting-guide.md |
 | Costs | .claude/cost-tracker.json |
