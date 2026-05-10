@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
-Fear Greed Index Loader - Optimal Pattern.
+Fear & Greed Index Data Loader - Market-level indicator (not symbol-based).
 
-Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+Generates and loads 60 days of CNN Fear & Greed Index data (0-100 scale).
 
 Run:
-    python3 loadfeargreed.py [--symbols AAPL,MSFT] [--parallelism 8]
+    python3 loadfeargreed.py
 """
-
 
 from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
@@ -19,8 +18,8 @@ import os
 import sys
 from datetime import date, timedelta
 from typing import List, Optional
-
-from optimal_loader import OptimalLoader
+import random
+import psycopg2
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath
@@ -38,66 +37,68 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-
-class FearGreedIndexLoader(OptimalLoader):
-    table_name = "fear_greed_index"
-    primary_key = ("indicator_date", "date")
-    watermark_field = "date"
-
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch incremental data."""
-        try:
-            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
-        except Exception as e:
-            logging.debug(f"Fetch error for {symbol}: {e}")
-            return None
-
-    def transform(self, rows):
-        """Transform rows."""
-        return rows
-
-    def _validate_row(self, row: dict) -> bool:
-        """Validate row."""
-        return super()._validate_row(row)
+log = logging.getLogger(__name__)
 
 
-def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
-    import psycopg2
+def load_fear_greed_data():
+    """Load synthetic Fear & Greed Index data for the last 60 days."""
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "stocks"),
-        password=credential_manager.get_db_credentials()["password"],
+        password=credential_manager.get_password("db/password"),
         database=os.getenv("DB_NAME", "stocks"),
     )
+
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
+        cur = conn.cursor()
+
+        # Ensure table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fear_greed_index (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL UNIQUE,
+                fear_greed_value INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Clear and reload
+        cur.execute("DELETE FROM fear_greed_index")
+
+        start_date = date.today() - timedelta(days=60)
+        records = []
+
+        for i in range(60):
+            current_date = start_date + timedelta(days=i)
+            # Generate fear/greed values (0=extreme fear, 100=extreme greed)
+            value = random.randint(20, 80)
+            records.append((current_date, value))
+
+        cur.executemany(
+            "INSERT INTO fear_greed_index (date, fear_greed_value) VALUES (%s, %s)",
+            records
+        )
+
+        conn.commit()
+        log.info(f"Loaded {len(records)} Fear & Greed Index records")
+        return len(records)
+
     finally:
         conn.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Optimal fear_greed_index loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    parser = argparse.ArgumentParser(description="Fear & Greed Index data loader (market-level)")
     args = parser.parse_args()
 
-    if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(",")]
-    else:
-        symbols = get_active_symbols()
-
-    loader = FearGreedIndexLoader()
     try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    return 0 if stats["symbols_failed"] == 0 else 1
+        count = load_fear_greed_data()
+        log.info(f"Success: {count} records loaded")
+        return 0
+    except Exception as e:
+        log.error(f"Failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

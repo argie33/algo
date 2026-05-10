@@ -882,12 +882,12 @@ router.get("/indicators", async (req, res) => {
 
     const sentimentQuery = `
       SELECT
-        index_value as value,
+        fear_greed_value as value,
         CASE
-          WHEN index_value >= 75 THEN 'Extreme Greed'
-          WHEN index_value >= 55 THEN 'Greed'
-          WHEN index_value >= 45 THEN 'Neutral'
-          WHEN index_value >= 25 THEN 'Fear'
+          WHEN fear_greed_value >= 75 THEN 'Extreme Greed'
+          WHEN fear_greed_value >= 55 THEN 'Greed'
+          WHEN fear_greed_value >= 45 THEN 'Neutral'
+          WHEN fear_greed_value >= 25 THEN 'Fear'
           ELSE 'Extreme Fear'
         END as classification,
         date
@@ -1959,7 +1959,7 @@ router.get("/internals", async (req, res) => {
               LIMIT 1
             ) naaim ON true
             LEFT JOIN (
-              SELECT value
+              SELECT fear_greed_value as value
               FROM fear_greed_index
               ORDER BY date DESC
               LIMIT 1
