@@ -355,7 +355,7 @@ jobs:
         env:
           VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Sync to S3
