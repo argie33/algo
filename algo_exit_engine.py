@@ -9,7 +9,11 @@ Exit hierarchy (checked in order):
 4. T3      — price >= target_3 (4R) → exit final 25%
 5. T2      — price >= target_2 (3R) → exit 25% on pullback, raise stop to T1 area
 6. T1      — price >= target_1 (1.5R) → exit 50% on pullback, raise stop to entry (breakeven)
-7. DISTRIBUTION — market distribution day count exceeds limit (config-gated)
+7. CHANDELIER TRAIL — 3×ATR from highest high (or 21-EMA after 10d)
+8. TD SEQUENTIAL — 9-count (50%) or 13-count (100%) exhaustion
+9. FIRST RED DAY — after 2.5R+ gain, first big down day on heavy volume → exit 50%
+10. CLIMAX RUN EXHAUSTION — 30+ days, 5R+ gain, 20%+ in last 10d → exit 50%
+11. DISTRIBUTION — market distribution day count exceeds limit (config-gated)
 
 State tracked on algo_positions:
   - target_levels_hit (0/1/2/3): which T-levels have already triggered
@@ -323,6 +327,32 @@ class ExitEngine:
                         'new_stop': max(active_stop, entry_price),
                     }
 
+        # 12. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
+        # Institutional distribution day after parabolic run — exit 50%
+        if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
+            down_pct = (prev_close - cur_price) / prev_close * 100.0
+            if down_pct >= 1.5:  # Close < prior close * 0.985 = 1.5% down
+                vol_check = self._check_volume_spike(symbol, current_date, 1.5)
+                if vol_check:
+                    return {
+                        'stage': 'first_red_day',
+                        'fraction': 0.50,
+                        'reason': f'First Red Day: down {down_pct:.2f}% on heavy volume (R={r_mult:.2f})',
+                        'new_stop': max(active_stop, entry_price),
+                    }
+
+        # 13. CLIMAX RUN EXHAUSTION — parabolic moves exhaust and reverse sharply
+        # Trigger: 30+ days held, 5R+ gain, 20%+ gain in last 10 days = institutional climax distribution
+        if days_held > 30 and r_mult >= 5.0:
+            gain_10d = self._compute_gain_last_n_days(symbol, current_date, 10)
+            if gain_10d is not None and gain_10d >= 20.0:
+                return {
+                    'stage': 'climax_exhaustion',
+                    'fraction': 0.50,
+                    'reason': f'Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={r_mult:.2f})',
+                    'new_stop': max(active_stop, entry_price),
+                }
+
         # 8. DISTRIBUTION
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
             max_dd = int(self.config.get('max_distribution_days', 4))
@@ -573,6 +603,64 @@ class ExitEngine:
         if ema_12 and cur_price < ema_12 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
             return True
         return False
+
+    def _check_volume_spike(self, symbol, current_date, volume_multiplier) -> bool:
+        """Check if today's volume is >= volume_multiplier * average volume."""
+        if self.cur is None:
+            return False
+        try:
+            self.cur.execute(
+                """
+                SELECT pd.volume,
+                       (SELECT AVG(volume) FROM price_daily p
+                        WHERE p.symbol = pd.symbol
+                          AND p.date <= pd.date
+                          AND p.date > pd.date - INTERVAL '50 days') AS avg_vol_50
+                FROM price_daily pd
+                WHERE pd.symbol = %s AND pd.date = %s
+                """,
+                (symbol, current_date),
+            )
+            row = self.cur.fetchone()
+            if not row or row[0] is None or row[1] is None:
+                return False
+            today_vol = float(row[0])
+            avg_vol = float(row[1])
+            return today_vol >= avg_vol * volume_multiplier
+        except Exception as e:
+            logger.warning(f"Warning: _check_volume_spike({symbol}) failed: {e}")
+            return False
+
+    def _compute_gain_last_n_days(self, symbol, current_date, n_days) -> float | None:
+        """Compute % gain over the last N days (from close N days ago to current close)."""
+        if self.cur is None:
+            return None
+        try:
+            self.cur.execute(
+                """
+                WITH prices AS (
+                    SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT %s
+                )
+                SELECT
+                    (SELECT close FROM prices WHERE rn = 1) AS current_close,
+                    (SELECT close FROM prices WHERE rn = %s) AS close_n_days_ago
+                """,
+                (symbol, current_date, n_days + 1, n_days + 1),
+            )
+            row = self.cur.fetchone()
+            if not row or row[0] is None or row[1] is None:
+                return None
+            current = float(row[0])
+            prior = float(row[1])
+            if prior <= 0:
+                return None
+            return ((current - prior) / prior) * 100.0
+        except Exception as e:
+            logger.warning(f"Warning: _compute_gain_last_n_days({symbol}) failed: {e}")
+            return None
 
     # ---------- Backwards-compat shim used by old tests ----------
 
