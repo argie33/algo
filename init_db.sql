@@ -12,7 +12,9 @@
 -- =============================================================================
 
 -- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+-- TimescaleDB is optional (not available in test environments)
+-- If needed for production, install timescaledb-postgresql-16 package
+-- CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =============================================================================
