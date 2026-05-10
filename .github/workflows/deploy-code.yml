@@ -129,7 +129,7 @@ jobs:
           # Shared utility modules that algo imports
           for f in db_helper.py signal_utils.py data_source_router.py \
                    optimal_loader.py bloom_dedup.py trade_status.py \
-                   loader_safety.py; do
+                   loader_safety.py credential_manager.py; do
             [ -f "$f" ] && cp "$f" lambda-pkg/ || true
           done
           # Install binary-compatible dependencies
