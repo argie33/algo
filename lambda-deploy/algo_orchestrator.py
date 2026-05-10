@@ -56,6 +56,7 @@ credential_manager = get_credential_manager()
 
 import os
 import sys
+import tempfile
 import psycopg2
 import traceback
 from pathlib import Path
@@ -93,9 +94,9 @@ class Orchestrator:
         self.verbose = verbose
         self.phase_results = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now().strftime('%H%M%S')}"
-        self.lock_file = Path('/tmp/algo_orchestrator.lock')
+        self.lock_file = Path(tempfile.gettempdir()) / 'algo_orchestrator.lock'
         self._lock_acquired = False
-        self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
+        self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
 

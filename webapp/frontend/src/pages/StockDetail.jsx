@@ -100,7 +100,7 @@ export default function StockDetail() {
   // ── Queries ──
   const { data: priceData, loading: priceLoading, refetch: refetchPrice } = useApiQuery(
     ['stock-price', symbol, histLimit],
-    () => api.get(`/api/price/history/${symbol}?days=${Math.ceil(histLimit / 5)}&limit=${histLimit}`),
+    () => api.get(`/api/prices/history/${symbol}?days=${Math.ceil(histLimit / 5)}&limit=${histLimit}`),
     { enabled: !!symbol, staleTime: 60_000 }
   );
 

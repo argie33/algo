@@ -484,7 +484,8 @@ router.get("/etf", async (req, res) => {
       NULL::numeric as sma_20,
       bsd.sma_50, bsd.sma_200, bsd.ema_21,
       NULL::numeric as ema_26,
-      bsd.pct_from_ema21, bsd.pct_from_sma50
+      bsd.pct_from_ema21, bsd.pct_from_sma50,
+      cp.sector, cp.industry
     `;
 
     // Add limit and offset parameters
@@ -499,6 +500,7 @@ router.get("/etf", async (req, res) => {
         es.security_name as company_name
       FROM ${tableName} bsd
       LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
+      LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       ${whereClause}
       ORDER BY bsd.date DESC, (bsd.rsi IS NOT NULL)::int DESC, bsd.id ASC
       LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
@@ -607,6 +609,8 @@ router.get("/etf", async (req, res) => {
       pct_from_sma50: sf(row.pct_from_sma50),
 
       company_name: row.company_name || null,
+      sector: row.sector || null,
+      industry: row.industry || null,
 
       daily_range_pct: (row.high && row.low && row.close && parseFloat(row.close) > 0)
         ? sf(((parseFloat(row.high) - parseFloat(row.low)) / parseFloat(row.close)) * 100)

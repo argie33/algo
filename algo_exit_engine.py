@@ -424,16 +424,7 @@ class ExitEngine:
         if self.cur is None or days_held < window_days:
             return False
         try:
-            # Was there a +20% gain in the first 3 weeks (window_days) post-entry?
-            self.cur.execute(
-                """
-                SELECT MAX(high) FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - INTERVAL '%s days' * %s / %s
-                """,
-                (symbol, current_date, current_date, days_held - window_days, days_held, days_held),
-            )
-            # Simpler approach: check if any high in first 3 weeks gave 20%+
+            # Check if any high in first 3 weeks gave 20%+ gain
             self.cur.execute(
                 """
                 SELECT MAX(high) FROM price_daily

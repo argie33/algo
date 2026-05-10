@@ -56,6 +56,7 @@ credential_manager = get_credential_manager()
 
 import os
 import sys
+import tempfile
 import psycopg2
 import traceback
 from pathlib import Path
@@ -93,9 +94,9 @@ class Orchestrator:
         self.verbose = verbose
         self.phase_results = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now().strftime('%H%M%S')}"
-        self.lock_file = Path('/tmp/algo_orchestrator.lock')
+        self.lock_file = Path(tempfile.gettempdir()) / 'algo_orchestrator.lock'
         self._lock_acquired = False
-        self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
+        self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
 
@@ -1243,26 +1244,9 @@ class Orchestrator:
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
-        lock_path = Path(__file__).parent / '.algo_orchestrator.lock'
-        existing_pid = None
-        if lock_path.exists():
-            try:
-                existing_pid = int(lock_path.read_text().strip())
-                # Check if PID is alive
-                if self._pid_alive(existing_pid):
-                    logger.error(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
-                                 "Wait for it to finish or kill it.")
-                    return {'success': False, 'error': f'lock held by PID {existing_pid}'}
-                else:
-                    logger.info(f"  (Stale lock from PID {existing_pid} — clearing)")
-            except Exception:
-                pass
-
-        # Acquire lock
-        try:
-            lock_path.write_text(str(os.getpid()))
-        except Exception as e:
-            logger.warning(f"  (warning: couldn't write lock file: {e})")
+        if not self._acquire_run_lock():
+            logger.error(f"\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
+            return {'success': False, 'error': 'Lock acquisition failed'}
 
         try:
             # Run data patrol first (before DB check, but will silently fail if DB down)
@@ -1349,14 +1333,7 @@ class Orchestrator:
 
             return self._final_report()
         finally:
-            # Always release the lock, even on exception
-            try:
-                if lock_path.exists():
-                    held_pid = int(lock_path.read_text().strip())
-                    if held_pid == os.getpid():
-                        lock_path.unlink()
-            except Exception:
-                pass
+            self._release_run_lock()
 
     def _is_market_open_or_imminent(self, window_min: int = 30) -> bool:
         """Return True if US equity market is open right now OR opens within
