@@ -234,9 +234,10 @@ jobs:
           cp lambda/db-init/schema.sql db-init-pkg/ 2>/dev/null || true
           # Required modules
           cp credential_manager.py db-init-pkg/ || true
-          # Dependencies
+          cp init_database.py db-init-pkg/ || true
+          # Dependencies - using binary packages for Lambda Python 3.11
           pip install -r lambda/db-init/requirements.txt \
-            -t db-init-pkg/ --only-binary=:all: --quiet
+            -t db-init-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --python 311
           cd db-init-pkg
           zip -r ../db_init_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
