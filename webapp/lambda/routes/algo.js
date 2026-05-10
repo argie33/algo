@@ -1082,7 +1082,7 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
       timestamp: new Date(),
     });
   } catch (error) {
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1235,7 +1235,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/performance:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1269,7 +1269,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/equity-curve:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1314,7 +1314,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/audit-log:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1579,7 +1579,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/circuit-breakers:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1623,7 +1623,7 @@ router.get('/sector-breadth', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/sector-breadth:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1671,7 +1671,7 @@ router.get('/sector-stage2', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/sector-stage2:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1707,7 +1707,7 @@ router.get('/sector-rotation', async (req, res) => {
     });
   } catch (error) {
     // Table may not exist yet — return empty gracefully
-    return sendSuccess(res,  items: [], timestamp: new Date() });
+    return sendSuccess(res, { items: [], timestamp: new Date() });
   }
 });
 
@@ -2048,7 +2048,7 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/signal-performance-by-pattern:', error);
-    return sendSuccess(res,  data: { patterns: [], error: error.message } });
+    return sendSuccess(res, { data: { patterns: [], error: error.message } });
   }
 });
 
