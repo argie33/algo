@@ -1444,3 +1444,138 @@ data "aws_iam_policy_document" "developer" {
     }
   }
 }
+
+# ============================================================
+# Debug/Operations User - For Lambda debugging and troubleshooting
+# ============================================================
+
+resource "aws_iam_user" "claude_debug" {
+  name = "${var.project_name}-claude-debug"
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-claude-debug"
+  })
+}
+
+resource "aws_iam_user_policy" "claude_debug" {
+  name   = "${var.project_name}-claude-debug-policy"
+  user   = aws_iam_user.claude_debug.name
+  policy = data.aws_iam_policy_document.claude_debug.json
+}
+
+# Access keys for Claude debug user
+resource "aws_iam_access_key" "claude_debug" {
+  user = aws_iam_user.claude_debug.name
+}
+
+data "aws_iam_policy_document" "claude_debug" {
+  # Lambda invocation and configuration
+  statement {
+    sid    = "LambdaDebug"
+    effect = "Allow"
+
+    actions = [
+      "lambda:InvokeFunction",
+      "lambda:InvokeAsync",
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:UpdateFunctionCode",
+      "lambda:ListFunctions",
+      "lambda:ListVersionsByFunction"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # CloudWatch Logs - Full access for debugging
+  statement {
+    sid    = "CloudWatchLogsDebug"
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents",
+      "logs:GetLogEvents",
+      "logs:DescribeLogStreams",
+      "logs:DescribeLogGroups",
+      "logs:FilterLogEvents",
+      "logs:StartQuery",
+      "logs:StopQuery",
+      "logs:GetQueryResults"
+    ]
+
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:*"
+    ]
+  }
+
+  # Secrets Manager - Read access for credentials
+  statement {
+    sid    = "SecretsManagerDebug"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:ListSecrets"
+    ]
+
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+    ]
+  }
+
+  # RDS - Read access for debugging
+  statement {
+    sid    = "RDSDebug"
+    effect = "Allow"
+
+    actions = [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBSecurityGroups",
+      "rds:DescribeDBParameterGroups",
+      "rds:DescribeDBSubnetGroups"
+    ]
+
+    resources = [
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*"
+    ]
+  }
+
+  # VPC - Read access for debugging network issues
+  statement {
+    sid    = "VPCDebug"
+    effect = "Allow"
+
+    actions = [
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSecurityGroupRules",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeVpcs",
+      "ec2:DescribeNetworkAcls",
+      "ec2:DescribeRouteTables"
+    ]
+
+    resources = ["*"]
+  }
+
+  # API Gateway - Read and test access
+  statement {
+    sid    = "APIGatewayDebug"
+    effect = "Allow"
+
+    actions = [
+      "apigateway:GET",
+      "apigatewayv2:Get*",
+      "apigatewayv2:List*"
+    ]
+
+    resources = ["*"]
+  }
+}
