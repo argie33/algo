@@ -214,9 +214,12 @@ class CircuitBreaker:
             SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
                    COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
                    COUNT(*) as total
-            FROM algo_trades
-            WHERE status = %s AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC LIMIT 30
+            FROM (
+                SELECT profit_loss_pct
+                FROM algo_trades
+                WHERE status = %s AND exit_date IS NOT NULL
+                ORDER BY exit_date DESC LIMIT 30
+            ) recent_trades
             """,
             (TradeStatus.CLOSED.value,)
         )
