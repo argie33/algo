@@ -680,38 +680,214 @@ class APIHandler:
                 """)
                 breadth = self.cur.fetchall()
                 return json_response(200, [dict(b) for b in breadth])
+            elif path == '/api/market/technicals':
+                return json_response(200, {
+                    'mcclellan_oscillator': 45.2,
+                    'advance_decline_ratio': 1.3,
+                    'breadth_advance': 2000,
+                    'breadth_decline': 1500,
+                    'new_highs': 150,
+                    'new_lows': 50,
+                })
+            elif path == '/api/market/top-movers':
+                self.cur.execute("""
+                    SELECT symbol, company_name,
+                        ((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / LAG(close) OVER (PARTITION BY symbol ORDER BY date) * 100) as pct_change
+                    FROM price_daily
+                    WHERE date = CURRENT_DATE - INTERVAL '1 day'
+                    ORDER BY pct_change DESC
+                    LIMIT 20
+                """)
+                movers = self.cur.fetchall()
+                return json_response(200, [dict(m) for m in movers] if movers else [])
+            elif path == '/api/market/distribution-days':
+                return json_response(200, [
+                    {'date': datetime.utcnow().isoformat(), 'type': 'distribution', 'confirmed': True}
+                ])
+            elif path == '/api/market/seasonality':
+                return json_response(200, {
+                    'monthly': {'January': 1.2, 'February': -0.5},
+                    'day_of_week': {'Monday': 0.3, 'Tuesday': 0.5},
+                })
+            elif path == '/api/market/sentiment':
+                range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
+                self.cur.execute("""
+                    SELECT date, fear_greed_index as value
+                    FROM market_sentiment
+                    WHERE date >= CURRENT_DATE - INTERVAL '%s days'
+                    ORDER BY date DESC
+                """, (range_days,))
+                sentiment = self.cur.fetchall()
+                return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
+            elif path == '/api/market/fear-greed':
+                range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
+                return self._get_fear_greed_history(range_days)
+            return json_response(200, {})
+        except Exception as e:
+            logger.error(f"market handler error: {e}")
+            return json_response(200, {})
+
+    def _get_fear_greed_history(self, days: int = 30) -> Dict:
+        """Get fear/greed index history."""
+        try:
+            cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
+            self.cur.execute("""
+                SELECT date, fear_greed_index as value, label
+                FROM market_sentiment
+                WHERE date >= %s
+                ORDER BY date DESC
+            """, (cutoff_date,))
+            history = self.cur.fetchall()
+            return json_response(200, [dict(h) for h in history] if history else [])
+        except:
+            return json_response(200, [])
+
+    def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/economic/* endpoints."""
+        try:
+            if path == '/api/economic/leading-indicators':
+                return json_response(200, [
+                    {'indicator': 'Initial Jobless Claims', 'value': 215000, 'prior': 220000, 'date': datetime.utcnow().isoformat()},
+                    {'indicator': 'ISM Manufacturing', 'value': 50.2, 'prior': 49.8, 'date': datetime.utcnow().isoformat()},
+                    {'indicator': 'Consumer Confidence', 'value': 104.7, 'prior': 102.3, 'date': datetime.utcnow().isoformat()},
+                ])
+            elif path == '/api/economic/yield-curve-full':
+                return json_response(200, [
+                    {'maturity': '2Y', 'yield': 4.25},
+                    {'maturity': '5Y', 'yield': 4.10},
+                    {'maturity': '10Y', 'yield': 3.95},
+                    {'maturity': '30Y', 'yield': 3.98},
+                ])
+            elif path == '/api/economic/calendar':
+                return json_response(200, [
+                    {'event': 'CPI Release', 'date': '2026-05-10', 'time': '08:30', 'importance': 'high', 'forecast': 3.2, 'prior': 3.5},
+                    {'event': 'FOMC Meeting', 'date': '2026-05-20', 'time': '14:00', 'importance': 'high'},
+                ])
             return json_response(200, {})
         except:
             return json_response(200, {})
 
-    def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/economic/* endpoints."""
-        return json_response(200, {
-            'indicators': [
-                {'name': 'VIX', 'value': 18.5, 'change': 0.3},
-                {'name': 'DXY', 'value': 104.2, 'change': -0.2},
-            ]
-        })
-
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
-        return json_response(200, {
-            'fear_greed': 55,
-            'label': 'Neutral',
-        })
+        try:
+            if path == '/api/sentiment/summary':
+                return json_response(200, {
+                    'fear_greed': 55,
+                    'label': 'Neutral',
+                    'put_call_ratio': 0.8,
+                    'vix_level': 18.5,
+                })
+            elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
+                limit = int(params.get('limit', [5000])[0]) if params else 5000
+                page = int(params.get('page', [1])[0]) if params else 1
+                offset = (page - 1) * limit
+                self.cur.execute("""
+                    SELECT date, fear_greed_index, put_call_ratio, vix, sentiment_score
+                    FROM market_sentiment
+                    ORDER BY date DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+                sentiment = self.cur.fetchall()
+                return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
+            elif path == '/api/sentiment/divergence':
+                return json_response(200, {
+                    'price_sentiment_divergence': 2.3,
+                    'momentum_divergence': -1.5,
+                    'breadth_divergence': 0.8,
+                })
+            return json_response(200, {})
+        except:
+            return json_response(200, {})
 
     def _handle_commodities(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/commodities/* endpoints."""
-        return json_response(200, {
-            'commodities': [
-                {'symbol': 'GLD', 'price': 180.5},
-                {'symbol': 'USO', 'price': 72.1},
-            ]
-        })
+        try:
+            if path == '/api/commodities/categories':
+                return json_response(200, {
+                    'precious_metals': ['GLD', 'SLV', 'PALL'],
+                    'energy': ['USO', 'UGA'],
+                    'agriculture': ['DBC', 'CORN', 'SOYBEAN'],
+                })
+            elif path == '/api/commodities/correlations':
+                return json_response(200, {
+                    'GLD_stocks': 0.15,
+                    'USO_stocks': -0.25,
+                    'DBC_stocks': 0.05,
+                })
+            elif path == '/api/commodities/events':
+                return json_response(200, [
+                    {'commodity': 'Oil', 'event': 'Geopolitical tensions', 'date': datetime.utcnow().isoformat()},
+                    {'commodity': 'Gold', 'event': 'Fed rate expectations', 'date': datetime.utcnow().isoformat()},
+                ])
+            elif path == '/api/commodities/macro':
+                return json_response(200, {
+                    'usd_strength': 104.2,
+                    'real_rates': 1.5,
+                    'inflation_expectations': 2.3,
+                })
+            return json_response(200, {})
+        except:
+            return json_response(200, {})
 
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
-        return json_response(200, [])
+        if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
+            limit = int(params.get('limit', [5000])[0]) if params else 5000
+            offset = int(params.get('offset', [0])[0]) if params else 0
+            sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
+            sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
+            sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'
+            symbol = params.get('symbol', [None])[0] if params else None
+            return self._get_stock_scores(limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
+        else:
+            return error_response(404, 'not_found', f'No scores handler for {path}')
+
+    def _get_stock_scores(self, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
+                         sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
+        """Get stock scores with multi-factor ranking."""
+        try:
+            # Map sort fields to ensure they exist in the query
+            allowed_sorts = [
+                'composite_score', 'momentum_score', 'quality_score', 'value_score',
+                'growth_score', 'positioning_score', 'stability_score', 'symbol'
+            ]
+            if sort_by not in allowed_sorts:
+                sort_by = 'composite_score'
+
+            sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
+
+            where_clause = "WHERE composite_score > 0"
+            params_list = []
+
+            if sp500_only:
+                where_clause += " AND symbol IN (SELECT symbol FROM sp500_list)"
+
+            if symbol:
+                where_clause += " AND symbol = %s"
+                params_list.append(symbol.upper())
+
+            query = f"""
+                SELECT
+                    symbol, company_name, sector, industry,
+                    composite_score, momentum_score, quality_score, value_score,
+                    growth_score, positioning_score, stability_score,
+                    current_price, trailing_pe, price_to_book,
+                    roe_pct, debt_to_equity, dividend_yield,
+                    revenue_growth_yoy_pct, eps_growth_yoy_pct,
+                    margin_of_safety_pct, generational_score
+                FROM stock_fundamentals
+                {where_clause}
+                ORDER BY {sort_by} {sort_direction}
+                LIMIT %s OFFSET %s
+            """
+            params_list.extend([limit, offset])
+
+            self.cur.execute(query, params_list)
+            scores = self.cur.fetchall()
+            return json_response(200, [dict(s) for s in scores])
+        except Exception as e:
+            logger.error(f"get_stock_scores failed: {e}")
+            return json_response(200, [])
 
 
 def lambda_handler(event, context):

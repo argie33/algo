@@ -198,22 +198,10 @@ app.options('*', (req, res) => {
   const allowedOrigins = [
     process.env.CLOUDFRONT_DOMAIN,
     process.env.API_GATEWAY_URL,
-    "https://example.com",
-    "https://www.example.com",
-    "https://admin.example.com",
-    "https://www.admin.example.com",
     "http://localhost:3000",
     "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://localhost:5177",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-    "http://127.0.0.1:5176",
-    "http://127.0.0.1:5177",
     process.env.FRONTEND_URL
   ].filter(Boolean); // Remove undefined values
 
@@ -252,13 +240,7 @@ app.use(
         process.env.CLOUDFRONT_DOMAIN,
         process.env.API_GATEWAY_URL,
 
-        // Production domains - update these with your actual domains
-        "https://example.com",           // Site A - Markets & Stocks (public)
-        "https://admin.example.com",     // Site B - Admin/Portfolio (private)
-        "https://www.example.com",
-        "https://www.admin.example.com",
-
-        // Local development - MINIMAL set of ports (remove excessive variants)
+        // Local development - MINIMAL set of ports
         "http://localhost:3000",         // Primary dev port
         "http://localhost:5173",         // Vite dev server
         "http://127.0.0.1:3000",
@@ -270,10 +252,8 @@ app.use(
 
       // Test-only origins for CORS testing (test environment only)
       const testOnlyOrigins = [
-        "https://test.example.com",
-        "http://test-domain.local",
-        // REMOVED: excessive localhost variants (5174, 5175, 5176, 5177)
-        // If needed, add to FRONTEND_URL environment variable instead
+        // REMOVED: placeholder example.com domains
+        // If needed, add to environment variables instead
       ];
 
       // Combine origins based on environment

@@ -100,7 +100,7 @@ const NotificationCenter = () => {
 
   const markAsRead = async (id) => {
     try {
-      await api.patch(`/api/notifications/${id}/read`);
+      await api.patch(`/api/algo/notifications/${id}/read`);
       refetch();
     } catch (err) {
       console.error('Failed to mark as read:', err);
@@ -109,7 +109,7 @@ const NotificationCenter = () => {
 
   const deleteNotification = async (id) => {
     try {
-      await api.delete(`/api/notifications/${id}`);
+      await api.delete(`/api/algo/notifications/${id}`);
       refetch();
     } catch (err) {
       console.error('Failed to delete:', err);
