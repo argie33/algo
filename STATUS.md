@@ -1,8 +1,45 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 17:45Z (Economic/market integration audit complete, critical schema fix applied)
+**Last Updated:** 2026-05-10 18:15Z (Sprint 1: Bug fixes + lifecycle visibility complete)
 **Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, technical rules, correlation checks
-**Latest:** ✅ 11-factor market exposure calculation now persisting (schema fixed). ✅ Economic regime overlay + NAAIM professional positioning integrated. ✅ All econ dashboard components verified. All blockers identified and fixed.
+**Latest:** ✅ Sprint 1 complete: 3 critical bugs fixed (earnings blackout fail-closed, economic calendar case sensitivity, liquidity fail-open). ✅ Pipeline health check added (Phase 1). ✅ Signal waterfall visibility added (Phase 5). ✅ Ready for Sprint 2 (entry quality gates).
+
+---
+
+## 🎯 Comprehensive Algo Optimization Initiative (2026-05-10)
+
+**Objective:** Audit system against best practices across swing trading, algo trading, algo lifecycle, and finance. Create comprehensive tuning plan, then execute.
+
+**Root Cause for "Not Making Trades Yet":**
+User noted system is close but not making trades + lifecycle might not be fully wired. Investigation found:
+1. **Data pipeline completeness** — some required tables may be empty/stale
+2. **Signal occurrence rate** — RSI<30 + Stage 2 is naturally rare; visibility on WHERE signals die in filter pipeline was missing
+
+**Sprint 1 Execution (May 10, 2026) ✅ COMPLETE**
+Fixes + Visibility:
+- ✅ D1: Economic calendar case sensitivity (LOWER() for 'HIGH'/'MEDIUM')
+- ✅ D2: Earnings blackout fail-closed on DB error (now blocks trades safely)
+- ✅ D3: Liquidity check improved (volume proxy when bid-ask missing)
+- ✅ E1: Pipeline health check in Phase 1 (shows which data tables are empty/stale)
+- ✅ E2: Signal waterfall report in Phase 5 (shows: total signals → stage 2 → tier rejections → final)
+- ✅ Commit: `73553b961`
+
+**Interpretation:** The waterfall report will show:
+- If total_signals=0 → no BUY signals generated today (check buy_sell_daily loader or market conditions)
+- If stage2_count=0 → signals exist but none are Stage 2 (RSI<30 in strong stocks is rare; check market regime)
+- If final_qualified=0 → Stage 2 signals exist but failing at some tier (config thresholds too tight; use waterfall to identify which tier)
+
+**Sprint 2 (Entry Quality Gates) — Ready to Start**
+5 gates to improve signal reliability:
+- A1: Signal age gate (reject BUY signals >3 days old)
+- A2: Close quality gate (signal day close in upper 60% of range)
+- A3: Volume hard gate (raise 1.0x → 1.25x average)
+- A4: Weekly chart hard gate (require weekly Stage 2)
+- A5: RS line trending up (positive 10-day slope, not just "near high")
+
+**Full Plan:** See `/claude/plans/snug-marinating-crane.md` for complete 5-sprint roadmap with 20+ improvements.
+
+---
 
 ## 📊 Economic & Market Integration Audit (2026-05-10 17:45Z) ✅
 

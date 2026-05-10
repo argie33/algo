@@ -117,6 +117,13 @@ class AlgoConfig:
         'max_percent_from_52w_high': ('25.0', 'float', 'Max % from 52w high'),
         'min_trend_template_score': ('8', 'int', 'Min Minervini score 0-10'),
 
+        # Entry Quality Gates (Sprint 2)
+        'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),
+        'min_close_quality_pct': ('60.0', 'float', 'Close must be in upper N% of range'),
+        'min_breakout_volume_ratio': ('1.25', 'float', 'Volume must be N x 50-day average'),
+        'require_weekly_stage_2': ('true', 'bool', 'Require weekly chart Stage 2'),
+        'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),
+
         # Exit Rules
         't1_target_r_multiple': ('1.5', 'float', 'Tier 1 profit target R-mult'),
         't2_target_r_multiple': ('3.0', 'float', 'Tier 2 profit target R-mult'),

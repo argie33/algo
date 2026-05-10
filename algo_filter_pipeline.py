@@ -134,26 +134,44 @@ class FilterPipeline:
                     logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
                     continue
 
+                # A1: Signal Age Gate — reject signals older than max_signal_age_days
+                max_signal_age_days = int(self.config.get('max_signal_age_days', 3))
+                signal_age = (eval_date - signal_date).days
+                if signal_age > max_signal_age_days:
+                    logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
+                    continue
+
                 # Check Stage 2 + RS > 70 (HIGH-CONFIDENCE entries only)
                 self.cur.execute(
-                    """SELECT stage_number, rs_rating, volume, avg_volume_50d FROM buy_sell_daily
+                    """SELECT stage_number, rs_rating, volume, avg_volume_50d, high, low, close FROM buy_sell_daily
                        WHERE symbol = %s AND date = %s LIMIT 1""",
                     (symbol, signal_date),
                 )
                 stage_rs = self.cur.fetchone()
                 if stage_rs:
-                    stage_number, rs_rating, volume, avg_vol_50d = stage_rs
+                    stage_number, rs_rating, volume, avg_vol_50d, day_high, day_low, close = stage_rs
                     if stage_number != 2:
                         logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2 only)")
                         continue
                     if rs_rating is None or rs_rating < 70:
                         logger.info(f"  SKIP {symbol}: RS {rs_rating} (need RS > 70)")
                         continue
-                    # Check volume breakout (required for valid breakout)
+
+                    # A2: Close Quality Gate — close must be in upper N% of day's range
+                    if day_high and day_low and day_high > day_low:
+                        min_close_quality_pct = float(self.config.get('min_close_quality_pct', 60.0))
+                        day_range = day_high - day_low
+                        close_pct_of_range = ((close - day_low) / day_range * 100) if day_range > 0 else 0
+                        if close_pct_of_range < min_close_quality_pct:
+                            logger.info(f"  SKIP {symbol}: Close at {close_pct_of_range:.0f}% of range (need >{min_close_quality_pct:.0f}%)")
+                            continue
+
+                    # A3: Volume Hard Gate — tightened from 1.0x to min_breakout_volume_ratio
+                    min_vol_ratio = float(self.config.get('min_breakout_volume_ratio', 1.25))
                     if volume and avg_vol_50d and avg_vol_50d > 0:
                         vol_ratio = volume / avg_vol_50d
-                        if vol_ratio < 1.0:
-                            logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.1f}x 50-day avg (need >1.0x)")
+                        if vol_ratio < min_vol_ratio:
+                            logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.2f}x 50-day avg (need >{min_vol_ratio}x)")
                             continue
 
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
@@ -578,6 +596,26 @@ class FilterPipeline:
                     'trend_score': trend_score,
                 }
 
+            # A4: Weekly Chart Hard Gate — require weekly chart Stage 2 (currently only scored)
+            require_weekly_stage_2 = bool(self.config.get('require_weekly_stage_2', True))
+            if require_weekly_stage_2:
+                weekly_check = self._check_weekly_stage_2(symbol, signal_date)
+                if not weekly_check.get('pass', True):
+                    return {
+                        'pass': False,
+                        'reason': weekly_check.get('reason', 'Weekly chart not Stage 2'),
+                        'trend_score': trend_score,
+                    }
+
+            # A5: RS Line Trending Up — RS line must have positive slope (not just "near high")
+            rs_slope_check = self._check_rs_line_slope(symbol, signal_date)
+            if not rs_slope_check.get('pass', True):
+                return {
+                    'pass': False,
+                    'reason': rs_slope_check.get('reason', 'RS line not trending up'),
+                    'trend_score': trend_score,
+                }
+
             # Volume decay check: declining volume into breakout = false breakout (Minervini warning)
             vol_check = self._check_volume_decay(symbol, signal_date)
             if vol_check and not vol_check.get('pass', True):
@@ -686,6 +724,116 @@ class FilterPipeline:
         except Exception as e:
             logger.debug(f'RS-line check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'RS check error (continuing)'}
+
+    def _check_weekly_stage_2(self, symbol, signal_date) -> Dict[str, Any]:
+        """A4: Weekly Chart Hard Gate — Require weekly chart Stage 2.
+
+        Even if daily is Stage 2, entering when weekly is Stage 3/4 is dangerous.
+        Weekly chart shows the longer-term trend.
+        """
+        try:
+            # Check if there's a recent SELL signal on weekly chart (last 20 trading days)
+            self.cur.execute(
+                """
+                SELECT signal FROM buy_sell_weekly
+                WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT 1
+                """,
+                (symbol, signal_date),
+            )
+            weekly_signal_row = self.cur.fetchone()
+            if weekly_signal_row:
+                weekly_signal = weekly_signal_row[0]
+                if weekly_signal == 'SELL':
+                    return {
+                        'pass': False,
+                        'reason': 'Weekly chart in SELL mode (avoid entries in Stage 3/4)',
+                    }
+
+            # Check weekly price relative to 30-week SMA (Stage 2 should be above it)
+            self.cur.execute(
+                """
+                SELECT pw.close,
+                       AVG(pw.close) OVER (ORDER BY pw.date DESC ROWS BETWEEN 0 AND 149) as sma_30w
+                FROM price_weekly pw
+                WHERE pw.symbol = %s AND pw.date <= %s
+                ORDER BY pw.date DESC LIMIT 1
+                """,
+                (symbol, signal_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0] and row[1]:
+                close = float(row[0])
+                sma_30w = float(row[1])
+                if close < sma_30w:
+                    return {
+                        'pass': False,
+                        'reason': f'Weekly price below 30-week MA (Stage 3/4, not Stage 2)',
+                    }
+
+            return {'pass': True, 'reason': 'Weekly chart Stage 2 OK'}
+        except Exception as e:
+            logger.debug(f'Weekly Stage 2 check failed for {symbol}: {e}')
+            return {'pass': True, 'reason': 'Weekly check error (continuing)'}
+
+    def _check_rs_line_slope(self, symbol, signal_date) -> Dict[str, Any]:
+        """A5: RS Line Trending Up — RS line must have positive slope over last N days.
+
+        Currently the system checks if RS line is within 5% of its 52-week high.
+        This adds a direction check: is the RS line trending UP, not just consolidating near the high?
+        """
+        try:
+            slope_days = int(self.config.get('min_rs_line_slope_days', 10))
+
+            # Get stock and SPY prices for RS-line calculation (enough for slope)
+            self.cur.execute(
+                """
+                SELECT s.close, spy.close, s.date
+                FROM price_daily s
+                JOIN price_daily spy ON s.date = spy.date
+                WHERE s.symbol = %s AND spy.symbol = 'SPY'
+                  AND s.date <= %s
+                ORDER BY s.date DESC LIMIT %s
+                """,
+                (symbol, signal_date, slope_days + 5),
+            )
+            rows = self.cur.fetchall()
+            if len(rows) < slope_days:
+                return {'pass': True, 'reason': f'Insufficient data for {slope_days}d slope'}
+
+            # Compute RS-line (stock/SPY ratio) for the period
+            rs_line_with_dates = []
+            for r in rows:
+                if r[0] and r[1]:
+                    rs = float(r[0]) / float(r[1])
+                    rs_line_with_dates.append((r[2], rs))
+
+            if len(rs_line_with_dates) < slope_days:
+                return {'pass': True, 'reason': 'Insufficient RS data'}
+
+            # Calculate slope using linear regression on the last N days
+            rs_line_values = [x[1] for x in rs_line_with_dates[:slope_days]]
+            x_values = list(range(slope_days))
+
+            # Simple linear regression: slope = sum((x - x_mean) * (y - y_mean)) / sum((x - x_mean)^2)
+            x_mean = sum(x_values) / len(x_values)
+            y_mean = sum(rs_line_values) / len(rs_line_values)
+
+            numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_values, rs_line_values))
+            denominator = sum((x - x_mean) ** 2 for x in x_values)
+
+            slope = numerator / denominator if denominator != 0 else 0
+
+            if slope <= 0:
+                return {
+                    'pass': False,
+                    'reason': f'RS line slope {slope:.4f} not trending up (need positive slope)',
+                }
+
+            return {'pass': True, 'reason': f'RS line trending up: slope {slope:.4f}'}
+        except Exception as e:
+            logger.debug(f'RS-line slope check failed for {symbol}: {e}')
+            return {'pass': True, 'reason': 'RS slope check error (continuing)'}
 
     def _compute_stop_loss(self, symbol, signal_date, sma_50, atr) -> Dict[str, Any]:
         """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
