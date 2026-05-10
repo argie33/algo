@@ -5,6 +5,7 @@ Reviews PR changes and provides intelligent feedback
 """
 
 import os
+import subprocess
 import google.generativeai as genai
 
 def get_pr_changes():

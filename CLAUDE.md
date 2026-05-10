@@ -23,6 +23,42 @@ Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS L
 
 ---
 
+## 🗑️ REMOVED FEATURES (2026-05-10)
+
+The following pages and endpoints were **completely removed** because they had **zero real data sources**:
+
+### Deleted Frontend Pages
+- `webapp/frontend/src/pages/EarningsCalendar.jsx` — No earnings data loader exists. Would need external API (Alpha Vantage, FinHub, etc.).
+- `webapp/frontend/src/pages/FinancialData.jsx` — No financial statement loader exists. Would need external API.
+- `webapp/frontend/src/pages/PortfolioOptimizerNew.jsx` — No portfolio optimizer module exists. Would need mean-variance optimization implementation.
+- `webapp/frontend/src/pages/HedgeHelper.jsx` — Called `/api/strategies/covered-calls` endpoint that was never implemented.
+- `webapp/frontend/src/components/options/` — Entire directory (CoveredCallOpportunities, GreeksDisplay, OptionsChainViewer). Unused.
+
+### Deleted API Handlers (lambda/api/lambda_function.py)
+- `_handle_earnings()` — Returned hardcoded mock earnings data. No database queries.
+- `_handle_financial()` — Returned hardcoded Apple financials. No database queries.
+- `_handle_optimization()` — Returned fixed portfolio weights. No database queries.
+- Removed routing for `/api/earnings/`, `/api/financial/`, `/api/optimization/*` endpoints.
+
+### Cleaned API Handler
+- `_handle_research()` — **FIXED, not deleted.** Now queries actual `backtest_results` table instead of returning mock data.
+
+### Why Complete Removal?
+**Partial cleanups cause confusion and wasted work.** Future developers would see incomplete code, think "maybe I should finish this", and rebuild features unnecessarily. Complete removal makes the system honest:
+- 22 pages with real data = KEEP
+- 5 pages with only mock data = DELETE completely
+- No lingering partial implementations
+
+### How to Add These Features Back (If Needed)
+1. **Earnings Calendar:** Add earnings data API, build loader, implement `/api/earnings/*` handlers
+2. **Financial Data:** Add financial data API, build loader, implement `/api/financial/*` handlers  
+3. **Portfolio Optimizer:** Implement mean-variance optimization, add `portfolio_optimization` table, implement `/api/optimization/*`
+4. **Hedge Helper:** Implement `/api/strategies/covered-calls` with options data loader
+
+All deleted code is in git history. Restore via: `git log --oneline | grep -i "earnings\|financial\|optimizer\|hedge"`
+
+---
+
 ## 🔄 CLAUDE BEST PRACTICES (Critical for Effective Collaboration)
 
 ### 1. DOCUMENTATION DISCIPLINE
@@ -290,6 +326,34 @@ If I'm about to:
 
 ---
 
+## 🛡️ PREVENTING PARTIAL IMPLEMENTATIONS
+
+**Problem:** Code gets added but never completed. Months later, new developers see incomplete code and waste time rebuilding it.
+
+**Solution:** The 3-Step Completion Rule
+
+When implementing a feature, ALL THREE must be done:
+1. ✅ **Code works** — Queries real data, not hardcoded values
+2. ✅ **Integration complete** — Wired into routing, navigation, exported properly
+3. ✅ **Documented** — STATUS.md updated, purpose/constraints clear
+
+If ANY step can't be done → **DELETE it immediately**. Don't leave 90% done.
+
+**Examples:**
+- ❌ **Don't:** Add page with mock data intending to "add real data later"
+  - **Do:** Delete the page until you have a real data source ready
+
+- ❌ **Don't:** Add API endpoint that returns placeholder data
+  - **Do:** Don't add endpoint until database table exists and is being populated
+
+- ❌ **Don't:** Add navigation menu item to feature that doesn't work yet
+  - **Do:** Wait until feature is 100% working to add to menu
+
+**Commit Message Red Flag Test:**
+If your commit message has "WIP", "TODO", "will add later", "placeholder", "mock data" → **Stop. Delete and wait.**
+
+---
+
 ## 💡 IF YOU SEE ME DOING SOMETHING WRONG
 
 Tell me directly. Examples:
@@ -297,5 +361,7 @@ Tell me directly. Examples:
 - "Don't do that anymore"
 - "Ask me before deleting large code sections"
 - "That's redundant, delete it"
+- "Don't add mock endpoints—delete them immediately"
+- "If something isn't complete, remove it completely"
 
 **I will immediately stop and adjust.** I'd rather be corrected than keep making the same mistake.

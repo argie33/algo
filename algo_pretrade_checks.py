@@ -84,7 +84,7 @@ class PreTradeChecks:
             self.cur.close()
         if self.conn:
             self.conn.close()
-        self.cur = self.conn: Optional[Any] = None
+        self.cur = self.conn = None
 
     def check_fat_finger(self, symbol: str, entry_price: float, max_divergence_pct: float = 5.0) -> Tuple[bool, Optional[str]]:
         """Reject if entry_price diverges > 5% from current market price.

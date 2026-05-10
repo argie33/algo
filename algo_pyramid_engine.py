@@ -66,7 +66,7 @@ class PyramidEngine:
             self.cur.close()
         if self.conn:
             self.conn.close()
-        self.cur = self.conn: Optional[Any] = None
+        self.cur = self.conn = None
 
     def evaluate_pyramid_adds(self, current_date: date) -> Dict[str, Any]:
         """

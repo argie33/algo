@@ -159,21 +159,9 @@ class APIHandler:
             if path.startswith('/api/commodities/'):
                 return self._handle_commodities(path, method, query_params)
 
-            # Earnings endpoints
-            if path.startswith('/api/earnings/'):
-                return self._handle_earnings(path, method, query_params)
-
-            # Financial endpoints
-            if path.startswith('/api/financial/'):
-                return self._handle_financial(path, method, query_params)
-
             # Research endpoints
             if path.startswith('/api/research/'):
                 return self._handle_research(path, method, query_params)
-
-            # Optimization endpoints
-            if path.startswith('/api/optimization/'):
-                return self._handle_optimization(path, method, query_params)
 
             # Audit endpoints
             if path.startswith('/api/audit/'):
@@ -937,114 +925,27 @@ class APIHandler:
             logger.error(f"get_stock_scores failed: {e}")
             return json_response(200, [])
 
-    def _handle_earnings(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/earnings/* endpoints."""
-        try:
-            if path == '/api/earnings/sp500-trend':
-                return json_response(200, {
-                    'current_eps': 220.5,
-                    'prior_eps': 218.2,
-                    'growth_rate': 1.06,
-                    'date': datetime.utcnow().isoformat(),
-                })
-            elif path == '/api/earnings/sector-trend':
-                return json_response(200, [
-                    {'sector': 'Technology', 'eps_growth': 5.2, 'pe_ratio': 18.5},
-                    {'sector': 'Healthcare', 'eps_growth': 3.1, 'pe_ratio': 16.2},
-                    {'sector': 'Financials', 'eps_growth': 8.5, 'pe_ratio': 10.3},
-                ])
-            elif 'calendar' in path:
-                period = params.get('period', ['upcoming'])[0] if params else 'upcoming'
-                limit = int(params.get('limit', [25])[0]) if params else 25
-                return json_response(200, [
-                    {'symbol': 'AAPL', 'date': '2026-05-15', 'eps_estimate': 1.25, 'eps_prior': 1.20},
-                    {'symbol': 'MSFT', 'date': '2026-05-16', 'eps_estimate': 2.35, 'eps_prior': 2.28},
-                ])
-            return json_response(200, {})
-        except:
-            return json_response(200, {})
 
-    def _handle_financial(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/financial/* endpoints."""
-        import re
-        try:
-            if path == '/api/financial/companies':
-                return json_response(200, [
-                    {'symbol': 'AAPL', 'name': 'Apple Inc', 'sector': 'Technology'},
-                    {'symbol': 'MSFT', 'name': 'Microsoft', 'sector': 'Technology'},
-                ])
-            match = re.match(r'/api/financial/(balance-sheet|income-statement|cash-flow)/([A-Z]+)', path)
-            if match:
-                stmt_type = match.group(1)
-                symbol = match.group(2)
-                if stmt_type == 'balance-sheet':
-                    return json_response(200, {
-                        'symbol': symbol,
-                        'total_assets': 352.755e9,
-                        'total_liabilities': 128.156e9,
-                        'total_equity': 224.599e9,
-                        'date': datetime.utcnow().isoformat(),
-                    })
-                elif stmt_type == 'income-statement':
-                    return json_response(200, {
-                        'symbol': symbol,
-                        'revenue': 383.285e9,
-                        'operating_income': 114.318e9,
-                        'net_income': 93.736e9,
-                        'eps': 5.61,
-                        'date': datetime.utcnow().isoformat(),
-                    })
-                elif stmt_type == 'cash-flow':
-                    return json_response(200, {
-                        'symbol': symbol,
-                        'operating_cash_flow': 110.543e9,
-                        'investing_cash_flow': -45.639e9,
-                        'financing_cash_flow': -85.676e9,
-                        'free_cash_flow': 64.904e9,
-                        'date': datetime.utcnow().isoformat(),
-                    })
-            return json_response(200, {})
-        except:
-            return json_response(200, {})
 
     def _handle_research(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/research/* endpoints."""
         try:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit = int(params.get('limit', [50])[0]) if params else 50
-                return json_response(200, [
-                    {
-                        'run_id': 'bt_20260509_001',
-                        'strategy': 'Swing Trading',
-                        'start_date': '2025-01-01',
-                        'end_date': '2026-05-09',
-                        'total_return': 28.5,
-                        'sharpe_ratio': 1.45,
-                        'max_drawdown': -15.3,
-                        'win_rate': 0.58,
-                    }
-                ])
+                self.cur.execute("""
+                    SELECT id, strategy_name, start_date, end_date, total_return,
+                           sharpe_ratio, max_drawdown, win_rate, total_trades
+                    FROM backtest_results
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (limit,))
+                backtests = self.cur.fetchall()
+                return json_response(200, [dict(b) for b in backtests] if backtests else [])
             return json_response(200, {})
-        except:
-            return json_response(200, {})
+        except Exception as e:
+            logger.error(f"get_backtests failed: {e}")
+            return json_response(200, [])
 
-    def _handle_optimization(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/optimization/* endpoints."""
-        try:
-            if path == '/api/optimization/analysis':
-                return json_response(200, {
-                    'optimal_weights': {
-                        'equities': 0.60,
-                        'bonds': 0.30,
-                        'alternatives': 0.10,
-                    },
-                    'expected_return': 0.08,
-                    'expected_volatility': 0.12,
-                    'sharpe_ratio': 0.67,
-                })
-            return json_response(200, {})
-        except:
-            return json_response(200, {})
 
     def _handle_audit(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/audit/* endpoints."""
