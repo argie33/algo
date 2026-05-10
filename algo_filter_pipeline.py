@@ -717,6 +717,19 @@ class FilterPipeline:
                         'shares': 0,
                     }
 
+            # Correlation check: prevent entering if highly correlated with existing positions (>0.80 correlation)
+            if existing_symbols:
+                try:
+                    corr_check = self._check_correlation_with_holdings(symbol, existing_symbols, signal_date)
+                    if not corr_check['pass']:
+                        return {
+                            'pass': False,
+                            'reason': corr_check['reason'],
+                            'shares': 0,
+                        }
+                except Exception as e:
+                    logger.warning(f'Correlation check failed for {symbol}: {e} (continuing without check)')
+
             # Use PositionSizer for all risk calculations (includes drawdown cascade, exposure mult, phase mult)
             if not stop_loss_price or stop_loss_price >= entry_price:
                 # Stop calculation failed. Use fallback: 2x ATR from entry (if ATR available), else 5% stop.
@@ -988,6 +1001,73 @@ class FilterPipeline:
                 self.conn.rollback()
             except Exception:
                 pass
+    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None) -> Dict[str, Any]:
+        """Check if new symbol is highly correlated (>0.80) with existing open positions.
+
+        Returns {'pass': bool, 'reason': str, 'highest_correlation': float}
+        """
+        if not existing_symbols:
+            return {'pass': True, 'reason': 'No existing positions'}
+
+        try:
+            # Fetch 60-day price history for new symbol and each existing symbol
+            self.cur.execute(
+                """
+                SELECT symbol, date, close FROM price_daily
+                WHERE symbol IN (%s)
+                  AND date >= CURRENT_DATE - INTERVAL '60 days'
+                ORDER BY symbol, date
+                """,
+                (tuple([new_symbol] + list(existing_symbols)),)
+            )
+            rows = self.cur.fetchall()
+            if not rows:
+                return {'pass': True, 'reason': 'Insufficient price data'}
+
+            # Build price dataframe
+            import pandas as pd
+            df = pd.DataFrame(rows, columns=['symbol', 'date', 'close'])
+            df['date'] = pd.to_datetime(df['date'])
+
+            # Pivot to get prices by symbol
+            pivot = df.pivot(index='date', columns='symbol', values='close')
+            if pivot.empty or new_symbol not in pivot.columns:
+                return {'pass': True, 'reason': 'Insufficient data for correlation check'}
+
+            # Compute 60-day returns
+            returns = pivot.pct_change()
+            returns = returns.dropna()
+
+            if len(returns) < 20:
+                logger.warning(f'Insufficient data for correlation check {new_symbol}: {len(returns)} days')
+                return {'pass': True, 'reason': 'Insufficient history'}
+
+            # Compute correlations with existing holdings
+            new_returns = returns[new_symbol]
+            max_corr = 0.0
+            most_correlated = None
+            for existing in existing_symbols:
+                if existing in returns.columns:
+                    corr = new_returns.corr(returns[existing])
+                    if abs(corr) > max_corr:
+                        max_corr = abs(corr)
+                        most_correlated = existing
+
+            # Halt if correlation > 0.80
+            if max_corr > 0.80:
+                return {
+                    'pass': False,
+                    'reason': f'Correlated {max_corr:.2f} with {most_correlated} (60d, threshold 0.80)',
+                    'highest_correlation': round(max_corr, 3),
+                }
+            return {
+                'pass': True,
+                'reason': f'Max correlation {max_corr:.2f} with portfolio',
+                'highest_correlation': round(max_corr, 3),
+            }
+        except Exception as e:
+            logger.debug(f'Correlation check failed: {e}')
+            return {'pass': True, 'reason': 'Correlation check error (continuing)'}
 
 
 if __name__ == "__main__":

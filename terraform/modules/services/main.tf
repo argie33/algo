@@ -58,8 +58,8 @@ data "archive_file" "api_function_local" {
 resource "aws_lambda_function" "api" {
   function_name    = local.api_lambda_name
   role             = var.api_lambda_role_arn
-  handler          = "lambda_function.lambda_handler"
-  runtime          = "python3.11"
+  handler          = "index.handler"
+  runtime          = "nodejs20.x"
   timeout          = var.api_lambda_timeout
   memory_size      = var.api_lambda_memory
 

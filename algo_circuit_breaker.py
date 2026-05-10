@@ -93,6 +93,8 @@ class CircuitBreaker:
                 ('vix_spike', self._check_vix_spike),
                 ('market_stage', self._check_market_stage),
                 ('weekly_loss', self._check_weekly_loss),
+                ('sector_concentration', self._check_sector_concentration),
+                ('daily_profit_cap', self._check_daily_profit_cap),
                 ('data_freshness', self._check_data_freshness),
             ]:
                 try:
@@ -342,6 +344,56 @@ class CircuitBreaker:
             'reason': f'Data {days_stale}d stale > {threshold}d max' if days_stale > threshold else f'{days_stale}d old',
             'value': days_stale,
             'threshold': threshold,
+        }
+
+    def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
+        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
+        self.cur.execute(
+            """
+            SELECT p.sector, COUNT(*) as position_count,
+                   AVG(pd.close) FILTER (WHERE pd.date = CURRENT_DATE - INTERVAL '5 days')::float as price_5d_ago,
+                   AVG(pd.close) FILTER (WHERE pd.date = CURRENT_DATE)::float as price_today
+            FROM algo_positions p
+            LEFT JOIN price_daily pd ON p.symbol = pd.symbol
+            WHERE p.status = %s AND p.sector IS NOT NULL
+            GROUP BY p.sector
+            HAVING COUNT(*) >= 2
+            """,
+            (PositionStatus.OPEN.value,)
+        )
+        rows = self.cur.fetchall()
+        for sector, count, price_5d, price_today in rows:
+            if price_5d and price_today and price_5d > 0:
+                sector_decline = ((price_5d - price_today) / price_5d * 100.0)
+                if sector_decline >= 12.0:
+                    return {
+                        'halted': True,
+                        'reason': f'Sector "{sector}" down {sector_decline:.1f}% with {count} positions',
+                        'sector': sector,
+                        'position_count': count,
+                        'sector_decline_pct': round(sector_decline, 1),
+                    }
+        return {'halted': False, 'reason': 'No sector concentration risk'}
+
+    def _check_daily_profit_cap(self, current_date: Any) -> Dict[str, Any]:
+        """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
+        self.cur.execute(
+            "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
+            (current_date,),
+        )
+        row = self.cur.fetchone()
+        if not row or row[0] is None:
+            return {'halted': False, 'reason': 'No today snapshot yet'}
+        daily = float(row[0])
+        threshold = float(self.config.get('daily_profit_cap_pct', 2.0))
+        # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
+        # Orchestrator uses this to skip NEW entries only, not to exit existing positions
+        return {
+            'halted': False,
+            'reason': f'Daily profit {daily:+.2f}% vs cap {threshold:.1f}%',
+            'value': round(daily, 2),
+            'threshold': threshold,
+            'exceed_profit_cap': daily >= threshold,
         }
 
     def _log_halt(self, results):
