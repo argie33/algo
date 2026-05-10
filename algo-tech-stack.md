@@ -100,6 +100,74 @@
 4. **Data loaders** — ECS task definitions in `template-app-ecs-tasks.yml`
 5. **Frontend** — `webapp/frontend/src/App.jsx`
 
+## Architectural Foundation — Research Sources
+
+Every algorithm decision traces to published research. This grounds all design choices in institutional best practices, not intuition.
+
+### Canonical Research Stack
+
+| Concept | Source | Implementation |
+|---------|--------|-----------------|
+| **8-point Trend Template** | Mark Minervini, *Trade Like a Stock Market Wizard* | All 8 criteria; threshold ≥7/8 |
+| **4-Stage Analysis** | Stan Weinstein, *Secrets For Profiting* | 30-week MA + slope + price-vs-MA classification |
+| **CAN SLIM Composite** | William O'Neil, *How to Make Money in Stocks* | Quality/growth/momentum factor weights |
+| **Cup-with-Handle Stop** | O'Neil + Bulkowski pattern stats | Stop 1% below handle low |
+| **Flat Base** | Minervini SEPA methodology | ≤15% depth, ≥5wk duration |
+| **VCP** | Minervini signature pattern | 2-4 progressively tighter contractions |
+| **3-Weeks-Tight** | IBD continuation pattern | 3 weekly closes within 1.5% |
+| **High-Tight Flag** | IBD rare explosive pattern | 100%+ in 4-8wk + tight 1-3wk consolidation |
+| **TD Sequential** | Tom DeMark, 1980s | 9-count exhaustion, perfected detection |
+| **Power Trend** | Minervini | 20%+ in 21 trading days |
+| **Mansfield RS** | Weinstein adaptation | (stock/SPY) / 52w MA(stock/SPY) − 1 |
+| **Distribution Days** | IBD methodology | Close down 0.2%+ on volume above prior |
+| **Follow-Through Days** | William O'Neil | Day 4-7 of attempt, +1.25% on rising volume |
+| **Position Size 0.75%** | Minervini + Van Tharp | Range 0.5–1.0%, midpoint 0.75% |
+| **Max 6 positions** | O'Neil/Minervini consensus | Concentration in best ideas |
+| **Move stop to BE at +1R** | Curtis Faith, *Way of the Turtle* | Prevent whipsaws on normal volatility |
+| **Chandelier 3×ATR** | LeBeau / Connors backtests | Trail in trending markets |
+| **8-week rule** | O'Neil leading-stock studies | Hold winners up 20%+ in ≤3wk for 8 weeks |
+| **Drawdown gates** | Minervini + CTA industry standard | -5/-10/-15/-20 cascade |
+| **9-factor exposure** | IBD Big Picture + Zweig | Market regime classification |
+| **Bracket orders** | Institutional best practice | Stop enforced even on system outage |
+| **Multi-timeframe alignment** | Elder Triple Screen | 58% win when aligned vs 39% non-aligned |
+
+**Conflict resolution:** When sources disagree, we pick the more conservative interpretation (e.g., Minervini's 30%+ above 52w low vs. looser variants).
+
+### System Component Stack
+
+**A. Signal Computer (`algo_signals.py`)**  
+Canonical implementations of every published swing-trading signal. Methods: Minervini trend, Weinstein stage, base-type classification, VCP detection, TD Sequential, Mansfield RS, distribution days.
+
+**B. Market Exposure (`algo_market_exposure.py`)**  
+Quantitative regime score (0-100) from 9 weighted factors. Replaces naive "Stage 2 yes/no" with mathematical exposure classification. Hard vetoes cap exposure at 25-40% under severe conditions (DD ≥6, VIX >40, no follow-through days).
+
+**C. Exposure Policy (`algo_market_exposure_policy.py`)**  
+Maps exposure score to 5 action tiers:
+- **Confirmed Uptrend (80-100%)**: 5 new entries/day, 1.0× risk
+- **Healthy Uptrend (60-80%)**: 4 new entries/day, 0.85× risk
+- **Pressure (40-60%)**: 2 new entries/day, 0.5× risk
+- **Caution (20-40%)**: 1 new entry/day, 0.25× risk, halt new entries
+- **Correction (0-20%)**: 0 new entries, 0.0× risk, force exit losers
+
+**D. Swing Score (`algo_swing_score.py`)**  
+Multi-factor composite (0-100, A+ to F): 25% setup quality, 20% trend quality, 20% momentum/RS, 12% volume, 10% fundamentals, 8% sector, 5% multi-timeframe.
+
+Hard gates: Trend ≥7/8, Stage 2, ≤25% from 52w high, base count ≤3, no wide-loose base, no earnings within 5 days.
+
+**E. Filter Pipeline (`algo_filter_pipeline.py`)**  
+6-tier selection: Data quality → Market health → Trend template → Signal quality → Portfolio health → Advanced filters. Ranked by swing score. Final entry count limited by exposure tier.
+
+**F. Position Sizer (`algo_position_sizer.py`)**  
+Risk-based sizing: `risk_dollars = portfolio_value × 0.75% × drawdown_adjustment × market_exposure × stage_phase`. Capped at 15% per position and concentration limits.
+
+**G. Trade Executor (`algo_trade_executor.py`)**  
+Idempotent bracket-order execution to Alpaca. Blocks duplicates. Enforces stop loss + take profit as OCO children. Persists 15 metadata fields per trade.
+
+**H. Exit Engine (`algo_exit_engine.py`)**  
+Hierarchical exit priority: Hard stop → Minervini break → RS break → Time exit → Breakeven raise → Partial exits (T1/T2/T3) → Chandelier trail → TD Sequential → Distribution day exit.
+
+---
+
 ## Database Schema (Auto-Created)
 - **stock_symbols** — Ticker, name, sector, market cap
 - **price_daily** — OHLCV + volume for each symbol

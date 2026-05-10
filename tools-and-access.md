@@ -353,4 +353,159 @@ alias algo-db="psql -h localhost -U stocks -d stocks"
 
 ---
 
-**Last Updated:** 2026-05-07
+## Alert Configuration (Email/SMS/Slack)
+
+Critical data issues trigger automated alerts. Configure once, then forget.
+
+### Email Alerts (Gmail)
+
+Add to `.env.local`:
+```bash
+ALERT_EMAIL_FROM=edgebrookecapital@gmail.com
+ALERT_EMAIL_TO=argeropolos@gmail.com
+ALERT_SMTP_HOST=smtp.gmail.com
+ALERT_SMTP_PORT=587
+ALERT_SMTP_USER=edgebrookecapital@gmail.com
+ALERT_SMTP_PASSWORD=<app_password>
+```
+
+**Get Gmail app password:**
+1. Go to https://myaccount.google.com/apppasswords
+2. Select "Mail" + "Windows Computer"
+3. Copy 16-char password to `ALERT_SMTP_PASSWORD`
+
+### SMS Alerts (Twilio)
+
+Free tier: 1000 SMS/month.
+
+```bash
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+1-XXX-XXX-XXXX
+ALERT_PHONE_NUMBERS=+1-312-307-8620
+```
+
+**Find in Twilio Console:**
+- Account SID: top right of dashboard
+- Auth Token: next to Account SID
+- Twilio number: Phone Numbers → Manage Numbers → Active Numbers
+
+### Slack Webhook (Optional)
+
+```bash
+ALERT_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+```
+
+**Get URL:**
+1. Slack: Settings → Manage apps → Build → Create New App
+2. Choose "From scratch", name it "Algo Alerts"
+3. Enable Incoming Webhooks → Create New Webhook to Channel
+4. Copy URL to `.env.local`
+
+### Alert Levels
+
+- **CRITICAL** → Email + SMS + Slack (OHLC corruption, stale orders)
+- **ERROR** → Email + SMS + Slack (>2 errors)
+- **WARN** → Email + Slack only (30%+ 1-day drop, missing data)
+
+**Test:** `python3 algo_alerts.py`
+
+---
+
+## AWS Budget & Cost Controls
+
+### Create $100/Month Budget (5 minutes)
+
+**CLI method:**
+```bash
+aws budgets create-budget \
+  --account-id ACCOUNT_ID \
+  --budget file:///dev/stdin <<'EOF'
+{
+  "BudgetName": "StockLoaderMonthly",
+  "BudgetLimit": {"Amount": "100", "Unit": "USD"},
+  "TimeUnit": "MONTHLY",
+  "BudgetType": "COST"
+}
+EOF
+```
+
+**Or AWS Console:**
+1. AWS Budgets → Create budget
+2. Cost budget, name: `StockLoaderMonthly`
+3. Monthly, limit: $100
+
+### Set Alert Thresholds
+
+```bash
+# Alert at 80% ($80)
+aws budgets create-notification \
+  --account-id ACCOUNT_ID \
+  --budget-name StockLoaderMonthly \
+  --notification file:///dev/stdin <<'EOF'
+{
+  "NotificationType": "FORECASTED",
+  "ComparisonOperator": "GREATER_THAN",
+  "Threshold": 80,
+  "ThresholdType": "PERCENTAGE"
+}
+EOF
+
+# Alert at 95% ($95)
+aws budgets create-notification \
+  --account-id ACCOUNT_ID \
+  --budget-name StockLoaderMonthly \
+  --notification file:///dev/stdin <<'EOF'
+{
+  "NotificationType": "ACTUAL",
+  "ComparisonOperator": "GREATER_THAN",
+  "Threshold": 95,
+  "ThresholdType": "PERCENTAGE"
+}
+EOF
+```
+
+### Cost Optimization Levers
+
+| Optimization | Monthly Savings | How |
+|---|---|---|
+| **RDS auto-pause (20h/day)** | $16 | RDS → Modify → Aurora Serverless → Auto pause: 20 min |
+| **Lambda reserved concurrency** | - | `aws lambda put-function-concurrency --function-name LoadPriceDailyWorker --reserved-concurrent-executions 5` |
+| **CloudWatch logs retention** | $1-3 | `aws logs put-retention-policy --log-group-name /aws/lambda/LoadPriceDailyWorker --retention-in-days 7` |
+
+### Current Cost Breakdown
+
+| Service | Est. Monthly |
+|---------|---|
+| RDS (with auto-pause) | $14 |
+| Lambda (5 daily + 1 weekly + 1 monthly) | $0.15 |
+| CloudWatch Logs | $3 |
+| NAT Gateway | $7 |
+| Data Transfer | $1.50 |
+| Other | $1 |
+| **TOTAL** | **~$27** |
+
+Buffer: $73 of $100 budget remaining (73% spare capacity).
+
+### If You Hit $100
+
+AWS doesn't auto-stop at budget limits. Manual emergency controls:
+
+```bash
+# Disable all loader schedules
+aws events put-rule --name LoadPriceDailySchedule --state DISABLED
+aws events put-rule --name LoadPriceWeeklySchedule --state DISABLED
+
+# Pause RDS
+aws rds stop-db-instance --db-instance-identifier stocks-db
+
+# Check current spend
+aws ce get-cost-and-usage \
+  --time-period Start=2026-05-01,End=2026-05-31 \
+  --granularity MONTHLY \
+  --metrics UnblendedCost
+```
+
+---
+
+**Last Updated:** 2026-05-10

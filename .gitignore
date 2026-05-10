@@ -110,3 +110,16 @@ aws-cli-*.zip
 # Generated files
 DEPLOYMENT_IN_PROGRESS.md
 .watermarks/
+
+# Documentation sprawl prevention
+# (Session snapshots, dated audits, temporary docs)
+SESSION_SUMMARY_*.md
+FINAL_*.md
+VERIFICATION_COMPLETE_*.md
+*_2026_*.md
+ARCHIVE_SNAPSHOTS/
+SESSIONS_COMPLETED/
+DECISIONS_RATIONALE/
+DESIGNS_DEPRECATED/
+.docs_archive/
+.consolidation_plan.md
