@@ -291,7 +291,7 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.API_GATEWAY_URL }}
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Sync to S3
