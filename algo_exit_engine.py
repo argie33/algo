@@ -113,13 +113,17 @@ class ExitEngine:
                 (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
                  trade_date, _position_id, quantity, target_hits, current_stop) = row
 
-                entry_price = float(entry_price)
-                init_stop = float(init_stop)
-                active_stop = float(current_stop) if current_stop else init_stop
-                t1_price = float(t1_price)
-                t2_price = float(t2_price)
-                t3_price = float(t3_price)
-                target_hits = int(target_hits or 0)
+                try:
+                    entry_price = float(entry_price)
+                    init_stop = float(init_stop)
+                    active_stop = float(current_stop) if current_stop else init_stop
+                    t1_price = float(t1_price) if t1_price else None
+                    t2_price = float(t2_price) if t2_price else None
+                    t3_price = float(t3_price) if t3_price else None
+                    target_hits = int(target_hits or 0)
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"  {symbol}: skip (invalid price data: {e})")
+                    continue
 
                 cur_price, prev_close = self._fetch_recent_prices(symbol, current_date)
                 if cur_price is None:
