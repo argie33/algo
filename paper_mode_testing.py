@@ -11,7 +11,8 @@ import sys
 from datetime import datetime, date as _date
 from pathlib import Path
 
-os.chdir(r'C:\Users\arger\code\algo')
+# Set working directory to script location (cross-platform)
+os.chdir(Path(__file__).parent)
 
 from algo_orchestrator import Orchestrator
 from algo_config import get_config
