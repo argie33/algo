@@ -83,6 +83,28 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+tfplan
+*.tfplan
+
+# Serverless Framework
+.serverless/
+**/serverless-state.json
+
+# Large binary files
+*.msi
+*.exe
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# AWS artifacts
+AWSCLIV2.*
+aws-cli-*.zip
 
 # Sensitive (local development only)
 !.env.local.example  # Template is tracked, actual .env.local is not
+
+# Generated files
+DEPLOYMENT_IN_PROGRESS.md
+.watermarks/
