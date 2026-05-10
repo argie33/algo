@@ -20,7 +20,21 @@ Master deploy: `gh workflow run deploy-all-infrastructure.yml --repo argie33/alg
 
 Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS Lambda/ECS, EventBridge 5:30pm ET.
 
-**Infrastructure:** Terraform only. No CloudFormation. All resources defined in `terraform/` modules.
+**Infrastructure:** 
+- **Local:** Docker Compose in WSL (Windows). PostgreSQL + Redis running at localhost:5432 and localhost:6379
+- **Production:** Terraform IaC only. No CloudFormation. All resources defined in `terraform/` modules
+
+**Running Local Tests (WSL Docker):**
+```bash
+# From Windows PowerShell:
+wsl -u argeropolos -e bash -c "cd /mnt/c/Users/arger/code/algo && docker-compose ps"
+
+# Or directly in WSL terminal:
+cd /mnt/c/Users/arger/code/algo
+docker-compose up -d      # Start services
+python3 algo_orchestrator.py --mode paper --dry-run
+```
+**Important:** Always use WSL for Docker. Docker Desktop does not work on this machine. All development/testing happens in WSL Ubuntu 24.04 LTS.
 
 ---
 
