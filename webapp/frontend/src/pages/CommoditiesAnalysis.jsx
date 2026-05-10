@@ -42,76 +42,111 @@ export default function CommoditiesAnalysis() {
   // Use domain-specific hooks instead of manual useQuery
   const prices = useCommodities({ limit: 100 });
 
-  const cats = useApiQuery(
+  const { data: catsData, error: catsError, refetch: refetchCats } = useApiQuery(
     ['commodities-categories'],
     () => api.get('/api/commodities/categories'),
     { staleTime: 5 * 60 * 1000 }
   );
 
-  const technicals = useApiQuery(
+  const { data: technicals, error: techError, refetch: refetchTech } = useApiQuery(
     ['commodities-technicals', selectedSymbol],
     () => api.get(`/api/commodities/technicals/${selectedSymbol}`),
     { enabled: tab === 'technicals' }
   );
 
-  const macro = useApiQuery(
+  const { data: macro, error: macroError, refetch: refetchMacro } = useApiQuery(
     ['commodities-macro'],
     () => api.get('/api/commodities/macro'),
     { enabled: tab === 'macro' }
   );
 
-  const events = useApiQuery(
+  const { data: events, error: eventsError, refetch: refetchEvents } = useApiQuery(
     ['commodities-events'],
     () => api.get('/api/commodities/events'),
     { enabled: tab === 'events' }
   );
 
-  const seasonality = useApiQuery(
+  const { data: seasonality, error: seasonError, refetch: refetchSeason } = useApiQuery(
     ['commodities-seasonality', selectedSymbol],
     () => api.get(`/api/commodities/seasonality/${selectedSymbol}`),
     { enabled: tab === 'seasonality' }
   );
 
-  const cot = useApiQuery(
+  const { data: cot, error: cotError, refetch: refetchCot } = useApiQuery(
     ['commodities-cot', selectedSymbol],
     () => api.get(`/api/commodities/cot/${selectedSymbol}`),
     { enabled: tab === 'cot' }
   );
 
-  const correlations = useApiQuery(
+  const { data: correlations, error: corrError, refetch: refetchCorr } = useApiQuery(
     ['commodities-correlations'],
     () => api.get('/api/commodities/correlations'),
     { enabled: tab === 'correlations' }
   );
 
-  const marketSummary = useApiQuery(
+  const { data: marketSummary, error: mktError, refetch: refetchMkt } = useApiQuery(
     ['commodities-market-summary'],
     () => api.get('/api/commodities/market-summary'),
     { staleTime: 2 * 60 * 1000 }
   );
 
   const categories = useMemo(() => {
-    if (!cats.data) return [];
-    return Array.from(new Set(cats.data.map(c => c.category).filter(Boolean))).sort();
-  }, [cats.data]);
+    if (!catsData) return [];
+    return Array.from(new Set(catsData.map(c => c.category).filter(Boolean))).sort();
+  }, [catsData]);
 
   const filteredCommodities = useMemo(() => {
     const list = Array.isArray(prices.data) ? prices.data : [];
     if (filterCategory === 'all') return list;
     return list.filter(p => {
-      const cat = cats.data?.find(c => c.symbol === p.symbol);
+      const cat = catsData?.find(c => c.symbol === p.symbol);
       return cat?.category === filterCategory;
     });
-  }, [prices.data, cats.data, filterCategory]);
+  }, [prices.data, catsData, filterCategory]);
 
   const selectedData = useMemo(
     () => (prices.data || []).find(c => c.symbol === selectedSymbol),
     [prices.data, selectedSymbol]
   );
   const selectedCat = useMemo(
-    () => cats.data?.find(c => c.symbol === selectedSymbol),
-    [cats.data, selectedSymbol]
+    () => catsData?.find(c => c.symbol === selectedSymbol),
+    [catsData, selectedSymbol]
   );
+
+  // Check for critical errors
+  const criticalErrors = [prices.error, catsError];
+  const hasErrors = criticalErrors.some(err => err);
+
+  if (hasErrors) {
+    return (
+      <div className="main-content">
+        <div className="page-head">
+          <div>
+            <div className="page-head-title">Commodities</div>
+            <div className="page-head-sub">Prices · Technicals · Macro drivers · Events · Seasonality</div>
+          </div>
+        </div>
+        <div className="card" style={{ background: 'var(--surface-danger)', borderLeft: '3px solid var(--error)' }}>
+          <div style={{ padding: 'var(--space-4)' }}>
+            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load commodities data</div>
+            <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)' }}>
+              {prices.error && <div>• Commodity prices unavailable</div>}
+              {catsError && <div>• Categories unavailable</div>}
+            </div>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                prices.error && prices.refetch?.();
+                catsError && refetchCats?.();
+              }}
+            >
+              <RefreshCw size={14} /> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="main-content">
@@ -295,7 +330,7 @@ export default function CommoditiesAnalysis() {
                 <div className="card-sub">Upcoming reports and releases</div>
               </div>
             </div>
-            <div className="card-body" style={{ padding: 0 }}>
+            <div className="card-body" style={{ padding: 0, overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
               {events.isLoading ? <Empty title="Loading events…" /> :
                (!events.data || events.data.length === 0) ? <Empty title="No upcoming events" /> : (
                 <table className="data-table">
@@ -309,7 +344,7 @@ export default function CommoditiesAnalysis() {
                     </tr>
                   </thead>
                   <tbody>
-                    {events.data.slice(0, 30).map((e, i) => (
+                    {events.data.map((e, i) => (
                       <tr key={i}>
                         <td className="t-xs muted">{new Date(e.date).toLocaleString()}</td>
                         <td><span className="strong">{e.name}</span></td>

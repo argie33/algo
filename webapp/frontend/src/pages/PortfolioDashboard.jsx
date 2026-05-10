@@ -66,37 +66,37 @@ const PIE_PALETTE = [
 export default function PortfolioDashboard() {
   const navigate = useNavigate();
 
-  const { data: status, refetch: refetchStatus } = useApiQuery(
+  const { data: status, error: statusError, refetch: refetchStatus } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
     { refetchInterval: 60000 }
   );
-  const { data: positions, loading: posLoading } = useApiQuery(
+  const { data: positions, loading: posLoading, error: posError, refetch: refetchPositions } = useApiQuery(
     ['algo-positions'],
     () => api.get('/api/algo/positions'),
     { refetchInterval: 60000 }
   );
-  const { data: perf } = useApiQuery(
+  const { data: perf, error: perfError, refetch: refetchPerf } = useApiQuery(
     ['algo-performance'],
     () => api.get('/api/algo/performance'),
     { refetchInterval: 60000 }
   );
-  const { data: trades } = useApiQuery(
+  const { data: trades, error: tradesError, refetch: refetchTrades } = useApiQuery(
     ['algo-trades-recent'],
     () => api.get('/api/algo/trades?limit=200'),
     { refetchInterval: 60000 }
   );
-  const { data: markets } = useApiQuery(
+  const { data: markets, error: marketsError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
     { refetchInterval: 60000 }
   );
-  const { data: equityItems } = useApiQuery(
+  const { data: equityItems, error: equityError, refetch: refetchEquity } = useApiQuery(
     ['algo-equity-curve'],
     () => api.get('/api/algo/equity-curve?limit=180'),
     { refetchInterval: 60000 }
   );
-  const { data: breakers } = useApiQuery(
+  const { data: breakers, error: breakersError, refetch: refetchBreakers } = useApiQuery(
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
     { refetchInterval: 60000 }
@@ -105,6 +105,51 @@ export default function PortfolioDashboard() {
   const portfolio = status?.portfolio || {};
   const market = status?.market || {};
   const totalValue = parseFloat(portfolio.total_value || 0);
+
+  // Check for critical errors
+  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
+  const hasErrors = criticalErrors.some(err => err);
+
+  if (hasErrors) {
+    return (
+      <div className="main-content">
+        <div className="page-head">
+          <div>
+            <div className="page-head-title">Portfolio</div>
+            <div className="page-head-sub">
+              Algo positions · Performance · Risk profile · Market context
+            </div>
+          </div>
+        </div>
+        <div className="card" style={{ background: 'var(--surface-danger)', borderLeft: '3px solid var(--error)' }}>
+          <div style={{ padding: 'var(--space-4)' }}>
+            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load portfolio data</div>
+            <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)' }}>
+              {statusError && <div>• Status unavailable</div>}
+              {posError && <div>• Positions unavailable</div>}
+              {perfError && <div>• Performance metrics unavailable</div>}
+              {tradesError && <div>• Trade history unavailable</div>}
+              {marketsError && <div>• Market data unavailable</div>}
+              {equityError && <div>• Equity curve unavailable</div>}
+            </div>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                statusError && refetchStatus?.();
+                posError && refetchPositions?.();
+                perfError && refetchPerf?.();
+                tradesError && refetchTrades?.();
+                marketsError && refetchMarkets?.();
+                equityError && refetchEquity?.();
+              }}
+            >
+              <RefreshCw size={14} /> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="main-content">

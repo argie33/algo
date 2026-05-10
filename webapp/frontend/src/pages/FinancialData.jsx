@@ -31,7 +31,7 @@ function FinancialData() {
   const [period, setPeriod] = useState("annual");
 
   // Get companies list
-  const { data: companiesData, loading: companiesLoading } = useApiQuery(
+  const { data: companiesData, loading: companiesLoading, error: companiesError, refetch: refetchCompanies } = useApiQuery(
     ["companies"],
     () => getStocks({ limit: 1000 }),
     { staleTime: 5 * 60 * 1000 }
@@ -41,25 +41,25 @@ function FinancialData() {
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   // Get financial data with period selection
-  const { data: balanceSheetData, loading: bsLoading } = useApiQuery(
+  const { data: balanceSheetData, loading: bsLoading, error: bsError, refetch: refetchBS } = useApiQuery(
     ["balance-sheet", ticker, period],
     () => getBalanceSheet(ticker, period),
     { enabled: !!ticker }
   );
 
-  const { data: incomeStatementData, loading: isLoading } = useApiQuery(
+  const { data: incomeStatementData, loading: isLoading, error: isError, refetch: refetchIS } = useApiQuery(
     ["income-statement", ticker, period],
     () => getIncomeStatement(ticker, period),
     { enabled: !!ticker }
   );
 
-  const { data: cashFlowData, loading: cfLoading } = useApiQuery(
+  const { data: cashFlowData, loading: cfLoading, error: cfError, refetch: refetchCF } = useApiQuery(
     ["cash-flow", ticker, period],
     () => getCashFlowStatement(ticker, period),
     { enabled: !!ticker }
   );
 
-  const { data: keyMetricsData, loading: kmLoading } = useApiQuery(
+  const { data: keyMetricsData, loading: kmLoading, error: kmError, refetch: refetchKM } = useApiQuery(
     ["key-metrics", ticker],
     () => getKeyMetrics(ticker),
     { enabled: !!ticker }
@@ -170,6 +170,47 @@ function FinancialData() {
     );
   };
 
+  // Check for critical errors
+  const criticalErrors = [companiesError];
+  const hasCompaniesError = criticalErrors.some(err => err);
+
+  if (hasCompaniesError) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ py: 3 }}>
+          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+            📊 Financial Data Analysis
+          </Typography>
+          <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Failed to load financial data
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                {companiesError && 'Companies list unavailable'}
+              </Typography>
+              <button
+                onClick={() => {
+                  companiesError && refetchCompanies?.();
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#d32f2f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </Box>
+          </Alert>
+        </Box>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 3 }}>
@@ -236,7 +277,11 @@ function FinancialData() {
         {/* Balance Sheet */}
         {tabValue === 0 && (
           <Box>
-            {bsLoading ? (
+            {bsError ? (
+              <Alert severity="error" action={<button onClick={() => refetchBS?.()}>Retry</button>}>
+                Failed to load balance sheet data for {ticker}
+              </Alert>
+            ) : bsLoading ? (
               <CircularProgress />
             ) : getFinancialData(balanceSheetData).length > 0 ? (
               <Box>
@@ -254,7 +299,11 @@ function FinancialData() {
         {/* Income Statement */}
         {tabValue === 1 && (
           <Box>
-            {isLoading ? (
+            {isError ? (
+              <Alert severity="error" action={<button onClick={() => refetchIS?.()}>Retry</button>}>
+                Failed to load income statement data for {ticker}
+              </Alert>
+            ) : isLoading ? (
               <CircularProgress />
             ) : getFinancialData(incomeStatementData).length > 0 ? (
               <Box>
@@ -272,7 +321,11 @@ function FinancialData() {
         {/* Cash Flow */}
         {tabValue === 2 && (
           <Box>
-            {cfLoading ? (
+            {cfError ? (
+              <Alert severity="error" action={<button onClick={() => refetchCF?.()}>Retry</button>}>
+                Failed to load cash flow data for {ticker}
+              </Alert>
+            ) : cfLoading ? (
               <CircularProgress />
             ) : getFinancialData(cashFlowData).length > 0 ? (
               <Box>
@@ -290,7 +343,11 @@ function FinancialData() {
         {/* Key Metrics */}
         {tabValue === 3 && (
           <Box>
-            {kmLoading ? (
+            {kmError ? (
+              <Alert severity="error" action={<button onClick={() => refetchKM?.()}>Retry</button>}>
+                Failed to load key metrics for {ticker}
+              </Alert>
+            ) : kmLoading ? (
               <CircularProgress />
             ) : keyMetricsData?.data ? (
               <Card>

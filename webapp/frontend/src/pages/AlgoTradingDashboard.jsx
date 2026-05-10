@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
+import { DataStateManager, ErrorAlert } from '../components/DataStateManager';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartTooltip, ResponsiveContainer,
@@ -438,8 +439,8 @@ function MarketsTab({ markets }) {
 
       <div className="grid grid-2" style={{ gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
         {/* AAII SENTIMENT */}
-        <SectionCard title="AAII Investor Sentiment (Contrarian Indicator)">
-          <div style={{ overflowX: 'auto' }}>
+        <SectionCard title={`AAII Investor Sentiment (${(markets.sentiment || []).length} weeks)`}>
+          <div style={{ overflowX: 'auto', maxHeight: 280, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -451,7 +452,7 @@ function MarketsTab({ markets }) {
                 </tr>
               </thead>
               <tbody>
-                {(markets.sentiment || []).slice(0, 10).map(s => {
+                {(markets.sentiment || []).map(s => {
                   const sp = (s.bullish || 0) - (s.bearish || 0);
                   return (
                     <tr key={s.date}>
@@ -472,7 +473,7 @@ function MarketsTab({ markets }) {
 
         {/* HISTORY */}
         <SectionCard title={`Exposure History (${(markets.history || []).length} days)`}>
-          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -483,7 +484,7 @@ function MarketsTab({ markets }) {
                 </tr>
               </thead>
               <tbody>
-                {[...(markets.history || [])].reverse().slice(0, 30).map(h => (
+                {[...(markets.history || [])].reverse().map(h => (
                   <tr key={h.date}>
                     <td className="mono tnum">{h.date}</td>
                     <td className="num mono tnum strong" style={{ color: tierColor(h.regime) }}>
@@ -573,7 +574,7 @@ function SetupsTab({ scores, evaluated }) {
 
       {blocked.length > 0 && (
         <SectionCard title={`Blocked Candidates (${blocked.length}) — Failed Hard Gates`} style={{ marginTop: 'var(--space-4)' }}>
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -583,7 +584,7 @@ function SetupsTab({ scores, evaluated }) {
                 </tr>
               </thead>
               <tbody>
-                {blocked.slice(0, 30).map(s => (
+                {blocked.map(s => (
                   <tr key={s.symbol}>
                     <td className="strong mono">{s.symbol}</td>
                     <td className="t-xs" style={{ color: 'var(--amber)' }}>{s.fail_reason}</td>

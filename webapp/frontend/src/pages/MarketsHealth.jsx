@@ -856,11 +856,17 @@ function TopMoversCard({ data }) {
         </div>
       </div>
       <div className="card-body">
-        <div className="eyebrow up" style={{ marginBottom: 6 }}>Gainers</div>
+        <div className="eyebrow up" style={{ marginBottom: 6 }}>
+          Gainers
+          {(data.gainers || []).length > 6 && <span className="t-xs muted"> ({gainers.length} of {(data.gainers || []).length})</span>}
+        </div>
         {gainers.length === 0 ? <div className="muted t-xs">—</div> : gainers.map((g, i) => (
           <Mover key={i} symbol={g.symbol} chg={g.change_pct || g.changePercent} dir="up" />
         ))}
-        <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>Losers</div>
+        <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>
+          Losers
+          {(data.losers || []).length > 6 && <span className="t-xs muted"> ({losers.length} of {(data.losers || []).length})</span>}
+        </div>
         {losers.length === 0 ? <div className="muted t-xs">—</div> : losers.map((l, i) => (
           <Mover key={i} symbol={l.symbol} chg={l.change_pct || l.changePercent} dir="down" />
         ))}
@@ -1607,13 +1613,17 @@ function EconomicCalendarCard() {
   );
 
   if (loading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
-  const events = (data || []).slice(0, 25);
+  const allEvents = data || [];
+  const events = allEvents.slice(0, 25);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Economic Calendar · next 7 days</div>
+          <div className="card-title">
+            Economic Calendar · next 7 days
+            {allEvents.length > 25 && <span className="t-xs muted" style={{ marginLeft: 8 }}>({events.length} of {allEvents.length})</span>}
+          </div>
           <div className="card-sub">FOMC · CPI · NFP · GDP · expected vs prior</div>
         </div>
       </div>
@@ -1689,13 +1699,17 @@ function EarningsCalendarCard({ onSelect }) {
   );
 
   if (loading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
-  const rows = (data || []).slice(0, 20);
+  const allRows = data || [];
+  const rows = allRows.slice(0, 20);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Earnings Calendar · upcoming</div>
+          <div className="card-title">
+            Earnings Calendar · upcoming
+            {allRows.length > 20 && <span className="t-xs muted" style={{ marginLeft: 8 }}>({rows.length} of {allRows.length})</span>}
+          </div>
           <div className="card-sub">Top reporters · est EPS · prior · click → stock detail</div>
         </div>
       </div>
