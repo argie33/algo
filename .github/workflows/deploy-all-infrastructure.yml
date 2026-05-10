@@ -236,7 +236,9 @@ jobs:
           pip install -r lambda/algo_orchestrator/requirements.txt \
             -t lambda-pkg/ --only-binary=:all: --quiet
           cd lambda-pkg
-          zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*"
+          zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*" \
+            -x "*/tests/*" -x "*/test/*" -x "*/.git/*" -x "*.dist-info/tests/*"
+          echo "Lambda package size: $(du -sh ../algo_lambda.zip | cut -f1)"
 
       - name: Deploy
         run: |
