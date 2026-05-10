@@ -64,11 +64,6 @@ import {
 
 # Database
 import {
-  to = module.database.aws_db_subnet_group.main
-  id = "algo-db-subnet-group"
-}
-
-import {
   to = module.database.aws_iam_role.rds_monitoring
   id = "algo-svc-rds-monitoring-dev"
 }
@@ -143,6 +138,11 @@ import {
 import {
   to = module.batch.aws_iam_role.batch_spot_fleet_role
   id = "algo-batch-spot-fleet-role"
+}
+
+import {
+  to = module.batch.aws_iam_instance_profile.batch_ecs_instance_profile
+  id = "algo-batch-ecs-instance-profile"
 }
 
 # Loaders IAM role

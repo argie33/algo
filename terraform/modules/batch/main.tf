@@ -349,7 +349,7 @@ resource "aws_iam_role" "batch_spot_fleet_role" {
 
 resource "aws_iam_role_policy_attachment" "batch_spot_fleet_policy" {
   role       = aws_iam_role.batch_spot_fleet_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole"
 }
 
 # ============================================================

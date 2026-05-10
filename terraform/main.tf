@@ -205,6 +205,8 @@ module "services" {
   cognito_password_min_length    = var.cognito_password_min_length
   cognito_mfa_configuration      = var.cognito_mfa_configuration
   cognito_session_duration_hours = var.cognito_session_duration_hours
+  cognito_user_pool_id           = module.cognito.user_pool_id
+  cognito_client_id              = module.cognito.user_pool_client_id
   algo_schedule_expression       = var.algo_schedule_expression
   algo_schedule_enabled          = var.algo_schedule_enabled
   algo_schedule_timezone         = var.algo_schedule_timezone

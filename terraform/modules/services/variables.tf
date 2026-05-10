@@ -231,6 +231,18 @@ variable "cognito_enabled" {
   default     = true
 }
 
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID (from cognito module output)"
+  type        = string
+  default     = ""
+}
+
+variable "cognito_client_id" {
+  description = "Cognito User Pool Client ID (from cognito module output)"
+  type        = string
+  default     = ""
+}
+
 variable "cognito_user_pool_name" {
   description = "Cognito user pool name"
   type        = string

@@ -102,7 +102,7 @@ resource "aws_cognito_user_pool_domain" "main" {
 resource "aws_cognito_user" "test_user" {
   count             = var.environment == "dev" ? 1 : 0
   user_pool_id      = aws_cognito_user_pool.stocks_trading.id
-  username          = "testuser"
+  username          = "testuser@stocks.local"
   temporary_password = "TempPassword123!"
   attributes = {
     email          = "testuser@stocks.local"
