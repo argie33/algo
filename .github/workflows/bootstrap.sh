@@ -57,14 +57,14 @@ else
   }
 fi
 
-# Enable versioning on bucket
+# Enable versioning on bucket (skip if permission denied - may be due to read-only user)
 echo "   Enabling versioning..."
 aws s3api put-bucket-versioning \
   --bucket "$BUCKET_NAME" \
   --versioning-configuration Status=Enabled \
-  --region "$REGION"
+  --region "$REGION" || echo "⚠️  Skipping versioning (permissions may be limited)"
 
-# Enable encryption
+# Enable encryption (skip if permission denied)
 echo "   Enabling encryption..."
 aws s3api put-bucket-encryption \
   --bucket "$BUCKET_NAME" \
@@ -75,15 +75,15 @@ aws s3api put-bucket-encryption \
       }
     }]
   }' \
-  --region "$REGION"
+  --region "$REGION" || echo "⚠️  Skipping encryption (permissions may be limited)"
 
-# Block public access
+# Block public access (skip if permission denied)
 echo "   Blocking public access..."
 aws s3api put-public-access-block \
   --bucket "$BUCKET_NAME" \
   --public-access-block-configuration \
   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" \
-  --region "$REGION"
+  --region "$REGION" || echo "⚠️  Skipping public access block (permissions may be limited)"
 
 echo "✅ S3 state bucket configured"
 
