@@ -233,6 +233,9 @@ class DataProvenanceTracker:
                 "errors": [e for e in self.error_log if e["run_id"] == run_id],
             }
 
+        if not self.db_conn:
+            return None
+
         with self.db_conn.cursor() as cur:
             # Get the loader run metadata
             cur.execute(

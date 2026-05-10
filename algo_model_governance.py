@@ -42,8 +42,8 @@ class ModelRegistry:
     """Track model versions, parameters, and performance."""
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
+        self.conn: Optional[Any] = None
+        self.cur: Optional[Any] = None
 
     def connect(self):
         """Connect to database."""

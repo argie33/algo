@@ -32,7 +32,7 @@ class TradeNotificationService:
         self.config = config or DATABASE_CONFIG
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
-        self.conn = None
+        self.conn: Optional[Any] = None
 
     def connect(self):
         """Connect to database."""
@@ -165,7 +165,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         return sent
 
     def _save_notification(self, kind: str, severity: str, title: str,
-                           message: str, symbol: str = None, details: dict = None):
+                           message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
         """Save notification to database."""
         if not self.conn:
             self.connect()
@@ -195,7 +195,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     pass  # Connection already broken
 
     def _send_notification(self, subject: str, message: str, kind: str = "trade",
-                          severity: str = "info", symbol: str = None, details: dict = None):
+                          severity: str = "info", symbol: Optional[str] = None, details: Optional[dict] = None):
         """Send notification via email, webhook, and database."""
         try:
             # Save to database
@@ -212,7 +212,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             logger.error(f"[NOTIF] Send failed: {e}")
 
 
-def notify(severity: str, title: str, message: str, symbol: str = None, details: dict = None):
+def notify(severity: str, title: str, message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
     """Convenience function to send alerts without managing service lifecycle."""
     try:
         service = TradeNotificationService()

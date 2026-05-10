@@ -54,7 +54,7 @@ class EconomicCalendar:
         self.config = config or {}
         self.halt_minutes_before = int(self.config.get('halt_entries_before_major_release_minutes', 60))
 
-    def check_entry_gate(self, eval_time: datetime = None) -> Tuple[bool, str]:
+    def check_entry_gate(self, eval_time: Optional[datetime] = None) -> Tuple[bool, str]:
         """Check if major release is within halt window. Returns (can_enter, reason)."""
         if eval_time is None:
             eval_time = datetime.now()

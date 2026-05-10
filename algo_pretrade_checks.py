@@ -33,7 +33,7 @@ if env_file.exists():
 class PreTradeChecks:
     """Hard limits independent of strategy logic. NEVER bypassed."""
 
-    def __init__(self, config, alpaca_base_url: str = None, alpaca_key: str = None, alpaca_secret: str = None):
+    def __init__(self, config, alpaca_base_url: Optional[str] = None, alpaca_key: Optional[str] = None, alpaca_secret: Optional[str] = None):
         self.config = config
         self.alpaca_base_url = alpaca_base_url or os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         self.alpaca_key = alpaca_key or credential_manager.get_alpaca_credentials()["key"]
@@ -45,8 +45,8 @@ class PreTradeChecks:
         self.db_password = credential_manager.get_db_credentials()["password"]
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
-        self.conn = None
-        self.cur = None
+        self.conn: Optional[Any] = None
+        self.cur: Optional[Any] = None
 
     def _get_fresh_connection(self):
         """Get a fresh database connection for each query to avoid stale data."""
@@ -84,7 +84,7 @@ class PreTradeChecks:
             self.cur.close()
         if self.conn:
             self.conn.close()
-        self.cur = self.conn = None
+        self.cur = self.conn: Optional[Any] = None
 
     def check_fat_finger(self, symbol: str, entry_price: float, max_divergence_pct: float = 5.0) -> Tuple[bool, Optional[str]]:
         """Reject if entry_price diverges > 5% from current market price.

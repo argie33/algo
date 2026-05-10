@@ -45,7 +45,7 @@ def _get_db_config():
 class PaperTradingValidator:
     """Validate paper trading performance against backtest baseline."""
 
-    def __init__(self, backtest_metrics: Dict[str, Any], paper_start_date: date = None):
+    def __init__(self, backtest_metrics: Dict[str, Any], paper_start_date: Optional[date] = None):
         """
         Args:
             backtest_metrics: Reference metrics from backtest (Sharpe, win rate, DD, etc.)

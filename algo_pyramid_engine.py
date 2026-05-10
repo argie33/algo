@@ -48,8 +48,8 @@ class PyramidEngine:
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.conn = None
-        self.cur = None
+        self.conn: Optional[Any] = None
+        self.cur: Optional[Any] = None
 
     def connect(self):
         """Connect to database."""
@@ -66,7 +66,7 @@ class PyramidEngine:
             self.cur.close()
         if self.conn:
             self.conn.close()
-        self.cur = self.conn = None
+        self.cur = self.conn: Optional[Any] = None
 
     def evaluate_pyramid_adds(self, current_date: date) -> Dict[str, Any]:
         """
