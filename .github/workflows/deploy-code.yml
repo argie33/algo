@@ -203,6 +203,64 @@ jobs:
           echo "✅ API Lambda deployed: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
+  # Database Init Lambda
+  # ──────────────────────────────────────────────────────────────
+  deploy-db-init-lambda:
+    name: Deploy DB Init Lambda
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Package DB Init Lambda
+        run: |
+          mkdir -p db-init-pkg
+          # Handler
+          cp lambda/db-init/lambda_function.py db-init-pkg/
+          # Schema SQL
+          cp lambda/db-init/schema.sql db-init-pkg/ 2>/dev/null || true
+          # Required modules
+          cp credential_manager.py db-init-pkg/ || true
+          # Dependencies
+          pip install -r lambda/db-init/requirements.txt \
+            -t db-init-pkg/ --only-binary=:all: --quiet
+          cd db-init-pkg
+          zip -r ../db_init_lambda.zip . -x "*.pyc" -x "__pycache__/*"
+          cd ..
+          echo "Package size: $(du -sh db_init_lambda.zip | cut -f1)"
+
+      - name: Deploy DB Init Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name algo-db-init-dev \
+            --zip-file fileb://db_init_lambda.zip \
+            --region $AWS_REGION || \
+          aws lambda create-function \
+            --function-name algo-db-init-dev \
+            --runtime python3.11 \
+            --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/lambda-db-init-dev \
+            --handler lambda_function.lambda_handler \
+            --zip-file fileb://db_init_lambda.zip \
+            --region $AWS_REGION
+          aws lambda wait function-updated \
+            --function-name algo-db-init-dev \
+            --region $AWS_REGION
+          echo "✅ DB Init Lambda deployed"
+
+  # ──────────────────────────────────────────────────────────────
   # Frontend
   # ──────────────────────────────────────────────────────────────
   deploy-frontend:
