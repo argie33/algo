@@ -234,8 +234,9 @@ class MarketExposure:
                 halt_reasons.append('SPY < 30wk MA AND <30% above 50-DMA')
                 cap = min(cap, 25.0)
             # Veto 2: VIX > 40 rising
-            if vix.get('value', 0) > 40 and vix.get('rising'):
-                halt_reasons.append(f'VIX {vix["value"]:.1f} rising > 40')
+            vix_value = vix.get('value') or 0
+            if vix_value > 40 and vix.get('rising'):
+                halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
                 cap = min(cap, 30.0)
             # Veto 3: 6+ distribution days
             dd = self._distribution_days(eval_date)

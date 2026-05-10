@@ -53,13 +53,14 @@ def get_db_pool(minconn=2, maxconn=10):
     """
     global _pool
     if _pool is None:
+        db_config = _get_db_config()
         _pool = psycopg2.pool.SimpleConnectionPool(
             minconn, maxconn,
-            host=DB_CONFIG["host"],
-            port=DB_CONFIG["port"],
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            database=DB_CONFIG["database"],
+            host=db_config["host"],
+            port=db_config["port"],
+            user=db_config["user"],
+            password=db_config["password"],
+            database=db_config["database"],
         )
     return _pool
 

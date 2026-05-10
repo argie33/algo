@@ -1,8 +1,96 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 19:00Z (AWS deployment audit + critical fixes)
-**Project Status:** DEPLOYING ⚠️ — Critical fixes applied, deployment verification in progress
-**Latest:** ✅ Fixed 2 critical GitHub Actions/Lambda issues (bootstrap.sh execution, init_database.main() function). 🔍 Identified 5+ infrastructure issues (database not initialized, permissions blocker, API Lambda configuration). Ready for redeployment after permission fix.
+**Last Updated:** 2026-05-10 20:35Z (Local testing iteration: Docker + orchestrator validation)
+**Project Status:** LOCAL TESTING IN PROGRESS ✅ — Docker infrastructure working, backtest module created, orchestrator phases executing with identified blockers
+**Latest:** ✅ Created algo_backtest.py module for historical backtesting + walk-forward optimization. ✅ Fixed DB connection pool and VIX null handling. 🔍 Identified schema issues in circuit breaker checks. Orchestrator Phase 1-4 executing, Phases 5-7 blocked by missing data loaders.
+
+---
+
+## 🧪 Local Testing & Infrastructure Validation (2026-05-10 20:35Z) ✅ IN PROGRESS
+
+**Docker Environment Setup:**
+- ✅ Docker Compose running in WSL 2 Ubuntu 24.04 LTS
+- ✅ PostgreSQL 16-alpine (4,969 stocks, 298,140 daily prices for 60-day backtest window)
+- ✅ Redis 7-alpine (ready for caching)
+- ✅ Test data loaded: stock_symbols, stock_scores, price_daily
+
+**New Module: algo_backtest.py** ✅
+- Backtester class with parameter sweep for historical testing
+- Single backtest: `--start YYYY-MM-DD --end YYYY-MM-DD` (tested: 1.11% return, 1.867 Sharpe over 50 days)
+- Walk-forward optimization: `--walk-forward --start --end` with WFE metric
+- Momentum-based signal generation, position management, P&L tracking
+- Ready for stress testing and walk-forward robustness validation
+
+**Orchestrator Phase Execution Results (2026-05-08 trading date):**
+- ✅ **Phase 1**: Data Freshness — SKIPPED (flag: --skip-freshness for local testing)
+- ✅ **Phase 2**: Circuit Breakers — EXECUTING
+  - drawdown check: HALTED (no portfolio history - expected for first run)
+  - daily_loss, consecutive_losses: OK
+  - win_rate_floor: SQL error (GROUP BY schema issue) → cascading transaction abort
+  - Other checks: Blocked by transaction abort
+- ✅ **Phase 3a**: Position Reconciliation — EXECUTING (Alpaca not available - expected)
+- ✅ **Phase 3**: Position Monitor — EXECUTING (0 positions - expected)
+- ⚠️ **Phase 3b**: Exposure Policy — EXECUTING → ERROR (schema mismatch)
+- ✅ **Phase 4**: Exit Execution — EXECUTING (0 exits - expected)
+- ⏸️ **Phases 5-7**: Skipped due to circuit breaker halt
+
+**Critical Issues Blocking Full Execution:**
+
+**Issue #1: SQL Schema Mismatch in win_rate_floor Check**
+- Error: "GROUP BY clause" requirement violation in algo_circuit_breaker.py
+- Impact: Aborts transaction, cascades to subsequent checks
+- Status: Identified, needs SQL fix in circuit breaker logic
+
+**Issue #2: market_exposure_daily Table Schema Mismatch**
+- Expected columns: exposure_pct, regime, halt_reasons, date
+- Error: "column exposure_pct does not exist"
+- Impact: Phase 3b fails when computing market exposure overlay
+- Root cause: init_db.sql vs algo_market_exposure.py schema mismatch
+- Status: Noted in previous session (STATUS.md line ~126), needs schema sync
+
+**Issue #3: Missing Data for Circuit Breaker Validation**
+- Tables empty/stale: technical_data_daily, buy_sell_daily, trend_template_data, signal_quality_scores, market_health_daily
+- Impact: Phase 1 data freshness check fails (fail-closed design)
+- Workaround: Using --skip-freshness flag for local testing
+- Next: Will populate when loaders are running (AWS deployment)
+
+**Backtest Module Testing:**
+```
+Command: python3 algo_backtest.py --start 2026-03-20 --end 2026-05-09
+Result: 50-day backtest completed successfully
+  - Final value: $101,110.88 (from $100,000)
+  - Return: +1.11%
+  - Sharpe ratio: 1.867
+  - Max drawdown: -1.52%
+  - Win rate: 50% (14 winning / 28 closed trades)
+```
+
+**Next Steps (Priority Order):**
+
+1. **HIGH**: Fix win_rate_floor SQL schema (GROUP BY error)
+   - Locate query in algo_circuit_breaker.py
+   - Add exit_date to GROUP BY or use aggregate
+   - Test: Verify circuit breaker checks complete without transaction abort
+
+2. **HIGH**: Sync market_exposure_daily schema
+   - Compare init_db.sql vs algo_market_exposure.py._persist()
+   - Apply correct schema to local DB
+   - Test: Phase 3b should compute and persist exposure
+
+3. **MEDIUM**: Load minimal data for Phase 1 validation
+   - Load 1 record each into: technical_data_daily, buy_sell_daily, trend_template_data, etc.
+   - Or create a test dataset generator
+   - Test: Phase 1 data freshness check should pass
+
+4. **MEDIUM**: Test full 7-phase orchestrator execution
+   - With issues #1-3 fixed, should execute all phases
+   - Verify signals generate, entries/exits execute
+   - Check Phase 7 reconciliation
+
+5. **LOW**: Expand backtest testing
+   - Run walk-forward optimization on full 60-day window
+   - Test stress scenarios (COVID, GFC periods if data available)
+   - Measure parameter sensitivity
 
 ---
 
