@@ -363,7 +363,7 @@ jobs:
           BUCKET="${{ needs.terraform.outputs.frontend_bucket }}"
           if [ -z "$BUCKET" ]; then
             BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, `stocks-frontend`)].Name | [0]' \
+              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
