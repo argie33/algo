@@ -296,33 +296,45 @@ function AlgoTradingDashboard() {
       {/* TABS */}
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          {['MARKETS', `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, `POSITIONS (${data.positions?.length || 0})`, `TRADES (${data.trades?.length || 0})`, 'PERFORMANCE', `RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`, 'AUDIT', 'PIPELINE', 'DATA HEALTH', 'CONFIG'].map((label, i) => (
-            <button key={i} type="button" onClick={() => setTab(i)} style={{
+          {[
+            { label: 'MARKETS', errors: [err1] },
+            { label: `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, errors: [err2, err8] },
+            { label: `POSITIONS (${data.positions?.length || 0})`, errors: [err3] },
+            { label: `TRADES (${data.trades?.length || 0})`, errors: [err4] },
+            { label: 'PERFORMANCE', errors: [] },
+            { label: `RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`, errors: [err11] },
+            { label: 'AUDIT', errors: [] },
+            { label: 'PIPELINE', errors: [err7, err12, err13] },
+            { label: 'DATA HEALTH', errors: [err6, err9] },
+            { label: 'CONFIG', errors: [err5] },
+          ].map((tab_cfg, i) => (
+            <button key={i} type="button" onClick={() => setTab(i)} title={tab_cfg.errors.some(Boolean) ? 'Some data failed to load' : ''} style={{
               background: 'transparent',
               border: 'none',
               borderBottom: `2px solid ${tab === i ? 'var(--brand)' : 'transparent'}`,
-              color: tab === i ? 'var(--brand)' : 'var(--text-muted)',
+              color: tab_cfg.errors.some(Boolean) ? 'var(--danger)' : (tab === i ? 'var(--brand)' : 'var(--text-muted)'),
               fontWeight: tab === i ? 'var(--w-semibold)' : 'var(--w-medium)',
               fontSize: 'var(--t-sm)',
               padding: 'var(--space-3) var(--space-4)',
               cursor: 'pointer',
               marginBottom: -1,
+              opacity: tab_cfg.errors.some(Boolean) ? 0.8 : 1,
             }}>
-              {label}
+              {tab_cfg.label}{tab_cfg.errors.some(Boolean) ? ' ⚠' : ''}
             </button>
           ))}
         </div>
 
-        {tab === 0 && <MarketsTab markets={market} />}
-        {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} />}
-        {tab === 2 && <PositionsTab positions={data.positions} />}
-        {tab === 3 && <TradesTab trades={data.trades} />}
+        {tab === 0 && (market ? <MarketsTab markets={market} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load markets data</div></div>)}
+        {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} error={err2 || err8} />}
+        {tab === 2 && (data.positions ? <PositionsTab positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load positions</div></div>)}
+        {tab === 3 && (data.trades ? <TradesTab trades={data.trades} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load trades</div></div>)}
         {tab === 4 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} />}
-        {tab === 5 && <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} />}
+        {tab === 5 && (data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load risk data</div></div>)}
         {tab === 6 && <AuditTab auditLog={data.auditLog} />}
-        {tab === 7 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} />}
-        {tab === 8 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
-        {tab === 9 && <ConfigTab config={data.config} />}
+        {tab === 7 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} error={err7 || err12 || err13} />}
+        {tab === 8 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} error={err6 || err9} />}
+        {tab === 9 && (data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load config</div></div>)}
       </div>
     </div>
   );

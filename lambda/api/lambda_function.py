@@ -159,6 +159,30 @@ class APIHandler:
             if path.startswith('/api/commodities/'):
                 return self._handle_commodities(path, method, query_params)
 
+            # Earnings endpoints
+            if path.startswith('/api/earnings/'):
+                return self._handle_earnings(path, method, query_params)
+
+            # Financial endpoints
+            if path.startswith('/api/financial/'):
+                return self._handle_financial(path, method, query_params)
+
+            # Research endpoints
+            if path.startswith('/api/research/'):
+                return self._handle_research(path, method, query_params)
+
+            # Optimization endpoints
+            if path.startswith('/api/optimization/'):
+                return self._handle_optimization(path, method, query_params)
+
+            # Audit endpoints
+            if path.startswith('/api/audit/'):
+                return self._handle_audit(path, method, query_params)
+
+            # Trade endpoints
+            if path.startswith('/api/trades/'):
+                return self._handle_trades(path, method, query_params)
+
             # Scores endpoints
             if path.startswith('/api/scores/'):
                 return self._handle_scores(path, method, query_params)
