@@ -997,7 +997,7 @@ router.get('/notifications', async (req, res) => {
       timestamp: new Date(),
     });
   } catch (error) {
-    return sendSuccess(res,  items: [], timestamp: new Date() });
+    return sendSuccess(res, { items: [], timestamp: new Date() });
   }
 });
 
@@ -1010,9 +1010,9 @@ router.patch('/notifications/:id/read', requireAuth, requireAdmin, async (req, r
       `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [id]
     );
-    return sendSuccess(res,  updated: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res, { updated: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1022,9 +1022,9 @@ router.delete('/notifications/:id', requireAuth, requireAdmin, async (req, res) 
     const pool = getPool();
     const { id } = req.params;
     const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
-    return sendSuccess(res,  deleted: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res, { deleted: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 
@@ -1034,15 +1034,15 @@ router.post('/notifications/seen', requireAuth, async (req, res) => {
     const pool = getPool();
     const ids = req.body?.ids || [];
     if (!Array.isArray(ids) || ids.length === 0) {
-      return sendSuccess(res,  marked: 0 });
+      return sendSuccess(res, { marked: 0 });
     }
     const result = await pool.query(
       `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`,
       [ids]
     );
-    return sendSuccess(res,  marked: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res, { marked: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 

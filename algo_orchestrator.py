@@ -74,13 +74,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": credential_manager.get_db_credentials()["password"],
-    "database": os.getenv("DB_NAME", "stocks"),
-}
+def _get_db_config():
+    """Get DB config (lazy-loaded to support testing without credentials)."""
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "user": os.getenv("DB_USER", "stocks"),
+        "password": credential_manager.get_db_credentials()["password"],
+        "database": os.getenv("DB_NAME", "stocks"),
+    }
 
 
 class Orchestrator:
@@ -110,7 +112,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute("SELECT 1")
             return True
@@ -154,7 +156,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             cur.execute("""
@@ -345,7 +347,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """
@@ -380,7 +382,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Check critical loader SLA status first — fail-closed if data didn't load
@@ -762,7 +764,7 @@ class Orchestrator:
                         # Fetch current price for accurate P&L
                         cur_price = 0
                         try:
-                            conn_tmp = psycopg2.connect(**DB_CONFIG)
+                            conn_tmp = psycopg2.connect(**_get_db_config())
                             try:
                                 cur_tmp = conn_tmp.cursor()
                                 cur_tmp.execute(
@@ -802,7 +804,7 @@ class Orchestrator:
                         # Need current price — fetch
                         cur_price = 0
                         try:
-                            conn = psycopg2.connect(**DB_CONFIG)
+                            conn = psycopg2.connect(**_get_db_config())
                             try:
                                 cur = conn.cursor()
                                 cur.execute(
@@ -835,7 +837,7 @@ class Orchestrator:
 
                     elif action['action'] == 'tighten_stop':
                         try:
-                            conn = psycopg2.connect(**DB_CONFIG)
+                            conn = psycopg2.connect(**_get_db_config())
                             try:
                                 cur = conn.cursor()
                                 cur.execute(
@@ -886,7 +888,7 @@ class Orchestrator:
                         conn = None
                         cur = None
                         try:
-                            conn = psycopg2.connect(**DB_CONFIG)
+                            conn = psycopg2.connect(**_get_db_config())
                             cur = conn.cursor()
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s "
@@ -1033,7 +1035,7 @@ class Orchestrator:
             conn = None
             cur = None
             try:
-                conn = psycopg2.connect(**DB_CONFIG)
+                conn = psycopg2.connect(**_get_db_config())
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
                 open_count = cur.fetchone()[0] or 0
