@@ -3132,6 +3132,41 @@ router.get("/cap-distribution", async (req, res) => {
 });
 
 // Root route - market overview
+// GET /api/market/naaim — NAAIM Exposure Index, current + history
+router.get("/naaim", async (req, res) => {
+  try {
+    if (!query) return sendSuccess(res, null);
+
+    const result = await query(`
+      SELECT date, naaim_number_mean, bearish, bullish, deviation
+      FROM naaim
+      ORDER BY date DESC
+      LIMIT 52
+    `);
+
+    if (!result.rows.length) return sendSuccess(res, null);
+
+    const latest = result.rows[0];
+    const history = result.rows.slice().reverse().map(r => ({
+      date: r.date,
+      naaim_number_mean: parseFloat(r.naaim_number_mean),
+      bearish: r.bearish != null ? parseFloat(r.bearish) : null,
+      bullish: r.bullish != null ? parseFloat(r.bullish) : null,
+    }));
+
+    return sendSuccess(res, {
+      current: parseFloat(latest.naaim_number_mean),
+      date: latest.date,
+      bearish: latest.bearish != null ? parseFloat(latest.bearish) : null,
+      bullish: latest.bullish != null ? parseFloat(latest.bullish) : null,
+      deviation: latest.deviation != null ? parseFloat(latest.deviation) : null,
+      history,
+    });
+  } catch (error) {
+    return sendSuccess(res, null);
+  }
+});
+
 router.get("/", async (req, res) => {
   try {
     if (!query) {

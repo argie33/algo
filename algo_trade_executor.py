@@ -316,6 +316,17 @@ class TradeExecutor:
                             'reentry_blocked': True,
                             'message': f'{symbol}: {prior_reentry} prior re-entries within 30 days >= {max_reentries} max'
                         }
+                    # NEW: Enforce minimum days between stop-out and re-entry (reset period for failed setup)
+                    min_days_wait = int(self.config.get('min_days_before_reentry_same_symbol', 5))
+                    if exit_date:
+                        from datetime import date as _date
+                        exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
+                        days_since_exit = (datetime.now().date() - exit_d).days
+                        if days_since_exit < min_days_wait:
+                            return {
+                                'success': False, 'trade_id': '', 'status': 'reentry_cooldown',
+                                'message': f'{symbol}: only {days_since_exit}d since stop-out; require {min_days_wait}d before re-entry (reset period)'
+                            }
                     reentry_count = int(prior_reentry or 0) + 1
 
             execution_mode = self.config.get('execution_mode', 'paper')
