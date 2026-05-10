@@ -20,3 +20,282 @@ Master deploy: `gh workflow run deploy-all-infrastructure.yml --repo argie33/alg
 Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS Lambda/ECS, EventBridge 5:30pm ET.
 
 **Infrastructure:** Terraform only. No CloudFormation. All resources defined in `terraform/` modules.
+
+---
+
+## 🔄 CLAUDE BEST PRACTICES (Critical for Effective Collaboration)
+
+### 1. DOCUMENTATION DISCIPLINE
+**Most Important:** Don't create documentation sprawl.
+
+**DO:**
+- ✅ Update STATUS.md with what's done + next steps (required every session)
+- ✅ Write clear commit messages explaining *why* (required)
+- ✅ Save permanent patterns to memory/ once (e.g., "Phase 1 pattern")
+- ✅ Only create docs when explicitly asked ("Explain X" or "Document Y")
+
+**DON'T:**
+- ❌ Generate 6 versions of the same audit (FINDINGS_SUMMARY, EXECUTIVE_SUMMARY, etc.)
+- ❌ Create dated docs (ISSUES_2026_05_10.md, STATUS_PHASE_1.md)
+- ❌ Create temporary action plans as files (put in STATUS.md instead)
+- ❌ Duplicate info across files
+- ❌ Generate comprehensive guides "just to be thorough"
+
+**Why:** Each unnecessary doc costs ~2K tokens to re-read. 50 sessions × 5 bad docs = 500K wasted tokens.
+
+**Rule:** If the user didn't ask for it, and it's not permanent, DELETE it.
+
+---
+
+### 2. STATE MANAGEMENT
+**Single Source of Truth:**
+
+- **STATUS.md** = Current state (what's working, what's broken, next 3-5 items)
+  - Updated every session
+  - ~500 tokens, read every time, essential
+  - One file, always current
+
+- **memory/** = Permanent learnings (principles, constraints, patterns)
+  - Updated only when principle changes
+  - Cached, not re-read every session
+  - Examples: "No experimental loaders", "Phase 1 pattern", "Loader discipline"
+
+- **git log** = Authoritative history (what changed, when, why)
+  - Commit messages are the record
+  - Don't duplicate in separate docs
+  - Use: `git log --oneline`, `git show <hash>`, `git tag -l`
+
+- **CLAUDE.md** = Navigation + constraints (rarely changes)
+  - Read once per session
+  - Critical rules, tech stack, how to deploy
+  - This file
+
+**Don't create:**
+- PHASE_X_STATUS.md files (use STATUS.md)
+- Duplicate audit reports (use git log)
+- Session transcripts (ephemeral, not useful)
+
+---
+
+### 3. CONSTRAINT CLARITY
+**I need explicit bounds:**
+
+✅ **Clear:**
+- "Don't create experimental loaders"
+- "Terraform only, no CloudFormation"
+- "No documentation sprawl"
+- "If you generate docs the user didn't ask for, delete them"
+
+❌ **Vague:**
+- "Be thoughtful"
+- "Use good judgment"
+- "Don't over-engineer"
+
+**When in doubt, ask.** Example: "Should I create a test file for this, or update existing tests?"
+
+---
+
+### 4. FEEDBACK & COURSE CORRECTION
+**How to tell me I'm going wrong:**
+
+- **Direct correction:** "Don't do X" → I stop doing X immediately
+- **Pattern feedback:** "I notice you always Y; stop that" → I change behavior
+- **Question:** "Should I be doing Z?" → I wait for answer before proceeding
+- **If you see me creating doc sprawl:** "Stop, delete those docs, use STATUS.md instead" → I immediately comply
+
+**I need this feedback to improve.** Don't wait for perfection.
+
+---
+
+### 5. DECISION DOCUMENTATION
+**When I make a choice, I should document:**
+
+Instead of: "I'll use approach X"
+Write commit or STATUS note: "Using approach X because Y constraint requires it" or "tried Z but failed because..."
+
+Examples:
+- "Consolidated schema to local init_db.sql because dev/prod parity needed"
+- "Deleted Dockerfile.* because Terraform ECS is current deployment"
+- "Added Phase 1 to loadstockscores first because it blocks 80% of null metrics"
+
+**Why:** Next session or next Claude understands the reasoning.
+
+---
+
+### 6. GIT DISCIPLINE
+**Good commit standards:**
+
+✅ DO:
+```
+fix: Consolidate database schema and add Phase 1 to loadstockscores
+
+- Copy local init_db.sql to Terraform for dev/prod parity
+- Add score validation before insert
+- Why: Tests fail in AWS due to schema mismatch
+```
+
+❌ DON'T:
+```
+fixed stuff
+updated things
+changes
+```
+
+**Why:** `git log` becomes the audit trail. Future me (or you) can understand what happened without separate docs.
+
+---
+
+### 7. TOKEN AWARENESS
+**I should remember I'm expensive:**
+
+- Reading 100 unnecessary docs = 100K wasted tokens
+- Creating "comprehensive guides" = ~5K tokens each
+- Duplicating info = ~2K tokens per duplicate
+
+**Mindset:** "Is this creation worth the tokens future sessions will spend reading it?"
+
+If no → Delete it.
+
+---
+
+### 8. SCOPE BOUNDARIES
+**What I should do:**
+- ✅ Fix bugs
+- ✅ Refactor code
+- ✅ Add features
+- ✅ Update infrastructure
+- ✅ Write tests
+- ✅ Make thoughtful architectural decisions
+- ✅ Update STATUS.md
+
+**What I should NOT do without asking:**
+- ❌ Create large new systems (ask first)
+- ❌ Delete code I'm not 100% sure is dead (ask first)
+- ❌ Change architecture patterns (ask first)
+- ❌ Make breaking API changes (ask first)
+- ❌ Reorganize the codebase (ask first)
+
+**If unsure, ask in the commit message or STATUS.md.**
+
+---
+
+### 9. MEMORY MANAGEMENT
+**What goes in memory/:**
+
+✅ SAVE:
+- Architectural principles ("Why we chose Terraform")
+- Constraints ("No experimental loaders")
+- Patterns ("Phase 1 validation pattern")
+- User preferences ("User hates doc sprawl")
+- Lessons ("We learned X costs Y")
+
+❌ DON'T SAVE:
+- Session logs
+- Temporary findings
+- Step-by-step what we did
+- Audit report transcripts
+- Dated status snapshots
+
+**Rule:** Only save if future sessions need to know it.
+
+---
+
+### 10. CLEAR COMMUNICATION
+**Format:**
+
+When I propose something:
+```
+I'm proposing: [what]
+Reason: [why]
+Risk: [if any]
+Ask: [do you agree?]
+```
+
+When I finish work:
+```
+Done:
+- [x] Thing 1
+- [x] Thing 2
+
+Updated:
+- STATUS.md
+- [if relevant] memory/
+
+Commits: [hash1, hash2]
+
+Next: [3 items or blocked waiting for]
+```
+
+**Why:** Clear, scannable, you know exactly where we are.
+
+---
+
+### 11. PERMISSION MODEL
+**I assume I CAN:**
+- Read any file
+- Run tests
+- Make commits
+- Update STATUS.md
+- Ask questions
+
+**I assume I CANNOT without explicit permission:**
+- Delete files (ask first unless in cleanup)
+- Change architecture patterns (ask first)
+- Rewrite major systems (ask first)
+- Force push to git (never)
+- Make breaking changes (ask first)
+
+**When in doubt: Ask or flag in STATUS.md for user decision.**
+
+---
+
+### 12. QUALITY OVER SPEED
+**I should:**
+- ✅ Understand the problem deeply before coding
+- ✅ Write good commit messages (takes 2 mins, saves 2 hours later)
+- ✅ Test changes before declaring done
+- ✅ Check for side effects
+- ✅ Ask questions if context is unclear
+
+**I should NOT:**
+- ❌ Rush to "finish" with low-quality work
+- ❌ Skip commit message clarity for speed
+- ❌ Assume I understand context
+- ❌ Leave TODOs or half-finished work
+
+---
+
+## ✋ RED FLAGS (Stop and Ask)
+
+If I'm about to:
+- [ ] Create >2 documents in one session → Stop, ask if this is necessary
+- [ ] Delete >20 files without explicit request → Stop, ask if sure
+- [ ] Refactor large system sections → Stop, ask about approach first
+- [ ] Make breaking API changes → Stop, ask about versioning strategy
+- [ ] Add new external dependencies → Stop, ask about why
+- [ ] Change git history (rebase, force push) → Stop, never do this
+
+---
+
+## 🎯 SUCCESS CRITERIA FOR CLAUDE IN THIS REPO
+
+- [ ] Code is always clean and tested
+- [ ] Commit messages are clear and explain why
+- [ ] STATUS.md is updated after every session
+- [ ] No documentation sprawl (1-2 docs max per session)
+- [ ] Memory/ contains only reusable learnings
+- [ ] When I'm confused, I ask instead of guessing
+- [ ] I remember constraints and follow them
+- [ ] Users don't have to correct my behavior twice
+
+---
+
+## 💡 IF YOU SEE ME DOING SOMETHING WRONG
+
+Tell me directly. Examples:
+- "Stop creating doc sprawl"
+- "Don't do that anymore"
+- "Ask me before deleting large code sections"
+- "That's redundant, delete it"
+
+**I will immediately stop and adjust.** I'd rather be corrected than keep making the same mistake.
