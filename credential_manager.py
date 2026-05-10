@@ -19,7 +19,7 @@ Does NOT support:
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 log = logging.getLogger(__name__)
 
