@@ -21,6 +21,7 @@ A strategy that fails a crisis scenario needs parameter adjustment.
 
 import os
 import sys
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date
