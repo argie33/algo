@@ -64,11 +64,6 @@ import {
 
 # Database
 import {
-  to = module.database.aws_db_parameter_group.main
-  id = "algo-pg14-params"
-}
-
-import {
   to = module.database.aws_iam_role.rds_monitoring
   id = "algo-svc-rds-monitoring-dev"
 }
@@ -148,6 +143,11 @@ import {
 import {
   to = module.batch.aws_iam_instance_profile.batch_ecs_instance_profile
   id = "algo-batch-ecs-instance-profile"
+}
+
+import {
+  to = module.batch.aws_batch_job_queue.spot
+  id = "arn:aws:batch:us-east-1:626216981288:job-queue/algo-batch-job-queue-spot"
 }
 
 # Loaders IAM role
