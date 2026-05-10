@@ -373,7 +373,6 @@ import {
   id = "EPY7BSPGY853S"
 }
 
-import {
-  to = module.services.aws_apigatewayv2_authorizer.cognito[0]
-  id = "2iqq1qhltj/zo9bcn"
-}
+# module.services.aws_apigatewayv2_authorizer.cognito[0]
+# Authorizer does not exist in the Terraform-managed API (2iqq1qhltj);
+# it will be created fresh by Terraform.
