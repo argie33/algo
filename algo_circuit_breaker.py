@@ -395,33 +395,12 @@ class CircuitBreaker:
             return {'halted': False, 'reason': 'Intraday check error'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
-        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
-        self.cur.execute(
-            """
-            SELECT p.sector, COUNT(*) as position_count,
-                   AVG(pd.close) FILTER (WHERE pd.date = CURRENT_DATE - INTERVAL '5 days')::float as price_5d_ago,
-                   AVG(pd.close) FILTER (WHERE pd.date = CURRENT_DATE)::float as price_today
-            FROM algo_positions p
-            LEFT JOIN price_daily pd ON p.symbol = pd.symbol
-            WHERE p.status = %s AND p.sector IS NOT NULL
-            GROUP BY p.sector
-            HAVING COUNT(*) >= 2
-            """,
-            (PositionStatus.OPEN.value,)
-        )
-        rows = self.cur.fetchall()
-        for sector, count, price_5d, price_today in rows:
-            if price_5d and price_today and price_5d > 0:
-                sector_decline = ((price_5d - price_today) / price_5d * 100.0)
-                if sector_decline >= 12.0:
-                    return {
-                        'halted': True,
-                        'reason': f'Sector "{sector}" down {sector_decline:.1f}% with {count} positions',
-                        'sector': sector,
-                        'position_count': count,
-                        'sector_decline_pct': round(sector_decline, 1),
-                    }
-        return {'halted': False, 'reason': 'No sector concentration risk'}
+        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days.
+
+        Note: Sector information not yet integrated into algo_positions table.
+        Skipping for now; will require sector data join when available.
+        """
+        return {'halted': False, 'reason': 'Sector data not yet available'}
 
     def _check_daily_profit_cap(self, current_date: Any) -> Dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
