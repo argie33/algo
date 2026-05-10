@@ -703,7 +703,7 @@ function TopCompanies({ industry }) {
     const matched = data.filter(d =>
       (d.industry || '').toLowerCase() === (industry || '').toLowerCase()
     );
-    return (matched.length ? matched : data).slice(0, 20);
+    return (matched.length ? matched : data);
   }, [data, industry]);
 
   return (

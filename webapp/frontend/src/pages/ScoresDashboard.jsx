@@ -762,11 +762,11 @@ function MoversTab({ items, onClick }) {
   // Two side-by-side cards: composite leaders vs composite laggards (by score),
   // and price-change gainers vs decliners. This is a real-data proxy view.
   const valid = items.filter((s) => s.composite_score != null);
-  const topComposite  = [...valid].sort((a, b) => Number(b.composite_score) - Number(a.composite_score)).slice(0, 10);
-  const botComposite  = [...valid].sort((a, b) => Number(a.composite_score) - Number(b.composite_score)).slice(0, 10);
+  const topComposite  = [...valid].sort((a, b) => Number(b.composite_score) - Number(a.composite_score));
+  const botComposite  = [...valid].sort((a, b) => Number(a.composite_score) - Number(b.composite_score));
   const validPx = items.filter((s) => s.change_percent != null);
-  const gainers = [...validPx].sort((a, b) => Number(b.change_percent) - Number(a.change_percent)).slice(0, 10);
-  const decliners = [...validPx].sort((a, b) => Number(a.change_percent) - Number(b.change_percent)).slice(0, 10);
+  const gainers = [...validPx].sort((a, b) => Number(b.change_percent) - Number(a.change_percent));
+  const decliners = [...validPx].sort((a, b) => Number(a.change_percent) - Number(b.change_percent));
 
   return (
     <>

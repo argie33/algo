@@ -1366,7 +1366,7 @@ function DistributionDaysTimeline() {
           const idx = data[sym];
           const days = (idx.days || []).slice().sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
           // Build last 25-day timeline; oldest left → newest right
-          const timeline = days.slice(0, 25).reverse();
+          const timeline = days.reverse();
           const sigColor = idx.signal === 'NORMAL' ? C.success
             : idx.signal === 'WATCH' ? C.brand2
             : idx.signal === 'CAUTION' ? C.amber

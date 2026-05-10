@@ -224,8 +224,8 @@ export default function Sentiment() {
     });
     moves.sort((a, b) => b.change - a.change);
     return {
-      gainers: moves.slice(0, 8),
-      decliners: moves.slice(-8).reverse(),
+      gainers: moves,
+      decliners: moves.slice().reverse(),
     };
   }, [divergenceQ.data]);
 
@@ -248,12 +248,10 @@ export default function Sentiment() {
       .filter((s) => s && !isNaN(s.algoComposite));
     const buys = merged
       .filter((s) => s.analystScore < 0 && s.algoComposite >= 70)
-      .sort((a, b) => b.algoComposite - a.algoComposite)
-      .slice(0, 8);
+      .sort((a, b) => b.algoComposite - a.algoComposite);
     const traps = merged
       .filter((s) => s.analystScore > 0.3 && s.algoComposite < 50)
-      .sort((a, b) => a.algoComposite - b.algoComposite)
-      .slice(0, 8);
+      .sort((a, b) => a.algoComposite - b.algoComposite);
     return { buys, traps };
   }, [stocksList, scoresQ.data]);
 
