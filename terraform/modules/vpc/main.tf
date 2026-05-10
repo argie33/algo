@@ -305,7 +305,7 @@ resource "aws_security_group_rule" "rds_self_postgres" {
   to_port                  = 5432
   protocol                 = "tcp"
   security_group_id        = aws_security_group.rds.id
-  referenced_security_group_id = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.rds.id
   description              = "Allow PostgreSQL from RDS security group (db-init Lambda)"
 }
 
