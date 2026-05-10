@@ -156,17 +156,9 @@ output "website_url" {
 
 # ============================================================
 # Authentication Outputs
+# NOTE: Cognito outputs now in cognito.tf (module outputs)
+# See cognito.tf for: cognito_user_pool_id, cognito_user_pool_client_id, cognito_domain_url
 # ============================================================
-
-output "cognito_user_pool_id" {
-  description = "Cognito user pool ID"
-  value       = module.services.cognito_user_pool_id
-}
-
-output "cognito_client_id" {
-  description = "Cognito app client ID"
-  value       = module.services.cognito_client_id
-}
 
 # ============================================================
 # Algo Orchestrator Outputs

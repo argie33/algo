@@ -447,6 +447,22 @@ variable "cloudfront_waf_enabled" {
 # Cognito Configuration
 # ============================================================
 
+variable "domain_name" {
+  description = "Domain name for Cognito configuration (e.g., example.com)"
+  type        = string
+  default     = "example.com"
+}
+
+variable "common_tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+  default = {
+    Project     = "stocks"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+  }
+}
+
 variable "cognito_enabled" {
   description = "Enable Cognito user pool"
   type        = bool
@@ -698,3 +714,4 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+

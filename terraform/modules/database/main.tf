@@ -486,6 +486,7 @@ data "archive_file" "db_init_lambda_zip" {
       db_user      = var.db_master_username
       db_password  = var.db_master_password
       schema_file  = "schema.sql"
+      sql_content  = file("${path.module}/init.sql")
     })
     filename = "lambda_function.py"
   }
@@ -756,7 +757,11 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
 resource "aws_dynamodb_table" "watermarks" {
   name           = "${var.project_name}-watermarks-${var.environment}"
   billing_mode   = "PAY_PER_REQUEST"  # On-demand pricing (low-volume data)
-  hash_key       = "source"
+
+  key_schema {
+    attribute_name = "source"
+    key_type       = "HASH"
+  }
 
   attribute {
     name = "source"
@@ -776,9 +781,17 @@ resource "aws_dynamodb_table" "watermarks" {
   # Global secondary index for querying by status (for monitoring)
   global_secondary_index {
     name            = "StatusIndex"
-    hash_key        = "status"
-    range_key       = "updated_at"
-    projection_type = "ALL"
+    key_schema {
+      attribute_name = "status"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "updated_at"
+      key_type       = "RANGE"
+    }
+    projection {
+      projection_type = "ALL"
+    }
   }
 
   # Time-to-live: Auto-delete stale watermarks after 90 days of no updates

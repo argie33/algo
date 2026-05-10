@@ -114,37 +114,8 @@ resource "aws_cognito_user" "test_user" {
   }
 }
 
-# Set permanent password for test user
-resource "aws_cognito_user_password" "test_user" {
-  count        = var.environment == "dev" ? 1 : 0
-  user_pool_id = aws_cognito_user_pool.stocks_trading.id
-  username     = aws_cognito_user.test_user[0].username
-  password     = "TestPassword123!"
-  permanent    = true
-
-  depends_on = [aws_cognito_user.test_user]
-}
+# Note: Test user password should be set manually via AWS console or AWS CLI
+# Example: aws cognito-idp admin-set-user-password --user-pool-id <id> --username testuser --password "TestPassword123!" --permanent
 
 # Data source for current AWS account
 data "aws_caller_identity" "current" {}
-
-# Outputs for frontend configuration
-output "user_pool_id" {
-  value       = aws_cognito_user_pool.stocks_trading.id
-  description = "Cognito User Pool ID"
-}
-
-output "user_pool_client_id" {
-  value       = aws_cognito_user_pool_client.web_app.id
-  description = "Cognito User Pool Client ID"
-}
-
-output "domain_url" {
-  value       = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_caller_identity.current.account_id}.amazoncognito.com"
-  description = "Cognito Domain URL for OAuth"
-}
-
-output "identity_provider_url" {
-  value       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.stocks_trading.id}"
-  description = "Cognito Identity Provider URL"
-}

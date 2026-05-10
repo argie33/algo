@@ -6,10 +6,10 @@ module "cognito" {
 
   environment = var.environment
   aws_region  = var.aws_region
-  domain_name = var.domain_name
+  domain_name = try(var.domain_name, "example.com")
 
   tags = merge(
-    var.common_tags,
+    try(var.common_tags, {}),
     {
       Module = "cognito"
     }
