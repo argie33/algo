@@ -363,7 +363,7 @@ class APIHandler:
 
     def _get_circuit_breakers(self) -> Dict:
         """Get circuit breaker status."""
-        return json_response(200, {'circuit_breakers': [], 'active': False})
+        return json_response(200, [])
 
     def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""

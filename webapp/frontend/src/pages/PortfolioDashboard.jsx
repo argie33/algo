@@ -380,7 +380,8 @@ export default function PortfolioDashboard() {
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data }) {
-  const breakers = data?.breakers || [];
+  // API now returns raw array instead of {breakers: [...], active: ...}
+  const breakers = Array.isArray(data) ? data : data?.breakers || [];
   if (breakers.length === 0) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
