@@ -1248,6 +1248,8 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     exit_r_multiple DECIMAL(8, 2),
     profit_loss_dollars DECIMAL(12, 2),
     profit_loss_pct DECIMAL(8, 4),
+    mae_pct DECIMAL(8, 4),
+    mfe_pct DECIMAL(8, 4),
     trade_duration_days INTEGER,
     execution_mode VARCHAR(20),
     alpaca_order_id VARCHAR(100),

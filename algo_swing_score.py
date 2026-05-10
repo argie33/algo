@@ -236,11 +236,12 @@ class SwingTraderScore:
     # ============= COMPONENTS =============
 
     def _setup_component(self, symbol, eval_date):
-        """25 pts: base type + breakout proximity + VCP + pivot + power + 3WT + HTF."""
+        """25 pts: base type + breakout proximity + VCP + pivot + power + pocket pivot + 3WT + HTF."""
         base = self._signals.classify_base_type(symbol, eval_date)
         vcp = self._signals.vcp_detection(symbol, eval_date)
         pivot = self._signals.pivot_breakout(symbol, eval_date)
         power = self._signals.power_trend(symbol, eval_date)
+        pocket_piv = self._signals.pocket_pivot(symbol, eval_date, lookback_days=10)
         three_wt = self._signals.three_weeks_tight(symbol, eval_date)
         htf = self._signals.high_tight_flag(symbol, eval_date)
 
@@ -274,6 +275,11 @@ class SwingTraderScore:
         if power.get('power_trend'):
             pts += 2
 
+        # Pocket pivot bonus (max 3 pts) — re-accumulation pattern, institutional absorption
+        # Fires when up day on volume >= highest down-day volume in last 10 days
+        if pocket_piv.get('pocket_pivot') and pocket_piv.get('days_since_fired', 999) <= 2:
+            pts += 3
+
         # 3-Weeks-Tight bonus (max 2 pts) — IBD continuation pattern
         if three_wt.get('is_3wt'):
             pts += 2 if three_wt.get('breakout_imminent') else 1.0
@@ -292,6 +298,8 @@ class SwingTraderScore:
             'is_vcp': vcp.get('is_vcp'),
             'pivot_breakout': pivot.get('breakout'),
             'power_trend': power.get('power_trend'),
+            'pocket_pivot': pocket_piv.get('pocket_pivot'),
+            'pocket_pivot_days_ago': pocket_piv.get('days_since_fired'),
             'is_3wt': three_wt.get('is_3wt'),
             'is_htf': htf.get('is_htf'),
         }
@@ -361,12 +369,73 @@ class SwingTraderScore:
             elif ret > 0:
                 blend_pts += weight * 0.2
 
-        pts = min(self.W_MOMENTUM, rs_pts + blend_pts)
+        # SHORT INTEREST OPPORTUNITY BONUS (+3 pts)
+        # High short interest + strong breakout volume + outperforming RS = squeeze potential
+        si_pts = 0.0
+        short_interest = None
+        try:
+            self.cur.execute(
+                """SELECT short_interest_pct FROM stock_scores WHERE symbol = %s
+                   ORDER BY date DESC LIMIT 1""",
+                (symbol,),
+            )
+            r = self.cur.fetchone()
+            if r and r[0] is not None:
+                short_interest = float(r[0])
+                # Also get volume ratio
+                self.cur.execute(
+                    """
+                    WITH d AS (
+                        SELECT date, volume,
+                               AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg50
+                        FROM price_daily WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                    )
+                    SELECT volume / NULLIF(avg50, 0) FROM d
+                    """,
+                    (symbol, eval_date),
+                )
+                vol_row = self.cur.fetchone()
+                vol_ratio = float(vol_row[0]) if vol_row and vol_row[0] is not None else 0
+
+                # Trigger: SI > 15% AND volume_ratio > 1.5x AND RS percentile > 70
+                if short_interest > 15 and vol_ratio > 1.5 and rs_60 is not None and rs_60 > 70:
+                    si_pts = 3.0
+        except Exception:
+            pass
+
+        # EARNINGS SURPRISE MOMENTUM BONUS (+2 pts)
+        # Large positive EPS surprise + time since earnings (>45d) = institutional buying momentum
+        earnings_pts = 0.0
+        eps_surprise = None
+        try:
+            self.cur.execute(
+                """SELECT eps_surprise_pct, date_of_report FROM earnings_metrics
+                   WHERE symbol = %s ORDER BY date_of_report DESC LIMIT 1""",
+                (symbol,),
+            )
+            r = self.cur.fetchone()
+            if r and r[0] is not None:
+                eps_surprise = float(r[0])
+                report_date = r[1]
+                if report_date is not None:
+                    days_since_report = (eval_date - report_date).days
+                    # Trigger: EPS surprise > 15% AND report > 45 days ago (momentum sustained)
+                    if eps_surprise > 15 and days_since_report > 45:
+                        earnings_pts = 2.0
+        except Exception:
+            pass
+
+        pts = min(self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts)
         return pts, {
             'rs_percentile_60d': round(rs_60, 1) if rs_60 is not None else None,
             'return_1m': round(r1 * 100, 1),
             'return_3m': round(r3 * 100, 1),
             'return_6m': round(r6 * 100, 1),
+            'short_interest_pct': round(short_interest, 1) if short_interest is not None else None,
+            'short_interest_bonus_pts': si_pts,
+            'eps_surprise_pct': round(eps_surprise, 1) if eps_surprise is not None else None,
+            'earnings_momentum_pts': earnings_pts,
         }
 
     def _volume_component(self, symbol, eval_date):
@@ -549,7 +618,30 @@ class SwingTraderScore:
         elif ind_accel_4w < -3 and sec_accel_4w < -1:
             accel_pts = -1.0  # decelerating despite high rank = warning
 
-        total_pts = max(0.0, ind_pts + sec_pts + accel_pts)
+        # SECTOR ROTATION STATUS (bonus/penalty, max ±2 pts)
+        # Leading = +3 pts institutional rotation IN
+        # Weakening/Lagging = -5 pts institutional rotation OUT
+        rotation_status = None
+        rotation_pts = 0.0
+        if sector:
+            try:
+                self.cur.execute(
+                    """SELECT status FROM sector_rotation_signal
+                       WHERE sector = %s AND date <= %s
+                       ORDER BY date DESC LIMIT 1""",
+                    (sector, eval_date),
+                )
+                r = self.cur.fetchone()
+                if r and r[0]:
+                    rotation_status = r[0]
+                    if rotation_status == 'Leading':
+                        rotation_pts = 3.0
+                    elif rotation_status in ('Weakening', 'Lagging'):
+                        rotation_pts = -5.0
+            except Exception:
+                pass
+
+        total_pts = max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts)
         return total_pts, {
             'industry': industry,
             'industry_rank': ind_rank,
@@ -558,6 +650,8 @@ class SwingTraderScore:
             'sector_rank': sec_rank,
             'sector_accel_4w': sec_accel_4w,
             'acceleration_pts': accel_pts,
+            'rotation_status': rotation_status,
+            'rotation_pts': rotation_pts,
         }
 
     def _multi_timeframe_component(self, symbol, eval_date):

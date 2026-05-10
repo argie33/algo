@@ -96,6 +96,24 @@ class DailyReconciliation:
             if sync_result.get('orphan_symbols'):
                 print(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
 
+            # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
+            mae_result = self.compute_closed_trade_metrics()
+            print(f"\n1c. MAE/MFE Metrics:")
+            print(f"   {mae_result['reason']}")
+
+            # 1d. Compute analytics metrics: IC and expectancy (E4-E5)
+            analytics = self.compute_analytics_metrics()
+            print(f"\n1d. Analytics Metrics:")
+            if analytics['ic'].get('valid'):
+                print(f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)")
+                if analytics['ic']['alert']:
+                    print(f"   ⚠ {analytics['ic']['alert']}")
+            if analytics['expectancy'].get('valid'):
+                print(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
+                print(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
+                if analytics['expectancy']['alert']:
+                    print(f"   🔴 {analytics['expectancy']['alert']}")
+
             # 2. Get open positions from database
             self.cur.execute("""
                 SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
@@ -418,6 +436,183 @@ class DailyReconciliation:
             'message': f'Imported {imported} external Alpaca positions, '
                        f'{len(orphans)} orphans flagged',
         }
+
+    def compute_analytics_metrics(self):
+        """E4+E5: Compute Information Coefficient and Expectancy metrics.
+
+        E4: Weekly correlation of entry swing_score vs 5-day post-entry return.
+        E5: After 30+ closed trades, compute Kelly fraction for position sizing alerts.
+        """
+        try:
+            # E4: Information Coefficient (last 8 weeks of closed trades)
+            self.cur.execute("""
+                SELECT swing_score, profit_loss_pct, trade_duration_days
+                FROM algo_trades
+                WHERE status = %s
+                  AND exit_date >= NOW()::date - INTERVAL '56 days'
+                  AND swing_score IS NOT NULL
+                  AND profit_loss_pct IS NOT NULL
+                ORDER BY exit_date
+            """, (TradeStatus.CLOSED.value,))
+
+            trades = self.cur.fetchall()
+            ic_result = {'valid': False, 'ic': None, 'alert': None}
+
+            if len(trades) >= 10:  # Need min 10 trades for meaningful IC
+                # Compute rank correlation (Spearman) between swing_score and 5d returns
+                try:
+                    import statistics
+                    scores = [float(t[0]) for t in trades]
+                    returns = [float(t[1]) for t in trades]
+
+                    # Rank correlation manually (Spearman)
+                    score_ranks = sorted(range(len(scores)), key=lambda i: scores[i])
+                    return_ranks = sorted(range(len(returns)), key=lambda i: returns[i])
+                    rank_scores = [0] * len(score_ranks)
+                    rank_returns = [0] * len(return_ranks)
+                    for i, idx in enumerate(score_ranks):
+                        rank_scores[idx] = i
+                    for i, idx in enumerate(return_ranks):
+                        rank_returns[idx] = i
+
+                    # Pearson correlation on ranks
+                    mean_sr = statistics.mean(rank_scores)
+                    mean_rr = statistics.mean(rank_returns)
+                    cov = sum((rank_scores[i] - mean_sr) * (rank_returns[i] - mean_rr) for i in range(len(rank_scores))) / len(rank_scores)
+                    std_sr = statistics.stdev(rank_scores) if len(rank_scores) > 1 else 1
+                    std_rr = statistics.stdev(rank_returns) if len(rank_returns) > 1 else 1
+                    ic = cov / (std_sr * std_rr) if (std_sr * std_rr) > 0 else 0
+
+                    ic_result = {
+                        'valid': True,
+                        'ic': round(ic, 4),
+                        'trade_count': len(trades),
+                        'alert': 'IC < 0.05 (signal quality degraded)' if ic < 0.05 else None
+                    }
+                except Exception as e:
+                    logger.warning(f"IC computation failed: {e}")
+
+            # E5: Expectancy and Kelly sizing (all closed trades)
+            self.cur.execute("""
+                SELECT COUNT(*), SUM(profit_loss_pct), AVG(profit_loss_pct)
+                FROM algo_trades
+                WHERE status = %s AND profit_loss_pct IS NOT NULL
+            """, (TradeStatus.CLOSED.value,))
+
+            stats = self.cur.fetchone()
+            expectancy_result = {'valid': False, 'expectancy': None, 'alert': None}
+
+            if stats and stats[0] >= 30:  # Need 30+ trades
+                total_trades = stats[0]
+                total_pct = float(stats[1] or 0)
+                avg_return = float(stats[2] or 0)
+
+                # Count wins and losses
+                self.cur.execute("""
+                    SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) AS wins,
+                           COUNT(*) FILTER (WHERE profit_loss_pct <= 0) AS losses,
+                           AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct > 0) AS avg_win,
+                           AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct <= 0) AS avg_loss
+                    FROM algo_trades
+                    WHERE status = %s
+                """, (TradeStatus.CLOSED.value,))
+
+                wr = self.cur.fetchone()
+                wins = int(wr[0] or 0)
+                losses = int(wr[1] or 0)
+                avg_win = float(wr[2] or 0) if wr[2] else 1.0
+                avg_loss = float(wr[3] or 0) if wr[3] else -1.0
+
+                win_rate = wins / total_trades if total_trades > 0 else 0
+                expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
+
+                # Kelly fraction: f = (bp - q) / b where b=ratio, p=win%, q=loss%
+                # Simplified: kelly = (wins/total * avg_win - losses/total * abs(avg_loss)) / max(abs(avg_win), abs(avg_loss))
+                if avg_win > 0 or avg_loss < 0:
+                    kelly_num = (win_rate * avg_win) - ((1 - win_rate) * abs(avg_loss))
+                    kelly_denom = max(abs(avg_win), abs(avg_loss))
+                    kelly = kelly_num / kelly_denom if kelly_denom > 0 else 0
+                else:
+                    kelly = 0
+
+                expectancy_result = {
+                    'valid': True,
+                    'expectancy': round(expectancy, 4),
+                    'win_rate': round(win_rate * 100, 1),
+                    'kelly_fraction': round(max(0, kelly * 0.25), 4),  # Conservative 25% Kelly
+                    'alert': 'NEGATIVE EXPECTANCY (reduce position sizing)' if expectancy < 0 else None
+                }
+
+            return {
+                'ic': ic_result,
+                'expectancy': expectancy_result,
+            }
+        except Exception as e:
+            logger.error(f"Error in compute_analytics_metrics: {e}")
+            return {'ic': {'valid': False}, 'expectancy': {'valid': False}}
+
+    def compute_closed_trade_metrics(self):
+        """E3: Compute MAE/MFE for recently closed trades (last 30 days)."""
+        try:
+            # Find recently closed trades without MAE/MFE
+            self.cur.execute("""
+                SELECT id, symbol, entry_date, exit_date, entry_price, exit_price, exit_r_multiple
+                FROM algo_trades
+                WHERE status = %s
+                  AND exit_date IS NOT NULL
+                  AND exit_date >= NOW()::date - INTERVAL '30 days'
+                  AND (mae_pct IS NULL OR mfe_pct IS NULL)
+                ORDER BY exit_date DESC
+            """, (TradeStatus.CLOSED.value,))
+
+            trades_to_update = self.cur.fetchall()
+            if not trades_to_update:
+                return {'updated': 0, 'reason': 'No recently closed trades without MAE/MFE'}
+
+            updates = 0
+            for trade_id, symbol, entry_date, exit_date, entry_price, exit_price, r_mult in trades_to_update:
+                try:
+                    entry_price = float(entry_price)
+                    exit_price = float(exit_price or entry_price)
+
+                    # Get all prices from entry to exit
+                    self.cur.execute("""
+                        SELECT high, low FROM price_daily
+                        WHERE symbol = %s AND date >= %s AND date <= %s
+                        ORDER BY date ASC
+                    """, (symbol, entry_date, exit_date))
+
+                    prices = self.cur.fetchall()
+                    if not prices:
+                        continue
+
+                    highs = [float(p[0]) if p[0] is not None else entry_price for p in prices]
+                    lows = [float(p[1]) if p[1] is not None else entry_price for p in prices]
+
+                    # MAE: worst (lowest) price from entry
+                    min_price = min(lows)
+                    mae_pct = ((min_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
+
+                    # MFE: best (highest) price from entry
+                    max_price = max(highs)
+                    mfe_pct = ((max_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
+
+                    # Update trade
+                    self.cur.execute("""
+                        UPDATE algo_trades
+                        SET mae_pct = %s, mfe_pct = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (round(mae_pct, 4), round(mfe_pct, 4), trade_id))
+
+                    updates += 1
+                except Exception as e:
+                    logger.warning(f"Failed to compute MAE/MFE for trade {trade_id}: {e}")
+
+            self.conn.commit()
+            return {'updated': updates, 'reason': f'Computed MAE/MFE for {updates} closed trades'}
+        except Exception as e:
+            logger.error(f"Error in compute_closed_trade_metrics: {e}")
+            return {'updated': 0, 'reason': f'Error: {e}'}
 
     def _fetch_alpaca_account(self):
         """Fetch account data from Alpaca."""

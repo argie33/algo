@@ -1481,11 +1481,6 @@ class SignalComputer:
         # PIVOT BREAKOUT (Livermore)
         # ============================================================
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception:
-                pass
     def pivot_breakout(self, symbol, eval_date):
         """
         Livermore-style pivot point: price closing decisively above the highest
@@ -1524,13 +1519,100 @@ class SignalComputer:
                 'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
 
-        # ---- shared helpers ----
+    def pocket_pivot(self, symbol, eval_date, lookback_days=10):
+        """
+        Pocket Pivot (re-accumulation signal): an up day where volume >= highest
+        down-day volume in the prior lookback_days.
+
+        Indicates institutional absorption of selling pressure and setup for breakout.
+        Returns: {
+          'pocket_pivot': bool,
+          'days_since_fired': int or None (0 = today, 1 = yesterday, etc),
+          'current_vol': float,
+          'max_down_vol': float,
+          'vol_ratio': float,
+        }
+        """
+        try:
+            self.connect()
+            self.cur.execute(
+                """
+                WITH daily AS (
+                    SELECT date, close, volume,
+                           LAG(close) OVER (ORDER BY date) AS prev_close,
+                           ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT %s
+                )
+                SELECT
+                    date, close, prev_close, volume, rn
+                FROM daily
+                ORDER BY date DESC
+                """,
+                (symbol, eval_date, lookback_days + 5),
+            )
+            rows = self.cur.fetchall()
+            if not rows:
+                return {'pocket_pivot': False}
+
+            # Find max down-day volume in lookback window
+            max_down_vol = 0
+            for row in rows[1:]:  # Skip today initially
+                date, close, prev_close, vol, rn = row
+                if prev_close is not None and close < prev_close:
+                    max_down_vol = max(max_down_vol, float(vol) if vol else 0)
+
+            # Check today: is it an up day with volume >= max down-day volume?
+            if rows:
+                today_date, today_close, today_prev, today_vol, today_rn = rows[0]
+                today_vol = float(today_vol) if today_vol else 0
+                today_prev = float(today_prev) if today_prev is not None else None
+                today_close = float(today_close) if today_close else 0
+
+                is_up_day = today_prev is not None and today_close > today_prev
+                fires = is_up_day and today_vol >= max_down_vol and max_down_vol > 0
+
+                if fires:
+                    return {
+                        'pocket_pivot': True,
+                        'days_since_fired': 0,
+                        'current_vol': round(today_vol, 0),
+                        'max_down_vol': round(max_down_vol, 0),
+                        'vol_ratio': round(today_vol / max_down_vol, 2) if max_down_vol > 0 else 0,
+                    }
+
+            # Also check if pocket pivot fired 1-2 days ago (within last 3 days)
+            up_day_dates = []
+            for row in rows[:3]:  # Last 3 rows
+                date, close, prev_close, vol, rn = row
+                vol = float(vol) if vol else 0
+                prev_close = float(prev_close) if prev_close is not None else None
+                close = float(close) if close else 0
+                if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
+                    days_since = rn - 1  # rn=1 is most recent
+                    up_day_dates.append((days_since, vol))
+
+            if up_day_dates:
+                days_since, vol = up_day_dates[0]
+                return {
+                    'pocket_pivot': True,
+                    'days_since_fired': days_since,
+                    'current_vol': round(vol, 0),
+                    'max_down_vol': round(max_down_vol, 0),
+                    'vol_ratio': round(vol / max_down_vol, 2) if max_down_vol > 0 else 0,
+                }
+
+            return {'pocket_pivot': False}
 
         finally:
             try:
                 self.disconnect()
             except Exception:
                 pass
+
+    # ---- shared helpers ----
+
     def _period_return(self, symbol, end_date, lookback_days):
         self.cur.execute(
             """
