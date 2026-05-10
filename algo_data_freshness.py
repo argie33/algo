@@ -32,6 +32,7 @@ USAGE:
   python3 algo_data_freshness.py --json    # JSON output for piping
 """
 
+import json
 from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 

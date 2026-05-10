@@ -17,6 +17,7 @@ Gates (minimum 4 weeks data required):
 All gates must pass for production approval.
 """
 
+import json
 from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 

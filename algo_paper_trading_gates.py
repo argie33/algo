@@ -16,6 +16,7 @@ Formal Gates (all must pass):
 Passing all gates: Print "PAPER TRADING VALIDATION PASSED — READY FOR PRODUCTION SIGN-OFF"
 """
 
+import json
 from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 

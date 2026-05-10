@@ -26,6 +26,7 @@ Backtests current parameters against historical crisis periods:
 Reports max drawdown, Calmar ratio, recovery time for each crisis.
 """
 
+import numpy as np
 from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
