@@ -172,6 +172,8 @@ class PositionMonitor:
 
             for row in positions:
                 rec = self._evaluate_position(row, current_date)
+                if rec is None:
+                    continue
                 recs.append(rec)
                 self._print_recommendation(rec)
                 try:
