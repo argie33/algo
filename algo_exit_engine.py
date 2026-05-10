@@ -366,25 +366,35 @@ class ExitEngine:
         return int(row[0]) if row and row[0] is not None else None
 
     def _is_pulling_back(self, symbol, current_date) -> bool:
-        """True if current close is below the highest close of the last 3 days."""
+        """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
+
+        Real pullbacks show clear consolidation, not just a 0.5% afternoon dip.
+        This prevents hair-trigger exits on winners."""
         if self.cur is None:
-            # Pure-function caller didn't open a connection; default to True so
-            # the T1/T2 pullback gating still fires for unit tests.
             return True
         self.cur.execute(
             """
-            SELECT close FROM price_daily
+            SELECT close, HIGH FROM price_daily
             WHERE symbol = %s AND date <= %s
-            ORDER BY date DESC LIMIT 4
+            ORDER BY date DESC LIMIT 6
             """,
             (symbol, current_date),
         )
         rows = self.cur.fetchall()
-        if len(rows) < 2:
+        if len(rows) < 3:
             return False
+
         cur_close = float(rows[0][0])
-        prior_max = max(float(r[0]) for r in rows[1:])
-        return cur_close < prior_max
+        recent_high = max(float(r[1]) if r[1] is not None else float(r[0]) for r in rows[:5])
+
+        # Check if pullback is meaningful: 2-3% decline
+        pullback_pct = ((recent_high - cur_close) / recent_high * 100.0) if recent_high > 0 else 0
+        if pullback_pct >= 2.0:
+            return True
+
+        # OR check if consolidated below high for 2+ days
+        days_below_high = sum(1 for r in rows[:5] if float(r[0]) < recent_high * 0.98)
+        return days_below_high >= 2
 
     def _rs_line_breaking(self, symbol, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""

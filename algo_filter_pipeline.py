@@ -723,8 +723,10 @@ class FilterPipeline:
                 # This replaces the hardcoded 0.92 (8%) with a volatility-aware fallback.
                 if atr and atr > 0:
                     stop_loss_price = max(0.01, entry_price - (2.0 * atr))
+                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr:.2f})')
                 else:
                     stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
+                    logger.warning(f'[T5] Stop calculation FAILED for {symbol}; using 5% emergency fallback: {stop_loss_price:.2f} (no ATR available) — RISK INFLATED')
 
             from algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)

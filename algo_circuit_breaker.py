@@ -88,6 +88,7 @@ class CircuitBreaker:
                 ('drawdown', self._check_drawdown),
                 ('daily_loss', self._check_daily_loss),
                 ('consecutive_losses', self._check_consecutive_losses),
+                ('win_rate_floor', self._check_win_rate_floor),
                 ('total_risk', self._check_total_risk),
                 ('vix_spike', self._check_vix_spike),
                 ('market_stage', self._check_market_stage),
@@ -149,7 +150,7 @@ class CircuitBreaker:
         if peak <= 0 or cur_val <= 0:
             return {'halted': True, 'reason': 'Invalid portfolio values — fail-closed'}
         dd = ((peak - cur_val) / peak * 100.0)
-        threshold = float(self.config.get('halt_drawdown_pct', 20.0))
+        threshold = float(self.config.get('halt_drawdown_pct', 15.0))
         return {
             'halted': dd >= threshold,
             'reason': f'Drawdown {dd:.2f}% >= {threshold:.0f}%' if dd >= threshold else f'Drawdown {dd:.2f}%',
@@ -201,6 +202,35 @@ class CircuitBreaker:
             'reason': f'{streak} consecutive losses >= {threshold}' if streak >= threshold else f'{streak} losses',
             'value': streak,
             'threshold': threshold,
+        }
+
+    def _check_win_rate_floor(self, current_date: Any) -> Dict[str, Any]:
+        """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades)."""
+        self.cur.execute(
+            """
+            SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
+                   COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
+                   COUNT(*) as total
+            FROM algo_trades
+            WHERE status = %s AND exit_date IS NOT NULL
+            ORDER BY exit_date DESC LIMIT 30
+            """,
+            (TradeStatus.CLOSED.value,)
+        )
+        row = self.cur.fetchone()
+        if not row or row[2] is None or int(row[2]) < 10:
+            return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
+
+        wins = int(row[0] or 0)
+        total = int(row[2])
+        win_rate = (wins / total * 100.0) if total > 0 else 0
+        threshold = float(self.config.get('min_win_rate_pct', 40.0))
+        return {
+            'halted': win_rate < threshold,
+            'reason': f'Win rate {win_rate:.1f}% < {threshold:.0f}%' if win_rate < threshold else f'Win rate {win_rate:.1f}%',
+            'value': round(win_rate, 1),
+            'threshold': threshold,
+            'trades_sampled': total,
         }
 
     def _check_total_risk(self, current_date: Any) -> Dict[str, Any]:

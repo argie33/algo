@@ -1,26 +1,35 @@
 #!/usr/bin/env python3
 """
-Quantitative Market Exposure Engine - Research-backed 9-factor composite
+Quantitative Market Exposure Engine - Research-backed 11-factor composite
 
 Replaces simple "Stage 2 yes/no" gating with a 0-100 portfolio risk allocation
 score driven by these inputs (weights from synthesis of IBD, O'Neil, Weinstein,
-Zweig, AAII contrarian, Schwab/Fidelity breadth research):
+Zweig, AAII/NAAIM contrarian, Schwab/Fidelity breadth research, Apollo/Goldman
+credit cycle research):
 
-    20pt  IBD MARKET STATE      Confirmed Uptrend / Pressure / Correction
+    18pt  IBD MARKET STATE      Confirmed Uptrend / Pressure / Correction
     15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
-    15pt  BREADTH % > 50-DMA    short-term participation (linear 20-80%)
+    14pt  BREADTH % > 50-DMA    short-term participation (linear 20-80%)
     10pt  BREADTH % > 200-DMA   longer-term health (linear 30-80%)
-    10pt  VIX REGIME            <15 / 15-25 / 25-35 / 35+
-    10pt  MCCLELLAN OSCILLATOR  short-term momentum (-100 to +100 zone)
-     8pt  NEW HIGHS - LOWS      regime health indicator
-     7pt  ADVANCE-DECLINE LINE  confirmation / divergence vs index
-     5pt  AAII SENTIMENT        contrarian: extreme bullish = caution
+     9pt  MCCLELLAN OSCILLATOR  short-term momentum (-100 to +100 zone)
+     8pt  VIX REGIME            <15 / 15-25 / 25-35 / 35+
+     7pt  NEW HIGHS - LOWS      regime health indicator
+     7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
+     5pt  ADVANCE-DECLINE LINE  confirmation / divergence vs index
+     4pt  AAII SENTIMENT        contrarian: extreme bullish = caution
+     3pt  NAAIM EXPOSURE        professional manager positioning (0-200 scale)
 
-PLUS HARD VETOES (cap at ≤25%):
+PLUS HARD VETOES (cap at ≤25-35%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
   - VIX > 40 with rising trend
   - 6+ distribution days in last 25 sessions
   - No follow-through day after correction
+  - HY credit spread > 8.5% (systemic stress)
+
+PLUS ECONOMIC REGIME OVERLAY (penalty, not a factor):
+  - Computed from: T10Y2Y yield curve, HY spread trend, jobless claims trend
+  - Macro stress 40-60: -4pts
+  - Macro stress > 60: -7pts, cap at 40%
 
 Output:
     market_exposure_pct (0-100): drives dynamic risk allocation
@@ -35,8 +44,8 @@ from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
 import os
-import psycopg2
 import json
+import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
@@ -60,15 +69,17 @@ class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
     # Factor weights (sum = 100)
-    W_IBD_STATE = 20
+    W_IBD_STATE = 18
     W_TREND_30WK = 15
-    W_BREADTH_50 = 15
+    W_BREADTH_50 = 14
     W_BREADTH_200 = 10
-    W_VIX = 10
-    W_MCCLELLAN = 10
-    W_NEW_HIGHS_LOWS = 8
-    W_AD_LINE = 7
-    W_AAII = 5
+    W_MCCLELLAN = 9
+    W_VIX = 8
+    W_NEW_HIGHS_LOWS = 7
+    W_CREDIT_SPREAD = 7
+    W_AD_LINE = 5
+    W_AAII = 4
+    W_NAAIM = 3
 
     def __init__(self, cur=None):
         self.cur = cur
@@ -154,6 +165,18 @@ class MarketExposure:
             factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
             score += aaii_pts
 
+            # --- 10. Credit spreads (HY OAS — credit leads equity) ---
+            cs = self._credit_spread(eval_date)
+            cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
+            factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
+            score += cs_pts
+
+            # --- 11. NAAIM professional manager positioning ---
+            naaim = self._naaim_sentiment(eval_date)
+            naaim_pts = self.W_NAAIM * naaim['score_factor']
+            factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
+            score += naaim_pts
+
             score = max(0.0, min(100.0, score))
 
             # --- SECTOR ROTATION OVERLAY ---
@@ -187,9 +210,24 @@ class MarketExposure:
             except Exception as e:
                 factors['sector_rotation'] = {'error': str(e)[:60]}
 
+            # --- ECONOMIC REGIME OVERLAY ---
+            # Macro stress penalty from yield curve, credit trend, and jobless claims.
+            # This is separate from the factor weights — it's a post-score adjustment
+            # based on the macro cycle, per Yardeni/Slok/Goldman methodology.
+            try:
+                eco = self._economic_regime_overlay(eval_date)
+                eco_penalty = eco.get('penalty', 0)
+                eco_cap = eco.get('cap', 100.0)
+                if eco_penalty > 0 or eco_cap < 100.0:
+                    score = max(0.0, score - eco_penalty)
+                factors['economic_overlay'] = {**eco, 'pts': -eco_penalty, 'max': 0}
+            except Exception as e:
+                factors['economic_overlay'] = {'error': str(e)[:60], 'pts': 0, 'max': 0}
+                eco_cap = 100.0
+
             # --- HARD VETOES ---
             halt_reasons = []
-            cap = 100.0
+            cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
             if (t30.get('price_below_ma') and b50.get('value', 100) < 30):
@@ -208,6 +246,10 @@ class MarketExposure:
             if ibd['state'] == 'correction' and not ibd.get('follow_through_day'):
                 halt_reasons.append('In correction without follow-through day')
                 cap = min(cap, 40.0)
+            # Veto 5: HY credit spread systemic stress
+            if cs.get('value') and cs['value'] > 8.5:
+                halt_reasons.append(f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)')
+                cap = min(cap, 30.0)
 
             final = min(score, cap)
 
@@ -619,6 +661,200 @@ class MarketExposure:
             'score_factor': sf,
             'bull_bear_spread': round(spread, 1),
             'spread_8wk_ma': round(spread_ma, 1),
+        }
+
+    def _credit_spread(self, eval_date):
+        """HY OAS credit spread (BAMLH0A0HYM2) — credit leads equity.
+
+        Based on Apollo/Torsten Slok research: HY spreads widen 4-6 weeks
+        before equity markets price in credit risk. Rapidly widening spreads
+        (>+1pp in 20 trading days) get an additional 20% score haircut.
+
+        Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
+        """
+        self.cur.execute(
+            """
+            SELECT value::float, date
+            FROM economic_data
+            WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
+            ORDER BY date DESC LIMIT 25
+            """,
+            (eval_date,),
+        )
+        rows = self.cur.fetchall()
+        if not rows:
+            return {'score_factor': 0.7, 'value': None, 'reason': 'No HY spread data'}
+
+        hy = float(rows[0][0])
+        # Trend: compare latest vs 20 days ago
+        hy_20d_ago = float(rows[-1][0]) if len(rows) >= 20 else hy
+        widening_1pp = (hy - hy_20d_ago) > 1.0  # widened > 1pp in ~20 trading days
+
+        if hy < 3.5:
+            sf = 1.0
+        elif hy < 4.5:
+            sf = 0.85
+        elif hy < 5.5:
+            sf = 0.65
+        elif hy < 7.0:
+            sf = 0.35
+        else:
+            sf = 0.10
+
+        # Rapid widening haircut: stress is accelerating
+        if widening_1pp and hy > 4.0:
+            sf *= 0.80
+
+        return {
+            'score_factor': round(sf, 3),
+            'value': round(hy, 3),
+            'hy_20d_ago': round(hy_20d_ago, 3),
+            'widening_rapidly': widening_1pp,
+        }
+
+    def _naaim_sentiment(self, eval_date):
+        """NAAIM Exposure Index — professional active manager positioning.
+
+        Scale: 0-200, where 100 = fully invested, 200 = 2× leveraged long.
+        Long-run average ~65-70. Unlike AAII, NAAIM reflects *actual* fund
+        positioning, not just sentiment survey.
+
+        Scoring logic:
+          >80: pros are extended → mild caution (but directionally still bullish)
+          50-80: healthy professional risk appetite → positive
+          30-50: professionals reducing exposure → mild stress
+          <30: pros very defensive → bearish, often precedes selling pressure
+
+        Data is weekly — use latest available within 14 days.
+        """
+        self.cur.execute(
+            """
+            SELECT naaim_number_mean, date
+            FROM naaim
+            WHERE date <= %s AND date >= %s::date - INTERVAL '14 days'
+            ORDER BY date DESC LIMIT 1
+            """,
+            (eval_date, eval_date),
+        )
+        row = self.cur.fetchone()
+        if not row or row[0] is None:
+            return {'score_factor': 0.6, 'value': None, 'reason': 'No NAAIM data'}
+
+        naaim = float(row[0])
+        if naaim > 80:
+            sf = 0.75   # Extended, some mean-reversion risk
+        elif naaim >= 50:
+            sf = 1.0    # Healthy risk appetite
+        elif naaim >= 30:
+            sf = 0.55   # Pros reducing exposure
+        else:
+            sf = 0.25   # Very defensive — selling pressure likely
+
+        return {'score_factor': sf, 'value': round(naaim, 1)}
+
+    def _economic_regime_overlay(self, eval_date):
+        """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
+
+        Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals
+        deteriorate, reduce max exposure regardless of short-term price action.
+        This overlay is applied AFTER factor scoring, not as a factor weight.
+
+        Returns: {macro_stress_score, penalty, cap, contributing_signals}
+        """
+        stress = 0.0
+        signals = []
+
+        # Signal 1: Yield curve (T10Y2Y) — inversion duration matters
+        self.cur.execute(
+            """
+            SELECT value::float, date FROM economic_data
+            WHERE series_id = 'T10Y2Y' AND date <= %s
+            ORDER BY date DESC LIMIT 60
+            """,
+            (eval_date,),
+        )
+        curve_rows = self.cur.fetchall()
+        if curve_rows:
+            latest_spread = float(curve_rows[0][0])
+            # How many consecutive weeks inverted?
+            weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
+            if latest_spread < -0.5 and weeks_inverted >= 8:
+                stress += 35.0
+                signals.append(f'Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks')
+            elif latest_spread < 0:
+                stress += 20.0
+                signals.append(f'Curve inverted {latest_spread:.2f}%')
+            elif latest_spread < 0.2:
+                stress += 8.0
+                signals.append(f'Curve flat {latest_spread:.2f}%')
+
+        # Signal 2: HY credit spread trend — is credit stress building?
+        self.cur.execute(
+            """
+            SELECT value::float, date FROM economic_data
+            WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
+            ORDER BY date DESC LIMIT 60
+            """,
+            (eval_date,),
+        )
+        hy_rows = self.cur.fetchall()
+        if hy_rows:
+            hy_now = float(hy_rows[0][0])
+            hy_60d = float(hy_rows[-1][0]) if len(hy_rows) >= 50 else hy_now
+            hy_widening_60d = hy_now - hy_60d
+            if hy_now > 6.5:
+                stress += 35.0
+                signals.append(f'HY spread {hy_now:.2f}% (severe stress)')
+            elif hy_now > 5.0:
+                stress += 20.0
+                signals.append(f'HY spread {hy_now:.2f}% (elevated)')
+            elif hy_widening_60d > 1.5:
+                stress += 15.0
+                signals.append(f'HY spread widening +{hy_widening_60d:.2f}pp in 60d')
+
+        # Signal 3: Jobless claims trend — rising claims precede recessions
+        self.cur.execute(
+            """
+            SELECT value::float, date FROM economic_data
+            WHERE series_id = 'ICSA' AND date <= %s
+            ORDER BY date DESC LIMIT 27
+            """,
+            (eval_date,),
+        )
+        claims_rows = self.cur.fetchall()
+        if len(claims_rows) >= 26:
+            claims_now = float(claims_rows[0][0])
+            claims_26w = float(claims_rows[-1][0])
+            chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
+            if chg_pct > 30:
+                stress += 30.0
+                signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (severe)')
+            elif chg_pct > 20:
+                stress += 15.0
+                signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (elevated)')
+
+        stress = min(100.0, stress)
+
+        # Apply penalty and cap based on macro stress level
+        if stress >= 60:
+            penalty = 7.0
+            cap = 40.0
+        elif stress >= 40:
+            penalty = 4.0
+            cap = 100.0
+        elif stress <= 15:
+            # Favorable macro: small bonus (better breadth, not capped)
+            penalty = -2.0  # negative penalty = bonus
+            cap = 100.0
+        else:
+            penalty = 0.0
+            cap = 100.0
+
+        return {
+            'macro_stress_score': round(stress, 1),
+            'penalty': round(penalty, 1),
+            'cap': cap,
+            'signals': signals,
         }
 
     def _persist(self, eval_date, result):

@@ -631,19 +631,64 @@ class AdvancedFilters:
         return float(row[0])
 
     def _estimate_days_to_earnings(self, symbol, signal_date):
+        # First, try to get actual estimated earnings date from estimated_eps table
         self.cur.execute(
-            "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
+            """
+            SELECT estimated_earnings_date FROM estimated_eps
+            WHERE symbol = %s AND estimated_earnings_date > %s
+            ORDER BY estimated_earnings_date ASC LIMIT 1
+            """,
+            (symbol, signal_date),
+        )
+        row = self.cur.fetchone()
+        if row and row[0]:
+            earnings_date = row[0]
+            return (earnings_date - signal_date).days
+
+        # Fallback: estimate based on last reported earnings using proper quarter math
+        self.cur.execute(
+            """
+            SELECT report_date FROM earnings_history
+            WHERE symbol = %s ORDER BY report_date DESC LIMIT 1
+            """,
             (symbol,),
         )
         row = self.cur.fetchone()
         if not row or not row[0]:
             return None
-        last_q = row[0]
-        est = last_q + timedelta(days=45)
+
+        last_report = row[0] if isinstance(row[0], _date) else row[0].date()
+
+        # Standard quarterly spacing: Q1 (Apr), Q2 (Jul), Q3 (Oct), Q4 (Jan)
+        # Find which quarter the last report was and estimate next
+        month = last_report.month
+        year = last_report.year
+
+        # Estimate next earnings based on standard calendar
+        if month < 4:
+            next_q_date = _date(year, 4, 15)  # Q1
+        elif month < 7:
+            next_q_date = _date(year, 7, 15)  # Q2
+        elif month < 10:
+            next_q_date = _date(year, 10, 15)  # Q3
+        elif month < 1:
+            next_q_date = _date(year + 1, 1, 15)  # Q4
+        else:
+            next_q_date = _date(year + 1, 1, 15)  # Q4
+
+        # If next quarter estimate is in past, advance to following quarter
         signal_d = signal_date if isinstance(signal_date, _date) else signal_date
-        while est < signal_d:
-            est += timedelta(days=90)
-        return (est - signal_d).days
+        while next_q_date <= signal_d:
+            if next_q_date.month == 1:
+                next_q_date = _date(next_q_date.year, 4, 15)
+            elif next_q_date.month == 4:
+                next_q_date = _date(next_q_date.year, 7, 15)
+            elif next_q_date.month == 7:
+                next_q_date = _date(next_q_date.year, 10, 15)
+            else:
+                next_q_date = _date(next_q_date.year + 1, 1, 15)
+
+        return (next_q_date - signal_d).days
 
 
 if __name__ == "__main__":
