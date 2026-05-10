@@ -1413,13 +1413,17 @@ class Orchestrator:
             # This populates the stock_scores table used by advanced filters
             logger.info("\nLoading stock quality scores...")
             try:
-                from loadstockscores import StockScoresLoader
-                loader = StockScoresLoader()
-                stats = loader.run(parallelism=4)  # Moderate parallelism, doesn't block trading
-                if self.verbose:
-                    logger.info(f"  Stock scores loaded: {stats.get('symbols_loaded', 0)} symbols, "
-                               f"{stats.get('symbols_failed', 0)} failures")
-                loader.close()
+                from loadstockscores import StockScoresLoader, get_active_symbols
+                symbols = get_active_symbols()
+                if not symbols:
+                    logger.warning("  [WARN] No active symbols available for stock scores loader")
+                else:
+                    loader = StockScoresLoader()
+                    stats = loader.run(symbols=symbols, parallelism=4)  # Moderate parallelism, doesn't block trading
+                    if self.verbose:
+                        logger.info(f"  Stock scores loaded: {stats.get('symbols_loaded', 0)} symbols, "
+                                   f"{stats.get('symbols_failed', 0)} failures")
+                    loader.close()
             except Exception as e:
                 logger.warning(f"  [WARN] Stock scores load failed (won't block trading): {e}")
 

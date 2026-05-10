@@ -882,7 +882,7 @@ class MarketExposure:
                     result['regime'],
                     result['distribution_days'],
                     json.dumps(result['factors']),
-                    '; '.join(result['halt_reasons']) or None,
+                    result['halt_reasons'] or None,
                 ),
             )
             if self._owned:

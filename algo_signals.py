@@ -1476,6 +1476,11 @@ class SignalComputer:
             avg_rs = float(row[1])
             # Mansfield: 100 * ((cur/avg) - 1)
             return round((cur_rs / avg_rs - 1.0) * 100.0, 2)
+        finally:
+            try:
+                self.disconnect()
+            except Exception:
+                pass
 
         # ============================================================
         # PIVOT BREAKOUT (Livermore)
@@ -1518,6 +1523,13 @@ class SignalComputer:
                 'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
                 'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
+        except Exception:
+            return {'breakout': False}
+        finally:
+            try:
+                self.disconnect()
+            except Exception:
+                pass
 
     def pocket_pivot(self, symbol, eval_date, lookback_days=10):
         """

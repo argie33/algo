@@ -38,8 +38,9 @@ class PaperModeTestHarness:
     def __init__(self):
         self.config = get_config()
         self.conn = None
-        # Use the latest trading date in our price data (2026-05-09 is Saturday, use 2026-05-08)
-        self.test_date = _date(2026, 5, 8)
+        # Use Friday for test run (trading day with price data)
+        # Phase 1 will check for CURRENT_DATE (today) fresh data, which is also available
+        self.test_date = _date(2026, 5, 8)  # Friday trading day
 
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
@@ -67,7 +68,7 @@ class PaperModeTestHarness:
         print("-" * 80)
         try:
             orch = Orchestrator(self.config, run_date=self.test_date)
-            orch.skip_freshness = True  # Skip data freshness check for local testing
+            # Now with proper test data, run full validation including Phase 1
             result = orch.run()
             print(f"  Orchestrator completed")
             print(f"  Phases executed: {result.get('phases_executed', 0)}")
