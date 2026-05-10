@@ -88,6 +88,14 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 - ✅ Lightweight watermark system (in-memory tracking, no external dependency)
 - ✅ Terraform refinements (RDS parameter group, psycopg2 layer, loader variables)
 
+**Market Exposure & Econ Integration (May 10, 2026):**
+- ✅ Market exposure upgraded 9→11 factors: added HY credit spreads (7pt) + NAAIM professional positioning (3pt), rebalanced weights to 100
+- ✅ Economic regime overlay added: post-score penalty from yield curve inversion duration, HY spread trend, jobless claims — per Yardeni/Slok/Goldman methodology
+- ✅ Hard veto added: HY spread >8.5% → cap at 30% (systemic stress signal)
+- ✅ MarketsHealth page: 11-factor display with macro overlay panel showing stress score + contributing signals
+- ✅ EconomicDashboard: NAAIM Exposure Index panel with history chart + zone interpretation
+- ✅ /api/market/naaim endpoint added to Node.js lambda market routes
+
 ## Work in Progress / Next Phase
 
 **High Impact (ready to implement)**
