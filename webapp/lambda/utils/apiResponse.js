@@ -23,7 +23,7 @@ module.exports = {
     }
 
     // For objects, return as single object response
-    res.status(statusCode).json({
+    return res.status(statusCode).json({
       success: true,
       data: data || null,
       timestamp: new Date().toISOString()
@@ -44,13 +44,13 @@ module.exports = {
       response.details = details;
     }
 
-    res.status(statusCode).json(response);
+    return res.status(statusCode).json(response);
   },
 
   // Paginated list response - UNIFIED FORMAT
   // Returns: { success, items: [], pagination: {...}, timestamp }
   sendPaginated: (res, items, pagination, statusCode = 200) => {
-    res.status(statusCode).json({
+    return res.status(statusCode).json({
       success: true,
       items: items || [],
       pagination: {
@@ -68,7 +68,7 @@ module.exports = {
 
   // Not found response
   sendNotFound: (res, message = 'Resource not found') => {
-    res.status(404).json({
+    return res.status(404).json({
       success: false,
       error: message,
       timestamp: new Date().toISOString()
@@ -78,7 +78,7 @@ module.exports = {
   // Bad request response
   sendBadRequest: (res, error) => {
     const errorMsg = typeof error === 'string' ? error : (error?.message || 'Bad request');
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       error: errorMsg,
       timestamp: new Date().toISOString()
@@ -87,7 +87,7 @@ module.exports = {
 
   // Unauthorized response
   sendUnauthorized: (res, message = 'Unauthorized') => {
-    res.status(401).json({
+    return res.status(401).json({
       success: false,
       error: message,
       timestamp: new Date().toISOString()
