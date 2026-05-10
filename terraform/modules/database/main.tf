@@ -111,7 +111,7 @@ resource "aws_db_instance" "main" {
 
 resource "aws_db_parameter_group" "main" {
   name        = "${var.project_name}-pg14-params"
-  description = "PostgreSQL 14 parameter group for ${var.project_name}"
+  description = "PostgreSQL 14 parameter group for ${var.project_name} (TimescaleDB-enabled)"
   family      = "postgres14"
 
   parameter {
