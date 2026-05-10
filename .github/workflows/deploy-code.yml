@@ -237,7 +237,7 @@ jobs:
           cp init_database.py db-init-pkg/ || true
           # Dependencies - using binary packages for Lambda Python 3.11
           pip install -r lambda/db-init/requirements.txt \
-            -t db-init-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --python 311
+            -t db-init-pkg/ --platform manylinux2014_x86_64 --only-binary=:all:
           cd db-init-pkg
           zip -r ../db_init_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
