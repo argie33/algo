@@ -116,10 +116,17 @@ export default function TradingSignals() {
   // Enrich rows with gate / sqs info
   const enriched = useMemo(() => rows.map(r => {
     const g = gateMap.get(r.symbol);
+    // SQS: try signal data first, then gates data, then null
+    const sqs = sqsOf(r);
+    const gateSqs = g?.swing_score;
+    const finalSqs = sqs != null ? Number(sqs) : (gateSqs != null ? Number(gateSqs) : null);
+    // Age: compute days since signal, null if no date
+    const age = daysSince(r.signal_triggered_date || r.date);
+
     return {
       ...r,
-      _age: daysSince(r.signal_triggered_date || r.date),
-      _sqs: sqsOf(r) ?? (g?.swing_score ?? null),
+      _age: age,
+      _sqs: isNaN(finalSqs) ? null : finalSqs,
       _pass_gates: g?.pass_gates ?? null,
       _grade: g?.grade ?? null,
       _fail_reason: g?.fail_reason ?? null,
@@ -142,10 +149,12 @@ export default function TradingSignals() {
     }
     if (stageFilter !== 'all') r = r.filter(x => (x.market_stage || '').includes(stageFilter));
     if (sectorFilter.length > 0) r = r.filter(x => sectorFilter.includes(x.sector));
+    // Only filter by score range if user explicitly set it (not default 0-100)
     if (scoreRange[0] > 0 || scoreRange[1] < 100) {
       r = r.filter(x => {
         const s = x._sqs;
-        if (s == null) return false;
+        // If score is null/missing, include it (don't drop rows)
+        if (s == null) return true;
         return s >= scoreRange[0] && s <= scoreRange[1];
       });
     }
@@ -159,12 +168,27 @@ export default function TradingSignals() {
   const kpi = useMemo(() => {
     const buys = filtered.filter(r => (r.signal || '').toUpperCase() === 'BUY');
     const sells = filtered.filter(r => (r.signal || '').toUpperCase() === 'SELL');
-    const cross50 = filtered.filter(r => r.close != null && r.sma_50 != null
-      && r.close > r.sma_50 && r.close - r.sma_50 < r.sma_50 * 0.02).length;
-    const cross200 = filtered.filter(r => r.close != null && r.sma_200 != null
-      && r.close > r.sma_200 && r.close - r.sma_200 < r.sma_200 * 0.02).length;
-    const fresh = buys.filter(r => r._age != null && r._age <= 3).length;
-    const hq = buys.filter(r => r._sqs != null && r._sqs > 80).length;
+    // Crossing: close is near MA (within 2% above), indicating potential crossover setup
+    const cross50 = filtered.filter(r => {
+      const c = Number(r.close);
+      const ma = Number(r.sma_50);
+      return !isNaN(c) && !isNaN(ma) && c > ma && c < ma * 1.02;
+    }).length;
+    const cross200 = filtered.filter(r => {
+      const c = Number(r.close);
+      const ma = Number(r.sma_200);
+      return !isNaN(c) && !isNaN(ma) && c > ma && c < ma * 1.02;
+    }).length;
+    // Fresh: BUYs within last 3 days
+    const fresh = buys.filter(r => {
+      const age = Number(r._age);
+      return !isNaN(age) && age != null && age >= 0 && age <= 3;
+    }).length;
+    // High quality: BUYs with SQS > 80
+    const hq = buys.filter(r => {
+      const sqs = Number(r._sqs);
+      return !isNaN(sqs) && sqs != null && sqs > 80;
+    }).length;
     return {
       total: filtered.length,
       buys: buys.length,
@@ -359,7 +383,6 @@ function SliderField({ label, value, max, onChange, suffix }) {
 // ─── chart: signal heatmap ─────────────────────────────────────────────────
 function SignalHeatmap({ rows }) {
   const data = useMemo(() => rows
-    .filter(r => r._sqs != null && r._age != null && r.close != null)
     .map(r => ({
       symbol: r.symbol,
       sqs: Number(r._sqs),
@@ -368,7 +391,8 @@ function SignalHeatmap({ rows }) {
       sector: r.sector || '—',
       close: Number(r.close),
       sig: (r.signal || '').toUpperCase(),
-    })),
+    }))
+    .filter(r => !isNaN(r.sqs) && !isNaN(r.age) && !isNaN(r.close) && r.sqs != null && r.age != null),
   [rows]);
   const buys = data.filter(d => d.sig === 'BUY');
   const sells = data.filter(d => d.sig === 'SELL');
@@ -432,10 +456,12 @@ function SignalHeatmap({ rows }) {
 function SetupBreakdown({ rows }) {
   const data = useMemo(() => {
     const buckets = {};
-    rows.filter(r => (r.signal || '').toUpperCase() === 'BUY' && r.base_type).forEach(r => {
-      const k = r.base_type;
-      buckets[k] = (buckets[k] || 0) + 1;
-    });
+    rows
+      .filter(r => (r.signal || '').toUpperCase() === 'BUY' && r.base_type && String(r.base_type).trim())
+      .forEach(r => {
+        const k = String(r.base_type).trim();
+        buckets[k] = (buckets[k] || 0) + 1;
+      });
     return Object.entries(buckets)
       .map(([type, count]) => ({ type, count }))
       .sort((a, b) => b.count - a.count)
@@ -496,11 +522,17 @@ function RecentPerformance({ rows, timeframe }) {
     queryKey: ['signal-perf', symbols, timeframe],
     queryFn: async () => {
       if (!recentBuys.length) return [];
-      // Fetch in parallel, capped
+      // Fetch price history for recent buys, capped at 25 to avoid overload
       const promises = recentBuys.slice(0, 25).map(r =>
         api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`)
-           .then(res => ({ symbol: r.symbol, items: res.data?.data?.items || res.data?.items || [], entry: r }))
-           .catch(() => ({ symbol: r.symbol, items: [], entry: r }))
+           .then(res => {
+             const items = res?.data?.data?.items || res?.data?.items || [];
+             return { symbol: r.symbol, items: Array.isArray(items) ? items : [], entry: r };
+           })
+           .catch(err => {
+             console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
+             return { symbol: r.symbol, items: [], entry: r };
+           })
       );
       return Promise.all(promises);
     },
@@ -513,18 +545,21 @@ function RecentPerformance({ rows, timeframe }) {
     const r5 = [], r20 = [], wins20 = [];
     perfData.forEach(({ items, entry }) => {
       if (!items || items.length < 6) return;
-      // items returned newest-first
-      const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Sort oldest-first to look forward in time
+      const sorted = [...items].sort((a, b) => new Date(a.date) - new Date(b.date));
       const sigDate = new Date(entry.signal_triggered_date || entry.date).getTime();
-      // find the index of the signal day, then look forward
-      const idxSignal = sorted.findIndex(p => new Date(p.date).getTime() <= sigDate);
-      if (idxSignal < 0) return;
+      // Find the signal bar or first bar at/after signal date
+      const idxSignal = sorted.findIndex(p => new Date(p.date).getTime() >= sigDate);
+      if (idxSignal < 0 || idxSignal >= sorted.length - 1) return; // need future bars
       const entryPx = Number(sorted[idxSignal]?.close);
-      if (!entryPx) return;
-      const px5 = Number(sorted[Math.max(0, idxSignal - 5)]?.close);
-      const px20 = Number(sorted[Math.max(0, idxSignal - 20)]?.close);
-      if (px5 && idxSignal >= 5) r5.push(((px5 - entryPx) / entryPx) * 100);
-      if (px20 && idxSignal >= 20) {
+      if (!entryPx || isNaN(entryPx)) return;
+      // Look forward 5 and 20 bars
+      const px5Idx = Math.min(sorted.length - 1, idxSignal + 5);
+      const px20Idx = Math.min(sorted.length - 1, idxSignal + 20);
+      const px5 = Number(sorted[px5Idx]?.close);
+      const px20 = Number(sorted[px20Idx]?.close);
+      if (px5 && !isNaN(px5) && px5Idx > idxSignal) r5.push(((px5 - entryPx) / entryPx) * 100);
+      if (px20 && !isNaN(px20) && px20Idx > idxSignal) {
         const ret20 = ((px20 - entryPx) / entryPx) * 100;
         r20.push(ret20);
         wins20.push(ret20 > 0 ? 1 : 0);
@@ -588,8 +623,10 @@ function SqsHistogram({ rows }) {
     }));
     rows.filter(r => (r.signal || '').toUpperCase() === 'BUY' && r._sqs != null).forEach(r => {
       const v = Number(r._sqs);
-      const idx = Math.min(9, Math.max(0, Math.floor(v / 10)));
-      bins[idx].count += 1;
+      if (!isNaN(v)) {
+        const idx = Math.min(9, Math.max(0, Math.floor(v / 10)));
+        bins[idx].count += 1;
+      }
     });
     return bins;
   }, [rows]);
@@ -693,20 +730,20 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                       <span className={r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
                     </td>
                     <td className="num">{fmtMoney(r.stoplevel)}</td>
-                    <td className="num">{r.risk_reward_ratio == null ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
+                    <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
                     <td className="num">
-                      {r._sqs == null ? <span className="muted">—</span> : (
-                        <span className={r._sqs >= 80 ? 'up' : r._sqs >= 60 ? '' : 'muted'}>
+                      {r._sqs == null ? <span className="muted t-2xs">no score</span> : (
+                        <span className={Number(r._sqs) >= 80 ? 'up' : Number(r._sqs) >= 60 ? '' : 'muted'}>
                           {Number(r._sqs).toFixed(0)}
                         </span>
                       )}
                     </td>
                     <td className="num">
                       {rsi == null ? <span className="muted">—</span> :
-                        <span className={rsi > 70 ? 'down' : rsi < 30 ? 'up' : ''}>{rsi.toFixed(1)}</span>}
+                        <span className={rsi > 70 ? 'down' : rsi < 30 ? 'up' : ''}>{Number(rsi).toFixed(1)}</span>}
                     </td>
                     <td className="num">
-                      {r.volume_surge_pct == null ? '—' : (
+                      {r.volume_surge_pct == null || isNaN(Number(r.volume_surge_pct)) ? <span className="muted">—</span> : (
                         <span className={Number(r.volume_surge_pct) >= 0 ? 'up' : 'down'}>
                           {Number(r.volume_surge_pct) >= 0 ? '+' : ''}{Number(r.volume_surge_pct).toFixed(1)}%
                         </span>
@@ -805,21 +842,30 @@ function SignalDetail({ row, kind, onSymbolClick }) {
 
 // ─── inline sparkline ──────────────────────────────────────────────────────
 function PriceSparkline({ symbol }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['sparkline', symbol],
     queryFn: () =>
       api.get(`/api/prices/history/${symbol}?timeframe=daily&limit=60`)
-         .then(r => r.data?.data?.items || r.data?.items || []),
+         .then(r => {
+           const items = r?.data?.data?.items || r?.data?.items || [];
+           return Array.isArray(items) ? items : [];
+         })
+         .catch(err => {
+           console.warn(`Failed to load sparkline for ${symbol}:`, err);
+           return [];
+         }),
     staleTime: 300000,
   });
 
   if (isLoading) return <div className="muted t-xs">Loading chart…</div>;
-  if (!data || data.length < 2) return <div className="muted t-xs">No price history available.</div>;
+  if (error || !data || data.length < 2) return <div className="muted t-xs">No price history available.</div>;
 
   const series = [...data]
     .map(d => ({ date: String(d.date).slice(0, 10), close: Number(d.close) }))
-    .filter(d => !isNaN(d.close))
+    .filter(d => !isNaN(d.close) && d.close != null)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (series.length < 2) return <div className="muted t-xs">Insufficient data points.</div>;
 
   const first = series[0]?.close ?? 0;
   const last = series[series.length - 1]?.close ?? 0;
