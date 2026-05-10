@@ -147,7 +147,7 @@ variable "api_lambda_memory" {
 variable "api_lambda_timeout" {
   description = "Timeout for API Lambda function (seconds)"
   type        = number
-  default     = 30
+  default     = 60
   validation {
     condition     = var.api_lambda_timeout >= 1 && var.api_lambda_timeout <= 900
     error_message = "Timeout must be between 1 and 900 seconds"
