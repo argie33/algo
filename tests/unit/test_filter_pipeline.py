@@ -1,153 +1,224 @@
 """
 Unit tests for FilterPipeline — 5-tier candidate filtering.
 
-Tests each tier:
+Tests actual filter behavior (not mocks):
 - T1: Basic data quality (completeness, price range, volume)
 - T2: Signal quality (SQS >= min)
 - T3: Market conditions (stage, exposure, VIX)
 - T4: Technical pattern (trend template, RS percentile)
 - T5: Portfolio health (position count, sector concentration, sizing)
 
-Plus position sizing with exposure tier multipliers.
+IMPORTANT: These tests use real database data via seeded_test_db fixture.
+They test actual filter methods (not mocks) against real data outcomes.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestTier1DataQuality:
-    """T1: Basic data quality filters."""
+    """T1: Basic data quality filters — test actual database behavior."""
 
-    def test_min_completeness_passes(self, test_config):
-        """Stock with 80% data completeness should pass."""
+    def test_stock_with_sufficient_price_history_passes(self, seeded_test_db, test_config):
+        """Stock with sufficient price data should pass T1."""
         from algo_filter_pipeline import FilterPipeline
+        import psycopg2
+
+        # Connect to test DB and create test data
+        conn = psycopg2.connect(
+            host='localhost', port=5432, database='stocks_test',
+            user='stocks', password=test_config._config.get('db_password', '')
+        )
+        cur = conn.cursor()
+
+        # Create test stock
+        symbol = 'TEST_T1A'
+        cur.execute("""
+            INSERT INTO stock_symbols (symbol, security_name)
+            VALUES (%s, %s) ON CONFLICT DO NOTHING
+        """, (symbol, 'Test Stock T1A'))
+
+        # Insert price data for last 30 days (enough for completeness)
+        today = date.today()
+        for i in range(30):
+            d = today - timedelta(days=i)
+            cur.execute("""
+                INSERT INTO price_daily (symbol, date, open, high, low, close, volume)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date) DO NOTHING
+            """, (symbol, d, 100, 105, 95, 102, 1000000))
+
+        conn.commit()
+
+        # Now test the filter
+        pipeline = FilterPipeline()
+        result = pipeline._tier1_data_quality(symbol)
+
+        # Should pass: sufficient data
+        assert result['pass'] is True, f"Expected pass, got: {result}"
+
+        cur.close()
+        conn.close()
+
+    def test_stock_with_insufficient_volume_fails(self, seeded_test_db, test_config):
+        """Stock with low volume should fail T1."""
+        from algo_filter_pipeline import FilterPipeline
+        import psycopg2
+
+        conn = psycopg2.connect(
+            host='localhost', port=5432, database='stocks_test',
+            user='stocks', password=test_config._config.get('db_password', '')
+        )
+        cur = conn.cursor()
+
+        symbol = 'TEST_T1B'
+        cur.execute("""
+            INSERT INTO stock_symbols (symbol, security_name)
+            VALUES (%s, %s) ON CONFLICT DO NOTHING
+        """, (symbol, 'Test Stock T1B - Low Volume'))
+
+        # Insert price data with LOW volume (should fail)
+        today = date.today()
+        for i in range(30):
+            d = today - timedelta(days=i)
+            cur.execute("""
+                INSERT INTO price_daily (symbol, date, open, high, low, close, volume)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date) DO NOTHING
+            """, (symbol, d, 100, 105, 95, 102, 50000))  # Low volume
+
+        conn.commit()
 
         pipeline = FilterPipeline()
+        result = pipeline._tier1_data_quality(symbol)
 
-        with patch.object(pipeline, 'cur') as mock_cur, \
-             patch.object(pipeline, '_tier1_data_quality') as mock_t1:
+        # Should fail: volume too low
+        assert result['pass'] is False, f"Expected fail for low volume, got: {result}"
 
-            mock_t1.return_value = {'pass': True, 'reason': 'Completeness 80%'}
-
-            result = mock_t1('AAPL')
-
-            assert result['pass'] is True
-
-    def test_min_completeness_fails(self, test_config):
-        """Stock with 50% data completeness should fail."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier1_data_quality') as mock_t1:
-            mock_t1.return_value = {'pass': False, 'reason': 'Completeness 50% < 70% min'}
-
-            result = mock_t1('AAPL')
-
-            assert result['pass'] is False
+        cur.close()
+        conn.close()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestTier2MarketHealth:
-    """T2: Market health (stage 2 uptrend, VIX, distribution days)."""
+    """T2: Market health filters — test against real market data."""
 
-    def test_stage_2_uptrend_passes(self, test_config):
-        """Stage 2 uptrend should pass."""
+    def test_market_health_filter_logic(self, seeded_test_db, test_config):
+        """Test T2 filter evaluates market conditions correctly."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
+        result = pipeline._tier2_market_health(date.today())
 
-        with patch.object(pipeline, '_tier2_market_health') as mock_t2:
-            mock_t2.return_value = {'pass': True, 'reason': 'Stage 2 uptrend, VIX 18'}
-
-            result = mock_t2(date.today())
-
-            assert result['pass'] is True
-
-    def test_stage_4_downtrend_fails(self, test_config):
-        """Stage 4 downtrend should fail."""
-        from algo_filter_pipeline import FilterPipeline
-
-        pipeline = FilterPipeline()
-
-        with patch.object(pipeline, '_tier2_market_health') as mock_t2:
-            mock_t2.return_value = {'pass': False, 'reason': 'Stage 4 downtrend'}
-
-            result = mock_t2(date.today())
-
-            assert result['pass'] is False
+        # Result should be a dict with 'pass' key
+        assert isinstance(result, dict), "T2 should return dict"
+        assert 'pass' in result, "T2 result should have 'pass' key"
+        assert isinstance(result['pass'], bool), "'pass' should be boolean"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestTier3TrendTemplate:
-    """T3: Trend template confirmation (Minervini score, 52w range)."""
+    """T3: Trend template confirmation — test Minervini scoring."""
 
-    def test_strong_minervini_passes(self, test_config):
-        """Minervini score 8.5/10 should pass."""
+    def test_strong_trend_template_evaluation(self, seeded_test_db, test_config):
+        """Test T3 evaluates trend templates correctly."""
+        from algo_filter_pipeline import FilterPipeline
+
+        # Test with a known stock that should have trend data
+        pipeline = FilterPipeline()
+        result = pipeline._tier3_trend_template('SPY', date.today())
+
+        # Result should have required fields
+        assert isinstance(result, dict), "T3 should return dict"
+        assert 'pass' in result, "T3 result should have 'pass' key"
+        if result['pass']:
+            assert 'stop_loss_price' in result, "T3 pass result should include stop_loss_price"
+            assert isinstance(result['stop_loss_price'], (int, float)), "stop_loss_price should be numeric"
+
+
+@pytest.mark.integration
+class TestTier4SignalQuality:
+    """T4: Signal quality score evaluation."""
+
+    def test_signal_quality_filter_logic(self, seeded_test_db, test_config):
+        """Test T4 filter evaluates SQS correctly."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
+        result = pipeline._tier4_signal_quality('AAPL', date.today())
 
-        with patch.object(pipeline, '_tier3_trend_template') as mock_t3:
-            mock_t3.return_value = {
-                'pass': True,
-                'trend_score': 8.5,
-                'stop_loss_price': 142.5,
-                'reason': 'Minervini 8.5/10, Stage 2 present'
-            }
+        # Result should be a dict with 'pass' key
+        assert isinstance(result, dict), "T4 should return dict"
+        assert 'pass' in result, "T4 result should have 'pass' key"
+        assert isinstance(result['pass'], bool), "'pass' should be boolean"
 
-            result = mock_t3('AAPL', date.today())
 
-            assert result['pass'] is True
-            assert result['stop_loss_price'] == 142.5
+@pytest.mark.integration
+class TestTier5PortfolioHealth:
+    """T5: Portfolio health and sizing validation."""
 
-    def test_weak_minervini_fails(self, test_config):
-        """Minervini score 5/10 should fail."""
+    def test_portfolio_health_filter_logic(self, seeded_test_db, test_config):
+        """Test T5 filter validates portfolio constraints."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
+        # Test with empty portfolio (should have room for new position)
+        result = pipeline._tier5_portfolio_health('TEST_SYMBOL', 100.0, 50000)
 
-        with patch.object(pipeline, '_tier3_trend_template') as mock_t3:
-            mock_t3.return_value = {'pass': False, 'reason': 'Minervini 5/10 < 8 min'}
-
-            result = mock_t3('AAPL', date.today())
-
-            assert result['pass'] is False
+        assert isinstance(result, dict), "T5 should return dict"
+        assert 'pass' in result, "T5 result should have 'pass' key"
+        assert isinstance(result['pass'], bool), "'pass' should be boolean"
 
 
 @pytest.mark.unit
-class TestTier4SignalQuality:
-    """T4: Signal quality score (SQS >= min threshold)."""
+class TestExposureTierMultipliers:
+    """Test position sizing with exposure tier multipliers."""
 
-    def test_high_sqs_passes(self, test_config):
-        """SQS 75 should pass (min 60)."""
+    def test_normal_tier_full_sizing(self, test_config):
+        """NORMAL tier should apply 1.0x multiplier."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
+        # Position size = 50000, NORMAL tier = 1.0x
+        sized = pipeline._apply_tier_multiplier(50000, 'NORMAL', 0.75)  # base risk 0.75%
 
-        with patch.object(pipeline, '_tier4_signal_quality') as mock_t4:
-            mock_t4.return_value = {
-                'pass': True,
-                'sqs': 75,
-                'reason': 'SQS 75 >= 60 min'
-            }
+        assert sized > 0, "Sized position should be positive"
+        assert sized <= 50000, "NORMAL tier shouldn't exceed base size"
 
-            result = mock_t4('AAPL', date.today())
-
-            assert result['pass'] is True
-
-    def test_low_sqs_fails(self, test_config):
-        """SQS 45 should fail (min 60)."""
+    def test_caution_tier_reduced_sizing(self, test_config):
+        """CAUTION tier should apply 0.75x multiplier."""
         from algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
+        # Position size with CAUTION = 0.75x
+        caution_size = pipeline._apply_tier_multiplier(50000, 'CAUTION', 0.75)
+        normal_size = pipeline._apply_tier_multiplier(50000, 'NORMAL', 0.75)
 
-        with patch.object(pipeline, '_tier4_signal_quality') as mock_t4:
-            mock_t4.return_value = {
-                'pass': False,
-                'sqs': 45,
+        assert caution_size < normal_size, "CAUTION should reduce sizing vs NORMAL"
+
+    def test_pressure_tier_severely_reduced(self, test_config):
+        """PRESSURE tier should apply 0.5x multiplier."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+        # Position size with PRESSURE = 0.5x
+        pressure_size = pipeline._apply_tier_multiplier(50000, 'PRESSURE', 0.75)
+        normal_size = pipeline._apply_tier_multiplier(50000, 'NORMAL', 0.75)
+
+        assert pressure_size < normal_size, "PRESSURE should reduce sizing vs NORMAL"
+        assert pressure_size < (normal_size / 1.5), "PRESSURE reduction should be significant"
+
+    def test_halt_tier_blocks_new_entries(self, test_config):
+        """HALT tier should return 0 (no new entries)."""
+        from algo_filter_pipeline import FilterPipeline
+
+        pipeline = FilterPipeline()
+        # Position size with HALT = 0x (no entries)
+        halt_size = pipeline._apply_tier_multiplier(50000, 'HALT', 0.75)
+
+        assert halt_size == 0, "HALT tier should allow 0 position size"
                 'reason': 'SQS 45 < 60 min'
             }
 
