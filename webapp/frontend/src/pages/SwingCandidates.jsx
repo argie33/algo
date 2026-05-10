@@ -16,6 +16,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { DataStateManager } from '../components/DataStateManager';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, Inbox, CheckCircle, XCircle,
@@ -66,13 +67,13 @@ export default function SwingCandidates() {
   const [minScore, setMinScore] = useState(0);
   const [selectedSym, setSelectedSym] = useState(null);
 
-  const { data: items, loading: isLoading, refetch, isFetching } = useApiQuery(
+  const { data: items, loading: isLoading, error: itemsError, refetch, isFetching } = useApiQuery(
     ['swing-candidates', minScore],
     () => api.get(`/api/algo/swing-scores?limit=500&min_score=${minScore}`),
     { refetchInterval: 60000 }
   );
 
-  const { data: history } = useApiQuery(
+  const { data: history, error: historyError } = useApiQuery(
     ['swing-history-30'],
     () => api.get('/api/algo/swing-scores-history?days=30'),
     { refetchInterval: 300000, retry: 1 }
