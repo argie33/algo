@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -q pytest pytest-cov pytest-mock
-          pip install -q psycopg2-binary python-dotenv
+          pip install -q psycopg2-binary python-dotenv requests boto3
 
       - name: Run edge case tests
         run: pytest tests/edge_cases/ -v --tb=short
