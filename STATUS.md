@@ -16,9 +16,9 @@
 **Phase 2 — Signal Quality Improvements (5 complete)**
 - ✅ Compute real Mansfield RS (60-day stock vs SPY return ratio, not just RSI)
 - ✅ Added minimum 5-day re-entry cooldown after stop-out (prevents whipsaw on same ticker)
-- ✅ RS-line new high requirement (Minervini rule — stock RS within 5% of 52-week high)
+- ✅ RS-line strength requirement (stock RS within 5% of 52-week high = relative strength consolidation)
 - ✅ Volume decay warning (detects false breakouts from >15% volume decline)
-- ✅ Base type detection (classifies Flat Base/VCP/Consolidation/Pullback with Minervini rules)
+- ✅ Base type detection (classifies Flat Base/VCP/Consolidation/Pullback with technical rules)
 
 **Phase 3 — Concentration & Market Context (4 complete)**
 - ✅ Sector concentration circuit breaker (halt if sector down 12%+ with 2+ positions)
@@ -109,10 +109,11 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 
 **Market Exposure & Econ Integration (May 10, 2026):**
 - ✅ Market exposure upgraded 9→11 factors: added HY credit spreads (7pt) + NAAIM professional positioning (3pt), rebalanced weights to 100
-- ✅ Economic regime overlay added: post-score penalty from yield curve inversion duration, HY spread trend, jobless claims — per Yardeni/Slok/Goldman methodology
+- ✅ Economic regime overlay added: post-score penalty from yield curve inversion duration, HY spread trend, jobless claims — per institutional macro research
 - ✅ Hard veto added: HY spread >8.5% → cap at 30% (systemic stress signal)
 - ✅ MarketsHealth page: 11-factor display with macro overlay panel showing stress score + contributing signals
 - ✅ EconomicDashboard: NAAIM Exposure Index panel with history chart + zone interpretation
+- ✅ Business Cycle tab: EconomicRegimeClock (4-quadrant growth/inflation phase) + GrowthLaborBarometer (expansion/contraction signal)
 - ✅ /api/market/naaim endpoint added to Node.js lambda market routes
 
 ## Work in Progress / Next Phase
@@ -249,26 +250,39 @@ psql -h localhost -U stocks -d stocks \
 - Code cleaned up ✅
 - Ready to deploy ✅
 
-## Next Steps — Ready for Production Deployment ✅
-**Code Validation Complete (2026-05-10):**
-- ✅ Python syntax: All 6 algo files valid
-- ✅ Frontend build: Clean, no errors, all 14517 modules transformed
-- ✅ JavaScript fixes: Verified in MarketsHealth.jsx (3 response handling fixes)
-- ✅ Git status: All 18 improvements committed, working tree clean
+## Deployment Complete ✅ (2026-05-10 13:16 UTC)
 
-**Deployment (1-2 hours total):**
-1. **Deploy to AWS** — Push comprehensive tuning + frontend fixes
-   ```bash
-   gh workflow run deploy-all-infrastructure.yml --repo argie33/algo
-   ```
+**All 18 Improvements Deployed to Production (Run #25629674999):**
+- ✅ Terraform Apply (infrastructure + RDS + Lambda + CloudFront)
+- ✅ Deploy Algo Lambda (with all 18 improvements: risk fixes, signal quality, concentration, governance)
+- ✅ Deploy API Lambda (Node.js backend, market/economic APIs)
+- ✅ Build & Deploy Frontend (with 3 JavaScript fixes, CloudFront invalidated)
+- ✅ Build & Push Loader Image (ECS container for data ingestion)
 
-2. **Post-deployment data load** (30 mins) — Populates fresh market/fundamental data
+**System Live and Operational:**
+- API Gateway: https://kx4kprv8ph.execute-api.us-east-1.amazonaws.com
+- Frontend: https://d27wrotae8oi8s.cloudfront.net
+- Algo Scheduler: EventBridge cron(0 22 ? * MON-FRI) — 5:30pm ET weekdays
+- Database: PostgreSQL 14 ready, RDS operational
+
+## Next Steps — Paper Trading Validation
+
+**1. Load Fresh Data** (30 mins) — Populates market/fundamental data
    ```bash
    python3 loadstockscores.py --parallelism 8
    python3 loadfactormetrics.py --parallelism 8
    ```
 
-3. **Paper trading validation** (1+ week) — Run live with real Alpaca connection before greenlight
+**2. Monitor First Live Trade** (optional, recommended)
+   ```bash
+   aws logs tail /aws/lambda/algo-orchestrator --follow
+   ```
+
+**3. Paper Trading Window** (1-2 weeks) — Verify all 18 improvements working correctly
+   - Drawdown halt at 15% vs old 20%?
+   - Win rate circuit breaker firing on low streaks?
+   - Correlation checks preventing over-concentration?
+   - Everything performing as designed → Ready for greenlight
 
 ## If Something Looks Wrong
 1. **Data looks wrong?** → Check that loaders ran (see next steps above)
