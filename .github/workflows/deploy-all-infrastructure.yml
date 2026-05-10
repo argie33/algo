@@ -253,7 +253,7 @@ jobs:
           mkdir -p lambda-pkg
           cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
           cp algo_*.py lambda-pkg/ 2>/dev/null || true
-          for f in credential_manager.py db_helper.py signal_utils.py data_source_router.py \
+          for f in credential_manager.py credential_validator.py db_helper.py signal_utils.py data_source_router.py \
                    optimal_loader.py bloom_dedup.py trade_status.py \
                    loader_safety.py; do
             [ -f "$f" ] && cp "$f" lambda-pkg/ || true
