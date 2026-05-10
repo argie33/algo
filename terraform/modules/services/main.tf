@@ -403,7 +403,7 @@ data "archive_file" "algo_function_local" {
 resource "aws_lambda_function" "algo" {
   function_name    = local.algo_lambda_name
   role             = var.algo_lambda_role_arn
-  handler          = "lambda_function.handler"
+  handler          = "lambda_function.lambda_handler"
   runtime          = "python3.11"
   timeout          = var.algo_lambda_timeout
   memory_size      = var.algo_lambda_memory
