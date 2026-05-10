@@ -81,3 +81,26 @@ output "eventbridge_scheduler_role_name" {
   description = "Name of EventBridge Scheduler execution role"
   value       = aws_iam_role.eventbridge_scheduler.name
 }
+
+# GitHub Deployer User
+output "github_deployer_user_name" {
+  description = "Name of GitHub Actions deployer IAM user"
+  value       = aws_iam_user.github_deployer.name
+}
+
+output "github_deployer_user_arn" {
+  description = "ARN of GitHub Actions deployer IAM user"
+  value       = aws_iam_user.github_deployer.arn
+}
+
+output "github_deployer_access_key_id" {
+  description = "Access key ID for GitHub Actions deployer"
+  value       = aws_iam_access_key.github_deployer.id
+  sensitive   = true
+}
+
+output "github_deployer_secret_access_key" {
+  description = "Secret access key for GitHub Actions deployer (keep secure!)"
+  value       = aws_iam_access_key.github_deployer.secret
+  sensitive   = true
+}

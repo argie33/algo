@@ -1112,3 +1112,90 @@ data "aws_iam_policy_document" "eventbridge_scheduler" {
     ]
   }
 }
+
+# ============================================================
+# 8. GitHub Actions Deployer IAM User
+# ============================================================
+# Minimal permissions for GitHub Actions to deploy code only
+# (not infrastructure changes - those use Terraform via OIDC role)
+
+resource "aws_iam_user" "github_deployer" {
+  name  = "${var.project_name}-github-deployer"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-github-deployer"
+  })
+}
+
+resource "aws_iam_user_policy" "github_deployer" {
+  name   = "${var.project_name}-github-deployer-policy"
+  user   = aws_iam_user.github_deployer.name
+  policy = data.aws_iam_policy_document.github_deployer.json
+}
+
+data "aws_iam_policy_document" "github_deployer" {
+  # Lambda function code updates (deploy compiled Lambda functions)
+  statement {
+    sid    = "LambdaUpdateCode"
+    effect = "Allow"
+
+    actions = [
+      "lambda:UpdateFunctionCode",
+      "lambda:GetFunction",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:CreateFunction"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # S3 for frontend deployment
+  statement {
+    sid    = "S3FrontendDeploy"
+    effect = "Allow"
+
+    actions = [
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetObject"
+    ]
+
+    resources = [
+      "arn:aws:s3:::${var.project_name}-frontend-*",
+      "arn:aws:s3:::${var.project_name}-frontend-*/*"
+    ]
+  }
+
+  # CloudFront invalidation (clear CDN cache after frontend deploy)
+  statement {
+    sid    = "CloudFrontInvalidate"
+    effect = "Allow"
+
+    actions = [
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Read-only Lambda introspection
+  statement {
+    sid    = "LambdaRead"
+    effect = "Allow"
+
+    actions = [
+      "lambda:ListFunctions"
+    ]
+
+    resources = ["*"]
+  }
+}
+
+# Access key for GitHub Actions deployer user
+resource "aws_iam_access_key" "github_deployer" {
+  user = aws_iam_user.github_deployer.name
+}
