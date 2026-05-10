@@ -116,9 +116,24 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 - ✅ Business Cycle tab: EconomicRegimeClock (4-quadrant growth/inflation phase) + GrowthLaborBarometer (expansion/contraction signal)
 - ✅ /api/market/naaim endpoint added to Node.js lambda market routes
 
+## Comprehensive Macro Positioning Dashboard (May 10, 2026) ✅
+
+**All 4 High-Impact Institutional Indicators Verified:**
+1. ✅ **LEI 6-Month Trend** (Economic Dashboard > Growth tab) — Leading Economic Index composite score from UNRATE, HOUST, ICSA, SP500 with historical trend
+2. ✅ **VIX Term Structure** (Markets Health page) — VIX9D/VIX/VIX3M/VIX6M curve showing backwardation (stress) vs contango (normal) · Already implemented as VolTermStructureCard
+3. ✅ **Sector Rotation Heat Map** (Markets Health page) — RS-Rank vs 4-week momentum scatter showing Leading/Improving/Weakening/Lagging sectors · Already implemented as SectorRotationMap  
+4. ⚠️ **Fed Funds Futures Curve** — Currently showing FEDFUNDS rate only; full curve would need CME FedWatch data (external API or manual entry)
+
+**Data Integration Status:**
+- All components backed by real data from economic_data + sector_ranking tables
+- No new data loaders needed — existing FRED/market data sufficient
+- Full frontend-to-backend wiring complete
+- All 11-factor market exposure + macro overlay + regime classification operational
+
 ## Work in Progress / Next Phase
 
 **High Impact (ready to implement)**
+- [ ] **Fed Funds Futures Expectation Panel** — If CME FedWatch data added, create panel showing market's expected rate path
 - [ ] **Week 11: Incident Response Culture** — Post-mortem process, blameless investigation, continuous learning
 - [ ] **Week 2: API Integration Testing** — Test 30+ endpoints, data load → algo → trade flow
 - [ ] TimescaleDB Migration — enable on RDS for 10-100x query speedup on time-series data
