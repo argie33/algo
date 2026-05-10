@@ -8,6 +8,7 @@ credential_manager = get_credential_manager()
 
 import os
 import sys
+import json
 from datetime import datetime, date as _date
 from pathlib import Path
 
@@ -37,7 +38,8 @@ class PaperModeTestHarness:
     def __init__(self):
         self.config = get_config()
         self.conn = None
-        self.test_date = _date.today()
+        # Use the latest trading date in our price data (2026-05-09 is Saturday, use 2026-05-08)
+        self.test_date = _date(2026, 5, 8)
 
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
@@ -64,7 +66,8 @@ class PaperModeTestHarness:
         print("PHASE 2: RUN ORCHESTRATOR")
         print("-" * 80)
         try:
-            orch = Orchestrator(self.config)
+            orch = Orchestrator(self.config, run_date=self.test_date)
+            orch.skip_freshness = True  # Skip data freshness check for local testing
             result = orch.run()
             print(f"  Orchestrator completed")
             print(f"  Phases executed: {result.get('phases_executed', 0)}")
