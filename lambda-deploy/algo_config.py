@@ -54,13 +54,15 @@ except Exception as e:
     print(f"ERROR: Environment validation failed: {e}")
     raise
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""
@@ -135,7 +137,7 @@ class AlgoConfig:
             print("Warning: psycopg2 not available, using defaults")
             return
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             cur.execute("SELECT key, value, value_type FROM algo_config")
@@ -216,7 +218,7 @@ class AlgoConfig:
             # Validate before storing
             self._validate_value(key, str(value), value_type)
 
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             cur.execute("""
@@ -247,7 +249,7 @@ class AlgoConfig:
     def initialize_defaults(self):
         """Initialize all default configs in database."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             for key, (value, dtype, desc) in self.DEFAULTS.items():

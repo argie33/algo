@@ -41,20 +41,22 @@ if env_file.exists():
 sys.path.insert(0, str(Path(__file__).parent))
 from algo_signals import SignalComputer
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 def backfill(days_back, symbol_filter=None, batch_size=100):
     conn = None
     cur = None
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**_get_db_config())
         cur = conn.cursor()
 
         # Get trading days from price_daily

@@ -26,13 +26,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 def test_earnings_blackout():
@@ -48,7 +50,7 @@ def test_earnings_blackout():
     eb = EarningsBlackout(config)
 
     # Fetch upcoming earnings
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**_get_db_config())
     cur = conn.cursor()
     cur.execute("""
         SELECT DISTINCT symbol, earnings_date
@@ -109,7 +111,7 @@ def test_liquidity_checks():
     for symbol in test_symbols:
         try:
             # Get current price for entry
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",

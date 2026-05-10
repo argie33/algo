@@ -62,13 +62,15 @@ if env_file.exists():
 sys.path.insert(0, str(Path(__file__).parent))
 from algo_swing_score import SwingTraderScore  # noqa: E402
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 def _get_universe(cur, symbol_filter=None, min_completeness=70):
@@ -136,7 +138,7 @@ def run(eval_date=None, symbol_filter=None, min_completeness=70, batch_size=200,
     conn = None
     cur = None
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**_get_db_config())
         cur = conn.cursor()
 
         # Make sure most recent trend_template_data <= eval_date is reasonably fresh

@@ -25,13 +25,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class SafeguardAudit:
@@ -44,7 +46,7 @@ class SafeguardAudit:
     def _ensure_tables_exist(self) -> None:
         """Create audit tables if they don't exist."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Safeguard decisions log
@@ -103,7 +105,7 @@ class SafeguardAudit:
                      entry_price: float = None, magnitude: float = None) -> bool:
         """Log a safeguard decision (ALLOW or BLOCK)."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             cur.execute("""
@@ -135,7 +137,7 @@ class SafeguardAudit:
                         days: int = 30, decision: str = None) -> List[Dict[str, Any]]:
         """Retrieve audit trail for analysis."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             query = """
@@ -187,7 +189,7 @@ class SafeguardAudit:
             eval_date = date.today()
 
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Get unique safeguards from audit log
@@ -244,7 +246,7 @@ class SafeguardAudit:
     def get_performance_report(self, safeguard: str = None, days: int = 30) -> Dict[str, Any]:
         """Generate performance report for safeguards."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             query = """

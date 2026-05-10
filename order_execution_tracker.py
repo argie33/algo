@@ -34,13 +34,15 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class OrderExecutionTracker:
@@ -54,7 +56,7 @@ class OrderExecutionTracker:
     def connect(self):
         """Connect to database."""
         if not self.conn:
-            self.conn = psycopg2.connect(**DB_CONFIG)
+            self.conn = psycopg2.connect(**_get_db_config())
             self.cur = self.conn.cursor()
 
     def disconnect(self):

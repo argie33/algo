@@ -25,13 +25,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 def check_migration_status(conn):
@@ -195,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('--cleanup', action='store_true', help='Drop old column')
     args = parser.parse_args()
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**_get_db_config())
 
     try:
         if args.check:

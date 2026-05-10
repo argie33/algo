@@ -25,13 +25,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class LiquidityChecks:
@@ -64,7 +66,7 @@ class LiquidityChecks:
     def _check_volume(self, symbol: str) -> Tuple[bool, str]:
         """Check minimum daily volume."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """SELECT avg_volume FROM price_daily
@@ -90,7 +92,7 @@ class LiquidityChecks:
     def _check_spread(self, symbol: str, entry_price: float) -> Tuple[bool, str]:
         """Check bid-ask spread."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """SELECT bid, ask FROM price_daily
@@ -120,7 +122,7 @@ class LiquidityChecks:
     def _check_market_cap(self, symbol: str) -> Tuple[bool, str]:
         """Check minimum market cap."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """SELECT market_cap FROM company_profile
@@ -146,7 +148,7 @@ class LiquidityChecks:
     def _check_float(self, symbol: str) -> Tuple[bool, str]:
         """Check minimum shares outstanding (float)."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """SELECT shares_outstanding FROM company_profile
@@ -172,7 +174,7 @@ class LiquidityChecks:
     def _check_short_interest(self, symbol: str) -> Tuple[bool, str]:
         """Check maximum short interest."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
                 """SELECT short_interest FROM company_profile

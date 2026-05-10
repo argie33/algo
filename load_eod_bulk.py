@@ -45,13 +45,15 @@ logging.basicConfig(
 )
 log = logging.getLogger("eod_bulk")
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", "5432")),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 def get_universe(cur) -> List[str]:
@@ -182,7 +184,7 @@ def run(symbol_filter=None, days=10, batch_size=80, sleep_between=1.0):
     conn = None
     cur = None
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**_get_db_config())
         cur = conn.cursor()
 
         if symbol_filter:

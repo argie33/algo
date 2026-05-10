@@ -27,13 +27,15 @@ if env_file.exists():
 
 logger = logging.getLogger(__name__)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class AlertLevel(Enum):
@@ -107,7 +109,7 @@ class SafeguardAlert:
     def _send_to_database(self, alert: Dict[str, Any]) -> None:
         """Persist alert to database for audit trail."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Create table if not exists
@@ -284,7 +286,7 @@ Details:
     def get_recent_alerts(self, hours: int = 24, level: AlertLevel = None) -> List[Dict[str, Any]]:
         """Retrieve recent alerts from database."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             query = """

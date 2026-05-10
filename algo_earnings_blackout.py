@@ -22,13 +22,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class EarningsBlackout:
@@ -42,7 +44,7 @@ class EarningsBlackout:
     def run(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
         """Check if eval_date is in earnings blackout window. Returns dict with 'pass' key."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Check if earnings exists within the blackout window
@@ -82,7 +84,7 @@ class EarningsBlackout:
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             cur.execute(

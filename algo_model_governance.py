@@ -25,13 +25,15 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-DB_CONFIG = {
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
     "password": credential_manager.get_db_credentials()["password"],
     "database": os.getenv("DB_NAME", "stocks"),
-}
+    }
 
 
 class ModelRegistry:
@@ -43,7 +45,7 @@ class ModelRegistry:
 
     def connect(self):
         """Connect to database."""
-        self.conn = psycopg2.connect(**DB_CONFIG)
+        self.conn = psycopg2.connect(**_get_db_config())
         self.cur = self.conn.cursor()
 
     def disconnect(self):
@@ -179,7 +181,7 @@ class ConfigAuditLog:
 
     def connect(self):
         """Connect to database."""
-        self.conn = psycopg2.connect(**DB_CONFIG)
+        self.conn = psycopg2.connect(**_get_db_config())
         self.cur = self.conn.cursor()
 
     def disconnect(self):
@@ -248,7 +250,7 @@ class ChampionChallengerTest:
 
     def connect(self):
         """Connect to database."""
-        self.conn = psycopg2.connect(**DB_CONFIG)
+        self.conn = psycopg2.connect(**_get_db_config())
         self.cur = self.conn.cursor()
 
     def disconnect(self):
@@ -360,7 +362,7 @@ class InformationCoefficient:
         Returns:
             Dict with ic_current, ic_previous, ic_decay_rate
         """
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**_get_db_config())
         cur = conn.cursor()
 
         try:
