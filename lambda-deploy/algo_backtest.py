@@ -1,7 +1,4 @@
-from credential_manager import get_credential_manager
-credential_manager = get_credential_manager()
-
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Walk-Forward Backtester
 
@@ -25,6 +22,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date
 from collections import defaultdict
+
+from credential_manager import get_credential_manager
+
+credential_manager = get_credential_manager()
 
 env_file = Path(__file__).parent / ".env.local"
 if env_file.exists():

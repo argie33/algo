@@ -125,7 +125,7 @@ class CredentialManager:
             log.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
             return None
 
-    def get_db_credentials(self) -> Dict[str, str]:
+    def get_db_credentials(self) -> Dict[str, Any]:
         """Get database connection credentials as a dict."""
         return {
             'host': os.getenv('DB_HOST', 'localhost'),
