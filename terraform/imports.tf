@@ -21,10 +21,12 @@ import {
 }
 
 # Compute
-import {
-  to = module.compute.aws_ecr_repository.main
-  id = "algo-registry"
-}
+# ECR repository will be created by Terraform (not imported)
+# Uncomment below if repository already exists and needs to be imported
+# import {
+#   to = module.compute.aws_ecr_repository.main
+#   id = "algo-registry"
+# }
 
 import {
   to = module.compute.aws_cloudwatch_log_group.ecs
