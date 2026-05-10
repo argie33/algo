@@ -16,7 +16,6 @@
 
 import React, { useMemo, useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { DataStateManager } from '../components/DataStateManager';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, Inbox, CheckCircle, XCircle,
@@ -117,6 +116,43 @@ export default function SwingCandidates() {
     if (!selectedSym || !itemsList) return null;
     return itemsList.find(i => i.symbol === selectedSym) || null;
   }, [selectedSym, itemsList]);
+
+  // Error boundary: show error if main data fails
+  if (itemsError) {
+    return (
+      <div className="main-content">
+        <div className="page-head"><div><div className="page-head-title">Swing Candidates</div></div></div>
+        <div className="alert alert-danger" style={{ margin: 'var(--space-4)' }}>
+          <div className="strong">Failed to load candidates</div>
+          <div className="t-xs muted" style={{ marginTop: 4 }}>{itemsError}</div>
+          <button onClick={() => refetch()} className="btn btn-outline btn-xs" style={{ marginTop: 'var(--space-2)' }}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="main-content">
+        <div className="page-head"><div><div className="page-head-title">Swing Candidates</div><div className="page-head-sub">Loading...</div></div></div>
+        <div style={{ padding: 'var(--space-4)', textAlign: 'center' }}><div className="t-sm muted">Loading swing candidates...</div></div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!itemsList.length) {
+    return (
+      <div className="main-content">
+        <div className="page-head"><div><div className="page-head-title">Swing Candidates</div><div className="page-head-sub">No candidates available</div></div></div>
+        <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Inbox size={40} style={{ margin: '0 auto var(--space-2)', opacity: 0.5 }} />
+          <div className="t-sm">No swing candidates available</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="main-content">
