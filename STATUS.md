@@ -35,19 +35,29 @@
 
 ---
 
-## Deployment Status ✅
-All infrastructure operational. Resolved 5 critical Terraform blockers:
+## Deployment Status — May 2026 🔧
+Infrastructure operational. Working through Lambda configuration fixes (2026-05-10):
+
+**Recent Lambda Configuration Fixes:**
+- 🔧 API Lambda handler misconfiguration: was set to "lambda_function.lambda_handler" with runtime Python3.11, but deployment code is Node.js (webapp/lambda/index.js) — updating to handler="index.handler" with nodejs20.x runtime
+- 🔧 Algo Lambda handler naming mismatch: was "lambda_function.handler" but actual function is "lambda_handler" — corrected to "lambda_function.lambda_handler"
+- 🔧 API Lambda stub file: was creating lambda_function.py but should create index.js to match Node.js handler
+
+**Resolved Earlier (2026-05-08-09):**
 - ✅ Storage bucket variables (added to root module)
 - ✅ RDS storage configuration (gp2 for <400GB allocation)
 - ✅ Parameter group family (postgres14 match)
 - ✅ Lambda environment variables (removed reserved AWS_REGION)
 - ✅ Lambda VPC IAM permissions (removed restrictive conditions)
+- ✅ ECR repository naming (build-push-ecr.yml)
+- ✅ Credential manager imports (missing "Any" type)
+- ✅ loader_metrics.py syntax error (imports indented in function body)
 
 **Stack Status:** 145 resources deployed
 - VPC & Networking: ✅ Complete
 - RDS PostgreSQL: ✅ Running (14.12)
-- Lambda API: ✅ Running (stocks-api-dev)
-- Lambda Algo: ✅ Running (stocks-algo-dev)
+- Lambda API: 🔧 Updating configuration (nodejs20.x runtime, index.handler)
+- Lambda Algo: ✅ Fixed handler naming (stocks-algo-dev)
 - CloudFront CDN: ✅ Operational
 - Cognito Auth: ✅ Configured
 - EventBridge Scheduler: ✅ Active
