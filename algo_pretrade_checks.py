@@ -21,7 +21,7 @@ import psycopg2
 import os
 import requests
 from datetime import datetime, timedelta
-from typing import Tuple, Optional
+from typing import Any, Tuple, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 

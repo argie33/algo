@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 from dotenv import load_dotenv
 
 from algo_alerts import AlertManager
