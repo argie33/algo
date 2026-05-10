@@ -142,7 +142,7 @@ class CredentialManager:
             'secret': self.get_password('alpaca/secret', default=os.getenv('APCA_API_SECRET_KEY')),
         }
 
-    def get_smtp_credentials(self) -> Optional[Dict[str, str]]:
+    def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:
         """Get SMTP credentials. Returns None if not configured."""
         password = self.get_password('smtp/password', default=os.getenv('ALERT_SMTP_PASSWORD'))
         if not password:
