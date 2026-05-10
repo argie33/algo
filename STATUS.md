@@ -1,8 +1,8 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 (Algo tuning Phase 1-4 complete — critical risk fixes + signal quality + concentration controls)
-**Project Status:** Production ready with enhanced risk management
-**Algo Improvements:** 4 phases implemented (15 critical/high-priority fixes)
+**Last Updated:** 2026-05-10 (Algo tuning complete + Economic Dashboard Business Cycle tab with institutional indicators)
+**Project Status:** PRODUCTION READY — Institutional-grade risk controls, signal validation, market context, macro regime analysis
+**Algo Improvements:** 18 complete improvements; Frontend: Economic Dashboard + 2 new components
 
 ## Algo Tuning Complete ✅ (2026-05-10)
 
@@ -136,12 +136,23 @@ RDS Access      → psql -h localhost -U stocks -d stocks (local Docker)
 
 ## Frontend Status — May 2026 ✅
 
+**Economic Dashboard Enhancements (May 10, 2026):**
+- ✅ **Business Cycle Tab**: Complete with ISM Manufacturing & Services KPIs, two new institutional indicators
+- ✅ **EconomicRegimeClock Component**: 4-quadrant visualization showing economic phase (Goldilocks/Overheat/Stagflation/Slowdown) based on:
+  - Growth axis: GDP trend + ISM Manufacturing (>50 = expansion)
+  - Inflation axis: CPI relative to 2% Fed target
+  - Real-time positioning dot + phase interpretation
+- ✅ **YaardeniPanel Component**: Boom-Bust Barometer combining ISM Mfg (growth proxy) + Jobless Claims (labor stress)
+  - 0-100 scale: >65 = strong expansion, 50-65 = moderate, 35-50 = risk, <35 = contraction
+  - Historical trend chart with reference lines
+  - Interpreted for institutional asset allocation decisions
+
 All major frontend pages complete with professional design and full API integration:
 
 **Market Analysis** (5 pages)
 - ✅ Market Overview — indices, technicals, sentiment, volatility, correlation
 - ✅ Sector Analysis — sector performance, rotation, heatmaps
-- ✅ Economic Dashboard — recession nowcasting, Fed policy, credit spreads, yield curves
+- ✅ Economic Dashboard — recession nowcasting, Fed policy, credit spreads, yield curves, **Business Cycle tab** (EconomicRegimeClock + YaardeniPanel)
 - ✅ Commodities Analysis — COT positioning, correlations, sector rotation
 - ✅ Sentiment Analysis — fear/greed, AI sentiment, contrarian indicators
 
@@ -206,9 +217,10 @@ psql -h localhost -U stocks -d stocks \
   -c "SELECT symbol, MAX(date) as latest_date FROM price_daily GROUP BY symbol HAVING MAX(date) < CURRENT_DATE LIMIT 5;"
 ```
 
-## What Just Happened (2026-05-10 Audit Session)
+## What Just Happened (2026-05-10 Sessions)
 
-**Fixed:**
+**Completed Features:**
+- ✅ Economic Dashboard Business Cycle tab with EconomicRegimeClock + YaardeniPanel (institutional macro indicators)
 - ✅ Database schema unified (local 53 tables = AWS now)
 - ✅ Phase 1 data validation added to loadstockscores
 - ✅ 75+ obsolete Dockerfiles deleted (cleanup)
@@ -216,10 +228,10 @@ psql -h localhost -U stocks -d stocks \
 - ✅ Root cause of null metrics identified (loaders stale)
 - ✅ Claude best practices established (no doc sprawl)
 
-**Commits:**
+**Key Commits (recent):**
+- `36ff754f3`: Add EconomicRegimeClock + YaardeniPanel to Business Cycle tab
+- `b81fe3ae4`: Add Minervini RS-line and volume decay checks to Tier 3
 - `d68803b93`: Best practices framework for Claude
-- `87aff7eed`: Audit documentation (will be cleaned up per new rules)
-- `57a1a1bb0`: Delete 79+ obsolete files
 - `3b5464775`: Schema consolidation + Phase 1
 
 **System Status:** 🟢 **PRODUCTION READY**
