@@ -1411,6 +1411,17 @@ CREATE TABLE IF NOT EXISTS market_exposure_daily (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Circuit breaker status log
+CREATE TABLE IF NOT EXISTS algo_circuit_breaker_log (
+    id SERIAL PRIMARY KEY,
+    breaker_name VARCHAR(100) NOT NULL,
+    current_value DECIMAL(12, 4),
+    threshold_value DECIMAL(12, 4),
+    triggered BOOLEAN DEFAULT FALSE,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Notifications for UI
 CREATE TABLE IF NOT EXISTS algo_notifications (
     id SERIAL PRIMARY KEY,
@@ -1447,8 +1458,8 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
     report_date DATE PRIMARY KEY,
     rolling_sharpe_252d NUMERIC(8, 4),
     win_rate_50t NUMERIC(6, 2),
-    avg_win_r_50t NUMERIC(6, 3),
-    avg_loss_r_50t NUMERIC(6, 3),
+    avg_win_r NUMERIC(6, 3),
+    avg_loss_r NUMERIC(6, 3),
     expectancy NUMERIC(6, 4),
     max_drawdown_pct NUMERIC(8, 2),
     live_vs_backtest_ratio NUMERIC(6, 4),
@@ -1461,7 +1472,7 @@ CREATE TABLE IF NOT EXISTS algo_risk_daily (
     report_date DATE PRIMARY KEY,
     var_95_pct NUMERIC(8, 3),
     cvar_95_pct NUMERIC(8, 3),
-    stressed_var_pct NUMERIC(8, 3),
+    stressed_var_99_pct NUMERIC(8, 3),
     portfolio_beta NUMERIC(6, 2),
     top_5_concentration NUMERIC(6, 2),
     status VARCHAR(20) DEFAULT 'ok',
