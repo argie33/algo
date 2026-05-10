@@ -119,6 +119,11 @@ output "api_url" {
   value       = module.services.api_url
 }
 
+output "api_gateway_endpoint" {
+  description = "API Gateway endpoint URL (for deployments)"
+  value       = module.services.api_gateway_endpoint
+}
+
 output "api_lambda_arn" {
   description = "API Lambda function ARN"
   value       = module.services.api_lambda_arn
