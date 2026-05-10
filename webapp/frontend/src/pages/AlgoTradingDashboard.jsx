@@ -105,20 +105,20 @@ function AlgoTradingDashboard() {
   const adminOpts = { ...qOpts, retry: false }; // don't retry on 401/403
 
   // One hook per endpoint — React Query deduplicates and caches
-  const { data: status,      isLoading: loading, refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
-  const { data: markets,                          refetch: r1  } = useApiQuery(['algo','markets'],       () => api.get('/api/algo/markets'), qOpts);
-  const { items: scores,                          refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
-  const { items: positions,                       refetch: r3  } = useApiPaginatedQuery(['algo','positions'], () => api.get('/api/algo/positions'), qOpts);
-  const { items: trades,                          refetch: r4  } = useApiPaginatedQuery(['algo','trades'],    () => api.get('/api/algo/trades?limit=200'), qOpts);
-  const { data: config,                           refetch: r5  } = useApiQuery(['algo','config'],        () => api.get('/api/algo/config'), qOpts);
-  const { data: dataStatus,                       refetch: r6  } = useApiQuery(['algo','data-status'],   () => api.get('/api/algo/data-status'), qOpts);
-  const { data: policy,                           refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
-  const { data: evaluated,                        refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
-  const { items: patrolLog,                       refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
-  const { items: notifications,                   refetch: r10 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
-  const { data: circuitBreakers,                  refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
-  const { data: dataQuality,                      refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
-  const { data: rejectionFunnel,                  refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
+  const { data: status,      isLoading: loading, error: err0,  refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
+  const { data: markets,     isLoading: mLoading, error: err1, refetch: r1  } = useApiQuery(['algo','markets'],       () => api.get('/api/algo/markets'), qOpts);
+  const { items: scores,     isLoading: sLoading, error: err2, refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
+  const { items: positions,  isLoading: pLoading, error: err3, refetch: r3  } = useApiPaginatedQuery(['algo','positions'], () => api.get('/api/algo/positions'), qOpts);
+  const { items: trades,     isLoading: tLoading, error: err4, refetch: r4  } = useApiPaginatedQuery(['algo','trades'],    () => api.get('/api/algo/trades?limit=200'), qOpts);
+  const { data: config,      isLoading: cLoading, error: err5, refetch: r5  } = useApiQuery(['algo','config'],        () => api.get('/api/algo/config'), qOpts);
+  const { data: dataStatus,  isLoading: dLoading, error: err6, refetch: r6  } = useApiQuery(['algo','data-status'],   () => api.get('/api/algo/data-status'), qOpts);
+  const { data: policy,      isLoading: poLoading,error: err7, refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
+  const { data: evaluated,   isLoading: evLoading,error: err8, refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
+  const { items: patrolLog,  isLoading: paLoading,error: err9, refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
+  const { items: notifications,isLoading: nLoading,error: err10,refetch: r10 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
+  const { data: circuitBreakers,isLoading: cbLoading,error: err11,refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,  isLoading: dqLoading,error: err12,refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
+  const { data: rejectionFunnel,isLoading: rfLoading,error: err13,refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
 
   const refetchAll = useCallback(() => {
     [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13].forEach(fn => fn?.());
@@ -161,10 +161,15 @@ function AlgoTradingDashboard() {
           <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
         </div>
         <div className="page-head-actions">
+          {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].some(Boolean) && (
+            <span className="badge badge-danger" title="One or more data sources failed">
+              ⚠ Data errors ({[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].filter(Boolean).length})
+            </span>
+          )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
             {data.dataStatus?.ready_to_trade ? 'DATA READY' : 'DATA STALE'}
           </span>
-          <button className="btn btn-outline btn-sm" onClick={refetchAll}>
+          <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={loading || mLoading}>
             <RefreshCw size={14} /> Refresh
           </button>
           <button className={`btn ${autoRefresh ? 'btn-primary' : 'btn-outline'} btn-sm`}
