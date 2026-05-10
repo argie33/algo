@@ -588,6 +588,9 @@ export default function EconomicDashboard() {
               <MacroKpi label="Business Loans" ind={ind('Business Loans')} unit="B" />
             </div>
 
+            {/* Leading Economic Index - 6-month forward signal */}
+            <LEIPanel indicators={indicators} />
+
             {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP — BEA" color="var(--success)" />}
             {indproInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={indproInd} title="Industrial Production" sub="Federal Reserve industrial output index" color="var(--brand)" /></div>}
           </>
@@ -1191,6 +1194,140 @@ function GrowthLaborBarometer({ indicators }) {
 
         <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
           <div className="t-sm muted">{interpretation.desc}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LEIPanel({ indicators }) {
+  // Leading Economic Index components
+  // Components: UNRATE (inverted), HOUST, ICSA (inverted), CIVPART, PERMIT, MMNRNJ (inverted), DCOILWTICO, PMI, Consumer Expectations, Stock prices
+
+  const unrate = indicators?.find(i => (i.name || '').toLowerCase().includes('unemployment'));
+  const houst = indicators?.find(i => (i.name || '').toLowerCase().includes('housing'));
+  const icsa = indicators?.find(i => (i.name || '').toLowerCase().includes('jobless') || (i.name || '').toLowerCase().includes('initial claims'));
+  const civpart = indicators?.find(i => (i.name || '').toLowerCase().includes('participation'));
+  const sp500 = indicators?.find(i => (i.name || '').toLowerCase().includes('sp500') || (i.name || '').toLowerCase().includes('s&p'));
+
+  // Extract values with fallbacks
+  const unrateVal = unrate?.rawValue ? +unrate.rawValue : null;
+  const houstVal = houst?.rawValue ? +houst.rawValue : null;
+  const icsaVal = icsa?.rawValue ? +icsa.rawValue : null;
+  const sp500Val = sp500?.rawValue ? +sp500.rawValue : null;
+
+  // Calculate LEI momentum (simplified): normalize components to 0-100 scale and average
+  // Components:
+  // - Lower unemployment = expansion (invert: 100 - UNRATE*10)
+  // - Higher housing = expansion
+  // - Lower jobless claims = expansion (invert)
+  // - Higher stock prices = expansion
+  const leiScore = (() => {
+    let components = [];
+    if (unrateVal != null) components.push(Math.max(0, Math.min(100, 100 - unrateVal * 10)));
+    if (houstVal != null) components.push(Math.max(0, Math.min(100, Math.min(houstVal / 2, 100))));
+    if (icsaVal != null) components.push(Math.max(0, Math.min(100, Math.max(0, 100 - icsaVal / 5000))));
+    if (sp500Val != null) components.push(Math.max(0, Math.min(100, Math.min(sp500Val / 50, 100))));
+    return components.length > 0 ? components.reduce((a, b) => a + b) / components.length : 50;
+  })();
+
+  // 6-month historical data from indicator histories (if available)
+  const chartData = (() => {
+    if (!icsa?.history?.length) return [];
+    const hist = icsa.history.slice(-26).map(h => {
+      const u = unrate?.history?.find(uh => String(uh.date).slice(0, 10) === String(h.date).slice(0, 10));
+      const h2 = houst?.history?.find(hh => String(hh.date).slice(0, 10) === String(h.date).slice(0, 10));
+      const s = sp500?.history?.find(sh => String(sh.date).slice(0, 10) === String(h.date).slice(0, 10));
+
+      const unr = u?.value ? +u.value : null;
+      const hou = h2?.value ? +h2.value : null;
+      const ics = +h.value;
+      const sp = s?.value ? +s.value : null;
+
+      const comps = [];
+      if (unr != null) comps.push(Math.max(0, Math.min(100, 100 - unr * 10)));
+      if (hou != null) comps.push(Math.max(0, Math.min(100, Math.min(hou / 2, 100))));
+      if (ics != null) comps.push(Math.max(0, Math.min(100, Math.max(0, 100 - ics / 5000))));
+      if (sp != null) comps.push(Math.max(0, Math.min(100, Math.min(sp / 50, 100))));
+
+      return {
+        date: String(h.date).slice(0, 10),
+        lei: comps.length > 0 ? comps.reduce((a, b) => a + b) / comps.length : 50,
+      };
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return hist;
+  })();
+
+  const sixMonthAvg = chartData.length > 0
+    ? chartData.slice(-26).reduce((s, d) => s + d.lei, 0) / Math.min(26, chartData.length)
+    : 50;
+  const sixMonthTrend = chartData.length >= 2
+    ? chartData[chartData.length - 1].lei > sixMonthAvg ? 'up' : chartData[chartData.length - 1].lei < sixMonthAvg ? 'down' : 'flat'
+    : 'flat';
+
+  const leiInterpretation = leiScore > 60
+    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'LEI pointing to continued growth — positive momentum across labor, housing, and equities' }
+    : leiScore > 50
+    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed signals but growth-leaning — monitor for deterioration' }
+    : leiScore > 40
+    ? { label: 'Growth Risk', color: 'var(--amber)', desc: 'Leading indicators softening — recession risk rising, watch labor market' }
+    : { label: 'Contraction Risk', color: 'var(--danger)', desc: 'LEI signaling recession — defensive positioning warranted' };
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Leading Economic Index (LEI)</div>
+          <div className="card-sub">Composite 6-month forward signal — unemployment, housing, claims, equities</div>
+        </div>
+        <span className="badge" style={{ background: `${leiInterpretation.color}20`, color: leiInterpretation.color, border: `1px solid ${leiInterpretation.color}50` }}>
+          {leiScore.toFixed(0)}
+        </span>
+      </div>
+      <div className="card-body">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <div className="stile">
+            <div className="stile-label">Current LEI</div>
+            <div className="stile-value" style={{ color: leiInterpretation.color }}>{leiScore.toFixed(0)}</div>
+            <div className="stile-sub muted t-xs">{leiInterpretation.label}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">6-Month Trend</div>
+            <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
+              <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? '↗ Improving' : sixMonthTrend === 'down' ? '↘ Deteriorating' : '→ Flat'}</strong></div>
+              <div style={{ marginTop: 4 }}>Latest: <strong>{chartData.length > 0 ? chartData[chartData.length - 1].lei.toFixed(0) : '—'}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        {chartData.length > 1 && (
+          <div style={{ height: 200, marginBottom: 'var(--space-4)' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="leiGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={leiInterpretation.color} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={leiInterpretation.color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM}
+                  interval={Math.max(0, Math.floor(chartData.length / 6))} />
+                <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 100]} />
+                <Tooltip contentStyle={TT} labelFormatter={fmtD}
+                  formatter={v => [v != null ? (+v).toFixed(0) : '—', 'LEI Score']} />
+                <ReferenceLine y={sixMonthAvg} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: '6mo Avg', fontSize: 10, fill: 'var(--text-3)' }} />
+                <ReferenceLine y={60} stroke="var(--success)" strokeDasharray="2 6" opacity={0.3} />
+                <ReferenceLine y={40} stroke="var(--danger)" strokeDasharray="2 6" opacity={0.3} />
+                <Area type="monotone" dataKey="lei" stroke={leiInterpretation.color}
+                  strokeWidth={2} fill="url(#leiGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
+          <div className="t-sm muted">{leiInterpretation.desc}</div>
         </div>
       </div>
     </div>
