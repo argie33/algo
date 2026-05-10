@@ -13,10 +13,10 @@
  * Pure JSX + theme.css. Recharts only for charts.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
   Tooltip, CartesianGrid, BarChart, Bar, Cell, AreaChart, Area, ReferenceLine,
@@ -83,6 +83,8 @@ export default function TradingSignals() {
   const [gatesOnly, setGatesOnly] = useState(false);
   const [baseTypeFilter, setBaseTypeFilter] = useState('all');
   const [expandedKey, setExpandedKey] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [freshness, setFreshness] = useState('—');
 
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
@@ -97,6 +99,24 @@ export default function TradingSignals() {
     },
     { refetchInterval: 60000 }
   );
+
+  // Track data freshness
+  useEffect(() => {
+    if (data) setLastUpdate(new Date());
+  }, [data]);
+
+  useEffect(() => {
+    const updateFreshness = () => {
+      const elapsed = (Date.now() - lastUpdate.getTime()) / 1000;
+      if (elapsed < 10) setFreshness('Just now');
+      else if (elapsed < 60) setFreshness(`${Math.floor(elapsed)}s ago`);
+      else if (elapsed < 3600) setFreshness(`${Math.floor(elapsed / 60)}m ago`);
+      else setFreshness(`${Math.floor(elapsed / 3600)}h ago`);
+    };
+    updateFreshness();
+    const interval = setInterval(updateFreshness, 10000);
+    return () => clearInterval(interval);
+  }, [lastUpdate]);
 
   // Gate data for enrichment
   // Swing scores are evaluated once daily (evening ET). Gates data will be:
@@ -229,6 +249,11 @@ export default function TradingSignals() {
           <div className="page-head-sub">
             {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
             {' · click any row for full detail'}
+            {' · '}
+            <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
+              <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+              Updated {freshness}
+            </span>
           </div>
         </div>
         <div className="page-head-actions">
