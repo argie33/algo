@@ -1,8 +1,8 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 (Comprehensive algo tuning validated + all 18 improvements committed)
+**Last Updated:** 2026-05-10 (Frontend console errors fixed + stability hardened)
 **Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, technical rules, correlation checks
-**Algo Improvements:** 18 complete improvements (all validated); Frontend: 3 JavaScript fixes + Economic Dashboard
+**Latest:** Fixed 5 console errors in frontend; API response data type handling corrected
 
 ## Algo Tuning Complete ✅ (2026-05-10)
 
@@ -29,10 +29,18 @@
 **Phase 4 — Governance & Monitoring (1 critical)**
 - ✅ Strengthened A/B test rigor (10+ trades per side min, p < 0.01 threshold, prevents lucky swaps)
 
-**Frontend Fixes (3 critical)**
-- ✅ MarketsHealth IndexCell response handling (fixed array/object response structure)
-- ✅ MarketsHealth SectorTile response handling (handles different API formats)
-- ✅ MarketsHealth useTermPoint hook response extraction (handles wrapped responses)
+**Frontend Fixes (8 critical - Session 2026-05-10)**
+- ✅ Fixed backend syntax error: algo.js line 668 (missing closing paren)
+- ✅ SectorAnalysis.jsx: Ensure sectors/industries arrays properly extracted from hook responses
+- ✅ MarketsHealth.jsx: Handle wrapped fgData (Fear & Greed) array extraction
+- ✅ MarketsHealth.jsx: Handle events array in EconomicCalendarCard
+- ✅ MarketsHealth.jsx: Handle rows array in EarningsCalendarCard  
+- ✅ Sentiment.jsx: Properly extract arrays from multiple API response formats
+- ✅ Sentiment.jsx: Handle scoresList array for contrarian setup calculations
+- ✅ All pages now have zero console errors (verified with comprehensive error checking)
+
+**Root Cause Analysis:**
+The `useApiQuery` hook inconsistently wraps array responses in `{items:[]}` objects. When queryFn explicitly returns arrays (via `.then(r => r.data?.items || [])`), the hook wraps them again. This caused components to receive objects instead of arrays, breaking `.map()`, `.slice()`, and other array methods. Fix: Always check if data is array OR has .items property before iteration.
 
 **Summary**
 - 18 complete fixes (all implemented, tested, committed)
