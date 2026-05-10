@@ -59,6 +59,7 @@ Thumbs.db
 *.tmp
 *.temp
 __pycache__/
+venv*/
 *.py[cod]
 
 # Runtime artifacts (local-only)
