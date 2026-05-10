@@ -886,7 +886,7 @@ class TradeExecutor:
                 new_qty=new_qty,
                 new_stop_price=effective_stop,
                 full_exit=full_exit or new_qty <= 0,
-                target_levels_hit=target_levels_hit or 0
+                target_levels_hit=target_hits or 0
             )
 
             if not update_success:

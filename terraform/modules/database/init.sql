@@ -1266,7 +1266,7 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     bracket_order BOOLEAN DEFAULT FALSE,
     reentry_count INTEGER DEFAULT 0,
     prior_trade_id VARCHAR(100),
-    partial_exits_log JSONB,
+    partial_exits_log TEXT,
     partial_exit_count INTEGER DEFAULT 0,
     last_partial_exit_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

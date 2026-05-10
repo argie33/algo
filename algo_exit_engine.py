@@ -271,7 +271,7 @@ class ExitEngine:
             }
 
         # 6. T3 — exits the rest at 4R
-        if cur_price >= t3_price and target_hits < 3:
+        if t3_price is not None and cur_price >= t3_price and target_hits < 3:
             return {
                 'stage': 'target_3',
                 'fraction': 1.0,
@@ -279,17 +279,18 @@ class ExitEngine:
             }
 
         # 7. T2 — exit 50% of remaining (= 25% of original) on pullback; trail stop to T1
-        if cur_price >= t2_price and target_hits < 2:
+        if t2_price is not None and cur_price >= t2_price and target_hits < 2:
             if self._is_pulling_back(symbol, current_date):
+                stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
                     'stage': 'target_2',
                     'fraction': 0.50,
                     'reason': f'T2 pullback exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)',
-                    'new_stop': max(active_stop, t1_price),
+                    'new_stop': stop_for_t2,
                 }
 
         # 8. T1 — exit 50% on pullback; raise stop to entry (breakeven)
-        if cur_price >= t1_price and target_hits < 1:
+        if t1_price is not None and cur_price >= t1_price and target_hits < 1:
             if self._is_pulling_back(symbol, current_date):
                 return {
                     'stage': 'target_1',
