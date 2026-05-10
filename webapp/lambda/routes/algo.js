@@ -13,6 +13,7 @@
 const express = require('express');
 const { getPool } = require('../utils/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const router = express.Router();
 
@@ -664,7 +665,7 @@ router.get('/swing-scores-history', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores-history:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -996,7 +997,7 @@ router.get('/notifications', async (req, res) => {
       timestamp: new Date(),
     });
   } catch (error) {
-    return res.json({ success: true, items: [], timestamp: new Date() });
+    return sendSuccess(res,  items: [], timestamp: new Date() });
   }
 });
 
@@ -1009,9 +1010,9 @@ router.patch('/notifications/:id/read', requireAuth, requireAdmin, async (req, r
       `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [id]
     );
-    return res.json({ success: true, updated: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res,  updated: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1021,9 +1022,9 @@ router.delete('/notifications/:id', requireAuth, requireAdmin, async (req, res) 
     const pool = getPool();
     const { id } = req.params;
     const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
-    return res.json({ success: true, deleted: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res,  deleted: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1033,15 +1034,15 @@ router.post('/notifications/seen', requireAuth, async (req, res) => {
     const pool = getPool();
     const ids = req.body?.ids || [];
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.json({ success: true, marked: 0 });
+      return sendSuccess(res,  marked: 0 });
     }
     const result = await pool.query(
       `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`,
       [ids]
     );
-    return res.json({ success: true, marked: result.rowCount, timestamp: new Date() });
+    return sendSuccess(res,  marked: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1081,7 +1082,7 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
       timestamp: new Date(),
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1234,7 +1235,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/performance:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1268,7 +1269,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/equity-curve:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1313,7 +1314,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/audit-log:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1578,7 +1579,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/circuit-breakers:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1622,7 +1623,7 @@ router.get('/sector-breadth', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/sector-breadth:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1670,7 +1671,7 @@ router.get('/sector-stage2', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/sector-stage2:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res,  error.message });
   }
 });
 
@@ -1706,7 +1707,7 @@ router.get('/sector-rotation', async (req, res) => {
     });
   } catch (error) {
     // Table may not exist yet — return empty gracefully
-    return res.json({ success: true, items: [], timestamp: new Date() });
+    return sendSuccess(res,  items: [], timestamp: new Date() });
   }
 });
 
@@ -2047,7 +2048,7 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/signal-performance-by-pattern:', error);
-    return res.json({ success: true, data: { patterns: [], error: error.message } });
+    return sendSuccess(res,  data: { patterns: [], error: error.message } });
   }
 });
 

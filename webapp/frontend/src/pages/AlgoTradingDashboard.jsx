@@ -163,8 +163,10 @@ function AlgoTradingDashboard() {
         </div>
         <div className="page-head-actions">
           {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].some(Boolean) && (
-            <span className="badge badge-danger" title="One or more data sources failed">
-              ⚠ Data errors ({[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].filter(Boolean).length})
+            <span className="badge badge-danger" title={`Failed: ${['status','markets','scores','positions','trades','config','data-status','policy','evaluate','patrol','notifications','circuit-breakers','data-quality','rejection-funnel']
+              .filter((_, i) => [err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13][i])
+              .join(', ')}`}>
+              ⚠ {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].filter(Boolean).length} data source(s) failed
             </span>
           )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
@@ -326,16 +328,31 @@ function AlgoTradingDashboard() {
           ))}
         </div>
 
-        {tab === 0 && (market ? <MarketsTab markets={market} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load markets data</div></div>)}
+        {tab === 0 && (err1 ?
+          <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load markets data:</strong> {err1?.message || 'Unknown error'}</div></div>
+          : market ? <MarketsTab markets={market} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">No markets data available</div></div>
+        )}
         {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} error={err2 || err8} />}
-        {tab === 2 && (data.positions ? <PositionsTab positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load positions</div></div>)}
-        {tab === 3 && (data.trades ? <TradesTab trades={data.trades} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load trades</div></div>)}
+        {tab === 2 && (err3 ?
+          <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load positions:</strong> {err3?.message || 'Unknown error'}</div></div>
+          : data.positions ? <PositionsTab positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No active positions</div></div>
+        )}
+        {tab === 3 && (err4 ?
+          <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load trades:</strong> {err4?.message || 'Unknown error'}</div></div>
+          : data.trades ? <TradesTab trades={data.trades} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No trades</div></div>
+        )}
         {tab === 4 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} />}
-        {tab === 5 && (data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load risk data</div></div>)}
+        {tab === 5 && (err11 ?
+          <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load risk data:</strong> {err11?.message || 'Unknown error'}</div></div>
+          : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
+        )}
         {tab === 6 && <AuditTab auditLog={data.auditLog} />}
         {tab === 7 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} error={err7 || err12 || err13} />}
         {tab === 8 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} error={err6 || err9} />}
-        {tab === 9 && (data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger">Failed to load config</div></div>)}
+        {tab === 9 && (err5 ?
+          <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load config:</strong> {err5?.message || 'Unknown error'}</div></div>
+          : data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No config data</div></div>
+        )}
       </div>
     </div>
   );
@@ -508,10 +525,20 @@ function MarketsTab({ markets }) {
 // ============================================================================
 // SETUPS TAB
 // ============================================================================
-function SetupsTab({ scores, evaluated }) {
+function SetupsTab({ scores, evaluated, error }) {
   const [expandedRow, setExpandedRow] = useState(null);
   const passing = (scores || []).filter(s => s.pass_gates);
   const blocked = (scores || []).filter(s => !s.pass_gates);
+
+  if (error) {
+    return (
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="alert alert-danger">
+          <strong>Failed to load setup data:</strong> {error?.message || 'Unknown error'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 'var(--space-4)' }}>
