@@ -161,6 +161,7 @@ export default function SwingCandidates() {
           <div className="page-head-title">Swing Candidates</div>
           <div className="page-head-sub">
             Full-universe research-weighted scoring · setup · trend · momentum · volume · fundamentals · sector · multi-TF
+            {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>· {itemsList.length} candidates</span>}
           </div>
         </div>
         <div className="page-head-actions">

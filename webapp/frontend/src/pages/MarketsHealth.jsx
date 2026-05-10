@@ -158,7 +158,7 @@ export default function MarketsHealth() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Market Health</div>
-          <div className="page-head-sub">Updated {fmtAgo(ts)} · Auto-refresh 30s</div>
+          <div className="page-head-sub">Data updated {fmtAgo(ts)} · Auto-refresh every 30s</div>
         </div>
         <div className="page-head-actions">
           {[mkError,sentError,movError,techError,seasError].some(Boolean) && (
