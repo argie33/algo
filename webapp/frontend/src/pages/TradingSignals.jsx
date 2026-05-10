@@ -98,11 +98,15 @@ export default function TradingSignals() {
     { refetchInterval: 60000 }
   );
 
-  // Gate data for enrichment (swing scores evaluated today)
+  // Gate data for enrichment
+  // Swing scores are evaluated once daily (evening ET). Gates data will be:
+  // - "today's scores" if algo has run (after 5:30pm ET)
+  // - "yesterday's scores" if algo hasn't run yet (before 5:30pm ET)
+  // This is normal; signals are evaluated against most recent available scores
   const { data: gatesData } = useApiQuery(
     ['signals-gates'],
     () => api.get('/api/algo/swing-scores?limit=2000&min_score=0'),
-    { refetchInterval: 120000, enabled: tab === 'stocks' }
+    { refetchInterval: 300000, enabled: tab === 'stocks' }  // refresh every 5 min
   );
 
   const gateMap = useMemo(() => {
@@ -265,14 +269,14 @@ export default function TradingSignals() {
 
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
         <div className="kpi">
-          <div className="kpi-label">Crossing 50-day</div>
+          <div className="kpi-label">Near 50-day MA</div>
           <div className="kpi-value">{kpi.cross50}</div>
-          <div className="kpi-sub">close within 2% above</div>
+          <div className="kpi-sub">close 0-2% above SMA50</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Crossing 200-day</div>
+          <div className="kpi-label">Near 200-day MA</div>
           <div className="kpi-value">{kpi.cross200}</div>
-          <div className="kpi-sub">close within 2% above</div>
+          <div className="kpi-sub">close 0-2% above SMA200</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Fresh BUYs</div>
@@ -629,7 +633,7 @@ function RecentPerformance({ rows, timeframe }) {
               tone={stats.hit20 == null ? 'flat' : stats.hit20 >= 50 ? 'up' : 'down'}
               sub={`% positive @ 20d`} />
             <div className="muted t-2xs col-span-3" style={{ marginTop: 4 }}>
-              Sample size: {stats.sample} symbols · {timeframe} bars
+              Loaded: {stats.sample}/{stats.attempted} symbols · {timeframe} bars {stats.attempted > stats.sample ? `(${stats.attempted - stats.sample} price fetch failures)` : ''}
             </div>
           </div>
         )}
@@ -733,6 +737,14 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
+      {/* Data legend and help text */}
+      <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+        <strong>Column meanings:</strong>
+        <span> SQS = Composite signal quality (from algo evaluation, shows "—" if algo hasn't evaluated yet)</span>
+        <span> • Gates = Algo qualification (PASS/FAIL with grade, or "—" if unevaluated)</span>
+        <span> • Age = Days since signal triggered</span>
+        <span> • Click any row for full details</span>
+      </div>
       <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
         <table className="data-table">
           <thead>
