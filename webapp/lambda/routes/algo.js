@@ -665,7 +665,7 @@ router.get('/swing-scores-history', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores-history:', error);
-    return sendError(res,  error.message });
+    return sendError(res, error.message);
   }
 });
 

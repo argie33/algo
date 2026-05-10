@@ -571,8 +571,8 @@ export default function EconomicDashboard() {
             {/* Economic Regime Clock */}
             <EconomicRegimeClock indicators={indicators} yieldData={yieldData} />
 
-            {/* Yardeni BBB (Boom-Bust Barometer) */}
-            <YaardeniPanel indicators={indicators} />
+            {/* Growth-Labor Barometer */}
+            <GrowthLaborBarometer indicators={indicators} />
 
             {ind('ISM Manufacturing') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Manufacturing')} title="ISM Manufacturing PMI" sub="Institute for Supply Management — >50 = expansion, <50 = contraction" color="var(--brand)" /></div>}
             {ind('ISM Services') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Services')} title="ISM Services PMI" sub="Non-manufacturing activity index — employment, new orders, prices" color="var(--cyan)" /></div>}
@@ -1089,15 +1089,14 @@ function EconomicRegimeClock({ indicators, yieldData }) {
   );
 }
 
-function YaardeniPanel({ indicators }) {
+function GrowthLaborBarometer({ indicators }) {
   const claims = indicators?.find(i => {
     const nm = (i.name || '').toLowerCase();
     return nm.includes('jobless') || nm.includes('initial claims');
   });
 
-  // Yardeni Boom-Bust Barometer = CRB Raw Industrials / Weekly Jobless Claims
-  // We'll compute a proxy using ISM Manufacturing (proxy for commodities/industry activity)
-  // and jobless claims (labor market stress)
+  // Growth-Labor Barometer: ISM Manufacturing / Jobless Claims ratio
+  // Combines industrial activity (ISM Mfg) with labor market stress to signal expansion vs contraction
 
   const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
   const ismVal = ism?.rawValue ? +ism.rawValue : 50;
@@ -1117,7 +1116,7 @@ function YaardeniPanel({ indicators }) {
     : claimsVal;
   const claimsTrend = claimsVal < claimsMA3 ? 'down' : claimsVal > claimsMA3 ? 'up' : 'flat';
 
-  const boomBustInterpretation = barometer > 65
+  const interpretation = barometer > 65
     ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'Industrial activity robust, job market tight — rising barometer signals continued growth.' }
     : barometer > 50
     ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed but leaning positive — growth present but not accelerating.' }
@@ -1141,10 +1140,10 @@ function YaardeniPanel({ indicators }) {
     <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
       <div className="card-head">
         <div>
-          <div className="card-title">Yardeni Boom-Bust Barometer</div>
-          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor weakness) — expansion vs contraction signal</div>
+          <div className="card-title">Growth-Labor Barometer</div>
+          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor stress) — expansion vs contraction signal</div>
         </div>
-        <span className="badge" style={{ background: `${boomBustInterpretation.color}20`, color: boomBustInterpretation.color, border: `1px solid ${boomBustInterpretation.color}50` }}>
+        <span className="badge" style={{ background: `${interpretation.color}20`, color: interpretation.color, border: `1px solid ${interpretation.color}50` }}>
           {barometer.toFixed(0)}
         </span>
       </div>
@@ -1152,8 +1151,8 @@ function YaardeniPanel({ indicators }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
           <div className="stile">
             <div className="stile-label">Current Reading</div>
-            <div className="stile-value" style={{ color: boomBustInterpretation.color }}>{barometer.toFixed(0)}</div>
-            <div className="stile-sub muted t-xs">{boomBustInterpretation.label}</div>
+            <div className="stile-value" style={{ color: interpretation.color }}>{barometer.toFixed(0)}</div>
+            <div className="stile-sub muted t-xs">{interpretation.label}</div>
           </div>
           <div className="stile">
             <div className="stile-label">Components</div>
@@ -1169,9 +1168,9 @@ function YaardeniPanel({ indicators }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="boomBustGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={boomBustInterpretation.color} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={boomBustInterpretation.color} stopOpacity={0} />
+                  <linearGradient id="growthLaborGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={interpretation.color} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={interpretation.color} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
@@ -1183,15 +1182,15 @@ function YaardeniPanel({ indicators }) {
                 <ReferenceLine y={65} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Strong', fontSize: 10, fill: 'var(--text-3)' }} />
                 <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="4 4" />
                 <ReferenceLine y={35} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Risk', fontSize: 10, fill: 'var(--text-3)' }} />
-                <Area type="monotone" dataKey="barometer" stroke={boomBustInterpretation.color}
-                  strokeWidth={2} fill="url(#boomBustGrad)" />
+                <Area type="monotone" dataKey="barometer" stroke={interpretation.color}
+                  strokeWidth={2} fill="url(#growthLaborGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
 
         <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
-          <div className="t-sm muted">{boomBustInterpretation.desc}</div>
+          <div className="t-sm muted">{interpretation.desc}</div>
         </div>
       </div>
     </div>

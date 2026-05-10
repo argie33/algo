@@ -1,7 +1,7 @@
 # System Status & Quick Facts
 
 **Last Updated:** 2026-05-10 (Comprehensive algo tuning validated + all 18 improvements committed)
-**Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, Minervini rules, correlation checks
+**Project Status:** PRODUCTION READY ✅ — Institutional-grade risk controls, signal validation, market context, technical rules, correlation checks
 **Algo Improvements:** 18 complete improvements (all validated); Frontend: 3 JavaScript fixes + Economic Dashboard
 
 ## Algo Tuning Complete ✅ (2026-05-10)
