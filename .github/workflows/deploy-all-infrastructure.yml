@@ -117,14 +117,26 @@ jobs:
       - name: Collect Outputs
         id: outputs
         run: |
+          set -e
           TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
 
-          ECR=$(echo "$TF_OUT" | jq -r '.ecr_repository_url.value // ""')
-          API=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"')
-          ALGO=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
-          BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
-          CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
-          API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""')
+          echo "DEBUG: Terraform output JSON:"
+          echo "$TF_OUT" | head -50
+
+          ECR=$(echo "$TF_OUT" | jq -r '.ecr_repository_url.value // "" ' 2>/dev/null || echo "")
+          API=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"' 2>/dev/null || echo "stocks-api-dev")
+          ALGO=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"' 2>/dev/null || echo "stocks-algo-dev")
+          BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""' 2>/dev/null || echo "")
+          CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""' 2>/dev/null || echo "")
+          API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""' 2>/dev/null || echo "")
+
+          echo "DEBUG: Extracted values:"
+          echo "  ECR=${ECR:-(empty)}"
+          echo "  API=${API:-(empty)}"
+          echo "  ALGO=${ALGO:-(empty)}"
+          echo "  BUCKET=${BUCKET:-(empty)}"
+          echo "  CF=${CF:-(empty)}"
+          echo "  API_GW=${API_GW:-(empty)}"
 
           echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
           echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
@@ -169,12 +181,19 @@ jobs:
         run: |
           # Use TF output if available, otherwise discover
           ECR_URL="${{ needs.terraform.outputs.ecr_repository_url }}"
-          if [ -z "$ECR_URL" ]; then
+          # Handle cases where output might be empty or "None"
+          if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
+            echo "ECR URL not available from Terraform, discovering via AWS CLI..."
             ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-              --query 'repositories[?starts_with(repositoryName, `stocks`)].repositoryUri | [0]' \
-              --output text 2>/dev/null || echo "")
+              --query 'repositories[?starts_with(repositoryName, `algo`)].repositoryUri | [0]' \
+              --output text 2>/dev/null)
+            if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
+              echo "No ECR repository found, skipping image build"
+              ECR_URL=""
+            fi
           fi
           echo "ecr_url=${ECR_URL}" >> $GITHUB_OUTPUT
+          echo "ECR_URL resolved to: ${ECR_URL:-(empty)}"
 
       - name: Set image tag
         id: meta
@@ -184,11 +203,13 @@ jobs:
           echo "sha=${SHA}" >> $GITHUB_OUTPUT
 
       - name: Login to ECR
+        if: steps.ecr.outputs.ecr_url != ''
         run: |
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "${{ steps.ecr.outputs.ecr_url }}"
 
       - name: Build & Push
+        if: steps.ecr.outputs.ecr_url != ''
         run: |
           ECR="${{ steps.ecr.outputs.ecr_url }}"
           SHA="${{ steps.meta.outputs.sha }}"
@@ -196,6 +217,10 @@ jobs:
           docker push "${ECR}:dev-${SHA}"
           docker push "${ECR}:dev-latest"
           echo "✅ Pushed: ${ECR}:dev-${SHA}"
+
+      - name: Skip image build
+        if: steps.ecr.outputs.ecr_url == ''
+        run: echo "⚠️  Skipping Docker image build — ECR URL not resolved"
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2b — Algo Lambda
