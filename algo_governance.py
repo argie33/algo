@@ -196,11 +196,15 @@ class ModelGovernance:
             )
             challenger_trades = [float(row[1]) for row in self.cur.fetchall()]
 
-            if len(champion_trades) < 5 or len(challenger_trades) < 5:
+            # Strengthened minimum sample size: 10+ trades per side for statistical power
+            # Previously only required 5, which is too small for real significance
+            min_trades = int(self.config.get('champion_challenger_min_trades', 10))
+            if len(champion_trades) < min_trades or len(challenger_trades) < min_trades:
                 return {
                     'status': 'insufficient_data',
                     'champion_trades': len(champion_trades),
                     'challenger_trades': len(challenger_trades),
+                    'min_required': min_trades,
                 }
 
             # Welch's t-test (unequal variance)
@@ -209,7 +213,9 @@ class ModelGovernance:
             champion_pnl = np.mean(champion_trades)
             challenger_pnl = np.mean(challenger_trades)
 
-            winner = 'CHALLENGER' if p_value < 0.05 and challenger_pnl > champion_pnl else 'CHAMPION'
+            # Stricter significance threshold: p < 0.01 instead of 0.05 for deployment decisions
+            significance_threshold = float(self.config.get('champion_challenger_p_threshold', 0.01))
+            winner = 'CHALLENGER' if p_value < significance_threshold and challenger_pnl > champion_pnl else 'CHAMPION'
 
             self.cur.execute(
                 """
@@ -238,9 +244,9 @@ class ModelGovernance:
                 'challenger_pnl_pct': round(challenger_pnl, 2),
                 't_statistic': round(t_stat, 4),
                 'p_value': round(p_value, 6),
-                'statistical_significance': 'YES' if p_value < 0.05 else 'NO',
+                'statistical_significance': 'YES' if p_value < significance_threshold else 'NO (p < 0.01 required)',
                 'winner': winner,
-                'recommendation': f'Promote {winner} to champion' if winner == 'CHALLENGER' else 'Keep champion',
+                'recommendation': f'Promote {winner} to champion (p={p_value:.4f}, meets threshold)' if winner == 'CHALLENGER' and p_value < significance_threshold else 'Keep champion (challenger not statistically significant)',
             }
 
         except Exception as e:
