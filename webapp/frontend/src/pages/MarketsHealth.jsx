@@ -1772,7 +1772,7 @@ function EarningsCalendarCard({ onSelect }) {
   );
 
   if (loading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
-  const allRows = data || [];
+  const allRows = Array.isArray(data) ? data : (data?.items || []);
   const rows = allRows;
 
   return (
