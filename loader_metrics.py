@@ -8,17 +8,16 @@ import logging
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
+from credential_manager import get_credential_manager
 
 load_dotenv('.env.local')
 
 logger = logging.getLogger(__name__)
+credential_manager = get_credential_manager()
 
 
 def log_execution_start(loader_name: str) -> dict:
     """Log the start of a loader execution and return start_time dict"""
-from credential_manager import get_credential_manager
-credential_manager = get_credential_manager()
-
     return {
         'loader_name': loader_name,
         'start_time': datetime.now(),
