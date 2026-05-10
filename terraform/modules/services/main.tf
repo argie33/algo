@@ -50,8 +50,8 @@ data "archive_file" "api_function_local" {
   type        = "zip"
   output_path = "${path.module}/../../${var.api_lambda_code_file}"
   source {
-    content  = "# API Lambda stub - use S3 for production"
-    filename = "lambda_function.py"
+    content  = "module.exports.handler = async (event) => { return { statusCode: 503, body: 'API Lambda stub - use S3 for production' }; };"
+    filename = "index.js"
   }
 }
 
