@@ -7,14 +7,14 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Zap, Shield,
-  ChevronDown, ChevronUp, RefreshCw, Target,
+  TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Shield,
+  ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartTooltip, ResponsiveContainer, ReferenceLine, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartTooltip, ResponsiveContainer,
 } from 'recharts';
 import PerformanceTab from './components/PerformanceTab';
 import RiskTab from './components/RiskTab';
@@ -37,15 +37,6 @@ const tierColor = (n) => ({
   caution: 'var(--amber)',
   correction: 'var(--danger)',
 }[n] || 'var(--text-muted)');
-
-const gradeColor = (g) => ({
-  'A+': 'var(--success)',
-  'A': 'var(--success)',
-  'B': 'var(--brand)',
-  'C': 'var(--amber)',
-  'D': 'var(--amber)',
-  'F': 'var(--danger)',
-}[g] || 'var(--text-muted)');
 
 const statusBg = (s) => ({
   ok: 'var(--success)',
