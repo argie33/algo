@@ -34,6 +34,7 @@ def load_schema():
 
 def init_database():
     """Initialize database schema."""
+    statements = []
     try:
         cred_manager = get_credential_manager()
 
