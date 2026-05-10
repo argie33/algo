@@ -304,10 +304,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             trades = self.cur.fetchall()
-            return json_response(200, {
-                'trades': [dict(t) for t in trades],
-                'count': len(trades),
-            })
+            return json_response(200, [dict(t) for t in trades])
         except Exception as e:
             logger.error(f"get_algo_trades failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -323,12 +320,7 @@ class APIHandler:
                 ORDER BY position_value DESC
             """)
             positions = self.cur.fetchall()
-            total_value = sum(p['position_value'] or 0 for p in positions)
-            return json_response(200, {
-                'positions': [dict(p) for p in positions],
-                'count': len(positions),
-                'total_value': total_value,
-            })
+            return json_response(200, [dict(p) for p in positions])
         except Exception as e:
             logger.error(f"get_algo_positions failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -385,12 +377,9 @@ class APIHandler:
                 LIMIT 1000
             """, (cutoff_date,))
             curve = self.cur.fetchall()
-            return json_response(200, {
-                'equity_curve': [dict(c) for c in reversed(curve) if c],
-                'days': days,
-            })
+            return json_response(200, [dict(c) for c in reversed(curve) if c])
         except:
-            return json_response(200, {'equity_curve': [], 'days': days})
+            return json_response(200, [])
 
     def _get_data_status(self) -> Dict:
         """Get data freshness status."""

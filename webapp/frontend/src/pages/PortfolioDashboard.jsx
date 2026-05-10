@@ -171,8 +171,8 @@ export default function PortfolioDashboard() {
       <div className="grid grid-4">
         <Kpi
           label="Portfolio Value"
-          value={fmtMoneyShort(portfolio.total_value)}
-          sub={`${portfolio.position_count ?? 0} open positions`}
+          value={fmtMoneyShort(totalValue)}
+          sub={`${Array.isArray(positions) ? positions.length : 0} open positions`}
           icon={DollarSign}
         />
         <Kpi
