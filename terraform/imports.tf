@@ -64,6 +64,11 @@ import {
 
 # Database
 import {
+  to = module.database.aws_db_parameter_group.main
+  id = "algo-pg14-params"
+}
+
+import {
   to = module.database.aws_iam_role.rds_monitoring
   id = "algo-svc-rds-monitoring-dev"
 }

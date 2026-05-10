@@ -442,36 +442,10 @@ resource "aws_batch_job_definition" "buyselldaily" {
   })
 }
 
-# ============================================================
-# 10. Auto-scaling for Compute Environment
-# ============================================================
-
-resource "aws_appautoscaling_target" "batch_compute_scaling" {
-  max_capacity       = var.batch_max_vcpus
-  min_capacity       = 0
-  resource_id        = "computeEnvironment/${aws_batch_compute_environment.spot.arn}"
-  scalable_dimension = "batch:computeEnvironment:desiredvCpus"
-  service_namespace  = "batch"
-}
-
-resource "aws_appautoscaling_policy" "batch_compute_scaling_policy" {
-  name               = "${var.project_name}-batch-scaling-policy"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.batch_compute_scaling.resource_id
-  scalable_dimension = aws_appautoscaling_target.batch_compute_scaling.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.batch_compute_scaling.service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    target_value = 70.0
-
-    predefined_metric_specification {
-      predefined_metric_type = "BatchComputeEnvironmentUtilization"
-    }
-
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-  }
-}
+# Auto-scaling via Application Auto Scaling removed: AWS deprecated
+# batch:computeEnvironment:desiredvCpus as a scalable dimension.
+# Batch managed compute environments handle vCPU scaling automatically
+# via min_vcpus/max_vcpus on the compute environment resource.
 
 # ============================================================
 # 11. Data sources for AMI
