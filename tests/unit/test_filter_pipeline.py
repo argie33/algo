@@ -219,12 +219,6 @@ class TestExposureTierMultipliers:
         halt_size = pipeline._apply_tier_multiplier(50000, 'HALT', 0.75)
 
         assert halt_size == 0, "HALT tier should allow 0 position size"
-                'reason': 'SQS 45 < 60 min'
-            }
-
-            result = mock_t4('AAPL', date.today())
-
-            assert result['pass'] is False
 
 
 @pytest.mark.unit
