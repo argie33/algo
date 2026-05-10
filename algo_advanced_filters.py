@@ -127,15 +127,15 @@ class AdvancedFilters:
 
             self.cur.execute(
                 """
-                SELECT industry, daily_strength_score
+                SELECT industry, momentum_score
                 FROM industry_ranking
                 WHERE date_recorded = (
                     SELECT MAX(date_recorded) FROM industry_ranking
                     WHERE date_recorded <= %s
                 )
                 AND industry <> '' AND industry IS NOT NULL
-                AND daily_strength_score IS NOT NULL
-                ORDER BY daily_strength_score DESC
+                AND momentum_score IS NOT NULL
+                ORDER BY momentum_score DESC
                 """,
                 (eval_date,),
             )

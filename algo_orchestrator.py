@@ -61,7 +61,7 @@ import psycopg2
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, date as _date
+from datetime import datetime, date as _date, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
@@ -448,27 +448,34 @@ class Orchestrator:
 
             # Count total BUY signals for today
             cur.execute(
-                "SELECT COUNT(*) FROM buy_sell_daily WHERE signal_date = %s AND signal = 'BUY'",
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'",
                 (self.run_date,)
             )
             total_signals = cur.fetchone()[0] or 0
 
-            # Count Stage 2 signals (pre-pipeline check)
+            # Count from trend_template_data where Stage 2 exists
+            # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
             cur.execute(
-                "SELECT COUNT(*) FROM buy_sell_daily WHERE signal_date = %s AND signal = 'BUY' AND stage_number = 2",
+                """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
+                   WHERE date = %s AND weinstein_stage = 2""",
                 (self.run_date,)
             )
             stage2_count = cur.fetchone()[0] or 0
 
-            # Count rejections at each tier from filter_rejection_log
+            # Count rejections at each tier from filter_rejection_log (if table exists)
             tier_rejections = {}
-            for tier in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
-                cur.execute(
-                    f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
-                    (self.run_date, tier)
-                )
-                rejected = cur.fetchone()[0] or 0
-                tier_rejections[tier] = rejected
+            try:
+                for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'], 1):
+                    cur.execute(
+                        f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
+                        (self.run_date, tier_num)
+                    )
+                    rejected = cur.fetchone()[0] or 0
+                    tier_rejections[tier_name] = rejected
+            except Exception:
+                # Table may not exist or columns different; skip
+                for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
+                    tier_rejections[tier_name] = 0
 
             # Final qualified count
             qualified = getattr(self, '_qualified_trades', [])
