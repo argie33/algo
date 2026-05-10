@@ -83,6 +83,9 @@ class TickValidator:
         if self.errors:
             return self.errors
 
+        # Type guards: after null check, values are guaranteed non-None
+        assert open_price is not None and high is not None and low is not None and close is not None and volume is not None
+
         # 2. OHLC LOGIC - High >= all, Low <= all
         self._check_ohlc_logic(open_price, high, low, close)
         if self.errors:

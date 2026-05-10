@@ -118,7 +118,7 @@ class SecEdgarClient:
             or time.time() - self._ticker_cache_time > self._cache_ttl
         ):
             self._refresh_ticker_cache()
-        return self._ticker_cache.get(symbol.upper())
+        return (self._ticker_cache or {}).get(symbol.upper())
 
     # ----- Core API -----
 

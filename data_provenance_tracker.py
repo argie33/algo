@@ -201,7 +201,7 @@ class DataProvenanceTracker:
             success: Whether the run succeeded overall
             summary: Optional summary stats (rows_loaded, rows_failed, etc)
         """
-        if not self.run_id:
+        if not self.run_id or not self.start_time:
             return
 
         duration_seconds = (datetime.utcnow() - self.start_time).total_seconds()
