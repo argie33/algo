@@ -4,9 +4,9 @@ const path = require("path");
 const fs = require("fs");
 
 const envPath = path.resolve(__dirname, "../../.env.local");
-console.log(`ðŸ”§ Loading environment from: ${envPath}`);
+console.log(`🔧 Loading environment from: ${envPath}`);
 const envResult = require("dotenv").config({ path: envPath });
-console.log(`ðŸ”§ Environment load result:`, {
+console.log(`🔧 Environment load result:`, {
   path: envPath,
   fileExists: require("fs").existsSync(envPath),
   loaded: envResult.parsed ? Object.keys(envResult.parsed).length : 0,
