@@ -834,6 +834,9 @@ app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 // Swing trading algo routes
 app.use("/api/algo", require("./routes/algo"));
 
+// User settings routes
+app.use("/api/settings", require("./routes/settings"));
+
 // API info endpoint
 app.get("/api", (req, res) => {
   res.json({

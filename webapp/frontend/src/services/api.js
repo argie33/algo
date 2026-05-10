@@ -399,6 +399,30 @@ export const submitContact = async (data) => {
 };
 
 // ============================================
+// USER SETTINGS FUNCTIONS
+// ============================================
+
+export const getSettings = async () => {
+  try {
+    const response = await api.get("/api/settings");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching settings:", error);
+    return { success: false, data: {}, error: error.message };
+  }
+};
+
+export const updateSettings = async (settings) => {
+  try {
+    const response = await api.post("/api/settings", settings);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating settings:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================
 // DIAGNOSTICS & ADMIN FUNCTIONS
 // ============================================
 

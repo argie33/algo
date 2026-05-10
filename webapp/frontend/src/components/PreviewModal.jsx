@@ -6,9 +6,12 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
   const [symbol, setSymbol] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopPrice, setStopPrice] = useState('');
+  const [tradeType, setTradeType] = useState('buy');
+  const [shares, setShares] = useState('');
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   const handlePreview = async () => {
     setLoading(true);
@@ -31,15 +34,42 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     }
   };
 
-  const handleConfirm = () => {
-    if (preview && onConfirm) {
-      onConfirm({
-        symbol,
-        entry_price: parseFloat(entryPrice),
-        stop_loss_price: parseFloat(stopPrice),
-        shares: preview.shares
-      });
-      handleClose();
+  const handleConfirm = async () => {
+    if (!preview) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const tradeData = {
+        symbol: symbol.toUpperCase(),
+        trade_type: tradeType,
+        quantity: parseFloat(shares || preview.shares),
+        price: parseFloat(entryPrice),
+        execution_date: new Date().toISOString().split('T')[0],
+      };
+
+      const response = await api.post('/api/trades/manual', tradeData);
+
+      if (response?.success || response?.data) {
+        setSuccess(true);
+        if (onConfirm) {
+          onConfirm({
+            symbol,
+            entry_price: parseFloat(entryPrice),
+            stop_loss_price: parseFloat(stopPrice),
+            shares: parseFloat(shares || preview.shares),
+            trade_id: response.data?.id
+          });
+        }
+        setTimeout(handleClose, 2000);
+      } else {
+        setError(response?.error || 'Failed to create trade');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to create trade');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,9 +77,12 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     setSymbol('');
     setEntryPrice('');
     setStopPrice('');
+    setTradeType('buy');
+    setShares('');
     setLoading(false);
     setPreview(null);
     setError(null);
+    setSuccess(false);
     onClose();
   };
 
@@ -68,7 +101,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
           </button>
         </div>
 
-        {!preview ? (
+        {!preview && !success ? (
           <div className="modal-body">
             <div className="form-group">
               <label>Symbol</label>
@@ -79,6 +112,17 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
                 onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                 disabled={loading}
               />
+            </div>
+            <div className="form-group">
+              <label>Trade Type</label>
+              <select
+                value={tradeType}
+                onChange={(e) => setTradeType(e.target.value)}
+                disabled={loading}
+              >
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+              </select>
             </div>
             <div className="form-group">
               <label>Entry Price</label>
@@ -92,7 +136,18 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
               />
             </div>
             <div className="form-group">
-              <label>Stop Loss Price</label>
+              <label>Shares</label>
+              <input
+                type="number"
+                placeholder="100"
+                value={shares}
+                onChange={(e) => setShares(e.target.value)}
+                step="1"
+                disabled={loading}
+              />
+            </div>
+            <div className="form-group">
+              <label>Stop Loss Price (optional)</label>
               <input
                 type="number"
                 placeholder="0.00"
@@ -105,34 +160,50 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             {error && <div className="error-message">{error}</div>}
             <button
               onClick={handlePreview}
-              disabled={!symbol || !entryPrice || !stopPrice || loading}
+              disabled={!symbol || !entryPrice || !shares || loading}
               className="btn btn-primary"
             >
               {loading ? 'Calculating...' : 'Calculate Preview'}
             </button>
+          </div>
+        ) : success ? (
+          <div className="modal-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✓</div>
+            <h3>Trade Created Successfully</h3>
+            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
+              {tradeType.toUpperCase()} {shares} shares of {symbol} @ ${entryPrice}
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '8px' }}>
+              Closing in 2 seconds...
+            </p>
           </div>
         ) : (
           <div className="modal-body">
             <div className="preview-section">
               <h3>Position Summary</h3>
               <div className="grid-2">
-                <div><span className="label">Shares</span><div className="value">{num(preview.shares)} sh</div></div>
-                <div><span className="label">Position Value</span><div className="value">{fmtMoney(preview.position_value)}</div></div>
-                <div><span className="label">% of Portfolio</span><div className="value">{num(preview.pct_of_portfolio)}%</div></div>
-                <div><span className="label">Risk Amount</span><div className="value" style={{color: 'var(--red-400)'}}>{fmtMoney(preview.risk_amount)}</div></div>
+                <div><span className="label">Shares</span><div className="value">{num(shares || preview.shares)} sh</div></div>
+                <div><span className="label">Position Value</span><div className="value">{fmtMoney((shares || preview.shares) * entryPrice)}</div></div>
+                {preview.pct_of_portfolio && <div><span className="label">% of Portfolio</span><div className="value">{num(preview.pct_of_portfolio)}%</div></div>}
+                {preview.risk_amount && <div><span className="label">Risk Amount</span><div className="value" style={{color: 'var(--red-400)'}}>{fmtMoney(preview.risk_amount)}</div></div>}
               </div>
             </div>
-            <div className="preview-section">
-              <h3>Targets</h3>
-              {Object.entries(preview.targets).map(([k, v]) => (
-                <div key={k} className="target-item">
-                  <div><strong>{v.r_multiple}R @ ${num(v.price, 3)}</strong></div>
-                  <div>Sell {num(v.shares_to_sell)} sh = +{fmtMoney(v.profit_at_target)}</div>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setPreview(null)} className="btn">Back</button>
-            <button onClick={handleConfirm} className="btn btn-primary">Confirm & Enter</button>
+            {preview.targets && (
+              <div className="preview-section">
+                <h3>Targets</h3>
+                {Object.entries(preview.targets).map(([k, v]) => (
+                  <div key={k} className="target-item">
+                    <div><strong>{v.r_multiple}R @ ${num(v.price, 3)}</strong></div>
+                    <div>Sell {num(v.shares_to_sell)} sh = +{fmtMoney(v.profit_at_target)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {error && <div className="error-message" style={{ marginTop: '16px' }}>{error}</div>}
+            <button onClick={() => setPreview(null)} className="btn" disabled={loading}>Back</button>
+            <button onClick={handleConfirm} className="btn btn-primary" disabled={loading}>
+              {loading ? 'Creating Trade...' : 'Confirm & Enter'}
+            </button>
           </div>
         )}
       </div>
