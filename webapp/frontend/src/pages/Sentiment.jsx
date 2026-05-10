@@ -100,7 +100,7 @@ export default function Sentiment() {
     { refetchInterval: 300000 }
   );
 
-  const rawData = data?.items || data?.data || [];
+  const rawData = Array.isArray(data) ? data : (data?.items || data?.data || []);
 
   const stocksList = useMemo(() => {
     const grouped = rawData.reduce((acc, item) => {
@@ -233,7 +233,8 @@ export default function Sentiment() {
   // and inverse (potential traps): high analyst sentiment + low algo composite.
   const contrarianSetups = useMemo(() => {
     const scoreMap = new Map();
-    (scoresQ.data || []).forEach((s) => scoreMap.set(s.symbol, s));
+    const scoresList = Array.isArray(scoresQ.data) ? scoresQ.data : (scoresQ.data?.items || []);
+    (scoresList || []).forEach((s) => scoreMap.set(s.symbol, s));
     const merged = stocksList
       .filter((s) => s.compositeScore != null)
       .map((s) => {

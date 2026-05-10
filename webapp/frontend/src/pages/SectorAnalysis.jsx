@@ -1359,8 +1359,8 @@ export default function SectorAnalysis() {
   const sectorsQ = useSectors();
   const industriesQ = useIndustries();
 
-  const sectors = (Array.isArray(sectorsQ.items) ? sectorsQ.items : sectorsQ.data) || [];
-  const industries = (Array.isArray(industriesQ.items) ? industriesQ.items : industriesQ.data) || [];
+  const sectors = Array.isArray(sectorsQ.items) ? sectorsQ.items : (Array.isArray(sectorsQ.data) ? sectorsQ.data : []);
+  const industries = Array.isArray(industriesQ.items) ? industriesQ.items : (Array.isArray(industriesQ.data) ? industriesQ.data : []);
 
   const refresh = () => {
     // Domain hooks auto-refetch, manual refresh not available
