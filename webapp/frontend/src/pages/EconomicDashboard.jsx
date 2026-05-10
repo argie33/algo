@@ -26,6 +26,7 @@ const up    = (v)         => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 
 const TABS = [
   { id: 'overview',  label: 'Overview',       icon: <BarChart2 size={13} /> },
+  { id: 'cycle',     label: 'Business Cycle', icon: <Activity size={13} /> },
   { id: 'rates',     label: 'Rates & Fed',    icon: <DollarSign size={13} /> },
   { id: 'labor',     label: 'Labor Market',   icon: <Activity size={13} /> },
   { id: 'inflation', label: 'Inflation',      icon: <TrendingUp size={13} /> },
@@ -559,6 +560,25 @@ export default function EconomicDashboard() {
           </>
         )}
 
+        {/* ── BUSINESS CYCLE ────────────────────────────────────────────── */}
+        {tab === 'cycle' && (
+          <>
+            <div className="grid grid_2" style={{ marginBottom: 'var(--space-4)' }}>
+              <MacroKpi label="ISM Manufacturing" ind={ind('ISM Manufacturing')} unit="Index" />
+              <MacroKpi label="ISM Services" ind={ind('ISM Services')} unit="Index" />
+            </div>
+
+            {/* Economic Regime Clock */}
+            <EconomicRegimeClock indicators={indicators} yieldData={yieldData} />
+
+            {/* Yardeni BBB (Boom-Bust Barometer) */}
+            <YaardeniPanel indicators={indicators} />
+
+            {ind('ISM Manufacturing') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Manufacturing')} title="ISM Manufacturing PMI" sub="Institute for Supply Management — >50 = expansion, <50 = contraction" color="var(--brand)" /></div>}
+            {ind('ISM Services') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Services')} title="ISM Services PMI" sub="Non-manufacturing activity index — employment, new orders, prices" color="var(--cyan)" /></div>}
+          </>
+        )}
+
         {/* ── GROWTH ─────────────────────────────────────────────────────── */}
         {tab === 'growth' && (
           <>
@@ -925,6 +945,253 @@ function NaaimPanel({ naaim }) {
 
         <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
           Source: National Association of Active Investment Managers · Weekly survey · Long-run avg ~65-70
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EconomicRegimeClock({ indicators, yieldData }) {
+  const gdp = indicators?.find(i => (i.name || '').toLowerCase().includes('gdp'));
+  const indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial'));
+  const cpi = indicators?.find(i => (i.name || '').toLowerCase().includes('cpi'));
+  const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
+
+  // Growth axis: GDP trend (positive = expansion) + ISM manufacturing (>50 = expansion)
+  const gdpTrend = gdp?.trend === 'up' ? 1 : gdp?.trend === 'down' ? -1 : 0;
+  const ismVal = ism?.rawValue ? +ism.rawValue : 50;
+  const ismTrend = ismVal > 50 ? 1 : ismVal < 50 ? -1 : 0;
+  const growthScore = (gdpTrend + ismTrend) / 2;
+
+  // Inflation axis: CPI relative to 2% Fed target (positive = above target = inflationary)
+  const cpiVal = cpi?.rawValue ? +cpi.rawValue : 2;
+  const inflationScore = Math.max(-1, Math.min(1, (cpiVal - 2) / 4));
+
+  // Determine regime quadrant
+  const regime = growthScore > 0 && inflationScore < 0.5 ? 'Goldilocks' :
+                 growthScore > 0 && inflationScore >= 0.5 ? 'Overheat' :
+                 growthScore <= 0 && inflationScore >= 0.5 ? 'Stagflation' :
+                 'Slowdown';
+
+  const regimeColor = regime === 'Goldilocks' ? 'var(--success)' :
+                     regime === 'Overheat' ? 'var(--danger)' :
+                     regime === 'Stagflation' ? 'var(--danger)' :
+                     'var(--amber)';
+
+  const regimeDesc = regime === 'Goldilocks' ? 'Strong growth, moderate inflation — ideal policy conditions' :
+                    regime === 'Overheat' ? 'High growth + high inflation — Fed tightening, erosion risk' :
+                    regime === 'Stagflation' ? 'Weak growth + high inflation — no policy solution, defensive positioning' :
+                    'Weak growth, deflation pressure — easy policy, opportunity zone';
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Economic Regime Clock</div>
+          <div className="card-sub">Growth vs Inflation — positioning for current economic phase</div>
+        </div>
+        <span className="badge" style={{ background: `${regimeColor}20`, color: regimeColor, border: `1px solid ${regimeColor}50` }}>
+          {regime}
+        </span>
+      </div>
+      <div className="card-body" style={{ paddingBottom: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          {/* 2x2 Grid Visualization */}
+          <div style={{ gridColumn: '1 / -1', height: 260, position: 'relative', border: '1px solid var(--border-soft)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
+            {/* Quadrants */}
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', pointerEvents: 'none' }}>
+              {/* Top-Left: Slowdown */}
+              <div style={{ borderRight: '1px solid var(--border-soft)', borderBottom: '1px solid var(--border-soft)', background: 'var(--amber)08', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                <div className="t-xs strong" style={{ color: 'var(--amber)' }}>Slowdown</div>
+              </div>
+              {/* Top-Right: Overheat */}
+              <div style={{ borderBottom: '1px solid var(--border-soft)', background: 'var(--danger)08', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                <div className="t-xs strong" style={{ color: 'var(--danger)' }}>Overheat</div>
+              </div>
+              {/* Bottom-Left: Goldilocks */}
+              <div style={{ borderRight: '1px solid var(--border-soft)', background: 'var(--success)08', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                <div className="t-xs strong" style={{ color: 'var(--success)' }}>Goldilocks</div>
+              </div>
+              {/* Bottom-Right: Stagflation */}
+              <div style={{ background: 'var(--danger)08', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                <div className="t-xs strong" style={{ color: 'var(--danger)' }}>Stagflation</div>
+              </div>
+            </div>
+
+            {/* Current Position Dot */}
+            <div style={{
+              position: 'absolute',
+              left: `${50 + growthScore * 40}%`,
+              top: `${50 - inflationScore * 40}%`,
+              transform: 'translate(-50%, -50%)',
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: regimeColor,
+              boxShadow: `0 0 0 8px ${regimeColor}30`,
+              zIndex: 10,
+            }} />
+
+            {/* Axes */}
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: 0,
+              bottom: 0,
+              width: 1,
+              background: 'var(--border-2)',
+              transform: 'translateX(-50%)',
+              zIndex: 1,
+            }} />
+            <div style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: '50%',
+              height: 1,
+              background: 'var(--border-2)',
+              transform: 'translateY(-50%)',
+              zIndex: 1,
+            }} />
+
+            {/* Axis Labels */}
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5 }}>Weak ← Growth → Strong</div>
+            <div style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Low ← Inflation → High</div>
+          </div>
+
+          {/* Key Inputs */}
+          <div>
+            <div className="stile">
+              <div className="stile-label">Growth Axis</div>
+              <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
+                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? '↗ Expanding' : gdpTrend < 0 ? '↘ Contracting' : '→ Flat'}</strong></div>
+                <div style={{ marginTop: 4 }}>ISM Manufacturing: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="stile">
+              <div className="stile-label">Inflation Axis</div>
+              <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
+                <div>CPI (YoY): <strong style={{ color: cpiVal > 2.5 ? 'var(--danger)' : cpiVal > 2 ? 'var(--amber)' : 'var(--success)' }}>{cpiVal.toFixed(2)}%</strong></div>
+                <div style={{ marginTop: 4 }}>Fed Target: <strong>2.0%</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
+          <div className="t-sm muted">{regimeDesc}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YaardeniPanel({ indicators }) {
+  const claims = indicators?.find(i => {
+    const nm = (i.name || '').toLowerCase();
+    return nm.includes('jobless') || nm.includes('initial claims');
+  });
+
+  // Yardeni Boom-Bust Barometer = CRB Raw Industrials / Weekly Jobless Claims
+  // We'll compute a proxy using ISM Manufacturing (proxy for commodities/industry activity)
+  // and jobless claims (labor market stress)
+
+  const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
+  const ismVal = ism?.rawValue ? +ism.rawValue : 50;
+  const claimsVal = claims?.rawValue ? +claims.rawValue : 250000;
+  const claimsHist = claims?.history || [];
+
+  // Compute barometer: higher ISM + lower claims = expansion signal
+  // Normalize: ISM 40-60 range, claims 150k-450k range
+  const ismScore = Math.max(0, Math.min(1, (ismVal - 40) / 20));
+  const claimsScore = Math.max(0, Math.min(1, (450000 - claimsVal) / 300000));
+  const barometer = (ismScore * 0.6 + claimsScore * 0.4) * 100;
+
+  // Trend: if we have history, compare current to 3-month average
+  const claimsNumeric = claimsHist.map(h => +h.value).filter(v => !isNaN(v));
+  const claimsMA3 = claimsNumeric.length >= 13
+    ? claimsNumeric.slice(-13).reduce((a, b) => a + b) / 13
+    : claimsVal;
+  const claimsTrend = claimsVal < claimsMA3 ? 'down' : claimsVal > claimsMA3 ? 'up' : 'flat';
+
+  const boomBustInterpretation = barometer > 65
+    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'Industrial activity robust, job market tight — rising barometer signals continued growth.' }
+    : barometer > 50
+    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed but leaning positive — growth present but not accelerating.' }
+    : barometer > 35
+    ? { label: 'Contraction Risk', color: 'var(--amber)', desc: 'Weakening indicators — monitor for further deterioration.' }
+    : { label: 'Contraction Evident', color: 'var(--danger)', desc: 'Industrial slowdown + labor weakness — recession-like conditions.' };
+
+  // Build chart data from claims history
+  const chartData = claimsHist
+    .filter(h => h.date && h.value)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map(h => ({
+      date: String(h.date).slice(0, 10),
+      claims: +h.value,
+      // Estimate barometer proxy based on claims alone (lower = better)
+      barometer: Math.max(0, Math.min(100, (450000 - (+h.value)) / 4500)),
+    }))
+    .slice(-52);
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Yardeni Boom-Bust Barometer</div>
+          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor weakness) — expansion vs contraction signal</div>
+        </div>
+        <span className="badge" style={{ background: `${boomBustInterpretation.color}20`, color: boomBustInterpretation.color, border: `1px solid ${boomBustInterpretation.color}50` }}>
+          {barometer.toFixed(0)}
+        </span>
+      </div>
+      <div className="card-body">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <div className="stile">
+            <div className="stile-label">Current Reading</div>
+            <div className="stile-value" style={{ color: boomBustInterpretation.color }}>{barometer.toFixed(0)}</div>
+            <div className="stile-sub muted t-xs">{boomBustInterpretation.label}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Components</div>
+            <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
+              <div>ISM Mfg: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
+              <div style={{ marginTop: 4 }}>Jobless Claims: <strong className={claimsTrend === 'down' ? 'up' : claimsTrend === 'up' ? 'down' : ''}>{(+claimsVal).toLocaleString()}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        {chartData.length > 1 && (
+          <div style={{ height: 180, marginBottom: 'var(--space-4)' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="boomBustGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={boomBustInterpretation.color} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={boomBustInterpretation.color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM}
+                  interval={Math.max(0, Math.floor(chartData.length / 6))} />
+                <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 100]} />
+                <Tooltip contentStyle={TT} labelFormatter={fmtD}
+                  formatter={v => [v != null ? (+v).toFixed(0) : '—', 'Barometer']} />
+                <ReferenceLine y={65} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Strong', fontSize: 10, fill: 'var(--text-3)' }} />
+                <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="4 4" />
+                <ReferenceLine y={35} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Risk', fontSize: 10, fill: 'var(--text-3)' }} />
+                <Area type="monotone" dataKey="barometer" stroke={boomBustInterpretation.color}
+                  strokeWidth={2} fill="url(#boomBustGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
+          <div className="t-sm muted">{boomBustInterpretation.desc}</div>
         </div>
       </div>
     </div>

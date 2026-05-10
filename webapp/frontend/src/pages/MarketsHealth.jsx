@@ -355,7 +355,16 @@ function IndexCell({ idx }) {
     () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`),
     { staleTime: 60000 }
   );
-  const series = (data || []).slice(-30).map(p => ({
+  // Handle different response structures: array, {items: []}, {data: []}
+  let prices = [];
+  if (Array.isArray(data)) {
+    prices = data;
+  } else if (data?.items && Array.isArray(data.items)) {
+    prices = data.items;
+  } else if (data?.data && Array.isArray(data.data)) {
+    prices = data.data;
+  }
+  const series = prices.slice(-30).map(p => ({
     date: p.date, close: parseFloat(p.close || p.adj_close),
   }));
   const last = series[series.length - 1]?.close;
@@ -998,7 +1007,16 @@ function SectorTile({ etf, name, weight, onSelect }) {
     () => api.get(`/api/prices/history/${etf}?timeframe=daily&limit=2`),
     { staleTime: 30000, refetchInterval: 60000 }
   );
-  const series = data || [];
+  // Handle different response structures: array, {items: []}, {data: []}
+  let prices = [];
+  if (Array.isArray(data)) {
+    prices = data;
+  } else if (data?.items && Array.isArray(data.items)) {
+    prices = data.items;
+  } else if (data?.data && Array.isArray(data.data)) {
+    prices = data.data;
+  }
+  const series = prices;
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   const prev = series[1]?.close ?? series[series.length - 2]?.close;
   const lastN = last != null ? parseFloat(last) : null;
@@ -1307,7 +1325,16 @@ function useTermPoint(sym) {
     },
     { staleTime: 60000, refetchInterval: 60000 }
   );
-  const series = data || [];
+  // Handle different response structures: array, {items: []}, {data: []}
+  let prices = [];
+  if (Array.isArray(data)) {
+    prices = data;
+  } else if (data?.items && Array.isArray(data.items)) {
+    prices = data.items;
+  } else if (data?.data && Array.isArray(data.data)) {
+    prices = data.data;
+  }
+  const series = prices;
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   return last != null ? parseFloat(last) : null;
 }
