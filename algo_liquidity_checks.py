@@ -90,12 +90,12 @@ class LiquidityChecks:
             return True, "Volume check skipped (error)"
 
     def _check_spread(self, symbol: str, entry_price: float) -> Tuple[bool, str]:
-        """Check bid-ask spread."""
+        """Check bid-ask spread. If missing, use volume as proxy."""
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
-                """SELECT bid, ask FROM price_daily
+                """SELECT bid, ask, avg_volume FROM price_daily
                    WHERE symbol = %s ORDER BY date DESC LIMIT 1""",
                 (symbol,)
             )
@@ -104,7 +104,13 @@ class LiquidityChecks:
             conn.close()
 
             if not row or row[0] is None or row[1] is None:
-                return True, "No bid-ask data"
+                # No bid-ask data: use volume as proxy. High volume = good liquidity.
+                avg_vol = row[2] if row and row[2] else 0
+                if avg_vol >= 2_000_000:
+                    return True, "No bid-ask data; volume proxy OK"
+                else:
+                    logger.warning(f"No bid-ask data for {symbol} and volume is low ({avg_vol:,.0f})")
+                    return True, "No bid-ask data (using volume proxy)"
 
             bid, ask = float(row[0]), float(row[1])
             if ask <= bid or bid <= 0:

@@ -18,6 +18,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+try:
+    from algo_alerts import AlertManager
+except ImportError:
+    class AlertManager:
+        def critical(self, *args, **kwargs): pass
+
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
@@ -78,8 +84,9 @@ class EarningsBlackout:
                 'reason': f'No earnings in ±{self.days_before}/{self.days_after}d window',
             }
         except Exception as e:
-            logger.warning(f"Earnings blackout check error for {symbol}: {e}")
-            return {'pass': True, 'reason': 'Earnings check skipped (error)'}
+            logger.error(f"Earnings blackout check error for {symbol}: {e} — FAILING CLOSED (blocking trade)")
+            AlertManager().critical(f"Earnings blackout database error for {symbol} — entries blocked until resolved")
+            return {'pass': False, 'reason': 'Earnings check failed (error, fail-closed for safety)'}
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""

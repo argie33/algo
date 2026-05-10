@@ -68,7 +68,7 @@ class EconomicCalendar:
 
             cur.execute(
                 """SELECT event_name, scheduled_time, impact FROM economic_calendar
-                   WHERE impact IN ('high', 'High', 'medium')
+                   WHERE LOWER(impact) IN ('high', 'medium')
                    AND scheduled_time >= %s
                    AND scheduled_time <= %s
                    LIMIT 1""",
@@ -96,7 +96,7 @@ class EconomicCalendar:
 
             cur.execute(
                 """SELECT event_name, scheduled_time, impact FROM economic_calendar
-                   WHERE impact IN ('high', 'High', 'medium')
+                   WHERE LOWER(impact) IN ('high', 'medium')
                    AND scheduled_time >= NOW()
                    ORDER BY scheduled_time
                    LIMIT 1""",

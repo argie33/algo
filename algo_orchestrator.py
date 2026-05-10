@@ -375,6 +375,146 @@ class Orchestrator:
                 except Exception:
                     pass
 
+    # ---------- Pipeline Health & Visibility ----------
+
+    def _check_pipeline_health(self, cur):
+        """Check that all required tables have recent data for signal processing."""
+        if not cur:
+            return
+
+        try:
+            # Count recent rows (from last 5 days) in each critical table
+            required_tables = {
+                'price_daily': 'price_daily (OHLCV)',
+                'buy_sell_daily': 'buy_sell_daily (entry signals)',
+                'trend_template_data': 'trend_template_data (Minervini/Weinstein scores)',
+                'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
+                'signal_quality_scores': 'signal_quality_scores (SQS >= 60 gate)',
+                'swing_trader_scores': 'swing_trader_scores (final ranking)',
+                'market_health_daily': 'market_health_daily (Tier 2 gate)',
+                'sector_ranking': 'sector_ranking (Tier 6 context)',
+                'industry_ranking': 'industry_ranking (Tier 6 context)',
+                'stock_scores': 'stock_scores (Tier 6 scoring)',
+            }
+
+            five_days_ago = self.run_date - timedelta(days=5)
+            status = {}
+
+            for table, description in required_tables.items():
+                try:
+                    # Count rows added in the last 5 days
+                    if table == 'price_daily':
+                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE date >= %s", (five_days_ago,))
+                    elif table in ('buy_sell_daily', 'trend_template_data', 'technical_data_daily',
+                                  'signal_quality_scores', 'swing_trader_scores', 'market_health_daily',
+                                  'sector_ranking', 'industry_ranking', 'stock_scores'):
+                        # Most have a 'date' column; some might have 'date_recorded' or similar
+                        col = 'date' if table not in ('sector_ranking', 'industry_ranking') else 'date_recorded'
+                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} >= %s", (five_days_ago,))
+                    else:
+                        cur.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
+
+                    row = cur.fetchone()
+                    count = row[0] if row else 0
+                    status[table] = count
+                    flag = '[OK]' if count > 0 else '[EMPTY]'
+                    if self.verbose:
+                        logger.info(f"    {flag} {description:50s}: {count:,} rows (5d)")
+                except Exception as e:
+                    status[table] = 0
+                    if self.verbose:
+                        logger.warning(f"    [ERROR] {description}: {e}")
+
+            # Alert if any critical table is empty
+            empty_tables = [t for t, c in status.items() if c == 0]
+            if empty_tables:
+                empty_desc = ', '.join([required_tables[t] for t in empty_tables])
+                logger.error(f"  [ALERT] Pipeline missing data in: {empty_desc}")
+                logger.error(f"  Run the loaders to populate: {', '.join(empty_tables)}")
+                self.alerts.critical(
+                    f"Pipeline data gap: {empty_desc}. No signals can pass filters until data is loaded."
+                )
+
+        except Exception as e:
+            logger.warning(f"Pipeline health check failed: {e}")
+
+    def _report_signal_waterfall(self):
+        """Log signal count at each filter tier for visibility on rejections."""
+        conn = None
+        cur = None
+        try:
+            conn = psycopg2.connect(**_get_db_config())
+            cur = conn.cursor()
+
+            # Count total BUY signals for today
+            cur.execute(
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE signal_date = %s AND signal = 'BUY'",
+                (self.run_date,)
+            )
+            total_signals = cur.fetchone()[0] or 0
+
+            # Count Stage 2 signals (pre-pipeline check)
+            cur.execute(
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE signal_date = %s AND signal = 'BUY' AND stage_number = 2",
+                (self.run_date,)
+            )
+            stage2_count = cur.fetchone()[0] or 0
+
+            # Count rejections at each tier from filter_rejection_log
+            tier_rejections = {}
+            for tier in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
+                cur.execute(
+                    f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
+                    (self.run_date, tier)
+                )
+                rejected = cur.fetchone()[0] or 0
+                tier_rejections[tier] = rejected
+
+            # Final qualified count
+            qualified = getattr(self, '_qualified_trades', [])
+            final_count = len(qualified)
+
+            if self.verbose or total_signals > 0:
+                logger.info(f"\n  [WATERFALL] Signal filtering on {self.run_date}:")
+                logger.info(f"    Total BUY signals:        {total_signals:4d}")
+                logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
+                logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
+                logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
+                logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
+                logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
+                logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
+                logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
+                logger.info(f"    Final qualified trades:   {final_count:4d}")
+                logger.info(f"  Interpretation: {self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)}")
+
+        except Exception as e:
+            logger.warning(f"Signal waterfall report failed: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def _interpret_waterfall(self, total, stage2, tier_rejections, final):
+        """Interpret the signal waterfall to help diagnose 'no trades' situations."""
+        if total == 0:
+            return "No BUY signals generated today. Check buy_sell_daily loader or market conditions."
+        if stage2 == 0:
+            return f"{total} signals exist but NONE are Stage 2. RSI<30 in Stage 2 stocks is rare. Check market stage."
+        if final > 0:
+            return f"✓ {final} candidates qualified. Ready to execute."
+
+        # Find the biggest rejection point
+        max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
+        max_reject_count = tier_rejections.get(max_reject_tier, 0)
+        return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
+
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self) -> bool:
@@ -512,6 +652,9 @@ class Orchestrator:
                     logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
             except Exception as e:
                 logger.warning(f'Margin check failed: {e}')
+
+            # Pipeline health check: verify all required tables have recent data
+            self._check_pipeline_health(cur)
 
             self.log_phase_result(1, 'data_freshness', 'success',
                                   'All data fresh within window')
@@ -975,6 +1118,10 @@ class Orchestrator:
             qualified = pipeline.evaluate_signals(self.run_date)
 
             self._qualified_trades = qualified
+
+            # Signal count waterfall report (for visibility on where signals die)
+            self._report_signal_waterfall()
+
             self.log_phase_result(
                 5, 'signal_generation', 'success',
                 f'{len(qualified)} qualified trades after all 6 tiers',
