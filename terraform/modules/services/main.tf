@@ -239,13 +239,9 @@ data "aws_cloudfront_origin_request_policy" "managed_all_viewer_except_host" {
   name = "Managed-AllViewerExceptHostHeader"
 }
 
-# OAC handling: cleaned up manually, now create fresh
-locals {
-  existing_oac_id = null
-}
-
+# OAC for CloudFront S3 origin - securely signs requests to S3
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  count                             = var.cloudfront_enabled && local.existing_oac_id == null ? 1 : 0
+  count                             = var.cloudfront_enabled ? 1 : 0
   name                              = "${var.project_name}-frontend-oac-${var.environment}"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -258,8 +254,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
     origin_id   = "S3Frontend"
-    # Use existing OAC if found, otherwise use newly created one
-    origin_access_control_id = local.existing_oac_id != null ? local.existing_oac_id : aws_cloudfront_origin_access_control.frontend[0].id
+    origin_access_control_id = aws_cloudfront_origin_access_control.frontend[0].id
   }
 
   origin {
@@ -345,6 +340,11 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
           "s3:GetObject"
         ]
         Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
+          }
+        }
       }
     ]
   })
@@ -428,15 +428,16 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DATABASE_SECRET_ARN    = var.rds_credentials_secret_arn
-      DB_ENDPOINT            = var.rds_endpoint
-      DB_NAME                = var.rds_database_name
-      ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
-      EXECUTION_MODE         = var.execution_mode
-      DRY_RUN_MODE           = tostring(var.orchestrator_dry_run)
-      APCA_API_KEY_ID        = var.alpaca_api_key_id
-      APCA_API_SECRET_KEY    = var.alpaca_api_secret_key
-      APCA_API_BASE_URL      = var.alpaca_api_base_url
+      DATABASE_SECRET_ARN      = var.rds_credentials_secret_arn
+      DB_ENDPOINT              = var.rds_endpoint
+      DB_NAME                  = var.rds_database_name
+      ALERTS_SNS_TOPIC         = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      EXECUTION_MODE           = var.execution_mode
+      DRY_RUN_MODE             = tostring(var.orchestrator_dry_run)
+      APCA_API_KEY_ID          = var.alpaca_api_key_id
+      APCA_API_SECRET_KEY      = var.alpaca_api_secret_key
+      APCA_API_BASE_URL        = var.alpaca_api_base_url
+      APCA_API_IS_PAPER        = tostring(var.alpaca_paper_trading)
     }
   }
 
@@ -476,49 +477,10 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 }
 
 # ============================================================
-# EventBridge Scheduler for Price Data Loaders (4:00am ET daily)
+# NOTE: Loader scheduling is now managed by the loaders module
+# via EventBridge rules (see modules/loaders/main.tf)
+# All 40 loaders including price loaders are scheduled there
 # ============================================================
-# CRITICAL: Must run before algo orchestrator (5:30pm ET)
-# Data freshness check in Phase 1 fails with 0 symbols loaded
-# Current: Disabled — enable after configuring ECS cluster
-
-resource "aws_scheduler_schedule" "price_data_loaders" {
-  count               = var.loader_schedule_enabled ? 1 : 0
-  name                = "${var.project_name}-price-loaders-schedule-${var.environment}"
-  description         = "Trigger price data loaders daily at 4:00am ET (9am UTC) - BEFORE market open at 9:30am ET"
-  schedule_expression = "cron(0 9 ? * MON-FRI *)"  # 9am UTC = 4am ET weekdays
-  state               = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = "arn:aws:scheduler:::aws-sdk:ecs:runTask"
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      cluster        = var.ecs_cluster_name
-      launchType     = "FARGATE"
-      networkConfiguration = {
-        awsvpcConfiguration = {
-          assignPublicIp = "DISABLED"
-          subnets        = var.private_subnet_ids
-          securityGroups = [var.ecs_tasks_security_group_id]
-        }
-      }
-      overrides = {
-        containerOverrides = [
-          {
-            name    = "stocks-loaders"
-            command = ["python3", "loadpricedaily.py", "--parallelism", "6"]
-          }
-        ]
-      }
-      taskDefinition = var.price_loader_task_definition_arn
-    })
-  }
-}
 
 # ============================================================
 # EventBridge Scheduler for Algo Orchestrator
