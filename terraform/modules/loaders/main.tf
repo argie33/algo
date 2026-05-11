@@ -211,16 +211,6 @@ locals {
       description = "Trend template data - 4:30am ET"
     }
 
-    # 4:45am ET = 9:45am UTC Mon-Fri (after trend template)
-    "sector_ranking" = {
-      schedule    = "cron(45 9 ? * MON-FRI *)"
-      description = "Sector ranking - 4:45am ET"
-    }
-    "industry_ranking" = {
-      schedule    = "cron(45 9 ? * MON-FRI *)"
-      description = "Industry ranking - 4:45am ET (parallel with sector ranking)"
-    }
-
     # 10:00am ET = 3pm UTC Mon-Fri
     "financials_annual_income" = {
       schedule    = "cron(0 15 ? * MON-FRI *)"
@@ -409,10 +399,8 @@ locals {
     # Technical data (4:15am ET, after prices) - FARGATE: 256 CPU = min 512 MB
     "technicals_daily"    = { cpu = 256, memory = 512, timeout = 300 }
 
-    # Trend template & rankings (4:30am ET - 4:45am ET) - FARGATE: 256 CPU = min 512 MB
+    # Trend template (4:30am ET) - FARGATE: 256 CPU = min 512 MB
     "trend_template_data" = { cpu = 256, memory = 512, timeout = 300 }
-    "sector_ranking"      = { cpu = 256, memory = 512, timeout = 300 }
-    "industry_ranking"    = { cpu = 256, memory = 512, timeout = 300 }
 
     # Financial statements (10:00am ET) - FARGATE: 256 CPU = min 512 MB
     "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 1200 }
