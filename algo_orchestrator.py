@@ -747,11 +747,9 @@ class Orchestrator:
             # Check for single-stock halts on open positions
             try:
                 from algo_market_events import MarketEventHandler
-                from algo_position_monitor import PositionMonitor
-                pm = PositionMonitor(self.config)
                 meh = MarketEventHandler(self.config)
                 # Get open positions from position monitor
-                open_positions = pm.get_open_positions() or []
+                open_positions = monitor.get_open_positions() or []
                 halts_found = []
                 for pos in open_positions:
                     halt_check = meh.check_single_stock_halt(pos.get('symbol') or pos.get('name', ''))

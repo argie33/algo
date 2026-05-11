@@ -66,9 +66,9 @@ class DailyReconciliation:
         self.connect()
 
         try:
-            print(f"\n{'='*70}")
-            print(f"DAILY RECONCILIATION - {reconcile_date}")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"DAILY RECONCILIATION - {reconcile_date}")
+            logger.info(f"{'='*70}\n")
 
             # 1. Fetch Alpaca account
             alpaca_data = self._fetch_alpaca_account()
@@ -84,35 +84,35 @@ class DailyReconciliation:
                     # Note: notification failure doesn't block reconciliation halt, but we log it
                 return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
 
-            print(f"1. Alpaca Account:")
-            print(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")
-            print(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
-            print(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
+            logger.info(f"1. Alpaca Account:")
+            logger.info(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")
+            logger.info(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
+            logger.info(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
 
             # 1b. Sync Alpaca positions into our DB (imports any external positions)
             sync_result = self.sync_alpaca_positions()
-            print(f"\n1b. Position Sync:")
-            print(f"   {sync_result['message']}")
+            logger.info(f"\n1b. Position Sync:")
+            logger.info(f"   {sync_result['message']}")
             if sync_result.get('orphan_symbols'):
-                print(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
+                logger.info(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
 
             # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
             mae_result = self.compute_closed_trade_metrics()
-            print(f"\n1c. MAE/MFE Metrics:")
-            print(f"   {mae_result['reason']}")
+            logger.info(f"\n1c. MAE/MFE Metrics:")
+            logger.info(f"   {mae_result['reason']}")
 
             # 1d. Compute analytics metrics: IC and expectancy (E4-E5)
             analytics = self.compute_analytics_metrics()
-            print(f"\n1d. Analytics Metrics:")
+            logger.info(f"\n1d. Analytics Metrics:")
             if analytics['ic'].get('valid'):
-                print(f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)")
+                logger.info(f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)")
                 if analytics['ic']['alert']:
-                    print(f"   ⚠ {analytics['ic']['alert']}")
+                    logger.info(f"   ⚠ {analytics['ic']['alert']}")
             if analytics['expectancy'].get('valid'):
-                print(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
-                print(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
+                logger.info(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
+                logger.info(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
                 if analytics['expectancy']['alert']:
-                    print(f"   🔴 {analytics['expectancy']['alert']}")
+                    logger.info(f"   🔴 {analytics['expectancy']['alert']}")
 
             # 2. Get open positions from database
             self.cur.execute("""
@@ -123,7 +123,7 @@ class DailyReconciliation:
             """, (PositionStatus.OPEN.value,))
 
             positions = self.cur.fetchall()
-            print(f"\n2. Database Positions: {len(positions)} open")
+            logger.info(f"\n2. Database Positions: {len(positions)} open")
 
             total_position_value = 0.0
             unrealized_pnl = 0.0
@@ -140,7 +140,7 @@ class DailyReconciliation:
                 total_position_value += pos_value_f
                 unrealized_pnl += pnl
 
-                print(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
+                logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
             # 3. Calculate metrics
             cash = alpaca_data.get('cash', 100000)
@@ -183,7 +183,7 @@ class DailyReconciliation:
             existing_snapshot = self.cur.fetchone()
             if existing_snapshot:
                 logger.warning(f"Portfolio snapshot already exists for {reconcile_date} — refusing overwrite to prevent data loss")
-                print(f"WARNING: Snapshot for {reconcile_date} already exists. Skipping insertion to prevent overwrite.")
+                logger.info(f"WARNING: Snapshot for {reconcile_date} already exists. Skipping insertion to prevent overwrite.")
             else:
                 self.cur.execute("""
                     INSERT INTO algo_portfolio_snapshots (
@@ -210,17 +210,17 @@ class DailyReconciliation:
 
             self.conn.commit()
 
-            print(f"\n3. Portfolio Summary:")
-            print(f"   Total Value: ${total_equity:,.2f}")
-            print(f"   Position Value: ${total_position_value:,.2f}")
-            print(f"   Cash: ${cash:,.2f}")
-            print(f"   Unrealized P&L: {unrealized_pnl:+,.2f} ({unrealized_pnl_pct:+.2f}%)")
-            print(f"   Daily Return: {daily_return_pct:+.2f}%")
-            print(f"   Concentration: {max_concentration:.1f}%")
+            logger.info(f"\n3. Portfolio Summary:")
+            logger.info(f"   Total Value: ${total_equity:,.2f}")
+            logger.info(f"   Position Value: ${total_position_value:,.2f}")
+            logger.info(f"   Cash: ${cash:,.2f}")
+            logger.info(f"   Unrealized P&L: {unrealized_pnl:+,.2f} ({unrealized_pnl_pct:+.2f}%)")
+            logger.info(f"   Daily Return: {daily_return_pct:+.2f}%")
+            logger.info(f"   Concentration: {max_concentration:.1f}%")
 
-            print(f"\n{'='*70}")
-            print(f"Reconciliation complete - snapshot created")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"Reconciliation complete - snapshot created")
+            logger.info(f"{'='*70}\n")
 
             return {
                 'success': True,
@@ -230,7 +230,7 @@ class DailyReconciliation:
             }
 
         except Exception as e:
-            print(f"Error in reconciliation: {e}")
+            logger.info(f"Error in reconciliation: {e}")
             if self.conn:
                 self.conn.rollback()
             return {'success': False, 'error': str(e)}
@@ -297,7 +297,7 @@ class DailyReconciliation:
                                 details={'symbol': sym, 'alpaca_qty': qty, 'db_qty': db_qty},
                             )
                         except Exception as e:
-                            print(f"  Warning: Could not send quantity drift alert: {e}")
+                            logger.info(f"  Warning: Could not send quantity drift alert: {e}")
                 continue  # already tracked
 
             # Import this Alpaca position as a manual/external one
@@ -401,7 +401,7 @@ class DailyReconciliation:
                 ))
                 imported += 1
             except Exception as e:
-                print(f"  Failed to import {sym}: {e}")
+                logger.info(f"  Failed to import {sym}: {e}")
                 self.conn.rollback()
 
         # Find orphans (in our DB but not Alpaca)
@@ -425,7 +425,7 @@ class DailyReconciliation:
                         details={'symbol': sym, 'drift_type': 'orphaned_in_db'},
                     )
                 except Exception as e:
-                    print(f"  Warning: Could not send orphan alert: {e}")
+                    logger.info(f"  Warning: Could not send orphan alert: {e}")
 
         self.conn.commit()
         return {
@@ -643,7 +643,7 @@ class DailyReconciliation:
                 return None
 
         except Exception as e:
-            print(f"Warning: Could not fetch Alpaca account: {e}")
+            logger.info(f"Warning: Could not fetch Alpaca account: {e}")
             return None
 
 if __name__ == "__main__":
@@ -653,4 +653,4 @@ if __name__ == "__main__":
     reconciliation = DailyReconciliation(config)
 
     result = reconciliation.run_daily_reconciliation()
-    print(f"Result: {result}")
+    logger.info(f"Result: {result}")

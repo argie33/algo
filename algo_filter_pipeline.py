@@ -267,8 +267,8 @@ class FilterPipeline:
             logger.info(f"  T3 Trend Template:   {tier_pass_counts[3]:3d}/{len(signals)}")
             logger.info(f"  T4 Signal Quality:   {tier_pass_counts[4]:3d}/{len(signals)}")
             logger.info(f"  T5 Portfolio:        {tier_pass_counts[5]:3d}/{len(signals)}")
-            print(f"  T6 Advanced Filters: {advanced_passed:3d}/{tier_pass_counts[5]} passed, "
-                  f"{advanced_blocked} blocked")
+            logger.info(f"  T6 Advanced Filters: {advanced_passed:3d}/{tier_pass_counts[5]} passed, "
+                        f"{advanced_blocked} blocked")
             logger.info(f"{'='*70}")
 
             # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
@@ -281,13 +281,13 @@ class FilterPipeline:
 
             logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
             logger.info("=" * 100)
-            print(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
-                  f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
+            logger.info(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
+                        f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
             logger.info("-" * 100)
             for i, trade in enumerate(final_trades, 1):
                 comp = trade.get('swing_components', {})
                 gr = trade.get('swing_grade', 'D')
-                print(
+                logger.info(
                     f"{i:<3d}{trade['symbol']:<8}{gr:<6}{trade['final_score']:>6.1f}  "
                     f"${trade['entry_price']:>8.2f}${trade['stop_loss_price']:>8.2f}"
                     f"{comp.get('setup_quality', {}).get('pts', 0):>6.1f}"

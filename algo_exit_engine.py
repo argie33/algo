@@ -144,9 +144,9 @@ class ExitEngine:
                 )
 
                 if not exit_signal:
-                    print(f"  {symbol}: hold (cur ${cur_price:.2f}, "
-                          f"stop ${active_stop:.2f}, t1 ${t1_price:.2f}, "
-                          f"day {days_held}, hits {target_hits})")
+                    logger.info(f"  {symbol}: hold (cur ${cur_price:.2f}, "
+                                f"stop ${active_stop:.2f}, t1 ${t1_price:.2f}, "
+                                f"day {days_held}, hits {target_hits})")
                     continue
 
                 fraction = exit_signal['fraction']
@@ -157,7 +157,7 @@ class ExitEngine:
                 # Even stop-raise-only (fraction=0) must use executor for atomicity and audit logging
                 logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
                 if fraction > 0:
-                    print(f"      (exit {int(fraction*100)}%)")
+                    logger.info(f"      (exit {int(fraction*100)}%)")
 
                 result = self.executor.exit_trade(
                     trade_id=trade_id,
@@ -493,7 +493,7 @@ class ExitEngine:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
-    def _chandelier_or_ema_stop(self, symbol, current_date, days_held) -> tuple[float | None, bool]:
+    def _chandelier_or_ema_stop(self, symbol, current_date, days_held) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
         if self.cur is None:
