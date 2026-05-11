@@ -154,7 +154,7 @@ class CircuitBreaker:
         if peak <= 0 or cur_val <= 0:
             return {'halted': True, 'reason': 'Invalid portfolio values — fail-closed'}
         dd = ((peak - cur_val) / peak * 100.0)
-        threshold = float(self.config.get('halt_drawdown_pct', 15.0))
+        threshold = float(self.config.get('halt_drawdown_pct', 20.0))
         return {
             'halted': dd >= threshold,
             'reason': f'Drawdown {dd:.2f}% >= {threshold:.0f}%' if dd >= threshold else f'Drawdown {dd:.2f}%',
@@ -170,7 +170,7 @@ class CircuitBreaker:
         2. Market shows Follow-Through Day signal (optional)
         3. At least N days have passed since halt
         """
-        threshold = float(self.config.get('halt_drawdown_pct', 15.0))
+        threshold = float(self.config.get('halt_drawdown_pct', 20.0))
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
         self.cur.execute(

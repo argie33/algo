@@ -86,6 +86,7 @@ class AlgoConfig:
         'max_concentration_pct': ('50.0', 'float', 'Max concentration in top position'),
 
         # Drawdown Defense
+        'halt_drawdown_pct': ('20.0', 'float', 'Portfolio drawdown % to halt trading (CB1)'),
         'risk_reduction_at_minus_5': ('0.75', 'float', 'Risk % at -5% drawdown'),
         'risk_reduction_at_minus_10': ('0.5', 'float', 'Risk % at -10% drawdown'),
         'risk_reduction_at_minus_15': ('0.25', 'float', 'Risk % at -15% drawdown'),
