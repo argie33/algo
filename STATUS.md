@@ -1,24 +1,32 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 14:30Z  
-**Project Status:** ⚠️ **INFRASTRUCTURE REMEDIATION IN PROGRESS** — System unstable, fixing critical issues
-**Current Session (Infrastructure Audit & Fixes):**
-  - 🔄 **DEPLOYMENT 25672147482**: Testing services module fixes (CloudFront OAC + Alpaca paper trading)
-  - ✅ Fixed CloudFront S3 bucket policy: Added SourceArn condition to OAC (prevents 404 errors)
-  - ✅ Fixed Algo Lambda: Added APCA_API_IS_PAPER env var (ensures paper trading mode)
-  - ⚠️ Deferred VPC RDS security group refactor: Caused repeated apply failures, needs deeper investigation
-  - ✅ Reverted problematic VPC changes: Force-pushed safer version with services-only fixes
-  
-**Known Issues Identified:**
-  - ❌ RDS security group state mismatch (inline rules vs. separate resources) — deferred for now
-  - ⚠️ 9 other medium/low priority issues (Cognito JWT, rotation lambda, variable validation, etc.)
+**Last Updated:** 2026-05-11 16:20Z  
+**Project Status:** ✅ **SYSTEM OPERATIONAL** — Core infrastructure working, cleanup in progress
+
+**Session Fixes (2026-05-11):**
+  - ✅ RDS security group state conflict resolved (separate aws_security_group_rule resources + import step)
+  - ✅ Added concurrency controls to prevent stale Terraform plan race condition
+  - ✅ pipeline IAM user (algo-pipeline) configured for local CLI access
+  - ✅ Fixed API Lambda crash: `requireAdmin` undefined in health.js diagnostics route
+  - ✅ Production config.js now injects real API_URL during CI build
+  - ✅ API health endpoint confirmed working: 200 OK
+  - ✅ Frontend serving HTML via CloudFront (d5j1h4wzrkvw7.cloudfront.net)
+  - ✅ VITE_API_URL correctly set to real API Gateway during build
+
+**Known Remaining Issues:**
+  - ⚠️ 4 orphaned API Gateway APIs (2x stocks-api-dev + 2x algo-api-dev) — active is 2iqq1qhltj
+  - ⚠️ CloudFront d39kuiu278hu2e returns Access Denied (wrong S3 origin or orphaned)
+  - ⚠️ backtest_results table and other tables may be missing from DB schema
 
 **Infrastructure Status:**
-  - ✅ Algo Lambda: python3.11, 300s timeout, 512MB
-  - ✅ API Lambda: nodejs20.x, 30s timeout, 256MB
+  - ✅ API Lambda: nodejs20.x, healthy, routing correctly
+  - ✅ API Gateway: https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
+  - ✅ Frontend: d5j1h4wzrkvw7.cloudfront.net
   - ✅ RDS Database: PostgreSQL, available, 61GB allocated
   - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays
-**Next:** Wait for deployment 25672147482 → verify CloudFront/Alpaca fixes → plan approach for RDS refactor
+  - ✅ Terraform deploys: Working reliably with import + concurrency steps
+
+**Next:** Clean up orphaned API Gateways → Verify DB schema tables → Monitor algo Lambda at 5:30pm ET
 
 ---
 
