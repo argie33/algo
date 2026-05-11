@@ -1,9 +1,13 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 (BATCH 5 HYGIENE IMPROVEMENTS COMPLETE)
-**Project Status:** ✅ **SYSTEM READY FOR PAPER TRADING** — 34 bugs fixed across 5 batches, all critical show-stoppers resolved
-**Latest Session:** ✅ Batch 5 complete (7 items: logger migration, loader promotion, schedule wiring, code deduplication), ✅ Reflection audit identifies next batch targets
-**Commit:** b77ad896c (Batch 5: logger migration, loadsectorranking/loadindustryranking promotion, EventBridge schedules, PositionMonitor dedup)
+**Last Updated:** 2026-05-11 (INFRASTRUCTURE DEPLOYMENT IN PROGRESS)
+**Project Status:** ✅ **SYSTEM READY FOR PAPER TRADING** — 34 bugs fixed, infrastructure deployment fixes applied
+**Latest Session:** 
+  - ✅ Fixed S3 bucket policy for CloudFront OAC access
+  - ✅ Removed phantom loaders (sector_ranking, industry_ranking with no Python implementation)
+  - ✅ Committed and pushed both fixes
+  - ⏳ Deployment Run 25647883836 in progress
+**Next:** Wait for deployment, test frontend CloudFront access, verify Lambda execution
 
 ---
 

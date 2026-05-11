@@ -115,12 +115,15 @@ class ModelRegistry:
                     notes,
                 )
             )
-            registry_id = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            if not result:
+                raise ValueError("Failed to register model - no RETURNING result")
+            registry_id = result[0]
             self.conn.commit()
 
-            print(f"[OK] Model registered: {strategy_name} (ID: {registry_id})")
-            print(f"     Git Commit: {git_commit}")
-            print(f"     Backtest Sharpe: {backtest_sharpe:.3f}")
+            logger.info(f"[OK] Model registered: {strategy_name} (ID: {registry_id})")
+            logger.info(f"     Git Commit: {git_commit}")
+            logger.info(f"     Backtest Sharpe: {backtest_sharpe:.3f}")
 
             return registry_id
 

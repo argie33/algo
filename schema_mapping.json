@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "description": "Complete schema mapping for all critical tables. Used for validation and documentation.",
+    "last_updated": "2026-05-11",
+    "naming_standards": {
+      "timestamps": "created_at, updated_at for row lifecycle; report_date for data observation date",
+      "observation_dates": "date for market data (price_daily), score_date for computed scores, report_date for earnings",
+      "position_refs": "symbol (stock ticker), trade_id (unique trade identifier)"
+    }
+  },
+  "critical_tables": {
+    "price_daily": {
+      "purpose": "Daily OHLCV data for all stocks",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "date": "DATE - trading date (observation date)",
+        "open": "NUMERIC - opening price",
+        "high": "NUMERIC - high price",
+        "low": "NUMERIC - low price",
+        "close": "NUMERIC - closing price",
+        "volume": "BIGINT - trading volume in shares"
+      },
+      "critical_notes": "MUST use 'date' NOT 'created_at'. No bid/ask columns.",
+      "queries_validated": [
+        "SELECT close FROM price_daily WHERE symbol = ? AND date <= ?",
+        "SELECT AVG(volume) FROM price_daily WHERE symbol = ? AND date >= ? - INTERVAL '50 days'",
+        "SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'"
+      ]
+    },
+    "stock_scores": {
+      "purpose": "Technical and fundamental score metrics per symbol/date",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "score_date": "DATE - date scores computed for (NOT created_at)",
+        "signal_quality_score": "NUMERIC - signal quality 0-100",
+        "swing_trader_score": "NUMERIC - swing trading suitability 0-100",
+        "earnings_surprise_pct": "NUMERIC - earnings beat/miss percentage",
+        "short_interest_pct": "NUMERIC - short interest as % of float"
+      },
+      "critical_notes": "MUST use 'score_date' NOT 'date'. Column is 'earnings_surprise_pct' NOT 'eps_surprise_pct'.",
+      "queries_validated": [
+        "SELECT signal_quality_score FROM stock_scores WHERE symbol = ? ORDER BY score_date DESC LIMIT 1"
+      ]
+    },
+    "earnings_metrics": {
+      "purpose": "Earnings-related data for all stocks",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "report_date": "DATE - when earnings were reported (NOT date_of_report)",
+        "earnings_surprise_pct": "NUMERIC - beat/miss percentage",
+        "eps_actual": "NUMERIC - actual EPS",
+        "eps_estimate": "NUMERIC - consensus estimate"
+      },
+      "critical_notes": "Column is 'report_date' NOT 'date_of_report' or 'date'. Column is 'earnings_surprise_pct'.",
+      "queries_validated": [
+        "SELECT report_date FROM earnings_metrics WHERE symbol = ? ORDER BY report_date DESC LIMIT 1"
+      ]
+    },
+    "earnings_history": {
+      "purpose": "Historical earnings dates for blocks blackout calculation",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "quarter": "TEXT - quarter format 'Q1 2026'",
+        "report_date": "DATE - actual earnings report date"
+      },
+      "critical_notes": "Prefer 'report_date' over 'quarter' string for date calculations.",
+      "queries_validated": []
+    },
+    "algo_trades": {
+      "purpose": "All executed trades by the algorithm",
+      "key_columns": {
+        "trade_id": "UUID - unique trade identifier",
+        "symbol": "TEXT - stock ticker",
+        "trade_date": "DATE - when trade was entered (NOT entry_date)",
+        "entry_price": "NUMERIC - entry price",
+        "stop_loss_price": "NUMERIC - stop loss level",
+        "status": "TEXT - OPEN, EXITED, HALTED"
+      },
+      "critical_notes": "Column is 'trade_date' NOT 'entry_date'. This is when the trade was entered.",
+      "queries_validated": [
+        "SELECT trade_date FROM algo_trades WHERE symbol = ? ORDER BY trade_date DESC"
+      ]
+    },
+    "algo_positions": {
+      "purpose": "Currently open positions",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "quantity": "NUMERIC - shares held",
+        "entry_price": "NUMERIC - entry price",
+        "current_price": "NUMERIC - current market price"
+      },
+      "critical_notes": "No sector column yet (stub in circuit_breaker). Sector data planned for future.",
+      "queries_validated": []
+    },
+    "algo_audit_log": {
+      "purpose": "Audit trail of all actions by the algorithm",
+      "key_columns": {
+        "action_type": "TEXT - action performed",
+        "symbol": "TEXT - affected symbol",
+        "created_at": "TIMESTAMP - when action occurred (NOT timestamp)",
+        "action_date": "DATE - date of action"
+      },
+      "critical_notes": "Column is 'created_at' NOT 'timestamp'. Used for circuit breaker re-engagement timing.",
+      "queries_validated": [
+        "SELECT MAX(created_at) FROM algo_audit_log WHERE action_type = 'DRAWDOWN_HALT'"
+      ]
+    },
+    "sector_ranking": {
+      "purpose": "Ranked list of sectors by momentum",
+      "key_columns": {
+        "sector_name": "TEXT - sector name (NOT sector)",
+        "date_recorded": "DATE - date rankings computed for",
+        "current_rank": "INT - rank 1-11",
+        "momentum_score": "NUMERIC - momentum calculation"
+      },
+      "critical_notes": "Column is 'sector_name' NOT 'sector'. Column is 'date_recorded' NOT 'date'.",
+      "queries_validated": [
+        "SELECT signal FROM sector_rotation_signal WHERE date = (SELECT MAX(date)...)"
+      ]
+    },
+    "industry_ranking": {
+      "purpose": "Ranked list of industries by momentum",
+      "key_columns": {
+        "industry": "TEXT - industry name",
+        "date_recorded": "DATE - date rankings computed for",
+        "current_rank": "INT - rank order",
+        "daily_strength_score": "NUMERIC - strength metric"
+      },
+      "critical_notes": "Column is 'date_recorded' NOT 'date'.",
+      "queries_validated": []
+    },
+    "trend_template_data": {
+      "purpose": "Minervini trend template scoring per symbol",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "date": "DATE - observation date",
+        "weinstein_stage": "INT - stage 1-4",
+        "trend_score": "NUMERIC - overall trend quality"
+      },
+      "critical_notes": "Column is 'weinstein_stage' NOT 'minervini_stage'.",
+      "queries_validated": []
+    },
+    "technical_data_daily": {
+      "purpose": "Technical indicators (ATR, RSI, etc) per symbol/date",
+      "key_columns": {
+        "symbol": "TEXT - stock ticker",
+        "date": "DATE - observation date",
+        "atr": "NUMERIC - Average True Range",
+        "rsi": "NUMERIC - Relative Strength Index"
+      },
+      "critical_notes": "Used for stop loss calculations. Must have 'atr' column.",
+      "queries_validated": []
+    }
+  },
+  "schema_violations_fixed": {
+    "batch_1": [
+      "loadbuyselldaily.py: Added df parameter to _generate_signal_row (was undefined)",
+      "algo_swing_score.py: Added missing 'import json'",
+      "algo_economic_calendar.py: Added missing Optional, Tuple imports"
+    ],
+    "batch_2": [
+      "algo_liquidity_checks.py: Fixed SELECT avg_volume, bid, ask (columns don't exist)",
+      "algo_swing_score.py: Fixed SELECT status FROM sector_rotation_signal (columns wrong)",
+      "algo_swing_score.py: Fixed SELECT short_interest_pct FROM stock_scores (column wrong)",
+      "algo_swing_score.py: Fixed SELECT eps_surprise_pct, date_of_report (columns wrong)",
+      "algo_swing_score.py: Fixed _days_to_earnings using quarter string + timedelta",
+      "algo_circuit_breaker.py: Fixed SELECT timestamp FROM algo_audit_log (column created_at)",
+      "algo_exit_engine.py: Fixed INTERVAL '%s days' SQL syntax",
+      "algo_daily_reconciliation.py: Fixed SELECT entry_date FROM algo_trades (column trade_date)"
+    ]
+  },
+  "validation_rules": {
+    "rule_1": "Never assume a table has a 'date' column without checking schema first",
+    "rule_2": "Observation dates use different names: date (price), score_date (scores), report_date (earnings)",
+    "rule_3": "Timestamps for audit/lifecycle use 'created_at' and 'updated_at'",
+    "rule_4": "Always check if columns like bid, ask, spread actually exist before querying",
+    "rule_5": "Before writing queries, verify column names in target table schema",
+    "rule_6": "Use schema_mapping.json as reference when writing any SELECT statement"
+  }
+}

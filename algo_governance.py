@@ -105,7 +105,10 @@ class ModelGovernance:
                     notes,
                 )
             )
-            registry_id = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            if not result:
+                raise ValueError("Failed to register model - no RETURNING result")
+            registry_id = result[0]
             self.conn.commit()
 
             print(f"Model registered: {registry_id} ({git_commit[:8]}) deployed by {deployed_by}")

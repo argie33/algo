@@ -164,7 +164,8 @@ class Orchestrator:
                 WHERE table_schema = 'public'
                 AND table_name IN ('stock_symbols', 'algo_positions', 'algo_trades')
             """)
-            table_count = cur.fetchone()[0]
+            result = cur.fetchone()
+            table_count = result[0] if result else 0
 
             if table_count >= 3:
                 if self.verbose:
@@ -608,6 +609,10 @@ class Orchestrator:
                 """
             )
             row = cur.fetchone()
+            if not row:
+                logger.error("DATA FRESHNESS: Critical query returned no results")
+                self.log_phase_result(1, 'data_freshness', 'error', 'Could not query data freshness')
+                return False
 
             spy_date, mh_date, tt_date, sqs_date, buys_date = row
             checks = {
