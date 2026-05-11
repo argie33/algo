@@ -416,18 +416,9 @@ if body.get('errors'):
         working-directory: webapp/frontend
         env:
           VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
-          API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
           npm install
           npm run build
-          # Inject production config.js after build (overwrite the dev one)
-          mkdir -p dist
-          echo "window.__CONFIG__ = {" > dist/config.js
-          echo "  \"API_URL\": \"$API_URL\"," >> dist/config.js
-          echo "  \"BUILD_TIME\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> dist/config.js
-          echo "  \"VERSION\": \"$(node -p "require('./package.json').version" 2>/dev/null || echo '1.0.0')\"," >> dist/config.js
-          echo "  \"ENVIRONMENT\": \"production\"" >> dist/config.js
-          echo "};" >> dist/config.js
 
       - name: Sync to S3
         run: |
