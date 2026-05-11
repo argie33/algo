@@ -202,6 +202,12 @@ variable "enable_rds_alarms" {
   default     = true
 }
 
+variable "db_deletion_protection" {
+  description = "Enable RDS deletion protection. Always true for live systems with real data."
+  type        = bool
+  default     = true
+}
+
 variable "alarm_sns_topic_arn" {
   description = "SNS topic ARN for alarm notifications (optional)"
   type        = string

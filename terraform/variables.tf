@@ -205,6 +205,18 @@ variable "enable_rds_cloudwatch_logs" {
   default     = true
 }
 
+variable "enable_rds_alarms" {
+  description = "Enable CloudWatch alarms for RDS (CPU, storage, connections). Set true for any live system."
+  type        = bool
+  default     = true
+}
+
+variable "db_deletion_protection" {
+  description = "Enable RDS deletion protection. Set true for any live system with real data."
+  type        = bool
+  default     = true
+}
+
 variable "rds_log_retention_days" {
   description = "RDS log retention in days"
   type        = number

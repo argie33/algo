@@ -80,12 +80,12 @@ resource "aws_db_instance" "main" {
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
   performance_insights_enabled    = false # Additional cost, disable for dev
 
-  # Deletion Protection
-  deletion_protection = var.environment == "prod" ? true : false
-  skip_final_snapshot = var.environment != "prod" # prod=false (takes snapshot), dev=true (skips)
+  # Deletion Protection — controlled explicitly, not by environment label
+  deletion_protection = var.db_deletion_protection
+  skip_final_snapshot = !var.db_deletion_protection # take snapshot whenever deletion protection is on
 
   # CRITICAL: Always explicitly name final snapshots to prevent accidental loss
-  final_snapshot_identifier = var.environment == "prod" ? "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
+  final_snapshot_identifier = var.db_deletion_protection ? "${var.project_name}-db-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-db"
