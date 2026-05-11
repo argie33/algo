@@ -143,31 +143,8 @@ jobs:
             jq -r 'to_entries[] | select(.value.sensitive != true) | "- **\(.key)**: \(.value.value)"' \
             >> $GITHUB_STEP_SUMMARY || true
 
-      - name: Export Claude Debug Credentials to GitHub Secrets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Creating new access key for claude-debug user..."
-
-          # Create new access key for claude-debug
-          KEY_OUTPUT=$(aws iam create-access-key --user-name algo-claude-debug --output json 2>/dev/null)
-          ACCESS_KEY=$(echo "$KEY_OUTPUT" | jq -r '.AccessKey.AccessKeyId')
-          SECRET_KEY=$(echo "$KEY_OUTPUT" | jq -r '.AccessKey.SecretAccessKey')
-
-          if [ -z "$ACCESS_KEY" ] || [ "$ACCESS_KEY" = "null" ]; then
-            echo "❌ Failed to create access key for claude-debug"
-            exit 1
-          fi
-
-          echo "✅ Created access key: ${ACCESS_KEY:0:10}..."
-
-          # Store in GitHub secrets
-          echo "$ACCESS_KEY" | gh secret set CLAUDE_DEBUG_AWS_ACCESS_KEY_ID --repo ${{ github.repository }}
-          echo "$SECRET_KEY" | gh secret set CLAUDE_DEBUG_AWS_SECRET_ACCESS_KEY --repo ${{ github.repository }}
-
-          echo "✅ Stored credentials in GitHub secrets"
-          echo "- CLAUDE_DEBUG_AWS_ACCESS_KEY_ID"
-          echo "- CLAUDE_DEBUG_AWS_SECRET_ACCESS_KEY"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Authentication**: Using GitHub Actions OIDC (secure, no long-lived secrets)" >> $GITHUB_STEP_SUMMARY
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2a — Docker image for ECS loaders

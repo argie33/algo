@@ -81,9 +81,14 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      DB_SECRET_ARN = var.rds_credentials_secret_arn
-      DB_ENDPOINT   = var.rds_endpoint
-      DB_NAME       = var.rds_database_name
+      DB_SECRET_ARN        = var.rds_credentials_secret_arn
+      DB_ENDPOINT          = var.rds_endpoint
+      DB_NAME              = var.rds_database_name
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID    = var.cognito_client_id
+      NODE_ENV             = "production"
+      CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend.domain_name}", "")
+      FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend.domain_name}", "")
     }
   }
 

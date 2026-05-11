@@ -210,11 +210,12 @@ class CircuitBreaker:
 
         # Check 2: Has enough time elapsed since halt?
         # Find the date of the latest drawdown halt event
+        days_elapsed = 0
         self.cur.execute(
             """
-            SELECT timestamp FROM algo_audit_log
+            SELECT created_at FROM algo_audit_log
             WHERE action_type = 'circuit_breaker' AND details ILIKE '%drawdown%'
-            ORDER BY timestamp DESC LIMIT 1
+            ORDER BY created_at DESC LIMIT 1
             """
         )
         halt_row = self.cur.fetchone()

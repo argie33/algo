@@ -272,7 +272,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         signals = []
         for _, row in df.iterrows():
-            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df)
+            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df, df)
             if sig:
                 signals.append(sig)
 
@@ -327,7 +327,7 @@ class BuySellDailyLoader(OptimalLoader):
         adx = dx.rolling(period).mean()
         return adx
 
-    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None, spy_df=None):
+    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None, spy_df=None, df=None):
         """Generate buy/sell signal from indicators for one row."""
         if trend_data is None:
             trend_data = {}

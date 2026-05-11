@@ -1835,9 +1835,9 @@ router.get('/signal-performance', async (req, res) => {
         entry_price, exit_price, realized_pnl, realized_pnl_pct, r_multiple, win,
         target_1_hit, target_2_hit, hold_days
       FROM signal_trade_performance
-      WHERE exit_date >= NOW()::DATE - INTERVAL $1
+      WHERE exit_date >= NOW()::DATE - MAKE_INTERVAL(days => $1)
     `;
-    const params = [`${days} days`];
+    const params = [days];
 
     if (base_type_filter) {
       query += ` AND base_type = $${params.length + 1}`;
@@ -1966,8 +1966,8 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
         AVG(ABS(slippage_bps)) as avg_slippage_bps,
         MAX(ABS(slippage_bps)) as max_slippage_bps
       FROM order_execution_log
-      WHERE order_timestamp >= NOW() - INTERVAL $1
-    `, [`${days} days`]);
+      WHERE order_timestamp >= NOW() - MAKE_INTERVAL(days => $1)
+    `, [days]);
 
     const row = result.rows[0] || {};
 
@@ -2019,10 +2019,10 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
         SUM(CASE WHEN target_1_hit THEN 1 ELSE 0 END) AS t1_hits,
         SUM(CASE WHEN target_2_hit THEN 1 ELSE 0 END) AS t2_hits
       FROM signal_trade_performance
-      WHERE exit_date >= CURRENT_DATE - INTERVAL $1
+      WHERE exit_date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
       GROUP BY base_type
       ORDER BY total_trades DESC
-    `, [`${days} days`]);
+    `, [days]);
 
     return res.json({
       success: true,

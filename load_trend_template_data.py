@@ -69,7 +69,7 @@ class TrendTemplateDataLoader(OptimalLoader):
                     minervini_result = sig.minervini_trend_template(symbol, current_date)
                     weinstein_stage = sig.weinstein_stage(symbol, current_date)
 
-                    if minervini_result and minervini_stage is not None:
+                    if minervini_result and weinstein_stage is not None:
                         trend_score = minervini_result.get("score", 0)
                         trend_direction = "up" if minervini_result.get("price_above_150sma") else "down"
                         trend_confirmation = minervini_result.get("score", 0) >= 4
