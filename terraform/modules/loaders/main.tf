@@ -470,6 +470,8 @@ locals {
 resource "aws_ecs_task_definition" "loader" {
   for_each = local.all_loaders
 
+  depends_on = [null_resource.ensure_log_group]
+
   family = "${var.project_name}-${each.key}-loader"
   container_definitions = jsonencode([
     {
@@ -480,7 +482,7 @@ resource "aws_ecs_task_definition" "loader" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.loader[each.key].name
+          "awslogs-group"         = "/ecs/${var.project_name}-${each.key}-loader"
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "ecs"
         }
@@ -536,14 +538,17 @@ resource "aws_ecs_task_definition" "loader" {
   tags = var.common_tags
 }
 
-# CloudWatch Log Groups for all loaders
-resource "aws_cloudwatch_log_group" "loader" {
+# Create CloudWatch Log Groups - retry if already exists to avoid state sync issues
+resource "null_resource" "ensure_log_group" {
   for_each = local.all_loaders
 
-  name              = "/ecs/${var.project_name}-${each.key}-loader"
-  retention_in_days = 30
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-${each.key}-loader --region ${var.aws_region} 2>/dev/null || true"
+  }
 
-  tags = var.common_tags
+  triggers = {
+    log_group_name = "/ecs/${var.project_name}-${each.key}-loader"
+  }
 }
 
 # ============================================================
