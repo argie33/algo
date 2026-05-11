@@ -369,7 +369,7 @@ resource "aws_cloudwatch_log_metric_filter" "connection_timeout" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-connection-timeout-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  pattern = "[...] FATAL:  *connection*limit*"
+  pattern = "connection limit exceeded"
 
   metric_transformation {
     name      = "RDSConnectionTimeouts"
@@ -403,7 +403,7 @@ resource "aws_cloudwatch_log_metric_filter" "too_many_connections" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-too-many-connections-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  pattern = "[...] FATAL:  *too*many*connections*"
+  pattern = "too many connections"
 
   metric_transformation {
     name      = "RDSTooManyConnections"
