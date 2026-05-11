@@ -26,6 +26,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+from monitoring_context import TimeBlock
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +60,13 @@ def load_technicals(days_back=365, symbol_filter=None):
     """
     conn = None
     cur = None
-    try:
-        conn = psycopg2.connect(**_get_db_config())
-        cur = conn.cursor()
-        start = datetime.now()
+    with TimeBlock("loadtechnicalsdaily"):
+        try:
+            conn = psycopg2.connect(**_get_db_config())
+            cur = conn.cursor()
+            start = datetime.now()
 
-        logger.info(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
+            logger.info(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
         logger.info(f"  Lookback: {days_back} days")
         if symbol_filter:
             logger.info(f"  Symbol filter: {symbol_filter}")
@@ -229,21 +231,21 @@ def load_technicals(days_back=365, symbol_filter=None):
         logger.info(f"COMPLETE — {elapsed:.1f}s")
         logger.info(f"  total rows:    {total:,}")
         logger.info(f"  symbols:       {symbols:,}")
-        logger.info(f"  date range:    {min_d} to {max_d}")
-        logger.info(f"{'='*70}\n")
-    except Exception as e:
-        logger.info(f"ERROR: {e}")
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            logger.info(f"  date range:    {min_d} to {max_d}")
+            logger.info(f"{'='*70}\n")
+        except Exception as e:
+            logger.info(f"ERROR: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ from credential_manager import get_credential_manager
 from data_tick_validator import validate_price_tick
 from data_provenance_tracker import DataProvenanceTracker
 from data_watermark_manager import WatermarkManager
+from monitoring_context import TimeBlock
 
 _credential_manager = get_credential_manager()
 
@@ -264,7 +265,8 @@ def main():
         loader.start_provenance_tracking()
 
         # Run the loader with validation + provenance tracking
-        stats = loader.run(symbols, parallelism=args.parallelism)
+        with TimeBlock("loadpricedaily"):
+            stats = loader.run(symbols, parallelism=args.parallelism)
 
         # PHASE 1: Finalize tracking
         loader.end_provenance_tracking(success=(stats["symbols_failed"] == 0))
