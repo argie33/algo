@@ -623,18 +623,39 @@ class Orchestrator:
                 'Signal quality scores': sqs_date,
                 'Buy/sell signals': buys_date,
             }
+            table_keys = {
+                'SPY price data': 'price_daily',
+                'Market health': 'market_health_daily',
+                'Trend template': 'trend_template_data',
+                'Signal quality scores': 'signal_quality_scores',
+                'Buy/sell signals': 'buy_sell_daily',
+            }
             max_stale = int(self.config.get('max_data_staleness_days', 7))
             stale_items = []
+
+            try:
+                from algo_metrics import MetricsPublisher
+                _metrics = MetricsPublisher(dry_run=self.dry_run)
+            except Exception:
+                _metrics = None
+
             for name, d in checks.items():
                 if d is None:
                     stale_items.append(f"{name}: missing")
+                    if _metrics:
+                        _metrics.put_data_freshness(table_keys[name], 999)
                 else:
                     age = (self.run_date - d).days
+                    if _metrics:
+                        _metrics.put_data_freshness(table_keys[name], age)
                     if age > max_stale:
                         stale_items.append(f"{name}: {age}d old")
                     if self.verbose:
                         flag = '[OK]' if age <= max_stale else '[STALE]'
                         logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
+
+            if _metrics:
+                _metrics.flush()
 
             if stale_items:
                 self.alerts.send_position_alert(
@@ -1591,20 +1612,31 @@ class Orchestrator:
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:
-            import boto3
-            cw = boto3.client('cloudwatch', region_name='us-east-1')
-            metric_name = 'AlgoRunCompleted' if result['success'] else 'AlgoRunFailed'
-            cw.put_metric_data(
-                Namespace='AlgoTrading',
-                MetricData=[{
-                    'MetricName': metric_name,
-                    'Value': 1,
-                    'Unit': 'Count',
-                }]
-            )
+            from algo_metrics import MetricsPublisher
+            with MetricsPublisher(dry_run=self.dry_run) as m:
+                m.put_orchestrator_result(result['success'], self.phase_results)
+
+                # Signal count from phase 5 summary
+                phase5 = self.phase_results.get(5, {})
+                signals = phase5.get('signals_evaluated', 0)
+                if isinstance(signals, int):
+                    m.put_signal_count(signals)
+
+                # Trade count from phase 6 summary
+                phase6 = self.phase_results.get(6, {})
+                trades = phase6.get('trades_executed', 0)
+                if isinstance(trades, int):
+                    m.put_trade_count(trades)
+
+                # Open position count from phase 7
+                phase7 = self.phase_results.get(7, {})
+                positions = phase7.get('open_positions', 0)
+                if isinstance(positions, int):
+                    m.put_open_positions(positions)
+
         except Exception as e:
-            # Silently continue — metrics publishing must never fail the trading system
-            logger.error(f"  (CloudWatch metric publish failed: {e})")
+            # Never let metrics publishing interrupt trading results
+            logger.error("CloudWatch metric publish failed: %s", e)
 
         return result
 

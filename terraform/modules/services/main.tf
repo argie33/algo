@@ -644,6 +644,62 @@ resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors" {
   tags = var.common_tags
 }
 
+# ============================================================
+# Algo Trading Business Logic Alarms (AlgoTrading namespace)
+# ============================================================
+
+# Page immediately if the orchestrator run fails (fires at 5:30pm ET daily)
+resource "aws_cloudwatch_metric_alarm" "orchestrator_failure" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-orchestrator-failure-${var.environment}"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "OrchestratorSuccess"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Minimum"
+  threshold           = 1
+  alarm_description   = "CRITICAL: Algo orchestrator run failed. Check CloudWatch Logs for phase details."
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  ok_actions          = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# Alert if no signals are generated for 3 consecutive trading days
+resource "aws_cloudwatch_metric_alarm" "zero_signals" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-zero-signals-${var.environment}"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "SignalsGenerated"
+  namespace           = "AlgoTrading"
+  period              = 86400
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "WARNING: Zero BUY signals generated for 3+ consecutive trading days. Check data pipeline."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# Alert if data is stale (a loader failed to run)
+resource "aws_cloudwatch_metric_alarm" "data_freshness_stale" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-data-freshness-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "DataFreshnessAgeDays"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = 3
+  alarm_description   = "WARNING: Critical data table is 3+ days stale. A loader may have failed."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
 resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
