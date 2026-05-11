@@ -388,6 +388,15 @@ jobs:
           VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
           npm install
+          # Inject production config.js so runtime fallback also has correct URL
+          cat > public/config.js <<EOF
+window.__CONFIG__ = {
+  "API_URL": "${{ needs.terraform.outputs.api_gateway_endpoint }}",
+  "BUILD_TIME": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "VERSION": "$(node -p "require('./package.json').version" 2>/dev/null || echo '1.0.0')",
+  "ENVIRONMENT": "production"
+};
+EOF
           npm run build
 
       - name: Sync to S3
