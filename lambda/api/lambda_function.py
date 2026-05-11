@@ -24,7 +24,7 @@ import logging
 import psycopg2
 import psycopg2.extras
 import re
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger()
@@ -117,7 +117,7 @@ class APIHandler:
         try:
             # Health check
             if path == '/api/health':
-                return json_response(200, {'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+                return json_response(200, {'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()})
 
             # Algo endpoints
             if path.startswith('/api/algo/'):
@@ -240,7 +240,7 @@ class APIHandler:
                 'freshness_score': 0.98,
                 'completeness_score': 0.97,
                 'accuracy_check': 'passed',
-                'last_check': datetime.utcnow().isoformat(),
+                'last_check': datetime.now(timezone.utc).isoformat(),
             })
         elif path == '/api/algo/exposure-policy':
             return json_response(200, {
@@ -356,7 +356,7 @@ class APIHandler:
     def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
                 SELECT created_at, portfolio_value, cash, exposure
                 FROM algo_portfolio_snapshots
@@ -383,7 +383,7 @@ class APIHandler:
             rows = self.cur.fetchall()
             return json_response(200, {
                 'latest_data': [dict(r) for r in rows],
-                'as_of': datetime.utcnow().isoformat(),
+                'as_of': datetime.now(timezone.utc).isoformat(),
             })
         except Exception as e:
             return error_response(500, 'database_error', str(e))
@@ -421,7 +421,7 @@ class APIHandler:
     def _get_sector_rotation(self, days: int = 180) -> Dict:
         """Get sector rotation data."""
         try:
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
                 SELECT date, sector, performance_pct
                 FROM sector_rotation
@@ -474,7 +474,7 @@ class APIHandler:
     def _get_swing_scores_history(self, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
                 SELECT eval_date,
                     COUNT(*) as total_candidates,
@@ -797,7 +797,7 @@ class APIHandler:
     def _get_fear_greed_history(self, days: int = 30) -> Dict:
         """Get fear/greed index history."""
         try:
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
                 SELECT date, fear_greed_index as value, label
                 FROM market_sentiment
