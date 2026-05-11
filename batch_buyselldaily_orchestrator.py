@@ -68,7 +68,7 @@ def get_all_symbols() -> List[str]:
             )
 
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
 
             logger.info(f"Fetched {len(symbols)} active symbols from database")

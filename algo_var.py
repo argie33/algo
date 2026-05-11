@@ -297,6 +297,26 @@ class PortfolioRisk:
             portfolio_row = cur.fetchone()
             portfolio_value = float(portfolio_row[0]) if portfolio_row else 100000.0
 
+            # Fetch SPY returns for the last 60 trading days (beta denominator)
+            cur.execute(
+                """
+                SELECT date, close FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC LIMIT 61
+                """
+            )
+            spy_rows = cur.fetchall()
+            spy_returns = []
+            if len(spy_rows) >= 2:
+                spy_prices = list(reversed([float(r[1]) for r in spy_rows]))
+                spy_returns = [(spy_prices[i] - spy_prices[i-1]) / spy_prices[i-1]
+                               for i in range(1, len(spy_prices))]
+
+            spy_var = 0.0
+            if spy_returns:
+                spy_mean = sum(spy_returns) / len(spy_returns)
+                spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
+
             total_beta_exposure = 0
             positions_list = []
 
@@ -304,7 +324,36 @@ class PortfolioRisk:
                 position_value = float(qty) * float(cur_price or entry_price)
                 position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
+                # Compute 60-day beta via covariance with SPY
                 estimated_beta = 1.0
+                if spy_returns and spy_var > 0:
+                    try:
+                        cur.execute(
+                            """
+                            SELECT close FROM price_daily
+                            WHERE symbol = %s
+                            ORDER BY date DESC LIMIT 61
+                            """,
+                            (symbol,)
+                        )
+                        stock_rows = cur.fetchall()
+                        if len(stock_rows) >= 2:
+                            stock_prices = list(reversed([float(r[0]) for r in stock_rows]))
+                            stock_returns = [(stock_prices[i] - stock_prices[i-1]) / stock_prices[i-1]
+                                            for i in range(1, len(stock_prices))]
+                            n = min(len(stock_returns), len(spy_returns))
+                            if n >= 20:
+                                s_rets = stock_returns[-n:]
+                                m_rets = spy_returns[-n:]
+                                s_mean = sum(s_rets) / n
+                                m_mean = sum(m_rets) / n
+                                cov = sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean)
+                                         for i in range(n)) / n
+                                var = sum((r - m_mean) ** 2 for r in m_rets) / n
+                                if var > 0:
+                                    estimated_beta = round(cov / var, 2)
+                    except Exception:
+                        estimated_beta = 1.0
 
                 weighted_beta = estimated_beta * position_weight
                 total_beta_exposure += weighted_beta
@@ -473,12 +522,12 @@ class PortfolioRisk:
                 cur.execute(
                     """
                     INSERT INTO algo_risk_daily (
-                        report_date, var_95_pct, cvar_95_pct, stressed_var_99_pct, created_at
+                        report_date, var_pct_95, cvar_pct_95, stressed_var_pct, created_at
                     ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (report_date) DO UPDATE SET
-                        var_95_pct = EXCLUDED.var_95_pct,
-                        cvar_95_pct = EXCLUDED.cvar_95_pct,
-                        stressed_var_99_pct = EXCLUDED.stressed_var_99_pct
+                        var_pct_95 = EXCLUDED.var_pct_95,
+                        cvar_pct_95 = EXCLUDED.cvar_pct_95,
+                        stressed_var_pct = EXCLUDED.stressed_var_pct
                     """,
                     (
                         report_date,

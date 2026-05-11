@@ -993,7 +993,7 @@ class FilterPipeline:
                 try:
                     self.cur.execute(
                         """SELECT atr FROM technical_data_daily WHERE symbol = %s AND date = %s""",
-                        (symbol, eval_date)
+                        (symbol, signal_date)
                     )
                     atr_row = self.cur.fetchone()
                     if atr_row and atr_row[0]:

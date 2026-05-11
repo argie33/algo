@@ -420,14 +420,14 @@ class LivePerformance:
                     """
                     INSERT INTO algo_performance_daily (
                         report_date, rolling_sharpe_252d, win_rate_50t,
-                        avg_win_r, avg_loss_r, expectancy,
+                        avg_win_r_50t, avg_loss_r_50t, expectancy,
                         max_drawdown_pct, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (report_date) DO UPDATE SET
                         rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                         win_rate_50t = EXCLUDED.win_rate_50t,
-                        avg_win_r = EXCLUDED.avg_win_r,
-                        avg_loss_r = EXCLUDED.avg_loss_r,
+                        avg_win_r_50t = EXCLUDED.avg_win_r_50t,
+                        avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
                         expectancy = EXCLUDED.expectancy,
                         max_drawdown_pct = EXCLUDED.max_drawdown_pct
                     """,
