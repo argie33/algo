@@ -1,7 +1,7 @@
 environment               = "dev"
 aws_region                = "us-east-1"
 project_name              = "algo"
-algo_schedule_expression  = "cron(30 17 ? * MON-FRI *)"  # 5:30pm ET weekdays
+algo_schedule_expression  = "cron(30 21 ? * MON-FRI *)"  # 5:30pm ET (21:30 UTC, covers EDT)
 
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
 # For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"

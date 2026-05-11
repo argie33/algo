@@ -659,21 +659,13 @@ resource "aws_iam_role_policy_attachment" "rds_rotation_vpc" {
 }
 
 # Lambda Layer for psycopg2 (PostgreSQL driver)
-# Requires: .psycopg2-layer directory in module directory
-# See LAMBDA_LAYER_SETUP.md for how to build
-data "archive_file" "psycopg2_layer" {
-  count       = fileexists("${path.module}/.psycopg2-layer/python/lib/python3.11/site-packages/psycopg2") ? 1 : 0
-  type        = "zip"
-  source_dir  = "${path.module}/.psycopg2-layer"
-  output_path = "${path.module}/.terraform/psycopg2-layer.zip"
-}
-
+# CI builds python-psycopg2-layer.zip directly; reference it here without archive_file intermediary
 resource "aws_lambda_layer_version" "psycopg2" {
-  count                   = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
-  filename                = data.archive_file.psycopg2_layer[0].output_path
-  layer_name              = "${var.project_name}-psycopg2-layer-${var.environment}"
-  compatible_runtimes     = ["python3.11"]
-  source_code_hash        = data.archive_file.psycopg2_layer[0].output_base64sha256
+  count                    = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
+  filename                 = "${path.module}/python-psycopg2-layer.zip"
+  layer_name               = "${var.project_name}-psycopg2-layer-${var.environment}"
+  compatible_runtimes      = ["python3.11"]
+  source_code_hash         = fileexists("${path.module}/python-psycopg2-layer.zip") ? filebase64sha256("${path.module}/python-psycopg2-layer.zip") : null
   compatible_architectures = ["x86_64"]
 }
 

@@ -91,7 +91,7 @@ jobs:
       - name: Build psycopg2 Lambda layer
         run: |
           # Build psycopg2-binary layer so the db-init Lambda can connect to PostgreSQL.
-          # Must run before Terraform so the zip is available for archive_file.
+          # Must run before Terraform so the zip is available for filebase64sha256().
           LAYER_DIR=/tmp/psycopg2-layer
           mkdir -p $LAYER_DIR/python/lib/python3.11/site-packages
           pip install psycopg2-binary \
