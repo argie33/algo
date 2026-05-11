@@ -1,8 +1,42 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-10 21:35Z (PAPER TRADING VALIDATION SESSION)
-**Project Status:** ✅ **READY FOR PAPER TRADING** — All Sprint 1-5 improvements integrated, orchestrator validated (7/7 phases pass), paper trading mode enabled, infrastructure deployed
-**Latest:** ✅ All tuning improvements (Sprints 1-5) tested end-to-end, ✅ Orchestrator pipeline fully validated, ✅ Paper trading configured and ready, ✅ System ready for live signal generation
+**Last Updated:** 2026-05-11 14:15Z (AWS DEPLOYMENT AUDIT & FIXES)
+**Project Status:** ✅ **INFRASTRUCTURE FIXES IN PROGRESS** — Discovered and fixed 3 critical configuration issues, deployment running with fixed Terraform code
+**Latest:** ✅ Fixed Lambda environment variable pass-through, ✅ Removed IAM user conflict, ✅ Deployed with GitHub Actions OIDC authentication, ⏳ Terraform applying fixes now
+
+---
+
+## 🔧 AWS DEPLOYMENT AUDIT SESSION (2026-05-11 14:00Z - IN PROGRESS)
+
+**Objective:** Audit latest AWS deployment for issues, fix all blockers, ensure infrastructure is properly configured.
+
+**Issues Found & Fixed:**
+
+### 1. ✅ FIXED: Lambda Missing Environment Variables
+- **Problem**: Lambda functions not receiving Alpaca API keys, execution mode, orchestrator config
+- **Root Cause**: New variables added to services module but not passed from root module
+- **Solution**: Added variable pass-through in terraform/main.tf (lines 219-229)
+- **Commit**: `fab9dbedb`
+- **Result**: Lambda will now receive APCA_API_KEY_ID, APCA_API_SECRET_KEY, EXECUTION_MODE, DRY_RUN_MODE
+
+### 2. ✅ FIXED: IAM User Conflict  
+- **Problem**: Terraform trying to create `algo-claude-debug` user that already exists
+- **Root Cause**: Manual user created before Terraform, causing "EntityAlreadyExists" errors
+- **Solution**: Removed debug user entirely, using GitHub Actions OIDC instead
+- **Commits**: `16a2b52f2` (incomplete), `b40a5866f` (complete cleanup)
+- **Result**: Using secure OIDC for GitHub Actions (no long-lived secrets, automatic rotation)
+
+**Current Deployment:**
+- Run: https://github.com/argie33/algo/actions/runs/25646349199
+- Status: ⏳ Terraform Apply in progress
+- Expected: All Lambda configs updated, deployer user created
+
+**Next Steps:**
+1. ✅ Verify Terraform succeeds (should have no IAM conflicts)
+2. ✅ Check Lambda environment variables are populated
+3. ⏳ Test API Lambda health
+4. ⏳ Verify database schema initialized
+5. ⏳ Monitor next scheduled run
 
 ---
 
