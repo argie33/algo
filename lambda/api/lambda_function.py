@@ -686,7 +686,8 @@ class APIHandler:
                 alloc = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in alloc])
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
             return json_response(200, {})
 
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
@@ -725,14 +726,16 @@ class APIHandler:
                 breadth = self.cur.fetchall()
                 return json_response(200, [dict(b) for b in breadth])
             elif path == '/api/market/technicals':
-                return json_response(200, {
-                    'mcclellan_oscillator': 45.2,
-                    'advance_decline_ratio': 1.3,
-                    'breadth_advance': 2000,
-                    'breadth_decline': 1500,
-                    'new_highs': 150,
-                    'new_lows': 50,
-                })
+                self.cur.execute("""
+                    SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
+                           up_volume_percent, distribution_days_4w, breadth_momentum_10d,
+                           vix_level, put_call_ratio, market_trend, market_stage
+                    FROM market_health_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = self.cur.fetchone()
+                return json_response(200, dict(row) if row else {})
             elif path == '/api/market/top-movers':
                 self.cur.execute("""
                     SELECT symbol, company_name,
@@ -745,13 +748,33 @@ class APIHandler:
                 movers = self.cur.fetchall()
                 return json_response(200, [dict(m) for m in movers] if movers else [])
             elif path == '/api/market/distribution-days':
-                return json_response(200, [
-                    {'date': datetime.utcnow().isoformat(), 'type': 'distribution', 'confirmed': True}
-                ])
+                self.cur.execute("""
+                    SELECT symbol, date, distribution_count
+                    FROM distribution_days
+                    ORDER BY date DESC
+                    LIMIT 50
+                """)
+                dist = self.cur.fetchall()
+                return json_response(200, [dict(d) for d in dist] if dist else [])
             elif path == '/api/market/seasonality':
+                symbol = params.get('symbol', ['SPY'])[0] if params else 'SPY'
+                self.cur.execute("""
+                    SELECT month, avg_return_pct, win_rate_pct
+                    FROM seasonality_monthly_stats
+                    WHERE symbol = %s
+                    ORDER BY month
+                """, (symbol,))
+                monthly = self.cur.fetchall()
+                self.cur.execute("""
+                    SELECT day_of_week, avg_return_pct, win_rate_pct
+                    FROM seasonality_day_of_week
+                    WHERE symbol = %s
+                    ORDER BY day_of_week
+                """, (symbol,))
+                dow = self.cur.fetchall()
                 return json_response(200, {
-                    'monthly': {'January': 1.2, 'February': -0.5},
-                    'day_of_week': {'Monday': 0.3, 'Tuesday': 0.5},
+                    'monthly': [dict(r) for r in monthly],
+                    'day_of_week': [dict(r) for r in dow],
                 })
             elif path == '/api/market/sentiment':
                 range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
@@ -783,44 +806,66 @@ class APIHandler:
             """, (cutoff_date,))
             history = self.cur.fetchall()
             return json_response(200, [dict(h) for h in history] if history else [])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
             return json_response(200, [])
 
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic/* endpoints."""
         try:
             if path == '/api/economic/leading-indicators':
-                return json_response(200, [
-                    {'indicator': 'Initial Jobless Claims', 'value': 215000, 'prior': 220000, 'date': datetime.utcnow().isoformat()},
-                    {'indicator': 'ISM Manufacturing', 'value': 50.2, 'prior': 49.8, 'date': datetime.utcnow().isoformat()},
-                    {'indicator': 'Consumer Confidence', 'value': 104.7, 'prior': 102.3, 'date': datetime.utcnow().isoformat()},
-                ])
+                self.cur.execute("""
+                    SELECT DISTINCT ON (series_id) series_id, date, value
+                    FROM economic_data
+                    ORDER BY series_id, date DESC
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/economic/yield-curve-full':
-                return json_response(200, [
-                    {'maturity': '2Y', 'yield': 4.25},
-                    {'maturity': '5Y', 'yield': 4.10},
-                    {'maturity': '10Y', 'yield': 3.95},
-                    {'maturity': '30Y', 'yield': 3.98},
-                ])
+                self.cur.execute("""
+                    SELECT DISTINCT ON (series_id) series_id, date, value
+                    FROM economic_data
+                    WHERE series_id LIKE '%YIELD%' OR series_id LIKE '%DGS%'
+                    ORDER BY series_id, date DESC
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/economic/calendar':
-                return json_response(200, [
-                    {'event': 'CPI Release', 'date': '2026-05-10', 'time': '08:30', 'importance': 'high', 'forecast': 3.2, 'prior': 3.5},
-                    {'event': 'FOMC Meeting', 'date': '2026-05-20', 'time': '14:00', 'importance': 'high'},
-                ])
+                self.cur.execute("""
+                    SELECT date, event_name, country, importance, forecast, actual, previous
+                    FROM economic_calendar
+                    ORDER BY date DESC
+                    LIMIT 100
+                """)
+                events = self.cur.fetchall()
+                return json_response(200, [dict(e) for e in events] if events else [])
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in economic handler: {e}", exc_info=True)
             return json_response(200, {})
 
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
         try:
             if path == '/api/sentiment/summary':
-                return json_response(200, {
-                    'fear_greed': 55,
-                    'label': 'Neutral',
-                    'put_call_ratio': 0.8,
-                    'vix_level': 18.5,
-                })
+                self.cur.execute("""
+                    SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
+                           mh.put_call_ratio, mh.vix_level
+                    FROM fear_greed_index fg
+                    LEFT JOIN market_health_daily mh ON mh.date = fg.date
+                    ORDER BY fg.date DESC
+                    LIMIT 1
+                """)
+                row = self.cur.fetchone()
+                if row:
+                    return json_response(200, {
+                        'fear_greed': float(row['fear_greed_value']) if row['fear_greed_value'] else None,
+                        'label': row['fear_greed_label'],
+                        'put_call_ratio': float(row['put_call_ratio']) if row['put_call_ratio'] else None,
+                        'vix_level': float(row['vix_level']) if row['vix_level'] else None,
+                        'date': str(row['date']),
+                    })
+                return json_response(200, {})
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
                 limit = int(params.get('limit', [5000])[0]) if params else 5000
                 page = int(params.get('page', [1])[0]) if params else 1
@@ -840,37 +885,35 @@ class APIHandler:
                     'breadth_divergence': 0.8,
                 })
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in sentiment handler: {e}", exc_info=True)
             return json_response(200, {})
 
     def _handle_commodities(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/commodities/* endpoints."""
         try:
             if path == '/api/commodities/categories':
-                return json_response(200, {
-                    'precious_metals': ['GLD', 'SLV', 'PALL'],
-                    'energy': ['USO', 'UGA'],
-                    'agriculture': ['DBC', 'CORN', 'SOYBEAN'],
-                })
+                self.cur.execute("SELECT category, symbols FROM commodity_categories ORDER BY category")
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/commodities/correlations':
-                return json_response(200, {
-                    'GLD_stocks': 0.15,
-                    'USO_stocks': -0.25,
-                    'DBC_stocks': 0.05,
-                })
+                # No correlation table yet — return empty
+                return json_response(200, [])
             elif path == '/api/commodities/events':
-                return json_response(200, [
-                    {'commodity': 'Oil', 'event': 'Geopolitical tensions', 'date': datetime.utcnow().isoformat()},
-                    {'commodity': 'Gold', 'event': 'Fed rate expectations', 'date': datetime.utcnow().isoformat()},
-                ])
+                # No commodity events table yet — return empty
+                return json_response(200, [])
             elif path == '/api/commodities/macro':
-                return json_response(200, {
-                    'usd_strength': 104.2,
-                    'real_rates': 1.5,
-                    'inflation_expectations': 2.3,
-                })
+                self.cur.execute("""
+                    SELECT DISTINCT ON (series_id) series_id, date, value
+                    FROM economic_data
+                    WHERE series_id IN ('USD_INDEX', 'REAL_RATES', 'INFLATION_EXPECTATIONS', 'DXY')
+                    ORDER BY series_id, date DESC
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in commodities handler: {e}", exc_info=True)
             return json_response(200, {})
 
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
@@ -969,7 +1012,8 @@ class APIHandler:
                 audits = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in audits] if audits else [])
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in audit handler: {e}", exc_info=True)
             return json_response(200, [])
 
     def _handle_trades(self, path: str, method: str, params: Dict) -> Dict:
@@ -987,7 +1031,8 @@ class APIHandler:
                 summary = self.cur.fetchone()
                 return json_response(200, dict(summary) if summary else {})
             return json_response(200, {})
-        except:
+        except Exception as e:
+            logger.error(f"Error in trades handler: {e}", exc_info=True)
             return json_response(200, {})
 
 
