@@ -1448,45 +1448,8 @@ data "aws_iam_policy_document" "developer" {
 # ============================================================
 # Debug/Operations User - For Lambda debugging and troubleshooting
 # ============================================================
-
-resource "aws_iam_user" "claude_debug" {
-  name = "${var.project_name}-claude-debug"
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-claude-debug"
-  })
-}
-
-resource "aws_iam_user_policy" "claude_debug" {
-  name   = "${var.project_name}-claude-debug-policy"
-  user   = aws_iam_user.claude_debug.name
-  policy = data.aws_iam_policy_document.claude_debug.json
-}
-
-# Access keys for Claude debug user
-resource "aws_iam_access_key" "claude_debug" {
-  user = aws_iam_user.claude_debug.name
-}
-
-data "aws_iam_policy_document" "claude_debug" {
-  # Lambda invocation and configuration
-  statement {
-    sid    = "LambdaDebug"
-    effect = "Allow"
-
-    actions = [
-      "lambda:InvokeFunction",
-      "lambda:InvokeAsync",
-      "lambda:GetFunction",
-      "lambda:GetFunctionConfiguration",
-      "lambda:UpdateFunctionConfiguration",
-      "lambda:UpdateFunctionCode",
-      "lambda:ListFunctions",
-      "lambda:ListVersionsByFunction"
-    ]
-
-    resources = [
-      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
-    ]
+# NOTE: claude_debug IAM user created manually for Lambda troubleshooting.
+# Already exists in AWS, not managed by Terraform to avoid conflicts.
   }
 
   # CloudWatch Logs - Full access for debugging
