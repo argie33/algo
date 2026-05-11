@@ -1,0 +1,111 @@
+name: Cleanup Orphaned AWS Resources
+
+# One-time cleanup of resources not tracked by Terraform:
+# - 3 orphaned API Gateways (no Lambda integration or dead function)
+# - 2 orphaned CloudFront distributions (wrong bucket or duplicate)
+# Run manually when needed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    name: Delete Orphaned Resources
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete orphaned API Gateways
+        run: |
+          echo "=== Deleting orphaned API Gateways ==="
+          # 0rtigbknv7 = stocks-api-dev, no integration
+          # kx4kprv8ph = stocks-api-dev, points to deleted Lambda
+          # op4dn7xw6j = algo-api-dev, no integration
+          # KEEP: 2iqq1qhltj = algo-api-dev, active Lambda integration
+          for id in 0rtigbknv7 kx4kprv8ph op4dn7xw6j; do
+            echo "Deleting API $id..."
+            aws apigatewayv2 delete-api --api-id $id --region $AWS_REGION && echo "✅ Deleted $id" || echo "⚠️  Failed or already gone: $id"
+          done
+
+      - name: Disable orphaned CloudFront distributions
+        run: |
+          echo "=== Disabling orphaned CloudFront distributions ==="
+          # E3NC0ID0ZU3VFB = stocks-frontend bucket (bucket doesn't exist)
+          # E27ULN4TX590K2 = duplicate algo-frontend, Access Denied
+          # KEEP: ECRSHO2MC57BZ = active algo-frontend with OAC
+          for dist_id in E3NC0ID0ZU3VFB E27ULN4TX590K2; do
+            echo "Disabling CloudFront $dist_id..."
+            ETAG=$(aws cloudfront get-distribution-config --id $dist_id --query 'ETag' --output text 2>/dev/null)
+            if [ -z "$ETAG" ] || [ "$ETAG" = "None" ]; then
+              echo "⚠️  $dist_id not found or already deleted"
+              continue
+            fi
+            # Get config, set Enabled=false, update
+            aws cloudfront get-distribution-config --id $dist_id \
+              | python3 -c "
+import json, sys
+cfg = json.load(sys.stdin)
+cfg['DistributionConfig']['Enabled'] = False
+print(json.dumps(cfg['DistributionConfig']))
+" > /tmp/dist_config.json
+            aws cloudfront update-distribution \
+              --id $dist_id \
+              --distribution-config file:///tmp/dist_config.json \
+              --if-match $ETAG \
+              --query 'Distribution.Status' --output text && echo "✅ Disabled $dist_id (waiting for deploy...)" || echo "⚠️  Failed to disable $dist_id"
+          done
+
+      - name: Wait for CloudFront disables to propagate
+        run: |
+          echo "Waiting up to 10 min for CloudFront distributions to finish deploying..."
+          for dist_id in E3NC0ID0ZU3VFB E27ULN4TX590K2; do
+            timeout 600 bash -c "
+              while true; do
+                STATUS=\$(aws cloudfront get-distribution --id $dist_id --query 'Distribution.Status' --output text 2>/dev/null)
+                echo \"  $dist_id: \$STATUS\"
+                [ \"\$STATUS\" = 'Deployed' ] || [ -z \"\$STATUS\" ] && break
+                sleep 30
+              done
+            " || echo "⚠️  Timeout waiting for $dist_id"
+          done
+
+      - name: Delete disabled CloudFront distributions
+        run: |
+          echo "=== Deleting disabled CloudFront distributions ==="
+          for dist_id in E3NC0ID0ZU3VFB E27ULN4TX590K2; do
+            ETAG=$(aws cloudfront get-distribution --id $dist_id --query 'ETag' --output text 2>/dev/null)
+            if [ -z "$ETAG" ] || [ "$ETAG" = "None" ]; then
+              echo "⚠️  $dist_id not found"
+              continue
+            fi
+            ENABLED=$(aws cloudfront get-distribution --id $dist_id --query 'Distribution.DistributionConfig.Enabled' --output text 2>/dev/null)
+            if [ "$ENABLED" = "True" ]; then
+              echo "⚠️  $dist_id still enabled, cannot delete"
+              continue
+            fi
+            aws cloudfront delete-distribution --id $dist_id --if-match $ETAG && echo "✅ Deleted $dist_id" || echo "⚠️  Failed to delete $dist_id"
+          done
+
+      - name: Summary
+        run: |
+          echo "## Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "### Remaining API Gateways" >> $GITHUB_STEP_SUMMARY
+          aws apigatewayv2 get-apis --region $AWS_REGION \
+            --query "Items[*].[ApiId,Name]" --output table >> $GITHUB_STEP_SUMMARY || true
+          echo "### Remaining CloudFront Distributions" >> $GITHUB_STEP_SUMMARY
+          aws cloudfront list-distributions \
+            --query "DistributionList.Items[*].[Id,DomainName,Enabled]" \
+            --output table >> $GITHUB_STEP_SUMMARY || true
