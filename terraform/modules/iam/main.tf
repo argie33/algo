@@ -1120,7 +1120,7 @@ data "aws_iam_policy_document" "eventbridge_scheduler" {
 # (not infrastructure changes - those use Terraform via OIDC role)
 
 resource "aws_iam_user" "github_deployer" {
-  name  = "${var.project_name}-github-deployer"
+  name = "${var.project_name}-github-deployer"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-github-deployer"
@@ -1207,7 +1207,7 @@ resource "aws_iam_access_key" "github_deployer" {
 # No infrastructure creation/deletion (read + invoke only)
 
 resource "aws_iam_user" "pipeline" {
-  name  = "${var.project_name}-pipeline"
+  name = "${var.project_name}-pipeline"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-pipeline"
@@ -1342,7 +1342,7 @@ resource "aws_iam_access_key" "pipeline" {
 # Read-most things, invoke Lambda, read logs, but no root access
 
 resource "aws_iam_user" "developer" {
-  name  = "${var.project_name}-developer"
+  name = "${var.project_name}-developer"
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-developer"
@@ -1442,103 +1442,5 @@ data "aws_iam_policy_document" "developer" {
       variable = "aws:SourceAccount"
       values   = [var.aws_account_id]
     }
-  }
-}
-
-# ============================================================
-# Debug/Operations User - For Lambda debugging and troubleshooting
-# ============================================================
-# NOTE: claude_debug IAM user created manually for Lambda troubleshooting.
-# Already exists in AWS, not managed by Terraform to avoid conflicts.
-  }
-
-  # CloudWatch Logs - Full access for debugging
-  statement {
-    sid    = "CloudWatchLogsDebug"
-    effect = "Allow"
-
-    actions = [
-      "logs:CreateLogStream",
-      "logs:CreateLogGroup",
-      "logs:PutLogEvents",
-      "logs:GetLogEvents",
-      "logs:DescribeLogStreams",
-      "logs:DescribeLogGroups",
-      "logs:FilterLogEvents",
-      "logs:StartQuery",
-      "logs:StopQuery",
-      "logs:GetQueryResults"
-    ]
-
-    resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:*"
-    ]
-  }
-
-  # Secrets Manager - Read access for credentials
-  statement {
-    sid    = "SecretsManagerDebug"
-    effect = "Allow"
-
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "secretsmanager:DescribeSecret",
-      "secretsmanager:ListSecrets"
-    ]
-
-    resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
-    ]
-  }
-
-  # RDS - Read access for debugging
-  statement {
-    sid    = "RDSDebug"
-    effect = "Allow"
-
-    actions = [
-      "rds:DescribeDBInstances",
-      "rds:DescribeDBClusters",
-      "rds:DescribeDBSecurityGroups",
-      "rds:DescribeDBParameterGroups",
-      "rds:DescribeDBSubnetGroups"
-    ]
-
-    resources = [
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*",
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*"
-    ]
-  }
-
-  # VPC - Read access for debugging network issues
-  statement {
-    sid    = "VPCDebug"
-    effect = "Allow"
-
-    actions = [
-      "ec2:DescribeSecurityGroups",
-      "ec2:DescribeSecurityGroupRules",
-      "ec2:DescribeNetworkInterfaces",
-      "ec2:DescribeSubnets",
-      "ec2:DescribeVpcs",
-      "ec2:DescribeNetworkAcls",
-      "ec2:DescribeRouteTables"
-    ]
-
-    resources = ["*"]
-  }
-
-  # API Gateway - Read and test access
-  statement {
-    sid    = "APIGatewayDebug"
-    effect = "Allow"
-
-    actions = [
-      "apigateway:GET",
-      "apigatewayv2:Get*",
-      "apigatewayv2:List*"
-    ]
-
-    resources = ["*"]
   }
 }
