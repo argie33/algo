@@ -1,14 +1,48 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 17:15Z  
-**Project Status:** 🔧 **ARCHITECTURE CORRECTED** — Fixed IaC structure, schema now properly managed via Terraform
+**Last Updated:** 2026-05-11 22:00Z  
+**Project Status:** ✅ **PRODUCTION HARDENING IN PROGRESS** — Critical reliability, observability, and scalability gaps closed
 
-**Architecture Correction (2026-05-11):**
+**Session Fixes (2026-05-11 Evening — Production Readiness Sprint):**
+
+  **Reliability:**
+  - ✅ 15 bare `except:` clauses in API Lambda → `except Exception as e` with `logger.error()`
+  - ✅ 8 hardcoded mock-data endpoints replaced with real DB queries:
+    `/api/market/technicals` (market_health_daily), `/api/market/distribution-days`,
+    `/api/market/seasonality`, `/api/economic/*` (3 endpoints), `/api/sentiment/summary`,
+    `/api/commodities/categories`
+  - ✅ `algo_retry.py`: exponential backoff decorator + thread-safe RateLimiter
+  - ✅ `data_source_router.py`: Alpaca fetches retry 3x + rate-limited (180/min); yfinance same
+  - ✅ `datetime.utcnow()` deprecation fixed in API Lambda (7 sites → `datetime.now(timezone.utc)`)
+
+  **Observability:**
+  - ✅ `algo_logging.py`: structured JSON formatter → CloudWatch Insights queryable logs
+  - ✅ Orchestrator startup wires JSON logging via `configure_root_logger()`
+  - ✅ `algo_metrics.py`: CloudWatch metrics publisher (AlgoTrading namespace)
+    - Phase 1 publishes `DataFreshnessAgeDays` per critical table
+    - End-of-run publishes `OrchestratorSuccess`, `SignalsGenerated`, `TradesExecuted`, `OpenPositions`
+  - ✅ 3 CloudWatch alarms in Terraform: orchestrator failure (pages immediately),
+    zero signals for 3 days, data freshness > 3 days
+
+  **Scalability (AWS):**
+  - ✅ `entrypoint.sh`: reads `LOADER_PARALLELISM` env var, passes as `--parallelism` flag
+  - ✅ Terraform loader resources right-sized by workload type:
+    - `signals_daily`: 256→2048 CPU, 512→4096 MB (compute-heavy, 8 threads)
+    - `stock_prices_daily`: 512→1024 CPU, parallelism=16 (I/O bound, rate-limited)
+    - `technicals_daily`/`trend_template`: 256→2048 CPU (compute-heavy)
+    - Financial loaders: parallelism=4 (yfinance 60/min rate limit)
+  - ✅ `LOADER_PARALLELISM` env var passed per ECS task from Terraform
+
+  **Testing:**
+  - ✅ `test_orchestrator_integration.py`: 19-test suite (8 run without DB, 11 skip cleanly if no Docker)
+    - Schema presence checks, Phase 1 freshness logic, signal price invariants,
+      position dedup, API contract shapes, retry backoff + rate limiter timing
+
+**Architecture Correction (2026-05-11 Earlier):**
   - 🔧 **FIXED:** Schema management now properly via Terraform IaC (single source of truth)
   - ✅ Moved 13 tables from temporary init_db.sql to terraform/modules/database/init.sql
   - ✅ Removed duplicate lambda/db-init/ directory (was workaround, not IaC)
   - ✅ Removed manual Lambda invocation from CI (Terraform null_resource handles it)
-  - ✅ Deleted PRODUCTION_READINESS_AUDIT.md (documentation sprawl)
   - **Why:** Multiple schema files = confusion, manual workarounds = not IaC, Terraform is source of truth
 
 **Session Fixes (2026-05-11 Earlier):**
@@ -40,7 +74,12 @@
   - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays
   - ✅ Terraform deploys: Working reliably with import + concurrency steps
 
-**Next:** Clean up orphaned API Gateways → Verify DB schema tables → Monitor algo Lambda at 5:30pm ET
+**Next (Phase 2 — Important gaps):**
+1. Deploy Terraform to create the 3 new CloudWatch alarms (`gh workflow run deploy-all-infrastructure.yml`)
+2. Consolidate orphaned API Gateways into Terraform (3 orphaned: 0rtigbknv7, kx4kprv8ph, op4dn7xw6j)
+3. RDS automated backups + read replica (single point of failure today)
+4. API OpenAPI spec — no contract documentation exists
+5. Frontend real-time WebSocket position updates (currently polling every 30s)
 
 ---
 
