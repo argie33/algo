@@ -154,6 +154,19 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
+      - name: Run DB schema initialization
+        run: |
+          # Always invoke db-init Lambda after Terraform to ensure schema is current.
+          # The Lambda runs init.sql which uses CREATE TABLE IF NOT EXISTS — fully idempotent.
+          aws lambda invoke \
+            --function-name algo-db-init-dev \
+            --region $AWS_REGION \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/db-init-response.json
+          echo "DB init response:"
+          cat /tmp/db-init-response.json
+
       - name: Delete orphaned API Gateways
         run: |
           # These 3 API Gateways are not in Terraform state (orphaned from earlier experiments).
@@ -162,6 +175,40 @@ jobs:
             aws apigatewayv2 delete-api --api-id $id --region $AWS_REGION 2>/dev/null \
               && echo "Deleted orphaned API Gateway: $id" \
               || echo "Already gone or skipped: $id"
+          done
+
+      - name: Clean up orphaned CloudFront distributions
+        run: |
+          # E3NC0ID0ZU3VFB (old stocks-frontend bucket) and E27ULN4TX590K2 (duplicate) are orphaned.
+          # Active distribution is ECRSHO2MC57BZ (managed by Terraform).
+          # CloudFront deletion requires: disable → wait for Deployed → delete.
+          for dist_id in E3NC0ID0ZU3VFB E27ULN4TX590K2; do
+            STATUS=$(aws cloudfront get-distribution --id $dist_id --query "Distribution.Status" --output text 2>/dev/null || echo "NOT_FOUND")
+            ENABLED=$(aws cloudfront get-distribution --id $dist_id --query "Distribution.DistributionConfig.Enabled" --output text 2>/dev/null || echo "false")
+
+            if [ "$STATUS" = "NOT_FOUND" ]; then
+              echo "Already deleted: $dist_id"
+              continue
+            fi
+
+            if [ "$ENABLED" = "True" ] || [ "$ENABLED" = "true" ]; then
+              echo "Disabling: $dist_id (status=$STATUS) — will delete on next run after propagation"
+              ETAG=$(aws cloudfront get-distribution-config --id $dist_id --query ETag --output text)
+              aws cloudfront get-distribution-config --id $dist_id --query DistributionConfig \
+                | jq '.Enabled = false' \
+                > /tmp/cf-disable.json
+              aws cloudfront update-distribution --id $dist_id --if-match "$ETAG" \
+                --distribution-config file:///tmp/cf-disable.json \
+                --query "Distribution.Status" 2>&1 || echo "Disable failed (may need manual cleanup)"
+            elif [ "$STATUS" = "Deployed" ]; then
+              echo "Deleting disabled distribution: $dist_id"
+              ETAG=$(aws cloudfront get-distribution-config --id $dist_id --query ETag --output text)
+              aws cloudfront delete-distribution --id $dist_id --if-match "$ETAG" 2>&1 \
+                && echo "Deleted: $dist_id" \
+                || echo "Delete failed (try again on next deploy)"
+            else
+              echo "Not ready to delete: $dist_id (status=$STATUS, enabled=$ENABLED)"
+            fi
           done
 
       - name: Collect Outputs
