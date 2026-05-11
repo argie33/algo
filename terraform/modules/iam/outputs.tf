@@ -143,26 +143,3 @@ output "developer_console_login_url" {
   description = "AWS Console login URL for developer user"
   value       = "https://${var.aws_account_id}.signin.aws.amazon.com/console"
 }
-
-# Claude Debug/Operations User
-output "claude_debug_user_name" {
-  description = "Name of Claude debug/operations IAM user"
-  value       = aws_iam_user.claude_debug.name
-}
-
-output "claude_debug_user_arn" {
-  description = "ARN of Claude debug/operations IAM user"
-  value       = aws_iam_user.claude_debug.arn
-}
-
-output "claude_debug_access_key_id" {
-  description = "Access key ID for Claude debug user (for Lambda debugging, CloudWatch logs, etc.)"
-  value       = aws_iam_access_key.claude_debug.id
-  sensitive   = true
-}
-
-output "claude_debug_secret_access_key" {
-  description = "Secret access key for Claude debug user (keep secure!)"
-  value       = aws_iam_access_key.claude_debug.secret
-  sensitive   = true
-}
