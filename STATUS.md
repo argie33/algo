@@ -1,9 +1,9 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 16:20Z  
-**Project Status:** ✅ **SYSTEM OPERATIONAL** — Core infrastructure working, cleanup in progress
+**Last Updated:** 2026-05-11 17:40Z  
+**Project Status:** ✅ **SYSTEM OPERATIONAL** — Core infrastructure working, DB schema complete, ready for deployment
 
-**Session Fixes (2026-05-11):**
+**Session Fixes (2026-05-11 Continued):**
   - ✅ RDS security group state conflict resolved (separate aws_security_group_rule resources + import step)
   - ✅ Added concurrency controls to prevent stale Terraform plan race condition
   - ✅ pipeline IAM user (algo-pipeline) configured for local CLI access
@@ -12,11 +12,15 @@
   - ✅ API health endpoint confirmed working: 200 OK
   - ✅ Frontend serving HTML via CloudFront (d5j1h4wzrkvw7.cloudfront.net)
   - ✅ VITE_API_URL correctly set to real API Gateway during build
+  - ✅ Added 13 missing database tables to init_db.sql (backtest_runs, backtest_trades, safeguard_audit_log, etf_symbols, mean_reversion signals, range signals, commodity tables)
+  - ✅ Synced schema to lambda/db-init/schema.sql for deployment
+  - ✅ db-init Lambda now invokes schema application on Terraform Apply
+  - ✅ Updated .gitignore to track lambda/db-init/schema.sql
 
 **Known Remaining Issues:**
-  - ⚠️ 4 orphaned API Gateway APIs (2x stocks-api-dev + 2x algo-api-dev) — active is 2iqq1qhltj
-  - ⚠️ CloudFront d39kuiu278hu2e returns Access Denied (wrong S3 origin or orphaned)
-  - ⚠️ backtest_results table and other tables may be missing from DB schema
+  - ⚠️ 3 orphaned API Gateway APIs (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — cleanup-orphaned-resources.yml created but workflow_dispatch trigger not recognized by gh CLI (GitHub caching issue?)
+  - ⚠️ 2 orphaned CloudFront distributions (E3NC0ID0ZU3VFB, E27ULN4TX590K2) — same cleanup-orphaned-resources.yml issue
+  - 💡 **Proper Solution:** Add orphaned resources to Terraform for IaC-managed cleanup (preferred per user constraints)
 
 **Infrastructure Status:**
   - ✅ API Lambda: nodejs20.x, healthy, routing correctly
