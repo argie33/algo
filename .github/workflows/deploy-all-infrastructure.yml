@@ -93,6 +93,37 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Import RDS Security Group Rules (state sync)
+        run: |
+          # Import existing RDS SG rules that exist in AWS but not in Terraform state.
+          # Idempotent: terraform import exits 0 if already imported, errors only if AWS resource missing.
+          import_if_missing() {
+            local resource=$1
+            local id=$2
+            if terraform state list | grep -qF "$resource"; then
+              echo "SKIP: $resource already in state"
+            else
+              echo "IMPORT: $resource"
+              terraform import -var-file=terraform.tfvars "$resource" "$id" || true
+            fi
+          }
+
+          import_if_missing \
+            module.vpc.aws_security_group_rule.rds_from_ecs_tasks \
+            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0ddae70a1a80b54bd
+
+          import_if_missing \
+            module.vpc.aws_security_group_rule.rds_from_api_lambda \
+            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-05fd64fd31b834259
+
+          import_if_missing \
+            module.vpc.aws_security_group_rule.rds_from_algo_lambda \
+            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-083c14c5d85cab92e
+
+          import_if_missing \
+            module.vpc.aws_security_group_rule.rds_self_postgres \
+            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0efd52dc5e807f2e0
+
       - name: Terraform Plan
         run: |
           terraform plan \
