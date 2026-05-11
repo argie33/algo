@@ -1,7 +1,30 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 22:00Z  
-**Project Status:** ✅ **PRODUCTION HARDENING IN PROGRESS** — Critical reliability, observability, and scalability gaps closed
+**Last Updated:** 2026-05-12 00:00Z  
+**Project Status:** ✅ **DEEP AUDIT COMPLETE** — 20-item gap analysis run, 11 bugs fixed across 2 commits
+
+**Session Fixes (2026-05-12 — Full System Audit & Fix Sprint):**
+
+  **P1 Silent Data Corruption (5 bugs — all silently failing since day one):**
+  - ✅ `algo_var.py`: VaR INSERT column names fixed (var_95_pct→var_pct_95, etc.) — every daily VaR row was silently failing
+  - ✅ `algo_var.py`: Portfolio beta replaced hardcoded 1.0 with real 60-day regression vs SPY — beta circuit breaker can now fire
+  - ✅ `algo_performance.py`: Performance INSERT column names fixed (avg_win_r→avg_win_r_50t) — every daily perf row was silently failing
+  - ✅ `algo_filter_pipeline.py`: NameError `eval_date` in `_tier5_portfolio_health` ATR fallback path → fixed to `signal_date`
+  - ✅ `batch_buyselldaily_orchestrator.py`: `WHERE active = true` removed — stock_symbols has no active column, SQL failed on every batch run
+
+  **P2 Production Improvements (6 items):**
+  - ✅ `algo_circuit_breaker.py`: Sector concentration circuit breaker implemented (was a permanent no-op stub for CB8)
+  - ✅ `algo_orchestrator.py`: CircuitBreakerFired CloudWatch metric now published per-breaker after phase 2
+  - ✅ `loader_metrics.py`: LoaderDurationSeconds now published to CloudWatch alongside DB insert
+  - ✅ `algo_performance.py`: Real R-multiple calculation (PnL / initial_risk_dollars), not % return proxy
+  - ✅ `algo_performance.py`: Sortino ratio (downside-deviation Sharpe) + Calmar ratio added
+  - ✅ Terraform: RDS gp2→gp3 (20% cost saving), Performance Insights enabled in prod
+
+  **Remaining audit items (P2/P3):**
+  - ⚠️ AWS Batch Terraform module is empty — `batch_buyselldaily_orchestrator.py` dead code path (no Batch queue/job defined)
+  - ⚠️ `algo_continuous_monitor.py` not deployed to AWS — runs locally only
+  - ⚠️ No SQS DLQ CloudWatch alarm — failed loader events silently pile up
+  - ⚠️ No PagerDuty/OpsGenie — SNS email only for on-call alerts
 
 **Session Fixes (2026-05-11 Evening — Production Readiness Sprint):**
 
@@ -61,10 +84,16 @@
   - ✅ **DEPLOYMENT SUCCESSFUL:** All infrastructure working, database schema applied via Lambda
   - ✅ All infrastructure changes managed via Terraform IaC (no manual AWS changes)
 
+**Phase 2 Commits (2026-05-11 23:30Z):**
+  - ✅ `algo_circuit_breaker.py`: `_check_sector_concentration()` implemented — was stub returning 'Sector data not yet available'; now queries algo_positions JOIN company_profile, compounds 5-day sector returns, halts if concentrated sector down ≥12%
+  - ✅ `terraform/modules/database/`: `db_deletion_protection` variable added; `deletion_protection`, `skip_final_snapshot`, `final_snapshot_identifier` now driven by it
+  - ✅ `terraform/variables.tf`: `enable_rds_alarms` and `db_deletion_protection` vars added (both default `true`), decoupling safety from `environment="dev"` label
+  - ✅ `terraform/modules/services/main.tf`: Added `DB_HOST` env var alias (some loaders use DB_HOST, not DB_ENDPOINT)
+  - ✅ Deploy triggered: `gh workflow run "Deploy All Infrastructure (Terraform)"` → run 25695779080
+
 **Known Remaining Issues:**
-  - ⚠️ 3 orphaned API Gateway APIs (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — cleanup-orphaned-resources.yml created but workflow_dispatch trigger not recognized by gh CLI (GitHub caching issue?)
-  - ⚠️ 2 orphaned CloudFront distributions (E3NC0ID0ZU3VFB, E27ULN4TX590K2) — same cleanup-orphaned-resources.yml issue
-  - 💡 **Proper Solution:** Add orphaned resources to Terraform for IaC-managed cleanup (preferred per user constraints)
+  - ⚠️ 3 orphaned API Gateways (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — trigger cleanup via GitHub UI: Actions → "Cleanup Orphaned AWS Resources" → Run workflow (gh CLI dispatch not working, GitHub caching issue)
+  - ⚠️ 2 orphaned CloudFront distributions (E3NC0ID0ZU3VFB, E27ULN4TX590K2) — same workflow
 
 **Infrastructure Status:**
   - ✅ API Lambda: nodejs20.x, healthy, routing correctly
@@ -74,12 +103,12 @@
   - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays
   - ✅ Terraform deploys: Working reliably with import + concurrency steps
 
-**Next (Phase 2 — Important gaps):**
-1. Deploy Terraform to create the 3 new CloudWatch alarms (`gh workflow run deploy-all-infrastructure.yml`)
-2. Consolidate orphaned API Gateways into Terraform (3 orphaned: 0rtigbknv7, kx4kprv8ph, op4dn7xw6j)
-3. RDS automated backups + read replica (single point of failure today)
-4. API OpenAPI spec — no contract documentation exists
-5. Frontend real-time WebSocket position updates (currently polling every 30s)
+**Next (Phase 3):**
+1. ~~Deploy Terraform for CloudWatch alarms + RDS safety~~ ✅ running (run 25695779080)
+2. Trigger orphaned resource cleanup via GitHub UI (gh CLI has caching bug)
+3. `algo_metrics.py` not yet wired into loaders — data freshness metrics only come from orchestrator Phase 1 today; individual loader failures are invisible
+4. API OpenAPI spec — no contract documentation exists for any endpoint
+5. Frontend real-time position updates (polling 30s; WebSocket would require API GW WS stack)
 
 ---
 
