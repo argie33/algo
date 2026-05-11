@@ -366,7 +366,8 @@ class APIHandler:
             """, (cutoff_date,))
             curve = self.cur.fetchall()
             return json_response(200, [dict(c) for c in reversed(curve) if c])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching equity curve: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_data_status(self) -> Dict:
@@ -398,7 +399,8 @@ class APIHandler:
             """)
             notifs = self.cur.fetchall()
             return json_response(200, [dict(n) for n in notifs])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching notifications: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_patrol_log(self, limit: int = 50) -> Dict:
@@ -412,7 +414,8 @@ class APIHandler:
             """, (limit,))
             findings = self.cur.fetchall()
             return json_response(200, [dict(f) for f in findings])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching patrol log: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_sector_rotation(self, days: int = 180) -> Dict:
@@ -427,7 +430,8 @@ class APIHandler:
             """, (cutoff_date,))
             rotation = self.cur.fetchall()
             return json_response(200, [dict(r) for r in rotation])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching sector rotation: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_sector_breadth(self) -> Dict:
@@ -441,7 +445,8 @@ class APIHandler:
             """)
             breadth = self.cur.fetchall()
             return json_response(200, [dict(b) for b in breadth])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching sector breadth: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_swing_scores(self, limit: int = 100) -> Dict:
@@ -506,7 +511,8 @@ class APIHandler:
             """)
             funnel = self.cur.fetchall()
             return json_response(200, [dict(f) for f in funnel])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching rejection funnel: {e}", exc_info=True)
             return json_response(200, [])
 
     def _get_markets(self) -> Dict:
@@ -523,7 +529,8 @@ class APIHandler:
             """)
             markets = self.cur.fetchall()
             return json_response(200, [dict(m) for m in markets])
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching markets data: {e}", exc_info=True)
             return json_response(200, [])
 
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
@@ -696,7 +703,8 @@ class APIHandler:
                 sectors = self.cur.fetchall()
                 return json_response(200, [dict(s) for s in sectors])
             return json_response(200, [])
-        except:
+        except Exception as e:
+            logger.error(f"Error in sectors handler: {e}", exc_info=True)
             return json_response(200, [])
 
     def _handle_market(self, path: str, method: str, params: Dict) -> Dict:

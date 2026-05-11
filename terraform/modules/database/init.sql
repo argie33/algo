@@ -1699,6 +1699,205 @@ CREATE INDEX IF NOT EXISTS idx_algo_config_audit_date ON algo_config_audit(chang
 CREATE INDEX IF NOT EXISTS idx_algo_champion_challenger_date ON algo_champion_challenger(trial_date);
 CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_information_coefficient(ic_date);
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- BACKTEST & STRATEGY ANALYSIS TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    run_id SERIAL PRIMARY KEY,
+    run_name VARCHAR(200),
+    run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    strategy_name VARCHAR(200),
+    start_date DATE,
+    end_date DATE,
+    initial_capital DECIMAL(15,2),
+    final_value DECIMAL(15,2),
+    total_return DECIMAL(8,4),
+    annual_return DECIMAL(8,4),
+    max_drawdown DECIMAL(8,4),
+    sharpe_ratio DECIMAL(8,4),
+    sortino_ratio DECIMAL(8,4),
+    win_rate DECIMAL(8,4),
+    profit_factor DECIMAL(8,4),
+    num_trades INTEGER,
+    num_winning_trades INTEGER,
+    num_losing_trades INTEGER,
+    avg_win DECIMAL(15,2),
+    avg_loss DECIMAL(15,2),
+    largest_win DECIMAL(15,2),
+    largest_loss DECIMAL(15,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(run_name, run_timestamp)
+);
+
+CREATE TABLE IF NOT EXISTS backtest_trades (
+    trade_id SERIAL PRIMARY KEY,
+    run_id INTEGER REFERENCES backtest_runs(run_id),
+    symbol VARCHAR(20),
+    entry_date DATE,
+    exit_date DATE,
+    entry_price DECIMAL(12,4),
+    exit_price DECIMAL(12,4),
+    quantity DECIMAL(12,2),
+    entry_value DECIMAL(15,2),
+    exit_value DECIMAL(15,2),
+    profit_loss DECIMAL(15,2),
+    profit_loss_percent DECIMAL(8,4),
+    trade_outcome VARCHAR(50),
+    holding_days INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS safeguard_audit_log (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    symbol VARCHAR(20),
+    safeguard_name VARCHAR(100),
+    action VARCHAR(100),
+    reason TEXT,
+    details JSON,
+    severity VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ETF & MEAN REVERSION SIGNAL TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS etf_symbols (
+    symbol VARCHAR(20) PRIMARY KEY,
+    security_name VARCHAR(200),
+    asset_class VARCHAR(100),
+    expense_ratio DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    timeframe VARCHAR(20),
+    date DATE,
+    confluence_score DECIMAL(8,4),
+    signal VARCHAR(50),
+    price DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    zscore DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, timeframe, date)
+);
+
+CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    timeframe VARCHAR(20),
+    date DATE,
+    confluence_score DECIMAL(8,4),
+    signal VARCHAR(50),
+    price DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    zscore DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, timeframe, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- RANGE SIGNAL TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS range_signals_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    signal VARCHAR(50),
+    resistance DECIMAL(12,4),
+    support DECIMAL(12,4),
+    current_price DECIMAL(12,4),
+    range_width DECIMAL(12,4),
+    risk_reward_ratio DECIMAL(8,4),
+    breakout_probability DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+CREATE TABLE IF NOT EXISTS range_signals_daily_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    signal VARCHAR(50),
+    resistance DECIMAL(12,4),
+    support DECIMAL(12,4),
+    current_price DECIMAL(12,4),
+    range_width DECIMAL(12,4),
+    risk_reward_ratio DECIMAL(8,4),
+    breakout_probability DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMMODITY ANALYSIS TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS commodity_seasonality (
+    symbol VARCHAR(20),
+    month INTEGER,
+    avg_return DECIMAL(8,4),
+    win_rate DECIMAL(8,4),
+    volatility DECIMAL(8,4),
+    num_years INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(symbol, month)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_correlations (
+    symbol1 VARCHAR(20),
+    symbol2 VARCHAR(20),
+    correlation_30d DECIMAL(8,4),
+    correlation_90d DECIMAL(8,4),
+    correlation_1y DECIMAL(8,4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(symbol1, symbol2)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_technicals (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    rsi DECIMAL(8,4),
+    macd DECIMAL(12,4),
+    macd_signal DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    sma_200 DECIMAL(12,4),
+    bb_upper DECIMAL(12,4),
+    bb_lower DECIMAL(12,4),
+    atr DECIMAL(12,4),
+    signal VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_macro_drivers (
+    series_id VARCHAR(50),
+    series_name VARCHAR(200),
+    date DATE,
+    value DECIMAL(15,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(series_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_events (
+    event_id SERIAL PRIMARY KEY,
+    event_name VARCHAR(200),
+    event_date DATE,
+    event_type VARCHAR(100),
+    description TEXT,
+    impact VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date);
@@ -1722,3 +1921,23 @@ CREATE INDEX IF NOT EXISTS idx_rejection_symbol ON filter_rejection_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_order_trade_id ON order_execution_log(trade_id);
 CREATE INDEX IF NOT EXISTS idx_order_status ON order_execution_log(order_status);
 CREATE INDEX IF NOT EXISTS idx_order_timestamp ON order_execution_log(order_timestamp DESC);
+
+-- Indexes for backtest and strategy tables
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_name ON backtest_runs(run_name);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_timestamp ON backtest_runs(run_timestamp);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_id ON backtest_trades(run_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_symbol ON safeguard_audit_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_timestamp ON safeguard_audit_log(timestamp);
+
+-- Indexes for signal tables
+CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_symbol_date ON mean_reversion_signals_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_etf_symbol_date ON mean_reversion_signals_daily_etf(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_range_signals_daily_symbol_date ON range_signals_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_range_signals_daily_etf_symbol_date ON range_signals_daily_etf(symbol, date);
+
+-- Indexes for commodity tables
+CREATE INDEX IF NOT EXISTS idx_commodity_seasonality_symbol ON commodity_seasonality(symbol);
+CREATE INDEX IF NOT EXISTS idx_commodity_technicals_symbol_date ON commodity_technicals(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_commodity_macro_drivers_series_date ON commodity_macro_drivers(series_id, date);
+CREATE INDEX IF NOT EXISTS idx_commodity_events_date ON commodity_events(event_date);

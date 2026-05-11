@@ -142,18 +142,6 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
-      - name: Run DB Init Lambda (apply schema to RDS)
-        run: |
-          DB_INIT_FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?starts_with(FunctionName,'algo-db-init')].FunctionName | [0]" --output text 2>/dev/null || echo "")
-          if [ -z "$DB_INIT_FUNC" ] || [ "$DB_INIT_FUNC" = "None" ]; then
-            echo "DB init Lambda not found — skipping schema apply"
-          else
-            echo "Running DB init Lambda: $DB_INIT_FUNC"
-            aws lambda invoke --function-name "$DB_INIT_FUNC" --payload '{"action":"init"}' --cli-binary-format raw-in-base64-out --region $AWS_REGION /tmp/db_init_result.json
-            cat /tmp/db_init_result.json
-            echo "DB init complete"
-          fi
-
       - name: Collect Outputs
         id: outputs
         run: |
