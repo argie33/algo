@@ -216,6 +216,17 @@ module "services" {
   api_gateway_log_retention_days = var.api_gateway_log_retention_days
   api_lambda_code_file           = var.api_lambda_code_file
   algo_lambda_code_file          = var.algo_lambda_code_file
+  alpaca_api_key_id              = var.alpaca_api_key_id
+  alpaca_api_secret_key          = var.alpaca_api_secret_key
+  alpaca_api_base_url            = var.alpaca_api_base_url
+  alpaca_paper_trading           = var.alpaca_paper_trading
+  jwt_secret                     = var.jwt_secret
+  fred_api_key                   = var.fred_api_key
+  execution_mode                 = var.execution_mode
+  orchestrator_dry_run           = var.orchestrator_dry_run
+  orchestrator_log_level         = var.orchestrator_log_level
+  data_patrol_enabled            = var.data_patrol_enabled
+  data_patrol_timeout_ms         = var.data_patrol_timeout_ms
   common_tags                    = local.common_tags
 }
 

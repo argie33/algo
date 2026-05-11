@@ -426,10 +426,15 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DATABASE_SECRET_ARN = var.rds_credentials_secret_arn
-      DB_ENDPOINT         = var.rds_endpoint
-      DB_NAME             = var.rds_database_name
-      ALERTS_SNS_TOPIC    = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      DATABASE_SECRET_ARN    = var.rds_credentials_secret_arn
+      DB_ENDPOINT            = var.rds_endpoint
+      DB_NAME                = var.rds_database_name
+      ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      EXECUTION_MODE         = var.execution_mode
+      DRY_RUN_MODE           = tostring(var.orchestrator_dry_run)
+      APCA_API_KEY_ID        = var.alpaca_api_key_id
+      APCA_API_SECRET_KEY    = var.alpaca_api_secret_key
+      APCA_API_BASE_URL      = var.alpaca_api_base_url
     }
   }
 

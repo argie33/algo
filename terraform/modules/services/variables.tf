@@ -466,3 +466,76 @@ variable "algo_lambda_code_file" {
   type        = string
   default     = "lambda_algo.zip"
 }
+
+# ============================================================
+# Orchestrator Configuration (passed to algo Lambda env vars)
+# ============================================================
+
+variable "alpaca_api_key_id" {
+  description = "Alpaca API key ID (passed from root module)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "alpaca_api_secret_key" {
+  description = "Alpaca API secret key (passed from root module)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "alpaca_api_base_url" {
+  description = "Alpaca API base URL (passed from root module)"
+  type        = string
+  default     = "https://paper-api.alpaca.markets"
+}
+
+variable "alpaca_paper_trading" {
+  description = "Enable Alpaca paper trading (passed from root module)"
+  type        = bool
+  default     = true
+}
+
+variable "jwt_secret" {
+  description = "JWT secret for authentication (passed from root module)"
+  type        = string
+  sensitive   = true
+}
+
+variable "fred_api_key" {
+  description = "FRED API key for economic data (passed from root module)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "execution_mode" {
+  description = "Algo execution mode (passed from root module)"
+  type        = string
+  default     = "auto"
+}
+
+variable "orchestrator_dry_run" {
+  description = "Run orchestrator in dry-run mode (passed from root module)"
+  type        = bool
+  default     = false
+}
+
+variable "orchestrator_log_level" {
+  description = "Logging level for orchestrator (passed from root module)"
+  type        = string
+  default     = "info"
+}
+
+variable "data_patrol_enabled" {
+  description = "Enable data patrol monitoring (passed from root module)"
+  type        = bool
+  default     = true
+}
+
+variable "data_patrol_timeout_ms" {
+  description = "Data patrol timeout in milliseconds (passed from root module)"
+  type        = number
+  default     = 30000
+}
