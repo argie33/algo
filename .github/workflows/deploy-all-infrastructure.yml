@@ -416,24 +416,18 @@ if body.get('errors'):
         working-directory: webapp/frontend
         env:
           VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
+          API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
           npm install
-          # Inject production config.js so runtime fallback also has correct URL
-          API_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
-          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo '1.0.0')
-          cat > public/config.js << 'CONFIGEOF'
-          window.__CONFIG__ = {
-            "API_URL": "INJECT_API_URL",
-            "BUILD_TIME": "INJECT_BUILD_TIME",
-            "VERSION": "INJECT_VERSION",
-            "ENVIRONMENT": "production"
-          };
-          CONFIGEOF
-          sed -i "s|INJECT_API_URL|$API_URL|g" public/config.js
-          sed -i "s|INJECT_BUILD_TIME|$BUILD_TIME|g" public/config.js
-          sed -i "s|INJECT_VERSION|$VERSION|g" public/config.js
           npm run build
+          # Inject production config.js after build (overwrite the dev one)
+          mkdir -p dist
+          echo "window.__CONFIG__ = {" > dist/config.js
+          echo "  \"API_URL\": \"$API_URL\"," >> dist/config.js
+          echo "  \"BUILD_TIME\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> dist/config.js
+          echo "  \"VERSION\": \"$(node -p "require('./package.json').version" 2>/dev/null || echo '1.0.0')\"," >> dist/config.js
+          echo "  \"ENVIRONMENT\": \"production\"" >> dist/config.js
+          echo "};" >> dist/config.js
 
       - name: Sync to S3
         run: |
