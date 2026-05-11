@@ -64,13 +64,13 @@ class LiquidityChecks:
         return True, "All liquidity checks passed"
 
     def _check_volume(self, symbol: str) -> Tuple[bool, str]:
-        """Check minimum daily volume."""
+        """Check minimum daily volume (50-day average)."""
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
-                """SELECT avg_volume FROM price_daily
-                   WHERE symbol = %s ORDER BY date DESC LIMIT 1""",
+                """SELECT AVG(volume) FROM price_daily
+                   WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '50 days'""",
                 (symbol,)
             )
             row = cur.fetchone()
@@ -82,7 +82,7 @@ class LiquidityChecks:
 
             avg_vol = float(row[0])
             if avg_vol < self.min_volume:
-                return False, f"Avg volume {avg_vol:,.0f} < {self.min_volume:,.0f}"
+                return False, f"50d avg volume {avg_vol:,.0f} < {self.min_volume:,.0f}"
 
             return True, f"Volume OK: {avg_vol:,.0f}"
         except Exception as e:
@@ -90,40 +90,33 @@ class LiquidityChecks:
             return True, "Volume check skipped (error)"
 
     def _check_spread(self, symbol: str, entry_price: float) -> Tuple[bool, str]:
-        """Check bid-ask spread. If missing, use volume as proxy."""
+        """Check liquidity via volume proxy (bid-ask data not available)."""
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             cur.execute(
-                """SELECT bid, ask, avg_volume FROM price_daily
-                   WHERE symbol = %s ORDER BY date DESC LIMIT 1""",
+                """SELECT AVG(volume) FROM price_daily
+                   WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '50 days'""",
                 (symbol,)
             )
             row = cur.fetchone()
             cur.close()
             conn.close()
 
-            if not row or row[0] is None or row[1] is None:
-                # No bid-ask data: use volume as proxy. High volume = good liquidity.
-                avg_vol = row[2] if row and row[2] else 0
-                if avg_vol >= 2_000_000:
-                    return True, "No bid-ask data; volume proxy OK"
-                else:
-                    logger.warning(f"No bid-ask data for {symbol} and volume is low ({avg_vol:,.0f})")
-                    return True, "No bid-ask data (using volume proxy)"
+            if not row or row[0] is None:
+                return False, "No liquidity data available"
 
-            bid, ask = float(row[0]), float(row[1])
-            if ask <= bid or bid <= 0:
-                return True, "Invalid bid-ask data"
+            avg_vol = float(row[0])
+            # High volume = tighter spread. Use 1M shares as liquidity threshold.
+            if avg_vol >= 1_000_000:
+                return True, f"Liquidity OK: {avg_vol:,.0f} avg volume"
+            else:
+                return False, f"Insufficient liquidity: {avg_vol:,.0f} < 1M shares"
 
-            spread_pct = ((ask - bid) / entry_price) * 100 if entry_price > 0 else 0
-            if spread_pct > self.max_spread:
-                return False, f"Spread {spread_pct:.2f}% > {self.max_spread}%"
-
-            return True, f"Spread OK: {spread_pct:.2f}%"
         except Exception as e:
-            logger.warning(f"Spread check error: {e}")
-            return True, "Spread check skipped"
+            logger.warning(f"Liquidity check error: {e}")
+            return False, "Liquidity check failed (error)"
+
 
     def _check_market_cap(self, symbol: str) -> Tuple[bool, str]:
         """Check minimum market cap."""
