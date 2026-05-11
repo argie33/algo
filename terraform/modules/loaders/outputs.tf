@@ -19,7 +19,7 @@ output "loader_task_definition_revisions" {
 
 output "loader_log_group_names" {
   description = "CloudWatch log group names for all loaders (keyed by loader name)"
-  value       = { for k, v in aws_cloudwatch_log_group.loader : k => v.name }
+  value       = { for k in keys(local.all_loaders) : k => "/ecs/${var.project_name}-${k}-loader" }
 }
 
 output "eventbridge_rules" {
