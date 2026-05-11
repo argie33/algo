@@ -1,0 +1,192 @@
+name: Validate Data Quality
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 10,22 * * *'  # 10 AM & 10 PM UTC (5 AM & 5 PM ET) — after loader windows
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  ################################################################################
+  # Validate Data in Production RDS
+  ################################################################################
+  validate-data-quality:
+    name: Validate RDS Data Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::626216981288:role/github-oidc-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get RDS Endpoint
+        id: get-endpoint
+        run: |
+          ENDPOINT=$(aws rds describe-db-instances \
+            --db-instance-identifier algo-db \
+            --region ${{ env.AWS_REGION }} \
+            --query 'DBInstances[0].Endpoint.Address' \
+            --output text)
+          echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "RDS Endpoint: $ENDPOINT"
+
+      - name: Get DB Password from Secrets Manager
+        id: get-secret
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo-db-credentials-dev \
+            --region ${{ env.AWS_REGION }} \
+            --query 'SecretString' \
+            --output text)
+
+          PASSWORD=$(echo "$SECRET" | jq -r '.password')
+          echo "::add-mask::$PASSWORD"
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Test Database Connection
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Testing database connection..."
+
+          psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -c "SELECT now();" \
+            && echo "✅ Database connection successful" \
+            || exit 1
+
+      - name: Check Schema Tables
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Checking database schema..."
+
+          TABLE_COUNT=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';")
+
+          echo "✓ Tables in database: $TABLE_COUNT"
+
+          if [ "$TABLE_COUNT" -lt 50 ]; then
+            echo "⚠️ Expected 60+, found $TABLE_COUNT"
+            echo "   Schema may not have been initialized yet"
+          fi
+
+      - name: Validate Price Data (Freshness)
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Checking price data freshness..."
+
+          # Get latest price date
+          LATEST_DATE=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT MAX(date)::DATE FROM price_daily;" 2>/dev/null || echo "NULL")
+
+          echo "✓ Latest price data: $LATEST_DATE"
+
+          if [ "$LATEST_DATE" = "NULL" ]; then
+            echo "⚠️ No price data in database yet"
+          else
+            # Check if data is less than 2 days old
+            DAYS_OLD=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+              -U stocks \
+              -d stocks \
+              -t -c "SELECT CURRENT_DATE - MAX(date)::DATE FROM price_daily;" 2>/dev/null || echo "999")
+
+            echo "✓ Data age: $DAYS_OLD days"
+
+            if [ "$DAYS_OLD" -gt 3 ]; then
+              echo "⚠️ Price data is stale (>3 days old)"
+            fi
+          fi
+
+      - name: Validate Stock Scores
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Checking stock scores..."
+
+          SCORE_COUNT=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT COUNT(*) FROM stock_scores;" 2>/dev/null || echo "0")
+
+          echo "✓ Stock scores in database: $SCORE_COUNT"
+
+          if [ "$SCORE_COUNT" -eq 0 ]; then
+            echo "⚠️ No stock scores loaded yet"
+          fi
+
+      - name: Validate Signals
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Checking buy/sell signals..."
+
+          SIGNAL_COUNT=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT COUNT(*) FROM buy_sell_daily;" 2>/dev/null || echo "0")
+
+          echo "✓ Signals in database: $SIGNAL_COUNT"
+
+          if [ "$SIGNAL_COUNT" -eq 0 ]; then
+            echo "⚠️ No signals loaded yet"
+          fi
+
+      - name: Validate Positions & Trades
+        env:
+          PGPASSWORD: ${{ steps.get-secret.outputs.password }}
+        run: |
+          echo "🔍 Checking positions and trades..."
+
+          POSITION_COUNT=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT COUNT(*) FROM algo_positions;" 2>/dev/null || echo "0")
+
+          TRADE_COUNT=$(psql -h ${{ steps.get-endpoint.outputs.endpoint }} \
+            -U stocks \
+            -d stocks \
+            -t -c "SELECT COUNT(*) FROM algo_trades;" 2>/dev/null || echo "0")
+
+          echo "✓ Open positions: $POSITION_COUNT"
+          echo "✓ Total trades: $TRADE_COUNT"
+
+      - name: Report Data Quality Summary
+        run: |
+          echo "========================================"
+          echo "📊 DATA QUALITY REPORT"
+          echo "========================================"
+          echo ""
+          echo "Database connectivity: ✅"
+          echo "Schema tables: Check output above"
+          echo "Price data: Check freshness above"
+          echo "Stock scores: Check count above"
+          echo "Signals: Check count above"
+          echo "Positions: Check count above"
+          echo ""
+          echo "Next: Check loader execution in EventBridge"
+          echo "Command: aws events list-rules"

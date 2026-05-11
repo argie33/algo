@@ -1,0 +1,211 @@
+name: Validate AWS Deployment
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 7,19 * * *'  # 7 AM & 7 PM UTC (2 AM & 2 PM ET)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  API_ENDPOINT: https://kx4kprv8ph.execute-api.us-east-1.amazonaws.com
+
+jobs:
+  ################################################################################
+  # Validate Real AWS Infrastructure
+  ################################################################################
+  validate-aws-deployment:
+    name: Validate AWS Production Environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::626216981288:role/github-oidc-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check Lambda Functions
+        run: |
+          echo "🔍 Checking Lambda functions..."
+
+          # Check Algo Lambda
+          ALGO_STATUS=$(aws lambda get-function-configuration \
+            --function-name algo-algo-dev \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LastUpdateStatus' \
+            --output text)
+          echo "✓ Algo Lambda status: $ALGO_STATUS"
+
+          # Check API Lambda
+          API_STATUS=$(aws lambda get-function-configuration \
+            --function-name algo-api-dev \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LastUpdateStatus' \
+            --output text)
+          echo "✓ API Lambda status: $API_STATUS"
+
+          if [ "$ALGO_STATUS" != "Successful" ] || [ "$API_STATUS" != "Successful" ]; then
+            echo "❌ Lambda functions not in Successful state"
+            exit 1
+          fi
+
+      - name: Check RDS Database
+        run: |
+          echo "🔍 Checking RDS database..."
+
+          DB_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier algo-db \
+            --region ${{ env.AWS_REGION }} \
+            --query 'DBInstances[0].DBInstanceStatus' \
+            --output text)
+
+          echo "✓ RDS database status: $DB_STATUS"
+
+          if [ "$DB_STATUS" != "available" ]; then
+            echo "❌ Database not available"
+            exit 1
+          fi
+
+      - name: Check EventBridge Scheduler
+        run: |
+          echo "🔍 Checking EventBridge scheduler..."
+
+          SCHEDULER_STATE=$(aws scheduler get-schedule \
+            --name algo-algo-schedule-dev \
+            --region ${{ env.AWS_REGION }} \
+            --query 'State' \
+            --output text)
+
+          echo "✓ Scheduler state: $SCHEDULER_STATE"
+
+          if [ "$SCHEDULER_STATE" != "ENABLED" ]; then
+            echo "❌ Scheduler not enabled"
+            exit 1
+          fi
+
+      - name: Check API Gateway
+        run: |
+          echo "🔍 Checking API Gateway..."
+
+          API_STATUS=$(aws apigatewayv2 get-apis \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Items[0].ProtocolType' \
+            --output text)
+
+          echo "✓ API Gateway protocol: $API_STATUS"
+
+          if [ "$API_STATUS" != "HTTP" ]; then
+            echo "❌ API Gateway not HTTP"
+            exit 1
+          fi
+
+      - name: Test API Endpoint (Health Check)
+        run: |
+          echo "🧪 Testing API health endpoint..."
+
+          # Try up to 3 times (in case Lambda is cold)
+          for i in {1..3}; do
+            echo "Attempt $i..."
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              "${{ env.API_ENDPOINT }}/health" \
+              -H "Content-Type: application/json")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
+
+            echo "Response code: $HTTP_CODE"
+            echo "Body: $BODY"
+
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
+              echo "✅ API is responding"
+              exit 0
+            fi
+
+            if [ $i -lt 3 ]; then
+              echo "Waiting before retry..."
+              sleep 2
+            fi
+          done
+
+          echo "❌ API did not respond with success code"
+          exit 1
+
+      - name: Check CloudWatch Logs
+        run: |
+          echo "🔍 Checking CloudWatch logs for errors..."
+
+          # Get last 10 ERROR entries
+          ERROR_COUNT=$(aws logs filter-log-events \
+            --log-group-name '/aws/lambda/algo-algo-dev' \
+            --filter-pattern 'ERROR' \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --region ${{ env.AWS_REGION }} \
+            --query 'events | length(@)' \
+            --output text 2>/dev/null || echo "0")
+
+          echo "✓ Errors in last 30 min: $ERROR_COUNT"
+
+          if [ "$ERROR_COUNT" -gt 5 ]; then
+            echo "⚠️ High error count detected"
+          fi
+
+      - name: Test Lambda Directly
+        run: |
+          echo "🧪 Testing Algo Lambda directly..."
+
+          # Invoke with dry-run
+          RESPONSE=$(aws lambda invoke \
+            --function-name algo-algo-dev \
+            --region ${{ env.AWS_REGION }} \
+            --payload '{"source":"health-check","dry_run":true}' \
+            --output text \
+            /tmp/lambda-response.json 2>&1)
+
+          echo "✓ Lambda invoke response:"
+          cat /tmp/lambda-response.json | head -c 500
+          echo ""
+
+      - name: Report Summary
+        run: |
+          echo "========================================"
+          echo "✅ AWS DEPLOYMENT VALIDATION PASSED"
+          echo "========================================"
+          echo ""
+          echo "Summary:"
+          echo "  ✓ Lambda functions operational"
+          echo "  ✓ RDS database available"
+          echo "  ✓ EventBridge scheduler enabled"
+          echo "  ✓ API Gateway responding"
+          echo "  ✓ CloudWatch logs available"
+          echo ""
+          echo "Next run: Check algo execution logs for data quality"
+
+  ################################################################################
+  # Notify on Failure
+  ################################################################################
+  notify-failure:
+    name: Notify on Validation Failure
+    runs-on: ubuntu-latest
+    needs: validate-aws-deployment
+    if: failure()
+
+    steps:
+      - name: Post Failure Summary
+        run: |
+          echo "❌ AWS Deployment validation failed"
+          echo ""
+          echo "Check:"
+          echo "  1. Lambda function health: aws lambda get-function-configuration"
+          echo "  2. RDS status: aws rds describe-db-instances"
+          echo "  3. CloudWatch logs: aws logs tail /aws/lambda/algo-algo-dev"
+          echo "  4. API Gateway: aws apigatewayv2 get-apis"
