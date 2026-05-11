@@ -88,6 +88,18 @@ jobs:
           terraform_version: 1.7.0
           terraform_wrapper: false
 
+      - name: Build psycopg2 Lambda layer
+        run: |
+          # Build psycopg2-binary layer so the db-init Lambda can connect to PostgreSQL.
+          # Must run before Terraform so the zip is available for archive_file.
+          LAYER_DIR=/tmp/psycopg2-layer
+          mkdir -p $LAYER_DIR/python/lib/python3.11/site-packages
+          pip install psycopg2-binary \
+            -t $LAYER_DIR/python/lib/python3.11/site-packages \
+            --no-cache-dir --quiet
+          cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip . -q
+          echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
+
       - name: Terraform Init
         run: |
           terraform init \
@@ -141,6 +153,16 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
+
+      - name: Delete orphaned API Gateways
+        run: |
+          # These 3 API Gateways are not in Terraform state (orphaned from earlier experiments).
+          # The active one (2iqq1qhltj) is managed by Terraform and will never match these IDs.
+          for id in 0rtigbknv7 kx4kprv8ph op4dn7xw6j; do
+            aws apigatewayv2 delete-api --api-id $id --region $AWS_REGION 2>/dev/null \
+              && echo "Deleted orphaned API Gateway: $id" \
+              || echo "Already gone or skipped: $id"
+          done
 
       - name: Collect Outputs
         id: outputs
@@ -287,7 +309,7 @@ jobs:
           cp algo_*.py lambda-pkg/ 2>/dev/null || true
           for f in algo_orchestrator.py credential_manager.py credential_validator.py db_helper.py signal_utils.py data_source_router.py \
                    optimal_loader.py bloom_dedup.py trade_status.py \
-                   loader_safety.py; do
+                   loader_safety.py monitoring_context.py; do
             [ -f "$f" ] && cp "$f" lambda-pkg/ || true
           done
           pip install -r lambda/algo_orchestrator/requirements.txt \
