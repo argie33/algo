@@ -237,50 +237,11 @@ resource "aws_security_group" "algo_lambda" {
   })
 }
 
-# RDS Security Group
+# RDS Security Group - managed via separate aws_security_group_rule resources
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
   description = "Security group for RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
-
-  # Ingress: allow PostgreSQL from ECS tasks
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
-    description     = "Allow PostgreSQL from ECS tasks"
-  }
-
-  # Ingress: allow PostgreSQL from API Lambda
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.api_lambda.id]
-    description     = "Allow PostgreSQL from API Lambda"
-  }
-
-  # Ingress: allow PostgreSQL from Algo Lambda
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.algo_lambda.id]
-    description     = "Allow PostgreSQL from Algo Lambda"
-  }
-
-  # Ingress: allow PostgreSQL from Bastion
-  dynamic "ingress" {
-    for_each = var.bastion_sg_enabled ? [1] : []
-    content {
-      from_port       = 5432
-      to_port         = 5432
-      protocol        = "tcp"
-      security_groups = [aws_security_group.bastion[0].id]
-      description     = "Allow PostgreSQL from Bastion"
-    }
-  }
 
   # Egress: allow all outbound (minimal, but safe)
   egress {
@@ -296,9 +257,54 @@ resource "aws_security_group" "rds" {
   })
 
   depends_on = [aws_security_group.ecs_tasks, aws_security_group.api_lambda, aws_security_group.algo_lambda]
+
+  lifecycle {
+    ignore_changes = [ingress]
+  }
 }
 
-# RDS Security Group Rule: allow self-referential traffic (for db-init Lambda)
+# RDS Security Group Rules: allow PostgreSQL from different sources
+resource "aws_security_group_rule" "rds_from_ecs_tasks" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.ecs_tasks.id
+  description              = "Allow PostgreSQL from ECS tasks"
+}
+
+resource "aws_security_group_rule" "rds_from_api_lambda" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.api_lambda.id
+  description              = "Allow PostgreSQL from API Lambda"
+}
+
+resource "aws_security_group_rule" "rds_from_algo_lambda" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.algo_lambda.id
+  description              = "Allow PostgreSQL from Algo Lambda"
+}
+
+resource "aws_security_group_rule" "rds_from_bastion" {
+  count                    = var.bastion_sg_enabled ? 1 : 0
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.bastion[0].id
+  description              = "Allow PostgreSQL from Bastion"
+}
+
 resource "aws_security_group_rule" "rds_self_postgres" {
   type                     = "ingress"
   from_port                = 5432
