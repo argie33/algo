@@ -452,10 +452,10 @@ locals {
     "etf_signals"         = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
-    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600 }
+    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
-    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600 }
+    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
   }
 
   # For backward compatibility
