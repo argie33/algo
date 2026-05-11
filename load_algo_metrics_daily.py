@@ -22,10 +22,13 @@ credential_manager = get_credential_manager()
 
 import os
 import sys
+import logging
 import psycopg2
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -79,7 +82,7 @@ class AlgoMetricsLoader:
                 self.cur.execute(query)
             return True
         except Exception as e:
-            print(f"  Error: {e}")
+            logger.info(f"  Error: {e}")
             return False
 
     def run_all(self):
@@ -87,14 +90,14 @@ class AlgoMetricsLoader:
         try:
             self.connect()
 
-            print("\n" + "="*70)
-            print("ALGO METRICS DAILY LOADER")
-            print("="*70 + "\n")
+            logger.info("\n" + "="*70)
+            logger.info("ALGO METRICS DAILY LOADER")
+            logger.info("="*70 + "\n")
 
             # Get list of symbols
             self.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
             symbols = [row[0] for row in self.cur.fetchall()]
-            print(f"Processing {len(symbols)} symbols...\n")
+            logger.info(f"Processing {len(symbols)} symbols...\n")
 
             # Get date to process (latest date with price data)
             self.execute("""
@@ -103,72 +106,51 @@ class AlgoMetricsLoader:
             result = self.cur.fetchone()
             process_date = result[0] if result and result[0] else datetime.now().date()
 
-            print(f"Calculating metrics for: {process_date}\n")
+            logger.info(f"Calculating metrics for: {process_date}\n")
 
             # 1. Market health
-            print("1. Market Health Daily...", end=" ")
-            if self.load_market_health(process_date):
-                print(f"OK ({self.stats['market_health']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_market_health(process_date) else "FAILED"
+            logger.info(f"1. Market Health Daily... {status} ({self.stats['market_health']})")
 
             # 2. Trend template for all symbols
-            print("2. Trend Template Fields...", end=" ")
-            if self.load_trend_template(symbols, process_date):
-                print(f"OK ({self.stats['trend_template']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_trend_template(symbols, process_date) else "FAILED"
+            logger.info(f"2. Trend Template Fields... {status} ({self.stats['trend_template']})")
 
             # 3. Distribution days
-            print("3. Distribution Days...", end=" ")
-            if self.load_distribution_days(symbols, process_date):
-                print(f"OK ({self.stats['distribution_days']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_distribution_days(symbols, process_date) else "FAILED"
+            logger.info(f"3. Distribution Days... {status} ({self.stats['distribution_days']})")
 
             # 4. Base count
-            print("4. Base Count per Symbol...", end=" ")
-            if self.load_base_count(symbols, process_date):
-                print(f"OK ({self.stats['base_count']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_base_count(symbols, process_date) else "FAILED"
+            logger.info(f"4. Base Count per Symbol... {status} ({self.stats['base_count']})")
 
             # 5. Power trend flag
-            print("5. Power Trend Flag...", end=" ")
-            if self.load_power_trend(symbols, process_date):
-                print(f"OK ({self.stats['power_trend']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_power_trend(symbols, process_date) else "FAILED"
+            logger.info(f"5. Power Trend Flag... {status} ({self.stats['power_trend']})")
 
             # 6. Data completeness
-            print("6. Data Completeness...", end=" ")
-            if self.load_data_completeness(symbols):
-                print(f"OK ({self.stats['completeness']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_data_completeness(symbols) else "FAILED"
+            logger.info(f"6. Data Completeness... {status} ({self.stats['completeness']})")
 
             # 7. Signal Quality Scores
-            print("7. Signal Quality Scores...", end=" ")
-            if self.load_signal_quality_scores(symbols, process_date):
-                print(f"OK ({self.stats['sqs']})")
-            else:
-                print("FAILED")
+            status = "OK" if self.load_signal_quality_scores(symbols, process_date) else "FAILED"
+            logger.info(f"7. Signal Quality Scores... {status} ({self.stats['sqs']})")
 
             self.conn.commit()
 
-            print(f"\n{'='*70}")
-            print("All metrics loaded successfully!")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info("All metrics loaded successfully!")
+            logger.info(f"{'='*70}\n")
 
-            print("Summary:")
+            logger.info("Summary:")
             for key, val in self.stats.items():
-                print(f"  {key:.<30} {val:>10}")
-            print()
+                logger.info(f"  {key:.<30} {val:>10}")
+            logger.info()
 
             return True
 
         except Exception as e:
-            print(f"\nERROR: {e}")
+            logger.info(f"\nERROR: {e}")
             if self.conn:
                 self.conn.rollback()
             return False
@@ -232,7 +214,7 @@ class AlgoMetricsLoader:
             return False
 
         except Exception as e:
-            print(f"Error loading market health: {e}")
+            logger.info(f"Error loading market health: {e}")
             return False
 
     def load_trend_template(self, symbols, date_obj):
@@ -327,7 +309,7 @@ class AlgoMetricsLoader:
             return self.stats['trend_template'] > 0
 
         except Exception as e:
-            print(f"Error loading trend template: {e}")
+            logger.info(f"Error loading trend template: {e}")
             return False
 
     def load_distribution_days(self, symbols, date_obj):
@@ -367,7 +349,7 @@ class AlgoMetricsLoader:
             return count > 0
 
         except Exception as e:
-            print(f"Error loading distribution days: {e}")
+            logger.info(f"Error loading distribution days: {e}")
             return False
 
     def load_base_count(self, symbols, date_obj):
@@ -376,7 +358,7 @@ class AlgoMetricsLoader:
             self.stats['base_count'] = len(symbols)
             return True
         except Exception as e:
-            print(f"Error loading base count: {e}")
+            logger.info(f"Error loading base count: {e}")
             return False
 
     def load_power_trend(self, symbols, date_obj):
@@ -385,7 +367,7 @@ class AlgoMetricsLoader:
             self.stats['power_trend'] = len(symbols)
             return True
         except Exception as e:
-            print(f"Error loading power trend: {e}")
+            logger.info(f"Error loading power trend: {e}")
             return False
 
     def load_data_completeness(self, symbols):
@@ -453,7 +435,7 @@ class AlgoMetricsLoader:
             return self.stats['completeness'] > 0
 
         except Exception as e:
-            print(f"Error loading completeness: {e}")
+            logger.info(f"Error loading completeness: {e}")
             return False
 
     def load_signal_quality_scores(self, symbols, date_obj):
@@ -495,7 +477,7 @@ class AlgoMetricsLoader:
             return self.stats['sqs'] > 0
 
         except Exception as e:
-            print(f"Error loading SQS: {e}")
+            logger.info(f"Error loading SQS: {e}")
             return False
 
 def main():
