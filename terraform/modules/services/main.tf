@@ -339,15 +339,16 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
         Sid    = "AllowCloudFrontOAC"
         Effect = "Allow"
         Principal = {
-          Service = "cloudfront.amazonaws.com"
+          AWS = "arn:aws:iam::cloudfront:user/CloudFront Origin Access Control ${local.existing_oac_id != null ? local.existing_oac_id : aws_cloudfront_origin_access_control.frontend[0].id}"
         }
-        Action   = "s3:GetObject"
-        Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" = "arn:aws:cloudfront::${var.aws_account_id}:distribution/${aws_cloudfront_distribution.frontend[0].id}"
-          }
-        }
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.frontend_bucket_name}",
+          "arn:aws:s3:::${var.frontend_bucket_name}/*"
+        ]
       }
     ]
   })
