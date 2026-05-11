@@ -237,6 +237,12 @@ class SignalComputer:
                 'pass': institutional_pass,
                 'eval_date': str(eval_date),
             }
+        except (ValueError, TypeError, IndexError) as e:
+            logger.debug(f"Minervini template calculation error for {symbol}: {e}")
+            return self._minervini_empty(f'Calculation error: {str(e)[:50]}')
+        except Exception as e:
+            logger.error(f"Unexpected error in minervini_trend_template({symbol}): {e}")
+            return self._minervini_empty('Unexpected error')
         finally:
             self.disconnect()
 
@@ -462,6 +468,12 @@ class SignalComputer:
                 'breakout_imminent': breakout_imminent,
                 'volume_dryup': volume_dryup,
             }
+        except (ValueError, TypeError, IndexError) as e:
+            logger.debug(f"Base detection error for {symbol}: {e}")
+            return {'in_base': False, 'reason': f'Calculation error: {str(e)[:50]}'}
+        except Exception as e:
+            logger.error(f"Unexpected error in base_detection({symbol}): {e}")
+            return {'in_base': False, 'reason': 'Unexpected error'}
         finally:
             self.disconnect()
 
