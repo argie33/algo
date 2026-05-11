@@ -1610,6 +1610,9 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
+    from algo_logging import configure_root_logger
+    configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
+
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
     parser.add_argument('--date', type=str, help='Run date (YYYY-MM-DD)', default=None)
