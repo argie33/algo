@@ -1,9 +1,17 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 17:06Z  
-**Project Status:** ✅ **SYSTEM OPERATIONAL** — Deployment successful, all infrastructure working, DB schema applied
+**Last Updated:** 2026-05-11 17:15Z  
+**Project Status:** 🔧 **ARCHITECTURE CORRECTED** — Fixed IaC structure, schema now properly managed via Terraform
 
-**Session Fixes (2026-05-11 Continued):**
+**Architecture Correction (2026-05-11):**
+  - 🔧 **FIXED:** Schema management now properly via Terraform IaC (single source of truth)
+  - ✅ Moved 13 tables from temporary init_db.sql to terraform/modules/database/init.sql
+  - ✅ Removed duplicate lambda/db-init/ directory (was workaround, not IaC)
+  - ✅ Removed manual Lambda invocation from CI (Terraform null_resource handles it)
+  - ✅ Deleted PRODUCTION_READINESS_AUDIT.md (documentation sprawl)
+  - **Why:** Multiple schema files = confusion, manual workarounds = not IaC, Terraform is source of truth
+
+**Session Fixes (2026-05-11 Earlier):**
   - ✅ RDS security group state conflict resolved (separate aws_security_group_rule resources + import step)
   - ✅ Added concurrency controls to prevent stale Terraform plan race condition
   - ✅ pipeline IAM user (algo-pipeline) fully configured via Terraform with Reader + Lambda Invoke permissions
