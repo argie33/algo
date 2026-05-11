@@ -377,7 +377,7 @@ class SwingTraderScore:
         try:
             self.cur.execute(
                 """SELECT short_interest_pct FROM stock_scores WHERE symbol = %s
-                   ORDER BY date DESC LIMIT 1""",
+                   ORDER BY score_date DESC LIMIT 1""",
                 (symbol,),
             )
             r = self.cur.fetchone()
@@ -411,8 +411,8 @@ class SwingTraderScore:
         eps_surprise = None
         try:
             self.cur.execute(
-                """SELECT eps_surprise_pct, date_of_report FROM earnings_metrics
-                   WHERE symbol = %s ORDER BY date_of_report DESC LIMIT 1""",
+                """SELECT earnings_surprise_pct, report_date FROM earnings_metrics
+                   WHERE symbol = %s ORDER BY report_date DESC LIMIT 1""",
                 (symbol,),
             )
             r = self.cur.fetchone()
@@ -627,10 +627,10 @@ class SwingTraderScore:
         if sector:
             try:
                 self.cur.execute(
-                    """SELECT status FROM sector_rotation_signal
-                       WHERE sector = %s AND date <= %s
+                    """SELECT signal FROM sector_rotation_signal
+                       WHERE date <= %s
                        ORDER BY date DESC LIMIT 1""",
-                    (sector, eval_date),
+                    (eval_date,),
                 )
                 r = self.cur.fetchone()
                 if r and r[0]:
@@ -745,13 +745,16 @@ class SwingTraderScore:
 
     def _days_to_earnings(self, symbol, eval_date):
         self.cur.execute(
-            "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
+            "SELECT MAX(report_date) FROM earnings_metrics WHERE symbol = %s",
             (symbol,),
         )
         row = self.cur.fetchone()
         if not row or not row[0]:
             return None
-        est = row[0] + timedelta(days=45)
+        last_report = row[0] if isinstance(row[0], _date) else row[0].date() if hasattr(row[0], 'date') else None
+        if not last_report:
+            return None
+        est = last_report + timedelta(days=45)
         while est < eval_date:
             est += timedelta(days=90)
         return (est - eval_date).days

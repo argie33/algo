@@ -988,10 +988,22 @@ class FilterPipeline:
             # Use PositionSizer for all risk calculations (includes drawdown cascade, exposure mult, phase mult)
             if not stop_loss_price or stop_loss_price >= entry_price:
                 # Stop calculation failed. Use fallback: 2x ATR from entry (if ATR available), else 5% stop.
-                # This replaces the hardcoded 0.92 (8%) with a volatility-aware fallback.
-                if atr and atr > 0:
-                    stop_loss_price = max(0.01, entry_price - (2.0 * atr))
-                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr:.2f})')
+                # Compute ATR fresh from price data
+                atr_value = None
+                try:
+                    self.cur.execute(
+                        """SELECT atr FROM technical_data_daily WHERE symbol = %s AND date = %s""",
+                        (symbol, eval_date)
+                    )
+                    atr_row = self.cur.fetchone()
+                    if atr_row and atr_row[0]:
+                        atr_value = float(atr_row[0])
+                except Exception:
+                    pass
+
+                if atr_value and atr_value > 0:
+                    stop_loss_price = max(0.01, entry_price - (2.0 * atr_value))
+                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr_value:.2f})')
                 else:
                     stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
                     logger.warning(f'[T5] Stop calculation FAILED for {symbol}; using 5% emergency fallback: {stop_loss_price:.2f} (no ATR available) — RISK INFLATED')
