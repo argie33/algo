@@ -74,8 +74,8 @@ router.get("/detailed", async (req, res) => {
   }
 });
 
-// Admin-only deep diagnostics
-router.get("/diagnostics", requireAdmin, async (req, res) => {
+// Deep diagnostics
+router.get("/diagnostics", async (req, res) => {
   try {
     const diagnostics = {
       status: "operational",
