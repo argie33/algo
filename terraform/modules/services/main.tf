@@ -87,8 +87,8 @@ resource "aws_lambda_function" "api" {
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = "production"
-      CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend.domain_name}", "")
-      FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend.domain_name}", "")
+      CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
     }
   }
 
