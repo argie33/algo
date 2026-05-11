@@ -21,10 +21,13 @@ credential_manager = get_credential_manager()
 
 import os
 import argparse
+import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -61,10 +64,10 @@ def load_technicals(days_back=365, symbol_filter=None):
         cur = conn.cursor()
         start = datetime.now()
 
-        print(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
-        print(f"  Lookback: {days_back} days")
+        logger.info(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
+        logger.info(f"  Lookback: {days_back} days")
         if symbol_filter:
-            print(f"  Symbol filter: {symbol_filter}")
+            logger.info(f"  Symbol filter: {symbol_filter}")
 
         # Build the WHERE clause
         where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
@@ -72,7 +75,7 @@ def load_technicals(days_back=365, symbol_filter=None):
             where += f" AND symbol = '{symbol_filter}'"
 
         # ========== STEP 1: SMAs and ROCs (single query, fast) ==========
-        print("\n  Step 1: SMAs + ROC indicators...")
+        logger.info("\n  Step 1: SMAs + ROC indicators...")
         cur.execute(f"""
         WITH base AS (
             SELECT symbol, date, close, high, low, volume,
@@ -119,14 +122,14 @@ def load_technicals(days_back=365, symbol_filter=None):
         """)
         sma_count = cur.rowcount
         conn.commit()
-        print(f"    {sma_count:,} rows updated (SMA + ROC)")
+        logger.info(f"    {sma_count:,} rows updated (SMA + ROC)")
 
         # ========== STEP 2: True EMAs (recursive, requires per-symbol pass) ==========
-        print("\n  Step 2: EMAs (12, 26)...")
-        print("    EMAs left as approximations (computed on-demand by algo_signals.py)")
+        logger.info("\n  Step 2: EMAs (12, 26)...")
+        logger.info("    EMAs left as approximations (computed on-demand by algo_signals.py)")
 
         # ========== STEP 3: RSI (Wilder's, 14-period) ==========
-        print("\n  Step 3: RSI (14-period)...")
+        logger.info("\n  Step 3: RSI (14-period)...")
         cur.execute(f"""
         WITH gains_losses AS (
             SELECT symbol, date, close, prev_close,
@@ -156,10 +159,10 @@ def load_technicals(days_back=365, symbol_filter=None):
         """)
         rsi_count = cur.rowcount
         conn.commit()
-        print(f"    {rsi_count:,} RSI values computed")
+        logger.info(f"    {rsi_count:,} RSI values computed")
 
         # ========== STEP 4: ATR (14-period, simple average of True Range) ==========
-        print("\n  Step 4: ATR (14-period)...")
+        logger.info("\n  Step 4: ATR (14-period)...")
         cur.execute(f"""
         WITH tr AS (
             SELECT symbol, date,
@@ -184,10 +187,10 @@ def load_technicals(days_back=365, symbol_filter=None):
         """)
         atr_count = cur.rowcount
         conn.commit()
-        print(f"    {atr_count:,} ATR values computed")
+        logger.info(f"    {atr_count:,} ATR values computed")
 
         # ========== STEP 5: MACD ==========
-        print("\n  Step 5: MACD (12-26-9)...")
+        logger.info("\n  Step 5: MACD (12-26-9)...")
         cur.execute(f"""
         WITH closes AS (
             SELECT symbol, date, close,
@@ -211,7 +214,7 @@ def load_technicals(days_back=365, symbol_filter=None):
         """)
         macd_count = cur.rowcount
         conn.commit()
-        print(f"    {macd_count:,} MACD values computed")
+        logger.info(f"    {macd_count:,} MACD values computed")
 
         # ========== Final stats ==========
         cur.execute(f"""
@@ -222,14 +225,14 @@ def load_technicals(days_back=365, symbol_filter=None):
         total, symbols, min_d, max_d = cur.fetchone()
 
         elapsed = (datetime.now() - start).total_seconds()
-        print(f"\n{'='*70}")
-        print(f"COMPLETE — {elapsed:.1f}s")
-        print(f"  total rows:    {total:,}")
-        print(f"  symbols:       {symbols:,}")
-        print(f"  date range:    {min_d} to {max_d}")
-        print(f"{'='*70}\n")
+        logger.info(f"\n{'='*70}")
+        logger.info(f"COMPLETE — {elapsed:.1f}s")
+        logger.info(f"  total rows:    {total:,}")
+        logger.info(f"  symbols:       {symbols:,}")
+        logger.info(f"  date range:    {min_d} to {max_d}")
+        logger.info(f"{'='*70}\n")
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.info(f"ERROR: {e}")
     finally:
         if cur:
             try:
