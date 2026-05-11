@@ -30,7 +30,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::626216981288:role/github-oidc-role
+          role-to-assume: arn:aws:iam::626216981288:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Check Lambda Functions
