@@ -41,6 +41,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+from typing import Dict, Tuple, Any, Optional
 from algo_signals import SignalComputer
 
 env_file = Path(__file__).parent / '.env.local'
@@ -89,8 +90,68 @@ class SwingTraderScore:
             self.cur = None
             self._owned = None
 
-    def compute(self, symbol, eval_date, sector=None, industry=None):
-        """Compute the full swing composite + hard fails. Returns dict."""
+    def compute(self, symbol: str, eval_date, sector: Optional[str] = None, industry: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Compute the full swing trader score composite with hard-fail gates.
+
+        **Process:**
+          1. Check hard-fail gates (trend score, stage, base type, etc.)
+          2. If any hard gate fails, return 0 score with reason
+          3. If gates pass, compute 7 weighted components
+          4. Aggregate into swing_score (0-100 scale) and letter grade
+          5. Persist to swing_trader_scores table for dashboard/tracking
+
+        **Hard-Fail Gates (Applied First):**
+          - Trend template score >= 5/8 (Minervini 8-point minimum)
+          - Weinstein stage == 2 (must be in uptrend phase)
+          - Within 25% of 52-week high (not extended too far)
+          - Base count < 4 (not too many bases before breakout)
+          - Industry rank <= 100 (not in bottom half)
+          - Base type != 'wide_and_loose' and quality != 'D'
+          - Earnings not within 5 trading days (avoid event risk)
+
+        **Weighted Components:**
+          - SETUP_QUALITY (25%): Base type + breakout proximity + VCP + pivot
+          - TREND_QUALITY (20%): Minervini score + stage + 30wk MA slope
+          - MOMENTUM_RS (20%): RS percentile + 1m/3m/6m return blend
+          - VOLUME (12%): Breakout volume + accumulation days
+          - FUNDAMENTALS (10%): EPS growth + revenue growth + ROE
+          - SECTOR_INDUSTRY (8%): Industry rank > sector rank (industry weighted)
+          - MULTI_TIMEFRAME (5%): Weekly + monthly buy_sell alignment
+
+        **Scoring:**
+          - Sum of weighted components (0-100)
+          - Letter grade: A+ (85+), A (75+), B (65+), C (55+), D (45+), F (<45)
+
+        **Return Dict:**
+          {
+              'symbol': str,
+              'eval_date': str,
+              'pass': bool (False if hard gates fail),
+              'swing_score': float (0-100, or 0 if failed gates),
+              'grade': str ('A+', 'A', 'B', 'C', 'D', 'F'),
+              'reason': str (if pass=False, reason for failure),
+              'components': {
+                  'setup_quality': {'pts': float, 'max': 25, 'detail': dict},
+                  'trend_quality': {'pts': float, 'max': 20, 'detail': dict},
+                  'momentum_rs': {'pts': float, 'max': 20, 'detail': dict},
+                  'volume': {'pts': float, 'max': 12, 'detail': dict},
+                  'fundamentals': {'pts': float, 'max': 10, 'detail': dict},
+                  'sector_industry': {'pts': float, 'max': 8, 'detail': dict},
+                  'multi_timeframe': {'pts': float, 'max': 5, 'detail': dict},
+              },
+              'hard_gates': dict (details of gate checks)
+          }
+
+        Args:
+            symbol: Stock ticker (e.g., "AAPL")
+            eval_date: Date to evaluate as of
+            sector: Sector name (optional, used for ranking comparison)
+            industry: Industry name (optional, used for ranking comparison)
+
+        Returns:
+            Dict with swing_score, grade, components breakdown, and hard-gate details
+        """
         self.connect()
 
         # Hard gates
@@ -152,7 +213,24 @@ class SwingTraderScore:
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(self, symbol, eval_date, sector, industry):
+    def _check_hard_gates(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str]) -> Dict[str, Any]:
+        """
+        Apply hard-fail gates that block scoring entirely if violated.
+
+        Any single gate failure returns {'pass': False, 'reason': str}.
+        All gates must pass for compute() to proceed to component scoring.
+
+        **Gates Checked:**
+          1. Trend template score >= 5/8 (Minervini filter)
+          2. Weinstein stage == 2 (must be in uptrend)
+          3. Within 25% of 52w high (not too extended)
+          4. Base count < 4 (reasonable consolidation count)
+          5. Base type != 'wide_and_loose' and quality != 'D'
+          6. Industry rank <= 100 (not in bottom half by performance)
+          7. Earnings not within 5 trading days (avoid event risk)
+
+        Returns: {'pass': True} or {'pass': False, 'reason': str, ...details...}
+        """
         # 1. Trend template score >= 5 (allows more candidates, component scoring filters further)
         self.cur.execute(
             """SELECT minervini_trend_score, weinstein_stage, percent_from_52w_high, consolidation_flag
@@ -236,8 +314,22 @@ class SwingTraderScore:
 
     # ============= COMPONENTS =============
 
-    def _setup_component(self, symbol, eval_date):
-        """25 pts: base type + breakout proximity + VCP + pivot + power + pocket pivot + 3WT + HTF."""
+    def _setup_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate setup quality (25 max points).
+
+        **Composite of:**
+          - Base type quality (10 pts): VCP=10, flat_base=9, cup=8, ascending=7, double_bottom=6, saucer=5, etc.
+          - Breakout proximity (5 pts): How close to pivot breakout level
+          - Volatility contraction (3 pts): VCP detection and pattern tightness
+          - Pivot breakout (3 pts): Breaking above 20-day high on volume
+          - Power trend (2 pts): 20%+ gain in 21 days (momentum confirmation)
+          - Pocket pivot (1 pt): Current day shows absorption of prior down volume
+          - 3-Weeks-Tight (1 pt): Classic continuation pattern (O'Neil CAN SLIM)
+          - High-Tight-Flag (0 pts): Rare explosive continuation (monitored but not scored)
+
+        Returns: (pts, detail_dict) where pts is 0-25 and detail contains breakdown
+        """
         base = self._signals.classify_base_type(symbol, eval_date)
         vcp = self._signals.vcp_detection(symbol, eval_date)
         pivot = self._signals.pivot_breakout(symbol, eval_date)
@@ -305,8 +397,21 @@ class SwingTraderScore:
             'is_htf': htf.get('is_htf'),
         }
 
-    def _trend_component(self, symbol, eval_date):
-        """20 pts: Minervini score + stage phase multiplier + 30wk slope."""
+    def _trend_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate trend quality (20 max points).
+
+        **Composite of:**
+          - Minervini 8-point score (0-8 pts): Scaled 0-8 from raw 0-8 score
+          - Stage-2 phase multiplier (0-10 pts): Early/mid/late Stage 2 progression
+          - 30-week MA slope (0-2 pts): Uptrend acceleration/deceleration
+
+        The trend component ensures institutional-grade positioning in a confirmed
+        uptrend. Emphasizes Minervini's 8-point criteria combined with Weinstein
+        stage analysis for optimal risk/reward timing.
+
+        Returns: (pts, detail_dict) where pts is 0-20 and detail contains breakdown
+        """
         self.cur.execute(
             "SELECT minervini_trend_score FROM trend_template_data WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, eval_date),
@@ -333,8 +438,28 @@ class SwingTraderScore:
             'estimated_base_count': phase.get('estimated_base_count'),
         }
 
-    def _momentum_component(self, symbol, eval_date):
-        """20 pts: RS percentile + 1m/3m/6m return blend."""
+    def _momentum_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate momentum and relative strength (20 max points).
+
+        **Composite of:**
+          - RS percentile vs SPY (0-12 pts): 60-day relative strength ranking
+            • 90+ = 12 pts (elite relative strength)
+            • 80-90 = 10 pts (strong outperformance)
+            • 70-80 = 7 pts (Minervini institutional bar)
+            • 50-70 = 3 pts (mixed relative strength)
+            • <50 = 0 pts (underperforming SPY)
+          - Return blend (0-8 pts): Weighted average of 1m/3m/6m returns
+            • 1m return (21d): weight 3, thresholds 20%/10%/3%/positive
+            • 3m return (63d): weight 3, same thresholds
+            • 6m return (126d): weight 2, same thresholds
+
+        The momentum component captures uptrend strength both relative to the market
+        (RS) and in absolute terms (return blend). Swing setups during consolidation
+        phases use lower return thresholds (3% vs 30%) to avoid over-filtering.
+
+        Returns: (pts, detail_dict) where pts is 0-20 and detail contains breakdown
+        """
         # RS percentile vs SPY (60-day)
         rs_60 = self._signals._rs_percentile_vs_spy(symbol, eval_date, lookback=60)
         rs_pts = 0.0
@@ -439,8 +564,26 @@ class SwingTraderScore:
             'earnings_momentum_pts': earnings_pts,
         }
 
-    def _volume_component(self, symbol, eval_date):
-        """12 pts: breakout volume vs avg + accumulation days."""
+    def _volume_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate volume characteristics (12 max points).
+
+        **Composite of:**
+          - Breakout volume ratio (0-8 pts): Today's volume vs 50-day average
+            • >2x = 8 pts (strong institutional accumulation)
+            • 1.5-2x = 6 pts (solid volume confirmation)
+            • 1.2-1.5x = 4 pts (above average)
+            • <1.2x = 0 pts (below average volume)
+          - Accumulation days (0-4 pts): Count of up days with volume > 50d avg
+            • 3+ days = 4 pts (strong accumulation)
+            • 2 days = 2 pts (moderate accumulation)
+            • <2 days = 0 pts (weak accumulation)
+
+        Volume is a key institutional signature. Breakouts without volume are likely
+        failed attempts; accumulation days during consolidation predict sharp moves.
+
+        Returns: (pts, detail_dict) where pts is 0-12 and detail contains breakdown
+        """
         # Latest day volume vs 50d avg
         self.cur.execute(
             """
@@ -501,8 +644,33 @@ class SwingTraderScore:
             'net_accumulation': net,
         }
 
-    def _fundamentals_component(self, symbol):
-        """10 pts: EPS growth + revenue growth + ROE / quality."""
+    def _fundamentals_component(self, symbol: str) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate fundamental quality (10 max points).
+
+        **Composite of:**
+          - EPS 3-year CAGR (0-4 pts): From growth_metrics table
+            • >= 25% = 4 pts (CAN SLIM "C" criterion: strong earnings growth)
+            • 15-25% = 3 pts (solid growth)
+            • 5-15% = 1 pt (modest growth)
+            • <5% = 0 pts (weak growth)
+          - Revenue 3-year CAGR (0-3 pts): Top-line growth validation
+            • >= 15% = 3 pts
+            • 5-15% = 2 pts
+            • <5% = 0 pts
+          - Net Income YoY (0-2 pts): Recent earnings acceleration
+            • >= 15% = 2 pts
+            • >= 5% = 1 pt
+            • <5% = 0 pts
+          - Revenue YoY (0-1 pt): Recent sales acceleration validation
+            • >= 5% = 1 pt
+
+        Fundamentals provide the earnings power that sustains stock moves. Swing
+        setups with strong growth are more likely to run hard on breakouts.
+        This is a light filter; weak fundamentals don't disqualify but reduce score.
+
+        Returns: (pts, detail_dict) where pts is 0-10 and detail contains breakdown
+        """
         self.cur.execute(
             """
             SELECT eps_growth_3y_cagr, revenue_growth_3y_cagr,
@@ -548,8 +716,31 @@ class SwingTraderScore:
             'rev_yoy': rev_yoy,
         }
 
-    def _sector_component(self, symbol, eval_date, sector, industry):
-        """8 pts: industry rank top 40 (4 pts) + sector top + RS acceleration bonus (4 pts)."""
+    def _sector_component(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str]) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate sector and industry momentum context (8 max points).
+
+        **Composite of:**
+          - Industry ranking (0-3 pts): Performance rank within the industry (1-197)
+            • Top 20 = 3 pts (elite performance)
+            • Top 40 = 2 pts (strong performance)
+            • Top 80 = 1 pt (above average)
+            • Bottom half = 0 pts (flagged as hard gate; should not reach here)
+          - Sector momentum (0-3 pts): Sector-level trend strength
+            • Momentum score >= 70 = 3 pts
+            • Momentum score >= 50 = 2 pts
+            • Momentum score >= 30 = 1 pt
+          - Rank acceleration (0-2 pts): Industries/sectors improving in ranking
+            • Industry improving + sector improving = 2 pts
+            • One improving = 1 pt
+            • Rank acceleration momentum bonus if sector rank improving
+
+        Context: Individual stock strength is amplified when the industry and sector
+        are also strong. Picks from weak industries/sectors often fail despite good
+        technicals. This component ensures we're trading in "hot" groups.
+
+        Returns: (pts, detail_dict) where pts is 0-8 and detail contains breakdown
+        """
         if sector is None or industry is None:
             self.cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
@@ -655,16 +846,24 @@ class SwingTraderScore:
             'rotation_pts': rotation_pts,
         }
 
-    def _multi_timeframe_component(self, symbol, eval_date):
-        """5 pts: weekly + monthly buy_sell alignment with daily.
+    def _multi_timeframe_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+        """
+        Evaluate multi-timeframe alignment (5 max points).
 
-        Stage-2 stocks usually had their weekly BUY weeks before the daily setup
-        is ripe (the rally already started). So we look back further than the
-        original 30-day window — research shows trend continuity matters across
-        ~3 months on weekly, ~9 months on monthly.
+        **Composite of:**
+          - Weekly BUY signal (0-3 pts): BUY generated in last 90 days (~13 weeks)
+            • Recent BUY signal = 3 pts (active weekly uptrend)
+            • No signal, but price > weekly MA = 1 pt (MA confirming larger uptrend)
+          - Monthly trend (0-2 pts): Monthly timeframe alignment
+            • Monthly BUY or price > monthly MA = 2 pts
+            • Monthly uptrend continuation = 1 pt
 
-        Also falls back to "price above weekly/monthly MA" if no fresh BUY is
-        found — that still confirms the larger timeframe is in the buyer's favor.
+        **Context:** Stage-2 stocks often had their weekly BUY weeks before the
+        daily setup is ripe (rally already underway). We look back ~3 months on
+        weekly and ~9 months on monthly. Multi-timeframe alignment confirms that
+        the stock is in buyer's favor across all timeframes, not just daily tactics.
+
+        Returns: (pts, detail_dict) where pts is 0-5 and detail contains breakdown
         """
         weekly_buy = False
         weekly_above_ma = False
@@ -743,7 +942,16 @@ class SwingTraderScore:
 
     # ============= helpers =============
 
-    def _days_to_earnings(self, symbol, eval_date):
+    def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
+        """
+        Estimate days until next earnings report.
+
+        Uses earnings_metrics table to find the most recent report date,
+        then estimates next report ~90 days later (typical quarterly cadence).
+        Used by hard-gate check: blocks trades within 5 trading days of earnings.
+
+        Returns: Days to estimated next earnings, or None if no history found.
+        """
         self.cur.execute(
             "SELECT MAX(report_date) FROM earnings_metrics WHERE symbol = %s",
             (symbol,),
@@ -759,7 +967,22 @@ class SwingTraderScore:
             est += timedelta(days=90)
         return (est - eval_date).days
 
-    def _persist(self, symbol, eval_date, result):
+    def _persist(self, symbol: str, eval_date, result: Dict[str, Any]) -> None:
+        """
+        Persist computed swing score to swing_trader_scores table.
+
+        Extracts component points, final score, grade, and full component detail dict,
+        then inserts/upserts to the database. Stores results for frontend display,
+        historical tracking, and post-trade performance analysis.
+
+        Args:
+            symbol: Stock ticker
+            eval_date: Date evaluated
+            result: Full result dict from compute() with components and scores
+
+        Returns:
+            None (writes to database)
+        """
         try:
             # Note: swing_trader_scores table created by init_database.py (schema as code)
             comp = result.get('components', {})
