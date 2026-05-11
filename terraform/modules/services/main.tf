@@ -701,6 +701,23 @@ resource "aws_cloudwatch_metric_alarm" "data_freshness_stale" {
   tags                = var.common_tags
 }
 
+# Alert if any single loader run has 50+ symbol failures (silent data loss)
+resource "aws_cloudwatch_metric_alarm" "loader_symbol_failures" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-loader-symbol-failures-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "LoaderSymbolsFailed"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = 50
+  alarm_description   = "WARNING: A loader run had 50+ symbol failures. Data may be incomplete."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
 resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"

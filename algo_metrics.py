@@ -130,6 +130,13 @@ class MetricsPublisher:
         self._emit("LoaderDurationSeconds", seconds, unit="Seconds",
                    dimensions={"Loader": loader})
 
+    def put_loader_result(self, loader: str, stats: dict) -> None:
+        """Publish OptimalLoader run stats (rows_inserted, symbols_failed, duration_sec)."""
+        dims = {"Loader": loader}
+        self._emit("LoaderRowsInserted", stats.get("rows_inserted", 0), unit="Count", dimensions=dims)
+        self._emit("LoaderSymbolsFailed", stats.get("symbols_failed", 0), unit="Count", dimensions=dims)
+        self._emit("LoaderDurationSeconds", stats.get("duration_sec", 0.0), unit="Seconds", dimensions=dims)
+
     def put_circuit_breaker(self, breaker_name: str, fired: bool) -> None:
         """Whether a circuit breaker fired (1=fired, 0=ok)."""
         self._emit("CircuitBreakerFired", 1 if fired else 0,

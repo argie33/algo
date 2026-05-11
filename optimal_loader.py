@@ -341,6 +341,14 @@ class OptimalLoader(ABC):
             self._stats["duration_sec"],
             self._stats["source_distribution"],
         )
+
+        try:
+            from algo_metrics import MetricsPublisher
+            with MetricsPublisher() as m:
+                m.put_loader_result(self.table_name, self._stats)
+        except Exception as e:
+            log.debug("metrics unavailable: %s", e)
+
         return self._stats
 
     def _run_serial(self, symbols: List[str]) -> None:
