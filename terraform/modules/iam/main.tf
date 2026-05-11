@@ -156,13 +156,16 @@ data "aws_iam_policy_document" "github_actions" {
       "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
       "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
       "lambda:ListFunctions",
       "lambda:AddPermission",
       "lambda:RemovePermission",
       "lambda:TagResource",
       "lambda:UntagResource",
       "lambda:ListTags",
-      "apigateway:*"
+      "lambda:InvokeFunction",
+      "apigateway:*",
+      "apigatewayv2:GetApis"
     ]
 
     resources = [
@@ -344,6 +347,26 @@ data "aws_iam_policy_document" "github_actions" {
 
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-terraform-locks"
+    ]
+  }
+
+  # Validation workflows - Read-only access to deployed infrastructure
+  statement {
+    sid    = "ValidationReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "lambda:GetFunctionConfiguration",
+      "rds:DescribeDBInstances",
+      "scheduler:GetSchedule",
+      "logs:FilterLogEvents",
+      "logs:GetLogEvents"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
     ]
   }
 
