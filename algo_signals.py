@@ -46,6 +46,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 import logging
+from typing import Dict, List, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -111,25 +112,70 @@ class SignalComputer:
     # MINERVINI 8-POINT TREND TEMPLATE
     # ============================================================
 
-    def minervini_trend_template(self, symbol, eval_date):
+    def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Full 8-point Minervini trend template scoring.
 
-        From "Trade Like A Stock Market Wizard" (Minervini 2013):
-          1. Current price > 150-day MA AND > 200-day MA
-          2. 150-day MA > 200-day MA
-          3. 200-day MA trending up (rising for at least 1 month / 21 trading days)
-          4. 50-day MA > 150-day MA AND > 200-day MA
-          5. Current price > 50-day MA
-          6. Current price ≥ 30% above 52-week low (Minervini's stricter version)
-          7. Current price within 25% of 52-week high
-          8. Relative Strength (vs SPY) rank ≥ 70 percentile
+        Evaluates if a stock meets the institutional-grade Minervini trend template
+        from "Trade Like A Stock Market Wizard" (Minervini 2013). All 8 criteria
+        must be met for a strong institutional-quality setup.
 
-        Returns: {
-          'score': int 0-8,
-          'criteria': dict of each criterion result,
-          'pass': bool (score >= 7 typical institutional bar)
-        }
+        **The 8 Criteria:**
+          1. **Above 150-day & 200-day MA**: Current price > both moving averages
+             → Ensures uptrend is intact; price above intermediate resistance
+          2. **150-day MA > 200-day MA**: Intermediate MA above long-term MA
+             → Confirms uptrend structure
+          3. **200-day MA rising**: SMA-200 higher than 21 days ago (1 month)
+             → Confirms uptrend is accelerating, not just stalled
+          4. **50-day MA > 150-day & 200-day MA**: Short-term MA above both
+             → Confirms momentum; price not lagging structure
+          5. **Above 50-day MA**: Current price > short-term moving average
+             → Price above tactical support; likely to rebound on pullbacks
+          6. **≥ 30% above 52-week low**: Price strength vs. range bottom
+             → Stock has room to run; not bottoming-out
+          7. **≤ 25% below 52-week high**: Price near peak; strong relative strength
+             → Institutional strength; stock in favor
+          8. **RS ≥ 70th percentile vs SPY**: Relative strength rank
+             → Stock outperforming market; selective strength
+
+        **Scoring:**
+          - Score is count of passed criteria (0-8)
+          - Institutional bar: score >= 7 (need 7 or 8)
+          - Most setups only pass 5-6; 8/8 is rare, institutional-quality
+
+        **Return Dict:**
+          {
+              'score': int 0-8 (count of passed criteria),
+              'criteria': {
+                  'c1_above_150_200_ma': bool,
+                  'c2_sma150_above_sma200': bool,
+                  'c3_sma200_rising_1mo': bool,
+                  'c4_sma50_above_others': bool,
+                  'c5_above_sma50': bool,
+                  'c6_at_least_30pct_above_52w_low': bool,
+                  'c7_within_25pct_of_52w_high': bool,
+                  'c8_rs_rank_70_or_better': bool,
+                  '_pct_above_52w_low': float,
+                  '_pct_below_52w_high': float,
+                  '_rs_percentile': float or None,
+              },
+              'pass': bool (score >= 7),
+              'eval_date': str,
+              'reason': str (if error),
+          }
+
+        **Error Handling:**
+          Returns {'score': 0, 'criteria': {}, 'pass': False, 'reason': str}
+          if any error (no data, calculation failure, etc.)
+
+        **Performance:** ~100-200ms per symbol (queries 250 days of data)
+
+        Args:
+            symbol: Stock ticker (e.g., "AAPL")
+            eval_date: Date to evaluate as of (YYYY-MM-DD or date object)
+
+        Returns:
+            Dict with score, criteria breakdown, pass/fail, and error reason if any
         """
         self.connect()
         try:
@@ -249,7 +295,7 @@ class SignalComputer:
     def _minervini_empty(self, reason):
         return {'score': 0, 'criteria': {}, 'pass': False, 'reason': reason}
 
-    def _rs_percentile_vs_spy(self, symbol, eval_date, lookback=60):
+    def _rs_percentile_vs_spy(self, symbol: str, eval_date, lookback: int = 60) -> Optional[float]:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 
@@ -293,27 +339,57 @@ class SignalComputer:
     # WEINSTEIN 4-STAGE ANALYSIS
     # ============================================================
 
-    def weinstein_stage(self, symbol, eval_date):
+    def weinstein_stage(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
-        Stan Weinstein 4-stage analysis ("Secrets For Profiting in Bull and Bear Markets").
+        Stan Weinstein 4-stage market cycle analysis.
 
-        Uses the 30-week MA (≈ 150 trading days) and its slope, plus price position:
+        From "Secrets For Profiting in Bull and Bear Markets" (Weinstein 1988).
+        Classifies where a stock is in its market cycle using 30-week MA (≈150-day)
+        as the decision criterion.
 
-          STAGE 1 (BASING): price oscillates around flat 30-wk MA
-                              → MA slope ≈ 0, price near MA
-          STAGE 2 (UPTREND): price > rising 30-wk MA
-                              → MA slope > 0, price > MA
-          STAGE 3 (TOPPING): price oscillates around flat 30-wk MA after run-up
-                              → MA slope ≈ 0, price near MA, recent peak above
-          STAGE 4 (DOWNTREND): price < falling 30-wk MA
-                              → MA slope < 0, price < MA
+        **The 4 Stages:**
+          1. **BASING** (Stage 1): Flat MA, price near MA
+             → Accumulation phase; institutional buying; base building
+             → Entry: Wait for stage 2 (breakout)
 
-        Returns: {
-          'stage': 1 | 2 | 3 | 4,
-          'sma_150': float, 'slope_pct': float,
-          'price_vs_ma_pct': float, 'recent_high_above_ma_pct': float,
-          'confidence': 0-1
-        }
+          2. **UPTREND** (Stage 2): Rising MA, price above MA
+             → Best risk/reward; strong uptrend; buy & hold
+             → Entry: Best place to buy; hold until slope breaks
+
+          3. **TOPPING** (Stage 3): Flat MA after peak, price near MA
+             → Weakening uptrend; distribution phase; starting to top
+             → Entry: Avoid; consider exiting winners
+
+          4. **DOWNTREND** (Stage 4): Falling MA, price below MA
+             → Strong downtrend; bear market; don't buy
+             → Entry: Avoid entirely; short only if experienced
+
+        **Classification Rules:**
+          - MA Slope: % change of 30-wk MA over last 30 days
+          - Stage 1: slope near 0 AND price near MA
+          - Stage 2: slope > 3% AND price > MA
+          - Stage 3: slope near 0 AND price near MA AND recent_high >> MA
+          - Stage 4: slope < -3% AND price < MA
+
+        **Return Dict:**
+          {
+              'stage': 1 | 2 | 3 | 4 (or 0 if insufficient data),
+              'sma_150': float (30-week moving average),
+              'slope_pct': float (% change of MA over 30 days),
+              'price_vs_ma_pct': float (% current price vs MA),
+              'recent_high_above_ma_pct': float (% peak above MA),
+              'confidence': float 0-1 (certainty of stage classification),
+              'reason': str (if stage=0, why),
+          }
+
+        **Performance:** ~50ms per symbol
+
+        Args:
+            symbol: Stock ticker
+            eval_date: Date to evaluate as of
+
+        Returns:
+            Dict with stage (1-4), MA value, slope, and confidence metrics
         """
         self.connect()
         try:
@@ -388,24 +464,54 @@ class SignalComputer:
     # BASE / CONSOLIDATION DETECTION
     # ============================================================
 
-    def base_detection(self, symbol, eval_date):
+    def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
-        Detects bases (consolidation patterns) — the setup from which Minervini,
-        Bassal, Darvas, and O'Neil all want to enter.
+        Detects bases (consolidation patterns) — the institutional setup.
 
-        A base is a period of 4-12 weeks (20-60 trading days) where:
-          - Price stays within a defined range (depth typically 8-30%)
-          - No new 52-week highs
-          - Volume drys up vs prior trend (consolidation)
+        A **base** is a tight consolidation period (4-12 weeks, 20-60 trading days)
+        where price trades within a narrow range while accumulation occurs.
+        This is the classic Minervini, Bassal, Darvas, and O'Neil entry setup.
 
-        Returns: {
-          'in_base': bool,
-          'base_depth_pct': float,     # peak-to-trough as % of peak
-          'weeks_in_base': int,
-          'pivot_high': float,         # peak resistance to break above
-          'breakout_imminent': bool,   # price within 2% of pivot
-          'volume_dryup': bool,        # current avg vol < trend avg vol
-        }
+        **Base Characteristics:**
+          - **Depth**: 8-35% from peak to trough (tighter = stronger)
+          - **Duration**: 4-12 weeks in base for setup to mature
+          - **Price action**: Oscillating sideways, not making new lows
+          - **Volume**: Drying up during consolidation (accumulation)
+          - **Breakout**: Imminent when price within 2% of pivot high
+
+        **Technical Logic:**
+          1. Find the peak high in last 60 days (base peak)
+          2. Measure from peak to present (base range)
+          3. Calculate base depth: (peak - low) / peak
+          4. Base is valid if: 8% <= depth <= 35% AND duration >= 20 bars
+          5. Breakout imminent if: price within 2% of pivot
+          6. Volume dryup if: recent 10-bar avg < prior 30-bar avg
+
+        **Return Dict:**
+          {
+              'in_base': bool (depth 8-35% AND duration >= 4 weeks),
+              'base_depth_pct': float (peak-to-trough as % of peak),
+              'weeks_in_base': int (days_in_base // 5),
+              'pivot_high': float (resistance level to break),
+              'pct_to_pivot': float (% below pivot; <2% = breakout imminent),
+              'breakout_imminent': bool (in_base AND pct_to_pivot <= 2%),
+              'volume_dryup': bool (recent vol < prior vol * 0.8),
+              'reason': str (if in_base=False, why),
+          }
+
+        **Use Cases:**
+          - Entry: Buy breakout above pivot_high on volume if breakout_imminent
+          - Rejection: Skip if in_base=False (no setup yet)
+          - Stop: Base low is support; below that = setup failed
+
+        **Performance:** ~50ms per symbol
+
+        Args:
+            symbol: Stock ticker
+            eval_date: Date to evaluate as of
+
+        Returns:
+            Dict with base detection results and characteristics
         """
         self.connect()
         try:
@@ -481,7 +587,7 @@ class SignalComputer:
     # TD SEQUENTIAL (DeMark)
     # ============================================================
 
-    def td_sequential(self, symbol, eval_date):
+    def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Classic DeMark TD Sequential setup count (Tom DeMark, 1980s).
 
@@ -638,7 +744,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def vcp_detection(self, symbol, eval_date):
+    def vcp_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Volatility Contraction Pattern (Minervini's signature setup).
 
@@ -850,7 +956,7 @@ class SignalComputer:
     # BASE TYPE CLASSIFICATION
     # ============================================================
 
-    def classify_base_type(self, symbol, eval_date):
+    def classify_base_type(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Classify the current base into canonical chart pattern types:
 
@@ -1030,7 +1136,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def base_type_stop(self, symbol, eval_date, entry_price, atr=None):
+    def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: Optional[float] = None) -> Dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
         Different chart bases have proven-optimal stop placements per the canon:
@@ -1209,7 +1315,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def three_weeks_tight(self, symbol, eval_date):
+    def three_weeks_tight(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
 
@@ -1294,7 +1400,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def high_tight_flag(self, symbol, eval_date):
+    def high_tight_flag(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
 
@@ -1395,7 +1501,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def power_trend(self, symbol, eval_date):
+    def power_trend(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
         These are the strongest setups for stocks already in motion.
@@ -1417,7 +1523,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def distribution_days(self, symbol, eval_date, lookback=20):
+    def distribution_days(self, symbol: str, eval_date, lookback: int = 20) -> Dict[str, Any]:
         """
         IBD-style distribution day count. A distribution day is when:
           - Close is down >= 0.2% from prior close
@@ -1456,7 +1562,7 @@ class SignalComputer:
                 self.disconnect()
             except Exception:
                 pass
-    def mansfield_rs(self, symbol, eval_date, lookback=200):
+    def mansfield_rs(self, symbol: str, eval_date, lookback: int = 200) -> Optional[float]:
         """
         Mansfield RS = (stock/SPY) / SMA(stock/SPY, 52 weeks) - 1, scaled.
 
@@ -1498,7 +1604,7 @@ class SignalComputer:
         # PIVOT BREAKOUT (Livermore)
         # ============================================================
 
-    def pivot_breakout(self, symbol, eval_date):
+    def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
@@ -1543,7 +1649,7 @@ class SignalComputer:
             except Exception:
                 pass
 
-    def pocket_pivot(self, symbol, eval_date, lookback_days=10):
+    def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> Dict[str, Any]:
         """
         Pocket Pivot (re-accumulation signal): an up day where volume >= highest
         down-day volume in the prior lookback_days.
