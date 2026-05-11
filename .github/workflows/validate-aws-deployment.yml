@@ -117,7 +117,7 @@ jobs:
             echo "Attempt $i..."
 
             RESPONSE=$(curl -s -w "\n%{http_code}" \
-              "${{ env.API_ENDPOINT }}/health" \
+              "${{ env.API_ENDPOINT }}/api/health" \
               -H "Content-Type: application/json")
 
             HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
