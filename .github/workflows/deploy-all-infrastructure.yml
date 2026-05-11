@@ -32,6 +32,12 @@ permissions:
   id-token: write
   contents: read
 
+# Prevent concurrent Terraform runs — stale plan errors occur when two runs
+# modify state between plan and apply steps.
+concurrency:
+  group: terraform-deploy
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
 
