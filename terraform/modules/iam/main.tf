@@ -316,6 +316,21 @@ data "aws_iam_policy_document" "github_actions" {
     resources = ["*"]
   }
 
+  # EventBridge Scheduler - Read operations for validation
+  statement {
+    sid    = "SchedulerReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "scheduler:GetSchedule",
+      "scheduler:ListSchedules"
+    ]
+
+    resources = [
+      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/default/${var.project_name}-*"
+    ]
+  }
+
   # Terraform state management (S3 + DynamoDB)
   statement {
     sid    = "TerraformStateS3"
