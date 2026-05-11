@@ -725,6 +725,15 @@ class Orchestrator:
                     flag = '[HALT]' if state.get('halted') else '[OK]  '
                     logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
 
+            # Publish per-breaker CloudWatch metrics (non-blocking)
+            try:
+                from algo_metrics import MetricsPublisher
+                with MetricsPublisher(dry_run=self.dry_run) as _m:
+                    for name, state in result.get('checks', {}).items():
+                        _m.put_circuit_breaker(name, bool(state.get('halted')))
+            except Exception:
+                pass
+
             # Check market circuit breakers (market-wide halts, L1/L2/L3)
             try:
                 from algo_market_events import MarketEventHandler
