@@ -143,3 +143,10 @@ output "developer_console_login_url" {
   description = "AWS Console login URL for developer user"
   value       = "https://${var.aws_account_id}.signin.aws.amazon.com/console"
 }
+
+# Pipeline user secret key (SENSITIVE - for local CLI setup only)
+output "pipeline_secret_key_for_cli" {
+  description = "Secret access key for pipeline user CLI setup (SAVE IMMEDIATELY)"
+  value       = aws_iam_access_key.pipeline.secret
+  sensitive   = true
+}
