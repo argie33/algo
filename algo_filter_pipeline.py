@@ -1209,7 +1209,8 @@ class FilterPipeline:
                 f"PASS — SQS {result['sqs']}, Stop ${result['stop_loss_price']:.2f}, "
                 f"{result['shares']} sh"
             )
-        logger.error(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
+        log_fn = logger.info if passed else logger.debug
+        log_fn(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
 
     def _persist_signal_evaluation(self, result, eval_date) -> bool:
         """Persist evaluation result to algo_signals_evaluated for audit / dashboard."""
