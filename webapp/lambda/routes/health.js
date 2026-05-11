@@ -1,25 +1,15 @@
 const express = require("express");
-const { query, healthCheck } = require("../utils/database");
-const { sendSuccess, sendError } = require('../utils/apiResponse');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Health check endpoint - quick status
-router.get("/", async (req, res) => {
-  try {
-    return sendSuccess(res, {
-      status: "healthy",
-      healthy: true,
-      service: "Financial Dashboard API",
-      environment: process.env.NODE_ENV || "development",
-      uptime: process.uptime(),
-      version: "1.0.0",
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    return sendError(res, "Health check failed: " + error.message, 503);
-  }
+// Health check endpoint - minimal, no dependencies
+router.get("/", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    healthy: true,
+    service: "Financial Dashboard API",
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Detailed health check with database

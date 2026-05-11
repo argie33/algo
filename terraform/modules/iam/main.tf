@@ -171,15 +171,14 @@ data "aws_iam_policy_document" "github_actions" {
     ]
   }
 
-  # API Gateway - Read operations (needed for validation workflows)
+  # API Gateway - Full management for Terraform (needed for deployment)
   statement {
-    sid    = "APIGatewayReadOnly"
+    sid    = "APIGatewayManagement"
     effect = "Allow"
 
     actions = [
       "apigateway:GET",
-      "apigatewayv2:GetApis",
-      "apigatewayv2:GetStages"
+      "apigatewayv2:*"
     ]
 
     resources = ["*"]
@@ -328,18 +327,45 @@ data "aws_iam_policy_document" "github_actions" {
     resources = ["*"]
   }
 
-  # EventBridge Scheduler - Read operations for validation
+  # EventBridge Scheduler - Full management for Terraform
   statement {
-    sid    = "SchedulerReadOnly"
+    sid    = "SchedulerManagement"
     effect = "Allow"
 
     actions = [
+      "scheduler:CreateSchedule",
+      "scheduler:UpdateSchedule",
+      "scheduler:DeleteSchedule",
       "scheduler:GetSchedule",
-      "scheduler:ListSchedules"
+      "scheduler:ListSchedules",
+      "scheduler:TagResource",
+      "scheduler:UntagResource"
     ]
 
     resources = [
       "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/default/${var.project_name}-*"
+    ]
+  }
+
+  # EventBridge Rules - Full management for Terraform (loader scheduling)
+  statement {
+    sid    = "EventBridgeRulesManagement"
+    effect = "Allow"
+
+    actions = [
+      "events:PutRule",
+      "events:DeleteRule",
+      "events:DescribeRule",
+      "events:ListRules",
+      "events:PutTargets",
+      "events:RemoveTargets",
+      "events:ListTargetsByRule",
+      "events:TagResource",
+      "events:UntagResource"
+    ]
+
+    resources = [
+      "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/${var.project_name}-*"
     ]
   }
 
@@ -1051,13 +1077,22 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
   }
 
-  # SNS (publish alerts)
+  # SNS - Full management for Terraform (create topics for alarms)
   statement {
-    sid    = "SNSPublish"
+    sid    = "SNSManagement"
     effect = "Allow"
 
     actions = [
-      "sns:Publish"
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:SetTopicAttributes",
+      "sns:ListTopics",
+      "sns:Subscribe",
+      "sns:Unsubscribe",
+      "sns:Publish",
+      "sns:TagResource",
+      "sns:UntagResource"
     ]
 
     resources = [

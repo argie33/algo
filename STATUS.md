@@ -1,22 +1,24 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 08:00Z
-**Project Status:** ✅ **PRODUCTION READY** — Real AWS validation workflows operational, Node.js 24 migration complete, all critical infrastructure verified
-**Latest Session (CRITICAL FIXES):**
-  - ✅ Fixed GitHub repository that was in broken state (ref file corruption)
-  - ✅ Updated GitHub Actions: Node.js 20 → 24 (3 workflows, 4 locations) — deadline 2026-06-02 ✅
-  - ✅ **CRITICAL FIX**: Corrected AWS OIDC role ARN in validation workflows
-    - Problem: Workflows referenced non-existent `github-oidc-role`
-    - Root Cause: Terraform creates `algo-svc-github-actions-dev`, not `github-oidc-role`
-    - Solution: Updated both validate-aws-deployment.yml and validate-data-quality.yml
-    - Result: Validation workflows now authenticate to AWS successfully ✅
-  - ✅ Re-triggered validation workflows with corrected code
+**Last Updated:** 2026-05-11 14:30Z  
+**Project Status:** ⚠️ **INFRASTRUCTURE REMEDIATION IN PROGRESS** — System unstable, fixing critical issues
+**Current Session (Infrastructure Audit & Fixes):**
+  - 🔄 **DEPLOYMENT 25672147482**: Testing services module fixes (CloudFront OAC + Alpaca paper trading)
+  - ✅ Fixed CloudFront S3 bucket policy: Added SourceArn condition to OAC (prevents 404 errors)
+  - ✅ Fixed Algo Lambda: Added APCA_API_IS_PAPER env var (ensures paper trading mode)
+  - ⚠️ Deferred VPC RDS security group refactor: Caused repeated apply failures, needs deeper investigation
+  - ✅ Reverted problematic VPC changes: Force-pushed safer version with services-only fixes
+  
+**Known Issues Identified:**
+  - ❌ RDS security group state mismatch (inline rules vs. separate resources) — deferred for now
+  - ⚠️ 9 other medium/low priority issues (Cognito JWT, rotation lambda, variable validation, etc.)
+
 **Infrastructure Status:**
-  - ✅ Algo Lambda: python3.11, 300s timeout, 512MB, Active
-  - ✅ API Lambda: nodejs20.x, 30s timeout, 256MB, Active
+  - ✅ Algo Lambda: python3.11, 300s timeout, 512MB
+  - ✅ API Lambda: nodejs20.x, 30s timeout, 256MB
   - ✅ RDS Database: PostgreSQL, available, 61GB allocated
-  - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays (cron: 30 17 ? * MON-FRI *)
-**Next:** Monitor validation workflow completion, verify data quality checks pass
+  - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays
+**Next:** Wait for deployment 25672147482 → verify CloudFront/Alpaca fixes → plan approach for RDS refactor
 
 ---
 
