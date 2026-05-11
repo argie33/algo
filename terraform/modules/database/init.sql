@@ -1441,6 +1441,8 @@ CREATE TABLE IF NOT EXISTS algo_tca (
 CREATE TABLE IF NOT EXISTS algo_performance_daily (
     report_date DATE PRIMARY KEY,
     rolling_sharpe_252d NUMERIC(8, 4),
+    rolling_sortino_252d NUMERIC(8, 4),
+    calmar_ratio NUMERIC(8, 4),
     win_rate_50t NUMERIC(6, 2),
     avg_win_r_50t NUMERIC(6, 3),
     avg_loss_r_50t NUMERIC(6, 3),
@@ -1450,6 +1452,9 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+-- Add new ratio columns to existing databases (idempotent)
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS rolling_sortino_252d NUMERIC(8, 4);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS calmar_ratio NUMERIC(8, 4);
 
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (

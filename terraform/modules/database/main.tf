@@ -66,7 +66,7 @@ resource "aws_db_instance" "main" {
 
   # Performance & Optimization
   multi_az            = var.db_multi_az
-  storage_type        = "gp2"
+  storage_type        = "gp3"  # gp3 is 20% cheaper than gp2 with same or better IOPS
   publicly_accessible = false # Private subnet, no public endpoint
 
   # Encryption
@@ -78,7 +78,8 @@ resource "aws_db_instance" "main" {
   enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
   monitoring_interval             = 60
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
-  performance_insights_enabled    = false # Additional cost, disable for dev
+  performance_insights_enabled          = var.environment == "prod"
+  performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection

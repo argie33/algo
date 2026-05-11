@@ -78,6 +78,16 @@ def log_execution_complete(
         ))
 
         logger.info(f"[METRICS] {loader_name}: {rows_inserted} rows in {duration:.1f}s ({speedup:.1f}x speedup)")
+
+        # Publish duration to CloudWatch (non-blocking — DB insert already succeeded above)
+        try:
+            from algo_metrics import MetricsPublisher
+            m = MetricsPublisher()
+            m.put_loader_duration(loader_name, duration)
+            m.flush()
+        except Exception:
+            pass
+
         return True
 
     except Exception as e:

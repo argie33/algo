@@ -162,17 +162,36 @@ class LivePerformance:
             )
             cur = conn.cursor()
 
+            # Real R-multiple = PnL / initial_risk_dollars where
+            # initial_risk = (entry_price - stop_loss_price) * entry_quantity.
+            # Use the stored exit_r_multiple when available; fall back to
+            # computing from first principles when it's NULL.
             cur.execute(
                 """
                 SELECT
                     COUNT(*) as total,
-                    SUM(CASE WHEN profit_loss_pct > 0 THEN 1 ELSE 0 END) as win_count,
-                    SUM(CASE WHEN profit_loss_pct <= 0 THEN 1 ELSE 0 END) as loss_count,
+                    SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) as win_count,
+                    SUM(CASE WHEN r_multiple <= 0 THEN 1 ELSE 0 END) as loss_count,
+                    AVG(CASE WHEN r_multiple > 0 THEN r_multiple ELSE NULL END) as avg_win_r,
+                    AVG(CASE WHEN r_multiple <= 0 THEN r_multiple ELSE NULL END) as avg_loss_r,
                     AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct ELSE NULL END) as avg_win_pct,
                     AVG(CASE WHEN profit_loss_pct <= 0 THEN profit_loss_pct ELSE NULL END) as avg_loss_pct
                 FROM (
-                    SELECT profit_loss_pct FROM algo_trades
-                    WHERE status = 'closed' AND exit_date >= CURRENT_DATE - INTERVAL '365 days'
+                    SELECT
+                        profit_loss_pct,
+                        CASE
+                            WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
+                            WHEN stop_loss_price IS NOT NULL
+                                 AND stop_loss_price < entry_price
+                                 AND entry_quantity > 0
+                                THEN profit_loss_dollars
+                                     / NULLIF((entry_price - stop_loss_price)
+                                              * entry_quantity, 0)
+                            ELSE profit_loss_pct / 100.0
+                        END AS r_multiple
+                    FROM algo_trades
+                    WHERE status = 'closed'
+                      AND exit_date >= CURRENT_DATE - INTERVAL '365 days'
                     ORDER BY exit_date DESC NULLS LAST
                     LIMIT %s
                 ) closed_trades
@@ -184,18 +203,15 @@ class LivePerformance:
             if not row or row[0] == 0:
                 return None
 
-            total, win_count, loss_count, avg_win_pct, avg_loss_pct = row
+            total, win_count, loss_count, avg_win_r, avg_loss_r, avg_win_pct, avg_loss_pct = row
             win_count = win_count or 0
             loss_count = loss_count or 0
+            avg_win_r = float(avg_win_r or 0)
+            avg_loss_r = abs(float(avg_loss_r or 0))
             avg_win_pct = float(avg_win_pct or 0)
             avg_loss_pct = float(avg_loss_pct or 0)
 
             win_rate_pct = (win_count / total * 100) if total > 0 else 0
-
-            # Convert % to R-multiples using avg risk per trade (~1%)
-            # Rough approximation: 1% gain ≈ 1R, 1% loss ≈ 1R
-            avg_win_r = avg_win_pct / 1.0 if avg_win_pct != 0 else 0
-            avg_loss_r = abs(avg_loss_pct) / 1.0 if avg_loss_pct != 0 else 0
 
             return {
                 'win_rate_pct': round(win_rate_pct, 2),
@@ -305,6 +321,114 @@ class LivePerformance:
                 except Exception:
                     pass
 
+    def rolling_sortino(self, lookback_days: int = 252) -> Optional[float]:
+        """Annualized Sortino ratio — penalizes only downside volatility.
+
+        More appropriate than Sharpe for directional swing strategies where
+        upside volatility is desirable.
+        """
+        conn = None
+        cur = None
+        try:
+            conn = psycopg2.connect(
+                host=self.db_host, port=self.db_port, user=self.db_user,
+                password=self.db_password, database=self.db_name,
+            )
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
+                ORDER BY snapshot_date ASC
+                """ % lookback_days,
+            )
+            rows = cur.fetchall()
+            if len(rows) < 30:
+                return None
+
+            values = [float(r[0]) for r in rows]
+            daily_returns = [(values[i] - values[i-1]) / values[i-1]
+                             for i in range(1, len(values))]
+            if not daily_returns:
+                return None
+
+            mean_return = sum(daily_returns) / len(daily_returns)
+            # Downside deviation: std dev of returns below zero (target = 0)
+            downside = [r for r in daily_returns if r < 0]
+            if not downside:
+                return None
+            downside_dev = (sum(r ** 2 for r in downside) / len(daily_returns)) ** 0.5
+            if downside_dev == 0:
+                return None
+
+            return round(mean_return / downside_dev * (252 ** 0.5), 4)
+        except Exception as e:
+            logger.error(f"Performance: rolling_sortino failed: {e}")
+            return None
+        finally:
+            if cur:
+                try: cur.close()
+                except Exception: pass
+            if conn:
+                try: conn.close()
+                except Exception: pass
+
+    def calmar_ratio(self, lookback_days: int = 252) -> Optional[float]:
+        """Calmar ratio = annualized return / abs(max drawdown).
+
+        Standard benchmark for trend-following strategies. Higher is better.
+        """
+        conn = None
+        cur = None
+        try:
+            conn = psycopg2.connect(
+                host=self.db_host, port=self.db_port, user=self.db_user,
+                password=self.db_password, database=self.db_name,
+            )
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
+                ORDER BY snapshot_date ASC
+                """ % lookback_days,
+            )
+            rows = cur.fetchall()
+            if len(rows) < 30:
+                return None
+
+            values = [float(r[0]) for r in rows]
+            # Annualized return
+            n_days = len(values)
+            if values[0] <= 0:
+                return None
+            annualized_return = (values[-1] / values[0]) ** (252.0 / n_days) - 1.0
+
+            # Max drawdown
+            peak = values[0]
+            max_dd = 0.0
+            for v in values:
+                if v > peak:
+                    peak = v
+                dd = (v - peak) / peak
+                if dd < max_dd:
+                    max_dd = dd
+
+            if max_dd == 0.0:
+                return None
+
+            return round(annualized_return / abs(max_dd), 4)
+        except Exception as e:
+            logger.error(f"Performance: calmar_ratio failed: {e}")
+            return None
+        finally:
+            if cur:
+                try: cur.close()
+                except Exception: pass
+            if conn:
+                try: conn.close()
+                except Exception: pass
+
     def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
         """Compare live metrics to backtest reference metrics.
 
@@ -363,6 +487,8 @@ class LivePerformance:
 
             # Compute all metrics (each handles its own connection)
             sharpe = self.rolling_sharpe(252)
+            sortino = self.rolling_sortino(252)
+            calmar = self.calmar_ratio(252)
             wr = self.win_rate(50)
             expectancy = self.expectancy(50)
             max_dd = self.max_drawdown()
@@ -372,6 +498,8 @@ class LivePerformance:
                 'report_date': report_date,
                 'generated_at': datetime.now().isoformat(),
                 'rolling_sharpe_252d': sharpe,
+                'rolling_sortino_252d': sortino,
+                'calmar_ratio': calmar,
                 'status': 'ok',
             }
 
@@ -410,6 +538,8 @@ class LivePerformance:
 
                 # Convert all values to Python native types (float, int, etc.) to avoid numpy type issues
                 sharpe_val = float(sharpe) if sharpe is not None else None
+                sortino_val = float(sortino) if sortino is not None else None
+                calmar_val = float(calmar) if calmar is not None else None
                 win_rate_val = float(wr['win_rate_pct']) if wr else None
                 avg_win_r_val = float(wr['avg_win_r']) if wr else None
                 avg_loss_r_val = float(wr['avg_loss_r']) if wr else None
@@ -419,12 +549,14 @@ class LivePerformance:
                 cur.execute(
                     """
                     INSERT INTO algo_performance_daily (
-                        report_date, rolling_sharpe_252d, win_rate_50t,
-                        avg_win_r_50t, avg_loss_r_50t, expectancy,
+                        report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
+                        win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
                         max_drawdown_pct, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (report_date) DO UPDATE SET
                         rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                        rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
+                        calmar_ratio = EXCLUDED.calmar_ratio,
                         win_rate_50t = EXCLUDED.win_rate_50t,
                         avg_win_r_50t = EXCLUDED.avg_win_r_50t,
                         avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
@@ -434,6 +566,8 @@ class LivePerformance:
                     (
                         report_date,
                         sharpe_val,
+                        sortino_val,
+                        calmar_val,
                         win_rate_val,
                         avg_win_r_val,
                         avg_loss_r_val,
