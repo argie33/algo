@@ -9,7 +9,12 @@ set -e
 
 if [ -n "${LOADER_FILE:-}" ]; then
   echo "[entrypoint] Running LOADER_FILE=$LOADER_FILE"
-  exec python3 "$LOADER_FILE" "$@"
+  # Inject --parallelism if LOADER_PARALLELISM is set and loader accepts it
+  PARALLEL_ARG=""
+  if [ -n "${LOADER_PARALLELISM:-}" ]; then
+    PARALLEL_ARG="--parallelism ${LOADER_PARALLELISM}"
+  fi
+  exec python3 "$LOADER_FILE" $PARALLEL_ARG "$@"
 fi
 
 if [ -n "${1:-}" ]; then

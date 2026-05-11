@@ -385,66 +385,71 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Reference data (3:30am ET) - FARGATE: 256 CPU = min 512 MB
-    "stock_symbols" = { cpu = 256, memory = 512, timeout = 300 }
+    # Reference data (3:30am ET)
+    # parallelism=1: tiny list, no benefit from threads
+    "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Price data loaders (4:00am ET) - HIGH CPU/MEMORY - FARGATE: 512 CPU = 1024-4096 MB
-    "stock_prices_daily"   = { cpu = 512, memory = 1024, timeout = 600 }
-    "stock_prices_weekly"  = { cpu = 512, memory = 1024, timeout = 600 }
-    "stock_prices_monthly" = { cpu = 512, memory = 1024, timeout = 600 }
-    "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 600 }
-    "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600 }
-    "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600 }
+    # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by Alpaca (180 req/min)
+    # parallelism=16 with 1 vCPU: ~3x faster than serial, stays under rate limit
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
+    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
+    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
+    "etf_prices_daily"     = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
+    "etf_prices_weekly"    = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
+    "etf_prices_monthly"   = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
 
-    # Technical data (4:15am ET, after prices) - FARGATE: 256 CPU = min 512 MB
-    "technicals_daily"    = { cpu = 256, memory = 512, timeout = 300 }
+    # Technical data (4:15am ET) — compute-heavy per symbol (indicators), 5000+ symbols
+    # parallelism=8 with 2 vCPU: CPU-bound work benefits from real cores
+    "technicals_daily"    = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8  }
 
-    # Trend template (4:30am ET) - FARGATE: 256 CPU = min 512 MB
-    "trend_template_data" = { cpu = 256, memory = 512, timeout = 300 }
+    # Trend template (4:30am ET) — compute-heavy scoring
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8  }
 
-    # Financial statements (10:00am ET) - FARGATE: 256 CPU = min 512 MB
-    "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_annual_balance"     = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_annual_cashflow"    = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_quarterly_income"   = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_quarterly_balance"  = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_quarterly_cashflow" = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_ttm_income"         = { cpu = 256, memory = 512, timeout = 1200 }
-    "financials_ttm_cashflow"       = { cpu = 256, memory = 512, timeout = 1200 }
+    # Financial statements (10:00am ET) — I/O bound, rate-limited by yfinance/SEC
+    # parallelism=4: respect yfinance rate limits (60/min), 500+ symbols
+    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
-    # Earnings data (11:00am ET) - FARGATE: 256 CPU = min 512 MB
-    "earnings_history"   = { cpu = 256, memory = 512, timeout = 600 }
-    "earnings_revisions" = { cpu = 256, memory = 512, timeout = 600 }
-    "earnings_surprise"  = { cpu = 256, memory = 512, timeout = 600 }
-    "earnings_sp500"     = { cpu = 256, memory = 512, timeout = 600 }
+    # Earnings data (11:00am ET) — I/O bound
+    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_sp500"     = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
 
-    # Market & economic data (12:00pm ET - 6:00pm ET) - FARGATE: 256 CPU = min 512 MB
-    "market_overview"      = { cpu = 256, memory = 512, timeout = 300 }
-    "market_indices"       = { cpu = 256, memory = 512, timeout = 300 }
-    "sector_performance"   = { cpu = 256, memory = 512, timeout = 300 }
-    "relative_performance" = { cpu = 256, memory = 512, timeout = 300 }
-    "seasonality"          = { cpu = 256, memory = 512, timeout = 300 }
-    "econ_data"            = { cpu = 256, memory = 512, timeout = 300 }
-    "aaiidata"             = { cpu = 256, memory = 512, timeout = 300 }
-    "naaim_data"           = { cpu = 256, memory = 512, timeout = 300 }
-    "feargreed"            = { cpu = 256, memory = 512, timeout = 300 }
-    "calendar"             = { cpu = 256, memory = 512, timeout = 300 }
+    # Market & economic data (12:00pm ET) — small datasets, single-threaded fine
+    "market_overview"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "market_indices"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "sector_performance"   = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "relative_performance" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    "seasonality"          = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    "econ_data"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "aaiidata"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "naaim_data"           = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "feargreed"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "calendar"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Sentiment & analysis (1:00pm ET) - FARGATE: 256 CPU = min 512 MB
-    "analyst_sentiment" = { cpu = 256, memory = 512, timeout = 600 }
-    "analyst_upgrades"  = { cpu = 256, memory = 512, timeout = 600 }
-    "social_sentiment"  = { cpu = 256, memory = 512, timeout = 600 }
-    "factor_metrics"    = { cpu = 256, memory = 512, timeout = 600 }
-    "stock_scores"      = { cpu = 256, memory = 512, timeout = 600 }
+    # Sentiment & analysis (1:00pm ET) — I/O bound with some compute
+    "analyst_sentiment" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "analyst_upgrades"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "social_sentiment"  = { cpu = 256, memory = 512,  timeout = 600, parallelism = 2 }
+    "factor_metrics"    = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "stock_scores"      = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
-    # Trading signals (5:00pm ET) - FARGATE: 256 CPU = min 512 MB
-    "signals_daily"     = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_weekly"    = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_monthly"   = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_etf_daily"   = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_etf_weekly"  = { cpu = 256, memory = 512, timeout = 900 }
-    "signals_etf_monthly" = { cpu = 256, memory = 512, timeout = 900 }
-    "etf_signals"         = { cpu = 256, memory = 512, timeout = 900 }
+    # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
+    # Right-size: 2 vCPU with 8 threads = good CPU utilization for pandas/numpy work
+    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 8 }
+    "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
+    "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
+    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 4 }
+    "signals_etf_weekly"  = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
+    "signals_etf_monthly" = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
+    "etf_signals"         = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600 }
@@ -507,6 +512,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "LOADER_TYPE"
           value = each.key
+        },
+        {
+          name  = "LOADER_PARALLELISM"
+          value = tostring(each.value.parallelism)
         },
         {
           name  = "AWS_REGION"

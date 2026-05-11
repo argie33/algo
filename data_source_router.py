@@ -41,6 +41,8 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+from algo_retry import retry, ALPACA_DATA_LIMITER, YFINANCE_LIMITER
+
 log = logging.getLogger(__name__)
 
 
@@ -157,6 +159,7 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
 
+    @retry(max_attempts=3, base_delay=2.0, exceptions=(Exception,))
     def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
         api_key = os.getenv("ALPACA_API_KEY")
         # Accept either ALPACA_API_SECRET (router default) or ALPACA_SECRET_KEY
@@ -166,6 +169,7 @@ class DataSourceRouter:
             return None
 
         import requests
+        ALPACA_DATA_LIMITER.wait()
         url = "https://data.alpaca.markets/v2/stocks/bars"
         resp = requests.get(
             url,
@@ -201,11 +205,13 @@ class DataSourceRouter:
             for bar in bars
         ]
 
+    @retry(max_attempts=3, base_delay=5.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
         try:
             import yfinance as yf
         except ImportError:
             return None
+        YFINANCE_LIMITER.wait()
         # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         hist = yf.Ticker(yf_symbol).history(start=start, end=end, auto_adjust=False, timeout=30)
