@@ -476,8 +476,8 @@ class ExitEngine:
                 """
                 SELECT MAX(high) FROM price_daily
                 WHERE symbol = %s
-                  AND date >= %s::date - INTERVAL '%s days'
-                  AND date <= %s::date - INTERVAL '%s days'
+                  AND date >= %s::date - MAKE_INTERVAL(days => %s)
+                  AND date <= %s::date - MAKE_INTERVAL(days => %s)
                 """,
                 (symbol, current_date, days_held, current_date, max(0, days_held - window_days)),
             )

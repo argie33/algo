@@ -671,9 +671,7 @@ class AdvancedFilters:
             next_q_date = _date(year, 7, 15)  # Q2
         elif month < 10:
             next_q_date = _date(year, 10, 15)  # Q3
-        elif month < 1:
-            next_q_date = _date(year + 1, 1, 15)  # Q4
-        else:
+        else:  # month >= 10 (Q4)
             next_q_date = _date(year + 1, 1, 15)  # Q4
 
         # If next quarter estimate is in past, advance to following quarter

@@ -97,7 +97,7 @@ class AlgoConfig:
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
         'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100'),
         'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
-        'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
+        'min_avg_daily_dollar_volume': ('1000000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
         'max_stop_distance_pct': ('8.0', 'float', 'Max stop distance % from entry'),
         'max_positions_per_sector': ('3', 'int', 'Max concurrent positions in one sector'),
@@ -129,6 +129,7 @@ class AlgoConfig:
         't1_target_r_multiple': ('1.5', 'float', 'Tier 1 profit target R-mult'),
         't2_target_r_multiple': ('3.0', 'float', 'Tier 2 profit target R-mult'),
         't3_target_r_multiple': ('4.0', 'float', 'Tier 3 profit target R-mult'),
+        'min_hold_days': ('1', 'int', 'Minimum days to hold'),
         'max_hold_days': ('20', 'int', 'Max days to hold position'),
         'exit_on_distribution_day': ('true', 'bool', 'Exit on market distribution'),
         'exit_on_rs_line_break_50dma': ('true', 'bool', 'Exit when RS line breaks 50-DMA'),
@@ -150,6 +151,34 @@ class AlgoConfig:
         're_engage_recovery_pct': ('8.0', 'float', '% recovery from peak to resume trading'),
         're_engage_min_days': ('5', 'int', 'Min days after halt before re-engagement'),
         'require_ftd_to_re_engage': ('true', 'bool', 'Require Follow-Through Day signal'),
+
+        # Circuit Breaker Thresholds (CB)
+        'max_daily_loss_pct': ('2.0', 'float', 'Max daily loss % before halt'),
+        'max_consecutive_losses': ('3', 'int', 'Max consecutive losing trades'),
+        'min_win_rate_pct': ('40.0', 'float', 'Min win rate % to trade'),
+        'max_total_risk_pct': ('4.0', 'float', 'Max total open risk %'),
+        'max_weekly_loss_pct': ('5.0', 'float', 'Max weekly loss % before halt'),
+        'max_data_staleness_days': ('3', 'int', 'Max data age in days'),
+        'daily_profit_cap_pct': ('2.0', 'float', 'Daily profit cap %'),
+
+        # Economic Calendar
+        'halt_entries_before_major_release_minutes': ('60', 'int', 'Halt entries N minutes before major release'),
+
+        # Earnings Blackout
+        'earnings_blackout_days_before': ('7', 'int', 'Days before earnings to block entries'),
+        'earnings_blackout_days_after': ('3', 'int', 'Days after earnings to block entries'),
+
+        # Liquidity Checks
+        'min_daily_volume_shares': ('500000', 'int', 'Minimum daily volume shares'),
+        'max_spread_pct': ('0.5', 'float', 'Maximum bid-ask spread %'),
+        'min_market_cap_millions': ('300.0', 'float', 'Minimum market cap $M'),
+        'min_float_millions': ('50.0', 'float', 'Minimum float shares $M'),
+        'max_short_interest_pct': ('30.0', 'float', 'Maximum short interest %'),
+
+        # Advanced Filters
+        'block_days_before_earnings': ('5', 'int', 'Block entries N days before earnings'),
+        'max_extension_above_50ma_pct': ('15.0', 'float', 'Max extension above 50-DMA %'),
+        'strong_sector_top_n': ('5', 'int', 'Top N sectors count as strong'),
 
         # Execution Mode
         'execution_mode': ('paper', 'string', 'paper|dry|review|auto'),

@@ -556,7 +556,7 @@ class DailyReconciliation:
         try:
             # Find recently closed trades without MAE/MFE
             self.cur.execute("""
-                SELECT id, symbol, entry_date, exit_date, entry_price, exit_price, exit_r_multiple
+                SELECT id, symbol, trade_date, exit_date, entry_price, exit_price, exit_r_multiple
                 FROM algo_trades
                 WHERE status = %s
                   AND exit_date IS NOT NULL
