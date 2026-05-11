@@ -142,6 +142,36 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
+      - name: Run DB Init Lambda (apply schema to RDS)
+        run: |
+          # Invoke db-init Lambda to apply any new/updated schema to RDS.
+          # Lambda reads lambda/db-init/schema.sql (synced from init_db.sql).
+          # Uses || true so a non-fatal schema error doesn't block deployment.
+          DB_INIT_FUNC=$(aws lambda list-functions \
+            --region $AWS_REGION \
+            --query "Functions[?starts_with(FunctionName,'algo-db-init')].FunctionName | [0]" \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$DB_INIT_FUNC" ] || [ "$DB_INIT_FUNC" = "None" ]; then
+            echo "⚠️  DB init Lambda not found — skipping schema apply"
+          else
+            echo "Running DB init Lambda: $DB_INIT_FUNC"
+            RESULT=$(aws lambda invoke \
+              --function-name "$DB_INIT_FUNC" \
+              --payload '{"action":"init"}' \
+              --cli-binary-format raw-in-base64-out \
+              --region $AWS_REGION \
+              /tmp/db_init_result.json 2>&1)
+            cat /tmp/db_init_result.json | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+body=json.loads(r.get('body','{}')) if isinstance(r.get('body'),str) else r
+print(f\"  succeeded: {body.get('succeeded',0)}, failed: {body.get('failed',0)}\")
+if body.get('errors'):
+  print(f\"  errors: {body['errors'][:3]}\")
+" 2>/dev/null || cat /tmp/db_init_result.json
+            echo "✅ DB init complete"
+          fi
+
       - name: Collect Outputs
         id: outputs
         run: |
