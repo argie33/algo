@@ -219,41 +219,14 @@ class APIHandler:
             return self._get_rejection_funnel()
         elif path == '/api/algo/markets':
             return self._get_markets()
-        elif path == '/api/algo/config':
-            return json_response(200, {
-                'enabled': True,
-                'max_position_size': 5000,
-                'max_positions': 10,
-                'risk_per_trade': 0.02,
-                'trading_hours': '09:30-16:00',
-            })
         elif path == '/api/algo/evaluate':
-            return json_response(200, {
-                'stage': 'evaluating',
-                'candidates_screened': 523,
-                'candidates_passing': 47,
-                'top_score': 92.3,
-                'avg_score': 65.4,
-            })
+            return self._get_algo_evaluate()
         elif path == '/api/algo/data-quality':
-            return json_response(200, {
-                'freshness_score': 0.98,
-                'completeness_score': 0.97,
-                'accuracy_check': 'passed',
-                'last_check': datetime.now(timezone.utc).isoformat(),
-            })
+            return self._get_data_quality()
         elif path == '/api/algo/exposure-policy':
-            return json_response(200, {
-                'max_sector_exposure': 0.30,
-                'max_single_position': 0.10,
-                'target_beta': 1.1,
-                'current_exposure': 0.65,
-            })
+            return self._get_exposure_policy()
         elif path == '/api/algo/sector-stage2':
-            return json_response(200, [
-                {'symbol': 'NVDA', 'sector': 'Technology', 'stage': 'Stage 2', 'strength': 8.5},
-                {'symbol': 'TSLA', 'sector': 'Consumer', 'stage': 'Stage 2', 'strength': 7.2},
-            ])
+            return self._get_sector_stage2()
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
@@ -261,7 +234,13 @@ class APIHandler:
         """Get latest algo execution status."""
         try:
             self.cur.execute("""
-                SELECT run_id, created_at, phase, status, message
+                SELECT
+                    details->>'run_id' AS run_id,
+                    action_type,
+                    action_date,
+                    details->>'summary' AS message,
+                    status,
+                    created_at
                 FROM algo_audit_log
                 ORDER BY created_at DESC
                 LIMIT 1
@@ -272,8 +251,8 @@ class APIHandler:
 
             return json_response(200, {
                 'run_id': row['run_id'],
-                'last_run': row['created_at'].isoformat() if row['created_at'] else None,
-                'current_phase': row['phase'],
+                'last_run': row['action_date'].isoformat() if row['action_date'] else None,
+                'current_phase': row['action_type'],
                 'status': row['status'],
                 'message': row['message'],
             })
@@ -358,10 +337,11 @@ class APIHandler:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
-                SELECT created_at, portfolio_value, cash, exposure
+                SELECT snapshot_date, total_portfolio_value, total_cash,
+                       unrealized_pnl_total, position_count, daily_return_pct
                 FROM algo_portfolio_snapshots
-                WHERE created_at >= %s
-                ORDER BY created_at DESC
+                WHERE snapshot_date >= %s
+                ORDER BY snapshot_date DESC
                 LIMIT 1000
             """, (cutoff_date,))
             curve = self.cur.fetchall()
@@ -393,7 +373,7 @@ class APIHandler:
         try:
             self.cur.execute("""
                 SELECT id, created_at, kind, severity, title, message
-                FROM notifications
+                FROM algo_notifications
                 ORDER BY created_at DESC
                 LIMIT 50
             """)
@@ -407,9 +387,9 @@ class APIHandler:
         """Get data patrol findings."""
         try:
             self.cur.execute("""
-                SELECT timestamp, finding_type, severity, source, description
+                SELECT created_at, check_name, severity, target_table, message, patrol_run_id
                 FROM data_patrol_log
-                ORDER BY timestamp DESC
+                ORDER BY created_at DESC
                 LIMIT %s
             """, (limit,))
             findings = self.cur.fetchall()
@@ -423,10 +403,10 @@ class APIHandler:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
-                SELECT date, sector, performance_pct
-                FROM sector_rotation
+                SELECT date, sector, strength AS performance_pct, signal, rank
+                FROM sector_rotation_signal
                 WHERE date >= %s
-                ORDER BY date DESC, performance_pct DESC
+                ORDER BY date DESC, rank ASC
             """, (cutoff_date,))
             rotation = self.cur.fetchall()
             return json_response(200, [dict(r) for r in rotation])
@@ -435,12 +415,19 @@ class APIHandler:
             return json_response(200, [])
 
     def _get_sector_breadth(self) -> Dict:
-        """Get sector breadth indicators."""
+        """Get sector breadth indicators (derived from price_daily by sector)."""
         try:
             self.cur.execute("""
-                SELECT sector, up_count, down_count, unchanged_count
-                FROM sector_breadth
-                WHERE date = CURRENT_DATE
+                SELECT
+                    cp.sector,
+                    COUNT(CASE WHEN pd.close > pd.open THEN 1 END) AS up_count,
+                    COUNT(CASE WHEN pd.close < pd.open THEN 1 END) AS down_count,
+                    COUNT(CASE WHEN pd.close = pd.open THEN 1 END) AS unchanged_count
+                FROM price_daily pd
+                JOIN company_profile cp ON pd.symbol = cp.ticker
+                WHERE pd.date = (SELECT MAX(date) FROM price_daily)
+                  AND cp.sector IS NOT NULL
+                GROUP BY cp.sector
                 ORDER BY up_count DESC
             """)
             breadth = self.cur.fetchall()
@@ -450,19 +437,17 @@ class APIHandler:
             return json_response(200, [])
 
     def _get_swing_scores(self, limit: int = 100) -> Dict:
-        """Get swing trade candidates with full scoring breakdown."""
+        """Get swing trade candidates with scoring."""
         try:
             self.cur.execute("""
                 SELECT
-                    ss.symbol, ss.eval_date, ss.swing_score, ss.grade,
-                    ss.setup_pts, ss.trend_pts, ss.momentum_pts, ss.volume_pts,
-                    ss.fundamentals_pts, ss.sector_pts, ss.multi_tf_pts,
-                    ss.pass_gates, ss.fail_reason, ss.components,
+                    s.symbol, s.date, s.score AS swing_score,
+                    s.components->>'grade' AS grade,
                     cp.sector, cp.industry
-                FROM swing_scores_daily ss
-                LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-                WHERE ss.eval_date >= CURRENT_DATE - INTERVAL '1 day'
-                ORDER BY ss.eval_date DESC, ss.swing_score DESC
+                FROM swing_trader_scores s
+                LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                WHERE s.date >= CURRENT_DATE - INTERVAL '1 day'
+                ORDER BY s.date DESC, s.score DESC
                 LIMIT %s
             """, (limit,))
             scores = self.cur.fetchall()
@@ -476,14 +461,13 @@ class APIHandler:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
-                SELECT eval_date,
-                    COUNT(*) as total_candidates,
-                    SUM(CASE WHEN grade IN ('A+', 'A', 'A-') THEN 1 ELSE 0 END) as top_grade_count,
-                    AVG(swing_score) as avg_score
-                FROM swing_scores_daily
-                WHERE eval_date >= %s
-                GROUP BY eval_date
-                ORDER BY eval_date DESC
+                SELECT date AS eval_date,
+                    COUNT(*) AS total_candidates,
+                    AVG(score) AS avg_score
+                FROM swing_trader_scores
+                WHERE date >= %s
+                GROUP BY date
+                ORDER BY date DESC
             """, (cutoff_date,))
             history = self.cur.fetchall()
             return json_response(200, [dict(h) for h in history])
@@ -496,17 +480,16 @@ class APIHandler:
         try:
             self.cur.execute("""
                 SELECT
-                    'Initial Signals' as stage,
-                    COUNT(DISTINCT symbol) as count
+                    'Initial Signals' AS stage,
+                    COUNT(DISTINCT symbol) AS count
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 UNION ALL
                 SELECT
-                    'Passed Gates' as stage,
-                    COUNT(DISTINCT symbol) as count
-                FROM swing_scores_daily
-                WHERE eval_date >= CURRENT_DATE - INTERVAL '7 days'
-                AND pass_gates = true
+                    'Scored Candidates' AS stage,
+                    COUNT(DISTINCT symbol) AS count
+                FROM swing_trader_scores
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 ORDER BY count DESC
             """)
             funnel = self.cur.fetchall()
@@ -531,6 +514,102 @@ class APIHandler:
             return json_response(200, [dict(m) for m in markets])
         except Exception as e:
             logger.error(f"Error fetching markets data: {e}", exc_info=True)
+            return json_response(200, [])
+
+    def _get_algo_evaluate(self) -> Dict:
+        """Get latest signal evaluation summary from swing_trader_scores."""
+        try:
+            self.cur.execute("""
+                SELECT
+                    COUNT(DISTINCT symbol) AS candidates_screened,
+                    COUNT(DISTINCT CASE WHEN score >= 60 THEN symbol END) AS candidates_passing,
+                    MAX(score) AS top_score,
+                    AVG(score) AS avg_score
+                FROM swing_trader_scores
+                WHERE date >= CURRENT_DATE - INTERVAL '1 day'
+            """)
+            row = self.cur.fetchone()
+            if not row or not row['candidates_screened']:
+                return json_response(200, {'stage': 'no_data', 'candidates_screened': 0, 'candidates_passing': 0})
+            return json_response(200, {
+                'stage': 'evaluated',
+                'candidates_screened': row['candidates_screened'] or 0,
+                'candidates_passing': row['candidates_passing'] or 0,
+                'top_score': float(row['top_score'] or 0),
+                'avg_score': float(row['avg_score'] or 0),
+            })
+        except Exception as e:
+            logger.error(f"get_algo_evaluate failed: {e}")
+            return json_response(200, {'stage': 'error', 'candidates_screened': 0})
+
+    def _get_data_quality(self) -> Dict:
+        """Get data quality summary from latest data_patrol_log run."""
+        try:
+            self.cur.execute("""
+                SELECT
+                    MAX(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) AS has_critical,
+                    COUNT(CASE WHEN severity = 'error' THEN 1 END) AS error_count,
+                    COUNT(CASE WHEN severity = 'warn' THEN 1 END) AS warn_count,
+                    MAX(created_at) AS last_check
+                FROM data_patrol_log
+                WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+            """)
+            row = self.cur.fetchone()
+            if not row or not row['last_check']:
+                return json_response(200, {'accuracy_check': 'no_data', 'last_check': None})
+            has_critical = row['has_critical'] or 0
+            error_count = row['error_count'] or 0
+            warn_count = row['warn_count'] or 0
+            accuracy = 'failed' if has_critical else ('warning' if error_count > 0 else 'passed')
+            return json_response(200, {
+                'accuracy_check': accuracy,
+                'critical_count': has_critical,
+                'error_count': error_count,
+                'warn_count': warn_count,
+                'last_check': row['last_check'].isoformat() if row['last_check'] else None,
+            })
+        except Exception as e:
+            logger.error(f"get_data_quality failed: {e}")
+            return json_response(200, {'accuracy_check': 'error', 'last_check': None})
+
+    def _get_exposure_policy(self) -> Dict:
+        """Get latest market exposure from market_exposure_daily."""
+        try:
+            self.cur.execute("""
+                SELECT date, market_exposure_pct, exposure_tier, is_entry_allowed
+                FROM market_exposure_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = self.cur.fetchone()
+            if not row:
+                return json_response(200, {'current_exposure': None, 'exposure_tier': None})
+            return json_response(200, {
+                'current_exposure': float(row['market_exposure_pct'] or 0),
+                'exposure_tier': row['exposure_tier'],
+                'is_entry_allowed': row['is_entry_allowed'],
+                'as_of': row['date'].isoformat() if row['date'] else None,
+            })
+        except Exception as e:
+            logger.error(f"get_exposure_policy failed: {e}")
+            return json_response(200, {'current_exposure': None})
+
+    def _get_sector_stage2(self) -> Dict:
+        """Get Stage 2 stocks by sector from trend_template_data."""
+        try:
+            self.cur.execute("""
+                SELECT t.symbol, t.minervini_trend_score AS strength, cp.sector
+                FROM trend_template_data t
+                LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+                WHERE t.date = (SELECT MAX(date) FROM trend_template_data)
+                  AND t.weinstein_stage = 2
+                ORDER BY t.minervini_trend_score DESC
+                LIMIT 50
+            """)
+            rows = self.cur.fetchall()
+            return json_response(200, [dict(r) for r in rows])
+        except Exception as e:
+            logger.error(f"get_sector_stage2 failed: {e}")
             return json_response(200, [])
 
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:

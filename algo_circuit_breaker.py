@@ -482,12 +482,72 @@ class CircuitBreaker:
             return {'halted': False, 'reason': 'Intraday check error'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
-        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days.
+        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
+        try:
+            # Get open positions with their sectors via company_profile
+            self.cur.execute(
+                """
+                SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
+                FROM algo_positions ap
+                LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                WHERE ap.status = 'open'
+                """
+            )
+            rows = self.cur.fetchall()
+            if not rows:
+                return {'halted': False, 'reason': 'No open positions'}
 
-        Note: Sector information not yet integrated into algo_positions table.
-        Skipping for now; will require sector data join when available.
-        """
-        return {'halted': False, 'reason': 'Sector data not yet available'}
+            # Count positions per sector
+            sector_counts: Dict[str, int] = {}
+            for _, sector in rows:
+                sector_counts[sector] = sector_counts.get(sector, 0) + 1
+
+            concentrated = {s: n for s, n in sector_counts.items() if n >= 2 and s != 'Unknown'}
+            if not concentrated:
+                return {'halted': False, 'reason': 'No concentrated sectors'}
+
+            # For each concentrated sector, check 5-day cumulative return
+            from datetime import timedelta
+            five_days_ago = current_date - timedelta(days=7)  # 7 calendar days ≈ 5 trading days
+            threshold = float(self.config.get('sector_drawdown_halt_pct', -12.0))
+
+            for sector, count in concentrated.items():
+                self.cur.execute(
+                    """
+                    SELECT return_pct, date FROM sector_performance
+                    WHERE sector = %s AND date >= %s
+                    ORDER BY date
+                    """,
+                    (sector, five_days_ago),
+                )
+                perf_rows = self.cur.fetchall()
+                if not perf_rows:
+                    continue
+
+                # Compound returns: (1+r1) * (1+r2) * ... - 1
+                cumulative = 1.0
+                for r_pct, _ in perf_rows:
+                    if r_pct is not None:
+                        cumulative *= (1.0 + float(r_pct) / 100.0)
+                cumulative_pct = (cumulative - 1.0) * 100.0
+
+                if cumulative_pct <= threshold:
+                    return {
+                        'halted': True,
+                        'reason': (f'Sector "{sector}" down {cumulative_pct:.1f}% in 5d '
+                                   f'with {count} open positions (threshold: {threshold:.0f}%)'),
+                        'sector': sector,
+                        'positions_in_sector': count,
+                        'sector_return_5d': round(cumulative_pct, 2),
+                    }
+
+            return {
+                'halted': False,
+                'reason': f'Concentrated sectors OK: {", ".join(f"{s}({n})" for s, n in concentrated.items())}',
+            }
+        except Exception as e:
+            logger.warning(f'Sector concentration check failed: {e}')
+            return {'halted': False, 'reason': f'Check error: {e}'}
 
     def _check_daily_profit_cap(self, current_date: Any) -> Dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""

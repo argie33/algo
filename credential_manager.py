@@ -126,9 +126,34 @@ class CredentialManager:
             return None
 
     def get_db_credentials(self) -> Dict[str, Any]:
-        """Get database connection credentials as a dict."""
+        """Get database connection credentials as a dict.
+
+        In AWS Lambda the RDS secret is a JSON blob stored under the ARN given by
+        DATABASE_SECRET_ARN (or DB_SECRET_ARN). We fetch and parse that blob rather
+        than looking up individual secret names, which don't exist in this setup.
+        Falls back to individual env vars for local dev.
+        """
+        import json as _json
+
+        secret_arn = os.getenv('DATABASE_SECRET_ARN') or os.getenv('DB_SECRET_ARN')
+        if secret_arn and self._is_aws:
+            try:
+                client = self._get_secrets_client()
+                if client:
+                    response = client.get_secret_value(SecretId=secret_arn)
+                    creds = _json.loads(response.get('SecretString', '{}'))
+                    return {
+                        'host': creds.get('host') or os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT', 'localhost'),
+                        'port': int(creds.get('port') or os.getenv('DB_PORT', '5432')),
+                        'user': creds.get('username', 'stocks'),
+                        'password': creds.get('password', ''),
+                        'database': creds.get('dbname') or os.getenv('DB_NAME', 'stocks'),
+                    }
+            except Exception as e:
+                log.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
+
         return {
-            'host': os.getenv('DB_HOST', 'localhost'),
+            'host': os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT', 'localhost'),
             'port': int(os.getenv('DB_PORT', '5432')),
             'user': self.get_password('db/username', default='stocks'),
             'password': self.get_password('db/password'),  # REQUIRED - no default
