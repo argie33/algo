@@ -163,14 +163,26 @@ data "aws_iam_policy_document" "github_actions" {
       "lambda:TagResource",
       "lambda:UntagResource",
       "lambda:ListTags",
-      "lambda:InvokeFunction",
-      "apigateway:*",
-      "apigatewayv2:GetApis"
+      "lambda:InvokeFunction"
     ]
 
     resources = [
       "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
     ]
+  }
+
+  # API Gateway - Read operations (needed for validation workflows)
+  statement {
+    sid    = "APIGatewayReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "apigateway:GET",
+      "apigatewayv2:GetApis",
+      "apigatewayv2:GetStages"
+    ]
+
+    resources = ["*"]
   }
 
   # Terraform resource management - ECS (scoped to project clusters)
