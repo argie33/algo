@@ -67,6 +67,7 @@ from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
 from trade_status import PositionStatus
 import logging
+from monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -1491,14 +1492,19 @@ class Orchestrator:
                 return self._final_report()
 
             self.phase_3a_reconciliation()
-            self.phase_3_position_monitor()
+            with TimeBlock("phase_3_position_monitor"):
+                self.phase_3_position_monitor()
             self.phase_3b_exposure_policy()
             self.phase_4_exit_execution()
             self.phase_4b_pyramid_adds()
-            self.phase_5_signal_generation()
-            self.phase_6_entry_execution()
+            with TimeBlock("phase_5_signal_generation"):
+                self.phase_5_signal_generation()
+            with TimeBlock("phase_6_entry_execution"):
+                self.phase_6_entry_execution()
             self.phase_7_reconcile()
 
+            # Log performance metrics at end
+            log_metrics_summary()
             return self._final_report()
         finally:
             self._release_run_lock()
