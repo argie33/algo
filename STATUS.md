@@ -1,7 +1,18 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-12 (continuing session)  
-**Project Status:** ✅ **FULLY DEPLOYED & VERIFIED** — All infrastructure working, db-init confirmed via CloudWatch logs
+**Last Updated:** 2026-05-11 (evening continued)  
+**Project Status:** ✅ **FULLY DEPLOYED** — Terraform + both Lambdas + frontend all green (run 25707341464)
+
+**Session Fixes (2026-05-11 Late — Bug Hunt Continued):**
+  - ✅ `algo_circuit_breaker.py`: `_check_sector_concentration()` was stub; now queries real positions + sector_performance, halts if concentrated sector down ≥12%
+  - ✅ `terraform/`: `db_deletion_protection` + `enable_rds_alarms` decoupled from environment label (both default true)
+  - ✅ `algo_metrics.py` + `optimal_loader.py`: Every OptimalLoader auto-publishes LoaderRowsInserted/SymbolsFailed/Duration to CloudWatch — zero per-loader changes needed
+  - ✅ 4th CloudWatch alarm: `LoaderSymbolsFailed >= 50` triggers SNS alert
+  - ✅ **Critical API bug**: Query params normalized to lists — API GW sends strings, handlers index `[0]`, so `limit=5000` was becoming `5`
+  - ✅ `/api/sectors/performance`: Was querying `sector` col from `price_daily` (doesn't exist) → fixed to `sector_performance` table
+  - ✅ `/api/market/top-movers`: LAG() window on single date (always NULL) → CTE joining today vs yesterday
+  - ✅ `/api/sentiment/divergence`: Last hardcoded mock removed (returns `{}`)
+  - ✅ Deploy run 25707656800 triggered for API fixes
 
 **Session Fixes (2026-05-12 — Infrastructure Repair Sprint):**
 
@@ -99,31 +110,22 @@
   - ✅ **DEPLOYMENT SUCCESSFUL:** All infrastructure working, database schema applied via Lambda
   - ✅ All infrastructure changes managed via Terraform IaC (no manual AWS changes)
 
-**Phase 2 Commits (2026-05-11 23:30Z):**
-  - ✅ `algo_circuit_breaker.py`: `_check_sector_concentration()` implemented — was stub returning 'Sector data not yet available'; now queries algo_positions JOIN company_profile, compounds 5-day sector returns, halts if concentrated sector down ≥12%
-  - ✅ `terraform/modules/database/`: `db_deletion_protection` variable added; `deletion_protection`, `skip_final_snapshot`, `final_snapshot_identifier` now driven by it
-  - ✅ `terraform/variables.tf`: `enable_rds_alarms` and `db_deletion_protection` vars added (both default `true`), decoupling safety from `environment="dev"` label
-  - ✅ `terraform/modules/services/main.tf`: Added `DB_HOST` env var alias (some loaders use DB_HOST, not DB_ENDPOINT)
-  - ✅ Deploy triggered: `gh workflow run "Deploy All Infrastructure (Terraform)"` → run 25695779080
-
 **Known Remaining Issues:**
-  - ⚠️ 3 orphaned API Gateways (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — trigger cleanup via GitHub UI: Actions → "Cleanup Orphaned AWS Resources" → Run workflow (gh CLI dispatch not working, GitHub caching issue)
+  - ⚠️ 3 orphaned API Gateways (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — trigger cleanup via GitHub UI: Actions → "Cleanup Orphaned AWS Resources" → Run workflow
   - ⚠️ 2 orphaned CloudFront distributions (E3NC0ID0ZU3VFB, E27ULN4TX590K2) — same workflow
 
 **Infrastructure Status:**
-  - ✅ API Lambda: nodejs20.x, healthy, routing correctly
+  - ✅ API Lambda: python3.11, healthy, routing correctly (deploy run 25707341464)
   - ✅ API Gateway: https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
   - ✅ Frontend: d5j1h4wzrkvw7.cloudfront.net
-  - ✅ RDS Database: PostgreSQL, available, 61GB allocated
+  - ✅ RDS Database: PostgreSQL, available, 61GB — deletion protection ON, alarms ON
   - ✅ EventBridge Scheduler: ENABLED, 5:30pm ET weekdays
-  - ✅ Terraform deploys: Working reliably with import + concurrency steps
+  - ✅ 4 CloudWatch alarms: OrchestratorSuccess, DataFreshnessAgeDays, SignalsGenerated, LoaderSymbolsFailed
 
-**Next (Phase 3):**
-1. ~~Deploy Terraform for CloudWatch alarms + RDS safety~~ ✅ running (run 25695779080)
-2. Trigger orphaned resource cleanup via GitHub UI (gh CLI has caching bug)
-3. `algo_metrics.py` not yet wired into loaders — data freshness metrics only come from orchestrator Phase 1 today; individual loader failures are invisible
-4. API OpenAPI spec — no contract documentation exists for any endpoint
-5. Frontend real-time position updates (polling 30s; WebSocket would require API GW WS stack)
+**Next:**
+1. Trigger orphaned resource cleanup via GitHub UI (gh CLI has caching bug on that workflow)
+2. Frontend polling → WebSocket for real-time position updates (requires API GW WebSocket stack)
+3. Dependabot has 123 vulnerabilities flagged on repo — audit and resolve
 
 ---
 
