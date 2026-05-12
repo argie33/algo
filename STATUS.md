@@ -29,6 +29,24 @@
 
   **Commits:** `c6b036b81`, `e01656477`, `eca661b7e`, `137dccfa3`
 
+**Session Fixes (2026-05-11 — Deep Audit Continued: Loaders, Algo Modules, Frontend):**
+
+  **Critical algo core (silent failures since day one):**
+  - ✅ `algo_swing_score.py`: INSERT used 14 non-existent columns (eval_date, grade, *_pts, pass_gates). Schema only has (symbol, date, score, components). Collapse all detail into JSONB components field; map eval_date→date, swing_score→score. Every swing score write was silently failing.
+  - ✅ `algo_market_exposure.py`: INSERT used exposure_pct/regime/raw_score/distribution_days/factors/halt_reasons — none exist in schema. Fixed to market_exposure_pct/exposure_tier/is_entry_allowed. Every market exposure persist was silently failing.
+  - ✅ `algo_orchestrator.py`: CloudWatch metrics for signals_evaluated, trades_executed, open_positions were always 0 — phase_results only stored `summary` strings. Populate integer keys on phase_results[5/6/7] after each phase completes.
+
+  **Loader table name mismatches (every insert was failing):**
+  - ✅ `loadanalystsentiment.py`: analyst_sentiment → analyst_sentiment_analysis
+  - ✅ `loadanalystupgradedowngrade.py`: analyst_ratings → analyst_upgrade_downgrade
+  - ✅ `loadcalendar.py`: event_calendar → calendar_events
+  - ✅ `loadecondata.py`: econ_data → economic_data; primary_key indicator → series_id
+
+  **Frontend:**
+  - ✅ `useDataApi.js`: Removed dead usePortfolioOptimization hook calling deleted /api/optimization/analysis endpoint
+
+  **Commits:** `c172b6ee6`, `1ce787536`
+
 **Session Fixes (2026-05-12 — Full System Audit & Fix Sprint):**
 
   **P1 Silent Data Corruption (5 bugs — all silently failing since day one):**
