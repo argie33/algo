@@ -35,11 +35,11 @@
   - ✅ `algo_performance.py`: Sortino ratio (downside-deviation Sharpe) + Calmar ratio added
   - ✅ Terraform: RDS gp2→gp3 (20% cost saving), Performance Insights enabled in prod
 
-  **Remaining audit items (P2/P3):**
-  - ⚠️ AWS Batch Terraform module is empty — `batch_buyselldaily_orchestrator.py` dead code path (no Batch queue/job defined)
-  - ⚠️ `algo_continuous_monitor.py` not deployed to AWS — runs locally only
-  - ⚠️ No SQS DLQ CloudWatch alarm — failed loader events silently pile up
-  - ⚠️ No PagerDuty/OpsGenie — SNS email only for on-call alerts
+  **Remaining audit items (P2/P3) — all resolved:**
+  - ✅ AWS Batch dead code deleted — `batch_buyselldaily_orchestrator.py` + worker removed (commit `47c926a1c`)
+  - ✅ `algo_continuous_monitor.py` deployed to AWS — ECS Fargate task, EventBridge rate(15 min), self-skips outside market hours
+  - ✅ SQS DLQ CloudWatch alarm added — fires on any loader EventBridge failure (`ApproximateNumberOfMessagesVisible >= 1`)
+  - ⚠️ No PagerDuty/OpsGenie — SNS email only (intentional, per user preference)
 
 **Session Fixes (2026-05-11 Evening — Production Readiness Sprint):**
 
