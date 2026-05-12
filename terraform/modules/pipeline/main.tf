@@ -19,7 +19,7 @@
 locals {
   # Network config injected into every ECS task launched by Step Functions
   network_config = {
-    awsvpcConfiguration = {
+    AwsvpcConfiguration = {
       subnets        = var.private_subnet_ids
       securityGroups = [var.ecs_tasks_sg_id]
       assignPublicIp = "DISABLED"
