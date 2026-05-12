@@ -172,9 +172,29 @@
   - ✅ **DEPLOYMENT SUCCESSFUL:** All infrastructure working, database schema applied via Lambda
   - ✅ All infrastructure changes managed via Terraform IaC (no manual AWS changes)
 
+**Session Fixes (2026-05-11 Continued — SQL Bugs, Loader Metrics, Security):**
+
+  **API Lambda SQL bugs (silent empty responses fixed):**
+  - ✅ `_get_signals_stocks`: `swing_scores_daily` → `swing_trader_scores`, `eval_date` → `date`, JSONB extraction for grade/pass_gates/fail_reason
+  - ✅ `_get_algo_trades`: removed non-existent `exit_quantity` column; added `exit_date`, `exit_reason`, `profit_loss_pct`
+  - ✅ `_handle_research`: `backtest_results` → `backtest_runs`, `id` → `run_id`, `total_trades` → `num_trades`
+  - ✅ `stock_fundamentals` VIEW: added 14 NULL placeholder columns (`forward_pe`, `gross_margin_pct`, `high_3y`, etc.) + `drop_from_52w_high_pct` computed col so deep-value endpoint doesn't 500-error
+
+  **Loader CloudWatch metrics + critical SyntaxError:**
+  - ✅ `loadtechnicalsdaily.py`: fixed pre-existing SyntaxError (try body lines 70-235 were at wrong indent — loader has never run)
+  - ✅ All 6 non-OptimalLoader loaders now emit MetricsPublisher: `loadaaiidata`, `loadfeargreed`, `loadnaaim`, `loadsectorranking`, `loadindustryranking`, `loadtechnicalsdaily`
+
+  **Security:**
+  - ✅ `lambda/requirements.txt`: `urllib3` 2.0.7 → 2.4.0 (CVE decompression/header forwarding fixes)
+  - ✅ npm audit fix: frontend vulnerabilities 31 → 7 (1 critical + 12 high eliminated; 7 remaining in aws-amplify transitive deps require breaking changes)
+
+  **Commits:** `911d0da67`, `03bea4a4a`, `786e5f0d4`
+  **Deploy:** run 25709696437 in progress
+
 **Known Remaining Issues:**
   - ⚠️ 3 orphaned API Gateways (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — trigger cleanup via GitHub UI: Actions → "Cleanup Orphaned AWS Resources" → Run workflow
   - ⚠️ 2 orphaned CloudFront distributions (E3NC0ID0ZU3VFB, E27ULN4TX590K2) — same workflow
+  - ⚠️ 7 npm vulnerabilities in aws-amplify transitive deps (1 high, 6 moderate) — require `npm audit fix --force` which may break Amplify auth
 
 **Infrastructure Status:**
   - ✅ API Lambda: python3.11, healthy, routing correctly (deploy run 25707341464)
