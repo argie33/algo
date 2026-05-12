@@ -5,11 +5,11 @@
 psycopg2-binary==2.9.9
 
 # Web/API clients
-requests==2.31.0
-urllib3==2.4.0
+requests==2.33.0
+urllib3==2.7.0
 
 # Configuration
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 
 # Data processing
 pandas==2.1.3
