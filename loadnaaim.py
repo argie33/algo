@@ -375,7 +375,10 @@ def main():
     conn.commit()
 
     # Load NAAIM data
+    import time as _time
+    _t0 = _time.monotonic()
     total, inserted, failed = load_naaim_data(cur, conn)
+    _duration = _time.monotonic() - _t0
 
     # Record last run
     cur.execute("""
@@ -389,6 +392,17 @@ def main():
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"NAAIM — total: {total}, inserted: {inserted}, failed: {len(failed)}")
+
+    try:
+        from algo_metrics import MetricsPublisher
+        with MetricsPublisher() as _m:
+            _m.put_loader_result("naaim", {
+                'rows_inserted': inserted,
+                'symbols_failed': len(failed),
+                'duration_sec': _duration,
+            })
+    except Exception as _me:
+        logging.debug(f"Metrics unavailable: {_me}")
 
     cur.close()
     conn.close()

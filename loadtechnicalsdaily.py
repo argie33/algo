@@ -67,172 +67,183 @@ def load_technicals(days_back=365, symbol_filter=None):
             start = datetime.now()
 
             logger.info(f"\n{'='*70}\nLOADING TECHNICAL INDICATORS\n{'='*70}")
-        logger.info(f"  Lookback: {days_back} days")
-        if symbol_filter:
-            logger.info(f"  Symbol filter: {symbol_filter}")
-
-        # Build the WHERE clause
-        where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
-        if symbol_filter:
-            where += f" AND symbol = '{symbol_filter}'"
-
-        # ========== STEP 1: SMAs and ROCs (single query, fast) ==========
-        logger.info("\n  Step 1: SMAs + ROC indicators...")
-        cur.execute(f"""
-        WITH base AS (
-            SELECT symbol, date, close, high, low, volume,
-                   AVG(close) OVER w20 AS sma_20,
-                   AVG(close) OVER w50 AS sma_50,
-                   AVG(close) OVER w200 AS sma_200,
-                   LAG(close, 10) OVER (PARTITION BY symbol ORDER BY date) AS close_10d,
-                   LAG(close, 20) OVER (PARTITION BY symbol ORDER BY date) AS close_20d,
-                   LAG(close, 60) OVER (PARTITION BY symbol ORDER BY date) AS close_60d,
-                   LAG(close, 120) OVER (PARTITION BY symbol ORDER BY date) AS close_120d,
-                   LAG(close, 252) OVER (PARTITION BY symbol ORDER BY date) AS close_252d,
-                   LAG(close, 1) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
-                   COUNT(*) OVER w200 AS pts_200
-            FROM price_daily
-            {where}
-              AND close > 0
-            WINDOW
-              w20 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW),
-              w50 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW),
-              w200 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW)
-        )
-        INSERT INTO technical_data_daily
-            (symbol, date, sma_20, sma_50, sma_200,
-             roc_10d, roc_20d, roc_60d, roc_120d, roc_252d,
-             created_at)
-        SELECT
-            symbol, date, sma_20, sma_50, sma_200,
-            CASE WHEN close_10d > 0 THEN (close - close_10d) / close_10d * 100 ELSE NULL END,
-            CASE WHEN close_20d > 0 THEN (close - close_20d) / close_20d * 100 ELSE NULL END,
-            CASE WHEN close_60d > 0 THEN (close - close_60d) / close_60d * 100 ELSE NULL END,
-            CASE WHEN close_120d > 0 THEN (close - close_120d) / close_120d * 100 ELSE NULL END,
-            CASE WHEN close_252d > 0 THEN (close - close_252d) / close_252d * 100 ELSE NULL END,
-            CURRENT_TIMESTAMP
-        FROM base
-        ON CONFLICT (symbol, date) DO UPDATE SET
-            sma_20 = EXCLUDED.sma_20,
-            sma_50 = EXCLUDED.sma_50,
-            sma_200 = EXCLUDED.sma_200,
-            roc_10d = EXCLUDED.roc_10d,
-            roc_20d = EXCLUDED.roc_20d,
-            roc_60d = EXCLUDED.roc_60d,
-            roc_120d = EXCLUDED.roc_120d,
-            roc_252d = EXCLUDED.roc_252d
-        """)
-        sma_count = cur.rowcount
-        conn.commit()
-        logger.info(f"    {sma_count:,} rows updated (SMA + ROC)")
-
-        # ========== STEP 2: True EMAs (recursive, requires per-symbol pass) ==========
-        logger.info("\n  Step 2: EMAs (12, 26)...")
-        logger.info("    EMAs left as approximations (computed on-demand by algo_signals.py)")
-
-        # ========== STEP 3: RSI (Wilder's, 14-period) ==========
-        logger.info("\n  Step 3: RSI (14-period)...")
-        cur.execute(f"""
-        WITH gains_losses AS (
-            SELECT symbol, date, close, prev_close,
-                   GREATEST(close - prev_close, 0) AS gain,
-                   GREATEST(prev_close - close, 0) AS loss
-            FROM (
-                SELECT symbol, date, close,
-                       LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+            logger.info(f"  Lookback: {days_back} days")
+            if symbol_filter:
+                logger.info(f"  Symbol filter: {symbol_filter}")
+    
+            # Build the WHERE clause
+            where = "WHERE date >= CURRENT_DATE - INTERVAL '%s days'" % days_back
+            if symbol_filter:
+                where += f" AND symbol = '{symbol_filter}'"
+    
+            # ========== STEP 1: SMAs and ROCs (single query, fast) ==========
+            logger.info("\n  Step 1: SMAs + ROC indicators...")
+            cur.execute(f"""
+            WITH base AS (
+                SELECT symbol, date, close, high, low, volume,
+                       AVG(close) OVER w20 AS sma_20,
+                       AVG(close) OVER w50 AS sma_50,
+                       AVG(close) OVER w200 AS sma_200,
+                       LAG(close, 10) OVER (PARTITION BY symbol ORDER BY date) AS close_10d,
+                       LAG(close, 20) OVER (PARTITION BY symbol ORDER BY date) AS close_20d,
+                       LAG(close, 60) OVER (PARTITION BY symbol ORDER BY date) AS close_60d,
+                       LAG(close, 120) OVER (PARTITION BY symbol ORDER BY date) AS close_120d,
+                       LAG(close, 252) OVER (PARTITION BY symbol ORDER BY date) AS close_252d,
+                       LAG(close, 1) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
+                       COUNT(*) OVER w200 AS pts_200
                 FROM price_daily
                 {where}
-            ) p
-            WHERE prev_close IS NOT NULL
-        ),
-        smoothed AS (
-            SELECT symbol, date, close,
-                   AVG(gain) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS avg_gain,
-                   AVG(loss) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS avg_loss
-            FROM gains_losses
-        )
-        UPDATE technical_data_daily t
-        SET rsi = CASE
-                    WHEN s.avg_loss = 0 THEN 100
-                    ELSE 100 - (100 / (1 + s.avg_gain / NULLIF(s.avg_loss, 0)))
-                  END
-        FROM smoothed s
-        WHERE t.symbol = s.symbol AND t.date = s.date
-        """)
-        rsi_count = cur.rowcount
-        conn.commit()
-        logger.info(f"    {rsi_count:,} RSI values computed")
-
-        # ========== STEP 4: ATR (14-period, simple average of True Range) ==========
-        logger.info("\n  Step 4: ATR (14-period)...")
-        cur.execute(f"""
-        WITH tr AS (
-            SELECT symbol, date,
-                   GREATEST(
-                       high - low,
-                       ABS(high - LAG(close) OVER (PARTITION BY symbol ORDER BY date)),
-                       ABS(low - LAG(close) OVER (PARTITION BY symbol ORDER BY date))
-                   ) AS true_range
-            FROM price_daily
-            {where}
-        ),
-        avg_tr AS (
-            SELECT symbol, date,
-                   AVG(true_range) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS atr
-            FROM tr
-            WHERE true_range IS NOT NULL
-        )
-        UPDATE technical_data_daily t
-        SET atr = a.atr
-        FROM avg_tr a
-        WHERE t.symbol = a.symbol AND t.date = a.date
-        """)
-        atr_count = cur.rowcount
-        conn.commit()
-        logger.info(f"    {atr_count:,} ATR values computed")
-
-        # ========== STEP 5: MACD ==========
-        logger.info("\n  Step 5: MACD (12-26-9)...")
-        cur.execute(f"""
-        WITH closes AS (
-            SELECT symbol, date, close,
-                   AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS sma_12,
-                   AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 25 PRECEDING AND CURRENT ROW) AS sma_26
-            FROM price_daily
-            {where}
-        ),
-        macd_calc AS (
-            SELECT symbol, date,
-                   sma_12 - sma_26 AS macd,
-                   AVG(sma_12 - sma_26) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 8 PRECEDING AND CURRENT ROW) AS macd_signal
-            FROM closes
-        )
-        UPDATE technical_data_daily t
-        SET macd = m.macd,
-            macd_signal = m.macd_signal,
-            macd_hist = m.macd - m.macd_signal
-        FROM macd_calc m
-        WHERE t.symbol = m.symbol AND t.date = m.date
-        """)
-        macd_count = cur.rowcount
-        conn.commit()
-        logger.info(f"    {macd_count:,} MACD values computed")
-
-        # ========== Final stats ==========
-        cur.execute(f"""
-        SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(date), MAX(date)
-        FROM technical_data_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '{days_back} days'
-        """)
-        total, symbols, min_d, max_d = cur.fetchone()
-
-        elapsed = (datetime.now() - start).total_seconds()
-        logger.info(f"\n{'='*70}")
-        logger.info(f"COMPLETE — {elapsed:.1f}s")
-        logger.info(f"  total rows:    {total:,}")
-        logger.info(f"  symbols:       {symbols:,}")
+                  AND close > 0
+                WINDOW
+                  w20 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW),
+                  w50 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW),
+                  w200 AS (PARTITION BY symbol ORDER BY date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW)
+            )
+            INSERT INTO technical_data_daily
+                (symbol, date, sma_20, sma_50, sma_200,
+                 roc_10d, roc_20d, roc_60d, roc_120d, roc_252d,
+                 created_at)
+            SELECT
+                symbol, date, sma_20, sma_50, sma_200,
+                CASE WHEN close_10d > 0 THEN (close - close_10d) / close_10d * 100 ELSE NULL END,
+                CASE WHEN close_20d > 0 THEN (close - close_20d) / close_20d * 100 ELSE NULL END,
+                CASE WHEN close_60d > 0 THEN (close - close_60d) / close_60d * 100 ELSE NULL END,
+                CASE WHEN close_120d > 0 THEN (close - close_120d) / close_120d * 100 ELSE NULL END,
+                CASE WHEN close_252d > 0 THEN (close - close_252d) / close_252d * 100 ELSE NULL END,
+                CURRENT_TIMESTAMP
+            FROM base
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                sma_20 = EXCLUDED.sma_20,
+                sma_50 = EXCLUDED.sma_50,
+                sma_200 = EXCLUDED.sma_200,
+                roc_10d = EXCLUDED.roc_10d,
+                roc_20d = EXCLUDED.roc_20d,
+                roc_60d = EXCLUDED.roc_60d,
+                roc_120d = EXCLUDED.roc_120d,
+                roc_252d = EXCLUDED.roc_252d
+            """)
+            sma_count = cur.rowcount
+            conn.commit()
+            logger.info(f"    {sma_count:,} rows updated (SMA + ROC)")
+    
+            # ========== STEP 2: True EMAs (recursive, requires per-symbol pass) ==========
+            logger.info("\n  Step 2: EMAs (12, 26)...")
+            logger.info("    EMAs left as approximations (computed on-demand by algo_signals.py)")
+    
+            # ========== STEP 3: RSI (Wilder's, 14-period) ==========
+            logger.info("\n  Step 3: RSI (14-period)...")
+            cur.execute(f"""
+            WITH gains_losses AS (
+                SELECT symbol, date, close, prev_close,
+                       GREATEST(close - prev_close, 0) AS gain,
+                       GREATEST(prev_close - close, 0) AS loss
+                FROM (
+                    SELECT symbol, date, close,
+                           LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                    FROM price_daily
+                    {where}
+                ) p
+                WHERE prev_close IS NOT NULL
+            ),
+            smoothed AS (
+                SELECT symbol, date, close,
+                       AVG(gain) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS avg_gain,
+                       AVG(loss) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS avg_loss
+                FROM gains_losses
+            )
+            UPDATE technical_data_daily t
+            SET rsi = CASE
+                        WHEN s.avg_loss = 0 THEN 100
+                        ELSE 100 - (100 / (1 + s.avg_gain / NULLIF(s.avg_loss, 0)))
+                      END
+            FROM smoothed s
+            WHERE t.symbol = s.symbol AND t.date = s.date
+            """)
+            rsi_count = cur.rowcount
+            conn.commit()
+            logger.info(f"    {rsi_count:,} RSI values computed")
+    
+            # ========== STEP 4: ATR (14-period, simple average of True Range) ==========
+            logger.info("\n  Step 4: ATR (14-period)...")
+            cur.execute(f"""
+            WITH tr AS (
+                SELECT symbol, date,
+                       GREATEST(
+                           high - low,
+                           ABS(high - LAG(close) OVER (PARTITION BY symbol ORDER BY date)),
+                           ABS(low - LAG(close) OVER (PARTITION BY symbol ORDER BY date))
+                       ) AS true_range
+                FROM price_daily
+                {where}
+            ),
+            avg_tr AS (
+                SELECT symbol, date,
+                       AVG(true_range) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 13 PRECEDING AND CURRENT ROW) AS atr
+                FROM tr
+                WHERE true_range IS NOT NULL
+            )
+            UPDATE technical_data_daily t
+            SET atr = a.atr
+            FROM avg_tr a
+            WHERE t.symbol = a.symbol AND t.date = a.date
+            """)
+            atr_count = cur.rowcount
+            conn.commit()
+            logger.info(f"    {atr_count:,} ATR values computed")
+    
+            # ========== STEP 5: MACD ==========
+            logger.info("\n  Step 5: MACD (12-26-9)...")
+            cur.execute(f"""
+            WITH closes AS (
+                SELECT symbol, date, close,
+                       AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS sma_12,
+                       AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 25 PRECEDING AND CURRENT ROW) AS sma_26
+                FROM price_daily
+                {where}
+            ),
+            macd_calc AS (
+                SELECT symbol, date,
+                       sma_12 - sma_26 AS macd,
+                       AVG(sma_12 - sma_26) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 8 PRECEDING AND CURRENT ROW) AS macd_signal
+                FROM closes
+            )
+            UPDATE technical_data_daily t
+            SET macd = m.macd,
+                macd_signal = m.macd_signal,
+                macd_hist = m.macd - m.macd_signal
+            FROM macd_calc m
+            WHERE t.symbol = m.symbol AND t.date = m.date
+            """)
+            macd_count = cur.rowcount
+            conn.commit()
+            logger.info(f"    {macd_count:,} MACD values computed")
+    
+            # ========== Final stats ==========
+            cur.execute(f"""
+            SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(date), MAX(date)
+            FROM technical_data_daily
+            WHERE date >= CURRENT_DATE - INTERVAL '{days_back} days'
+            """)
+            total, symbols, min_d, max_d = cur.fetchone()
+    
+            elapsed = (datetime.now() - start).total_seconds()
+            logger.info(f"\n{'='*70}")
+            logger.info(f"COMPLETE — {elapsed:.1f}s")
+            logger.info(f"  total rows:    {total:,}")
+            logger.info(f"  symbols:       {symbols:,}")
             logger.info(f"  date range:    {min_d} to {max_d}")
             logger.info(f"{'='*70}\n")
+    
+            try:
+                from algo_metrics import MetricsPublisher
+                with MetricsPublisher() as _m:
+                    _m.put_loader_result("technical_data_daily", {
+                        'rows_inserted': int(total or 0),
+                        'symbols_failed': 0,
+                        'duration_sec': elapsed,
+                    })
+            except Exception as _me:
+                pass
         except Exception as e:
             logger.info(f"ERROR: {e}")
         finally:

@@ -298,7 +298,10 @@ if __name__ == "__main__":
         conn.commit()
 
         # Load sentiment data
+        import time as _time
+        _t0 = _time.monotonic()
         total, inserted, failed = load_sentiment_data(cur, conn)
+        _duration = _time.monotonic() - _t0
 
         # Record last run
         cur.execute("""
@@ -312,6 +315,17 @@ if __name__ == "__main__":
         peak = get_rss_mb()
         logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
         logging.info(f"AAII Sentiment — total: {total}, inserted: {inserted}, failed: {len(failed)}")
+
+        try:
+            from algo_metrics import MetricsPublisher
+            with MetricsPublisher() as _m:
+                _m.put_loader_result("aaii_sentiment", {
+                    'rows_inserted': inserted,
+                    'symbols_failed': len(failed),
+                    'duration_sec': _duration,
+                })
+        except Exception as _me:
+            logging.debug(f"Metrics unavailable: {_me}")
 
         cur.close()
         conn.close()

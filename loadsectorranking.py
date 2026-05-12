@@ -178,6 +178,17 @@ def load_sector_ranking():
         elapsed = (datetime.now() - start).total_seconds()
         print(f"\n  Persisted {len(sector_returns)} sectors")
         print(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
+
+        try:
+            from algo_metrics import MetricsPublisher
+            with MetricsPublisher() as _m:
+                _m.put_loader_result("sector_ranking", {
+                    'rows_inserted': len(sector_returns),
+                    'symbols_failed': 0,
+                    'duration_sec': elapsed,
+                })
+        except Exception as _me:
+            pass
     except Exception as e:
         print(f"ERROR: {e}")
     finally:

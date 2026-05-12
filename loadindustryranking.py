@@ -145,6 +145,17 @@ def load_industry_ranking():
             print(f"  {rank:>3} {ind[:40]:<40s} strength={strength:+6.2f} ret_4w={float(r4 or 0):+5.2f}% n={n}")
 
         print(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
+
+        try:
+            from algo_metrics import MetricsPublisher
+            with MetricsPublisher() as _m:
+                _m.put_loader_result("industry_ranking", {
+                    'rows_inserted': len(rows),
+                    'symbols_failed': 0,
+                    'duration_sec': elapsed,
+                })
+        except Exception as _me:
+            pass
     except Exception as e:
         print(f"ERROR: {e}")
     finally:
