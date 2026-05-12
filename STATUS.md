@@ -1,7 +1,41 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 (loader consolidation)
-**Project Status:** ✅ **LOADERS CONSOLIDATED** — 15 duplicate files eliminated, 3 TTM bugs fixed, dead stub deleted
+**Last Updated:** 2026-05-12 (system-wide audit sprint)
+**Project Status:** ✅ **PIPELINE CLEAN** — ETF signal loaders fixed, 5 missing DB tables added, 15+ API routing gaps closed
+
+**Session Work (2026-05-12 — System-Wide Audit & Fix Sprint):**
+
+  **ETF signal pipeline (Step Functions — was silently writing zero rows):**
+  - ✅ `loadbuysell_etf_daily.py`: `buy_sell_etf_daily` → `buy_sell_daily_etf` (schema name)
+  - ✅ `load_buysell_etf_aggregate.py`: `buy_sell_etf_weekly/monthly` → `buy_sell_weekly/monthly_etf`
+  - All 3 ETF signal loaders now write to tables that exist — Step Functions EOD pipeline unblocked
+
+  **5 missing loader target tables added to init.sql:**
+  - ✅ `market_overview` — `loadmarket.py` (market_data_batch daily)
+  - ✅ `sectors` — `loadsectors.py` (market_data_batch daily)
+  - ✅ `factor_metrics` — `loadfactormetrics.py` (Step Functions pipeline)
+  - ✅ `relative_performance` — `loadrelativeperformance.py` (EventBridge daily)
+  - ✅ `sentiment` — `loadsentiment.py` (EventBridge daily; stub until real sentiment API wired)
+
+  **15+ API routing gaps closed (lambda/api/lambda_function.py — commit `5d135f973`):**
+  - Bare paths `/api/sectors`, `/api/stocks`, `/api/trades`, `/api/economic` now route correctly
+  - New handlers: `/api/financials/*`, `/api/market/status`, `/api/market/naaim`
+  - New handlers: `/api/algo/config`, `/api/algo/audit-log`, `/api/algo/signal-performance*`
+  - New handlers: `/api/sectors/{name}/trend`, `/api/industries/{name}/trend`
+  - New handlers: `/api/contact`, `/api/contact/submissions`
+  - `_get_stock_scores` + `_get_deep_value_stocks`: removed phantom `stock_fundamentals` TABLE references; now JOIN the actual normalized tables (stock_scores + company_profile + value/quality/growth/stability_metrics + LATERAL price lookup)
+  - `sp500_only` filter: phantom subquery → `ss.is_sp500 = TRUE`
+  - `sector_performance` / `industry_performance` queries: removed `COUNT(DISTINCT symbol)` (column doesn't exist in those tables)
+
+  **Python algo backend fixes (commit `5d135f973`):**
+  - ✅ `algo_daily_reconciliation.py`: `entry_time` TIMESTAMP added to `algo_trades` INSERT (was always NULL)
+  - ✅ `algo_position_monitor.py`: LIKE JOIN on position_id replaced with direct `avg_entry_price` from `algo_positions`
+
+  **Frontend (commit `fdbfac41b`):**
+  - ✅ `useDataApi.js`: `/api/signals/list` → `/api/signals/stocks`; `/api/sentiment/history` → `/api/sentiment/data`
+  - ✅ Removed dead `usePortfolioOptimization` + `useSectorTrend` hooks (were causing JS ReferenceError in default export)
+
+  **Commits:** `5d135f973`, `fdbfac41b`, `dc88111f7`, `1955e9eb6`, `9ead7d9eb`
 
 **Session Work (2026-05-11 — Loader Consolidation):**
 
@@ -107,13 +141,11 @@
   **Frontend:**
   - ✅ `useDataApi.js`: Removed dead usePortfolioOptimization hook calling deleted /api/optimization/analysis endpoint
 
-  **Known stub loaders (fail on every run — need real data sources to fix):**
-  - ⚠️ `loadmarket.py` → targets `market_overview` (doesn't exist); data duplicates price_daily (SPY/QQQ/IWM OHLCV)
-  - ⚠️ `loadsentiment.py` → targets `sentiment` (doesn't exist); uses fetch_ohlcv instead of sentiment API
-  - ⚠️ `loadsectors.py` → targets `sectors` (doesn't exist); returns hardcoded 0.0 values
-  - ⚠️ `loadrelativeperformance.py` → targets `relative_performance` (doesn't exist); uses fetch_ohlcv
-  - ⚠️ `loadfactormetrics.py` → targets `factor_metrics` (doesn't exist); returns hardcoded zeros
-  - To fix: either implement with a real data API + matching schema table, or remove from Terraform schedules
+  **Stub loaders (tables now exist; data quality still placeholder until real APIs wired):**
+  - ⚠️ `loadmarket.py` → writes SPY/QQQ/IWM OHLCV to `market_overview` (table exists; real market breadth data pending)
+  - ⚠️ `loadsentiment.py` → writes OHLCV passthrough to `sentiment` (table exists; real sentiment API pending)
+  - ⚠️ `loadsectors.py` → writes hardcoded 0.0 to `sectors` (table exists; real sector API pending)
+  - ⚠️ `loadfactormetrics.py` → writes hardcoded zeros to `factor_metrics` (table exists; real factor computation pending)
 
   **Commits:** `c172b6ee6`, `1ce787536`, `d20207720`, `4edc17921`, `032f303e1`, `83b2ca57a`
 
