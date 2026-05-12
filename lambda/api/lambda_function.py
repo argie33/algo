@@ -774,11 +774,13 @@ class APIHandler:
         try:
             if path == '/api/sectors/performance':
                 self.cur.execute("""
-                    SELECT sector, COUNT(*) as stock_count
-                    FROM price_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                    GROUP BY sector
-                    ORDER BY stock_count DESC
+                    SELECT sp.sector,
+                           COUNT(DISTINCT sp.symbol) as stock_count,
+                           AVG(sp.return_pct) as avg_return_pct
+                    FROM sector_performance sp
+                    WHERE sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY sp.sector
+                    ORDER BY avg_return_pct DESC
                 """)
                 sectors = self.cur.fetchall()
                 return json_response(200, [dict(s) for s in sectors])
@@ -817,11 +819,26 @@ class APIHandler:
                 return json_response(200, dict(row) if row else {})
             elif path == '/api/market/top-movers':
                 self.cur.execute("""
-                    SELECT symbol, company_name,
-                        ((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / LAG(close) OVER (PARTITION BY symbol ORDER BY date) * 100) as pct_change
-                    FROM price_daily
-                    WHERE date = CURRENT_DATE - INTERVAL '1 day'
-                    ORDER BY pct_change DESC
+                    WITH today AS (
+                        SELECT symbol, close
+                        FROM price_daily
+                        WHERE date = (SELECT MAX(date) FROM price_daily)
+                    ),
+                    yesterday AS (
+                        SELECT symbol, close
+                        FROM price_daily
+                        WHERE date = (
+                            SELECT MAX(date) FROM price_daily
+                            WHERE date < (SELECT MAX(date) FROM price_daily)
+                        )
+                    )
+                    SELECT t.symbol, ss.company_name,
+                           ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
+                    FROM today t
+                    JOIN yesterday y ON t.symbol = y.symbol
+                    LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+                    WHERE y.close > 0
+                    ORDER BY ABS(t.close - y.close) / y.close DESC
                     LIMIT 20
                 """)
                 movers = self.cur.fetchall()
