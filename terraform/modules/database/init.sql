@@ -2234,3 +2234,80 @@ DO $$ BEGIN
         ALTER TABLE buy_sell_monthly ADD CONSTRAINT buy_sell_monthly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
     END IF;
 END $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Market overview indices (loadmarket.py) — SPY/QQQ/IWM/VIX daily OHLCV
+CREATE TABLE IF NOT EXISTS market_overview (
+    id SERIAL PRIMARY KEY,
+    index_name VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    market_cap DECIMAL(15, 2),
+    advance_decline_ratio DECIMAL(8, 4),
+    vix DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(index_name, date)
+);
+CREATE INDEX IF NOT EXISTS idx_market_overview_index_date ON market_overview(index_name, date);
+CREATE INDEX IF NOT EXISTS idx_market_overview_date ON market_overview(date);
+
+-- Sector aggregate metrics (loadsectors.py) — one row per sector per day
+CREATE TABLE IF NOT EXISTS sectors (
+    id SERIAL PRIMARY KEY,
+    sector_name VARCHAR(100) NOT NULL,
+    metric_date DATE NOT NULL,
+    performance_ytd DECIMAL(8, 4),
+    performance_1y DECIMAL(8, 4),
+    performance_3y DECIMAL(8, 4),
+    pe_ratio DECIMAL(8, 4),
+    dividend_yield DECIMAL(8, 4),
+    market_cap DECIMAL(18, 2),
+    stock_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(sector_name, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sectors_metric_date ON sectors(metric_date);
+
+-- Factor metrics (loadfactormetrics.py) — price + derived ratios per symbol per day
+-- Runs in Step Functions EOD pipeline; missing table blocks pipeline execution
+CREATE TABLE IF NOT EXISTS factor_metrics (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    metric_date DATE NOT NULL,
+    price DECIMAL(12, 4),
+    volume BIGINT,
+    momentum_3d DECIMAL(8, 4),
+    volatility_20d DECIMAL(8, 4),
+    pe_ratio DECIMAL(8, 4),
+    pb_ratio DECIMAL(8, 4),
+    dividend_yield DECIMAL(8, 4),
+    debt_to_equity DECIMAL(8, 4),
+    roe DECIMAL(8, 4),
+    roa DECIMAL(8, 4),
+    current_ratio DECIMAL(8, 4),
+    quick_ratio DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_factor_metrics_symbol_date ON factor_metrics(symbol, metric_date);
+CREATE INDEX IF NOT EXISTS idx_factor_metrics_date ON factor_metrics(metric_date);
+
+-- Relative performance (loadrelativeperformance.py) — OHLCV per symbol for RS calculation
+CREATE TABLE IF NOT EXISTS relative_performance (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_relative_performance_symbol_date ON relative_performance(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_relative_performance_date ON relative_performance(date);
