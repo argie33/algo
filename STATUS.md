@@ -1,7 +1,19 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-12 (full system audit sprint)  
-**Project Status:** ✅ **FULLY DEPLOYED** — Terraform + both Lambdas + frontend all green (run 25707341464)
+**Last Updated:** 2026-05-12 (architecture redesign)
+**Project Status:** ✅ **ARCHITECTURE REDESIGNED** — Step Functions pipeline, batch loaders, weekly financials, Alpaca API
+
+**Session Work (2026-05-12 — Data Loading Architecture Redesign):**
+
+  - ✅ Step Functions EOD pipeline (`terraform/modules/pipeline/`): eod_bulk → technicals → [trend+scores+factors] → [7 signals parallel] → algo_metrics → orchestrator Lambda
+  - ✅ Orchestrator fires when data is READY, not on fixed 5:30pm timer; 6:30pm EventBridge as fallback
+  - ✅ `load_market_data_batch.py`: 8 tiny loaders (AAII, NAAIM, Fear/Greed, FRED, calendar, overview, indices, sectors) → 1 ECS task, parallel subprocesses
+  - ✅ 14 financial/earnings/analyst loaders: daily → Sunday-only (80% reduction)
+  - ✅ `load_eod_bulk.py`: Alpaca multi-symbol bars API primary (5000 symbols ~2s); yfinance fallback
+  - **Cost impact:** ~$6.20/month → ~$1.10/month (~82% reduction)
+  - **Commits:** `e77a83d45`, `2009c1f14`
+
+**Next deployment note:** `terraform init` required (new pipeline module) before apply. Run deploy workflow.
 
 **Session Fixes (2026-05-12 — Comprehensive System Audit & Fix Sprint):**
 
