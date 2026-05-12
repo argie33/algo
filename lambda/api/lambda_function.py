@@ -975,11 +975,7 @@ class APIHandler:
                 sentiment = self.cur.fetchall()
                 return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/sentiment/divergence':
-                return json_response(200, {
-                    'price_sentiment_divergence': 2.3,
-                    'momentum_divergence': -1.5,
-                    'breadth_divergence': 0.8,
-                })
+                return json_response(200, {})
             return json_response(200, {})
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
