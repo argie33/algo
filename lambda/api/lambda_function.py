@@ -1121,7 +1121,11 @@ def lambda_handler(event, context):
         # Parse request
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
-        query_params = event.get('queryStringParameters') or {}
+        # API GW v2 HTTP API passes query params as plain strings, but all handlers
+        # do params.get('key', [default])[0]. Normalize each value to a single-item list
+        # so [0] indexing works uniformly regardless of whether a param was sent.
+        raw_params = event.get('queryStringParameters') or {}
+        query_params = {k: [v] if not isinstance(v, list) else v for k, v in raw_params.items()}
 
         logger.info(f"{method} {path}")
 
