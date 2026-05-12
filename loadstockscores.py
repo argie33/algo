@@ -50,8 +50,8 @@ logging.basicConfig(
 
 class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
-    primary_key = ("symbol", "score_date")
-    watermark_field = "score_date"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -105,16 +105,16 @@ class StockScoresLoader(OptimalLoader):
             if pd.isna(rsi.iloc[idx]) or pd.isna(momentum.iloc[idx]):
                 continue
 
-            score_date = price_rows[idx].get("date", str(date.today()))
             score_row = {
                 "symbol": symbol,
-                "score_date": score_date if isinstance(score_date, str) else str(score_date),
                 "value_score": 50.0,
                 "growth_score": 50.0,
+                "stability_score": 50.0,
                 "momentum_score": float(rsi.iloc[idx]) / 2,
                 "quality_score": 50.0,
+                "positioning_score": 50.0,
                 "composite_score": (50 + 50 + float(rsi.iloc[idx]) / 2 + 50) / 4,
-                "last_updated": str(date.today()),
+                "updated_at": str(date.today()),
             }
             scores.append(score_row)
 

@@ -257,27 +257,33 @@ class SectorRotationDetector:
         try:
             self.cur.execute(
                 """INSERT INTO sector_rotation_signal
-                   (date, defensive_lead_score, cyclical_weak_score, signal,
-                    defensive_avg_rs, cyclical_avg_rs, spread, weeks_persistent, details)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (date) DO UPDATE SET
-                       defensive_lead_score = EXCLUDED.defensive_lead_score,
-                       cyclical_weak_score = EXCLUDED.cyclical_weak_score,
+                   (date, sector, signal, strength, details)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (date, sector) DO UPDATE SET
                        signal = EXCLUDED.signal,
-                       defensive_avg_rs = EXCLUDED.defensive_avg_rs,
-                       cyclical_avg_rs = EXCLUDED.cyclical_avg_rs,
-                       spread = EXCLUDED.spread,
-                       weeks_persistent = EXCLUDED.weeks_persistent,
+                       strength = EXCLUDED.strength,
                        details = EXCLUDED.details""",
-                (eval_date, result['defensive_lead_score'], result['cyclical_weak_score'],
-                 result['signal'], result['defensive_rank_improvement_4w'],
-                 result['cyclical_rank_improvement_4w'],
-                 result['spread_4w'], result['weeks_persistent'], json.dumps(result['sector_data'])),
+                (
+                    eval_date,
+                    'market_rotation',
+                    result['signal'],
+                    round(result.get('defensive_lead_score', 0) / 100.0, 4),
+                    json.dumps({
+                        'defensive_lead_score': result.get('defensive_lead_score'),
+                        'cyclical_weak_score': result.get('cyclical_weak_score'),
+                        'defensive_avg_rs_4w': result.get('defensive_avg_rs_4w'),
+                        'cyclical_avg_rs_4w': result.get('cyclical_avg_rs_4w'),
+                        'spread_4w': result.get('spread_4w'),
+                        'weeks_persistent': result.get('weeks_persistent'),
+                        'reduce_exposure_pts': result.get('reduce_exposure_pts'),
+                        'sector_data': result.get('sector_data', {}),
+                    }),
+                ),
             )
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
-            print(f"  (persist sector_rotation skipped: {e})")
+            print(f"  [ERROR] persist sector_rotation failed for {eval_date}: {e}")
 
 
 if __name__ == "__main__":

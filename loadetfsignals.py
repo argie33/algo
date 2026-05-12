@@ -39,7 +39,7 @@ logging.basicConfig(
 
 
 class EtfSignalsLoader(OptimalLoader):
-    table_name = "etf_signals"
+    table_name = "buy_sell_daily_etf"
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
