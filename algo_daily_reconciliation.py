@@ -362,13 +362,13 @@ class DailyReconciliation:
                 self.cur.execute("""
                     INSERT INTO algo_trades (
                         trade_id, symbol, signal_date, trade_date,
-                        entry_price, entry_quantity, entry_reason,
+                        entry_time, entry_price, entry_quantity, entry_reason,
                         stop_loss_price, stop_loss_method,
                         target_1_price, target_2_price, target_3_price,
                         status, execution_mode, alpaca_order_id,
                         position_size_pct, base_type, created_at
                     )
-                    VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, %s, %s, %s,
+                    VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s, %s,
                             %s, %s,
                             %s, %s, %s, %s, %s, %s,
                             %s, %s, CURRENT_TIMESTAMP)

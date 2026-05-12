@@ -573,9 +573,8 @@ class PositionMonitor:
             # Get all open positions
             self.cur.execute("""
                 SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
-                       at.entry_price
+                       ap.avg_entry_price AS entry_price
                 FROM algo_positions ap
-                JOIN algo_trades at ON ap.position_id LIKE CONCAT('%', at.trade_id, '%')
                 WHERE ap.status = 'open'
             """)
             positions = self.cur.fetchall()

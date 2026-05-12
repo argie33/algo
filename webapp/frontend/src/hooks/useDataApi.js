@@ -36,7 +36,7 @@ export const useSignals = (params = {}) => {
   const { timeframe = 'daily', limit = 100, page = 1 } = params;
   return useApiPaginatedQuery(
     ['signals', { timeframe, limit, page }],
-    () => api.get('/api/signals/list', { params: { timeframe, limit, page } })
+    () => api.get('/api/signals/stocks', { params: { timeframe, limit, page } })
   );
 };
 
@@ -46,7 +46,7 @@ export const useSignals = (params = {}) => {
 export const useMarketSentiment = () => {
   return useApiQuery(
     ['sentiment'],
-    () => api.get('/api/sentiment/history')
+    () => api.get('/api/sentiment/data')
   );
 };
 
@@ -70,18 +70,6 @@ export const useIndustries = (params = {}) => {
   return useApiQuery(
     ['industries', limit],
     () => api.get('/api/industries', { params: { limit } })
-  );
-};
-
-/**
- * Get sector trend data
- */
-export const useSectorTrend = (sector, params = {}) => {
-  const { days = 90 } = params;
-  return useApiQuery(
-    ['sectorTrend', sector, days],
-    () => api.get(`/api/sectors/trend/sector/${sector}`, { params: { days } }),
-    { enabled: !!sector }
   );
 };
 

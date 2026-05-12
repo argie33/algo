@@ -151,23 +151,31 @@ class APIHandler:
                 return self._handle_prices(path, method, query_params)
 
             # Stocks endpoints
-            if path.startswith('/api/stocks/'):
+            if path == '/api/stocks' or path.startswith('/api/stocks/'):
                 return self._handle_stocks(path, method, query_params)
+
+            # Financials endpoints
+            if path.startswith('/api/financials/'):
+                return self._handle_financials(path, method, query_params)
 
             # Portfolio endpoints
             if path.startswith('/api/portfolio/'):
                 return self._handle_portfolio(path, method, query_params)
 
             # Sector endpoints
-            if path.startswith('/api/sectors/'):
+            if path == '/api/sectors' or path.startswith('/api/sectors/'):
                 return self._handle_sectors(path, method, query_params)
+
+            # Industries endpoints
+            if path == '/api/industries' or path.startswith('/api/industries/'):
+                return self._handle_industries(path, query_params)
 
             # Market endpoints
             if path.startswith('/api/market/'):
                 return self._handle_market(path, method, query_params)
 
             # Economic endpoints
-            if path.startswith('/api/economic/'):
+            if path == '/api/economic' or path.startswith('/api/economic/'):
                 return self._handle_economic(path, method, query_params)
 
             # Sentiment endpoints
@@ -187,7 +195,7 @@ class APIHandler:
                 return self._handle_audit(path, method, query_params)
 
             # Trade endpoints
-            if path.startswith('/api/trades/'):
+            if path == '/api/trades' or path.startswith('/api/trades/'):
                 return self._handle_trades(path, method, query_params)
 
             # Scores endpoints
@@ -246,6 +254,21 @@ class APIHandler:
             return self._get_exposure_policy()
         elif path == '/api/algo/sector-stage2':
             return self._get_sector_stage2()
+        elif path == '/api/algo/config':
+            return self._get_algo_config()
+        elif path.startswith('/api/algo/config/'):
+            key = path[len('/api/algo/config/'):]
+            return self._get_algo_config_key(key)
+        elif path == '/api/algo/audit-log':
+            limit = int(params.get('limit', [100])[0]) if params else 100
+            action_type = params.get('action_type', [None])[0] if params else None
+            return self._get_algo_audit_log(limit, action_type)
+        elif path == '/api/algo/signal-performance':
+            days = int(params.get('days', [90])[0]) if params else 90
+            return self._get_signal_performance(days)
+        elif path == '/api/algo/signal-performance-by-pattern':
+            days = int(params.get('days', [90])[0]) if params else 90
+            return self._get_signal_performance_by_pattern(days)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
@@ -676,6 +699,185 @@ class APIHandler:
             logger.error(f"get_sector_stage2 failed: {e}")
             return json_response(200, [])
 
+    def _get_algo_config(self) -> Dict:
+        """Return all algo configuration rows."""
+        try:
+            self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
+            rows = self.cur.fetchall()
+            return json_response(200, [dict(r) for r in rows])
+        except Exception as e:
+            logger.error(f"algo_config error: {e}")
+            return json_response(200, [])
+
+    def _get_algo_config_key(self, key: str) -> Dict:
+        """Return a single algo config key."""
+        try:
+            self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
+            row = self.cur.fetchone()
+            return json_response(200, dict(row) if row else {})
+        except Exception as e:
+            logger.error(f"algo_config_key error: {e}")
+            return json_response(200, {})
+
+    def _get_algo_audit_log(self, limit: int = 100, action_type: str = None) -> Dict:
+        """Return algo audit log entries."""
+        try:
+            if action_type:
+                self.cur.execute("""
+                    SELECT id, action_type, symbol, action_date, details, actor, status, error_message
+                    FROM algo_audit_log
+                    WHERE action_type = %s
+                    ORDER BY action_date DESC
+                    LIMIT %s
+                """, (action_type, limit))
+            else:
+                self.cur.execute("""
+                    SELECT id, action_type, symbol, action_date, details, actor, status, error_message
+                    FROM algo_audit_log
+                    ORDER BY action_date DESC
+                    LIMIT %s
+                """, (limit,))
+            rows = self.cur.fetchall()
+            return json_response(200, {'data': [dict(r) for r in rows], 'total': len(rows)})
+        except Exception as e:
+            logger.error(f"algo_audit_log error: {e}")
+            return json_response(200, {'data': [], 'total': 0})
+
+    def _get_signal_performance(self, days: int = 90) -> Dict:
+        """Return signal trade performance summary."""
+        try:
+            self.cur.execute("""
+                SELECT
+                    COUNT(*) as total_signals,
+                    SUM(CASE WHEN win THEN 1 ELSE 0 END) as wins,
+                    AVG(r_multiple) as avg_r_multiple,
+                    AVG(hold_days) as avg_hold_days,
+                    AVG(realized_pnl_pct) as avg_pnl_pct,
+                    SUM(CASE WHEN target_1_hit THEN 1 ELSE 0 END) as target_1_hits,
+                    SUM(CASE WHEN target_2_hit THEN 1 ELSE 0 END) as target_2_hits,
+                    SUM(CASE WHEN exit_by_stop THEN 1 ELSE 0 END) as stop_exits
+                FROM signal_trade_performance
+                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+            """, (days,))
+            summary = self.cur.fetchone()
+            self.cur.execute("""
+                SELECT signal_date, symbol, base_type, swing_score, entry_price,
+                       exit_price, r_multiple, win, hold_days, realized_pnl_pct
+                FROM signal_trade_performance
+                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                ORDER BY signal_date DESC
+                LIMIT 200
+            """, (days,))
+            trades = self.cur.fetchall()
+            return json_response(200, {
+                'summary': dict(summary) if summary else {},
+                'trades': [dict(t) for t in trades],
+            })
+        except Exception as e:
+            logger.error(f"signal_performance error: {e}")
+            return json_response(200, {'summary': {}, 'trades': []})
+
+    def _get_signal_performance_by_pattern(self, days: int = 90) -> Dict:
+        """Return signal performance grouped by base_type (pattern)."""
+        try:
+            self.cur.execute("""
+                SELECT
+                    base_type,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN win THEN 1 ELSE 0 END) as wins,
+                    ROUND(AVG(r_multiple)::numeric, 2) as avg_r,
+                    ROUND(AVG(realized_pnl_pct)::numeric, 4) as avg_pnl_pct,
+                    ROUND(AVG(hold_days)::numeric, 1) as avg_hold_days
+                FROM signal_trade_performance
+                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                  AND base_type IS NOT NULL
+                GROUP BY base_type
+                ORDER BY avg_r DESC
+            """, (days,))
+            rows = self.cur.fetchall()
+            return json_response(200, [dict(r) for r in rows])
+        except Exception as e:
+            logger.error(f"signal_performance_by_pattern error: {e}")
+            return json_response(200, [])
+
+    def _handle_financials(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/financials/{symbol}/* endpoints."""
+        try:
+            parts = path.split('/')
+            if len(parts) < 4:
+                return json_response(200, {})
+            symbol = parts[3].upper()
+            endpoint = parts[4] if len(parts) > 4 else ''
+            period = params.get('period', ['annual'])[0] if params else 'annual'
+
+            if endpoint == 'income-statement':
+                if period == 'quarterly':
+                    self.cur.execute("""
+                        SELECT fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share
+                        FROM quarterly_income_statement WHERE symbol = %s
+                        ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT 12
+                    """, (symbol,))
+                else:
+                    self.cur.execute("""
+                        SELECT fiscal_year, revenue, cost_of_revenue, gross_profit,
+                               operating_income, net_income, earnings_per_share
+                        FROM annual_income_statement WHERE symbol = %s
+                        ORDER BY fiscal_year DESC LIMIT 5
+                    """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+
+            elif endpoint == 'balance-sheet':
+                if period == 'quarterly':
+                    self.cur.execute("""
+                        SELECT fiscal_year, fiscal_quarter, total_assets,
+                               total_liabilities, stockholders_equity
+                        FROM quarterly_balance_sheet WHERE symbol = %s
+                        ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT 12
+                    """, (symbol,))
+                else:
+                    self.cur.execute("""
+                        SELECT fiscal_year, total_assets, current_assets,
+                               total_liabilities, stockholders_equity
+                        FROM annual_balance_sheet WHERE symbol = %s
+                        ORDER BY fiscal_year DESC LIMIT 5
+                    """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+
+            elif endpoint == 'cash-flow':
+                if period == 'quarterly':
+                    self.cur.execute("""
+                        SELECT fiscal_year, fiscal_quarter, operating_cash_flow, free_cash_flow
+                        FROM quarterly_cash_flow WHERE symbol = %s
+                        ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT 12
+                    """, (symbol,))
+                else:
+                    self.cur.execute("""
+                        SELECT fiscal_year, operating_cash_flow, investing_cash_flow,
+                               financing_cash_flow, free_cash_flow
+                        FROM annual_cash_flow WHERE symbol = %s
+                        ORDER BY fiscal_year DESC LIMIT 5
+                    """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+
+            elif endpoint == 'key-metrics':
+                self.cur.execute("""
+                    SELECT km.market_cap, km.held_percent_insiders, km.held_percent_institutions,
+                           cp.sector, cp.industry
+                    FROM key_metrics km
+                    LEFT JOIN company_profile cp ON cp.ticker = km.ticker
+                    WHERE km.symbol = %s
+                """, (symbol,))
+                row = self.cur.fetchone()
+                return json_response(200, dict(row) if row else {})
+
+            return json_response(200, {})
+        except Exception as e:
+            logger.error(f"financials handler error: {e}", exc_info=True)
+            return json_response(200, {})
+
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
         if path == '/api/signals/stocks':
@@ -776,10 +978,54 @@ class APIHandler:
             return json_response(200, [])
 
     def _handle_stocks(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/stocks/* endpoints."""
+        """Handle /api/stocks and /api/stocks/* endpoints."""
         if path == '/api/stocks/deep-value':
             limit = int(params.get('limit', [600])[0]) if params else 600
             return self._get_deep_value_stocks(limit)
+        elif path == '/api/stocks' or path == '/api/stocks/list':
+            limit = int(params.get('limit', [100])[0]) if params else 100
+            symbol_filter = params.get('symbol', [None])[0] if params else None
+            industry_filter = params.get('industry', [None])[0] if params else None
+            try:
+                query = """
+                    SELECT ss.symbol, ss.security_name as company_name,
+                           cp.sector, cp.industry, ss.is_sp500
+                    FROM stock_symbols ss
+                    LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+                    WHERE 1=1
+                """
+                args = []
+                if symbol_filter:
+                    query += " AND ss.symbol ILIKE %s"
+                    args.append(f'%{symbol_filter}%')
+                if industry_filter:
+                    query += " AND cp.industry = %s"
+                    args.append(industry_filter)
+                query += " ORDER BY ss.symbol LIMIT %s"
+                args.append(limit)
+                self.cur.execute(query, args)
+                stocks = self.cur.fetchall()
+                return json_response(200, [dict(s) for s in stocks])
+            except Exception as e:
+                logger.error(f"stocks list error: {e}")
+                return json_response(200, [])
+        elif path.startswith('/api/stocks/'):
+            symbol = path.split('/api/stocks/')[-1]
+            try:
+                self.cur.execute("""
+                    SELECT ss.symbol, ss.security_name as company_name,
+                           cp.sector, cp.industry, cp.website, cp.employees,
+                           km.market_cap
+                    FROM stock_symbols ss
+                    LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+                    LEFT JOIN key_metrics km ON km.ticker = ss.symbol
+                    WHERE ss.symbol = %s
+                """, (symbol.upper(),))
+                row = self.cur.fetchone()
+                return json_response(200, dict(row) if row else {})
+            except Exception as e:
+                logger.error(f"stock detail error: {e}")
+                return json_response(200, {})
         else:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
 
@@ -837,23 +1083,86 @@ class APIHandler:
             return json_response(200, {})
 
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/sectors/* endpoints."""
+        """Handle /api/sectors and /api/sectors/* endpoints."""
         try:
-            if path == '/api/sectors/performance':
+            if path in ('/api/sectors', '/api/sectors/performance'):
+                limit = int(params.get('limit', [20])[0]) if params else 20
+                page = int(params.get('page', [1])[0]) if params else 1
+                offset = (page - 1) * limit
                 self.cur.execute("""
-                    SELECT sp.sector,
-                           COUNT(DISTINCT sp.symbol) as stock_count,
-                           AVG(sp.return_pct) as avg_return_pct
-                    FROM sector_performance sp
-                    WHERE sp.date >= CURRENT_DATE - INTERVAL '30 days'
-                    GROUP BY sp.sector
+                    SELECT sector,
+                           AVG(return_pct) as avg_return_pct,
+                           AVG(relative_strength) as avg_relative_strength
+                    FROM sector_performance
+                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY sector
                     ORDER BY avg_return_pct DESC
-                """)
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
                 sectors = self.cur.fetchall()
-                return json_response(200, [dict(s) for s in sectors])
-            return json_response(200, [])
+                self.cur.execute("""
+                    SELECT COUNT(DISTINCT sector) FROM sector_performance
+                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                """)
+                total = self.cur.fetchone()[0]
+                return json_response(200, {
+                    'data': [dict(s) for s in sectors],
+                    'total': total,
+                    'page': page,
+                    'limit': limit,
+                })
+            elif '/trend' in path:
+                # /api/sectors/{name}/trend
+                parts = path.split('/')
+                sector_name = parts[3] if len(parts) > 3 else None
+                days = int(params.get('days', [90])[0]) if params else 90
+                if not sector_name:
+                    return json_response(200, [])
+                self.cur.execute("""
+                    SELECT date, sector, return_pct, relative_strength
+                    FROM sector_performance
+                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    ORDER BY date DESC
+                """, (sector_name, days))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+            return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
         except Exception as e:
             logger.error(f"Error in sectors handler: {e}", exc_info=True)
+            return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
+
+    def _handle_industries(self, path: str, params: Dict) -> Dict:
+        """Handle /api/industries and /api/industries/{name}/trend."""
+        try:
+            if '/trend' in path:
+                parts = path.split('/')
+                industry_name = parts[3] if len(parts) > 3 else None
+                days = int(params.get('days', [90])[0]) if params else 90
+                if not industry_name:
+                    return json_response(200, [])
+                self.cur.execute("""
+                    SELECT date, industry, return_pct
+                    FROM industry_performance
+                    WHERE industry = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    ORDER BY date DESC
+                """, (industry_name, days))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+            else:
+                limit = int(params.get('limit', [500])[0]) if params else 500
+                self.cur.execute("""
+                    SELECT DISTINCT industry, sector,
+                           COUNT(*) as stock_count
+                    FROM company_profile
+                    WHERE industry IS NOT NULL AND industry != ''
+                    GROUP BY industry, sector
+                    ORDER BY sector, industry
+                    LIMIT %s
+                """, (limit,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+        except Exception as e:
+            logger.error(f"Error in industries handler: {e}", exc_info=True)
             return json_response(200, [])
 
     def _handle_market(self, path: str, method: str, params: Dict) -> Dict:
@@ -952,6 +1261,26 @@ class APIHandler:
             elif path == '/api/market/fear-greed':
                 range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
                 return self._get_fear_greed_history(range_days)
+            elif path == '/api/market/status':
+                self.cur.execute("""
+                    SELECT date, market_trend, market_stage, advance_decline_ratio,
+                           new_highs_count, new_lows_count, vix_level, put_call_ratio,
+                           distribution_days_4w
+                    FROM market_health_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = self.cur.fetchone()
+                return json_response(200, dict(row) if row else {})
+            elif path == '/api/market/naaim':
+                self.cur.execute("""
+                    SELECT date, naaim_number_mean, bullish, bearish
+                    FROM naaim
+                    ORDER BY date DESC
+                    LIMIT 52
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             return json_response(200, {})
         except Exception as e:
             logger.error(f"market handler error: {e}")
@@ -974,9 +1303,17 @@ class APIHandler:
             return json_response(200, [])
 
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/economic/* endpoints."""
+        """Handle /api/economic and /api/economic/* endpoints."""
         try:
-            if path == '/api/economic/leading-indicators':
+            if path == '/api/economic':
+                self.cur.execute("""
+                    SELECT DISTINCT ON (series_id) series_id, date, value
+                    FROM economic_data
+                    ORDER BY series_id, date DESC
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path == '/api/economic/leading-indicators':
                 self.cur.execute("""
                     SELECT DISTINCT ON (series_id) series_id, date, value
                     FROM economic_data
@@ -1177,9 +1514,33 @@ class APIHandler:
             return json_response(200, [])
 
     def _handle_trades(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/trades/* endpoints."""
+        """Handle /api/trades and /api/trades/* endpoints."""
         try:
-            if path == '/api/trades/summary':
+            if path == '/api/trades':
+                limit = int(params.get('limit', [100])[0]) if params else 100
+                offset = int(params.get('offset', [0])[0]) if params else 0
+                status_filter = params.get('status', [None])[0] if params else None
+                query = """
+                    SELECT trade_id, symbol, signal_date, trade_date, entry_time,
+                           entry_price, entry_quantity, entry_reason,
+                           exit_price, exit_date, exit_reason,
+                           stop_loss_price, status, realized_pnl, realized_pnl_pct,
+                           execution_mode, created_at
+                    FROM algo_trades
+                    WHERE 1=1
+                """
+                args = []
+                if status_filter:
+                    query += " AND status = %s"
+                    args.append(status_filter)
+                query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+                args.extend([limit, offset])
+                self.cur.execute(query, args)
+                trades = self.cur.fetchall()
+                self.cur.execute("SELECT COUNT(*) FROM algo_trades" + (" WHERE status = %s" if status_filter else ""), ([status_filter] if status_filter else []))
+                total = self.cur.fetchone()[0]
+                return json_response(200, {'data': [dict(t) for t in trades], 'total': total})
+            elif path == '/api/trades/summary':
                 self.cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
