@@ -11,8 +11,9 @@ module "iam" {
   aws_account_id  = data.aws_caller_identity.current.account_id
   github_org      = local.github_org
   github_repo     = local.github_repo
-  bastion_enabled = var.bastion_enabled
-  common_tags     = local.common_tags
+  bastion_enabled  = var.bastion_enabled
+  data_bucket_name = module.storage.data_loading_bucket_name
+  common_tags      = local.common_tags
 }
 
 module "vpc" {

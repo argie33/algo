@@ -420,4 +420,68 @@ router.get("/aaii", async (req, res) => {
   }
 });
 
+// GET /api/sentiment/analyst/insights/:symbol - Symbol-specific analyst insights
+router.get("/analyst/insights/:symbol", async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  try {
+    const [sentimentResult, upgradeResult, momentumResult] = await Promise.all([
+      query(
+        `SELECT analyst_count, bullish_count, bearish_count, neutral_count, total_analysts
+         FROM analyst_sentiment_analysis
+         WHERE symbol = $1
+         ORDER BY date DESC LIMIT 1`,
+        [symbol]
+      ),
+      query(
+        `SELECT firm, action, old_rating AS from_grade, new_rating AS to_grade, action_date AS date, company_name AS details
+         FROM analyst_upgrade_downgrade
+         WHERE symbol = $1
+         ORDER BY action_date DESC LIMIT 20`,
+        [symbol]
+      ),
+      query(
+        `SELECT
+           COUNT(*) FILTER (WHERE action = 'up' AND action_date >= CURRENT_DATE - INTERVAL '30 days') AS upgrades30d,
+           COUNT(*) FILTER (WHERE action = 'down' AND action_date >= CURRENT_DATE - INTERVAL '30 days') AS downgrades30d
+         FROM analyst_upgrade_downgrade
+         WHERE symbol = $1`,
+        [symbol]
+      )
+    ]);
+
+    const row = sentimentResult.rows[0] || null;
+    const total = row ? (parseInt(row.total_analysts) || parseInt(row.analyst_count) || 0) : 0;
+    const bullish = row ? (parseInt(row.bullish_count) || 0) : 0;
+    const bearish = row ? (parseInt(row.bearish_count) || 0) : 0;
+    const neutral = row ? (parseInt(row.neutral_count) || 0) : 0;
+    const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+
+    const momentumRow = momentumResult.rows[0] || {};
+
+    return sendSuccess(res, {
+      metrics: row ? {
+        bullish,
+        neutral,
+        bearish,
+        bullishPercent: pct(bullish),
+        neutralPercent: pct(neutral),
+        bearishPercent: pct(bearish),
+        totalAnalysts: total,
+        avgPriceTarget: null,
+        priceTargetVsCurrent: null
+      } : null,
+      momentum: {
+        upgrades30d: parseInt(momentumRow.upgrades30d) || 0,
+        downgrades30d: parseInt(momentumRow.downgrades30d) || 0
+      },
+      priceTargets: [],
+      coverage: null,
+      recentUpgrades: upgradeResult.rows || []
+    });
+  } catch (error) {
+    console.error("Analyst insights error:", error);
+    return sendError(res, "Failed to fetch analyst insights", 500);
+  }
+});
+
 module.exports = router;

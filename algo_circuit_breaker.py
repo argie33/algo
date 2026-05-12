@@ -85,17 +85,17 @@ class CircuitBreaker:
             }
 
             for name, fn in [
-                ('drawdown', self._check_drawdown),
-                ('drawdown_re_engagement', self._check_drawdown_re_engagement),  # C2: Re-engagement protocol
                 ('daily_loss', self._check_daily_loss),
+                ('drawdown', self._check_drawdown),
+                ('drawdown_re_engagement', self._check_drawdown_re_engagement),
                 ('consecutive_losses', self._check_consecutive_losses),
-                ('win_rate_floor', self._check_win_rate_floor),
                 ('total_risk', self._check_total_risk),
                 ('vix_spike', self._check_vix_spike),
                 ('market_stage', self._check_market_stage),
-                ('intraday_market_health', self._check_intraday_market_health),
                 ('weekly_loss', self._check_weekly_loss),
                 ('sector_concentration', self._check_sector_concentration),
+                ('intraday_market_health', self._check_intraday_market_health),
+                ('win_rate_floor', self._check_win_rate_floor),
                 ('daily_profit_cap', self._check_daily_profit_cap),
                 ('data_freshness', self._check_data_freshness),
             ]:
