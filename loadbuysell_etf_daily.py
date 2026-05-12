@@ -140,10 +140,8 @@ class BuySellETFDailyLoader(OptimalLoader):
             return {
                 "symbol": symbol,
                 "date": date_val if isinstance(date_val, str) else str(date_val),
-                "signal_type": signal_type,
-                "rsi": float(rsi) if not pd.isna(rsi) else None,
-                "macd": float(macd) if not pd.isna(macd) else None,
-                "confidence": 0.5,
+                "signal": signal_type,
+                "strength": float(rsi) / 100 if not pd.isna(rsi) else None,
             }
         return None
 
@@ -155,7 +153,7 @@ class BuySellETFDailyLoader(OptimalLoader):
         """Validate signal row."""
         if not super()._validate_row(row):
             return False
-        return row.get("signal_type") in ("BUY", "SELL")
+        return row.get("signal") in ("BUY", "SELL")
 
 
 def get_active_etf_symbols() -> List[str]:

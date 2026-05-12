@@ -35,23 +35,21 @@ logging.basicConfig(
 _TIMEFRAME_CONFIG = {
     "weekly": {
         "table_name": "buy_sell_weekly_etf",
-        "primary_key": ("symbol", "week_start"),
-        "watermark_field": "week_start",
+        "primary_key": ("symbol", "date"),
+        "watermark_field": "date",
         "resample_rule": "W",
         "min_rows": 20,
         "min_bars": 10,
         "pk_date_fn": lambda d: (d - timedelta(days=d.weekday())).isoformat(),
-        "pk_field": "week_start",
     },
     "monthly": {
         "table_name": "buy_sell_monthly_etf",
-        "primary_key": ("symbol", "month_start"),
-        "watermark_field": "month_start",
+        "primary_key": ("symbol", "date"),
+        "watermark_field": "date",
         "resample_rule": "MS",
         "min_rows": 20,
         "min_bars": 12,
         "pk_date_fn": lambda d: d.replace(day=1).isoformat(),
-        "pk_field": "month_start",
     },
 }
 
@@ -76,7 +74,6 @@ class BuySellEtfAggregateLoader(OptimalLoader):
         self._min_rows = cfg["min_rows"]
         self._min_bars = cfg["min_bars"]
         self._pk_date_fn = cfg["pk_date_fn"]
-        self._pk_field = cfg["pk_field"]
         super().__init__()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -152,11 +149,8 @@ class BuySellEtfAggregateLoader(OptimalLoader):
         return {
             "symbol": symbol,
             "date": bucket_date,
-            self._pk_field: bucket_date,
-            "signal_type": signal_type,
-            "rsi": float(rsi) if not pd.isna(rsi) else None,
-            "macd": float(macd) if not pd.isna(macd) else None,
-            "confidence": 0.5,
+            "signal": signal_type,
+            "strength": float(rsi) / 100 if not pd.isna(rsi) else None,
         }
 
     def transform(self, rows):
@@ -165,7 +159,7 @@ class BuySellEtfAggregateLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         if not super()._validate_row(row):
             return False
-        return row.get("signal_type") in ("BUY", "SELL")
+        return row.get("signal") in ("BUY", "SELL")
 
 
 def get_active_symbols() -> List[str]:
