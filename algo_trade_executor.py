@@ -1281,41 +1281,56 @@ class TradeExecutor:
                     'message': 'Alpaca credentials not configured'}
 
         logger.info(f"[SEND_EXIT] {symbol}: Sending exit order - {shares}sh market sell")
-        try:
-            resp = requests.post(
-                f'{self.alpaca_base_url}/v2/orders',
-                json={
-                    'symbol': symbol,
-                    'qty': shares,
-                    'side': 'sell',
-                    'type': 'market',
-                    'time_in_force': 'day',
-                },
-                headers={'APCA-API-KEY-ID': self.alpaca_key,
-                         'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=10,
-            )
-            logger.info(f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code}")
-            if resp.status_code in (200, 201):
-                data = resp.json()
-                order_id = data.get('id')
-                # Best effort to get fill; if not filled yet, return None and we'll use market price
-                filled_price = float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None
-                logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
-                return {
-                    'success': True,
-                    'order_id': order_id,
-                    'filled_price': filled_price,
-                    'message': f'Order sent: {order_id}',
-                }
-            else:
-                logger.error(f"[SEND_EXIT] {symbol}: Alpaca {resp.status_code} - {resp.text[:200]}")
-                return {'success': False, 'order_id': None, 'filled_price': None,
-                        'message': f'Alpaca rejected order: {resp.status_code}'}
-        except Exception as e:
-            logger.exception(f"[SEND_EXIT] {symbol}: Exception during request")
-            return {'success': False, 'order_id': None, 'filled_price': None,
-                    'message': f'Error sending order: {str(e)}'}
+        import time as _time
+        max_attempts = 3
+        last_error = None
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.post(
+                    f'{self.alpaca_base_url}/v2/orders',
+                    json={
+                        'symbol': symbol,
+                        'qty': shares,
+                        'side': 'sell',
+                        'type': 'market',
+                        'time_in_force': 'day',
+                    },
+                    headers={'APCA-API-KEY-ID': self.alpaca_key,
+                             'APCA-API-SECRET-KEY': self.alpaca_secret},
+                    timeout=10,
+                )
+                logger.info(f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code} (attempt {attempt+1})")
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    order_id = data.get('id')
+                    filled_price = float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None
+                    logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
+                    return {
+                        'success': True,
+                        'order_id': order_id,
+                        'filled_price': filled_price,
+                        'message': f'Order sent: {order_id}',
+                    }
+                elif resp.status_code == 422:
+                    # Unprocessable — position may not exist; don't retry
+                    logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
+                    return {'success': False, 'order_id': None, 'filled_price': None,
+                            'message': f'Alpaca 422 unprocessable: {resp.text[:200]}'}
+                else:
+                    last_error = f'Alpaca {resp.status_code}: {resp.text[:200]}'
+                    logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})")
+            except Exception as e:
+                last_error = f'Error: {str(e)}'
+                logger.warning(f"[SEND_EXIT] {symbol}: Exception attempt {attempt+1}/{max_attempts}: {e}")
+
+            if attempt < max_attempts - 1:
+                wait = 2 ** attempt  # 1s, 2s
+                logger.info(f"[SEND_EXIT] {symbol}: Retrying exit order in {wait}s...")
+                _time.sleep(wait)
+
+        logger.error(f"[SEND_EXIT] {symbol}: Exit order failed after {max_attempts} attempts: {last_error}")
+        return {'success': False, 'order_id': None, 'filled_price': None,
+                'message': f'Exit order failed after {max_attempts} attempts: {last_error}'}
 
 
 if __name__ == "__main__":
