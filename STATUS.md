@@ -197,7 +197,11 @@
   - ✅ npm audit fix: frontend vulnerabilities 31 → 7 (1 critical + 12 high eliminated; 7 remaining in aws-amplify transitive deps require breaking changes)
 
   **Commits:** `911d0da67`, `03bea4a4a`, `786e5f0d4`
-  **Deploy:** run 25709696437 in progress
+
+  **Step Functions PascalCase fix:**
+  - ✅ `terraform/modules/pipeline/main.tf`: `Subnets`/`SecurityGroups`/`AssignPublicIp` inner keys were camelCase — caused `SCHEMA_VALIDATION_FAILED` on every deploy. All 4 AwsvpcConfiguration keys now PascalCase.
+  - ✅ Deploy run 25710240296 passed all 6 jobs — Step Functions pipeline now deployable.
+  - **Commit:** `e91338250`
 
 **Known Remaining Issues:**
   - ⚠️ 3 orphaned API Gateways (0rtigbknv7, kx4kprv8ph, op4dn7xw6j) — trigger cleanup via GitHub UI: Actions → "Cleanup Orphaned AWS Resources" → Run workflow

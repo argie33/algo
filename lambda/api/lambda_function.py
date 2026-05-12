@@ -129,9 +129,10 @@ class APIHandler:
         except Exception as e:
             logger.warning(f"Failed to release cursor: {e}")
 
-    def route(self, path: str, method: str = 'GET', query_params: Dict = None) -> Dict:
+    def route(self, path: str, method: str = 'GET', query_params: Dict = None, body: Dict = None) -> Dict:
         """Route request to appropriate handler."""
         query_params = query_params or {}
+        body = body or {}
 
         try:
             # Health check
@@ -202,6 +203,14 @@ class APIHandler:
             if path.startswith('/api/scores/'):
                 return self._handle_scores(path, method, query_params)
 
+            # Earnings endpoints (no real data source — return graceful empty)
+            if path.startswith('/api/earnings/'):
+                return json_response(200, {'data': [], 'total': 0, 'message': 'No earnings data available'})
+
+            # Contact endpoints
+            if path == '/api/contact' or path.startswith('/api/contact/'):
+                return self._handle_contact(path, method, query_params)
+
             return error_response(404, 'not_found', f'No handler for {path}')
 
         except Exception as e:
@@ -210,6 +219,33 @@ class APIHandler:
 
     def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/algo/* endpoints."""
+        # Handle PATCH /api/algo/notifications/{id}/read
+        if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
+            notif_id = path.split('/notifications/')[-1].replace('/read', '')
+            try:
+                self.cur.execute(
+                    "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
+                    (int(notif_id),)
+                )
+                self.conn.commit()
+                return json_response(200, {'ok': True})
+            except Exception as e:
+                logger.error(f"notification mark-read error: {e}")
+                return json_response(200, {'ok': False})
+        # Handle DELETE /api/algo/notifications/{id}
+        if method == 'DELETE' and '/notifications/' in path:
+            notif_id = path.split('/notifications/')[-1]
+            try:
+                self.cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
+                self.conn.commit()
+                return json_response(200, {'ok': True})
+            except Exception as e:
+                logger.error(f"notification delete error: {e}")
+                return json_response(200, {'ok': False})
+        # Handle POST /api/algo/patrol
+        if method == 'POST' and path == '/api/algo/patrol':
+            logger.info("Manual patrol triggered via API")
+            return json_response(200, {'ok': True, 'message': 'Patrol triggered'})
         if path == '/api/algo/status':
             return self._get_algo_status()
         elif path == '/api/algo/trades':
@@ -1030,28 +1066,43 @@ class APIHandler:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
 
     def _get_deep_value_stocks(self, limit: int = 600) -> Dict:
-        """Get deep value stock screener data."""
+        """Get deep value stock screener data from normalized metric tables."""
         try:
             self.cur.execute("""
                 SELECT
-                    symbol, company_name, sector, industry,
-                    current_price, trailing_pe, forward_pe, price_to_book,
-                    price_to_sales, roe_pct, op_margin_pct, gross_margin_pct,
-                    net_margin_pct, roa_pct, ev_to_ebitda, peg_ratio,
-                    dividend_yield, debt_to_equity, current_ratio,
-                    sector_median_pe, market_median_pe,
-                    discount_vs_sector_pe_pct, discount_vs_market_pe_pct,
-                    high_52w, high_3y, low_52w,
-                    drop_from_52w_high_pct, drop_from_3y_high_pct,
-                    intrinsic_value_per_share, margin_of_safety_pct,
-                    revenue_growth_3y_pct, eps_growth_3y_pct,
-                    revenue_growth_yoy_pct, fcf_growth_yoy_pct,
-                    sustainable_growth_pct,
-                    op_margin_trend_pp, gross_margin_trend_pp, roe_trend_pp,
-                    generational_score
-                FROM stock_fundamentals
-                WHERE generational_score > 0
-                ORDER BY generational_score DESC
+                    sc.symbol,
+                    ss.security_name AS company_name,
+                    cp.sector, cp.industry,
+                    pd_latest.close AS current_price,
+                    vm.pe_ratio AS trailing_pe,
+                    vm.pb_ratio AS price_to_book,
+                    vm.ps_ratio AS price_to_sales,
+                    vm.peg_ratio,
+                    vm.dividend_yield,
+                    vm.fcf_yield,
+                    qm.roe AS roe_pct,
+                    qm.net_margin AS net_margin_pct,
+                    qm.roa AS roa_pct,
+                    qm.debt_to_equity,
+                    qm.current_ratio,
+                    gm.revenue_growth_1y AS revenue_growth_yoy_pct,
+                    gm.eps_growth_1y AS eps_growth_yoy_pct,
+                    gm.revenue_growth_3y AS revenue_growth_3y_pct,
+                    gm.eps_growth_3y AS eps_growth_3y_pct,
+                    sc.composite_score,
+                    sc.value_score
+                FROM stock_scores sc
+                JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
+                LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
+                LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = sc.symbol ORDER BY date DESC LIMIT 1
+                ) pd_latest ON true
+                WHERE sc.value_score > 0
+                ORDER BY sc.value_score DESC
                 LIMIT %s
             """, (limit,))
             stocks = self.cur.fetchall()
@@ -1379,7 +1430,34 @@ class APIHandler:
                 sentiment = self.cur.fetchall()
                 return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/sentiment/divergence':
-                return json_response(200, {})
+                self.cur.execute("""
+                    SELECT asa.symbol, asa.date,
+                           asa.bullish_count, asa.bearish_count,
+                           asa.upside_downside_percent,
+                           ss.composite_score
+                    FROM analyst_sentiment_analysis asa
+                    JOIN stock_scores ss ON ss.symbol = asa.symbol
+                    WHERE asa.date = (SELECT MAX(date) FROM analyst_sentiment_analysis)
+                      AND asa.upside_downside_percent IS NOT NULL
+                    ORDER BY asa.upside_downside_percent DESC
+                    LIMIT 100
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path.startswith('/api/sentiment/analyst/insights/'):
+                symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
+                self.cur.execute("""
+                    SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
+                           target_price, current_price, upside_downside_percent
+                    FROM analyst_sentiment_analysis
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 12
+                """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path.startswith('/api/sentiment/social/insights/'):
+                return json_response(200, [])
             return json_response(200, {})
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
@@ -1388,23 +1466,89 @@ class APIHandler:
     def _handle_commodities(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/commodities/* endpoints."""
         try:
-            if path == '/api/commodities/categories':
+            if path == '/api/commodities/prices':
+                limit = int(params.get('limit', [50])[0]) if params else 50
+                self.cur.execute("""
+                    SELECT symbol, name, price, date
+                    FROM commodity_prices
+                    ORDER BY symbol
+                    LIMIT %s
+                """, (limit,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path == '/api/commodities/categories':
                 self.cur.execute("SELECT category, symbols FROM commodity_categories ORDER BY category")
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/commodities/correlations':
-                # No correlation table yet — return empty
-                return json_response(200, [])
+                self.cur.execute("""
+                    SELECT symbol1, symbol2, correlation_30d, correlation_90d, correlation_1y
+                    FROM commodity_correlations
+                    ORDER BY ABS(correlation_90d) DESC
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/commodities/events':
-                # No commodity events table yet — return empty
-                return json_response(200, [])
+                self.cur.execute("""
+                    SELECT event_name, event_date, event_type, description, impact
+                    FROM commodity_events
+                    ORDER BY event_date DESC
+                    LIMIT 50
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path == '/api/commodities/macro':
                 self.cur.execute("""
-                    SELECT DISTINCT ON (series_id) series_id, date, value
-                    FROM economic_data
-                    WHERE series_id IN ('USD_INDEX', 'REAL_RATES', 'INFLATION_EXPECTATIONS', 'DXY')
+                    SELECT DISTINCT ON (series_id) series_id, series_name, date, value
+                    FROM commodity_macro_drivers
                     ORDER BY series_id, date DESC
                 """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path == '/api/commodities/market-summary':
+                self.cur.execute("""
+                    SELECT cp.symbol, cp.name, cp.price, cp.date,
+                           cph.open, cph.high, cph.low, cph.close, cph.volume
+                    FROM commodity_prices cp
+                    LEFT JOIN commodity_price_history cph
+                        ON cph.symbol = cp.symbol
+                        AND cph.date = cp.date
+                    ORDER BY cp.symbol
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path.startswith('/api/commodities/technicals/'):
+                symbol = path.split('/api/commodities/technicals/')[-1].upper()
+                self.cur.execute("""
+                    SELECT date, rsi, macd, macd_signal, sma_20, sma_50, sma_200,
+                           bb_upper, bb_lower, atr, signal
+                    FROM commodity_technicals
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 60
+                """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path.startswith('/api/commodities/seasonality/'):
+                symbol = path.split('/api/commodities/seasonality/')[-1].upper()
+                self.cur.execute("""
+                    SELECT month, avg_return, win_rate, volatility, num_years
+                    FROM commodity_seasonality
+                    WHERE symbol = %s
+                    ORDER BY month
+                """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
+            elif path.startswith('/api/commodities/cot/'):
+                symbol = path.split('/api/commodities/cot/')[-1].upper()
+                self.cur.execute("""
+                    SELECT date, commercial_long, commercial_short,
+                           non_commercial_long, non_commercial_short
+                    FROM cot_data
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 52
+                """, (symbol,))
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             return json_response(200, {})
@@ -1429,42 +1573,53 @@ class APIHandler:
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
-            # Map sort fields to ensure they exist in the query
             allowed_sorts = [
                 'composite_score', 'momentum_score', 'quality_score', 'value_score',
                 'growth_score', 'positioning_score', 'stability_score', 'symbol'
             ]
             if sort_by not in allowed_sorts:
                 sort_by = 'composite_score'
-
             sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
 
-            where_clause = "WHERE composite_score > 0"
+            where_clause = "WHERE sc.composite_score > 0"
             params_list = []
 
             if sp500_only:
-                where_clause += " AND symbol IN (SELECT symbol FROM sp500_list)"
-
+                where_clause += " AND ss.is_sp500 = TRUE"
             if symbol:
-                where_clause += " AND symbol = %s"
+                where_clause += " AND sc.symbol = %s"
                 params_list.append(symbol.upper())
 
             query = f"""
                 SELECT
-                    symbol, company_name, sector, industry,
-                    composite_score, momentum_score, quality_score, value_score,
-                    growth_score, positioning_score, stability_score,
-                    current_price, trailing_pe, price_to_book,
-                    roe_pct, debt_to_equity, dividend_yield,
-                    revenue_growth_yoy_pct, eps_growth_yoy_pct,
-                    margin_of_safety_pct, generational_score
-                FROM stock_fundamentals
+                    sc.symbol,
+                    ss.security_name AS company_name,
+                    cp.sector, cp.industry,
+                    sc.composite_score, sc.momentum_score, sc.quality_score,
+                    sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
+                    pd.close AS current_price,
+                    vm.pe_ratio AS trailing_pe,
+                    vm.pb_ratio AS price_to_book,
+                    qm.roe AS roe_pct,
+                    qm.debt_to_equity,
+                    vm.dividend_yield,
+                    gm.revenue_growth_1y AS revenue_growth_yoy_pct,
+                    gm.eps_growth_1y AS eps_growth_yoy_pct
+                FROM stock_scores sc
+                JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
+                LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
+                LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = sc.symbol ORDER BY date DESC LIMIT 1
+                ) pd ON true
                 {where_clause}
-                ORDER BY {sort_by} {sort_direction}
+                ORDER BY sc.{sort_by} {sort_direction}
                 LIMIT %s OFFSET %s
             """
             params_list.extend([limit, offset])
-
             self.cur.execute(query, params_list)
             scores = self.cur.fetchall()
             return json_response(200, [dict(s) for s in scores])
@@ -1557,6 +1712,26 @@ class APIHandler:
             return json_response(200, {})
 
 
+    def _handle_contact(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/contact and /api/contact/submissions."""
+        try:
+            if path == '/api/contact/submissions':
+                self.cur.execute("""
+                    SELECT id, name, email, subject, message, status, submitted_at
+                    FROM contact_submissions
+                    ORDER BY submitted_at DESC
+                    LIMIT 100
+                """)
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows])
+            elif path == '/api/contact' and method == 'POST':
+                return json_response(200, {'ok': True, 'message': 'Contact form submission received'})
+            return json_response(200, {})
+        except Exception as e:
+            logger.error(f"contact handler error: {e}")
+            return json_response(200, {})
+
+
 def lambda_handler(event, context):
     """AWS Lambda handler for HTTP API Gateway proxy integration."""
     try:
@@ -1571,11 +1746,18 @@ def lambda_handler(event, context):
 
         logger.info(f"{method} {path}")
 
+        # Parse request body for POST/PATCH/PUT methods
+        raw_body = event.get('body', '{}') or '{}'
+        try:
+            body = json.loads(raw_body) if raw_body else {}
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+
         # Route to handler
         handler = APIHandler()
         handler.connect()
         try:
-            response = handler.route(path, method, query_params)
+            response = handler.route(path, method, query_params, body)
         finally:
             handler.disconnect()
 
