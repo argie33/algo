@@ -11,7 +11,6 @@
  *       → [parallel] trend_template_data + stock_scores + factor_metrics
  *         → [parallel] signals_daily + signals_weekly + signals_monthly
  *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
- *                     + etf_signals
  *           → algo_metrics_daily
  *             → Invoke algo orchestrator Lambda
  */
@@ -407,28 +406,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               }
             }
           },
-          {
-            StartAt = "EtfSignals"
-            States = {
-              EtfSignals = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["etf_signals"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          }
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]

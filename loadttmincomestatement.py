@@ -17,7 +17,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date
 from typing import List, Optional
 
 from optimal_loader import OptimalLoader
@@ -45,21 +45,44 @@ class TtmIncomeStatementLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch incremental data."""
+        """Compute TTM by summing the 4 most recent quarters from quarterly_income_statement."""
+        conn = self._connect()
+        cur = conn.cursor()
         try:
-            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
-        except Exception as e:
-            logging.debug(f"Fetch error for {symbol}: {e}")
+            cur.execute(
+                """
+                SELECT fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share
+                FROM quarterly_income_statement
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                LIMIT 4
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+
+        if len(rows) < 4:
             return None
 
+        def _sum(idx):
+            return sum(r[idx] for r in rows if r[idx] is not None) or None
+
+        as_of_date = date(rows[0][0], 12, 31).isoformat()
+        return [{
+            "symbol": symbol,
+            "date": as_of_date,
+            "revenue": _sum(2),
+            "net_income": _sum(3),
+            "earnings_per_share": _sum(4),
+        }]
+
     def transform(self, rows):
-        """Transform rows."""
         return rows
 
     def _validate_row(self, row: dict) -> bool:
-        """Validate row."""
-        return super()._validate_row(row)
+        return super()._validate_row(row) and row.get("date") is not None
 
 
 def get_active_symbols() -> List[str]:

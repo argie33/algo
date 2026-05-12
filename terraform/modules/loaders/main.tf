@@ -121,15 +121,15 @@ locals {
   loader_file_map = {
     "stock_symbols"              = "loadstocksymbols.py"
     "stock_prices_daily"         = "loadpricedaily.py"
-    "stock_prices_weekly"        = "loadpriceweekly.py"
-    "stock_prices_monthly"       = "loadpricemonthly.py"
+    "stock_prices_weekly"        = "load_price_aggregate.py"
+    "stock_prices_monthly"       = "load_price_aggregate.py"
     "etf_prices_daily"           = "loadetfpricedaily.py"
     "etf_prices_weekly"          = "loadetfpriceweekly.py"
     "etf_prices_monthly"         = "loadetfpricemonthly.py"
-    "financials_annual_income"   = "loadannualincomestatement.py"
+    "financials_annual_income"   = "load_income_statement.py"
     "financials_annual_balance"  = "loadannualbalancesheet.py"
     "financials_annual_cashflow" = "loadannualcashflow.py"
-    "financials_quarterly_income"   = "loadquarterlyincomestatement.py"
+    "financials_quarterly_income"   = "load_income_statement.py"
     "financials_quarterly_balance"  = "loadquarterlybalancesheet.py"
     "financials_quarterly_cashflow" = "loadquarterlycashflow.py"
     "financials_ttm_income"      = "loadttmincomestatement.py"
@@ -156,14 +156,14 @@ locals {
     "technicals_daily"           = "loadtechnicalsdaily.py"
     "stock_scores"               = "loadstockscores.py"
     "signals_daily"              = "loadbuyselldaily.py"
-    "signals_weekly"             = "loadbuysellweekly.py"
-    "signals_monthly"            = "loadbuysellmonthly.py"
+    "signals_weekly"             = "load_buysell_aggregate.py"
+    "signals_monthly"            = "load_buysell_aggregate.py"
     "signals_etf_daily"          = "loadbuysell_etf_daily.py"
     "signals_etf_weekly"         = "loadbuysell_etf_weekly.py"
     "signals_etf_monthly"        = "loadbuysell_etf_monthly.py"
-    "etf_signals"                = "loadetfsignals.py"
     "algo_metrics_daily"         = "load_algo_metrics_daily.py"
     "eod_bulk_refresh"           = "load_eod_bulk.py"
+    "market_data_batch"          = "load_market_data_batch.py"
   }
 
   scheduled_loaders = {
@@ -199,105 +199,81 @@ locals {
       description = "Monthly ETF prices - 4:00am ET (parallel with stock prices)"
     }
 
+    # 3:30am ET = 8:30am UTC Mon-Fri — 8 tiny loaders consolidated into one task
+    "market_data_batch" = {
+      schedule    = "cron(30 8 ? * MON-FRI *)"
+      description = "Market data batch: 8 tiny loaders in parallel - 3:30am ET"
+    }
+
     # NOTE: technicals_daily and trend_template_data are now managed by the
     # Step Functions EOD pipeline — removed from scheduled_loaders.
 
-    # 10:00am ET = 3pm UTC Mon-Fri
+    # Financial statements — run Sunday night only (data changes quarterly, not daily)
     "financials_annual_income" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Annual income statements - 10:00am ET"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Annual income statements - Sunday 11pm ET"
     }
     "financials_annual_balance" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Annual balance sheets - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Annual balance sheets - Sunday 11pm ET (parallel)"
     }
     "financials_annual_cashflow" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Annual cash flow - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Annual cash flow - Sunday 11pm ET (parallel)"
     }
     "financials_quarterly_income" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Quarterly income statements - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Quarterly income statements - Sunday 11pm ET (parallel)"
     }
     "financials_quarterly_balance" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Quarterly balance sheets - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Quarterly balance sheets - Sunday 11pm ET (parallel)"
     }
     "financials_quarterly_cashflow" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "Quarterly cash flow - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Quarterly cash flow - Sunday 11pm ET (parallel)"
     }
     "financials_ttm_income" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "TTM income statements - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "TTM income statements - Sunday 11pm ET (parallel)"
     }
     "financials_ttm_cashflow" = {
-      schedule    = "cron(0 15 ? * MON-FRI *)"
-      description = "TTM cash flow - 10:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "TTM cash flow - Sunday 11pm ET (parallel)"
     }
 
-    # 11:00am ET = 4pm UTC Mon-Fri
+    # Earnings — run Sunday night only (data changes quarterly)
     "earnings_history" = {
-      schedule    = "cron(0 16 ? * MON-FRI *)"
-      description = "Earnings history - 11:00am ET"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings history - Sunday 11pm ET"
     }
     "earnings_revisions" = {
-      schedule    = "cron(0 16 ? * MON-FRI *)"
-      description = "Earnings revisions - 11:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings revisions - Sunday 11pm ET (parallel)"
     }
     "earnings_surprise" = {
-      schedule    = "cron(0 16 ? * MON-FRI *)"
-      description = "Earnings surprise - 11:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings surprise - Sunday 11pm ET (parallel)"
     }
     "earnings_sp500" = {
-      schedule    = "cron(0 16 ? * MON-FRI *)"
-      description = "S&P 500 earnings - 11:00am ET (parallel)"
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "S&P 500 earnings - Sunday 11pm ET (parallel)"
     }
 
-    # 12:00pm ET = 5pm UTC Mon-Fri
-    "market_overview" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Market overview - 12:00pm ET"
-    }
-    "market_indices" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Market indices - 12:00pm ET (parallel)"
-    }
-    "sector_performance" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Sector performance - 12:00pm ET (parallel)"
-    }
+    # Relative performance and seasonality — daily, less time-sensitive
     "relative_performance" = {
       schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Relative performance - 12:00pm ET (parallel)"
+      description = "Relative performance - 12:00pm ET"
     }
     "seasonality" = {
       schedule    = "cron(0 17 ? * MON-FRI *)"
       description = "Seasonality - 12:00pm ET (parallel)"
     }
-    "econ_data" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Economic data - 12:00pm ET (parallel)"
-    }
-    "aaiidata" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "AAII data - 12:00pm ET (parallel)"
-    }
-    "naaim_data" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "NAAIM data - 12:00pm ET (parallel)"
-    }
-    "feargreed" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Fear & Greed Index - 12:00pm ET (parallel)"
-    }
-    "calendar" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Economic calendar - 12:00pm ET (parallel)"
-    }
 
-    # 1:00pm ET = 6pm UTC Mon-Fri
-    # NOTE: factor_metrics and stock_scores moved to Step Functions EOD pipeline
+    # NOTE: market_overview, market_indices, sector_performance, econ_data, aaiidata,
+    # naaim_data, feargreed, calendar are now run by market_data_batch above.
+    # NOTE: factor_metrics and stock_scores moved to Step Functions EOD pipeline.
+
     "analyst_sentiment" = {
       schedule    = "cron(0 5 ? * MON *)"
       description = "Analyst sentiment - weekly Sunday night"
@@ -396,13 +372,15 @@ locals {
     "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 4 }
     "signals_etf_weekly"  = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
     "signals_etf_monthly" = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
-    "etf_signals"         = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
     "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
+
+    # 8 tiny market-level loaders consolidated into one task (3:30am ET)
+    "market_data_batch" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 1 }
   }
 
   # For backward compatibility
@@ -412,7 +390,7 @@ locals {
   critical_loaders = toset([
     "stock_prices_daily", "stock_prices_weekly", "stock_prices_monthly",
     "etf_prices_daily", "etf_prices_weekly", "etf_prices_monthly",
-    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly", "etf_signals",
+    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
     "algo_metrics_daily", "eod_bulk_refresh"
   ])
 }
