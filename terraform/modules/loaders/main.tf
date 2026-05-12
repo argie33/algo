@@ -199,17 +199,8 @@ locals {
       description = "Monthly ETF prices - 4:00am ET (parallel with stock prices)"
     }
 
-    # 4:15am ET = 9:15am UTC Mon-Fri (after prices, before scores)
-    "technicals_daily" = {
-      schedule    = "cron(15 9 ? * MON-FRI *)"
-      description = "Daily technical indicators - 4:15am ET (parallel with prices)"
-    }
-
-    # 4:30am ET = 9:30am UTC Mon-Fri (after technicals, before financials)
-    "trend_template_data" = {
-      schedule    = "cron(30 9 ? * MON-FRI *)"
-      description = "Trend template data - 4:30am ET"
-    }
+    # NOTE: technicals_daily and trend_template_data are now managed by the
+    # Step Functions EOD pipeline — removed from scheduled_loaders.
 
     # 10:00am ET = 3pm UTC Mon-Fri
     "financials_annual_income" = {
@@ -306,69 +297,25 @@ locals {
     }
 
     # 1:00pm ET = 6pm UTC Mon-Fri
+    # NOTE: factor_metrics and stock_scores moved to Step Functions EOD pipeline
     "analyst_sentiment" = {
-      schedule    = "cron(0 18 ? * MON-FRI *)"
-      description = "Analyst sentiment - 1:00pm ET"
+      schedule    = "cron(0 5 ? * MON *)"
+      description = "Analyst sentiment - weekly Sunday night"
     }
     "analyst_upgrades" = {
-      schedule    = "cron(0 18 ? * MON-FRI *)"
-      description = "Analyst upgrades - 1:00pm ET (parallel)"
+      schedule    = "cron(0 5 ? * MON *)"
+      description = "Analyst upgrades - weekly Sunday night (parallel)"
     }
     "social_sentiment" = {
       schedule    = "cron(0 18 ? * MON-FRI *)"
       description = "Social sentiment - 1:00pm ET (parallel)"
     }
-    "factor_metrics" = {
-      schedule    = "cron(0 18 ? * MON-FRI *)"
-      description = "Factor metrics - 1:00pm ET (parallel)"
-    }
-    "stock_scores" = {
-      schedule    = "cron(0 18 ? * MON-FRI *)"
-      description = "Stock scores - 1:00pm ET (parallel)"
-    }
 
-    # 5:00pm ET = 10pm UTC Mon-Fri
-    "signals_daily" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Daily trading signals - 5:00pm ET"
-    }
-    "signals_weekly" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Weekly trading signals - 5:00pm ET (parallel)"
-    }
-    "signals_monthly" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Monthly trading signals - 5:00pm ET (parallel)"
-    }
-    "signals_etf_daily" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Daily ETF signals - 5:00pm ET (parallel)"
-    }
-    "signals_etf_weekly" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Weekly ETF signals - 5:00pm ET (parallel)"
-    }
-    "signals_etf_monthly" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Monthly ETF signals - 5:00pm ET (parallel)"
-    }
-    "etf_signals" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "ETF signals - 5:00pm ET (parallel)"
-    }
-
-    # 5:00pm ET = 10pm UTC Mon-Fri (parallel with signals)
-    "algo_metrics_daily" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "Algo metrics - 5:00pm ET (parallel with signals)"
-    }
-
-    # 5:00am UTC (midnight ET) next trading day - EOD bulk refresh for all symbols
-    # Runs TUE-SAT to cover MON-FRI (US market days)
-    "eod_bulk_refresh" = {
-      schedule    = "cron(0 5 ? * TUE-SAT *)"
-      description = "EOD bulk price refresh - all 5000+ symbols in 5 minutes"
-    }
+    # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
+    # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
+    # and eod_bulk_refresh are now managed by the Step Functions EOD pipeline
+    # (terraform/modules/pipeline/). Their EventBridge rules are defined there.
+    # Task definitions remain in all_loaders below for Step Functions to reference.
   }
 }
 

@@ -232,6 +232,24 @@ module "services" {
   common_tags                    = local.common_tags
 }
 
+module "pipeline" {
+  source = "./modules/pipeline"
+
+  project_name                = var.project_name
+  environment                 = var.environment
+  aws_region                  = var.aws_region
+  aws_account_id              = data.aws_caller_identity.current.account_id
+  ecs_cluster_arn             = module.compute.ecs_cluster_arn
+  private_subnet_ids          = module.vpc.private_subnet_ids
+  ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
+  task_execution_role_arn     = module.iam.ecs_task_execution_role_arn
+  task_role_arn               = module.iam.ecs_task_role_arn
+  loader_task_definition_arns = module.loaders.loader_task_definition_arns
+  algo_lambda_arn             = module.services.algo_lambda_arn
+  sns_alert_topic_arn         = coalesce(module.services.sns_alerts_topic_arn, "")
+  common_tags                 = local.common_tags
+}
+
 module "monitoring" {
   source = "./modules/monitoring"
 

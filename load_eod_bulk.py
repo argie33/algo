@@ -2,10 +2,8 @@
 """
 EOD Bulk Loader — Refresh price_daily for the full universe in minutes, not hours.
 
-The per-symbol loader (loadpricedaily.py) hits yfinance one symbol at a time
-and gets rate-limited after ~150 symbols. This loader uses yf.download()'s
-batched mode: 50-100 symbols per HTTP call, threaded. Full universe (~5000
-symbols) refreshes in ~5 minutes.
+PRIMARY:  Alpaca GET /v2/stocks/bars (multi-symbol) — 5000 symbols in ~10 API calls (~2s)
+FALLBACK: yfinance yf.download() batch mode (~5 min) — used if Alpaca key absent or fails
 
 Use this for the daily EOD top-up. For backfilling years of history, the
 per-symbol loader with watermarks is still the right tool.
@@ -13,8 +11,9 @@ per-symbol loader with watermarks is still the right tool.
 USAGE:
     python3 load_eod_bulk.py                  # all symbols, last 10 days
     python3 load_eod_bulk.py --days 30        # last 30 days
-    python3 load_eod_bulk.py --batch 100      # symbols per HTTP call
+    python3 load_eod_bulk.py --batch 100      # symbols per yfinance batch (fallback only)
     python3 load_eod_bulk.py --symbols SPY,QQQ
+    python3 load_eod_bulk.py --no-alpaca      # force yfinance (for testing)
 """
 
 
@@ -27,11 +26,12 @@ import logging
 import os
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 import psycopg2
+import requests
 import yfinance as yf
 from dotenv import load_dotenv
 
@@ -74,55 +74,103 @@ def chunked(seq, n):
         yield seq[i:i + n]
 
 
-def fetch_batch(symbols: List[str], days: int):
-    """Use yfinance batched download. Returns dict of symbol -> rows."""
-    end = date.today() + timedelta(days=1)
-    start = end - timedelta(days=days + 5)  # add slack to ensure incl. weekends
+def _get_alpaca_creds() -> Optional[tuple]:
+    """Return (api_key, api_secret) or None if not configured."""
+    key = os.getenv("ALPACA_API_KEY") or os.getenv("APCA_API_KEY_ID")
+    secret = (
+        os.getenv("ALPACA_API_SECRET")
+        or os.getenv("ALPACA_API_SECRET_KEY")
+        or os.getenv("APCA_API_SECRET_KEY")
+    )
+    return (key, secret) if key and secret else None
 
-    try:
-        df = yf.download(
-            tickers=symbols,
-            start=start.isoformat(),
-            end=end.isoformat(),
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=False,
-            threads=True,
-            progress=False,
-        )
-    except Exception as e:
-        log.warning(f"  batch failed ({len(symbols)} syms): {e}")
+
+def fetch_alpaca(symbols: List[str], start: date, end: date) -> Dict[str, List[dict]]:
+    """
+    Alpaca multi-symbol bars API: ~10 API calls for 5000 symbols (~2 seconds total).
+
+    Uses adjustment=all so `c` (close) is already split+dividend adjusted,
+    equivalent to yfinance Adj Close.
+    """
+    creds = _get_alpaca_creds()
+    if not creds:
         return {}
 
-    if df is None or df.empty:
-        return {}
+    api_key, api_secret = creds
+    headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
+    base_url = "https://data.alpaca.markets/v2/stocks/bars"
 
-    out = {}
-    if len(symbols) == 1:
-        # Single-symbol: single-level columns
-        sym = symbols[0]
-        rows = []
-        for d, row in df.iterrows():
-            if any(row.isna()): continue
-            rows.append({
-                "symbol": sym,
-                "date": d.date() if hasattr(d, "date") else d,
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "adj_close": float(row.get("Adj Close", row["Close"])),
-                "volume": int(row["Volume"]) if not (row["Volume"] != row["Volume"]) else 0,
-            })
-        out[sym] = rows
-    else:
-        # Multi-symbol: MultiIndex columns
-        for sym in symbols:
-            if sym not in df.columns.get_level_values(0).unique():
-                continue
-            sub = df[sym].dropna()
+    out: Dict[str, List[dict]] = {}
+    # Alpaca allows up to 500 symbols per request
+    for chunk in chunked(symbols, 500):
+        params = {
+            "symbols": ",".join(chunk),
+            "timeframe": "1Day",
+            "start": f"{start.isoformat()}T00:00:00Z",
+            "end": f"{end.isoformat()}T23:59:59Z",
+            "feed": "iex",
+            "adjustment": "all",
+            "limit": 10000,
+        }
+        try:
+            resp = requests.get(base_url, headers=headers, params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log.warning("Alpaca API error (chunk of %d): %s", len(chunk), e)
+            return {}  # treat partial failure as total failure → fall back to yfinance
+
+        for sym, bars in data.get("bars", {}).items():
             rows = []
-            for d, row in sub.iterrows():
+            for bar in bars:
+                bar_date = datetime.fromisoformat(bar["t"].replace("Z", "+00:00")).astimezone(timezone.utc).date()
+                rows.append({
+                    "symbol": sym,
+                    "date": bar_date,
+                    "open": float(bar["o"]),
+                    "high": float(bar["h"]),
+                    "low": float(bar["l"]),
+                    "close": float(bar["c"]),
+                    "adj_close": float(bar["c"]),  # adjustment=all → c IS adj close
+                    "volume": int(bar.get("v", 0)),
+                })
+            if rows:
+                out[sym] = rows
+
+    return out
+
+
+def fetch_yfinance(symbols: List[str], days: int, batch_size: int) -> Dict[str, List[dict]]:
+    """yfinance batched download. Fallback when Alpaca is unavailable or fails."""
+    end = date.today() + timedelta(days=1)
+    start = end - timedelta(days=days + 5)
+    out: Dict[str, List[dict]] = {}
+
+    for chunk in chunked(symbols, batch_size):
+        try:
+            df = yf.download(
+                tickers=chunk,
+                start=start.isoformat(),
+                end=end.isoformat(),
+                interval="1d",
+                group_by="ticker",
+                auto_adjust=False,
+                threads=True,
+                progress=False,
+            )
+        except Exception as e:
+            log.warning("  yfinance batch failed (%d syms): %s", len(chunk), e)
+            continue
+
+        if df is None or df.empty:
+            continue
+
+        if len(chunk) == 1:
+            sym = chunk[0]
+            rows = []
+            for d, row in df.iterrows():
+                if any(row.isna()):
+                    continue
                 rows.append({
                     "symbol": sym,
                     "date": d.date() if hasattr(d, "date") else d,
@@ -134,7 +182,47 @@ def fetch_batch(symbols: List[str], days: int):
                     "volume": int(row["Volume"]) if row["Volume"] == row["Volume"] else 0,
                 })
             out[sym] = rows
+        else:
+            for sym in chunk:
+                if sym not in df.columns.get_level_values(0).unique():
+                    continue
+                sub = df[sym].dropna()
+                rows = []
+                for d, row in sub.iterrows():
+                    rows.append({
+                        "symbol": sym,
+                        "date": d.date() if hasattr(d, "date") else d,
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "adj_close": float(row.get("Adj Close", row["Close"])),
+                        "volume": int(row["Volume"]) if row["Volume"] == row["Volume"] else 0,
+                    })
+                out[sym] = rows
+
     return out
+
+
+def fetch_batch(symbols: List[str], days: int, batch_size: int = 80, use_alpaca: bool = True) -> Dict[str, List[dict]]:
+    """
+    Fetch EOD bars for symbols. Tries Alpaca first (fast), falls back to yfinance.
+    Returns dict of symbol -> list of row dicts.
+    """
+    if use_alpaca:
+        end = date.today()
+        start = end - timedelta(days=days + 5)
+        log.info("Fetching via Alpaca API (%d symbols, %d→%d)…", len(symbols), days, (end - start).days)
+        t0 = time.monotonic()
+        result = fetch_alpaca(symbols, start, end)
+        if result:
+            elapsed = time.monotonic() - t0
+            log.info("Alpaca: %d symbols in %.1fs", len(result), elapsed)
+            return result
+        log.info("Alpaca unavailable or failed — falling back to yfinance")
+
+    log.info("Fetching via yfinance (%d symbols, batch=%d)…", len(symbols), batch_size)
+    return fetch_yfinance(symbols, days, batch_size)
 
 
 def bulk_upsert(conn, rows: List[dict]) -> int:
@@ -180,58 +268,64 @@ def bulk_upsert(conn, rows: List[dict]) -> int:
         cur.close()
 
 
-def run(symbol_filter=None, days=10, batch_size=80, sleep_between=1.0):
+def run(symbol_filter=None, days=10, batch_size=80, sleep_between=0.5, use_alpaca=True):
     conn = None
     cur = None
     try:
         conn = psycopg2.connect(**_get_db_config())
         cur = conn.cursor()
 
-        if symbol_filter:
-            symbols = list(symbol_filter)
-        else:
-            symbols = get_universe(cur)
-
-        log.info(f"EOD BULK LOAD start: {len(symbols)} symbols, {days}d window, batch={batch_size}")
+        symbols = list(symbol_filter) if symbol_filter else get_universe(cur)
+        log.info("EOD BULK LOAD start: %d symbols, %dd window, alpaca=%s", len(symbols), days, use_alpaca)
 
         started = time.time()
         total_rows = 0
         total_failed = 0
-        batches = list(chunked(symbols, batch_size))
-        for idx, batch in enumerate(batches, 1):
-            t0 = time.time()
-            result = fetch_batch(batch, days)
+
+        if use_alpaca and _get_alpaca_creds():
+            # Alpaca path: fetch all symbols in one shot (batched at 500/request)
+            result = fetch_batch(symbols, days, batch_size=batch_size, use_alpaca=True)
             flat_rows = []
-            for sym in batch:
+            for sym in symbols:
                 sym_rows = result.get(sym, [])
                 if not sym_rows:
                     total_failed += 1
-                    continue
-                flat_rows.extend(sym_rows)
-
+                else:
+                    flat_rows.extend(sym_rows)
             inserted = bulk_upsert(conn, flat_rows)
-            total_rows += inserted
-            log.info(
-                f"[{idx:>3}/{len(batches)}] batch {idx*batch_size:>5}: "
-                f"fetched {len(result)}/{len(batch)} | inserted {inserted:>5} rows | "
-                f"{time.time()-t0:.1f}s"
-            )
-
-            # Throttle between batches
-            if sleep_between > 0 and idx < len(batches):
-                time.sleep(sleep_between)
+            total_rows = inserted
+            log.info("Alpaca path: %d symbols fetched, %d rows inserted, %d symbols missing",
+                     len(result), inserted, total_failed)
+        else:
+            # yfinance path: process in smaller batches with throttling
+            batches = list(chunked(symbols, batch_size))
+            for idx, batch in enumerate(batches, 1):
+                t0 = time.time()
+                result = fetch_batch(batch, days, batch_size=batch_size, use_alpaca=False)
+                flat_rows = []
+                for sym in batch:
+                    sym_rows = result.get(sym, [])
+                    if not sym_rows:
+                        total_failed += 1
+                    else:
+                        flat_rows.extend(sym_rows)
+                inserted = bulk_upsert(conn, flat_rows)
+                total_rows += inserted
+                log.info("[%3d/%d] fetched %d/%d | inserted %5d rows | %.1fs",
+                         idx, len(batches), len(result), len(batch), inserted, time.time() - t0)
+                if sleep_between > 0 and idx < len(batches):
+                    time.sleep(sleep_between)
 
         elapsed = time.time() - started
-        log.info(f"\nDONE: {total_rows} rows total, {total_failed} symbols failed, "
-                 f"{elapsed:.1f}s ({len(symbols)/elapsed:.1f} sym/s)")
+        log.info("DONE: %d rows, %d symbols missing, %.1fs (%.0f sym/s)",
+                 total_rows, total_failed, elapsed, len(symbols) / elapsed)
 
-        # Sanity check — what dates do we have for the latest?
         cur.execute("""SELECT date, COUNT(DISTINCT symbol) FROM price_daily
                        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                        GROUP BY date ORDER BY date DESC""")
-        log.info("\nCoverage by recent date:")
+        log.info("Coverage by recent date:")
         for d, n in cur.fetchall():
-            log.info(f"  {d}: {n} symbols")
+            log.info("  %s: %d symbols", d, n)
     finally:
         if cur:
             try:
@@ -247,10 +341,12 @@ def run(symbol_filter=None, days=10, batch_size=80, sleep_between=1.0):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EOD bulk loader for price_daily")
-    parser.add_argument("--days", type=int, default=10, help="Days of history to fetch")
-    parser.add_argument("--batch", type=int, default=80, help="Symbols per HTTP batch")
-    parser.add_argument("--sleep", type=float, default=1.0, help="Seconds between batches")
-    parser.add_argument("--symbols", help="Comma-separated symbols (testing)")
+    parser.add_argument("--days",      type=int,   default=10,  help="Days of history to fetch")
+    parser.add_argument("--batch",     type=int,   default=80,  help="Symbols per yfinance batch (fallback only)")
+    parser.add_argument("--sleep",     type=float, default=0.5, help="Seconds between yfinance batches")
+    parser.add_argument("--symbols",                             help="Comma-separated symbols (testing)")
+    parser.add_argument("--no-alpaca", action="store_true",      help="Force yfinance (skip Alpaca)")
     args = parser.parse_args()
     syms = args.symbols.split(",") if args.symbols else None
-    run(symbol_filter=syms, days=args.days, batch_size=args.batch, sleep_between=args.sleep)
+    run(symbol_filter=syms, days=args.days, batch_size=args.batch,
+        sleep_between=args.sleep, use_alpaca=not args.no_alpaca)
