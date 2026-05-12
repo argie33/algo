@@ -46,32 +46,7 @@ class SectorsLoader(OptimalLoader):
     watermark_field = "metric_date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch sector data (symbol is actually sector name in this context)."""
-        try:
-            sectors = self._get_sector_list()
-            if not sectors:
-                return None
-
-            return [
-                {
-                    "sector_name": sector,
-                    "metric_date": date.today().isoformat(),
-                    "performance_ytd": 0.0,
-                    "performance_1y": 0.0,
-                    "performance_3y": 0.0,
-                    "pe_ratio": None,
-                    "dividend_yield": None,
-                    "market_cap": None,
-                    "stock_count": 0,
-                }
-                for sector in sectors
-            ]
-        except Exception as e:
-            logging.debug(f"Sector fetch error: {e}")
-            return None
-
-    def _get_sector_list(self) -> List[str]:
-        """Get list of unique sectors from stocks table."""
+        """Compute sector performance metrics from price_daily + company_profile."""
         import psycopg2
         conn = None
         try:
@@ -83,16 +58,68 @@ class SectorsLoader(OptimalLoader):
                 database=os.getenv("DB_NAME", "stocks"),
             )
             with conn.cursor() as cur:
-                cur.execute("SELECT DISTINCT sector FROM stocks WHERE sector IS NOT NULL ORDER BY sector")
-                return [r[0] for r in cur.fetchall()]
-        except (psycopg2.Error, OSError) as e:
-            logging.warning(f"Failed to fetch sectors: {e}")
-            return ["Technology", "Healthcare", "Financials", "Energy", "Consumer", "Industrials"]
+                cur.execute("""
+                    WITH price_lookback AS (
+                        SELECT pd.symbol, pd.date, pd.close,
+                               LAG(pd.close, 252) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS c_1y,
+                               ROW_NUMBER() OVER (PARTITION BY pd.symbol ORDER BY pd.date DESC) AS rn
+                        FROM price_daily pd
+                        WHERE pd.date >= CURRENT_DATE - INTERVAL '400 days'
+                          AND pd.close > 0
+                    ),
+                    latest AS (
+                        SELECT symbol, close, c_1y FROM price_lookback WHERE rn = 1
+                    ),
+                    ytd_starts AS (
+                        SELECT DISTINCT ON (symbol) symbol, close AS ytd_open
+                        FROM price_daily
+                        WHERE date >= DATE_TRUNC('year', CURRENT_DATE)
+                          AND close > 0
+                        ORDER BY symbol, date ASC
+                    ),
+                    sector_agg AS (
+                        SELECT cp.sector,
+                               COUNT(*) AS stock_count,
+                               AVG(CASE WHEN ys.ytd_open > 0
+                                        THEN (l.close - ys.ytd_open) / ys.ytd_open * 100
+                                   END) AS perf_ytd,
+                               AVG(CASE WHEN l.c_1y > 0
+                                        THEN (l.close - l.c_1y) / l.c_1y * 100
+                                   END) AS perf_1y
+                        FROM latest l
+                        JOIN company_profile cp ON cp.ticker = l.symbol
+                        LEFT JOIN ytd_starts ys ON ys.symbol = l.symbol
+                        WHERE cp.sector IS NOT NULL AND cp.sector <> ''
+                        GROUP BY cp.sector
+                        HAVING COUNT(*) >= 3
+                    )
+                    SELECT sector, stock_count, perf_ytd, perf_1y FROM sector_agg ORDER BY sector
+                """)
+                rows = cur.fetchall()
+
+            today = date.today().isoformat()
+            return [
+                {
+                    "sector_name": r[0],
+                    "metric_date": today,
+                    "performance_ytd": round(float(r[2] or 0), 4),
+                    "performance_1y": round(float(r[3] or 0), 4),
+                    "performance_3y": None,
+                    "pe_ratio": None,
+                    "dividend_yield": None,
+                    "market_cap": None,
+                    "stock_count": int(r[1]),
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logging.warning(f"Sector metrics query failed: {e}")
+            return None
         finally:
             if conn:
                 try:
                     conn.close()
-                except psycopg2.Error:
+                except Exception:
                     pass
 
     def transform(self, rows):
