@@ -34,7 +34,7 @@ logging.basicConfig(
 
 _TIMEFRAME_CONFIG = {
     "weekly": {
-        "table_name": "buy_sell_etf_weekly",
+        "table_name": "buy_sell_weekly_etf",
         "primary_key": ("symbol", "week_start"),
         "watermark_field": "week_start",
         "resample_rule": "W",
@@ -44,7 +44,7 @@ _TIMEFRAME_CONFIG = {
         "pk_field": "week_start",
     },
     "monthly": {
-        "table_name": "buy_sell_etf_monthly",
+        "table_name": "buy_sell_monthly_etf",
         "primary_key": ("symbol", "month_start"),
         "watermark_field": "month_start",
         "resample_rule": "MS",
