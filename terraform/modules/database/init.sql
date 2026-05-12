@@ -703,11 +703,13 @@ CREATE TABLE IF NOT EXISTS economic_calendar (
 -- Economic data time series
 CREATE TABLE IF NOT EXISTS economic_data (
     id SERIAL PRIMARY KEY,
-    series_id VARCHAR(50),
-    date DATE,
+    series_id VARCHAR(50) NOT NULL,
+    date DATE NOT NULL,
     value DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(series_id, date)
 );
+CREATE INDEX IF NOT EXISTS idx_economic_data_series_date ON economic_data(series_id, date DESC);
 
 -- Index metrics (market breadth, etc.)
 CREATE TABLE IF NOT EXISTS index_metrics (

@@ -96,3 +96,10 @@ variable "sns_alert_topic_arn" {
   type        = string
   default     = ""
 }
+
+variable "fred_api_key" {
+  description = "FRED API key for economic data (free at fred.stlouisfed.org)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

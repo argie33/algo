@@ -166,6 +166,7 @@ module "loaders" {
   vpc_id                  = module.vpc.vpc_id
   common_tags             = local.common_tags
   sns_alert_topic_arn     = coalesce(module.services.sns_alerts_topic_arn, "")
+  fred_api_key            = var.fred_api_key
 }
 
 module "services" {

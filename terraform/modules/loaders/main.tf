@@ -445,6 +445,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "DB_NAME"
           value = var.db_name
+        },
+        {
+          name  = "FRED_API_KEY"
+          value = var.fred_api_key
         }
       ]
     }
