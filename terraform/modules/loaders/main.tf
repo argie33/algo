@@ -3,8 +3,13 @@
  *
  * Creates:
  * - 40 ECS task definitions (all data loaders)
- * - 33 EventBridge scheduled rules (staggered ET schedule)
+ * - 25 EventBridge scheduled rules (staggered ET schedule)
  * - IAM roles for EventBridge and ECS task execution
+ *
+ * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
+ * not by EventBridge cron rules. Task definitions remain here for Step Functions to use.
+ * 8 tiny market-level loaders are consolidated into market_data_batch.
+ * Financial/earnings loaders run weekly (Sunday night) not daily.
  *
  * All loaders run on Fargate in private subnets with proper resource allocation
  */
@@ -134,10 +139,9 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"      = "loadttmincomestatement.py"
     "financials_ttm_cashflow"    = "loadttmcashflow.py"
-    "earnings_history"           = "loadearningshistory.py"
-    "earnings_revisions"         = "loadearningsrevisions.py"
-    "earnings_surprise"          = "loadearningsestimates.py"
-    "earnings_sp500"             = "loadearningshistory.py"
+    "earnings_history"   = "loadearningshistory.py"
+    "earnings_revisions" = "loadearningsrevisions.py"
+    "earnings_surprise"  = "loadearningsestimates.py"
     "market_overview"            = "loadmarket.py"
     "market_indices"             = "loadmarketindices.py"
     "sector_performance"         = "loadsectors.py"
@@ -233,13 +237,14 @@ locals {
       schedule    = "cron(0 4 ? * MON *)"
       description = "Quarterly cash flow - Sunday 11pm ET (parallel)"
     }
+    # TTM loaders depend on quarterly data — run 2 hours after quarterly to avoid race condition
     "financials_ttm_income" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "TTM income statements - Sunday 11pm ET (parallel)"
+      schedule    = "cron(0 6 ? * MON *)"
+      description = "TTM income statements - Monday 1am ET (after quarterly finishes)"
     }
     "financials_ttm_cashflow" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "TTM cash flow - Sunday 11pm ET (parallel)"
+      schedule    = "cron(0 6 ? * MON *)"
+      description = "TTM cash flow - Monday 1am ET (after quarterly finishes)"
     }
 
     # Earnings — run Sunday night only (data changes quarterly)
@@ -254,10 +259,6 @@ locals {
     "earnings_surprise" = {
       schedule    = "cron(0 4 ? * MON *)"
       description = "Earnings surprise - Sunday 11pm ET (parallel)"
-    }
-    "earnings_sp500" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "S&P 500 earnings - Sunday 11pm ET (parallel)"
     }
 
     # Relative performance and seasonality — daily, less time-sensitive
@@ -343,7 +344,6 @@ locals {
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "earnings_sp500"     = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
 
     # Market & economic data (12:00pm ET) — small datasets, single-threaded fine
     "market_overview"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
