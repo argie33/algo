@@ -1,7 +1,25 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-12 (architecture redesign)
-**Project Status:** ✅ **ARCHITECTURE REDESIGNED** — Step Functions pipeline, batch loaders, weekly financials, Alpaca API
+**Last Updated:** 2026-05-11 (loader consolidation)
+**Project Status:** ✅ **LOADERS CONSOLIDATED** — 15 duplicate files eliminated, 3 TTM bugs fixed, dead stub deleted
+
+**Session Work (2026-05-11 — Loader Consolidation):**
+
+  - ✅ **15 duplicate loaders → 8 parametric scripts** (LOADER_TYPE env var selects variant):
+    - `loadpriceweekly.py + loadpricemonthly.py` → `load_price_aggregate.py`
+    - `loadbuysellweekly.py + loadbuysellmonthly.py` → `load_buysell_aggregate.py`
+    - `loadannualincomestatement.py + loadquarterlyincomestatement.py` → `load_income_statement.py`
+    - `loadannualbalancesheet.py + loadquarterlybalancesheet.py` → `load_balance_sheet.py`
+    - `loadannualcashflow.py + loadquarterlycashflow.py` → `load_cash_flow.py`
+    - `loadetfpriceweekly.py + loadetfpricemonthly.py` → `load_etf_price_aggregate.py`
+    - `loadbuysell_etf_weekly.py + loadbuysell_etf_monthly.py` → `load_buysell_etf_aggregate.py`
+  - ✅ **3 TTM loader bugs fixed** — `loadttmincomestatement.py` and `loadttmcashflow.py` were calling `router.fetch_ohlcv()` (price data!) instead of aggregating from quarterly tables. Fixed to sum last 4 quarters.
+  - ✅ **`loadetfsignals.py` deleted** — non-functional stub (returned raw OHLCV with wrong table name `buy_sell_daily_etf`; real ETF signal loaders are `signals_etf_*`)
+  - ✅ **`earnings_sp500` removed** — Terraform dead entry running `loadearningshistory.py` again; pure duplicate of `earnings_history`
+  - ✅ **TTM schedule race condition fixed** — TTM loaders moved from 4am UTC (same as quarterly they depend on) to 6am UTC Monday
+  - ✅ **Financial/earnings loaders: daily → weekly** — quarterly-changing data no longer reloads 5x/week
+  - ✅ **market_data_batch wired in Terraform** — 8 tiny loaders removed from individual cron rules
+  - **Commits:** `6da8d80b7`, `f4e3f4f64`, `8bfa6c3c2`
 
 **Session Work (2026-05-12 — Pipeline Lifecycle + API Audit Fix Sprint):**
 
