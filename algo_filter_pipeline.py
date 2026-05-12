@@ -1045,6 +1045,9 @@ class FilterPipeline:
                 'risk_dollars': result['risk_dollars'],
                 'position_size_pct': result['position_size_pct'],
             }
+        except RuntimeError as e:
+            logger.critical(f"[T5] HALT — portfolio value unavailable: {e}")
+            raise
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
 

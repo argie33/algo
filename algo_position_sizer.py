@@ -57,7 +57,7 @@ class PositionSizer:
         Priority:
         1. Live Alpaca account (most accurate)
         2. Latest portfolio snapshot
-        3. Fallback constant ($100k)
+        3. Raise RuntimeError (fail-closed — no hardcoded fallback)
         """
         # Try live Alpaca first
         alpaca_value = self._fetch_live_alpaca_equity()
@@ -75,7 +75,10 @@ class PositionSizer:
         except Exception:
             pass
 
-        return 100000.0
+        raise RuntimeError(
+            "Cannot determine portfolio value: Alpaca unreachable and no recent snapshot. "
+            "Halting new entries (fail-closed)."
+        )
 
     def _fetch_live_alpaca_equity(self):
         """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
