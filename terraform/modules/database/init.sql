@@ -1995,6 +1995,25 @@ SELECT
          ELSE NULL END AS margin_of_safety_pct,
     pd_52w.high_52w,
     pd_52w.low_52w,
+    -- drop_from_52w_high_pct: same as margin_of_safety_pct, alternate name used by deep-value query
+    CASE WHEN pd_52w.high_52w > 0
+         THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
+         ELSE NULL END AS drop_from_52w_high_pct,
+    -- Columns not derivable from current loaders — NULL placeholders for API compatibility
+    NULL::numeric AS forward_pe,
+    NULL::numeric AS gross_margin_pct,
+    NULL::numeric AS sector_median_pe,
+    NULL::numeric AS market_median_pe,
+    NULL::numeric AS discount_vs_sector_pe_pct,
+    NULL::numeric AS discount_vs_market_pe_pct,
+    NULL::numeric AS high_3y,
+    NULL::numeric AS drop_from_3y_high_pct,
+    NULL::numeric AS intrinsic_value_per_share,
+    NULL::numeric AS fcf_growth_yoy_pct,
+    NULL::numeric AS sustainable_growth_pct,
+    NULL::numeric AS op_margin_trend_pp,
+    NULL::numeric AS gross_margin_trend_pp,
+    NULL::numeric AS roe_trend_pp,
     -- Generational score = composite_score (alias for UI compatibility)
     sc.composite_score AS generational_score
 FROM stock_symbols ss

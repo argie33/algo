@@ -1143,9 +1143,9 @@ class APIHandler:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit = int(params.get('limit', [50])[0]) if params else 50
                 self.cur.execute("""
-                    SELECT id, strategy_name, start_date, end_date, total_return,
-                           sharpe_ratio, max_drawdown, win_rate, total_trades
-                    FROM backtest_results
+                    SELECT run_id AS id, strategy_name, start_date, end_date, total_return,
+                           sharpe_ratio, max_drawdown, win_rate, num_trades AS total_trades
+                    FROM backtest_runs
                     ORDER BY created_at DESC
                     LIMIT %s
                 """, (limit,))
