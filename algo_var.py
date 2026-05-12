@@ -284,7 +284,8 @@ class PortfolioRisk:
                 """
                 SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price
                 FROM algo_positions ap
-                JOIN algo_trades at ON ap.position_id LIKE CONCAT('%', at.trade_id, '%')
+                LEFT JOIN algo_trades at ON at.symbol = ap.symbol
+                    AND at.status IN ('open', 'partial')
                 WHERE ap.status = 'open'
                 """
             )
@@ -404,7 +405,8 @@ class PortfolioRisk:
                 SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price,
                        at.sector, at.industry
                 FROM algo_positions ap
-                JOIN algo_trades at ON ap.position_id LIKE CONCAT('%', at.trade_id, '%')
+                LEFT JOIN algo_trades at ON at.symbol = ap.symbol
+                    AND at.status IN ('open', 'partial')
                 WHERE ap.status = 'open'
                 ORDER BY ap.position_value DESC
                 """

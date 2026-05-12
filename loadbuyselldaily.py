@@ -159,11 +159,7 @@ class BuySellDailyLoader(OptimalLoader):
             since_str = since.isoformat()
             signals = [s for s in signals if s["date"] > since_str]
 
-        # NOTE: If no signals pass the watermark filter, we return None here.
-        # This can cause watermark stagnation if no new signals occur.
-        # Mitigation: Run with BACKFILL_DAYS env var to force full reload periodically,
-        # or delete watermarks from loader_watermarks table to reset.
-        return signals or None
+        return signals
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         """Read OHLCV from local price_daily table."""
