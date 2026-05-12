@@ -860,35 +860,33 @@ class MarketExposure:
 
     def _persist(self, eval_date, result):
         try:
-            # Note: market_exposure_daily table created by init_database.py (schema as code)
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct,
+                     exposure_tier, is_entry_allowed)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    exposure_pct = EXCLUDED.exposure_pct,
-                    raw_score = EXCLUDED.raw_score,
-                    regime = EXCLUDED.regime,
-                    distribution_days = EXCLUDED.distribution_days,
-                    factors = EXCLUDED.factors,
-                    halt_reasons = EXCLUDED.halt_reasons,
+                    market_exposure_pct = EXCLUDED.market_exposure_pct,
+                    long_exposure_pct = EXCLUDED.long_exposure_pct,
+                    short_exposure_pct = EXCLUDED.short_exposure_pct,
+                    exposure_tier = EXCLUDED.exposure_tier,
+                    is_entry_allowed = EXCLUDED.is_entry_allowed,
                     created_at = CURRENT_TIMESTAMP
                 """,
                 (
                     eval_date,
                     result['exposure_pct'],
-                    result['raw_score'],
+                    result['exposure_pct'],  # long = total (paper trading, longs only)
+                    0.0,                      # short = 0 (paper trading, no shorts)
                     result['regime'],
-                    result['distribution_days'],
-                    json.dumps(result['factors']),
-                    result['halt_reasons'] or None,
+                    not bool(result.get('halt_reasons')),
                 ),
             )
             if self._owned:
                 self._owned.commit()
         except Exception as e:
-            print(f"  (persist skipped: {e})")
+            print(f"  [ERROR] persist market_exposure failed for {eval_date}: {e}")
 
 
 if __name__ == "__main__":

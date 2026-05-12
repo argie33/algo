@@ -984,48 +984,28 @@ class SwingTraderScore:
             None (writes to database)
         """
         try:
-            # Note: swing_trader_scores table created by init_database.py (schema as code)
             comp = result.get('components', {})
+            components_json = {
+                **comp,
+                'grade': result.get('grade', 'F'),
+                'pass': result.get('pass', False),
+                'reason': result.get('reason'),
+            }
             self.cur.execute(
                 """
-                INSERT INTO swing_trader_scores
-                    (symbol, eval_date, swing_score, grade,
-                     setup_pts, trend_pts, momentum_pts, volume_pts,
-                     fundamentals_pts, sector_pts, multi_tf_pts,
-                     pass_gates, fail_reason, components)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, eval_date) DO UPDATE SET
-                    swing_score = EXCLUDED.swing_score,
-                    grade = EXCLUDED.grade,
-                    setup_pts = EXCLUDED.setup_pts,
-                    trend_pts = EXCLUDED.trend_pts,
-                    momentum_pts = EXCLUDED.momentum_pts,
-                    volume_pts = EXCLUDED.volume_pts,
-                    fundamentals_pts = EXCLUDED.fundamentals_pts,
-                    sector_pts = EXCLUDED.sector_pts,
-                    multi_tf_pts = EXCLUDED.multi_tf_pts,
-                    pass_gates = EXCLUDED.pass_gates,
-                    fail_reason = EXCLUDED.fail_reason,
+                INSERT INTO swing_trader_scores (symbol, date, score, components)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                    score = EXCLUDED.score,
                     components = EXCLUDED.components,
                     created_at = CURRENT_TIMESTAMP
                 """,
-                (
-                    symbol, eval_date, result.get('swing_score', 0), result.get('grade', 'F'),
-                    comp.get('setup_quality', {}).get('pts', 0),
-                    comp.get('trend_quality', {}).get('pts', 0),
-                    comp.get('momentum_rs', {}).get('pts', 0),
-                    comp.get('volume', {}).get('pts', 0),
-                    comp.get('fundamentals', {}).get('pts', 0),
-                    comp.get('sector_industry', {}).get('pts', 0),
-                    comp.get('multi_timeframe', {}).get('pts', 0),
-                    result.get('pass', False), result.get('reason'),
-                    json.dumps(comp),
-                ),
+                (symbol, eval_date, result.get('swing_score', 0), json.dumps(components_json)),
             )
             if self._owned:
                 self._owned.commit()
         except Exception as e:
-            print(f"  (persist swing_score skipped for {symbol}: {e})")
+            print(f"  [ERROR] persist swing_score failed for {symbol}: {e}")
 
 
 if __name__ == "__main__":

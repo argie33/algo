@@ -1172,6 +1172,7 @@ class Orchestrator:
                 5, 'signal_generation', 'success',
                 f'{len(qualified)} qualified trades after all 6 tiers',
             )
+            self.phase_results[5]['signals_evaluated'] = len(qualified)
             return True
         except Exception as e:
             traceback.print_exc()
@@ -1346,6 +1347,7 @@ class Orchestrator:
                 6, 'entry_execution', 'success',
                 f'{entered} entered, {blocked} blocked (duplicates), {errors} errors',
             )
+            self.phase_results[6]['trades_executed'] = entered
             return True
         except Exception as e:
             traceback.print_exc()
@@ -1416,6 +1418,7 @@ class Orchestrator:
             finally:
                 self.log_phase_result(7, 'risk_metrics', risk_status, risk_summary)
 
+            self.phase_results.setdefault(7, {})['open_positions'] = result.get('positions', 0)
             return True
         except Exception as e:
             traceback.print_exc()
