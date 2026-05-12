@@ -1,7 +1,22 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-12 00:00Z  
-**Project Status:** ✅ **DEEP AUDIT COMPLETE** — 20-item gap analysis run, 11 bugs fixed across 2 commits
+**Last Updated:** 2026-05-12 (continuing session)  
+**Project Status:** ✅ **FULLY DEPLOYED & VERIFIED** — All infrastructure working, db-init confirmed via CloudWatch logs
+
+**Session Fixes (2026-05-12 — Infrastructure Repair Sprint):**
+
+  **Terraform / CI Blockers (all resolved):**
+  - ✅ `data.archive_file.psycopg2_layer` empty-tuple error removed — dropped `archive_file` resource entirely, layer references zip directly
+  - ✅ psycopg2 layer now built with `python3.11` via `actions/setup-python@v5` (was defaulting to Python 3.12, wrong `.so`)
+  - ✅ Lambda layer confirmed correct: `_psycopg.cpython-311-*.so` present; db-init Lambda CloudWatch logs: "Database initialization completed successfully"
+  - ✅ CloudWatch metric filter patterns fixed — removed `:` chars (invalid in unquoted filter terms)
+  - ✅ EventBridge cron fixed: `cron(30 17 …)` (1:30pm ET wrong) → `cron(30 21 …)` (5:30pm EDT correct)
+  - ✅ `algo_metrics_daily` and `eod_bulk_refresh` loaders missing `parallelism` attribute added (was causing `each.value.parallelism` plan error)
+  - ✅ DB schema init added as explicit CI step (always invokes db-init Lambda post-apply; idempotent via `CREATE TABLE IF NOT EXISTS`)
+  - ✅ CloudFront orphan cleanup added to workflow (disable → wait → delete; handles E3NC0ID0ZU3VFB and E27ULN4TX590K2)
+  - ✅ Deploy run 25696448421 passed all 6 jobs — system fully green
+
+  **Commits:** `c6b036b81`, `e01656477`, `eca661b7e`, `137dccfa3`
 
 **Session Fixes (2026-05-12 — Full System Audit & Fix Sprint):**
 
