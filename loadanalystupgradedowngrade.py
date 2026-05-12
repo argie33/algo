@@ -40,7 +40,7 @@ logging.basicConfig(
 
 
 class AnalystRatingsLoader(OptimalLoader):
-    table_name = "analyst_ratings"
+    table_name = "analyst_upgrade_downgrade"
     primary_key = ("symbol", "date")
     watermark_field = "date"
 

@@ -40,7 +40,7 @@ logging.basicConfig(
 
 
 class AnalystSentimentLoader(OptimalLoader):
-    table_name = "analyst_sentiment"
+    table_name = "analyst_sentiment_analysis"
     primary_key = ("symbol", "date")
     watermark_field = "date"
 

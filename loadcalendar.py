@@ -40,7 +40,7 @@ logging.basicConfig(
 
 
 class EventCalendarLoader(OptimalLoader):
-    table_name = "event_calendar"
+    table_name = "calendar_events"
     primary_key = ("event_id", "event_date")
     watermark_field = "date"
 

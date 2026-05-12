@@ -40,8 +40,8 @@ logging.basicConfig(
 
 
 class EconDataLoader(OptimalLoader):
-    table_name = "econ_data"
-    primary_key = ("indicator", "date")
+    table_name = "economic_data"
+    primary_key = ("series_id", "date")
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):

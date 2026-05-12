@@ -63,17 +63,6 @@ export const usePriceHistory = (symbol, params = {}) => {
 };
 
 /**
- * Get portfolio optimization analysis
- */
-export const usePortfolioOptimization = (holdings = []) => {
-  return useApiQuery(
-    ['optimization', holdings],
-    () => api.post('/api/optimization/analysis', { holdings }),
-    { enabled: holdings?.length > 0 }
-  );
-};
-
-/**
  * Get industries list
  */
 export const useIndustries = (params = {}) => {
