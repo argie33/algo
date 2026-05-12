@@ -766,25 +766,54 @@ CREATE TABLE IF NOT EXISTS industry_performance (
 -- SEASONALITY DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Day of week seasonality
+-- Day of week seasonality — SPY-based market aggregate (no per-symbol rows)
 CREATE TABLE IF NOT EXISTS seasonality_day_of_week (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    day_of_week INTEGER,
-    avg_return_pct DECIMAL(8, 4),
-    win_rate_pct DECIMAL(8, 4),
+    day VARCHAR(20),
+    day_num INTEGER,
+    avg_return DECIMAL(8, 4),
+    win_rate DECIMAL(8, 4),
+    days_counted INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='seasonality_day_of_week' AND column_name='day') THEN
+        ALTER TABLE seasonality_day_of_week
+            ADD COLUMN day VARCHAR(20),
+            ADD COLUMN day_num INTEGER,
+            ADD COLUMN avg_return DECIMAL(8,4),
+            ADD COLUMN win_rate DECIMAL(8,4),
+            ADD COLUMN days_counted INTEGER;
+    END IF;
+END $$;
 
--- Monthly seasonality patterns
+-- Monthly seasonality patterns — SPY-based market aggregate (no per-symbol rows)
 CREATE TABLE IF NOT EXISTS seasonality_monthly_stats (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
     month INTEGER,
-    avg_return_pct DECIMAL(8, 4),
-    win_rate_pct DECIMAL(8, 4),
+    month_name VARCHAR(20),
+    avg_return DECIMAL(8, 4),
+    best_return DECIMAL(8, 4),
+    worst_return DECIMAL(8, 4),
+    years_counted INTEGER,
+    winning_years INTEGER,
+    losing_years INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='seasonality_monthly_stats' AND column_name='month_name') THEN
+        ALTER TABLE seasonality_monthly_stats
+            ADD COLUMN month_name VARCHAR(20),
+            ADD COLUMN avg_return DECIMAL(8,4),
+            ADD COLUMN best_return DECIMAL(8,4),
+            ADD COLUMN worst_return DECIMAL(8,4),
+            ADD COLUMN years_counted INTEGER,
+            ADD COLUMN winning_years INTEGER,
+            ADD COLUMN losing_years INTEGER;
+    END IF;
+END $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- STRATEGY & ANALYSIS DATA

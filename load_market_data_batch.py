@@ -24,9 +24,7 @@ logging.basicConfig(
 log = logging.getLogger("market_data_batch")
 
 LOADERS = [
-    "loadmarket.py",
     "loadmarketindices.py",
-    "loadsectors.py",
     "loadecondata.py",
     "loadaaiidata.py",
     "loadnaaim.py",

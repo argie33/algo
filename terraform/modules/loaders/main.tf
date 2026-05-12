@@ -2,14 +2,16 @@
  * Loaders Module - ECS Task Definitions, EventBridge Scheduled Rules
  *
  * Creates:
- * - 40 ECS task definitions (all data loaders)
- * - 25 EventBridge scheduled rules (staggered ET schedule)
+ * - 34 ECS task definitions (data loaders)
+ * - 22 EventBridge scheduled rules (staggered ET schedule)
  * - IAM roles for EventBridge and ECS task execution
  *
  * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
  * not by EventBridge cron rules. Task definitions remain here for Step Functions to use.
- * 8 tiny market-level loaders are consolidated into market_data_batch.
+ * 6 tiny market-level loaders consolidated into market_data_batch.
  * Financial/earnings loaders run weekly (Sunday night) not daily.
+ * Removed: market_overview, sector_performance, relative_performance, social_sentiment
+ *   (no real data source; market_overview duplicated price_daily; others wrote zeros/wrong data).
  *
  * All loaders run on Fargate in private subnets with proper resource allocation
  */
@@ -142,10 +144,7 @@ locals {
     "earnings_history"   = "loadearningshistory.py"
     "earnings_revisions" = "loadearningsrevisions.py"
     "earnings_surprise"  = "loadearningsestimates.py"
-    "market_overview"            = "loadmarket.py"
     "market_indices"             = "loadmarketindices.py"
-    "sector_performance"         = "loadsectors.py"
-    "relative_performance"       = "loadrelativeperformance.py"
     "seasonality"                = "loadseasonality.py"
     "econ_data"                  = "loadecondata.py"
     "aaiidata"                   = "loadaaiidata.py"
@@ -154,7 +153,6 @@ locals {
     "calendar"                   = "loadcalendar.py"
     "analyst_sentiment"          = "loadanalystsentiment.py"
     "analyst_upgrades"           = "loadanalystupgradedowngrade.py"
-    "social_sentiment"           = "loadsentiment.py"
     "factor_metrics"             = "loadfactormetrics.py"
     "trend_template_data"        = "load_trend_template_data.py"
     "technicals_daily"           = "loadtechnicalsdaily.py"
@@ -261,18 +259,16 @@ locals {
       description = "Earnings surprise - Sunday 11pm ET (parallel)"
     }
 
-    # Relative performance and seasonality — daily, less time-sensitive
-    "relative_performance" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Relative performance - 12:00pm ET"
-    }
+    # Seasonality — weekly recompute Sunday night (uses price_daily history, SPY-based)
     "seasonality" = {
-      schedule    = "cron(0 17 ? * MON-FRI *)"
-      description = "Seasonality - 12:00pm ET (parallel)"
+      schedule    = "cron(0 5 ? * MON *)"
+      description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
     # NOTE: market_overview, market_indices, sector_performance, econ_data, aaiidata,
     # naaim_data, feargreed, calendar are now run by market_data_batch above.
+    # NOTE: market_overview, sector_performance, relative_performance, social_sentiment removed —
+    # no real data source; market_overview duplicates price_daily; sector_performance wrote zeros.
     # NOTE: factor_metrics and stock_scores moved to Step Functions EOD pipeline.
 
     "analyst_sentiment" = {
@@ -282,10 +278,6 @@ locals {
     "analyst_upgrades" = {
       schedule    = "cron(0 5 ? * MON *)"
       description = "Analyst upgrades - weekly Sunday night (parallel)"
-    }
-    "social_sentiment" = {
-      schedule    = "cron(0 18 ? * MON-FRI *)"
-      description = "Social sentiment - 1:00pm ET (parallel)"
     }
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
@@ -345,22 +337,18 @@ locals {
     "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
 
-    # Market & economic data (12:00pm ET) — small datasets, single-threaded fine
-    "market_overview"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # Market & economic data — small datasets, single-threaded fine
     "market_indices"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "sector_performance"   = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "relative_performance" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
-    "seasonality"          = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    "seasonality"          = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "econ_data"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "aaiidata"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "naaim_data"           = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "feargreed"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "calendar"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Sentiment & analysis (1:00pm ET) — I/O bound with some compute
+    # Sentiment & analysis — I/O bound with some compute
     "analyst_sentiment" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "analyst_upgrades"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "social_sentiment"  = { cpu = 256, memory = 512,  timeout = 600, parallelism = 2 }
     "factor_metrics"    = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
     "stock_scores"      = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
