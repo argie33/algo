@@ -1,7 +1,25 @@
 # System Status & Quick Facts
 
-**Last Updated:** 2026-05-11 (evening continued)  
+**Last Updated:** 2026-05-12 (full system audit sprint)  
 **Project Status:** ✅ **FULLY DEPLOYED** — Terraform + both Lambdas + frontend all green (run 25707341464)
+
+**Session Fixes (2026-05-12 — Comprehensive System Audit & Fix Sprint):**
+
+  **Critical data pipeline bugs (zero signal data was being inserted):**
+  - ✅ `terraform/modules/database/init.sql`: `buy_sell_daily/weekly/monthly` had 7 columns; loader writes ~30 and API reads ~50 → every INSERT failed silently. Added idempotent ALTER TABLE migration for all missing columns + UNIQUE constraint fix `(symbol,date)→(symbol,timeframe,date)` (commit `6666312ba`)
+  - ✅ `lambda-pkg/algo_performance.py`: `avg_win_r`/`avg_loss_r` column names → `avg_win_r_50t`/`avg_loss_r_50t` (commit `032f303e1`)
+  - ✅ `algo_trade_executor.py`: `entry_time` column was omitted from INSERT → always NULL (commit `4edc17921`)
+  - ✅ `algo_var.py`: Position→trade beta join used `LIKE CONCAT('%',trade_id,'%')` → false positive matches → replaced with LEFT JOIN on symbol+status (commit `6666312ba`)
+  - ✅ `loadbuyselldaily.py`: Returning `None` when watermark filter empties list caused watermark stagnation → now returns `[]` (commit `6666312ba`)
+
+  **API / frontend fixes:**
+  - ✅ `terraform/modules/database/init.sql`: Added `stock_fundamentals` VIEW (joins scores+profile+metrics), `sp500_list` VIEW (proxy via composite_score>60), `market_sentiment` VIEW — fixes deep-value and scores pages (commit `58607ed53`)
+  - ✅ `lambda/api/lambda_function.py`: `_get_circuit_breakers()` was stub returning `[]` → now queries `algo_audit_log`. Connection reuse + credential caching + 25s statement timeout added. `audit_log→algo_audit_log` table name fixed (commit `58607ed53`)
+
+  **Orchestrator / safety fixes:**
+  - ✅ `algo_orchestrator.py`: Phase 4 now detects if `_position_recs` is empty but open positions exist (Phase 3 crash) → logs CRITICAL so it surfaces in CloudWatch (commit `83b2ca57a`)
+
+  **Commits this session:** `6666312ba`, `032f303e1`, `4edc17921`, `83b2ca57a`, `58607ed53`, `ae0623ecc`
 
 **Session Fixes (2026-05-11 Late — Bug Hunt Continued):**
   - ✅ `algo_circuit_breaker.py`: `_check_sector_concentration()` was stub; now queries real positions + sector_performance, halts if concentrated sector down ≥12%
