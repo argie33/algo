@@ -45,20 +45,14 @@ class AnalystSentimentLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch incremental data."""
-        try:
-            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
-        except Exception as e:
-            logging.debug(f"Fetch error for {symbol}: {e}")
-            return None
+        # No real analyst sentiment API wired yet; return None to avoid writing
+        # OHLCV data into analyst_sentiment_analysis (wrong schema entirely).
+        return None
 
     def transform(self, rows):
-        """Transform rows."""
         return rows
 
     def _validate_row(self, row: dict) -> bool:
-        """Validate row."""
         return super()._validate_row(row)
 
 
