@@ -30,38 +30,55 @@ from typing import Dict, Any, Optional, List
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Module-level connection cache: Lambda containers are reused across warm invocations.
+# Reusing the connection avoids ~100ms connection overhead and prevents exhausting
+# the RDS connection limit under concurrent Lambda scaling.
+_db_conn: Optional[Any] = None
+_db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-call latency
+
+
+def _load_creds() -> Dict:
+    global _db_creds
+    if _db_creds:
+        return _db_creds
+    db_secret_arn = os.getenv('DB_SECRET_ARN') or os.getenv('DATABASE_SECRET_ARN')
+    if db_secret_arn:
+        import boto3
+        secrets = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        response = secrets.get_secret_value(SecretId=db_secret_arn)
+        _db_creds = json.loads(response['SecretString'])
+    else:
+        _db_creds = {
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 5432)),
+            'username': os.getenv('DB_USER', 'stocks'),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'dbname': os.getenv('DB_NAME', 'stocks'),
+        }
+    return _db_creds
+
 
 def get_db_connection():
-    """Get database connection from environment or Secrets Manager."""
+    """Return a live DB connection, reusing the cached one on warm Lambda invocations."""
+    global _db_conn
+    if _db_conn is not None and not _db_conn.closed:
+        try:
+            _db_conn.isolation_level  # lightweight liveness probe
+            return _db_conn
+        except Exception:
+            pass  # connection is dead — fall through to reconnect
     try:
-        # Try Secrets Manager first (Lambda)
-        db_secret_arn = os.getenv('DB_SECRET_ARN')
-        if db_secret_arn:
-            import boto3
-            secrets = boto3.client('secretsmanager', region_name='us-east-1')
-            response = secrets.get_secret_value(SecretId=db_secret_arn)
-            creds = json.loads(response['SecretString'])
-            host = creds.get('host')
-            port = creds.get('port', 5432)
-            user = creds.get('username')
-            password = creds.get('password')
-            database = creds.get('dbname')
-        else:
-            # Fall back to environment variables (local/docker)
-            host = os.getenv('DB_HOST', 'localhost')
-            port = int(os.getenv('DB_PORT', 5432))
-            user = os.getenv('DB_USER', 'stocks')
-            password = os.getenv('DB_PASSWORD', '')
-            database = os.getenv('DB_NAME', 'stocks')
-
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
+        creds = _load_creds()
+        _db_conn = psycopg2.connect(
+            host=creds.get('host'),
+            port=int(creds.get('port', 5432)),
+            user=creds.get('username'),
+            password=creds.get('password'),
+            database=creds.get('dbname'),
+            connect_timeout=5,
+            options='-c statement_timeout=25000',  # 25s query timeout
         )
-        return conn
+        return _db_conn
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
@@ -101,14 +118,16 @@ class APIHandler:
         self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     def disconnect(self):
-        """Close database connection."""
+        """Release cursor; keep connection alive for Lambda container reuse."""
         try:
             if self.cur:
                 self.cur.close()
-            if self.conn:
-                self.conn.close()
+            # Do NOT close self.conn — it's the module-level cached connection.
+            # Roll back any uncommitted transaction so next request starts clean.
+            if self.conn and not self.conn.closed:
+                self.conn.rollback()
         except Exception as e:
-            logger.warning(f"Failed to close connection: {e}")
+            logger.warning(f"Failed to release cursor: {e}")
 
     def route(self, path: str, method: str = 'GET', query_params: Dict = None) -> Dict:
         """Route request to appropriate handler."""
@@ -329,8 +348,52 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
     def _get_circuit_breakers(self) -> Dict:
-        """Get circuit breaker status."""
-        return json_response(200, [])
+        """Get circuit breaker status from most recent orchestrator run."""
+        try:
+            # Most recent circuit breaker check (halt or all-clear)
+            self.cur.execute("""
+                SELECT details, action_date, status
+                FROM algo_audit_log
+                WHERE action_type = 'circuit_breaker_halt'
+                ORDER BY created_at DESC
+                LIMIT 1
+            """)
+            row = self.cur.fetchone()
+
+            # Also get last successful (non-halted) orchestrator run details
+            self.cur.execute("""
+                SELECT details, action_date
+                FROM algo_audit_log
+                WHERE action_type IN ('phase_2_complete', 'orchestrator_run')
+                ORDER BY created_at DESC
+                LIMIT 1
+            """)
+            last_run = self.cur.fetchone()
+
+            breakers = []
+            if row and row['details']:
+                try:
+                    details = json.loads(row['details']) if isinstance(row['details'], str) else row['details']
+                    checks = details.get('checks', {})
+                    for name, state in checks.items():
+                        breakers.append({
+                            'name': name,
+                            'halted': bool(state.get('halted', False)),
+                            'reason': state.get('reason', ''),
+                            'as_of': str(row['action_date']),
+                        })
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+            return json_response(200, {
+                'breakers': breakers,
+                'last_check': str(row['action_date']) if row else None,
+                'last_run': str(last_run['action_date']) if last_run else None,
+                'system_halted': any(b['halted'] for b in breakers),
+            })
+        except Exception as e:
+            logger.error(f"get_circuit_breakers failed: {e}", exc_info=True)
+            return json_response(200, {'breakers': [], 'system_halted': False})
 
     def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
@@ -1096,9 +1159,10 @@ class APIHandler:
             if path == '/api/audit/trail' or path.startswith('/api/audit/trail?'):
                 limit = int(params.get('limit', [100])[0]) if params else 100
                 self.cur.execute("""
-                    SELECT id, timestamp, action, user_id, resource, status, details
-                    FROM audit_log
-                    ORDER BY timestamp DESC
+                    SELECT id, created_at AS timestamp, action_type AS action,
+                           actor AS user_id, status, details
+                    FROM algo_audit_log
+                    ORDER BY created_at DESC
                     LIMIT %s
                 """, (limit,))
                 audits = self.cur.fetchall()

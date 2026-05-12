@@ -1946,3 +1946,88 @@ CREATE INDEX IF NOT EXISTS idx_commodity_seasonality_symbol ON commodity_seasona
 CREATE INDEX IF NOT EXISTS idx_commodity_technicals_symbol_date ON commodity_technicals(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_commodity_macro_drivers_series_date ON commodity_macro_drivers(series_id, date);
 CREATE INDEX IF NOT EXISTS idx_commodity_events_date ON commodity_events(event_date);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- DERIVED VIEWS (API convenience — combine normalized tables)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- stock_fundamentals: join scores + profiles + fundamental metrics
+-- Used by: /api/stocks/deep-value, /api/scores/stockscores
+CREATE OR REPLACE VIEW stock_fundamentals AS
+SELECT
+    ss.symbol,
+    COALESCE(cp.long_name, cp.short_name, ss.symbol) AS company_name,
+    cp.sector,
+    cp.industry,
+    -- Scores
+    sc.composite_score,
+    sc.momentum_score,
+    sc.quality_score,
+    sc.value_score,
+    sc.growth_score,
+    sc.positioning_score,
+    sc.stability_score,
+    -- Current price
+    pd.close AS current_price,
+    -- Value metrics
+    vm.pe_ratio AS trailing_pe,
+    vm.pb_ratio AS price_to_book,
+    vm.ps_ratio AS price_to_sales,
+    vm.peg_ratio,
+    vm.dividend_yield,
+    -- Quality metrics
+    qm.roe AS roe_pct,
+    qm.roa AS roa_pct,
+    qm.operating_margin AS op_margin_pct,
+    qm.net_margin AS net_margin_pct,
+    qm.debt_to_equity,
+    qm.current_ratio,
+    -- Growth metrics
+    gm.revenue_growth_1y AS revenue_growth_yoy_pct,
+    gm.eps_growth_1y AS eps_growth_yoy_pct,
+    gm.revenue_growth_3y AS revenue_growth_3y_pct,
+    gm.eps_growth_3y AS eps_growth_3y_pct,
+    -- Stability
+    stm.beta,
+    -- Derived: margin of safety (simplified: discount from 52w high)
+    CASE WHEN pd_52w.high_52w > 0
+         THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
+         ELSE NULL END AS margin_of_safety_pct,
+    pd_52w.high_52w,
+    pd_52w.low_52w,
+    -- Generational score = composite_score (alias for UI compatibility)
+    sc.composite_score AS generational_score
+FROM stock_symbols ss
+LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+LEFT JOIN stock_scores sc ON sc.symbol = ss.symbol
+LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
+LEFT JOIN quality_metrics qm ON qm.symbol = ss.symbol
+LEFT JOIN growth_metrics gm ON gm.symbol = ss.symbol
+LEFT JOIN stability_metrics stm ON stm.symbol = ss.symbol
+LEFT JOIN LATERAL (
+    SELECT close FROM price_daily
+    WHERE symbol = ss.symbol
+    ORDER BY date DESC LIMIT 1
+) pd ON true
+LEFT JOIN LATERAL (
+    SELECT MAX(high) AS high_52w, MIN(low) AS low_52w
+    FROM price_daily
+    WHERE symbol = ss.symbol AND date >= CURRENT_DATE - INTERVAL '252 days'
+) pd_52w ON true
+WHERE sc.composite_score IS NOT NULL;
+
+-- sp500_list: placeholder — populated when SP500 data loader is added
+-- For now, returns symbols with composite_score > 60 as a proxy
+CREATE OR REPLACE VIEW sp500_list AS
+SELECT symbol FROM stock_scores WHERE composite_score > 60;
+
+-- market_sentiment: alias for fear_greed_index for API compatibility
+CREATE OR REPLACE VIEW market_sentiment AS
+SELECT
+    date,
+    fear_greed_value AS fear_greed_index,
+    fear_greed_label AS label,
+    NULL::numeric AS put_call_ratio,
+    NULL::numeric AS vix,
+    fear_greed_value AS sentiment_score
+FROM fear_greed_index;
