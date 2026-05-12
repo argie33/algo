@@ -35,17 +35,31 @@
   - ✅ `algo_swing_score.py`: INSERT used 14 non-existent columns (eval_date, grade, *_pts, pass_gates). Schema only has (symbol, date, score, components). Collapse all detail into JSONB components field; map eval_date→date, swing_score→score. Every swing score write was silently failing.
   - ✅ `algo_market_exposure.py`: INSERT used exposure_pct/regime/raw_score/distribution_days/factors/halt_reasons — none exist in schema. Fixed to market_exposure_pct/exposure_tier/is_entry_allowed. Every market exposure persist was silently failing.
   - ✅ `algo_orchestrator.py`: CloudWatch metrics for signals_evaluated, trades_executed, open_positions were always 0 — phase_results only stored `summary` strings. Populate integer keys on phase_results[5/6/7] after each phase completes.
+  - ✅ `algo_orchestrator.py`: Phase 4 defensive check — if Phase 3 crashed fail-open with empty _position_recs but positions exist in DB, log critical error instead of silently skipping exits.
+  - ✅ `algo_trade_executor.py`: entry_time TIMESTAMP column was silently omitted from INSERT — always NULL. Fixed with CURRENT_TIMESTAMP directly in SQL VALUES clause.
+  - ✅ `lambda-pkg/algo_performance.py`: avg_win_r/avg_loss_r column fix wasn't applied to the Lambda deployment package copy; now matches source.
 
-  **Loader table name mismatches (every insert was failing):**
+  **Loader table name/column mismatches (every insert was failing):**
   - ✅ `loadanalystsentiment.py`: analyst_sentiment → analyst_sentiment_analysis
   - ✅ `loadanalystupgradedowngrade.py`: analyst_ratings → analyst_upgrade_downgrade
   - ✅ `loadcalendar.py`: event_calendar → calendar_events
   - ✅ `loadecondata.py`: econ_data → economic_data; primary_key indicator → series_id
+  - ✅ `loadstockscores.py`: Remove score_date (doesn't exist), primary_key→("symbol",), add stability_score/positioning_score, last_updated→updated_at
+  - ✅ `loadetfsignals.py`: etf_signals (doesn't exist) → buy_sell_daily_etf
+  - ✅ `algo_sector_rotation.py`: INSERT used 8 non-existent columns with ON CONFLICT(date). Fixed to store one row per date with sector='market_rotation', mapping to actual schema columns (signal, strength, details JSONB).
 
   **Frontend:**
   - ✅ `useDataApi.js`: Removed dead usePortfolioOptimization hook calling deleted /api/optimization/analysis endpoint
 
-  **Commits:** `c172b6ee6`, `1ce787536`
+  **Known stub loaders (fail on every run — need real data sources to fix):**
+  - ⚠️ `loadmarket.py` → targets `market_overview` (doesn't exist); data duplicates price_daily (SPY/QQQ/IWM OHLCV)
+  - ⚠️ `loadsentiment.py` → targets `sentiment` (doesn't exist); uses fetch_ohlcv instead of sentiment API
+  - ⚠️ `loadsectors.py` → targets `sectors` (doesn't exist); returns hardcoded 0.0 values
+  - ⚠️ `loadrelativeperformance.py` → targets `relative_performance` (doesn't exist); uses fetch_ohlcv
+  - ⚠️ `loadfactormetrics.py` → targets `factor_metrics` (doesn't exist); returns hardcoded zeros
+  - To fix: either implement with a real data API + matching schema table, or remove from Terraform schedules
+
+  **Commits:** `c172b6ee6`, `1ce787536`, `d20207720`, `4edc17921`, `032f303e1`, `83b2ca57a`
 
 **Session Fixes (2026-05-12 — Full System Audit & Fix Sprint):**
 
