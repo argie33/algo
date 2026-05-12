@@ -1197,6 +1197,17 @@ class Orchestrator:
             )
             self.phase_results[5]['signals_evaluated'] = len(qualified)
             return True
+        except RuntimeError as e:
+            logger.critical(f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}")
+            try:
+                from algo_metrics import MetricsPublisher
+                with MetricsPublisher(dry_run=self.dry_run) as _m:
+                    _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
+            except Exception:
+                pass
+            self.log_phase_result(5, 'signal_generation', 'halt', str(e))
+            self._qualified_trades = []
+            return True
         except Exception as e:
             traceback.print_exc()
             self.log_phase_result(5, 'signal_generation', 'error', str(e))
