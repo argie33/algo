@@ -935,6 +935,29 @@ class Orchestrator:
             from algo_trade_executor import TradeExecutor
             from algo_exit_engine import ExitEngine
 
+            # Detect Phase 3 crash: if position monitor errored, _position_recs is []
+            # but we may have real open positions. Log a critical alert so we know.
+            position_recs = getattr(self, '_position_recs', None)
+            if position_recs is None:
+                logger.critical("Phase 4: _position_recs not set — Phase 3 may not have run")
+            elif len(position_recs) == 0:
+                # Check whether there are actually open positions to distinguish
+                # "no positions" from "Phase 3 crashed with fail-open"
+                try:
+                    import psycopg2
+                    conn_chk = psycopg2.connect(**_get_db_config())
+                    with conn_chk:
+                        with conn_chk.cursor() as cur_chk:
+                            cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                            open_count = cur_chk.fetchone()[0]
+                    if open_count > 0:
+                        logger.error(
+                            f"Phase 4: _position_recs is empty but {open_count} open positions exist "
+                            "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
+                        )
+                except Exception:
+                    pass
+
             executor = TradeExecutor(self.config)
             exit_count = 0
             stop_raises = 0
