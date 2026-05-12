@@ -451,7 +451,7 @@ class TradeExecutor:
                 """
                 INSERT INTO algo_trades (
                     trade_id, symbol, signal_date, trade_date,
-                    entry_price, entry_quantity, entry_reason,
+                    entry_time, entry_price, entry_quantity, entry_reason,
                     stop_loss_price, stop_loss_method,
                     target_1_price, target_1_r_multiple,
                     target_2_price, target_2_r_multiple,
@@ -467,7 +467,7 @@ class TradeExecutor:
                     reentry_count, prior_trade_id,
                     created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
@@ -482,7 +482,7 @@ class TradeExecutor:
                 )
                 """,
                 (
-                    trade_id, symbol, signal_date, entry_date,  # entry_date is when trade actually enters
+                    trade_id, symbol, signal_date, entry_date,
                     executed_price, shares, entry_reason,
                     stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),
