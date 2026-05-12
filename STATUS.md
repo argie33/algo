@@ -3,6 +3,14 @@
 **Last Updated:** 2026-05-12 (architecture redesign)
 **Project Status:** ✅ **ARCHITECTURE REDESIGNED** — Step Functions pipeline, batch loaders, weekly financials, Alpaca API
 
+**Session Work (2026-05-12 — Pipeline Lifecycle + API Audit Fix Sprint):**
+
+  - ✅ `terraform/main.tf`: `data_bucket_name` was missing from IAM module call → ECS tasks had no S3 access since deployment. Fixed.
+  - ✅ `algo_circuit_breaker.py`: `check_all()` ran drawdown check before daily_loss — a session loss halt would miss. Reordered: daily_loss → drawdown → drawdown_re_engagement → consecutive_losses → soft checks.
+  - ✅ `webapp/lambda/routes/sentiment.js`: Added `GET /api/sentiment/analyst/insights/:symbol`. Called by Sentiment.jsx and StockDetail.jsx but endpoint didn't exist — 404 on every stock detail and analyst tab. Returns metrics/momentum/recentUpgrades from analyst_sentiment_analysis + analyst_upgrade_downgrade tables.
+  - **Audit finding:** 9 of 12 "missing" API endpoints were actually implemented (algo.js, commodities.js, sectors.js, market.js, financials.js, stocks.js all had their routes). signal_trade_performance table already exists in init.sql.
+  - **Commit:** `b910dd474`
+
 **Session Work (2026-05-12 — Data Loading Architecture Redesign):**
 
   - ✅ Step Functions EOD pipeline (`terraform/modules/pipeline/`): eod_bulk → technicals → [trend+scores+factors] → [7 signals parallel] → algo_metrics → orchestrator Lambda
