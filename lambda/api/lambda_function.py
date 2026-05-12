@@ -284,7 +284,8 @@ class APIHandler:
         try:
             self.cur.execute("""
                 SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_quantity,
-                       exit_price, exit_quantity, entry_reason, status, created_at
+                       exit_price, exit_date, exit_reason, profit_loss_pct, entry_reason,
+                       status, created_at
                 FROM algo_trades
                 ORDER BY trade_date DESC, trade_id DESC
                 LIMIT %s
