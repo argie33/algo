@@ -141,9 +141,11 @@ class StockScoresLoader(OptimalLoader):
         if not rows:
             return []
 
+        today = str(date.today())
         validated = []
         for row in rows:
             # PHASE 1: Validate every score
+            # score_date not stored in stock_scores schema — pass today's date for validation only
             is_valid, errors = validate_score_tick(
                 symbol=row.get('symbol'),
                 composite_score=row.get('composite_score'),
@@ -151,7 +153,7 @@ class StockScoresLoader(OptimalLoader):
                 value_score=row.get('value_score'),
                 quality_score=row.get('quality_score'),
                 growth_score=row.get('growth_score'),
-                score_date=row.get('score_date'),
+                score_date=today,
             )
 
             if not is_valid:
@@ -169,7 +171,7 @@ class StockScoresLoader(OptimalLoader):
             if self.tracker:
                 self.tracker.record_tick(
                     symbol=row.get('symbol'),
-                    tick_date=row.get('score_date'),
+                    tick_date=today,
                     data=row,
                     source_api='internal_compute',
                 )
@@ -182,10 +184,7 @@ class StockScoresLoader(OptimalLoader):
         """Validate score row."""
         if not super()._validate_row(row):
             return False
-        return (
-            0 <= row.get("composite_score", 0) <= 100
-            and row.get("score_date") is not None
-        )
+        return 0 <= row.get("composite_score", 0) <= 100
 
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""

@@ -80,9 +80,8 @@ class TrendTemplateDataLoader(OptimalLoader):
                             "minervini_trend_score": float(trend_score),
                             "percent_from_52w_low": float(minervini_result.get("percent_from_52w_low", 0)),
                             "percent_from_52w_high": float(minervini_result.get("percent_from_52w_high", 0)),
-                            "trend_strength": "strong" if trend_score >= 6 else ("moderate" if trend_score >= 4 else "weak"),
                             "trend_direction": trend_direction,
-                            "trend_confirmation": trend_confirmation,
+                            "consolidation_flag": trend_confirmation,
                             "weinstein_stage": int(weinstein_stage),
                         }
                         rows.append(row)
