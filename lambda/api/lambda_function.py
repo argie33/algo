@@ -706,12 +706,15 @@ class APIHandler:
                     bsd.mansfield_rs, bsd.sata_score, bsd.rs_rating,
                     bsd.avg_volume_50d, bsd.volume_surge_pct,
                     ss.company_name, cp.sector, cp.industry,
-                    swg.swing_score, swg.grade, swg.pass_gates, swg.fail_reason
+                    swg.score AS swing_score,
+                    swg.components->>'grade' AS grade,
+                    swg.components->>'pass_gates' AS pass_gates,
+                    swg.components->>'fail_reason' AS fail_reason
                 FROM buy_sell_daily bsd
                 LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
-                LEFT JOIN swing_scores_daily swg ON bsd.symbol = swg.symbol
-                    AND swg.eval_date >= CURRENT_DATE - INTERVAL '1 day'
+                LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
+                    AND swg.date >= CURRENT_DATE - INTERVAL '1 day'
                 WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
                 ORDER BY bsd.signal_triggered_date DESC, bsd.date DESC
                 LIMIT %s
