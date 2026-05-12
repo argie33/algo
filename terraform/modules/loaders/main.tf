@@ -599,3 +599,117 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
     arn = aws_sqs_queue.loader_dlq.arn
   }
 }
+
+# ============================================================
+# Continuous Monitor — ECS Task + EventBridge (every 15 min)
+# Runs algo_continuous_monitor.py --once; script self-skips outside market hours
+# ============================================================
+
+resource "null_resource" "ensure_continuous_monitor_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-continuous-monitor --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "continuous_monitor" {
+  depends_on = [null_resource.ensure_continuous_monitor_log_group]
+
+  family = "${var.project_name}-continuous-monitor"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-continuous-monitor"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+      command   = ["--once"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-continuous-monitor"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER",     valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "LOADER_FILE", value = "algo_continuous_monitor.py" },
+        { name = "AWS_REGION",  value = var.aws_region },
+        { name = "DB_HOST",     value = var.db_host },
+        { name = "DB_PORT",     value = tostring(var.db_port) },
+        { name = "DB_NAME",     value = var.db_name }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "continuous_monitor" {
+  name                = "${var.project_name}-continuous-monitor-${var.environment}"
+  description         = "Run continuous monitor every 15 minutes (script skips when market closed)"
+  schedule_expression = "rate(15 minutes)"
+  state               = "ENABLED"
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "continuous_monitor" {
+  rule      = aws_cloudwatch_event_rule.continuous_monitor.name
+  target_id = "ContinuousMonitorTarget"
+  arn       = var.ecs_cluster_arn
+  role_arn  = aws_iam_role.eventbridge_run_task.arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.continuous_monitor.arn
+    task_count          = 1
+    platform_version    = "LATEST"
+
+    network_configuration {
+      subnets          = var.private_subnet_ids
+      security_groups  = [var.ecs_tasks_sg_id]
+      assign_public_ip = false
+    }
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.loader_dlq.arn
+  }
+}
+
+# ============================================================
+# CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
+# ============================================================
+
+resource "aws_cloudwatch_metric_alarm" "loader_dlq_messages" {
+  alarm_name          = "${var.project_name}-loader-dlq-messages-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 1
+  alarm_description   = "One or more EventBridge loader targets failed and landed in the DLQ"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    QueueName = aws_sqs_queue.loader_dlq.name
+  }
+
+  alarm_actions = var.sns_alert_topic_arn != "" ? [var.sns_alert_topic_arn] : []
+
+  tags = var.common_tags
+}

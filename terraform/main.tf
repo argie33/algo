@@ -164,6 +164,7 @@ module "loaders" {
   ecr_repository_uri      = module.compute.ecr_repository_url
   vpc_id                  = module.vpc.vpc_id
   common_tags             = local.common_tags
+  sns_alert_topic_arn     = coalesce(module.services.sns_alerts_topic_arn, "")
 }
 
 module "services" {
