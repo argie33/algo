@@ -28,6 +28,13 @@ import os
 import sys
 import argparse
 import psycopg2
+
+# Lazy credential loading (try local first, fail gracefully in CI)
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 import secrets
 import string
 from typing import Dict, Optional

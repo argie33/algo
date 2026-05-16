@@ -37,7 +37,11 @@ SIGNALS IMPLEMENTED:
       Detects breakout from a pivot high (Livermore line of least resistance).
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

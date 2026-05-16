@@ -31,7 +31,11 @@ from enum import Enum
 from pathlib import Path
 from dotenv import load_dotenv
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 from structured_logger import get_logger, set_trace_id
 
 env_file = Path(__file__).parent / '.env.local'

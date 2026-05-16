@@ -28,7 +28,11 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 from structured_logger import get_logger
 
 env_file = Path(__file__).parent / '.env.local'

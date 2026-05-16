@@ -18,7 +18,11 @@ When defensive_lead_score >= 60, the market exposure model reduces the
 composite score by 5-10 points (handled in algo_market_exposure.py).
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

@@ -8,7 +8,11 @@ Support line = two recent lows with an uptrend angle.
 HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

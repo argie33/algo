@@ -24,7 +24,11 @@ Each tier has a complete action profile that the orchestrator applies
 in Phase 2.5 (between circuit breakers and position monitor).
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

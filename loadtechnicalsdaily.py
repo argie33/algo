@@ -16,7 +16,11 @@ USAGE:
   python3 loadtechnicalsdaily.py --symbol AAPL  # single symbol
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

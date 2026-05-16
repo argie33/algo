@@ -22,7 +22,11 @@ from typing import List, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

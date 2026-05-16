@@ -20,7 +20,11 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

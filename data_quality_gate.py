@@ -21,7 +21,11 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple, Optional
 import statistics
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 from pathlib import Path
 from dotenv import load_dotenv
 

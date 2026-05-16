@@ -31,7 +31,11 @@ Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

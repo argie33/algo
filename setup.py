@@ -6,7 +6,11 @@ Prompts for credentials, validates, writes .env.local, tests everything.
 Safe: checks existing env vars, validates inputs, backs up old .env.local
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

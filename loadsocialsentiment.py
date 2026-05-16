@@ -18,7 +18,11 @@ from typing import Optional, Dict, List
 import json
 
 from optimal_loader import OptimalLoader
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 credential_manager = get_credential_manager()
 

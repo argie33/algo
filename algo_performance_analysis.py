@@ -18,7 +18,11 @@ USAGE:
     # Generates PERFORMANCE_ANALYSIS_REPORT.md
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

@@ -18,7 +18,11 @@ USAGE (called by run_eod_loaders.sh + manually):
   python3 algo_data_remediation.py --dry-run
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

@@ -23,7 +23,11 @@ USAGE:
   python3 backfill_historical_scores.py --days 30 --symbols AAPL,NVDA  # subset for testing
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

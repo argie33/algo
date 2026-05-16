@@ -51,7 +51,11 @@ After every phase, results are written to algo_audit_log so the dashboard
 can show exactly what happened and when.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

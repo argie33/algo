@@ -12,7 +12,11 @@ critical market health and trend template data for historical periods.
 Run once, or schedule daily for incremental updates.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os

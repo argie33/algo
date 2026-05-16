@@ -26,7 +26,11 @@ Design notes:
     - Failures gracefully default to neutral when data is missing.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 credential_manager = get_credential_manager()
 
 import os
