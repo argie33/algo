@@ -6,64 +6,42 @@ const router = express.Router();
 // GET / - Get portfolio overview
 router.get("/", async (req, res) => {
   try {
-    // Get algorithm positions (empty but valid response)
+    // Get algorithm positions - correct column names from algo_positions schema
     const positions = await query(`
-      SELECT 
+      SELECT
         symbol,
-        entry_date,
+        created_at as entry_date,
         quantity,
-        entry_price,
+        avg_entry_price as entry_price,
         current_price,
-        pnl,
-        pnl_percent,
+        unrealized_pnl as pnl,
+        unrealized_pnl_pct as pnl_percent,
         status
       FROM algo_positions
-      WHERE status IN ('open', 'pending')
-      ORDER BY entry_date DESC
+      WHERE closed_at IS NULL
+      ORDER BY created_at DESC
       LIMIT 50
-    `).catch(() => []);
+    `);
 
-    // Get portfolio snapshot if available
-    const snapshot = await query(`
-      SELECT
-        total_portfolio_value,
-        total_cash,
-        total_equity,
-        realized_pnl_today,
-        daily_return_pct,
-        snapshot_date
-      FROM algo_portfolio_snapshots
-      ORDER BY snapshot_date DESC
-      LIMIT 1
-    `).catch(() => []);
+    // Get portfolio summary from positions
+    const totalValue = positions.reduce((sum, p) => sum + (p.current_price * p.quantity || 0), 0);
+    const totalPnL = positions.reduce((sum, p) => sum + (p.pnl || 0), 0);
 
-    // Calculate summary stats
     const summary = {
       total_positions: positions.length,
-      total_value: snapshot.length > 0 ? snapshot[0].total_portfolio_value : 0,
-      cash_available: snapshot.length > 0 ? snapshot[0].total_cash : 0,
-      daily_pnl: snapshot.length > 0 ? snapshot[0].realized_pnl_today : 0,
-      daily_pnl_percent: snapshot.length > 0 ? snapshot[0].daily_return_pct : 0
+      total_value: totalValue,
+      cash_available: 0,
+      daily_pnl: totalPnL,
+      daily_pnl_percent: totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0
     };
 
     sendSuccess(res, {
       summary,
       positions,
-      latest_snapshot: snapshot.length > 0 ? snapshot[0] : null
-    }, 200);
-  } catch (error) {
-    // Return empty but valid portfolio on error
-    sendSuccess(res, {
-      summary: {
-        total_positions: 0,
-        total_value: 0,
-        cash_available: 0,
-        daily_pnl: 0,
-        daily_pnl_percent: 0
-      },
-      positions: [],
       latest_snapshot: null
     }, 200);
+  } catch (error) {
+    sendError(res, `Failed to retrieve portfolio: ${error.message}`, 500);
   }
 });
 
@@ -71,25 +49,22 @@ router.get("/", async (req, res) => {
 router.get("/holdings", async (req, res) => {
   try {
     const holdings = await query(`
-      SELECT 
+      SELECT
         symbol,
         quantity,
-        average_cost,
+        avg_entry_price as average_cost,
         current_price,
-        value,
-        gain_loss,
-        gain_loss_percent,
-        sector,
-        industry
-      FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.symbol
-      WHERE quantity > 0
-      ORDER BY value DESC
-    `).catch(() => []);
+        (quantity * current_price) as value,
+        unrealized_pnl as gain_loss,
+        unrealized_pnl_pct as gain_loss_percent
+      FROM algo_positions
+      WHERE closed_at IS NULL AND quantity > 0
+      ORDER BY (quantity * current_price) DESC
+    `);
 
     sendSuccess(res, holdings, 200);
   } catch (error) {
-    sendSuccess(res, [], 200);
+    sendError(res, `Failed to retrieve holdings: ${error.message}`, 500);
   }
 });
 

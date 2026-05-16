@@ -1952,8 +1952,8 @@ class APIHandler:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit = int(params.get('limit', [50])[0]) if params else 50
                 self.cur.execute("""
-                    SELECT run_id AS id, strategy_name, start_date, end_date, total_return,
-                           sharpe_ratio, max_drawdown, win_rate, num_trades AS total_trades
+                    SELECT run_id AS id, strategy_name, date_start AS start_date, date_end AS end_date, total_return_pct AS total_return,
+                           sharpe_annualized AS sharpe_ratio, max_drawdown_pct AS max_drawdown, win_rate, total_trades
                     FROM backtest_runs
                     ORDER BY created_at DESC
                     LIMIT %s
@@ -1996,7 +1996,7 @@ class APIHandler:
                     SELECT trade_id, symbol, signal_date, trade_date, entry_time,
                            entry_price, entry_quantity, entry_reason,
                            exit_price, exit_date, exit_reason,
-                           stop_loss_price, status, realized_pnl, realized_pnl_pct,
+                           stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
                            execution_mode, created_at
                     FROM algo_trades
                     WHERE 1=1

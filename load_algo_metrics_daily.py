@@ -151,6 +151,15 @@ class AlgoMetricsLoader:
                 logger.info(f"  {key:.<30} {val:>10}")
             logger.info()
 
+            # Refresh materialized view for prices endpoints
+            try:
+                logger.info("Refreshing materialized view: mv_latest_prices...")
+                self.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_prices")
+                self.conn.commit()
+                logger.info("  OK")
+            except Exception as e:
+                logger.warning(f"  FAILED: {e} (non-blocking)")
+
             return True
 
         except Exception as e:
@@ -443,10 +452,17 @@ class AlgoMetricsLoader:
             return False
 
     def load_signal_quality_scores(self, symbols, date_obj):
-        """Load Signal Quality Scores (composite ranking)."""
+        """Load Signal Quality Scores (composite ranking).
+
+        Calculates SQS from available technical data rather than depending on
+        trend_template_data. Uses: RSI, momentum, ATR, price position.
+        """
         try:
             for symbol in symbols:
-                # Get trend template data
+                # Try to get trend template data if available, otherwise calculate from technicals
+                trend_score = None
+                stage = None
+
                 query = """
                     SELECT minervini_trend_score, weinstein_stage
                     FROM trend_template_data
@@ -455,14 +471,47 @@ class AlgoMetricsLoader:
                 self.execute(query, (symbol, date_obj))
                 result = self.cur.fetchone()
 
-                if not result:
-                    continue
+                if result:
+                    trend_score = result[0] if result[0] else 0
+                    stage = result[1] if result[1] else 1
+                else:
+                    # Fallback: Calculate SQS from technical data
+                    # Get RSI, momentum, and price data for the date
+                    query = """
+                        SELECT rsi, close, open
+                        FROM technical_data_daily
+                        WHERE symbol = %s AND date = %s
+                        LIMIT 1
+                    """
+                    self.execute(query, (symbol, date_obj))
+                    tech_result = self.cur.fetchone()
 
-                trend_score = result[0] if result[0] else 0
-                stage = result[1] if result[1] else 1
+                    if not tech_result:
+                        continue
+
+                    rsi = tech_result[0] if tech_result[0] else 50
+                    close = tech_result[1] if tech_result[1] else 0
+                    open_price = tech_result[2] if tech_result[2] else close
+
+                    # Simple SQS calculation from technical indicators
+                    # RSI > 60 = bullish, RSI < 40 = bearish
+                    # Price > open = momentum
+                    # Score: 0-100
+                    sqs = 50  # neutral baseline
+
+                    if rsi and rsi > 60:
+                        sqs += (rsi - 60) * 0.5  # Add up to 20 points for strong RSI
+                    elif rsi and rsi < 40:
+                        sqs -= (40 - rsi) * 0.5  # Subtract for weak RSI
+
+                    if close > open_price:
+                        sqs += 10  # Add points for bullish candle
+
+                    trend_score = sqs / 10  # Convert to 0-10 scale
+                    stage = 2 if sqs > 60 else (4 if sqs < 40 else 1)
 
                 # Calculate composite SQS
-                sqs = min(100, trend_score * 10 + (stage == 2) * 10)
+                sqs = min(100, trend_score * 10 + (stage == 2) * 10) if trend_score is not None else 0
 
                 # Insert
                 query = """
@@ -473,7 +522,6 @@ class AlgoMetricsLoader:
                     ON CONFLICT (symbol, date) DO UPDATE SET
                         composite_sqs = EXCLUDED.composite_sqs
                 """
-                # Note: Simplified for now, will expand with more factors
                 self.execute(query, (symbol, date_obj, trend_score, sqs))
 
                 self.stats['sqs'] += 1
