@@ -27,6 +27,7 @@ tier_1b_aggregates = [
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
 # Note: Annual/quarterly financial data consolidated via load_income_statement.py, load_balance_sheet.py, load_cash_flow.py
 tier_2_reference = [
+    'loadcompanyprofile.py',
     'load_income_statement.py', 'load_balance_sheet.py', 'load_cash_flow.py',
     'loadttmincomestatement.py', 'loadttmcashflow.py',
     'loadearningshistory.py', 'loadearningsrevisions.py',

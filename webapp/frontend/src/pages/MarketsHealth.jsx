@@ -237,10 +237,9 @@ export default function MarketsHealth() {
         <SentimentCompositeCard markets={m} sentiment={sentimentData} />
       </div>
 
-      {/* ──────────── 19-20. Economic + Earnings Calendars ──────────── */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+      {/* ──────────── 19. Economic Calendar ──────────── */}
+      <div style={{ marginTop: 'var(--space-4)' }}>
         <EconomicCalendarCard />
-        <EarningsCalendarCard onSelect={(sym) => navigate(`/app/stock/${sym}`)} />
       </div>
     </div>
   );
@@ -1853,89 +1852,6 @@ function EconomicCalendarCard() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 20. EARNINGS CALENDAR
-// ═══════════════════════════════════════════════════════════════════════════
-
-function EarningsCalendarCard({ onSelect }) {
-  const { data, loading, error } = useApiQuery(
-    ['earnings-calendar-upcoming'],
-    () => api.get('/api/earnings/calendar?period=upcoming&limit=25')
-      .then(r => r.data?.items || r.data?.data?.items || []),
-    { refetchInterval: 1000 * 60 * 30 }
-  );
-
-  if (loading && !data) return <Empty title="Earnings Calendar" desc="Loading…" wrap />;
-  const allRows = Array.isArray(data) ? data : (data?.items || []);
-  const rows = allRows;
-
-  return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <div className="card-title">
-            Earnings Calendar · upcoming
-            {allRows.length > 20 && <span className="t-xs muted" style={{ marginLeft: 8 }}>({rows.length} of {allRows.length})</span>}
-          </div>
-          <div className="card-sub">Top reporters · est EPS · prior · click → stock detail</div>
-        </div>
-      </div>
-      <div className="card-body" style={{ padding: 0 }}>
-        {error || rows.length === 0 ? (
-          <Empty title="No upcoming earnings" desc="No reports scheduled for the upcoming window" />
-        ) : (
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', fontSize: 'var(--t-xs)' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left',  padding: 'var(--space-2) var(--space-3)' }}>Date</th>
-                  <th style={{ textAlign: 'left',  padding: 'var(--space-2) var(--space-3)' }}>Symbol</th>
-                  <th style={{ textAlign: 'right', padding: 'var(--space-2) var(--space-3)' }}>Est EPS</th>
-                  <th style={{ textAlign: 'right', padding: 'var(--space-2) var(--space-3)' }}>Prior</th>
-                  <th style={{ textAlign: 'right', padding: 'var(--space-2) var(--space-3)' }}>Surprise</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => {
-                  const surprise = r.eps_surprise_pct != null ? parseFloat(r.eps_surprise_pct) : null;
-                  return (
-                    <tr key={`${r.symbol}-${i}`}
-                        style={{ borderTop: '1px solid var(--border-soft)', cursor: 'pointer' }}
-                        onClick={() => onSelect && onSelect(r.symbol)}>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--text-muted)' }}>
-                        {fmtDate(r.quarter)}
-                      </td>
-                      <td style={{ padding: 'var(--space-2) var(--space-3)' }}>
-                        <span className="mono" style={{ fontWeight: 'var(--w-bold)' }}>{r.symbol}</span>
-                        {r.fiscal_quarter && r.fiscal_year && (
-                          <span className="t-2xs faint" style={{ marginLeft: 6 }}>{r.fiscal_year}{r.fiscal_quarter}</span>
-                        )}
-                      </td>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right' }}>
-                        {r.eps_estimate != null ? num(r.eps_estimate, 2) : '—'}
-                      </td>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: 'var(--text-muted)' }}>
-                        {r.eps_actual != null ? num(r.eps_actual, 2) : '—'}
-                      </td>
-                      <td className="mono tnum" style={{
-                        padding: 'var(--space-2) var(--space-3)', textAlign: 'right',
-                        color: surprise == null ? 'var(--text-muted)'
-                          : surprise >= 0 ? 'var(--success)' : 'var(--danger)',
-                        fontWeight: 'var(--w-semibold)',
-                      }}>
-                        {surprise == null ? '—' : fmtPct(surprise, 1)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EMPTY HELPER
