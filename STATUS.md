@@ -1,7 +1,26 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 17: Local Setup Complete & Verified)  
-**Status:** 🟢 **SCHEMA INITIALIZED** | Database ready | Loaders ready | All docs updated
+**Last Updated:** 2026-05-16 (Session 11: Terraform API Gateway Fix in Progress)  
+**Status:** 🟡 **DEPLOYING FIX** | Deleting stuck API route and recreating with correct auth | Monitoring run #328
+
+---
+
+## 🔧 SESSION 11: IaC FIX FOR TERRAFORM APPLY BLOCKER (2026-05-16)
+
+**Problem:** API Gateway route has JWT auth despite `cognito_enabled=false`. Terraform can't update it in-place.
+
+**Solution:** Fully automated IaC fix in GitHub Actions workflow:
+1. **Query AWS** to get route ID
+2. **Delete route** from AWS (using AWS CLI)
+3. **Remove from state** (Terraform state rm)
+4. **Terraform plan/apply** recreates route with `authorization_type = NONE`
+
+**Status:** 
+- ✅ Fix code committed (4a432e75f)
+- ⏳ Deployment #328 in progress
+- 🔍 Monitoring for success
+
+**Why this approach?** IaC-compliant (no manual AWS work), fully automated, works within deployment pipeline.
 
 ---
 
