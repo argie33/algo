@@ -1307,41 +1307,99 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/sectors and /api/sectors/* endpoints."""
+        """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
             if path in ('/api/sectors', '/api/sectors/performance'):
                 limit = int(params.get('limit', [20])[0]) if params else 20
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
+
                 self.cur.execute("""
-                    SELECT sector,
-                           AVG(return_pct) as avg_return_pct,
-                           AVG(relative_strength) as avg_relative_strength
-                    FROM sector_performance
-                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                    GROUP BY sector
-                    ORDER BY avg_return_pct DESC
+                    WITH sector_scores AS (
+                        SELECT
+                            cp.sector as sector_name,
+                            COUNT(DISTINCT cp.symbol) as stock_count,
+                            AVG(ss.composite_score) as composite_score,
+                            AVG(ss.momentum_score) as momentum_score,
+                            AVG(ss.value_score) as value_score,
+                            AVG(ss.quality_score) as quality_score,
+                            AVG(ss.growth_score) as growth_score,
+                            AVG(ss.stability_score) as stability_score
+                        FROM company_profile cp
+                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
+                        GROUP BY cp.sector
+                    ),
+                    ranked AS (
+                        SELECT *,
+                            RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
+                        FROM sector_scores
+                    ),
+                    sector_pe AS (
+                        SELECT
+                            cp.sector,
+                            AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
+                            AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
+                        FROM (SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe FROM value_metrics ORDER BY symbol, date DESC) vm
+                        JOIN company_profile cp ON vm.symbol = cp.symbol
+                        WHERE cp.sector IS NOT NULL
+                        GROUP BY cp.sector
+                    ),
+                    sector_pe_ranked AS (
+                        SELECT *,
+                            PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+                        FROM sector_pe
+                    )
+                    SELECT r.*, spe.avg_trailing_pe, spe.avg_forward_pe, spe.pe_percentile
+                    FROM ranked r
+                    LEFT JOIN sector_pe_ranked spe ON spe.sector = r.sector_name
+                    ORDER BY r.current_rank, r.stock_count DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
-                sectors = self.cur.fetchall()
-                self.cur.execute("""
-                    SELECT COUNT(DISTINCT sector) FROM sector_performance
-                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                """)
+
+                sectors_data = self.cur.fetchall()
+                self.cur.execute("""SELECT COUNT(DISTINCT sector) FROM company_profile WHERE sector IS NOT NULL""")
                 total = self.cur.fetchone()[0]
+
+                sectors = []
+                for row in sectors_data:
+                    s = dict(row)
+                    composite = float(s.get('composite_score') or 0)
+                    perf20d = float(s.get('perf_20d') or 0)
+                    momentum_label = 'Strong' if composite >= 60 else 'Moderate' if composite >= 45 else 'Weak'
+                    trend_label = 'Uptrend' if perf20d > 2 else 'Downtrend' if perf20d < -2 else 'Sideways'
+
+                    sectors.append({
+                        'sector_name': s.get('sector_name'),
+                        'current_rank': int(s.get('current_rank') or 0),
+                        'stock_count': int(s.get('stock_count') or 0),
+                        'composite_score': float(s.get('composite_score') or 0),
+                        'momentum_score': float(s.get('momentum_score') or 0),
+                        'value_score': float(s.get('value_score') or 0),
+                        'quality_score': float(s.get('quality_score') or 0),
+                        'growth_score': float(s.get('growth_score') or 0),
+                        'stability_score': float(s.get('stability_score') or 0),
+                        'current_momentum': momentum_label,
+                        'current_trend': trend_label,
+                        'pe': {
+                            'trailing': float(s.get('avg_trailing_pe') or 0),
+                            'forward': float(s.get('avg_forward_pe') or 0),
+                            'percentile': float(s.get('pe_percentile') or 0)
+                        }
+                    })
+
                 return json_response(200, {
-                    'data': [dict(s) for s in sectors],
+                    'data': sectors,
                     'total': total,
                     'page': page,
                     'limit': limit,
                 })
             elif '/trend' in path:
-                # /api/sectors/{name}/trend
                 parts = path.split('/')
                 sector_name = parts[3] if len(parts) > 3 else None
                 days = int(params.get('days', [90])[0]) if params else 90
                 if not sector_name:
-                    return error_response(500, 'database_error', str(e))
+                    return error_response(400, 'bad_request', 'Sector name required')
                 self.cur.execute("""
                     SELECT date, sector, return_pct, relative_strength
                     FROM sector_performance
@@ -1356,14 +1414,14 @@ class APIHandler:
             return error_response(500, 'database_error', f'Sectors query failed: {str(e)}')
 
     def _handle_industries(self, path: str, params: Dict) -> Dict:
-        """Handle /api/industries and /api/industries/{name}/trend."""
+        """Handle /api/industries and /api/industries/{name}/trend - return full ranking data."""
         try:
             if '/trend' in path:
                 parts = path.split('/')
                 industry_name = parts[3] if len(parts) > 3 else None
                 days = int(params.get('days', [90])[0]) if params else 90
                 if not industry_name:
-                    return error_response(500, 'database_error', str(e))
+                    return error_response(400, 'bad_request', 'Industry name required')
                 self.cur.execute("""
                     SELECT date, industry, return_pct
                     FROM industry_performance
@@ -1374,17 +1432,91 @@ class APIHandler:
                 return json_response(200, [dict(r) for r in rows])
             else:
                 limit = int(params.get('limit', [500])[0]) if params else 500
+                page = int(params.get('page', [1])[0]) if params else 1
+                offset = (page - 1) * limit
+
                 self.cur.execute("""
-                    SELECT DISTINCT industry, sector,
-                           COUNT(*) as stock_count
-                    FROM company_profile
-                    WHERE industry IS NOT NULL AND industry != ''
-                    GROUP BY industry, sector
-                    ORDER BY sector, industry
-                    LIMIT %s
-                """, (limit,))
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                    WITH industry_scores AS (
+                        SELECT
+                            cp.industry,
+                            cp.sector,
+                            COUNT(DISTINCT cp.symbol) as stock_count,
+                            AVG(ss.composite_score) as composite_score,
+                            AVG(ss.momentum_score) as momentum_score,
+                            AVG(ss.value_score) as value_score,
+                            AVG(ss.quality_score) as quality_score,
+                            AVG(ss.growth_score) as growth_score,
+                            AVG(ss.stability_score) as stability_score
+                        FROM company_profile cp
+                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
+                        GROUP BY cp.industry, cp.sector
+                    ),
+                    ranked AS (
+                        SELECT *,
+                            RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
+                        FROM industry_scores
+                    ),
+                    industry_pe AS (
+                        SELECT
+                            cp.industry,
+                            AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
+                            AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
+                        FROM (SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe FROM value_metrics ORDER BY symbol, date DESC) vm
+                        JOIN company_profile cp ON vm.symbol = cp.symbol
+                        WHERE cp.industry IS NOT NULL
+                        GROUP BY cp.industry
+                    ),
+                    industry_pe_ranked AS (
+                        SELECT *,
+                            PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+                        FROM industry_pe
+                    )
+                    SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile
+                    FROM ranked r
+                    LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
+                    ORDER BY r.current_rank, r.stock_count DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+
+                industries_data = self.cur.fetchall()
+                self.cur.execute("""SELECT COUNT(DISTINCT industry) FROM company_profile WHERE industry IS NOT NULL""")
+                total = self.cur.fetchone()[0]
+
+                industries = []
+                for row in industries_data:
+                    ind = dict(row)
+                    composite = float(ind.get('composite_score') or 0)
+                    perf20d = float(ind.get('perf_20d') or 0)
+                    momentum_label = 'Strong' if composite >= 60 else 'Moderate' if composite >= 45 else 'Weak'
+                    trend_label = 'Uptrend' if perf20d > 2 else 'Downtrend' if perf20d < -2 else 'Sideways'
+
+                    industries.append({
+                        'industry': ind.get('industry'),
+                        'sector': ind.get('sector'),
+                        'current_rank': int(ind.get('current_rank') or 0),
+                        'stock_count': int(ind.get('stock_count') or 0),
+                        'composite_score': float(ind.get('composite_score') or 0),
+                        'momentum_score': float(ind.get('momentum_score') or 0),
+                        'value_score': float(ind.get('value_score') or 0),
+                        'quality_score': float(ind.get('quality_score') or 0),
+                        'growth_score': float(ind.get('growth_score') or 0),
+                        'stability_score': float(ind.get('stability_score') or 0),
+                        'current_momentum': momentum_label,
+                        'current_trend': trend_label,
+                        'pe': {
+                            'trailing': float(ind.get('avg_trailing_pe') or 0),
+                            'forward': float(ind.get('avg_forward_pe') or 0),
+                            'percentile': float(ind.get('pe_percentile') or 0)
+                        }
+                    })
+
+                return json_response(200, {
+                    'data': industries,
+                    'total': total,
+                    'page': page,
+                    'limit': limit,
+                })
         except Exception as e:
             logger.error(f"Error in industries handler: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
