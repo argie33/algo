@@ -375,39 +375,47 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
     def _get_algo_performance(self) -> Dict:
-        """Get algo performance metrics."""
+        """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
         try:
+            import numpy as np
             self.cur.execute("""
-                SELECT
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN exit_price > entry_price THEN 1 ELSE 0 END) as winning_trades,
-                    COALESCE(AVG(CASE WHEN entry_price > 0 THEN (exit_price - entry_price) / entry_price * 100 END), 0) as avg_return_pct,
-                    COALESCE(MAX(CASE WHEN exit_price > 0 THEN (exit_price - entry_price) / entry_price * 100 END), 0) as best_trade_pct,
-                    COALESCE(MIN(CASE WHEN exit_price > 0 THEN (exit_price - entry_price) / entry_price * 100 END), 0) as worst_trade_pct
-                FROM algo_trades
-                WHERE status IN ('closed', 'CLOSED')
+                SELECT trade_id, symbol, entry_date, exit_date, entry_price, exit_price,
+                       entry_quantity, profit_loss_dollars, profit_loss_pct,
+                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - entry_date) as holding_days
+                FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date ASC
             """)
-            row = self.cur.fetchone()
-            if not row:
-                return json_response(200, {
-                    'total_trades': 0,
-                    'winning_trades': 0,
-                    'win_rate': 0.0,
-                    'avg_return_pct': 0.0,
-                })
-
-            total = row['total_trades'] or 0
-            wins = row['winning_trades'] or 0
-            return json_response(200, {
-                'total_trades': total,
-                'winning_trades': wins,
-                'win_rate': (wins / total * 100) if total > 0 else 0.0,
-                'avg_return_pct': float(row['avg_return_pct'] or 0),
-                'best_trade_pct': float(row['best_trade_pct'] or 0),
-                'worst_trade_pct': float(row['worst_trade_pct'] or 0),
-            })
+            trades = [dict(row) for row in self.cur.fetchall()]
+            if not trades:
+                return json_response(200, {'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
+                    'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
+                    'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
+                    'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0})
+            pnls_dollars = [float(t['profit_loss_dollars'] or 0) for t in trades]
+            pnls_pcts = [float(t['profit_loss_pct'] or 0) for t in trades]
+            holding_days = [float(t['holding_days'] or 0) for t in trades if t['holding_days']]
+            winning, losing = sum(1 for p in pnls_dollars if p > 0), sum(1 for p in pnls_dollars if p < 0)
+            total = len(trades)
+            wins_sum, losses_sum = sum(p for p in pnls_dollars if p > 0), abs(sum(p for p in pnls_dollars if p < 0))
+            profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
+            daily_returns = np.array(pnls_pcts) / 100.0
+            mean_ret, std_ret = float(np.mean(daily_returns)), float(np.std(daily_returns))
+            sharpe = (mean_ret / std_ret * np.sqrt(252)) if std_ret > 0 and len(daily_returns) > 1 else 0.0
+            downside = np.array([r for r in daily_returns if r < 0])
+            downside_vol = float(np.std(downside)) if len(downside) > 0 else 0.0
+            sortino = (mean_ret / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0.0
+            cumulative, running_max = np.cumprod(1 + daily_returns), np.maximum.accumulate(np.cumprod(1 + daily_returns))
+            max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+            return json_response(200, {'total_trades': total, 'winning_trades': winning, 'losing_trades': losing,
+                'win_rate': round((winning / total * 100) if total > 0 else 0.0, 2), 'profit_factor': round(profit_factor, 2),
+                'total_pnl_dollars': round(sum(pnls_dollars), 2), 'total_pnl_pct': round(sum(pnls_pcts), 2),
+                'avg_trade_pct': round(float(np.mean(pnls_pcts)) if pnls_pcts else 0.0, 2),
+                'best_trade_pct': round(float(np.max(pnls_pcts)) if pnls_pcts else 0.0, 2),
+                'worst_trade_pct': round(float(np.min(pnls_pcts)) if pnls_pcts else 0.0, 2),
+                'sharpe_ratio': round(sharpe, 2), 'sortino_ratio': round(sortino, 2),
+                'max_drawdown_pct': round(max_dd * 100, 2),
+                'avg_holding_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1)})
         except Exception as e:
-            logger.error(f"get_algo_performance failed: {e}")
+            logger.error(f"get_algo_performance failed: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
 
     def _get_circuit_breakers(self) -> Dict:

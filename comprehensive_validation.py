@@ -27,14 +27,17 @@ def check_api_handlers():
 
     # Load the lambda function
     try:
-        from lambda.api.lambda_function import APIHandler
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("lambda_function", "lambda/api/lambda_function.py")
+        lambda_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lambda_module)
         print("✓ API Lambda imports successfully")
     except Exception as e:
         issues.append(f"✗ API Lambda import failed: {e}")
         return issues
 
     # Check critical endpoints exist
-    handler = APIHandler()
+    handler = lambda_module.APIHandler()
     critical_endpoints = [
         '/api/economic/leading-indicators',
         '/api/economic/yield-curve-full',
