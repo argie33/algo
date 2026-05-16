@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 """
 Optimal loader - the synthesis of every Tier 1 + Tier 2 optimization.
 
@@ -164,7 +165,7 @@ class OptimalLoader(ABC):
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
-            password=_credential_manager.get_db_credentials()["password"],
+            password=_get_db_password(),
             database=os.getenv("DB_NAME", "stocks"),
         )
         self._tls.conn = conn

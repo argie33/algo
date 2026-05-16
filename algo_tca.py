@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 """
 Transaction Cost Analysis (TCA) — Execution quality measurement.
 
@@ -43,7 +44,7 @@ class TCAEngine:
         self.db_host = os.getenv('DB_HOST', 'localhost')
         self.db_port = int(os.getenv('DB_PORT', 5432))
         self.db_user = os.getenv('DB_USER', 'stocks')
-        self.db_password = credential_manager.get_db_credentials()["password"]
+        self.db_password = get_db_password()
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
     def connect(self):

@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 """
 Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure
 
@@ -41,7 +42,7 @@ def _get_db_config():
     db_password = os.getenv("DB_PASSWORD", "")
     if credential_manager:
         try:
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             pass  # Fall back to env var
     return {
@@ -98,9 +99,9 @@ class PortfolioRisk:
             cur.execute(
                 """
                 SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
+                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                 ORDER BY snapshot_date ASC
-                """ % lookback_days,
+                """
             )
             rows = cur.fetchall()
 
@@ -164,9 +165,9 @@ class PortfolioRisk:
             cur.execute(
                 """
                 SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
+                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                 ORDER BY snapshot_date ASC
-                """ % lookback_days,
+                """
             )
             rows = cur.fetchall()
 

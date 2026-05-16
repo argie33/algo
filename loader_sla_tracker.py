@@ -18,6 +18,7 @@ import psycopg2
 from datetime import datetime, date
 from typing import Optional, Dict, List
 import os
+from credential_helper import get_db_password, get_db_config
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -48,7 +49,7 @@ class LoaderSLATracker:
                 host=os.getenv("DB_HOST", "localhost"),
                 port=int(os.getenv("DB_PORT", 5432)),
                 user=os.getenv("DB_USER", "stocks"),
-                password=credential_manager.get_db_credentials()["password"],
+                password=get_db_password(),
                 database=os.getenv("DB_NAME", "stocks"),
             )
 

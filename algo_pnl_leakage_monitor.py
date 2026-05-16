@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, List, Optional
 import logging
+from credential_helper import get_db_password, get_db_config
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": credential_manager.get_db_credentials()["password"],
+    "password": get_db_password(),
     "database": os.getenv("DB_NAME", "stocks"),
 }
 

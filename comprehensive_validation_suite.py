@@ -18,6 +18,7 @@ import sys
 import os
 import time
 from datetime import datetime, date, timedelta
+from credential_helper import get_db_password, get_db_config
 from typing import Dict, List, Tuple, Optional
 import logging
 
@@ -49,7 +50,7 @@ except ImportError:
 
 def get_db():
     """Get database connection."""
-    password = credential_manager.get_db_credentials()["password"] if credential_manager else os.getenv("DB_PASSWORD", "")
+    password = get_db_password() if credential_manager else os.getenv("DB_PASSWORD", "")
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", 5432)),

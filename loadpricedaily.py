@@ -18,6 +18,7 @@ Run:
 """
 
 import argparse
+from credential_helper import get_db_password, get_db_config
 import logging
 import os
 import sys
@@ -95,7 +96,7 @@ class PriceDailyLoader(OptimalLoader):
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
-            password=_credential_manager.get_db_credentials()["password"],
+            password=_get_db_password(),
             database=os.getenv("DB_NAME", "stocks"),
         )
         try:
@@ -203,7 +204,7 @@ class PriceDailyLoader(OptimalLoader):
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
-            password=_credential_manager.get_db_credentials()["password"],
+            password=_get_db_password(),
             database=os.getenv("DB_NAME", "stocks"),
         )
         self.tracker = DataProvenanceTracker(
@@ -233,7 +234,7 @@ def get_active_symbols() -> List[str]:
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "stocks"),
-        password=_credential_manager.get_db_credentials()["password"],
+        password=_get_db_password(),
         database=os.getenv("DB_NAME", "stocks"),
     )
     try:

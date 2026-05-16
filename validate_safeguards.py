@@ -18,6 +18,7 @@ import os
 import sys
 import psycopg2
 from pathlib import Path
+from credential_helper import get_db_password, get_db_config
 from dotenv import load_dotenv
 from datetime import date, timedelta
 import logging
@@ -35,7 +36,7 @@ def _get_db_config():
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": credential_manager.get_db_credentials()["password"],
+    "password": get_db_password(),
     "database": os.getenv("DB_NAME", "stocks"),
     }
 

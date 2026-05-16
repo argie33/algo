@@ -18,6 +18,7 @@ except ImportError:
 
 import os
 import sys
+from credential_helper import get_db_password, get_db_config
 import logging
 import psycopg2
 from datetime import date, datetime, timedelta
@@ -41,7 +42,7 @@ def _get_db_config():
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 5432)),
         "user": os.getenv("DB_USER", "stocks"),
-        "password": credential_manager.get_db_credentials()["password"] if credential_manager else os.getenv("DB_PASSWORD", ""),
+        "password": get_db_password() if credential_manager else os.getenv("DB_PASSWORD", ""),
         "database": os.getenv("DB_NAME", "stocks"),
     }
 

@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
 """
 Circuit Breakers - Kill-switch risk halts (institutional safety layer)
@@ -46,7 +47,7 @@ def _get_db_config():
         try:
             from credential_manager import get_credential_manager
             credential_manager = get_credential_manager()
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             db_password = "postgres"  # Default for local dev
 

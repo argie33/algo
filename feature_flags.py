@@ -18,6 +18,7 @@ Flags stored in database (easy to toggle without deploy):
 import logging
 import os
 import psycopg2
+from credential_helper import get_db_password, get_db_config
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
@@ -40,7 +41,7 @@ def _get_db_config():
         try:
             from credential_manager import get_credential_manager
             credential_manager = get_credential_manager()
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             db_password = "postgres"  # Default for local dev
 

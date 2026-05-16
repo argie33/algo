@@ -18,6 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
+from credential_helper import get_db_password, get_db_config
 from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
 from algo_swing_score import SwingTraderScore
@@ -42,7 +43,7 @@ def _get_db_config():
         try:
             from credential_manager import get_credential_manager
             credential_manager = get_credential_manager()
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             db_password = "postgres"  # Default for local dev
 

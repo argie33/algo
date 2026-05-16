@@ -17,6 +17,7 @@ import sys
 import getpass
 from pathlib import Path
 from dotenv import load_dotenv
+from credential_helper import get_db_password, get_db_config
 
 def print_header(text):
     """Print section header."""
@@ -113,7 +114,7 @@ ALERT_WEBHOOK_URL={config.get('slack_webhook', '')}
 DB_HOST={os.getenv('DB_HOST', 'localhost')}
 DB_PORT={os.getenv('DB_PORT', '5432')}
 DB_USER={os.getenv('DB_USER', 'stocks')}
-DB_PASSWORD={credential_manager.get_db_credentials()["password"]}
+DB_PASSWORD={get_db_password()}
 DB_NAME={os.getenv('DB_NAME', 'stocks')}
 
 # ============================================================

@@ -18,6 +18,7 @@ import sys
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime
+from credential_helper import get_db_password, get_db_config
 
 def connect_db():
     """Connect to PostgreSQL using environment variables."""
@@ -25,7 +26,7 @@ def connect_db():
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
         user=os.getenv("DB_USER", "stocks"),
-        password=credential_manager.get_db_credentials()["password"],
+        password=get_db_password(),
         database=os.getenv("DB_NAME", "stocks")
     )
 

@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
 """
 Backtester Module — Walk-forward optimization and historical performance validation
@@ -44,7 +45,7 @@ if not db_password:
     try:
         from credential_manager import get_credential_manager
         credential_manager = get_credential_manager()
-        db_password = credential_manager.get_db_credentials()["password"]
+        db_password = get_db_password()
     except Exception:
         db_password = "postgres"  # Default for local dev
 

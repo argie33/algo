@@ -18,6 +18,7 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+from credential_helper import get_db_password, get_db_config
 import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP
@@ -45,7 +46,7 @@ def _get_db_config():
         try:
             from credential_manager import get_credential_manager
             credential_manager = get_credential_manager()
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             db_password = "postgres"  # Default for local dev
 

@@ -1,3 +1,4 @@
+from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
 """
 Quantitative Market Exposure Engine - Research-backed 11-factor composite
@@ -65,7 +66,7 @@ def _get_db_config():
     db_password = os.getenv("DB_PASSWORD", "")
     if credential_manager:
         try:
-            db_password = credential_manager.get_db_credentials()["password"]
+            db_password = get_db_password()
         except Exception:
             pass  # Fall back to env var
     return {
@@ -914,25 +915,26 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
+            import json
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed)
+                    (date, exposure_pct, raw_score, regime, factors, halt_reasons)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    market_exposure_pct = EXCLUDED.market_exposure_pct,
-                    long_exposure_pct = EXCLUDED.long_exposure_pct,
-                    short_exposure_pct = EXCLUDED.short_exposure_pct,
-                    exposure_tier = EXCLUDED.exposure_tier,
-                    is_entry_allowed = EXCLUDED.is_entry_allowed
+                    exposure_pct = EXCLUDED.exposure_pct,
+                    raw_score = EXCLUDED.raw_score,
+                    regime = EXCLUDED.regime,
+                    factors = EXCLUDED.factors,
+                    halt_reasons = EXCLUDED.halt_reasons
                 """,
                 (
                     eval_date,
                     exposure_pct,
-                    long_exp,
-                    short_exp,
-                    tier,
-                    is_entry_allowed,
+                    result.get('raw_score', 50),
+                    regime,
+                    json.dumps(result.get('factors', {})),
+                    ';'.join(result.get('halt_reasons', [])),
                 ),
             )
             if self._owned:

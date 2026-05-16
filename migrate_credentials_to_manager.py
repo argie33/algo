@@ -16,6 +16,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from credential_helper import get_db_password, get_db_config
 
 # Files to skip
 SKIP_FILES = {
@@ -29,13 +30,13 @@ PATTERNS = [
     # DB_PASSWORD with empty default
     {
         'pattern': r'os\.getenv\(["\']DB_PASSWORD["\']\s*,\s*["\'][\'"]\)',
-        'replacement': 'credential_manager.get_db_credentials()["password"]',
+        'replacement': 'get_db_password()',
         'description': 'DB_PASSWORD with empty default'
     },
     # DB_PASSWORD without default (also dangerous)
     {
         'pattern': r'os\.getenv\(["\']DB_PASSWORD["\']\)',
-        'replacement': 'credential_manager.get_db_credentials()["password"]',
+        'replacement': 'get_db_password()',
         'description': 'DB_PASSWORD without default'
     },
     # APCA_API_KEY_ID

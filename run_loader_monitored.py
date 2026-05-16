@@ -16,6 +16,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+from credential_helper import get_db_password, get_db_config
 
 env_path = Path('.env.local')
 load_dotenv(env_path)
@@ -25,7 +26,7 @@ def get_db_connection():
         host=os.getenv('DB_HOST', 'localhost'),
         port=int(os.getenv('DB_PORT', 5432)),
         user=os.getenv('DB_USER', 'stocks'),
-        password=credential_manager.get_db_credentials()["password"],
+        password=get_db_password(),
         dbname=os.getenv('DB_NAME', 'stocks')
     )
 

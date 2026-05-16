@@ -18,6 +18,7 @@ Run:
 import argparse
 import logging
 import os
+from credential_helper import get_db_password, get_db_config
 import sys
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
@@ -131,7 +132,7 @@ def get_active_symbols() -> List[str]:
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "stocks"),
-        password=_credential_manager.get_db_credentials()["password"],
+        password=_get_db_password(),
         database=os.getenv("DB_NAME", "stocks"),
     )
     try:

@@ -18,6 +18,7 @@ except ImportError:
 
 import argparse
 import logging
+from credential_helper import get_db_password, get_db_config
 import os
 import sys
 from datetime import date
@@ -94,7 +95,7 @@ def get_active_symbols() -> List[str]:
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "stocks"),
-        password=credential_manager.get_db_credentials()["password"],
+        password=get_db_password(),
         database=os.getenv("DB_NAME", "stocks"),
     )
     try:

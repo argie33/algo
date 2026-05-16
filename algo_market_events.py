@@ -18,6 +18,7 @@ except ImportError:
 
 import psycopg2
 import os
+from credential_helper import get_db_password, get_db_config
 import requests
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
@@ -41,7 +42,7 @@ class MarketEventHandler:
         self.db_host = os.getenv('DB_HOST', 'localhost')
         self.db_port = int(os.getenv('DB_PORT', 5432))
         self.db_user = os.getenv('DB_USER', 'stocks')
-        self.db_password = credential_manager.get_db_credentials()["password"]
+        self.db_password = get_db_password()
         self.db_name = os.getenv('DB_NAME', 'stocks')
 
         self.conn = None

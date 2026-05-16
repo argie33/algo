@@ -18,6 +18,7 @@ except ImportError:
     credential_manager = None
 
 import argparse
+from credential_helper import get_db_password, get_db_config
 import logging
 import os
 import sys
@@ -45,7 +46,7 @@ def _get_db_config():
     """Get database config from env or credential_manager."""
     if credential_manager:
         try:
-            creds = credential_manager.get_db_credentials()
+            creds = get_db_config()
             return {
                 "host": os.getenv("DB_HOST", creds.get("host", "localhost")),
                 "port": int(os.getenv("DB_PORT", creds.get("port", 5432))),

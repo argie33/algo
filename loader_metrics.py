@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
@@ -52,7 +53,7 @@ def log_execution_complete(
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=credential_manager.get_db_credentials()["password"],
+            password=get_db_password(),
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )
@@ -120,7 +121,7 @@ def get_recent_performance(loader_name: str, limit: int = 10) -> list:
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=credential_manager.get_db_credentials()["password"],
+            password=get_db_password(),
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )
@@ -165,7 +166,7 @@ def print_performance_summary():
             host=os.getenv('DB_HOST', 'localhost'),
             port=int(os.getenv('DB_PORT', '5432')),
             user=os.getenv('DB_USER', 'stocks'),
-            password=credential_manager.get_db_credentials()["password"],
+            password=get_db_password(),
             dbname=os.getenv('DB_NAME', 'stocks'),
             connect_timeout=10
         )

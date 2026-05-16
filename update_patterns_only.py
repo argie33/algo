@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 import os
 import logging
 from datetime import datetime
+from credential_helper import get_db_password, get_db_config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ def get_db_connection():
         host=os.getenv('DB_HOST', 'localhost'),
         port=int(os.getenv('DB_PORT', 5432)),
         user=os.getenv('DB_USER', 'stocks'),
-        password=credential_manager.get_db_credentials()["password"],
+        password=get_db_password(),
         dbname=os.getenv('DB_NAME', 'stocks')
     )
 
