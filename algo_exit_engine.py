@@ -165,7 +165,7 @@ class ExitEngine:
                         # Update stop only (no exit execution)
                         self.cur.execute("""
                             UPDATE algo_positions
-                            SET active_stop = %s, updated_at = NOW()
+                            SET current_stop_price = %s, updated_at = NOW()
                             WHERE trade_id = %s
                         """, (new_stop, trade_id))
                         self.conn.commit()
@@ -334,20 +334,19 @@ class ExitEngine:
         # 9-count: partial exit (50%) at exhaustion top
         # 13-count COMBO: full exit (much stronger signal)
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
-            r_mult_local = ((cur_price - entry_price) / (entry_price - init_stop)) if (entry_price - init_stop) > 0 else 0
-            if r_mult_local >= 0.5:
+            if r_mult >= 0.5:
                 td_state = self._get_td_state(symbol, current_date)
                 if td_state.get('combo_13_complete') and td_state.get('setup_type') == 'sell':
                     return {
                         'stage': 'td_combo_13',
                         'fraction': 1.0,  # full exit on 13
-                        'reason': f'TD Combo 13-count exhaustion (FULL EXIT, R={r_mult_local:.2f})',
+                        'reason': f'TD Combo 13-count exhaustion (FULL EXIT, R={r_mult:.2f})',
                     }
                 if td_state.get('completed_9') and td_state.get('setup_type') == 'sell':
                     return {
                         'stage': 'td_exhaustion',
                         'fraction': 0.50,
-                        'reason': f'TD Sequential 9-count exhaustion (R={r_mult_local:.2f})',
+                        'reason': f'TD Sequential 9-count exhaustion (R={r_mult:.2f})',
                         'new_stop': max(active_stop, entry_price),
                     }
 
