@@ -72,22 +72,25 @@ router.get("/holdings", async (req, res) => {
 router.get("/performance", async (req, res) => {
   try {
     const performance = await query(`
-      SELECT 
-        metric_date,
-        total_return,
-        annual_return,
-        sharpe_ratio,
-        max_drawdown,
-        win_rate,
-        profit_factor
-      FROM portfolio_performance
-      ORDER BY metric_date DESC
+      SELECT
+        DATE(trade_date) as metric_date,
+        COUNT(*) as total_trades,
+        SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END) as winning_trades,
+        COUNT(*) - SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END) as losing_trades,
+        ROUND(AVG(profit_loss_pct)::numeric, 2) as avg_return_pct,
+        MAX(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END) as best_trade,
+        MIN(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END) as worst_trade,
+        ROUND(SUM(profit_loss_dollars)::numeric, 2) as daily_pnl
+      FROM algo_trades
+      WHERE status = 'closed'
+      GROUP BY DATE(trade_date)
+      ORDER BY DATE(trade_date) DESC
       LIMIT 90
-    `).catch(() => []);
+    `);
 
     sendSuccess(res, performance, 200);
   } catch (error) {
-    sendSuccess(res, [], 200);
+    sendError(res, `Failed to retrieve performance: ${error.message}`, 500);
   }
 });
 

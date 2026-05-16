@@ -93,6 +93,10 @@ export default function EconomicDashboard() {
         });
       }
     }
+
+    // IG Credit Spread (correct key is BAMLH0A0IG)
+    const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
+
     const t10y3m = yieldData?.spreads?.T10Y3M;
     const t10y2y = yieldData?.spreads?.T10Y2Y;
     const spread = t10y3m ?? t10y2y;
