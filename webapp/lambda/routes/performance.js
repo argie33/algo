@@ -7,6 +7,7 @@
  */
 
 const express = require('express');
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const router = express.Router();
 const { query } = require('../utils/database');
@@ -106,7 +107,6 @@ async function getPerformanceMetrics(req, res) {
 
     const response = {
       period,
-      timestamp: new Date().toISOString(),
       summary: {
         total_trades: parseInt(metrics.total_trades) || 0,
         win_count: parseInt(metrics.win_count) || 0,
@@ -141,13 +141,10 @@ async function getPerformanceMetrics(req, res) {
       },
     };
 
-    res.json(response);
+    return sendSuccess(res, response);
   } catch (error) {
     console.error('Error fetching performance metrics:', error);
-    res.status(500).json({
-      error: 'Failed to fetch performance metrics',
-      details: error.message,
-    });
+    return sendError(res, 'Failed to fetch performance metrics', 500, error.message);
   }
 }
 
@@ -182,11 +179,7 @@ async function getRecentTrades(req, res) {
       status: row.status,
     }));
 
-    res.json({
-      success: true,
-      count: trades.length,
-      trades,
-    });
+    return sendSuccess(res, trades);
   } catch (error) {
     console.error('Error fetching recent trades:', error);
     res.status(500).json({

@@ -700,7 +700,7 @@ class FilterPipeline:
 
             return {
                 'pass': True,
-                'reason': f'Trend {trend_score}/10, {pct_from_low:.0f}% from low',
+                'reason': f'Trend {trend_score}/8, {pct_from_low:.0f}% from low',
                 'trend_score': trend_score,
                 'stop_loss_price': stop_loss_price,
             }
@@ -778,11 +778,10 @@ class FilterPipeline:
                 return {'pass': True, 'reason': 'Insufficient RS history'}
 
             current_rs = rs_line[0]  # Most recent
-            rs_60day_high = max(rs_line[:60])  # 60-day high
-            rs_52week_high = max(rs_line)  # All-time high in available data
+            rs_60day_high = max(rs_line[:60])  # 60-day high (recent peak)
 
-            # RS should be within 5% of 52-week high
-            rs_pct_from_high = ((rs_52week_high - current_rs) / rs_52week_high * 100.0) if rs_52week_high > 0 else 0
+            # RS should be within 5% of 60-day high (use recent peak, not stale 52-week peak)
+            rs_pct_from_high = ((rs_60day_high - current_rs) / rs_60day_high * 100.0) if rs_60day_high > 0 else 0
 
             if rs_pct_from_high > 5.0:
                 return {
@@ -824,7 +823,7 @@ class FilterPipeline:
             self.cur.execute(
                 """
                 SELECT pw.close,
-                       AVG(pw.close) OVER (ORDER BY pw.date DESC ROWS BETWEEN 0 AND 149) as sma_30w
+                       AVG(pw.close) OVER (ORDER BY pw.date ASC ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) as sma_30w
                 FROM price_weekly pw
                 WHERE pw.symbol = %s AND pw.date <= %s
                 ORDER BY pw.date DESC LIMIT 1

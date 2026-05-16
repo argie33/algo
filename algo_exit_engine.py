@@ -334,7 +334,7 @@ class ExitEngine:
         # 9-count: partial exit (50%) at exhaustion top
         # 13-count COMBO: full exit (much stronger signal)
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
-            r_mult_local = ((cur_price - entry_price) / (entry_price - active_stop)) if (entry_price - active_stop) > 0 else 0
+            r_mult_local = ((cur_price - entry_price) / (entry_price - init_stop)) if (entry_price - init_stop) > 0 else 0
             if r_mult_local >= 0.5:
                 td_state = self._get_td_state(symbol, current_date)
                 if td_state.get('combo_13_complete') and td_state.get('setup_type') == 'sell':

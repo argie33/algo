@@ -94,14 +94,6 @@ const getAuthToken = () => {
         return session.tokens.accessToken;
       }
     }
-
-    // Fallback: check for dev-bypass-token
-    if (
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1"
-    ) {
-      return "dev-bypass-token";
-    }
   } catch (error) {
     // Silent failure for auth token retrieval
   }

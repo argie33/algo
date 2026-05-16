@@ -823,9 +823,9 @@ class SwingTraderScore:
             try:
                 self.cur.execute(
                     """SELECT signal FROM sector_rotation_signal
-                       WHERE date <= %s
+                       WHERE sector_name = %s AND date <= %s
                        ORDER BY date DESC LIMIT 1""",
-                    (eval_date,),
+                    (sector, eval_date),
                 )
                 r = self.cur.fetchone()
                 if r and r[0]:

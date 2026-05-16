@@ -425,12 +425,16 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
     def _get_algo_trades(self, limit: int = 200) -> Dict:
-        """Get recent trades."""
+        """Get recent trades with all fields for frontend."""
         try:
             self.cur.execute("""
-                SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_quantity,
-                       exit_price, exit_date, exit_reason, profit_loss_pct, entry_reason,
-                       status, created_at
+                SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
+                       entry_quantity, entry_reason, exit_price, exit_date, exit_time,
+                       exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
+                       status, swing_score, swing_grade, base_type, stage_phase,
+                       target_levels_hit, distribution_day_count, mfe_pct, mae_pct,
+                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date)::INTEGER as trade_duration_days,
+                       created_at
                 FROM algo_trades
                 ORDER BY trade_date DESC, trade_id DESC
                 LIMIT %s
@@ -442,11 +446,13 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
     def _get_algo_positions(self) -> Dict:
-        """Get current open positions."""
+        """Get current open positions with all tracking fields."""
         try:
             self.cur.execute("""
                 SELECT position_id, symbol, quantity, avg_entry_price, current_price,
-                       position_value, unrealized_pnl, unrealized_pnl_pct, status
+                       position_value, unrealized_pnl, unrealized_pnl_pct, status,
+                       days_since_entry, distribution_day_count, target_levels_hit,
+                       current_stop_price, stage_in_exit_plan, created_at, updated_at
                 FROM algo_positions
                 WHERE status IN ('open', 'OPEN')
                 ORDER BY position_value DESC
@@ -1949,7 +1955,7 @@ class APIHandler:
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
-                LEFT JOIN key_metrics km ON km.symbol = sc.symbol
+                LEFT JOIN key_metrics km ON km.ticker = sc.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol

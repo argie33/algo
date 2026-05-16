@@ -55,15 +55,18 @@ router.get("/stockscores", async (req, res) => {
     const countRows = Array.isArray(countResultObj) ? countResultObj : (countResultObj?.rows || []);
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
-    sendSuccess(res, {
+    const pagination = {
+      total: total,
+      limit: limitNum,
+      page: Math.max(parseInt(page) || 1, 1),
+      totalPages: Math.ceil(total / limitNum)
+    };
+
+    res.json({
+      success: true,
       items: scores,
-      pagination: {
-        total: total,
-        limit: limitNum,
-        page: Math.max(parseInt(page) || 1, 1),
-        totalPages: Math.ceil(total / limitNum)
-      }
-    }, 200);
+      pagination: pagination
+    });
   } catch (error) {
     sendError(res, "Failed to fetch scores: " + error.message, 500);
   }

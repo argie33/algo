@@ -102,23 +102,16 @@ router.get("/summary", async (req, res) => {
     if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment not available:", aaiiRes.reason?.message);
     if (analystRes.status === 'rejected') console.warn("analyst_sentiment_analysis not available:", analystRes.reason?.message);
 
-    return res.json({
-      success: true,
-      data: {
-        fear_greed: fearGreed,
-        naaim: naaim,
-        aaii: aaii,
-        analyst: analyst,
-        timestamp: new Date().toISOString()
-      }
-    });
+    const summary = {
+      fear_greed: fearGreed,
+      naaim: naaim,
+      aaii: aaii,
+      analyst: analyst
+    };
+    return sendSuccess(res, summary);
   } catch (error) {
     console.error("Sentiment summary error:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch sentiment summary",
-      timestamp: new Date().toISOString()
-    });
+    return sendError(res, "Failed to fetch sentiment summary", 500);
   }
 });
 
@@ -159,17 +152,12 @@ router.get("/analyst", async (req, res) => {
     const totalPages = Math.ceil(total / limitNum);
 
     const result = await query(queryStr, params);
-    return res.json({
-      items: result.rows || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      offset: offset
     });
   } catch (error) {
     console.error("Analyst sentiment error:", error);
@@ -198,20 +186,11 @@ router.get("/history", async (req, res) => {
 
     try {
       const result = await query(queryStr, [daysNum]);
-      return res.json({
-        data: result.rows || [],
-        period_days: daysNum,
-        success: true
-      });
+      return sendSuccess(res, result.rows || []);
     } catch (tableError) {
       // If analyst table doesn't exist, return empty history
       console.warn("Analyst sentiment table not available:", tableError.message);
-      return res.json({
-        data: [],
-        period_days: daysNum,
-        message: "Historical data not available",
-        success: true
-      });
+      return sendSuccess(res, []);
     }
   } catch (error) {
     console.error("Sentiment history error:", error);
@@ -242,25 +221,18 @@ router.get("/current", async (req, res) => {
     if (naaImRes.status === 'rejected') console.warn("naaim table not available:", naaImRes.reason?.message);
     if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment table not available:", aaiiRes.reason?.message);
 
-    return res.json({
-      data: {
-        fear_greed: fearGreed,
-        naaim: naaim,
-        aaii: aaii,
-        timestamp: new Date().toISOString()
-      },
-      success: true
-    });
+    const current = {
+      fear_greed: fearGreed,
+      naaim: naaim,
+      aaii: aaii
+    };
+    return sendSuccess(res, current);
   } catch (error) {
     console.error("Current sentiment error:", error);
-    return res.json({
-      data: {
-        fear_greed: null,
-        naaim: null,
-        aaii: null,
-        timestamp: new Date().toISOString()
-      },
-      success: true
+    return sendSuccess(res, {
+      fear_greed: null,
+      naaim: null,
+      aaii: null
     });
   }
 });
