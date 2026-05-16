@@ -147,24 +147,29 @@ resource "aws_lambda_permission" "api_gateway" {
 }
 
 # ============================================================
-# Cognito JWT Authorizer
+# Cognito JWT Authorizer (DISABLED - Public API Access Only)
 # ============================================================
-
-resource "aws_apigatewayv2_authorizer" "cognito" {
-  count           = var.cognito_enabled ? 1 : 0
-  api_id          = aws_apigatewayv2_api.main.id
-  authorizer_type = "JWT"
-  name            = "${var.project_name}-cognito-authorizer-${var.environment}"
-
-  identity_sources = ["$request.header.Authorization"]
-
-  jwt_configuration {
-    audience = [var.cognito_client_id]
-    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${var.cognito_user_pool_id}"
-  }
-}
-
-# TODO: Wire cognito module outputs to authorizer after root module is applied
+# Authorizer disabled since cognito_enabled=false in terraform.tfvars
+# The API uses public access (NONE authorization) instead of JWT auth
+#
+# NOTE: If Cognito auth is needed in the future:
+# 1. Set cognito_enabled=true in terraform.tfvars
+# 2. Uncomment the authorizer resource below
+# 3. Update the api_default route to reference the authorizer
+#
+# resource "aws_apigatewayv2_authorizer" "cognito" {
+#   count           = var.cognito_enabled ? 1 : 0
+#   api_id          = aws_apigatewayv2_api.main.id
+#   authorizer_type = "JWT"
+#   name            = "${var.project_name}-cognito-authorizer-${var.environment}"
+#
+#   identity_sources = ["$request.header.Authorization"]
+#
+#   jwt_configuration {
+#     audience = [var.cognito_client_id]
+#     issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${var.cognito_user_pool_id}"
+#   }
+# }
 
 # API route - Public access (no auth required)
 # NOTE: Cognito is disabled (cognito_enabled=false in tfvars)
