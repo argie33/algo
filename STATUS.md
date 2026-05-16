@@ -1,7 +1,133 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 20: Critical Bugs Fixed)  
-**Status:** 🟢 **SYSTEM OPERATIONAL** | Data loaded | Orchestrator passing | 18/29 loaders working
+**Last Updated:** 2026-05-16 (Session 21: Comprehensive Audit)  
+**Status:** 🟡 **SYSTEM INCOMPLETE** | Core data loaded | Major data gaps | 9/132 tables populated | Algo trading blocked
+
+---
+
+## 🚨 COMPREHENSIVE AUDIT (Session 21)
+
+### Data Pipeline Status: CRITICAL GAPS
+
+**Tables Populated (9 out of 132):**
+- stock_symbols (38 rows)
+- price_daily (47,391 rows)
+- stock_scores (37 rows)
+- trend_template_data (41 rows)
+- buy_sell_daily_etf (72 rows)
+- etf_price_daily (6,280 rows)
+- key_metrics (38 rows)
+- market_health_daily (1 row)
+- annual_income_statement (477 rows)
+- signal_quality_scores (41 rows)
+- data_completeness_scores (41 rows)
+
+**Tables EMPTY (97 out of 132):**
+
+**Critical for Trading (BLOCKS ALGO):**
+- buy_sell_daily: 0 rows (loaders succeeds but no signals generated — RSI/MACD conditions not met)
+- buy_sell_weekly: 0 rows
+- buy_sell_monthly: 0 rows
+- algo_trades: 0 rows (orchestrator can't record trades)
+- algo_positions: 0 rows (orchestrator can't track positions)
+- algo_portfolio_snapshots: 0 rows (no P&L tracking)
+- algo_audit_log: 0 rows (no audit trail of decisions)
+
+**Critical for Stock Analysis (BLOCKS FRONTEND PAGES):**
+- company_profile: 0 rows (sector, industry, market cap — needed by StockDetail, PortfolioDashboard)
+- quarterly_income_statement: 0 rows
+- quarterly_balance_sheet: 0 rows
+- quarterly_cash_flow: 0 rows (Financial pages: FinancialData, FinancialMetrics)
+- earnings_history: 0 rows
+- earnings_estimates: 0 rows (EarningsCalendar needs this)
+- technical_data_daily/weekly/monthly: 0 rows (TechnicalAnalysis pages)
+
+**Critical for Sector/Industry Analysis (BLOCKS FRONTEND PAGES):**
+- sector_performance: 0 rows (SectorAnalysis page)
+- sector_ranking: 0 rows
+- industry_performance: 0 rows
+- industry_ranking: 0 rows
+
+**Critical for Economic Dashboard:**
+- economic_data: 0 rows (needs FRED API key)
+- economic_calendar: 0 rows
+
+**Quality Scoring (BLOCKS FILTER LOGIC):**
+- quality_metrics: 0 rows (needed by AdvancedFilters)
+- growth_metrics: 0 rows
+- value_metrics: 0 rows
+- momentum_metrics: 0 rows
+- stability_metrics: 0 rows
+- can_slim_metrics: 0 rows
+
+**Other Gaps:**
+- sentiment data (analyst_sentiment_analysis, analyst_upgrade_downgrade, aaii_sentiment, naaim, etc.): All 0
+- options data (options_chains, options_greeks, covered_call_opportunities): All 0
+- market data (market_exposure_daily, positioning_metrics, etc.): All 0
+- backtest data (backtest_runs, signal_trade_performance): All 0
+- trades table: 0 rows (different from algo_trades)
+
+### Root Causes
+
+**Issue #1: buy_sell_daily Returns No Signals**
+- Loader runs successfully but generates 0 rows
+- Root cause: Signal generation requires RSI < 30 AND MACD > signal_line (BUY) OR RSI > 70 AND MACD < signal_line (SELL)
+- Current price_daily may not meet these technical conditions on recent trading days
+- **Impact:** Algo orchestrator cannot generate trading signals → no trades possible
+
+**Issue #2: Financial Data Loaders Not Populating Data**
+- load_income_statement.py, load_balance_sheet.py, etc. run but insert 0 rows
+- Root cause: Likely external API failures, rate limits, or authentication errors (no error logging visible)
+- **Impact:** Stock analysis pages show no fundamental data
+
+**Issue #3: Company Profile Not Loaded**
+- No loader exists that populates company_profile table
+- Table has columns for sector, industry, market_cap, PE, etc. but all NULL
+- **Impact:** Stock detail pages can't show sector/industry, filtering logic fails
+
+**Issue #4: Metrics Loaders Not Populating**
+- quality_metrics, growth_metrics, value_metrics, momentum_metrics: All 0 rows
+- Root cause: load_quality_metrics.py, load_growth_metrics.py, etc. don't exist or aren't being called
+- **Impact:** AdvancedFilters.score_trade() has no data to work with → defaults all scores to 0
+
+**Issue #5: Orchestrator Can't Track Its Own Trades**
+- algo_trades, algo_positions, algo_portfolio_snapshots all empty
+- Root cause: Trade execution logic likely not writing to these tables
+- **Impact:** Dashboard can't show what trades were made, P&L, risk metrics
+
+### Pages Affected by Data Gaps
+
+**Non-Functional Pages (Show Empty/No Data):**
+- EconomicDashboard (needs economic_data)
+- PortfolioDashboard (needs company_profile for sector breakdowns)
+- SectorAnalysis (needs sector_performance, sector_ranking)
+- IndustryAnalysis (needs industry_performance, industry_ranking)
+- TradingSignals (needs buy_sell_daily)
+- StockDetail (needs company_profile, earnings data, technical data)
+- FinancialData (needs quarterly financials)
+- FinancialMetrics (needs quality/growth/value metrics)
+- EarningsCalendar (needs earnings_history, earnings_estimates)
+- TechnicalAnalysis (needs technical_data_*)
+- TradeTracker (needs algo_trades, algo_positions)
+- PerformanceMetrics (needs algo_portfolio_snapshots, algo_audit_log)
+
+**Partially Functional Pages:**
+- BacktestResults (works if you load backtest_runs manually)
+- SwingCandidates (works with basic price data, but quality filtering fails)
+- DeepValueStocks (works with price data, but value metrics missing)
+- MetricsDashboard (shows empty metrics tables)
+
+### Algo Trading Pipeline Status
+
+**Phase 1 — Data Freshness Check:** ✅ PASS (price_daily is current)
+**Phase 2 — Circuit Breakers:** ⚠️ PARTIAL (checks run but economic data missing)
+**Phase 3 — Position Monitor:** ❌ FAIL (algo_positions table empty — can't read current positions)
+**Phase 4 — Exit Execution:** ❌ FAIL (no positions to exit)
+**Phase 5 — Signal Generation:** ❌ FAIL (buy_sell_daily table empty — no signals)
+**Phase 6 — Entry Execution:** ❌ FAIL (no signals to execute on)
+**Phase 7 — Reconciliation:** ⚠️ PARTIAL (would work if trades/positions existed)
+
+**RESULT: Algo cannot trade.**
 
 ---
 
@@ -151,39 +277,143 @@ Tables exist and schema is correct, but:
 
 ## 🛠️ FIX PLAN (Priority Order)
 
-### Phase 1: Fix Critical Loaders (Blocks 80% of features)
-1. **Fix stock_scores.py** — Change to 1 row/symbol aggregate
-2. **Fix loadbuyselldaily.py** — Remove timeframe column
-3. **Fix load_trend_template_data.py** — Fix typo (_get_db_password)
+### IMMEDIATE ACTIONS (Session 21+)
 
-**Expected time:** ~30 mins  
-**Expected impact:** stock_scores, buy_sell_daily, trend_template_data tables populated
+**Priority 1: Unblock Algo Trading Pipeline**
+1. **DEBUG buy_sell_daily Signal Generation**
+   - Why is loadbuyselldaily.py generating 0 signals?
+   - Check if RSI/MACD conditions are too strict for current market
+   - Loosen thresholds or add fallback signal logic
+   - Expected time: 1 hour
+   - Impact: enables Phase 5-6 of orchestrator
+
+2. **Wire algo_trades Table**
+   - Verify TradeExecutor writes to algo_trades (currently empty)
+   - Check if insert logic exists or needs creation
+   - Expected time: 1 hour
+   - Impact: enables trade tracking, backtesting, audit logs
+
+3. **Wire algo_positions Table**
+   - Verify PositionMonitor reads/writes to algo_positions
+   - Check if position tracking logic exists
+   - Expected time: 1 hour
+   - Impact: enables Phase 3 position monitoring, P&L tracking
+
+4. **Wire algo_portfolio_snapshots Table**
+   - Verify Phase 7 reconciliation writes daily snapshots
+   - Expected time: 30 mins
+   - Impact: enables performance tracking, risk metrics
+
+**Expected impact:** Algo can execute trades end-to-end
+
+---
+
+**Priority 2: Unblock Frontend Data Pages**
+
+5. **Fix Financial Data Loaders**
+   - load_income_statement.py, load_balance_sheet.py, load_cash_flow.py
+   - Check for error handling, add logging, retry logic
+   - Expected time: 1.5 hours
+   - Impact: Financial pages show data, stock detail pages work
+
+6. **Create Company Profile Loader**
+   - Build load_company_profile.py that fetches sector, industry, market cap
+   - Use Yahoo Finance API or existing yfinance calls
+   - Expected time: 1 hour
+   - Impact: Sector/industry filtering works, stock detail pages work
+
+7. **Fix Sector/Industry Loaders**
+   - Check loadsectors.py, load_industry_performance.py status
+   - Expected time: 1 hour
+   - Impact: Sector Analysis page works
+
+**Expected impact:** 10-15 frontend pages show real data
 
 ---
 
-### Phase 2: Audit Other Loaders
-4. **Check financial data loaders** — Are they working or broken?
-5. **Check sector/industry loaders** — Are they working?
-6. **Check algo_metrics loader** — Does it work?
+**Priority 3: Calculate Missing Metrics**
 
-**Expected time:** ~30 mins
+8. **Build Quality Metrics Loader**
+   - Create load_quality_metrics.py
+   - Calculate PEG, earnings growth, ROE, debt/equity from financial data
+   - Expected time: 1.5 hours
+   - Impact: AdvancedFilters has data for quality scoring
+
+9. **Build Growth Metrics Loader**
+   - Create load_growth_metrics.py
+   - Calculate earnings growth rate, revenue growth, momentum
+   - Expected time: 1 hour
+   - Impact: AdvancedFilters scores growth tier
+
+10. **Build Value Metrics Loader**
+    - Create load_value_metrics.py
+    - Calculate PB, PS, dividend yield
+    - Expected time: 1 hour
+    - Impact: AdvancedFilters scores value tier
+
+**Expected impact:** Signal filtering has quality/growth/value metrics
 
 ---
 
-### Phase 3: Orchestrator & Trade Logic Verification
-7. **Verify orchestrator 7-phase logic** — Is it correct?
-8. **Verify position sizing** — Are allocation sizes correct?
-9. **Verify exit logic** — Are stops, targets working?
-10. **Verify circuit breakers** — Do kill-switches work?
+**Priority 4: Add Missing Data Sources**
+
+11. **Add Economic Data (Optional if not trading)**
+    - Get FRED API key, add to .env.local
+    - Run loadecondata.py
+    - Expected time: 20 mins
+
+12. **Add Earnings Calendar (Medium priority)**
+    - Check loadearningshistory.py, fix if broken
+    - Expected time: 30 mins
+
+13. **Add Options Data (Low priority, if needed for Hedge Helper)**
+    - Skip unless page is required
+    - Expected time: 2+ hours
 
 ---
 
-### Phase 4: Calculation Verification
-11. **Verify score calculations** — Are formulas correct?
-12. **Verify technical indicators** — RSI, MACD, trends correct?
-13. **Verify risk metrics** — Sharpe, Sortino, max DD correct?
+### PHASE 2: Verify Calculations & Logic
+
+14. **Verify Signal Generation Formulas**
+    - Check if RSI, MACD, base detection logic is correct
+    - Compare against standard definitions
+    - Expected time: 1 hour
+
+15. **Verify Trade Execution Logic**
+    - Check TradeExecutor.execute_trade() for correctness
+    - Verify position sizing (portfolio allocation, kelly criterion)
+    - Verify stop loss, take profit calculation
+    - Expected time: 1 hour
+
+16. **Verify Risk Management**
+    - Check circuit breakers (drawdown, daily loss, VIX, etc.)
+    - Verify stop-out logic
+    - Check portfolio concentration limits
+    - Expected time: 1 hour
+
+17. **Verify Orchestrator Phase Logic**
+    - Trace through all 7 phases
+    - Check for logical errors, edge cases, off-by-one errors
+    - Expected time: 1.5 hours
 
 ---
+
+### PHASE 3: Performance & Security
+
+18. **Performance Audit**
+    - Check query performance (current: price_daily, stock_scores OK)
+    - Identify slow queries, add indexes if needed
+    - Expected time: 1 hour
+
+19. **Security Audit**
+    - Check for SQL injection in API endpoints
+    - Verify credential handling (no hardcoded passwords)
+    - Check for sensitive data in logs
+    - Expected time: 1 hour
+
+---
+
+**Total Estimated Time:** 12-14 hours to make system fully functional + verified
 
 ## Recent Fixes (Session 18 — PRIOR WORK)
 

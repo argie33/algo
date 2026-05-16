@@ -68,7 +68,7 @@ def _resolve_timeframe(cli_arg: Optional[str]) -> str:
 
 
 class BuySellAggregateLoader(OptimalLoader):
-    primary_key = ("symbol", "timeframe", "date")
+    primary_key = ("symbol", "date")
     watermark_field = "date"
 
     def __init__(self, timeframe: str):
@@ -184,31 +184,38 @@ class BuySellAggregateLoader(OptimalLoader):
         signal_line = row.get("signal_line")
         if pd.isna(rsi) or pd.isna(macd) or pd.isna(signal_line):
             return None
-        if rsi < 30 and macd > signal_line:
+
+        signal_str = None
+        reason = None
+        strength = None
+
+        # Combined RSI + MACD signals for actionable trading setup
+        if rsi < 45 and macd > signal_line:
             signal_str = "BUY"
-        elif rsi > 70 and macd < signal_line:
+            reason = "Weak trend + bullish MACD"
+            strength = rsi
+        elif rsi < 35:
+            signal_str = "BUY"
+            reason = f"RSI weak ({rsi:.0f})"
+            strength = rsi
+        elif rsi > 55 and macd < signal_line:
             signal_str = "SELL"
+            reason = "Strong trend + bearish MACD"
+            strength = 100 - rsi
+        elif rsi > 65:
+            signal_str = "SELL"
+            reason = f"RSI strong ({rsi:.0f})"
+            strength = 100 - rsi
         else:
             return None
 
-        def _f(v):
-            return float(v) if v is not None and not pd.isna(v) else None
-
-        result = {
+        return {
             "symbol": symbol,
             "date": idx_date.isoformat(),
-            "open": _f(row.get("open")),
-            "high": _f(row.get("high")),
-            "low": _f(row.get("low")),
-            "close": _f(row.get("close")),
-            "volume": int(row["volume"]) if row.get("volume") is not None and not pd.isna(row.get("volume")) else None,
             "signal": signal_str,
-            "signal_type": signal_str.capitalize(),
-            "rsi": _f(rsi),
+            "strength": float(strength) if strength is not None else None,
+            "reason": reason,
         }
-        if self._has_atr:
-            result["atr"] = _f(row.get("atr"))
-        return result
 
     def transform(self, rows):
         return rows
