@@ -568,8 +568,16 @@ class APIHandler:
             if row and row['details']:
                 try:
                     details = json.loads(row['details']) if isinstance(row['details'], str) else row['details']
+                    # Validate that details is a dict before calling .get()
+                    if not isinstance(details, dict):
+                        details = {}
                     checks = details.get('checks', {})
+                    # Validate that checks is a dict and contains dicts
+                    if not isinstance(checks, dict):
+                        checks = {}
                     for name, state in checks.items():
+                        if not isinstance(state, dict):
+                            continue  # Skip malformed entries
                         breakers.append({
                             'name': name,
                             'halted': bool(state.get('halted', False)),

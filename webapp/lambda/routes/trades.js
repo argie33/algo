@@ -72,8 +72,8 @@ router.get('/', async (req, res) => {
     console.log('🔍 Trade fetch check - sources:', sources, 'AlpacaService available:', !!AlpacaService);
     if (sources.includes('alpaca') && AlpacaService) {
       try {
-        const apiKey = process.env.ALPACA_API_KEY;
-        const secretKey = process.env.ALPACA_SECRET_KEY;
+        const apiKey = process.env.APCA_API_KEY_ID;
+        const secretKey = process.env.APCA_API_SECRET_KEY;
         const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
 
         console.log('📋 Alpaca credentials check - key:', apiKey ? 'YES' : 'NO', 'secret:', secretKey ? 'YES' : 'NO', 'paper:', isPaper);
@@ -236,8 +236,8 @@ router.get('/summary', async (req, res) => {
     // 1. Fetch REAL Alpaca trades if credentials available
     if (AlpacaService) {
       try {
-        const apiKey = process.env.ALPACA_API_KEY;
-        const secretKey = process.env.ALPACA_SECRET_KEY;
+        const apiKey = process.env.APCA_API_KEY_ID;
+        const secretKey = process.env.APCA_API_SECRET_KEY;
         const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
 
         if (apiKey && secretKey) {

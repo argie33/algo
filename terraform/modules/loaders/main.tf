@@ -147,7 +147,6 @@ locals {
     "value_metrics"              = "load_value_metrics.py"
     "earnings_history"   = "loadearningshistory.py"
     "earnings_revisions" = "loadearningsrevisions.py"
-    "earnings_surprise"  = "loadearningsestimates.py"
     "market_indices"             = "loadmarketindices.py"
     "seasonality"                = "loadseasonality.py"
     "econ_data"                  = "loadecondata.py"

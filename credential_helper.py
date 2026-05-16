@@ -47,8 +47,15 @@ def get_db_password() -> str:
     except Exception as e:
         logger.debug(f"credential_manager failed (expected in some environments): {e}")
 
-    # 3. Fallback for testing/local dev
-    return os.getenv("DB_PASSWORD_FALLBACK", "postgres")
+    # 3. No fallback — require explicit configuration
+    password_fallback = os.getenv("DB_PASSWORD_FALLBACK")
+    if password_fallback:
+        return password_fallback
+
+    raise ValueError(
+        "Database password not available. Please set: "
+        "DB_PASSWORD (env), DB_PASSWORD_FALLBACK (env), or configure AWS Secrets Manager"
+    )
 
 
 def get_db_config() -> Dict[str, any]:

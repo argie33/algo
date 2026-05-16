@@ -324,7 +324,7 @@ export const getStocks = async (params = {}) => {
       data: (response.data.items || []).map(item => ({
         ...item,
         ticker: item.symbol, // Map symbol to ticker for compatibility
-        short_name: item.name, // Map name to short_name for compatibility
+        short_name: item.security_name || item.name, // Use security_name from API or fallback to name
       })),
     };
     return transformedData;

@@ -1829,6 +1829,13 @@ CREATE INDEX IF NOT EXISTS idx_rejection_symbol ON filter_rejection_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_order_trade_id ON order_execution_log(trade_id);
 CREATE INDEX IF NOT EXISTS idx_order_status ON order_execution_log(order_status);
 CREATE INDEX IF NOT EXISTS idx_order_timestamp ON order_execution_log(order_timestamp DESC);
+
+-- Missing indexes for frequently-joined columns
+CREATE INDEX IF NOT EXISTS idx_company_profile_symbol ON company_profile(symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol ON stock_scores(symbol);
+CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_data_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
 """
 
 def _init_timescaledb(conn, cur):

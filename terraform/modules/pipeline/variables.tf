@@ -57,6 +57,10 @@ variable "sns_alert_topic_arn" {
   description = "SNS topic ARN for pipeline failure alerts"
   type        = string
   default     = ""
+  validation {
+    condition     = var.sns_alert_topic_arn == "" || can(regex("^arn:aws:sns:", var.sns_alert_topic_arn))
+    error_message = "sns_alert_topic_arn must be a valid SNS ARN (arn:aws:sns:...) or empty string."
+  }
 }
 
 variable "common_tags" {

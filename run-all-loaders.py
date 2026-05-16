@@ -26,15 +26,20 @@ tier_1b_aggregates = [
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
-# Note: Annual financial data only. Quarterly loaders intentionally excluded.
-#   Design decision: System uses annual financials to avoid complexity of TTM (trailing twelve months)
-#   calculations. Quarterly data requires careful aggregation logic and period alignment.
-#   If quarterly data is needed in future, would require: (1) quarterly loaders, (2) TTM aggregation logic,
-#   (3) period overlap handling. For now, annual data provides sufficient fundamental context.
+# Note: Both annual and quarterly financial data. TTM aggregates quarterly into rolling 12-month.
+#   Design: Quarterly loaders fetch raw data from SEC EDGAR (periods are actual quarters).
+#   TTM loaders sum 4 most recent quarters for trailing twelve months metric.
+#   This provides both period-specific data AND rolling metrics needed for signal quality.
 tier_2_reference = [
     'loadcompanyprofile.py',
-    # Annual financials only
-    ('load_income_statement.py', []), ('load_balance_sheet.py', []), ('load_cash_flow.py', []),
+    # Annual financials
+    ('load_income_statement.py', ['--period', 'annual']),
+    ('load_balance_sheet.py', ['--period', 'annual']),
+    ('load_cash_flow.py', ['--period', 'annual']),
+    # Quarterly financials (raw SEC data, one quarter at a time)
+    ('load_income_statement.py', ['--period', 'quarterly']),
+    ('load_balance_sheet.py', ['--period', 'quarterly']),
+    ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py', 'loadearningsrevisions.py',
     'load_earnings_calendar.py',  # Upcoming earnings dates for blackout enforcement
     'load_key_metrics.py',
@@ -42,6 +47,12 @@ tier_2_reference = [
     'loadsectors.py',  # Note: industry_ranking populated by loadsectors.py
     ('loadstockscores.py', ['--parallelism', '16']),  # 16 workers: compensates for retry delays
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
+]
+
+# Tier 2c: TTM aggregates (depends on quarterly financials from tier 2)
+tier_2c_ttm = [
+    'loadttmincomestatement.py',  # Sums 4 most recent quarters
+    'loadttmcashflow.py',         # Sums 4 most recent quarters
 ]
 
 # Tier 2b: Computed metrics (depends on tier 2 financials)
@@ -71,15 +82,16 @@ tiers = [
     ('Tier 1: Price data (parallel)', tier_1_prices),
     ('Tier 1b: Price aggregates (weekly/monthly)', tier_1b_aggregates),
     ('Tier 2: Reference data (parallel)', tier_2_reference),
+    ('Tier 2c: TTM aggregates (from quarterly)', tier_2c_ttm),
     ('Tier 2b: Computed metrics (quality/growth/value)', tier_2b_metrics),
     ('Tier 3: Trading signals (parallel)', tier_3_signals),
     ('Tier 3b: Signal aggregates (weekly/monthly)', tier_3b_aggregates),
     ('Tier 4: Algo metrics', tier_4_metrics),
 ]
 
-all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_2_reference + tier_2b_metrics + tier_3_signals + tier_3b_aggregates + tier_4_metrics
+all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_2_reference + tier_2c_ttm + tier_2b_metrics + tier_3_signals + tier_3b_aggregates + tier_4_metrics
 logger.info(f"\n{'='*70}")
-logger.info(f"Running {len(all_loaders)} loaders across 5 dependency tiers")
+logger.info(f"Running {len(all_loaders)} loaders across 9 dependency tiers")
 logger.info(f"{'='*70}\n")
 
 failed = []
