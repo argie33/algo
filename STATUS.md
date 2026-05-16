@@ -96,12 +96,15 @@
 - ✅ **Risk Controls:** Position limits, exposure policies, drawdown halts, VIX-based gates
 - ✅ **Data Integrity:** Quality gates, validation, provenance tracking in place
 
-### ⏳ PENDING DEPLOYMENT VERIFICATION
-- ⏳ **GitHub Actions CI:** Last seen passing (2026-05-15) — credentials fixed, market exposure fixed
-- ⏳ **Terraform Deployment:** Infrastructure should be live (API Gateway, Lambda, RDS, ECS)
+### ⏳ PENDING DEPLOYMENT VERIFICATION  
+- ✅ **API Health Check:** Returns 200 OK ✓
+- ⚠️ **API Data Endpoints:** Returning 401 Unauthorized on /api/stocks, /api/signals, /api/algo/status
+  - Root cause: API Gateway routes still enforcing JWT auth despite cognito_enabled=false in Terraform
+  - Status: Likely infrastructure not yet re-deployed with latest Cognito disable change
+  - Action: Monitor GitHub Actions CI or manually trigger Terraform apply to update routes
+- ⏳ **GitHub Actions CI:** Need to verify if latest commits triggered successful deployment
 - ⏳ **Database Schema:** Should be initialized from `terraform/modules/database/init.sql`
-- ⏳ **API Responsiveness:** Need to verify API returns live data
-- ⏳ **Data Freshness:** Need to verify tables have recent data (≤24h old)
+- ⏳ **Data Freshness:** Will verify once API endpoints are accessible
 
 ### 📊 CONFIDENCE LEVELS  
 | Component | Confidence | Evidence |
