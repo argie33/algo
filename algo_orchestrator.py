@@ -408,7 +408,7 @@ class Orchestrator:
                 'buy_sell_daily': 'buy_sell_daily (entry signals)',
                 'trend_template_data': 'trend_template_data (Minervini/Weinstein scores)',
                 'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
-                'signal_quality_scores': 'signal_quality_scores (SQS >= 60 gate)',
+                'signal_quality_scores': 'signal_quality_scores (SQS >= 40 gate)',
                 'swing_trader_scores': 'swing_trader_scores (final ranking)',
                 'market_health_daily': 'market_health_daily (Tier 2 gate)',
                 'sector_ranking': 'sector_ranking (Tier 6 context)',
@@ -825,8 +825,8 @@ class Orchestrator:
                     self.log_phase_result(3, 'single_stock_halts', 'warn',
                                         f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
             except Exception as e:
-                # Halt check is non-critical; fail gracefully
-                pass
+                logger.warning(f"Halt check failed for position: {e}")
+                self.log_phase_result(3, 'halt_check_error', 'warn', f'Halt check failed: {str(e)[:100]}')
 
             # Check for stale orders first
             stale_result = monitor.check_stale_orders(self.run_date)

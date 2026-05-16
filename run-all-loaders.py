@@ -22,7 +22,12 @@ tier_1_prices = [
 tier_1b_aggregates = [
     'load_price_aggregate.py',  # Generates weekly and monthly from daily
     'load_etf_price_aggregate.py',  # Generates weekly and monthly ETF prices
-    # Note: technical_data_daily is populated by load_algo_metrics_daily.py in Tier 4
+]
+
+# Tier 1c: Technical indicators (depends on tier 1 prices)
+tier_1c_technical = [
+    'load_technical_indicators.py',  # RSI, MACD, SMA, EMA, ATR, ADX, ROC
+    'load_trend_template_data.py',  # Minervini trend template scoring
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
@@ -40,13 +45,14 @@ tier_2_reference = [
     ('load_income_statement.py', ['--period', 'quarterly']),
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
-    'loadearningshistory.py', 'loadearningsrevisions.py',
+    'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
     'load_earnings_calendar.py',  # Upcoming earnings dates for blackout enforcement
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
     'loadsectors.py',  # Note: industry_ranking populated by loadsectors.py
     ('loadstockscores.py', ['--parallelism', '16']),  # 16 workers: compensates for retry delays
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
+    'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
 ]
 
 # Tier 2c: TTM aggregates (depends on quarterly financials from tier 2)
@@ -81,6 +87,7 @@ tiers = [
     ('Tier 0: Stock symbols', tier_0),
     ('Tier 1: Price data (parallel)', tier_1_prices),
     ('Tier 1b: Price aggregates (weekly/monthly)', tier_1b_aggregates),
+    ('Tier 1c: Technical indicators (RSI, MACD, SMA, EMA, etc.)', tier_1c_technical),
     ('Tier 2: Reference data (parallel)', tier_2_reference),
     ('Tier 2c: TTM aggregates (from quarterly)', tier_2c_ttm),
     ('Tier 2b: Computed metrics (quality/growth/value)', tier_2b_metrics),
@@ -89,9 +96,9 @@ tiers = [
     ('Tier 4: Algo metrics', tier_4_metrics),
 ]
 
-all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_2_reference + tier_2c_ttm + tier_2b_metrics + tier_3_signals + tier_3b_aggregates + tier_4_metrics
+all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_1c_technical + tier_2_reference + tier_2c_ttm + tier_2b_metrics + tier_3_signals + tier_3b_aggregates + tier_4_metrics
 logger.info(f"\n{'='*70}")
-logger.info(f"Running {len(all_loaders)} loaders across 9 dependency tiers")
+logger.info(f"Running {len(all_loaders)} loaders across 10 dependency tiers")
 logger.info(f"{'='*70}\n")
 
 failed = []

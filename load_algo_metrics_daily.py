@@ -211,21 +211,33 @@ class AlgoMetricsLoader:
             vix = float(vix_result[0]) if vix_result and vix_result[0] else 20.0
 
             vix_env = 'low' if vix < 15 else ('high' if vix > 25 else 'normal')
-            comment = f"Market in {trend} (stage {stage}), VIX {vix:.1f} ({vix_env})"
+
+            # Count distribution days (down days on declining volume) in past 20 days
+            dist_query = """
+                SELECT COUNT(*) FROM price_daily
+                WHERE symbol = %s AND date >= %s - INTERVAL '20 days'
+                  AND close < open
+            """
+            self.execute(dist_query, ('^GSPC' if symbol == '^GSPC' else 'SPY',))
+            dist_result = self.cur.fetchone()
+            distribution_days = dist_result[0] if dist_result else 0
+
+            comment = f"Market in {trend} (stage {stage}), VIX {vix:.1f} ({vix_env}), dist days: {distribution_days}"
 
             query = """
                 INSERT INTO market_health_daily (
-                    date, market_trend, market_stage, vix_level,
+                    date, market_trend, market_stage, distribution_days_4w, vix_level,
                     fed_rate_environment, market_comment, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (date) DO UPDATE SET
                     market_trend = EXCLUDED.market_trend,
                     market_stage = EXCLUDED.market_stage,
+                    distribution_days_4w = EXCLUDED.distribution_days_4w,
                     vix_level = EXCLUDED.vix_level,
                     fed_rate_environment = EXCLUDED.fed_rate_environment,
                     market_comment = EXCLUDED.market_comment
             """
-            if self.execute(query, (date_obj, trend, stage, vix, vix_env, comment)):
+            if self.execute(query, (date_obj, trend, stage, distribution_days, vix, vix_env, comment)):
                 self.stats['market_health'] = 1
                 return True
 
@@ -459,17 +471,19 @@ class AlgoMetricsLoader:
     def load_signal_quality_scores(self, symbols, date_obj):
         """Load Signal Quality Scores (composite ranking).
 
-        Calculates SQS from available technical data rather than depending on
-        trend_template_data. Uses: RSI, momentum, ATR, price position.
+        Calculates SQS from: trend template (35%), stage (15%), volume (20%),
+        distance from high (15%), earnings proximity (15%).
         """
         try:
             for symbol in symbols:
-                # Try to get trend template data if available, otherwise calculate from technicals
+                # Get trend template data (includes percent_from_52w_high and technical data)
                 trend_score = None
                 stage = None
+                pct_from_high = None
+                rsi = 50  # default neutral
 
                 query = """
-                    SELECT minervini_trend_score, weinstein_stage
+                    SELECT minervini_trend_score, weinstein_stage, percent_from_52w_high
                     FROM trend_template_data
                     WHERE symbol = %s AND date = %s
                 """
@@ -479,72 +493,47 @@ class AlgoMetricsLoader:
                 if result:
                     trend_score = result[0] if result[0] else 0
                     stage = result[1] if result[1] else 1
+                    pct_from_high = result[2] if result[2] else 0
                 else:
-                    # Fallback: Calculate SQS from technical data
-                    # Get RSI, momentum, and price data for the date
-                    query = """
-                        SELECT rsi, close, open
-                        FROM technical_data_daily
-                        WHERE symbol = %s AND date = %s
-                        LIMIT 1
-                    """
-                    self.execute(query, (symbol, date_obj))
-                    tech_result = self.cur.fetchone()
+                    # Fallback: trend data not available, skip this signal
+                    # We need trend_template_data for meaningful SQS scoring
+                    continue
 
-                    if not tech_result:
-                        continue
-
+                # Get RSI for volume confirmation component
+                query = """
+                    SELECT rsi FROM technical_data_daily
+                    WHERE symbol = %s AND date = %s LIMIT 1
+                """
+                self.execute(query, (symbol, date_obj))
+                tech_result = self.cur.fetchone()
+                if tech_result:
                     rsi = tech_result[0] if tech_result[0] else 50
-                    close = tech_result[1] if tech_result[1] else 0
-                    open_price = tech_result[2] if tech_result[2] else close
 
-                    # Simple SQS calculation from technical indicators
-                    # RSI > 60 = bullish, RSI < 40 = bearish
-                    # Price > open = momentum
-                    # Score: 0-100
-                    sqs = 50  # neutral baseline
+                # Calculate SQS component scores
+                trend_component = min(35, int(trend_score * 3.5) if trend_score else 0)
 
-                    if rsi and rsi > 60:
-                        sqs += (rsi - 60) * 0.5  # Add up to 20 points for strong RSI
-                    elif rsi and rsi < 40:
-                        sqs -= (40 - rsi) * 0.5  # Subtract for weak RSI
+                if stage == 2:
+                    stage_score = 15
+                elif stage == 1:
+                    stage_score = 7
+                else:
+                    stage_score = 0
 
-                    if close > open_price:
-                        sqs += 10  # Add points for bullish candle
+                # Volume confirmation from RSI
+                if rsi > 60:
+                    volume_score = min(20, int((rsi - 60) * 0.4))
+                elif rsi < 40:
+                    volume_score = max(-16, int(-(40 - rsi) * 0.2))
+                else:
+                    volume_score = 10
 
-                    trend_score = sqs / 10  # Convert to 0-10 scale
-                    stage = 2 if sqs > 60 else (4 if sqs < 40 else 1)
+                # Distance from 52-week high (closer to high = better for trending)
+                if pct_from_high >= 0:
+                    distance_score = min(15, int(pct_from_high * 0.15))  # max 15 at 100% from high
+                else:
+                    distance_score = 5  # neutral if below high
 
-                # Calculate composite SQS component scores then sum
-                trend_component = 0
-                stage_score = 0
-                volume_score = 0
-                distance_score = 0
-                earnings_score = 8  # no earnings data yet; neutral value
-
-                if trend_score is not None:
-                    trend_component = min(35, int(trend_score * 3.5))
-
-                    if stage == 2:
-                        stage_score = 15
-                    elif stage == 1:
-                        stage_score = 7
-
-                    if rsi and rsi > 60:
-                        volume_score = min(20, int((rsi - 60) * 0.4))
-                    elif rsi and rsi < 40:
-                        volume_score = max(-16, int(-(40 - rsi) * 0.2))
-                    else:
-                        volume_score = 10
-
-                    if close > 0 and open_price > 0:
-                        range_pct = (close - open_price) / max(close, open_price) * 100
-                        if range_pct > 2:
-                            distance_score = 12
-                        elif range_pct < -2:
-                            distance_score = -8
-                        else:
-                            distance_score = 5
+                earnings_score = 8  # baseline; would reduce near earnings if data available
 
                 sqs = min(100, max(0, trend_component + stage_score + volume_score + distance_score + earnings_score))
 
