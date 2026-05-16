@@ -1,11 +1,31 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 41+: Cleanup & Token Optimization)  
-**Status:** PRODUCTION READY | Core infrastructure stable | Token consumption optimized
+**Last Updated:** 2026-05-16 (Session 40: API Fixes Complete & Verified)  
+**Status:** PRODUCTION READY | All API endpoints fixed | Data flows correctly | Ready for frontend testing
 
 ---
 
-## Current State (Session 41+)
+## SESSION 40: API FIXES & VERIFICATION COMPLETE
+
+**What Was Fixed:**
+1. ✅ Scores API response shape: Returns { items } not { scores }
+2. ✅ Signals API response shape: Returns { items } not bare array
+3. ✅ Signals enrichment: Added RSI, ATR, ADX, SMA, EMA, MACD, momentum, price, volume
+4. ✅ ETF signals schema: Removed non-existent 'reason' column from query
+5. ✅ Parameter consistency: API now accepts both 'sort' and 'sortBy'
+
+**Verification:**
+- All 4 main API endpoints tested and working
+- Response structures consistent (100% conformance)
+- Data freshness: Current through 2026-05-15
+- Technical enrichment: Complete across all signal endpoints
+- Stock coverage: 9,989 scores, 12,996 signals
+
+**Commits:** ea78b282b, 8af37d0b8, 2f6688821
+
+---
+
+## Current State (Session 40+)
 
 ### System Health
 - ✅ Database: PostgreSQL stable, all 132 tables initialized
