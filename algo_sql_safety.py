@@ -34,7 +34,7 @@ SAFE_COLUMNS = {
     'status', 'trade_id', 'position_id', 'signal_id',
     'entry_price', 'exit_price', 'quantity', 'value',
     'unrealized_pnl', 'profit_loss', 'profit_loss_pct',
-    'signal_date', 'trade_date', 'exit_date',
+    'signal_date', 'trade_date', 'exit_date', 'earnings_date',
     'target_levels_hit', 'current_price', 'current_stop_price',
     'date_recorded', 'transaction_date', 'action_date', 'score_date', 'quarter',
 }
