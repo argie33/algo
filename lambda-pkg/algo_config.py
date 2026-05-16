@@ -23,7 +23,8 @@ if env_file.exists():
     load_dotenv(env_file)
 
 # Centralized credential manager
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 from credential_validator import assert_credentials
 
 _cred_mgr = get_credential_manager()

@@ -10,8 +10,11 @@ Analyzes patrol findings across 7/30/90 day windows to detect:
 Run weekly to monitor system health.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 import os
 import psycopg2

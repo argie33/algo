@@ -12,8 +12,11 @@ Tier 5: Portfolio health (open positions, concentration, sector limits)
 Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 import os
 import psycopg2

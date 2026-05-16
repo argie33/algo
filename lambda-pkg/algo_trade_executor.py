@@ -11,8 +11,11 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 import os
 import json

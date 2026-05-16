@@ -4,8 +4,11 @@ Alpaca WebSocket price stream - stream live prices to frontend clients.
 Connects to Alpaca Data WebSocket API for real-time quotes.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 import os
 import json

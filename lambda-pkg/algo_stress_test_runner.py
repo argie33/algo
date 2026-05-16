@@ -11,8 +11,11 @@ Goal: Verify circuit breakers work and max loss limits hold.
 Expected: Win rate drops, but system should still be profitable or break-even.
 """
 
-from credential_manager import get_credential_manager
+try:
+    from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 import os
 import psycopg2
