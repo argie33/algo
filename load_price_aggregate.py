@@ -51,12 +51,12 @@ class PriceAggregateLoader(OptimalLoader):
         self.timeframe = timeframe
         if timeframe == "weekly":
             self.table_name = "price_weekly"
-            self.primary_key = ("symbol", "week_start")
-            self.watermark_field = "week_start"
+            self.primary_key = ("symbol", "date")
+            self.watermark_field = "date"
         else:
             self.table_name = "price_monthly"
-            self.primary_key = ("symbol", "month_start")
-            self.watermark_field = "month_start"
+            self.primary_key = ("symbol", "date")
+            self.watermark_field = "date"
         super().__init__()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -76,16 +76,13 @@ class PriceAggregateLoader(OptimalLoader):
             d = date.fromisoformat(date_str) if isinstance(date_str, str) else date_str
             if self.timeframe == "weekly":
                 bucket_start = d - timedelta(days=d.weekday())
-                pk_field = "week_start"
             else:
                 bucket_start = d.replace(day=1)
-                pk_field = "month_start"
             key = (row.get("symbol"), bucket_start.isoformat())
             if key not in buckets:
                 buckets[key] = {
                     "symbol": row["symbol"],
                     "date": bucket_start.isoformat(),
-                    pk_field: bucket_start.isoformat(),
                     "open": row.get("open"),
                     "high": row.get("high"),
                     "low": row.get("low"),

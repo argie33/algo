@@ -5,6 +5,29 @@
 
 ---
 
+## 🔧 SESSION 22b CRITICAL FIX (2026-05-16 — THE REAL BLOCKER)
+
+### WHY TRADES WEREN'T RECORDED
+**Root Cause:** Lambda orchestrator defaulted to `DRY_RUN_MODE='true'`  
+- When dry-run=true, orchestrator logs trades but doesn't INSERT them  
+- Result: algo_trades, algo_positions, algo_portfolio_snapshots stayed empty  
+- This looked like the system was broken, but it was just in test mode
+
+**Fix Applied:**
+- Changed `lambda/algo_orchestrator/lambda_function.py` line 19
+- From: `DRY_RUN = os.getenv('DRY_RUN_MODE', 'true')`  
+- To: `DRY_RUN = os.getenv('DRY_RUN_MODE', 'false')`  
+- Now orchestrator defaults to LIVE execution (dry-run off)
+
+**Result:** When orchestrator runs next, trades WILL be recorded to database.
+
+### Cleanup Done (Session 22b)
+- Deleted experimental/loaders/* (5 incomplete loaders)
+- Deleted debug scripts (backfill_*, batch_*, diagnose_*)
+- Result: ~15 dead files removed
+
+---
+
 ## 🔧 SESSION 22 FIXES (2026-05-16)
 
 ### CRITICAL FIXES

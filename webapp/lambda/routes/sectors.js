@@ -21,10 +21,10 @@ router.get("/", async (req, res) => {
       LIMIT 50
     `);
     
-    sendSuccess(res, result, "Sectors retrieved successfully");
+    sendSuccess(res, result, 200);
   } catch (error) {
     console.error("Error fetching sectors:", error);
-    sendError(res, 500, "Failed to fetch sectors: " + error.message);
+    sendError(res, "Failed to fetch sectors: " + error.message, 500);
   }
 });
 
