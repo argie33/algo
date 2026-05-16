@@ -159,7 +159,7 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
 
-    @retry(max_attempts=3, base_delay=2.0, exceptions=(Exception,))
+    @retry(max_attempts=3, base_delay=0.5, exceptions=(Exception,))  # Reduced: ALPACA_DATA_LIMITER handles rate limiting
     def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
         api_key = os.getenv("ALPACA_API_KEY")
         # Accept either ALPACA_API_SECRET (router default) or ALPACA_SECRET_KEY
@@ -205,7 +205,7 @@ class DataSourceRouter:
             for bar in bars
         ]
 
-    @retry(max_attempts=3, base_delay=5.0, exceptions=(Exception,))
+    @retry(max_attempts=3, base_delay=1.0, exceptions=(Exception,))  # Reduced: rate limiters handle throttling
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
         try:
             import yfinance as yf
