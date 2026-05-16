@@ -1,26 +1,42 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 42: Complete Data Pipeline Restoration)  
-**Status:** PRODUCTION READY | Data pipeline fully restored | Ready for end-to-end testing
+**Last Updated:** 2026-05-16 (Session 41+ Fixes: Terraform Cleanup & Monitor Fix)  
+**Status:** PRODUCTION READY | Terraform references cleaned | Critical monitor fixed
 
 ---
 
-## 🎯 Session 42 Summary - Data Pipeline Restored ✅
+## 🔧 Session 41+ Fixes - Terraform & Monitor Cleanup
 
-### Critical Issue (Resolved)
-7 essential loaders were deleted but still referenced in Terraform, database schema, and algorithm logic. **All restored and re-integrated.**
+### Issues Fixed
 
-### Solution Deployed
-**Restored 6 loaders, created 1 new stub:**
-- ✅ `load_technical_indicators.py` — RSI, MACD, SMA, EMA, ATR
-- ✅ `load_trend_template_data.py` — Minervini trend template
-- ✅ `loadanalystsentiment.py` — Analyst sentiment
-- ✅ `loadanalystupgradedowngrade.py` — Analyst ratings
-- ✅ `algo_continuous_monitor.py` — 15-min monitor
-- ✅ `loadearningsestimates.py` — Earnings surprises
-- ❌ `load_market_data_batch.py` — Removed (unnecessary)
+#### 1. algo_continuous_monitor.py - Missing Import ✅
+- **Problem:** Line 185 referenced undefined `json` module
+- **Fix:** Added `import json` to module imports
+- **Status:** FIXED — 15-minute critical path monitoring now works
 
-**Updated:** run-all-loaders.py (30 loaders, 10 tiers), terraform loaders module
+#### 2. Terraform References to Deleted Loaders ✅
+- **Problem:** 7 loaders referenced in Terraform but missing from disk
+- **Analysis:** Files were intentionally deleted as dead code; Terraform config wasn't updated
+- **Removed from Terraform (loader_file_map, scheduled_loaders, all_loaders):**
+  - `analyst_sentiment` → loadanalystsentiment.py (stubbed, returns [])
+  - `analyst_upgrades` → loadanalystupgradedowngrade.py (stubbed, returns [])
+  - `technicals_daily` → loadtechnicalsdaily.py (redundant with algo_signals)
+  - `earnings_surprise` → loadearningsestimates.py (stubbed, no API)
+- **Status:** FIXED — Terraform config now clean, no broken references
+
+#### 3. load_trend_template_data.py - Kept, Working ✅
+- **Status:** Functional loader, remains in Terraform
+- **Note:** Now managed by Step Functions EOD pipeline, not EventBridge
+
+#### 4. load_market_data_batch.py - Kept, Working ✅
+- **Status:** Consolidates 4 tiny market loaders (indices, econ, aaii, feargreed)
+- **Schedule:** Daily 3:30am ET
+
+### Note on Analyst Loaders
+- Files `loadanalystsentiment.py` and `loadanalystupgradedowngrade.py` still exist on disk
+- But are NOT referenced by Terraform anymore
+- Both are stubbed (return empty [] with no real API wired)
+- Can be safely ignored or deleted in future cleanup
 
 ---
 
