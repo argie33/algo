@@ -122,9 +122,8 @@ def _detect_base_type(df, pd):
 
 class BuySellDailyLoader(OptimalLoader):
     table_name = "buy_sell_daily"
-    primary_key = ("symbol", "timeframe", "date")
+    primary_key = ("symbol", "date")
     watermark_field = "date"
-    timeframe_value = "Daily"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Pull price rows from the local `price_daily` table.
@@ -432,36 +431,27 @@ class BuySellDailyLoader(OptimalLoader):
         buy_zone_start = base_info.get('zone_start', entry_price)
         buy_zone_end = base_info.get('zone_end', entry_price)
 
+        # Compute signal strength (RSI deviation from midpoint, 0-100 scale)
+        strength = abs(rsi - 50) if not pd.isna(rsi) else 50.0
+
+        # Build reason explaining the signal
+        reason_parts = []
+        if signal_str == "BUY" and rsi < 30:
+            reason_parts.append(f"RSI oversold ({rsi:.1f})")
+        elif signal_str == "SELL" and rsi > 70:
+            reason_parts.append(f"RSI overbought ({rsi:.1f})")
+        if base_type and base_type != "Unknown":
+            reason_parts.append(f"{base_type}")
+        reason = "; ".join(reason_parts) if reason_parts else f"{signal_str} signal"
+
+        # Return only columns that exist in buy_sell_daily table:
+        # symbol, date, signal, strength, reason
         return {
             "symbol": symbol,
-            "timeframe": self.timeframe_value,
             "date": date_str,
-            "open": _f(row.get("open")),
-            "high": _f(row.get("high")),
-            "low": _f(row.get("low")),
-            "close": _f(row.get("close")),
-            "volume": int(row["volume"]) if row.get("volume") is not None and not pd.isna(row.get("volume")) else None,
             "signal": signal_str,
-            "signal_type": signal_str.capitalize(),
-            "entry_price": entry_price,
-            "buylevel": buy_level,
-            "stoplevel": stop_level,
-            "rsi": _f(rsi),
-            "adx": _f(row.get("adx")),
-            "atr": _f(row.get("atr")),
-            "sma_50": _f(row.get("sma_50")),
-            "sma_200": _f(row.get("sma_200")),
-            "ema_21": _f(row.get("ema_21")),
-            "stage_number": stage_number,
-            "market_stage": market_stage,
-            "rs_rating": rs_rating,
-            "base_type": base_type,
-            "base_length_days": base_length_days,
-            "breakout_quality": breakout_quality,
-            "pivot_price": pivot_price,
-            "buy_zone_start": buy_zone_start,
-            "buy_zone_end": buy_zone_end,
-            "avg_volume_50d": int(row.get("avg_volume_50d")) if row.get("avg_volume_50d") is not None and not pd.isna(row.get("avg_volume_50d")) else None,
+            "strength": strength,
+            "reason": reason,
         }
 
     def transform(self, rows):
