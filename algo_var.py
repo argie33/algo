@@ -97,7 +97,7 @@ class PortfolioRisk:
             cur = conn.cursor()
 
             cur.execute(
-                """
+                f"""
                 SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                 ORDER BY snapshot_date ASC
@@ -163,7 +163,7 @@ class PortfolioRisk:
             cur = conn.cursor()
 
             cur.execute(
-                """
+                f"""
                 SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                 ORDER BY snapshot_date ASC
