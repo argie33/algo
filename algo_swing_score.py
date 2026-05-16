@@ -926,31 +926,6 @@ class SwingTraderScore:
 
     # ============= helpers =============
 
-    def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
-        """
-        Estimate days until next earnings report.
-
-        Uses earnings_metrics table to find the most recent report date,
-        then estimates next report ~90 days later (typical quarterly cadence).
-        Used by hard-gate check: blocks trades within 5 trading days of earnings.
-
-        Returns: Days to estimated next earnings, or None if no history found.
-        """
-        self.cur.execute(
-            "SELECT MAX(report_date) FROM earnings_metrics WHERE symbol = %s",
-            (symbol,),
-        )
-        row = self.cur.fetchone()
-        if not row or not row[0]:
-            return None
-        last_report = row[0] if isinstance(row[0], _date) else row[0].date() if hasattr(row[0], 'date') else None
-        if not last_report:
-            return None
-        est = last_report + timedelta(days=45)
-        while est < eval_date:
-            est += timedelta(days=90)
-        return (est - eval_date).days
-
     def _persist(self, symbol: str, eval_date, result: Dict[str, Any]) -> None:
         """
         Persist computed swing score to swing_trader_scores table.
