@@ -482,7 +482,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_circuit_breakers failed: {e}", exc_info=True)
-            return json_response(200, {'breakers': [], 'system_halted': False})
+            return error_response(500, 'database_error', f'Circuit breakers query failed: {str(e)}')
 
     def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
@@ -691,8 +691,8 @@ class APIHandler:
                 'avg_score': float(row['avg_score'] or 0),
             })
         except Exception as e:
-            logger.error(f"get_algo_evaluate failed: {e}")
-            return json_response(200, {'stage': 'error', 'candidates_screened': 0})
+            logger.error(f"get_algo_evaluate failed: {e}", exc_info=True)
+            return error_response(500, 'database_error', f'Algorithm evaluation query failed: {str(e)}')
 
     def _get_data_quality(self) -> Dict:
         """Get data quality summary from latest data_patrol_log run."""
@@ -721,8 +721,8 @@ class APIHandler:
                 'last_check': row['last_check'].isoformat() if row['last_check'] else None,
             })
         except Exception as e:
-            logger.error(f"get_data_quality failed: {e}")
-            return json_response(200, {'accuracy_check': 'error', 'last_check': None})
+            logger.error(f"get_data_quality failed: {e}", exc_info=True)
+            return error_response(500, 'database_error', f'Data quality check query failed: {str(e)}')
 
     def _get_exposure_policy(self) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
@@ -759,8 +759,8 @@ class APIHandler:
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except Exception as e:
-            logger.error(f"get_exposure_policy failed: {e}")
-            return json_response(200, {'current_exposure': None})
+            logger.error(f"get_exposure_policy failed: {e}", exc_info=True)
+            return error_response(500, 'database_error', f'Exposure policy query failed: {str(e)}')
 
     def _get_sector_stage2(self) -> Dict:
         """Get Stage 2 stocks by sector from trend_template_data."""
@@ -1243,7 +1243,7 @@ class APIHandler:
             return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
         except Exception as e:
             logger.error(f"Error in sectors handler: {e}", exc_info=True)
-            return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
+            return error_response(500, 'database_error', f'Sectors query failed: {str(e)}')
 
     def _handle_industries(self, path: str, params: Dict) -> Dict:
         """Handle /api/industries and /api/industries/{name}/trend."""
@@ -1523,7 +1523,7 @@ class APIHandler:
 
         except Exception as e:
             logger.error(f"get_leading_indicators error: {e}", exc_info=True)
-            return json_response(200, {'indicators': []})
+            return error_response(500, 'database_error', f'Leading indicators query failed: {str(e)}')
 
     def _get_yield_curve_full(self) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
@@ -1587,7 +1587,7 @@ class APIHandler:
 
         except Exception as e:
             logger.error(f"get_yield_curve_full error: {e}", exc_info=True)
-            return json_response(200, {'spreads': {}, 'credit': {'history': {}}})
+            return error_response(500, 'database_error', f'Yield curve query failed: {str(e)}')
 
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
