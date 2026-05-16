@@ -77,7 +77,7 @@ Quick reference for "where does this change go?"
 |---------------|-----|
 | **Manually trigger algo** | `aws lambda invoke --function-name algo-orchestrator --region us-east-1 /tmp/out.json` |
 | **Manually trigger loaders** | `aws ecs run-task --cluster stocks-data-cluster --task-definition stocks-loaders:1 --region us-east-1` |
-| **Manually trigger loaders (local)** | Run `docker-compose up` then `python3 loadpricedaily.py` |
+| **Manually trigger loaders (local)** | Run `python3 run-all-loaders.py` (see SETUP_LOCAL.md) |
 | **Check latest logs** | `aws logs tail /aws/lambda/algo-orchestrator --follow --region us-east-1` |
 | **Clean up bad deploy** | `gh workflow run cleanup-orphaned-resources.yml` |
 | **Full system nuke** | `gh workflow run cleanup-all-stacks.yml` (keeps RDS backups) |

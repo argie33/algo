@@ -264,10 +264,9 @@ terraform apply  # This should recreate route fresh
 
 ### 📋 REMAINING WORK (HIGH PRIORITY - BLOCKING DEPLOYMENT)
 
-**1. GET LOCAL ENVIRONMENT RUNNING**
-   - Status: WSL/Docker needed for local testing
-   - Block: Cannot test orchestrator end-to-end without data
-   - Action: Install WSL Ubuntu 24.04 LTS + Docker, run `bash scripts/start-local.sh`
+**1. GET LOCAL ENVIRONMENT RUNNING** ✅ DONE
+   - Status: PostgreSQL running on Windows localhost:5432
+   - Action: Follow SETUP_LOCAL.md (3 steps, ~30 min total)
 
 **2. VERIFY API AUTHENTICATION DEPLOYED**
    - Status: API still returns 401 (JWT auth not fully disabled)
@@ -313,12 +312,13 @@ terraform apply  # This should recreate route fresh
 ### 📝 NEXT IMMEDIATE ACTIONS (PRIORITY ORDER)
 
 1. ✅ DONE: Fix loader pipeline (commit 6b0f887a7)
-2. ⏳ BLOCKED: Get GitHub Actions deployment to complete (check https://github.com/argie33/algo/actions)
-3. ⏳ BLOCKED: Install WSL + Docker for local testing
-4. ⏳ THEN: Run fixed loader pipeline to populate database
-5. ⏳ THEN: Spot-check calculations with real data
-6. ⏳ THEN: Test orchestrator end-to-end
-7. ⏳ THEN: Verify frontend displays data correctly
+2. ⏳ DONE: Update all docs to clarify Windows PostgreSQL setup
+3. ⏳ NOW: Initialize database schema: `python3 init_database.py`
+4. ⏳ NOW: Load data with fixed loaders: `python3 run-all-loaders.py` (~20 min)
+5. ⏳ THEN: Test orchestrator: `python3 algo_orchestrator.py --mode paper --dry-run`
+6. ⏳ THEN: Spot-check calculations with real data
+7. ⏳ THEN: Check GitHub Actions deployment (AWS API auth)
+8. ⏳ THEN: Verify frontend displays data correctly
 
 ---
 

@@ -94,7 +94,7 @@
 
 ## Key Entry Points for Development
 
-1. **Local testing** — `algo_run_daily.py` (uses docker-compose.yml)
+1. **Local testing** — Follow `SETUP_LOCAL.md` (PostgreSQL on Windows, no Docker)
 2. **AWS Lambda** — `template-algo-orchestrator.yml` → `lambda_function.py` (entry point for EventBridge)
 3. **REST API** — `webapp/lambda/index.js` (Node.js Lambda)
 4. **Data loaders** — ECS task definitions in `template-app-ecs-tasks.yml`

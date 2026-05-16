@@ -310,12 +310,12 @@ git reset --soft HEAD~1  # Undo last commit, keep changes
 
 Create `.env.local`:
 ```bash
-# Database (Docker Compose)
+# Database (PostgreSQL on Windows)
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=stocks
-DB_USER=stocks
-DB_PASSWORD=stocks_local_password
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
 
 # Alpaca (Paper Trading)
 APCA_API_KEY_ID=your_key

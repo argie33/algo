@@ -17,10 +17,11 @@ When you're not sure where to start, follow this decision tree to find the right
   - NO: See `deployment-reference.md` for manual steps
 
 ### ...test the algo locally
-→ Do you have Docker + WSL2?
-  - NO: Install them first (see `development-workflows.md` Prerequisites)
-  - YES: Run `docker-compose up -d` then `python3 algo_run_daily.py`
-  - Still broken? See `troubleshooting-guide.md` → "Local Development Issues"
+→ Follow SETUP_LOCAL.md (3 steps, ~30 min):
+  1. `python3 init_database.py` (create schema)
+  2. `python3 run-all-loaders.py` (load data)
+  3. `python3 algo_orchestrator.py --mode paper --dry-run` (test)
+→ Still broken? See `SETUP_LOCAL.md` → "Troubleshooting"
 
 ### ...make changes to the code
 → What are you changing?
