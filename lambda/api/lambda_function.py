@@ -206,9 +206,9 @@ class APIHandler:
             if path.startswith('/api/scores/'):
                 return self._handle_scores(path, method, query_params)
 
-            # Earnings endpoints (no real data source — return graceful empty)
+            # Earnings endpoints
             if path.startswith('/api/earnings/'):
-                return json_response(200, {'data': [], 'total': 0, 'message': 'No earnings data available'})
+                return self._handle_earnings(path, method, query_params)
 
             # Contact endpoints
             if path == '/api/contact' or path.startswith('/api/contact/'):
@@ -948,6 +948,45 @@ class APIHandler:
         except Exception as e:
             logger.error(f"financials handler error: {e}", exc_info=True)
             return error_response(500, 'internal_error', f'Financials handler error: {str(e)}')
+
+    def _handle_earnings(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/earnings/* endpoints. Returns upcoming/past earnings dates."""
+        try:
+            period = params.get('period', ['upcoming'])[0] if params else 'upcoming'
+            limit = int(params.get('limit', [25])[0]) if params else 25
+            symbol = params.get('symbol', [None])[0] if params else None
+
+            if period == 'upcoming':
+                sql = """
+                    SELECT symbol, quarter, earnings_date, eps_estimate, eps_actual, eps_surprise_pct
+                    FROM earnings_history
+                    WHERE earnings_date >= CURRENT_DATE
+                    ORDER BY earnings_date ASC
+                    LIMIT %s
+                """
+                params_tuple = (limit,)
+            elif period == 'past':
+                sql = """
+                    SELECT symbol, quarter, earnings_date, eps_estimate, eps_actual, eps_surprise_pct
+                    FROM earnings_history
+                    WHERE earnings_date < CURRENT_DATE
+                    ORDER BY earnings_date DESC
+                    LIMIT %s
+                """
+                params_tuple = (limit,)
+            else:
+                return error_response(400, 'invalid_period', f'Period must be "upcoming" or "past", got "{period}"')
+
+            if symbol:
+                sql = sql.replace('FROM earnings_history', f'FROM earnings_history WHERE symbol = %s')
+                params_tuple = (symbol,) + params_tuple
+
+            self.cur.execute(sql, params_tuple)
+            rows = self.cur.fetchall()
+            return json_response(200, {'items': [dict(r) for r in rows], 'total': len(rows)})
+        except Exception as e:
+            logger.error(f"earnings handler error: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Earnings handler error: {str(e)}')
 
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
