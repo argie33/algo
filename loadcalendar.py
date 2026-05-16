@@ -231,11 +231,13 @@ class EconomicCalendarLoader:
                 for event in events:
                     try:
                         self.cur.execute("""
-                            INSERT INTO calendar_events
+                            INSERT INTO economic_calendar
                             (event_id, event_date, event_time, event_name, category, importance,
-                             forecast, previous, created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                             forecast_value, previous_value, created_at, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             ON CONFLICT (event_id, event_date) DO UPDATE SET
+                                forecast_value = EXCLUDED.forecast_value,
+                                previous_value = EXCLUDED.previous_value,
                                 updated_at = CURRENT_TIMESTAMP
                         """, (
                             event.get('event_id'),

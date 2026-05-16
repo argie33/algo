@@ -711,17 +711,22 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
 -- ECONOMIC & MARKET INDEX DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Economic calendar events
+-- Economic calendar events (FRED release dates and upcoming data)
 CREATE TABLE IF NOT EXISTS economic_calendar (
     id SERIAL PRIMARY KEY,
-    date DATE,
+    event_id VARCHAR(100),
+    event_date DATE NOT NULL,
+    event_time TIME,
     event_name VARCHAR(255),
-    country VARCHAR(50),
+    category VARCHAR(100),
+    country VARCHAR(50) DEFAULT 'US',
     importance VARCHAR(20),
-    forecast DECIMAL(12, 4),
-    actual DECIMAL(12, 4),
-    previous DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    forecast_value DECIMAL(12, 4),
+    actual_value DECIMAL(12, 4),
+    previous_value DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, event_date)
 );
 
 -- Economic data time series

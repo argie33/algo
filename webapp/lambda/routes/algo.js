@@ -350,8 +350,8 @@ router.get('/positions', authenticateToken, async (req, res) => {
 router.get('/trades', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);  // Clamp to [1, 1000]
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     const result = await pool.query(`
       SELECT

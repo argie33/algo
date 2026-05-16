@@ -136,9 +136,9 @@ export default function StockDetail() {
   const { data: swingScore, error: swingScoreError, refetch: refetchSwingScore } = useApiQuery(
     ['stock-swing-score', symbol],
     async () => {
-      const r = await api.get(`/api/algo/swing-scores?limit=2000`);
+      const r = await api.get(`/api/algo/swing-scores?symbol=${symbol.toUpperCase()}&limit=1`);
       const items = extractData(r);
-      return items.find(it => it.symbol === symbol.toUpperCase()) || null;
+      return items && items.length > 0 ? items[0] : null;
     },
     { enabled: !!symbol, staleTime: 60_000 }
   );

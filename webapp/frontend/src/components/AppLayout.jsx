@@ -41,6 +41,7 @@ const NAV_SECTIONS = [
     title: 'Stocks',
     items: [
       { text: 'Stock Scores',     icon: Award,    path: '/app/scores' },
+      { text: 'Stock Metrics',    icon: BarChart2, path: '/app/metrics' },
       { text: 'Trading Signals',  icon: Zap,      path: '/app/trading-signals' },
       { text: 'Swing Candidates', icon: Target,   path: '/app/swing' },
       { text: 'Deep Value Picks', icon: Layers,   path: '/app/deep-value' },

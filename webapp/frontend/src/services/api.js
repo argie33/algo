@@ -474,9 +474,25 @@ export const testApiConnection = async () => {
 // EXTERNAL DATA FUNCTIONS
 // ============================================
 
-// Aliases for backward compatibility
-export const getNaaimData = getMarketSentimentData;
-export const getFearGreedData = getMarketSentimentData;
+export const getNaaimData = async () => {
+  try {
+    const response = await api.get("/api/market/naaim");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching NAAIM data:", error);
+    return { success: false, data: { sentiment: 0.5 }, error: error.message };
+  }
+};
+
+export const getFearGreedData = async (range = "30d") => {
+  try {
+    const response = await api.get(`/api/market/fear-greed?range=${range}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching Fear & Greed data:", error);
+    return { success: false, data: { sentiment: 50 }, error: error.message };
+  }
+};
 
 // Export the axios instance for direct use
 export { api };

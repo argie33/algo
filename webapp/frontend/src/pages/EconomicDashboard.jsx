@@ -141,7 +141,7 @@ export default function EconomicDashboard() {
         weight: +vixVal > 35 ? 100 : +vixVal > 25 ? 60 : Math.max(0, +vixVal * 2),
       });
     }
-    const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
+    const igHist = yieldData?.credit?.history?.['BAMLC0A0CM'] || [];
     const igVal  = igHist.at?.(-1)?.value;
     if (igVal != null) {
       tiles.push({
@@ -574,7 +574,7 @@ export default function EconomicDashboard() {
         {/* ── BUSINESS CYCLE ────────────────────────────────────────────── */}
         {tab === 'cycle' && (
           <>
-            <div className="grid grid_2" style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
               <MacroKpi label="ISM Manufacturing" ind={ind('ISM Manufacturing')} unit="Index" />
               <MacroKpi label="ISM Services" ind={ind('ISM Services')} unit="Index" />
             </div>

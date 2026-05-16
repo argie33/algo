@@ -62,6 +62,7 @@ class StockScoresLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
         self._quality_metrics_cache = {}  # Cache all quality metrics in memory (symbol → dict)
+        self._value_metrics_cache = {}    # Cache all value metrics in memory (symbol → dict)
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch price data and compute scores."""
@@ -101,8 +102,9 @@ class StockScoresLoader(OptimalLoader):
         if len(df) < 20:
             return None
 
-        # Fetch quality metrics if available
+        # Fetch quality and value metrics if available
         quality_metrics = self._fetch_quality_metrics(symbol)
+        value_metrics = self._fetch_value_metrics(symbol)
 
         # Technical analysis scores
         rsi = self._compute_rsi(df["close"], 14)
@@ -125,7 +127,10 @@ class StockScoresLoader(OptimalLoader):
             return None
 
         # Score components (0-100 scale, where 50 is neutral)
-        momentum_score = float(rsi.iloc[valid_idx])  # RSI: 0-100, oversold<30, overbought>70
+        # Momentum: 63-day (13-week) price momentum, not RSI overbought/oversold
+        momentum_roc = (df["close"].iloc[-1] / df["close"].iloc[-64] - 1) if len(df) >= 64 else (df["close"].iloc[-1] / df["close"].iloc[0] - 1)
+        momentum_score = 50 + (momentum_roc * 100) if len(df) >= 64 else 50 + (momentum_roc * 50)
+        momentum_score = max(0, min(100, momentum_score))
 
         # Price momentum: positive for uptrends, negative for downtrends
         # Convert to 0-100 scale where 50 is neutral
@@ -146,8 +151,9 @@ class StockScoresLoader(OptimalLoader):
         _qs = self._compute_quality_score(quality_metrics)
         quality_score = _qs if _qs is not None else stability_score
 
-        # Value score: RSI-based (low RSI = potentially undervalued)
-        value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
+        # Value score: from P/E and P/B ratios if available, otherwise None (exclude from composite)
+        _vs = self._compute_value_score(value_metrics)
+        value_score = _vs if _vs is not None else 50.0  # Default neutral if no value metrics
 
         # Composite: weighted average — 6 factors combining technical + fundamental metrics
         # quality_score (fundamental strength) now integrated with appropriate weighting
@@ -227,6 +233,59 @@ class StockScoresLoader(OptimalLoader):
         """Fetch quality metrics from cache (pre-loaded in batch)."""
         return self._quality_metrics_cache.get(symbol)
 
+    def _batch_load_value_metrics(self, symbols: List[str]) -> None:
+        """Batch load all value metrics once to avoid per-symbol queries."""
+        if not symbols:
+            return
+        try:
+            conn = self._connect()
+            placeholders = ','.join(['%s'] * len(symbols))
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT symbol, pe_ratio, pb_ratio, ps_ratio
+                    FROM value_metrics WHERE symbol IN ({placeholders})
+                """, tuple(symbols))
+                for row in cur.fetchall():
+                    self._value_metrics_cache[row[0]] = {
+                        'pe_ratio': row[1],
+                        'pb_ratio': row[2],
+                        'ps_ratio': row[3]
+                    }
+        except Exception as e:
+            logging.debug(f"Could not batch load value_metrics: {e}")
+
+    def _fetch_value_metrics(self, symbol: str) -> Optional[dict]:
+        """Fetch value metrics from cache (pre-loaded in batch)."""
+        return self._value_metrics_cache.get(symbol)
+
+    @staticmethod
+    def _compute_value_score(value_metrics: Optional[dict]) -> Optional[float]:
+        """Compute value score from fundamental metrics (P/E, P/B)."""
+        if not value_metrics:
+            return None
+
+        scores = []
+
+        # P/E ratio: lower is cheaper (0-40 range, < 20 is reasonable, > 40 is expensive)
+        if value_metrics.get('pe_ratio') is not None and value_metrics['pe_ratio'] > 0:
+            pe = value_metrics['pe_ratio']
+            # Invert: lower P/E = higher value_score
+            # PE of 20 = 50 (neutral), PE of 10 = 75 (cheap), PE of 40 = 25 (expensive)
+            pe_score = max(0, min(100, 50 + (20 - pe) * 1.25))
+            scores.append(pe_score)
+
+        # P/B ratio: lower is cheaper (0-5 range, < 2 is reasonable, > 4 is expensive)
+        if value_metrics.get('pb_ratio') is not None and value_metrics['pb_ratio'] > 0:
+            pb = value_metrics['pb_ratio']
+            # Invert: lower P/B = higher value_score
+            # PB of 2 = 50 (neutral), PB of 1 = 75 (cheap), PB of 4 = 25 (expensive)
+            pb_score = max(0, min(100, 50 + (2 - pb) * 12.5))
+            scores.append(pb_score)
+
+        if scores:
+            return float(round(sum(scores) / len(scores), 1))
+        return None
+
     @staticmethod
     def _compute_quality_score(quality_metrics: Optional[dict]) -> Optional[float]:
         """Compute quality score from fundamental metrics."""
@@ -270,6 +329,12 @@ class StockScoresLoader(OptimalLoader):
         if quality_metrics.get('quick_ratio') is not None:
             qr = max(0, min(100, quality_metrics['quick_ratio'] * 66.67))
             scores.append(qr)
+
+        # Interest coverage: 1x to 10x → higher is better (ability to service debt)
+        if quality_metrics.get('interest_coverage') is not None:
+            ic = quality_metrics['interest_coverage']
+            ic_score = max(0, min(100, ic * 10))  # 10x coverage = 100 score
+            scores.append(ic_score)
 
         if scores:
             return float(round(sum(scores) / len(scores), 1))
@@ -385,8 +450,9 @@ def main():
         symbols = get_active_symbols()
 
     loader = StockScoresLoader()
-    # Batch load quality metrics once to avoid per-symbol database hits (performance optimization)
+    # Batch load fundamental metrics once to avoid per-symbol database hits (performance optimization)
     loader._batch_load_quality_metrics(symbols)
+    loader._batch_load_value_metrics(symbols)
     # loader.start_provenance_tracking()  # Disabled for local testing (data_loader_runs table missing)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)

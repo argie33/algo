@@ -127,7 +127,6 @@ const menuItems = [
 ];
 
 function App() {
-  console.log("🎯 APP COMPONENT: Starting App component render...");
 
   // All hooks must be at the top level - not inside try-catch
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -141,30 +140,18 @@ function App() {
     admin: true,
   });
 
-  console.log("🎯 APP COMPONENT: State initialized");
 
   const theme = useTheme();
-  console.log("🎯 APP COMPONENT: Theme loaded:", theme ? "✅" : "❌");
 
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  console.log("🎯 APP COMPONENT: isMobile:", isMobile);
 
-  console.log("🎯 APP COMPONENT: About to call useAuth...");
 
   // Safe auth context access - useAuth now has built-in fallback safety
   const { isAuthenticated, user, logout } = useAuth();
-  console.log(
-    "🎯 APP COMPONENT: Auth state loaded - isAuthenticated:",
-    isAuthenticated,
-    "user:",
-    user
-  );
 
   const navigate = useNavigate();
-  console.log("🎯 APP COMPONENT: Navigate loaded");
 
   const location = useLocation();
-  console.log("🎯 APP COMPONENT: Location loaded:", location?.pathname);
 
   // Auto-close auth modal when user successfully authenticates
   useEffect(() => {
@@ -342,7 +329,6 @@ function App() {
     </div>
   );
 
-  console.log("🎯 APP COMPONENT: About to render JSX...");
 
   // Determine if this is a marketing page or app page
   const isMarketingPage = !location.pathname.startsWith('/app');
