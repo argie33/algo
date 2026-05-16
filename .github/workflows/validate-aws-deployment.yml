@@ -13,7 +13,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  API_ENDPOINT: https://kx4kprv8ph.execute-api.us-east-1.amazonaws.com
+  API_ENDPOINT: https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
 
 jobs:
   ################################################################################
