@@ -141,7 +141,7 @@ export default function EconomicDashboard() {
         weight: +vixVal > 35 ? 100 : +vixVal > 25 ? 60 : Math.max(0, +vixVal * 2),
       });
     }
-    const igHist = yieldData?.credit?.history?.['BAMLC0A0CM'] || [];
+    const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
     const igVal  = igHist.at?.(-1)?.value;
     if (igVal != null) {
       tiles.push({
@@ -806,7 +806,7 @@ function CreditSpreadsPanel({ yieldData }) {
   const credit = yieldData?.credit;
   if (!credit?.currentSpreads && !credit?.history) return null;
   const hyHist = credit?.history?.['BAMLH0A0HYM2'] || [];
-  const igHist = credit?.history?.['BAMLC0A0CM'] || [];
+  const igHist = credit?.history?.['BAMLH0A0IG'] || [];
   if (!hyHist.length && !igHist.length) return null;
   const combined = (() => {
     const map = new Map();

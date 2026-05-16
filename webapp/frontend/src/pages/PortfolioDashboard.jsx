@@ -107,7 +107,7 @@ export default function PortfolioDashboard() {
   const totalValue = parseFloat(portfolio.total_value || 0);
 
   // Check for critical errors
-  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
+  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError, breakersError];
   const hasErrors = criticalErrors.some(err => err);
 
   if (hasErrors) {
@@ -131,6 +131,7 @@ export default function PortfolioDashboard() {
               {tradesError && <div>• Trade history unavailable</div>}
               {marketsError && <div>• Market data unavailable</div>}
               {equityError && <div>• Equity curve unavailable</div>}
+              {breakersError && <div>• Circuit breakers unavailable</div>}
             </div>
             <button
               className="btn btn-sm"
@@ -141,6 +142,7 @@ export default function PortfolioDashboard() {
                 tradesError && refetchTrades?.();
                 marketsError && refetchMarkets?.();
                 equityError && refetchEquity?.();
+                breakersError && refetchBreakers?.();
               }}
             >
               <RefreshCw size={14} /> Retry
