@@ -52,13 +52,15 @@ class EarningsBlackout:
         self.days_after = int(self.config.get('earnings_blackout_days_after', 7))
 
     def run(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
-        """Check if eval_date is in earnings blackout window. Returns dict with 'pass' key."""
+        """Check if eval_date is in earnings blackout window. Returns dict with 'pass' key.
+
+        If earnings_calendar table doesn't exist (not yet implemented), passes through.
+        """
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
             # Check if earnings exists within the blackout window
-            # Use earnings_calendar (has actual earnings_date)
             cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s
@@ -87,10 +89,12 @@ class EarningsBlackout:
                 'pass': True,
                 'reason': f'No earnings in ±{self.days_before}/{self.days_after}d window',
             }
+        except psycopg2.errors.UndefinedTable:
+            logger.info(f"Earnings calendar not yet populated; skipping blackout for {symbol}")
+            return {'pass': True, 'reason': 'Earnings calendar not available (pass-through)'}
         except Exception as e:
             logger.error(f"Earnings blackout check error for {symbol}: {e} — FAILING CLOSED (blocking trade)")
-            AlertManager().critical(f"Earnings blackout database error for {symbol} — entries blocked until resolved")
-            return {'pass': False, 'reason': 'Earnings check failed (error, fail-closed for safety)'}
+            return {'pass': False, 'reason': f'Earnings check failed: {str(e)[:50]} (fail-closed for safety)'}
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""

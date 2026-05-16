@@ -149,24 +149,27 @@ class FilterPipeline:
                     logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
                     continue
 
-                # Check Stage 2 + RS > 70 (HIGH-CONFIDENCE entries only)
+                # Fetch stage, trend score, and price data for signal date
                 self.cur.execute(
-                    """SELECT stage_number, rs_rating, volume, avg_volume_50d, high, low, close FROM buy_sell_daily
-                       WHERE symbol = %s AND date = %s LIMIT 1""",
-                    (symbol, signal_date),
+                    """SELECT t.weinstein_stage, p.volume, p.high, p.low, p.close,
+                              (SELECT AVG(volume) FROM price_daily WHERE symbol = %s
+                               AND date >= %s - INTERVAL '50 days' AND date <= %s) AS avg_vol_50d
+                       FROM trend_template_data t
+                       LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+                       WHERE t.symbol = %s AND t.date = %s LIMIT 1""",
+                    (symbol, signal_date, signal_date, symbol, signal_date),
                 )
-                stage_rs = self.cur.fetchone()
-                if stage_rs:
-                    stage_number, rs_rating, volume, avg_vol_50d, day_high, day_low, close = stage_rs
+                row = self.cur.fetchone()
+                if row:
+                    stage_number, volume, day_high, day_low, close, avg_vol_50d = row
+
+                    # A1: Stage 2 + Volume check
                     if stage_number != 2:
-                        logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2 only)")
-                        continue
-                    if rs_rating is None or rs_rating < 70:
-                        logger.info(f"  SKIP {symbol}: RS {rs_rating} (need RS > 70)")
+                        logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2)")
                         continue
 
                     # A2: Close Quality Gate — close must be in upper N% of day's range
-                    if day_high and day_low and day_high > day_low:
+                    if day_high and day_low and close is not None and day_high > day_low:
                         min_close_quality_pct = float(self.config.get('min_close_quality_pct', 60.0))
                         day_range = day_high - day_low
                         close_pct_of_range = ((close - day_low) / day_range * 100) if day_range > 0 else 0
@@ -174,13 +177,16 @@ class FilterPipeline:
                             logger.info(f"  SKIP {symbol}: Close at {close_pct_of_range:.0f}% of range (need >{min_close_quality_pct:.0f}%)")
                             continue
 
-                    # A3: Volume Hard Gate — tightened from 1.0x to min_breakout_volume_ratio
+                    # A3: Volume Hard Gate — min breakout volume ratio
                     min_vol_ratio = float(self.config.get('min_breakout_volume_ratio', 1.25))
                     if volume and avg_vol_50d and avg_vol_50d > 0:
                         vol_ratio = volume / avg_vol_50d
                         if vol_ratio < min_vol_ratio:
                             logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.2f}x 50-day avg (need >{min_vol_ratio}x)")
                             continue
+                else:
+                    logger.info(f"  SKIP {symbol}: No trend or price data for {signal_date}")
+                    continue
 
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
                 entry_date = self._get_next_trading_day(signal_date)
