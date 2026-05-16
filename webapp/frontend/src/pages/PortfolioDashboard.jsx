@@ -103,7 +103,7 @@ export default function PortfolioDashboard() {
   );
 
   const portfolio = status?.portfolio || {};
-  const market = status?.market || {};
+  const market = markets?.market_health || {};
   const totalValue = parseFloat(portfolio.total_value || 0);
 
   // Check for critical errors

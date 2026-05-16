@@ -120,10 +120,13 @@ function AlgoTradingDashboard() {
   const { data: circuitBreakers,isLoading: cbLoading,error: err11,refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
   const { data: dataQuality,  isLoading: dqLoading,error: err12,refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
   const { data: rejectionFunnel,isLoading: rfLoading,error: err13,refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
+  const { data: performance,   isLoading: pfLoading,error: err14,refetch: r14 } = useApiQuery(['algo','performance'],   () => api.get('/api/algo/performance'), qOpts);
+  const { items: equityCurve,  isLoading: ecLoading,error: err15,refetch: r15 } = useApiPaginatedQuery(['algo','equity'], () => api.get('/api/algo/equity-curve?limit=180'), qOpts);
+  const { items: auditLog,     isLoading: alLoading,error: err16,refetch: r16 } = useApiPaginatedQuery(['algo','audit'],  () => api.get('/api/algo/audit-log?limit=300'), adminOpts);
 
   const refetchAll = useCallback(() => {
-    [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13].forEach(fn => fn?.());
-  }, [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13]);
+    [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
+  }, [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16]);
 
   // Stable data shape consumed by sub-components
   const data = {
@@ -140,6 +143,9 @@ function AlgoTradingDashboard() {
     circuitBreakers,
     dataQuality,
     rejectionFunnel,
+    performance,
+    equityCurve:   equityCurve  || [],
+    auditLog:      auditLog     || [],
   };
 
   const portfolio = status?.portfolio || {};
