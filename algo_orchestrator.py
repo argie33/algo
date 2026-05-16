@@ -1238,6 +1238,17 @@ class Orchestrator:
                     )
                     return True
 
+            # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
+            data_quality_ok, dq_issues, dq_warnings = self._validate_pre_trade_data_quality()
+            if not data_quality_ok:
+                self.log_phase_result(
+                    6, 'entry_execution', 'halt',
+                    f'Data quality gate failed: {"; ".join(dq_issues)}'
+                )
+                return False
+            if dq_warnings:
+                logger.warning(f"Data quality warnings: {"; ".join(dq_warnings)}")
+
             # Apply exposure tier entry constraints
             if constraints and constraints.get('halt_new_entries'):
                 self.log_phase_result(
@@ -1578,6 +1589,114 @@ class Orchestrator:
             return self._final_report()
         finally:
             self._release_run_lock()
+
+    def _validate_pre_trade_data_quality(self) -> Tuple[bool, List[str], List[str]]:
+        """
+        Gate: Verify all required data is fresh and complete before trading.
+
+        Checks:
+        1. All required tables have data for today
+        2. Price data is recent (< 1 hour old)
+        3. No critical NULLs in signal columns
+        4. Symbol coverage > 80% of active universe
+        5. Technical data is fresh
+
+        Returns:
+            (passes: bool, blocking_issues: list, warnings: list)
+        """
+        issues = []
+        warnings = []
+        conn = None
+        cur = None
+
+        try:
+            conn = psycopg2.connect(**_get_db_config())
+            cur = conn.cursor()
+            today = _date.today()
+
+            # 1. Check required tables exist
+            required_tables = [
+                ('price_daily', 'Price data'),
+                ('technical_data_daily', 'Technical indicators'),
+                ('buy_sell_daily', 'Signal data'),
+            ]
+
+            for table, description in required_tables:
+                cur.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE date = %s",
+                    (today,)
+                )
+                count = cur.fetchone()[0]
+                if count == 0:
+                    issues.append(f"{description} missing for {today}")
+                else:
+                    logger.debug(f"  ✓ {table}: {count} rows for today")
+
+            # 2. Check price freshness
+            cur.execute(
+                "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            if result and result[0]:
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                if age_hours > 24:
+                    issues.append(f"Price data too stale: {age_hours:.1f} hours old")
+                elif age_hours > 1:
+                    warnings.append(f"Price data is {age_hours:.1f} hours old")
+            else:
+                issues.append("No price data found")
+
+            # 3. Check signal data completeness
+            cur.execute(
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR buy_signal IS NULL OR sell_signal IS NULL)",
+                (today,)
+            )
+            null_count = cur.fetchone()[0]
+            if null_count > 0:
+                issues.append(f"Signal data has {null_count} critical NULLs")
+
+            # 4. Check symbol coverage (>80% of active symbols should have data)
+            cur.execute(
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                (today,)
+            )
+            covered = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE"
+            )
+            total = cur.fetchone()[0]
+            if total > 0:
+                coverage = (covered / total) * 100
+                if coverage < 80:
+                    issues.append(f"Low symbol coverage: {covered}/{total} ({coverage:.1f}%)")
+                elif coverage < 95:
+                    warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
+
+            # 5. Check technical data freshness
+            cur.execute(
+                "SELECT MAX(created_at) FROM technical_data_daily WHERE date = %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            if result and result[0]:
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                if age_hours > 12:
+                    issues.append(f"Technical data stale: {age_hours:.1f} hours old")
+            else:
+                issues.append("No technical data found")
+
+            passes = len(issues) == 0
+            return passes, issues, warnings
+
+        except Exception as e:
+            logger.error(f"Data quality check failed: {e}", exc_info=True)
+            return False, [f"Data quality check error: {e}"], []
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     def _is_market_open_or_imminent(self, window_min: int = 30) -> bool:
         """Return True if US equity market is open right now OR opens within
