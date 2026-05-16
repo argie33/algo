@@ -8,9 +8,6 @@ Run this once to prepare the test environment:
 Or import and call setup_test_db() from pytest fixtures.
 """
 
-from credential_manager import get_credential_manager
-credential_manager = get_credential_manager()
-
 import os
 import sys
 import psycopg2
@@ -26,12 +23,22 @@ if not env_file.exists():
 if env_file.exists():
     load_dotenv(env_file)
 
+# Get DB password from environment first, fall back to credential manager if needed
+db_password = os.getenv("TEST_DB_PASSWORD") or os.getenv("DB_PASSWORD")
+if not db_password:
+    try:
+        from credential_manager import get_credential_manager
+        credential_manager = get_credential_manager()
+        db_password = credential_manager.get_db_credentials()["password"]
+    except Exception:
+        db_password = "postgres"  # Default for local dev
+
 # Test DB config (stocks_test, not stocks)
 TEST_DB_CONFIG = {
     "host": os.getenv("TEST_DB_HOST") or os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("TEST_DB_PORT") or os.getenv("DB_PORT", 5432)),
     "user": os.getenv("TEST_DB_USER") or os.getenv("DB_USER", "stocks"),
-    "password": os.getenv("TEST_DB_PASSWORD") or credential_manager.get_db_credentials()["password"],
+    "password": db_password,
     "database": "stocks_test",
 }
 
