@@ -317,30 +317,34 @@ class DataProvenanceTracker:
         if not self.db_conn:
             return
 
-        with self.db_conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO data_provenance_log
-                (provenance_id, run_id, loader_name, table_name, symbol, tick_date,
-                 source_timestamp, load_timestamp, source_api, data_checksum, data_hash, data_size_bytes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    record["provenance_id"],
-                    record["run_id"],
-                    record["loader_name"],
-                    record["table_name"],
-                    record["symbol"],
-                    record["tick_date"],
-                    record["source_timestamp"],
-                    record["load_timestamp"],
-                    record["source_api"],
-                    record["data_checksum"],
-                    record["data_hash"],
-                    record["data_size_bytes"],
-                ),
-            )
-        self.db_conn.commit()
+        try:
+            with self.db_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO data_provenance_log
+                    (provenance_id, run_id, loader_name, table_name, symbol, tick_date,
+                     source_timestamp, load_timestamp, source_api, data_checksum, data_hash, data_size_bytes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        record["provenance_id"],
+                        record["run_id"],
+                        record["loader_name"],
+                        record["table_name"],
+                        record["symbol"],
+                        record["tick_date"],
+                        record["source_timestamp"],
+                        record["load_timestamp"],
+                        record["source_api"],
+                        record["data_checksum"],
+                        record["data_hash"],
+                        record["data_size_bytes"],
+                    ),
+                )
+            self.db_conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
+            # Allow system to continue - provenance is non-critical
 
     def _insert_error_record(self, error_record: Dict):
         """Insert an error record."""

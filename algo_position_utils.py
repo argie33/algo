@@ -19,15 +19,20 @@ def add_trade_id_to_position(cur, position_id, trade_id):
         trade_id: Trade ID to add
 
     Returns:
-        True if successful
+        True if successful, False on error
     """
-    cur.execute("""
-        UPDATE algo_positions
-        SET trade_ids_arr = array_append(COALESCE(trade_ids_arr, '{}'), %s),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE position_id = %s
-    """, (trade_id, position_id))
-    return cur.rowcount > 0
+    try:
+        cur.execute("""
+            UPDATE algo_positions
+            SET trade_ids_arr = array_append(COALESCE(trade_ids_arr, '{}'), %s),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE position_id = %s
+        """, (trade_id, position_id))
+        return cur.rowcount > 0
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to add trade_id {trade_id} to position {position_id}: {e}")
+        return False
 
 
 def get_position_for_trade(cur, trade_id):
@@ -38,17 +43,22 @@ def get_position_for_trade(cur, trade_id):
         trade_id: Trade ID to look up
 
     Returns:
-        Tuple of position fields or None if not found
+        Tuple of position fields or None if not found/error
     """
-    cur.execute("""
-        SELECT position_id, symbol, quantity, avg_entry_price, current_price,
-               position_value, status, current_stop_price, target_levels_hit,
-               trade_ids_arr
-        FROM algo_positions
-        WHERE %s = ANY(trade_ids_arr) AND status = 'open'
-        LIMIT 1
-    """, (trade_id,))
-    return cur.fetchone()
+    try:
+        cur.execute("""
+            SELECT position_id, symbol, quantity, avg_entry_price, current_price,
+                   position_value, status, current_stop_price, target_levels_hit,
+                   trade_ids_arr
+            FROM algo_positions
+            WHERE %s = ANY(trade_ids_arr) AND status = 'open'
+            LIMIT 1
+        """, (trade_id,))
+        return cur.fetchone()
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to get position for trade_id {trade_id}: {e}")
+        return None
 
 
 def get_position_trade_ids(cur, position_id):
