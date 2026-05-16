@@ -84,7 +84,7 @@ class StockScoresLoader(OptimalLoader):
             return None
 
     def _compute_scores(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
-        """Compute stock quality scores from price/fundamental data."""
+        """Compute stock quality scores from price/fundamental data and quality metrics."""
         if len(price_rows) < 20:
             return None
 
@@ -99,6 +99,9 @@ class StockScoresLoader(OptimalLoader):
 
         if len(df) < 20:
             return None
+
+        # Fetch quality metrics if available
+        quality_metrics = self._fetch_quality_metrics(symbol)
 
         # Technical analysis scores
         rsi = self._compute_rsi(df["close"], 14)
@@ -137,8 +140,8 @@ class StockScoresLoader(OptimalLoader):
         growth_score = 50 + (momentum_pct * 0.8 - (volatility * 0.2))
         growth_score = max(0, min(100, growth_score))
 
-        # Quality score: same as stability (inverse volatility) — kept for schema compatibility
-        quality_score = stability_score
+        # Quality score: from fundamental metrics if available, otherwise stability
+        quality_score = self._compute_quality_score(quality_metrics) or stability_score
 
         # Value score: RSI-based (low RSI = potentially undervalued)
         value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
@@ -181,6 +184,86 @@ class StockScoresLoader(OptimalLoader):
         """Compute momentum score."""
         returns = closes.pct_change(period)
         return 50 + (returns * 50).clip(-50, 50)
+
+    def _fetch_quality_metrics(self, symbol: str) -> Optional[dict]:
+        """Fetch quality metrics from database if available."""
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv('DB_HOST', 'localhost'),
+                port=int(os.getenv('DB_PORT', 5432)),
+                user=os.getenv('DB_USER', 'postgres'),
+                password=get_db_password(),
+                database=os.getenv('DB_NAME', 'stocks')
+            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT operating_margin, net_margin, roe, roa, debt_to_equity, current_ratio, quick_ratio, interest_coverage FROM quality_metrics WHERE symbol = %s",
+                    (symbol,)
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        'operating_margin': row[0],
+                        'net_margin': row[1],
+                        'roe': row[2],
+                        'roa': row[3],
+                        'debt_to_equity': row[4],
+                        'current_ratio': row[5],
+                        'quick_ratio': row[6],
+                        'interest_coverage': row[7]
+                    }
+            conn.close()
+        except Exception as e:
+            logging.debug(f"Could not fetch quality_metrics for {symbol}: {e}")
+        return None
+
+    @staticmethod
+    def _compute_quality_score(quality_metrics: Optional[dict]) -> Optional[float]:
+        """Compute quality score from fundamental metrics."""
+        if not quality_metrics:
+            return None
+
+        scores = []
+
+        # Operating margin: -10% to +20% → 0-100 scale
+        if quality_metrics.get('operating_margin') is not None:
+            om = max(0, min(100, (quality_metrics['operating_margin'] + 10) * 3.33))
+            scores.append(om)
+
+        # Net margin: -10% to +20% → 0-100 scale
+        if quality_metrics.get('net_margin') is not None:
+            nm = max(0, min(100, (quality_metrics['net_margin'] + 10) * 3.33))
+            scores.append(nm)
+
+        # ROE: 0% to 30% → 0-100 scale
+        if quality_metrics.get('roe') is not None:
+            roe = max(0, min(100, quality_metrics['roe'] * 3.33))
+            scores.append(roe)
+
+        # ROA: 0% to 15% → 0-100 scale
+        if quality_metrics.get('roa') is not None:
+            roa = max(0, min(100, quality_metrics['roa'] * 6.67))
+            scores.append(roa)
+
+        # Debt-to-equity: 0 to 2 → higher is riskier, invert (2 - D/E normalized)
+        if quality_metrics.get('debt_to_equity') is not None:
+            de = max(0, min(100, 100 - (quality_metrics['debt_to_equity'] * 50)))
+            scores.append(de)
+
+        # Current ratio: 0.5 to 2.5 → optimal ~1.5
+        if quality_metrics.get('current_ratio') is not None:
+            cr = quality_metrics['current_ratio']
+            cr_score = max(0, min(100, 100 - abs(cr - 1.5) * 30))
+            scores.append(cr_score)
+
+        # Quick ratio: 0.2 to 1.5 → higher is better
+        if quality_metrics.get('quick_ratio') is not None:
+            qr = max(0, min(100, quality_metrics['quick_ratio'] * 66.67))
+            scores.append(qr)
+
+        if scores:
+            return float(round(sum(scores) / len(scores), 1))
+        return None
 
     def transform(self, rows):
         """Phase 1: Validate scores before accepting."""
