@@ -668,43 +668,83 @@ router.get('/swing-scores-history', async (req, res) => {
 });
 
 // ============================================================
-// DATA FRESHNESS — for monitoring
+// DATA FRESHNESS — for monitoring (computed dynamically from source tables)
 // ============================================================
 router.get('/data-status', async (req, res) => {
   try {
     const pool = getPool();
-    const result = await pool.query(
-      `SELECT table_name, frequency, role, latest_date, age_days, row_count,
-              status, last_audit_at, error_message
-       FROM data_loader_status
-       ORDER BY
-         CASE WHEN role LIKE 'CRITICAL%' THEN 1 WHEN role LIKE 'IMPORTANT%' THEN 2 ELSE 3 END,
-         table_name`
-    );
+
+    // Compute data freshness dynamically — don't rely on pre-populated audit table
+    // which would show false "ready_to_trade: true" when empty.
+    const result = await pool.query(`
+      SELECT table_name, frequency, role, latest_date,
+             CURRENT_DATE - latest_date AS age_days,
+             row_count,
+             CASE
+               WHEN row_count = 0 THEN 'empty'
+               WHEN (CURRENT_DATE - latest_date) > stale_days THEN 'stale'
+               ELSE 'ok'
+             END AS status
+      FROM (
+        SELECT 'price_daily'          AS table_name, 'daily'   AS frequency, 'CRITICAL'    AS role,
+               MAX(date)::date        AS latest_date, COUNT(*)  AS row_count, 3  AS stale_days FROM price_daily
+        UNION ALL
+        SELECT 'buy_sell_daily',       'daily',   'CRITICAL',
+               MAX(date)::date,        COUNT(*),  3  FROM buy_sell_daily
+        UNION ALL
+        SELECT 'stock_scores',         'daily',   'CRITICAL',
+               MAX(updated_at::date),  COUNT(*),  3  FROM stock_scores
+        UNION ALL
+        SELECT 'technical_data_daily', 'daily',   'IMPORTANT',
+               MAX(date)::date,        COUNT(*),  3  FROM technical_data_daily
+        UNION ALL
+        SELECT 'market_health_daily',  'daily',   'IMPORTANT',
+               MAX(date)::date,        COUNT(*),  7  FROM market_health_daily
+        UNION ALL
+        SELECT 'trend_template_data',  'daily',   'IMPORTANT',
+               MAX(date)::date,        COUNT(*),  7  FROM trend_template_data
+        UNION ALL
+        SELECT 'economic_data',        'weekly',  'SUPPLEMENTAL',
+               MAX(date)::date,        COUNT(*),  14 FROM economic_data
+        UNION ALL
+        SELECT 'sector_ranking',       'weekly',  'SUPPLEMENTAL',
+               MAX(date_recorded)::date, COUNT(*), 14 FROM sector_ranking
+        UNION ALL
+        SELECT 'algo_positions',       'live',    'TRADING',
+               GREATEST(MAX(updated_at)::date, CURRENT_DATE - 1), COUNT(*), 365 FROM algo_positions WHERE status = 'open'
+      ) src
+      ORDER BY
+        CASE WHEN role = 'CRITICAL' THEN 1 WHEN role = 'IMPORTANT' THEN 2
+             WHEN role = 'TRADING' THEN 3 ELSE 4 END,
+        table_name
+    `);
 
     const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
     result.rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
 
     const criticalStale = result.rows.filter(
-      r => r.status !== 'ok' && (r.role || '').includes('CRITICAL')
+      r => r.status !== 'ok' && (r.role || '') === 'CRITICAL'
     );
+
+    // Only mark ready_to_trade true if we actually have data rows to check
+    const ready_to_trade = result.rows.length > 0 && criticalStale.length === 0;
 
     return res.json({
       success: true,
       data: {
         summary: counts,
         critical_stale: criticalStale.map(r => r.table_name),
-        ready_to_trade: criticalStale.length === 0,
+        ready_to_trade,
         sources: result.rows.map(r => ({
           table: r.table_name,
           frequency: r.frequency,
           role: r.role,
           latest: r.latest_date,
-          age_days: r.age_days,
-          rows: r.row_count,
+          age_days: r.age_days !== null ? parseInt(r.age_days) : null,
+          rows: parseInt(r.row_count),
           status: r.status,
-          last_audit: r.last_audit_at,
-          error: r.error_message,
+          last_audit: null,
+          error: null,
         })),
       },
       timestamp: new Date(),

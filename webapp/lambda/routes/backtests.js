@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
       order = 'DESC'
     } = req.query;
 
-    const allowed_sorts = ['run_timestamp', 'total_signals', 'win_rate', 'expectancy_per_trade', 'sharpe'];
+    const allowed_sorts = ['run_timestamp', 'total_signals', 'win_rate', 'expectancy_per_trade', 'sharpe_annualized'];
     const sort_col = allowed_sorts.includes(sort_by) ? sort_by : 'run_timestamp';
     const sort_order = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -100,12 +100,17 @@ router.get('/:run_id', async (req, res, next) => {
     // Parallelize trades and trade count queries
     const tradesQ = `
       SELECT
-        bt.trade_id, bt.run_id, bt.symbol, bt.signal_date, bt.exit_date,
-        bt.signal_type, bt.entry_price, bt.exit_price, bt.return_pct,
-        bt.outcome, bt.exit_reason, bt.mfe_pct, bt.mae_pct, bt.days_held
+        bt.id as trade_id, bt.run_id, bt.symbol,
+        bt.entry_date, bt.exit_date,
+        bt.entry_price, bt.exit_price,
+        bt.profit_loss_pct as return_pct,
+        bt.trade_outcome as outcome,
+        bt.exit_reason,
+        bt.holding_days as days_held,
+        bt.quantity, bt.profit_loss
       FROM backtest_trades bt
       WHERE bt.run_id = $1
-      ORDER BY bt.signal_date DESC
+      ORDER BY bt.entry_date DESC
       LIMIT $2 OFFSET $3
     `;
     const tradeCountQ = `SELECT COUNT(*) as total FROM backtest_trades WHERE run_id = $1`;
@@ -146,47 +151,45 @@ router.post('/', requireAuth, async (req, res, next) => {
     const {
       run_name,
       strategy_name,
-      strategy_method,
-      parameters,
       date_start,
       date_end,
       total_signals,
+      total_trades,
       winning_trades,
       losing_trades,
-      scratch_trades,
       win_rate,
       avg_win_pct,
       avg_loss_pct,
-      win_loss_ratio,
+      avg_hold_days,
       expectancy_per_trade,
       total_return_pct,
       max_drawdown_pct,
       sharpe,
       sortino,
+      calmar_ratio,
       profit_factor,
-      equity_curve,
       notes
     } = req.body;
 
     const insertQ = `
       INSERT INTO backtest_runs (
-        run_name, strategy_name, strategy_method, parameters,
+        run_name, strategy_name,
         date_start, date_end,
-        total_signals, winning_trades, losing_trades, scratch_trades,
-        win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio,
+        total_signals, total_trades, winning_trades, losing_trades,
+        win_rate, avg_win_pct, avg_loss_pct, avg_hold_days,
         expectancy_per_trade, total_return_pct, max_drawdown_pct,
-        sharpe, sortino, profit_factor, equity_curve, notes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        sharpe_annualized, sortino_annualized, calmar_ratio, profit_factor, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING run_id
     `;
 
     const result = await query(insertQ, [
-      run_name, strategy_name, strategy_method, JSON.stringify(parameters),
+      run_name, strategy_name,
       date_start, date_end,
-      total_signals, winning_trades, losing_trades, scratch_trades,
-      win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio,
+      total_signals, total_trades, winning_trades, losing_trades,
+      win_rate, avg_win_pct, avg_loss_pct, avg_hold_days,
       expectancy_per_trade, total_return_pct, max_drawdown_pct,
-      sharpe, sortino, profit_factor, JSON.stringify(equity_curve), notes, 'completed'
+      sharpe, sortino, calmar_ratio, profit_factor, notes
     ]);
 
     return sendSuccess(res, {
