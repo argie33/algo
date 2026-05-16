@@ -92,7 +92,8 @@ class QualityMetricsLoader(OptimalLoader):
             cur.close()
             conn.close()
 
-            if not income_row or not balance_row:
+            # Require at least income statement; balance sheet is optional
+            if not income_row:
                 return None
 
             metrics = self._compute_metrics(symbol, income_row, balance_row)
@@ -105,10 +106,13 @@ class QualityMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _compute_metrics(symbol: str, income: tuple, balance: tuple) -> Optional[dict]:
-        """Compute quality metrics from financial data."""
+    def _compute_metrics(symbol: str, income: tuple, balance: Optional[tuple]) -> Optional[dict]:
+        """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
-        total_assets, stockholders_equity, current_assets, current_liabilities = balance
+        if balance:
+            total_assets, stockholders_equity, current_assets, current_liabilities = balance
+        else:
+            total_assets = stockholders_equity = current_assets = current_liabilities = None
 
         metrics = {"symbol": symbol}
 
@@ -200,12 +204,11 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            # Only get symbols with both income statement AND balance sheet
+            # Get symbols with income statement (balance sheet optional)
             cur.execute("""
-                SELECT DISTINCT i.symbol
-                FROM annual_income_statement i
-                INNER JOIN annual_balance_sheet b ON i.symbol = b.symbol
-                ORDER BY i.symbol
+                SELECT DISTINCT symbol
+                FROM annual_income_statement
+                ORDER BY symbol
             """)
             return [r[0] for r in cur.fetchall()]
     finally:
