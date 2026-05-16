@@ -183,16 +183,9 @@ async function getFullSeasonalityData() {
   let monthlySpPerformance = [];
 
   try {
+    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const monthlyStatsQuery = `
-      SELECT
-        month,
-        month_name,
-        avg_return,
-        best_return,
-        worst_return,
-        years_counted,
-        winning_years,
-        losing_years
+      SELECT month, avg_return_pct, win_rate_pct
       FROM seasonality_monthly_stats
       ORDER BY month ASC
     `;
@@ -201,22 +194,23 @@ async function getFullSeasonalityData() {
 
     if (monthlyResult && monthlyResult.rows && monthlyResult.rows.length > 0) {
       monthlySeasonality = monthlyResult.rows.map((m) => {
-        const avgReturnNum = m.avg_return ? parseFloat(m.avg_return) : null;
-        const bestReturnNum = m.best_return ? parseFloat(m.best_return) : null;
-        const worstReturnNum = m.worst_return ? parseFloat(m.worst_return) : null;
+        const avgReturnNum = m.avg_return_pct != null ? parseFloat(m.avg_return_pct) : null;
+        const winRateNum = m.win_rate_pct != null ? parseFloat(m.win_rate_pct) : null;
+        const monthName = MONTH_NAMES[(m.month || 1) - 1] || `Month ${m.month}`;
 
         return {
           month: m.month,
-          name: m.month_name,
+          name: monthName,
           avgReturn: avgReturnNum,
-          bestReturn: bestReturnNum,
-          worstReturn: worstReturnNum,
-          yearsCount: m.years_counted,
-          winningYears: m.winning_years,
-          losingYears: m.losing_years,
+          bestReturn: null,
+          worstReturn: null,
+          yearsCount: null,
+          winningYears: null,
+          losingYears: null,
+          winRate: winRateNum,
           isCurrent: m.month === currentMonth,
           description: avgReturnNum !== null
-            ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% (${m.winning_years}/${m.years_counted} years positive)`
+            ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
             : "No historical data",
         };
       });
@@ -288,31 +282,28 @@ async function getFullSeasonalityData() {
   // 5. DAY OF WEEK EFFECTS - Load from seasonality_day_of_week table
   let dayOfWeekEffects = [];
   try {
+    const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const dowQuery = `
-      SELECT
-        day,
-        day_num,
-        avg_return,
-        win_rate,
-        days_counted
+      SELECT day_of_week, avg_return_pct, win_rate_pct
       FROM seasonality_day_of_week
-      ORDER BY day_num ASC
+      ORDER BY day_of_week ASC
     `;
 
     const dowResult = await query(dowQuery);
 
     if (dowResult && dowResult.rows && dowResult.rows.length > 0) {
       dayOfWeekEffects = dowResult.rows.map((d) => {
-        const avgReturnNum = d.avg_return ? parseFloat(d.avg_return) : null;
-        const winRateNum = d.win_rate ? parseFloat(d.win_rate) : null;
+        const avgReturnNum = d.avg_return_pct != null ? parseFloat(d.avg_return_pct) : null;
+        const winRateNum = d.win_rate_pct != null ? parseFloat(d.win_rate_pct) : null;
+        const dayName = DOW_NAMES[d.day_of_week] || `Day ${d.day_of_week}`;
 
         return {
-          day: d.day,
-          dayNum: d.day_num,
+          day: dayName,
+          dayNum: d.day_of_week,
           avgReturn: avgReturnNum,
           winRate: winRateNum,
-          daysCount: d.days_counted,
-          isCurrent: currentDate.toLocaleDateString("en-US", { weekday: "long" }) === d.day,
+          daysCount: null,
+          isCurrent: currentDate.getDay() === d.day_of_week,
           description: avgReturnNum !== null && winRateNum !== null
             ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
             : "No historical data",
@@ -1048,16 +1039,9 @@ router.get("/seasonality", async (req, res) => {
     let monthlySpPerformance = [];
 
     try {
+      const MONTH_NAMES_2 = ['January','February','March','April','May','June','July','August','September','October','November','December'];
       const monthlyStatsQuery = `
-        SELECT
-          month,
-          month_name,
-          avg_return,
-          best_return,
-          worst_return,
-          years_counted,
-          winning_years,
-          losing_years
+        SELECT month, avg_return_pct, win_rate_pct
         FROM seasonality_monthly_stats
         ORDER BY month ASC
       `;
@@ -1066,22 +1050,23 @@ router.get("/seasonality", async (req, res) => {
 
       if (monthlyResult && monthlyResult.rows && monthlyResult.rows.length > 0) {
         monthlySeasonality = monthlyResult.rows.map((m) => {
-          const avgReturnNum = m.avg_return ? parseFloat(m.avg_return) : null;
-          const bestReturnNum = m.best_return ? parseFloat(m.best_return) : null;
-          const worstReturnNum = m.worst_return ? parseFloat(m.worst_return) : null;
+          const avgReturnNum = m.avg_return_pct != null ? parseFloat(m.avg_return_pct) : null;
+          const winRateNum = m.win_rate_pct != null ? parseFloat(m.win_rate_pct) : null;
+          const monthName = MONTH_NAMES_2[(m.month || 1) - 1] || `Month ${m.month}`;
 
           return {
             month: m.month,
-            name: m.month_name,
+            name: monthName,
             avgReturn: avgReturnNum,
-            bestReturn: bestReturnNum,
-            worstReturn: worstReturnNum,
-            yearsCount: m.years_counted,
-            winningYears: m.winning_years,
-            losingYears: m.losing_years,
+            bestReturn: null,
+            worstReturn: null,
+            yearsCount: null,
+            winningYears: null,
+            losingYears: null,
+            winRate: winRateNum,
             isCurrent: m.month === currentMonth,
             description: avgReturnNum !== null
-              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% (${m.winning_years}/${m.years_counted} years positive)`
+              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
               : "No historical data",
           };
         });
@@ -1157,31 +1142,28 @@ router.get("/seasonality", async (req, res) => {
     // 5. DAY OF WEEK EFFECTS - Load from seasonality_day_of_week table
     let dowEffects = [];
     try {
+      const DOW_NAMES_2 = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
       const dowQuery = `
-        SELECT
-          day,
-          day_num,
-          avg_return,
-          win_rate,
-          days_counted
+        SELECT day_of_week, avg_return_pct, win_rate_pct
         FROM seasonality_day_of_week
-        ORDER BY day_num ASC
+        ORDER BY day_of_week ASC
       `;
 
       const dowResult = await query(dowQuery);
 
       if (dowResult && dowResult.rows && dowResult.rows.length > 0) {
         dowEffects = dowResult.rows.map((d) => {
-          const avgReturnNum = d.avg_return ? parseFloat(d.avg_return) : null;
-          const winRateNum = d.win_rate ? parseFloat(d.win_rate) : null;
+          const avgReturnNum = d.avg_return_pct != null ? parseFloat(d.avg_return_pct) : null;
+          const winRateNum = d.win_rate_pct != null ? parseFloat(d.win_rate_pct) : null;
+          const dayName = DOW_NAMES_2[d.day_of_week] || `Day ${d.day_of_week}`;
 
           return {
-            day: d.day,
-            dayNum: d.day_num,
+            day: dayName,
+            dayNum: d.day_of_week,
             avgReturn: avgReturnNum,
             winRate: winRateNum,
-            daysCount: d.days_counted,
-            isCurrent: currentDate.toLocaleDateString("en-US", { weekday: "long" }) === d.day,
+            daysCount: null,
+            isCurrent: currentDate.getDay() === d.day_of_week,
             description: avgReturnNum !== null && winRateNum !== null
               ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
               : "No historical data",
