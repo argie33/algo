@@ -1,7 +1,43 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 46: API endpoint schema fixes + comprehensive verification)  
-**Status:** PRODUCTION READY ✓ | API endpoints verified and fixed | Orchestrator pipeline operational | Data loaders complete
+**Last Updated:** 2026-05-16 (Session 47: Deep audit + critical fixes round 2)  
+**Status:** PRODUCTION READY ✓ | All Terraform plan errors fixed | 9 API crashes fixed | Frontend display bugs fixed
+
+---
+
+## 🔧 Session 47 - Deep Audit + Critical Fixes Round 2
+
+### Terraform P0 (would fail `terraform plan`)
+- Removed invalid `secrets = [...]` blocks from `aws_lambda_function` resources (ECS-only syntax)
+- Added Alpaca credentials and FRED_API_KEY as proper env vars to algo Lambda
+- Removed 5 non-existent IAM module outputs from `outputs.tf` (github_deployer_*, pipeline_*)
+- Fixed `deploy-terraform.yml`: added missing `TF_VAR_jwt_secret`, FRED, Alpaca vars
+
+### API Crashes (column-not-found at runtime)
+- `sectors.js` `/:sector/trend`: wrong columns → correct `sector_ranking` schema
+- `trades.js`: `execution_date`/`order_value`/`commission` → `trade_date`/`side`
+- `manual-trades.js`: INSERT/SELECT fixed to match `trades` schema
+- `performance.js`: `entry_date` → `trade_date` on `algo_trades`
+- `algo_orchestrator.py`: `score_date` → `updated_at` on `stock_scores` health check
+
+### Frontend Display Bugs
+- `PortfolioDashboard.jsx`: Market Regime KPI (trend, stage, vix, distribution days) now shows real data — was always `—` due to field name mismatch
+- `PortfolioDashboard.jsx`: Circuit-breakers 403 no longer causes full page error screen for non-admin users
+- `algo.js` sectors: Added `rank_1w_ago`/`rank_4w_ago` to response — dashboard 1W/4W columns now populate
+- `algo.js` trades: Added `profit_loss_dollars` to response — TradeTracker P&L stat now real
+- `TradeTracker.jsx`: Audit-log 403 now shows "Admin access required" instead of "No activity"
+
+### Infrastructure
+- CloudWatch `api_unhealthy` composite alarm re-enabled (underlying metric alarms confirmed present in services/main.tf)
+
+### Previously Fixed (Session 46)
+- `AlgoTradingDashboard.jsx`: Added fetch hooks for audit, performance, equity-curve tabs
+- `algo_preview.py` created (POST /api/algo/preview no longer crashes)
+- `backtests.js`: `sharpe_annualized AS sharpe` alias
+- Duplicate `top-movers` route removed
+- Terraform schedule cron fixed to 5:30pm ET
+- `deploy-code.yml`: db-init Lambda invoked after deploy
+- `deploy-all-infrastructure.yml`: Hardcoded API GW ID replaced with dynamic lookup
 
 ---
 
