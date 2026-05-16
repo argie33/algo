@@ -2448,3 +2448,101 @@ CREATE TABLE IF NOT EXISTS last_updated (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_last_updated_script_name ON last_updated(script_name);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PERFORMANCE INDEXES (2026-05-15) — After Phase 1 Data Integrity
+-- ════════════════════════════════════════════════════════════════════════════
+-- Critical for orchestrator phases 2-7 execution speed
+
+-- PRICE DATA INDEXES — Most expensive queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_symbol_date
+ON price_daily (symbol, date)
+WHERE close IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_symbol_desc
+ON price_daily (symbol, date DESC)
+WHERE close > 0;
+
+-- TECHNICAL DATA INDEXES — Technical indicator queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_daily_date
+ON technical_data_daily (date)
+WHERE sma_20 IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_daily_symbol_date
+ON technical_data_daily (symbol, date)
+WHERE rsi IS NOT NULL;
+
+-- BUY/SELL SIGNAL INDEXES — Phase 2 signal generation, Phase 5 exit
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_date
+ON buy_sell_daily (date)
+WHERE buy_signal IS NOT NULL OR sell_signal IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_symbol_date
+ON buy_sell_daily (symbol, date)
+WHERE buy_signal IS NOT NULL;
+
+-- STOCK SCORES INDEXES — Entry qualification filtering
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_updated_at
+ON stock_scores (updated_at DESC)
+WHERE growth_score IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_symbol
+ON stock_scores (symbol)
+WHERE overall_score >= 0;
+
+-- POSITION TRACKING INDEXES — Phase 3-7 position lifecycle
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_status
+ON algo_positions (status)
+WHERE status IN ('open', 'pending_exit');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_symbol_status
+ON algo_positions (symbol, status, entry_date DESC)
+WHERE status = 'open';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_exit_conditions
+ON algo_positions (status, exit_reason IS NULL, created_at)
+WHERE status = 'open';
+
+-- TRADE EXECUTION INDEXES — Trade history and reconciliation
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_status_date
+ON algo_trades (status, trade_date DESC)
+WHERE status IN ('filled', 'pending', 'failed');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_position_id
+ON algo_trades (position_id)
+WHERE position_id IS NOT NULL;
+
+-- RISK TRACKING INDEXES — VaR/concentration monitoring
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_risk_daily_date
+ON algo_risk_daily (report_date DESC)
+WHERE report_date IS NOT NULL;
+
+-- MARKET EXPOSURE INDEXES — Regime detection
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_market_exposure_daily_date
+ON market_exposure_daily (date DESC)
+WHERE exposure_tier IS NOT NULL;
+
+-- PORTFOLIO SNAPSHOT INDEXES — Drawdown and performance calculations
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_portfolio_snapshots_date
+ON algo_portfolio_snapshots (snapshot_date DESC)
+WHERE total_portfolio_value > 0;
+
+-- AUDIT & MONITORING INDEXES
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_audit_log_action_date
+ON algo_audit_log (action_date DESC, action_type)
+WHERE action_date >= NOW() - INTERVAL '30 days';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_data_patrol_log_severity
+ON data_patrol_log (severity, created_at DESC)
+WHERE severity IN ('error', 'critical');
+
+-- LOADER SLA TRACKING INDEXES
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_loader_sla_tracker_date_status
+ON loader_sla_tracker (start_time DESC, status)
+WHERE start_time >= NOW() - INTERVAL '7 days';
+
+-- ECONOMIC DATA INDEXES — Credit spreads, yield curve
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_economic_data_series_date
+ON economic_data (series_id, date DESC)
+WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
+  AND value IS NOT NULL;
