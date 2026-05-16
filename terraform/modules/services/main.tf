@@ -174,6 +174,12 @@ resource "aws_apigatewayv2_route" "api_default" {
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [aws_apigatewayv2_integration.api_lambda]
 }
 
 # Health check is unauthenticated so monitors and load balancers can reach it
