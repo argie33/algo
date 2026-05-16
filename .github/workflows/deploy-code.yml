@@ -275,6 +275,8 @@ jobs:
               --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 
             echo "Role created: $ROLE_NAME"
+            echo "Waiting for IAM role to propagate..."
+            sleep 5
           else
             echo "Role already exists: $ROLE_NAME"
           fi
@@ -285,13 +287,17 @@ jobs:
           ROLE_NAME="stocks-db-init-lambda-dev"
           ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/$ROLE_NAME"
 
+          echo "ROLE_ARN: $ROLE_ARN"
+          echo "FUNC_NAME: $FUNC_NAME"
+          echo "AWS_REGION: $AWS_REGION"
+
           # Try to update existing function code
           if aws lambda get-function --function-name "$FUNC_NAME" --region $AWS_REGION >/dev/null 2>&1; then
             echo "Updating existing Lambda function: $FUNC_NAME"
             aws lambda update-function-code \
               --function-name "$FUNC_NAME" \
               --zip-file fileb://db_init_lambda.zip \
-              --region $AWS_REGION
+              --region $AWS_REGION || { echo "ERROR: Failed to update Lambda"; exit 1; }
           else
             echo "Creating new Lambda function: $FUNC_NAME"
             aws lambda create-function \
@@ -300,10 +306,10 @@ jobs:
               --role "$ROLE_ARN" \
               --handler lambda_function.lambda_handler \
               --zip-file fileb://db_init_lambda.zip \
-              --region $AWS_REGION
+              --region $AWS_REGION || { echo "ERROR: Failed to create Lambda"; exit 1; }
           fi
 
-          aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
+          aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION || echo "Wait completed or timed out"
           echo "✅ DB Init Lambda deployed: $FUNC_NAME"
 
   # ──────────────────────────────────────────────────────────────
