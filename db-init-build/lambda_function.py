@@ -25,8 +25,8 @@ def load_schema():
         if os.path.exists(schema_path):
             with open(schema_path, 'r') as f:
                 return f.read()
-    except:
-        pass
+    except (FileNotFoundError, IOError) as e:
+        print(f"Warning: Could not load schema from file: {e}. Using fallback.")
 
     # Fallback: inline schema (defined in init_database.py)
     from init_database import SCHEMA
