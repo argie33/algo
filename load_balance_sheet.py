@@ -42,12 +42,28 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year",
-            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
+            "total_assets", "current_assets", "total_liabilities", "current_liabilities", "stockholders_equity",
+            "cash_and_equivalents", "accounts_receivable", "inventory", "ppe_net", "goodwill", "long_term_debt",
         }),
         "field_mapping": {
+            # Total assets
             "assets": "total_assets",
+            # Current assets
             "assets_current": "current_assets",
+            "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
+            "accounts_receivable_net_current": "accounts_receivable",
+            "inventory_net": "inventory",
+            # Fixed assets
+            "property_plant_and_equipment_net": "ppe_net",
+            "goodwill": "goodwill",
+            # Total liabilities
             "liabilities": "total_liabilities",
+            # Current liabilities
+            "liabilities_current": "current_liabilities",
+            # Equity
+            "stockholders_equity": "stockholders_equity",
+            # Long-term debt
+            "long_term_debt": "long_term_debt",
         },
     },
     "quarterly": {
@@ -55,11 +71,13 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year", "fiscal_period"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "fiscal_quarter",
-            "total_assets", "total_liabilities", "stockholders_equity",
+            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
             "assets": "total_assets",
+            "assets_current": "current_assets",
             "liabilities": "total_liabilities",
+            "stockholders_equity": "stockholders_equity",
         },
     },
 }

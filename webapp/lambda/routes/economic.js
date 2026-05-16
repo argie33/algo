@@ -116,7 +116,7 @@ router.get("/leading-indicators", async (req, res) => {
       'PAYEMS': 30,       // Payroll: ~2+ years available
       'INDPRO': 25,       // Industrial Production: Recent data only
       'HOUST': 20,        // Housing Starts: Recent data only
-      'MICH': 20,         // Michigan Sentiment: ~1 year available
+      'UMCSENT': 20,      // U of Michigan Consumer Sentiment: ~1 year available
 
       // Weekly/Daily Data (Cap for chart readability)
       'ICSA': 60,         // Initial Claims: ~1+ year recent
@@ -176,7 +176,9 @@ router.get("/leading-indicators", async (req, res) => {
     };
 
     // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
-    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH', 'ICSA', 'BUSLOANS'];
+    // Note: Consumer Sentiment uses UMCSENT (correct series). MICH on FRED is
+    // Michigan Inflation Expectations (~2-5%), not the 50-100 sentiment index.
+    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'UMCSENT', 'ICSA', 'BUSLOANS'];
     const missingSeries = requiredSeries.filter(s => !indicators[s]);
     if (missingSeries.length > 0) {
       console.error(`[ERROR] MISSING REQUIRED SERIES: ${missingSeries.join(', ')}`);
@@ -283,17 +285,17 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Consumer Sentiment",
-            category: "SECONDARY", // Additional Economic Indicator
-            value: indicators["MICH"] ? indicators["MICH"].value.toFixed(1) : null,
-            rawValue: indicators["MICH"] ? indicators["MICH"].value : null,
+            category: "SECONDARY",
+            value: indicators["UMCSENT"] ? indicators["UMCSENT"].value.toFixed(1) : null,
+            rawValue: indicators["UMCSENT"] ? indicators["UMCSENT"].value : null,
             unit: "Index",
-            ...calculateTrend("MICH"),
-            signal: indicators["MICH"] ? (indicators["MICH"].value > 80 ? "Positive" : indicators["MICH"].value < 60 ? "Negative" : null) : null,
-            description: "Consumer confidence and spending expectations",
-            strength: indicators["MICH"] ? Math.min(100, Math.max(0, indicators["MICH"].value - 20)) : null,
+            ...calculateTrend("UMCSENT"),
+            signal: indicators["UMCSENT"] ? (indicators["UMCSENT"].value > 80 ? "Positive" : indicators["UMCSENT"].value < 60 ? "Negative" : null) : null,
+            description: "University of Michigan Consumer Sentiment Index (50-100 range)",
+            strength: indicators["UMCSENT"] ? Math.min(100, Math.max(0, indicators["UMCSENT"].value - 20)) : null,
             importance: "high",
-            date: indicators["MICH"] ? indicators["MICH"].date : null,
-            history: historicalData["MICH"] ? historicalData["MICH"].reverse() : [],
+            date: indicators["UMCSENT"] ? indicators["UMCSENT"].date : null,
+            history: historicalData["UMCSENT"] ? historicalData["UMCSENT"].reverse() : [],
           },
           {
             name: "Industrial Production",
