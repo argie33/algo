@@ -1800,6 +1800,8 @@ class Orchestrator:
         API failure so we don't trade when market status is unknown."""
         try:
             import requests
+            if credential_manager is None:
+                return False  # Fail-closed: can't get credentials
             key = credential_manager.get_alpaca_credentials()["key"]
             secret = credential_manager.get_alpaca_credentials()["secret"]
             base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
