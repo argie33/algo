@@ -785,7 +785,7 @@ class DataPatrol:
         sources = [
             ('earnings_estimates',          ['date_recorded', 'date_range'], 7,   WARN),
             ('earnings_estimate_revisions', ['date_recorded', 'date_range'], 14,  WARN),
-            ('earnings_history',            ['quarter', 'date'],              120, WARN),
+            ('earnings_history',            ['earnings_date', 'quarter'],     120, WARN),
         ]
         for tbl, col_options, max_days, sev in sources:
             try:
