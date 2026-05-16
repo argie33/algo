@@ -1247,7 +1247,7 @@ class Orchestrator:
                 )
                 return False
             if dq_warnings:
-                logger.warning(f"Data quality warnings: {"; ".join(dq_warnings)}")
+                logger.warning(f"Data quality warnings: {'; '.join(dq_warnings)}")
 
             # Apply exposure tier entry constraints
             if constraints and constraints.get('halt_new_entries'):
