@@ -1,7 +1,28 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 47: Deep audit + critical fixes round 2)  
-**Status:** PRODUCTION READY ✓ | All Terraform plan errors fixed | 9 API crashes fixed | Frontend display bugs fixed
+**Last Updated:** 2026-05-16 (Session 45 Complete: 10 frontend+backend critical fixes + F-group production safety)  
+**Status:** PRODUCTION READY ✓ | Frontend data access fixed | Fail-closed safety guards enabled | Alpaca URL validation added
+
+---
+
+## 🔧 Session 45 FINAL - Comprehensive Frontend + Backend + Safety Fixes
+
+### Group B - Frontend Data Access (5 fixes)
+1. **Settings.jsx** - Fixed broken optional chaining API calls → uses `getSettings()` / `updateSettings()`
+2. **DeepValueStocks.jsx** - Fixed paginated response handling → extracts `.items` properly
+3. **PreTradeSimulator.jsx** - Added null guards to `.toFixed()` calls
+4. **AuditViewer.jsx** - Replaced raw `fetch()` with authenticated `api.get()`
+5. **RiskTab.jsx** - Added dual response shape handling (array vs object)
+
+### Group F - Production Safety (3 critical fixes)
+1. **Alpaca URL Guard** - Raises `ValueError` if `APCA_API_BASE_URL` env var missing (fail-closed on missing config)
+2. **EOD Loader Error Tracking** - `run_eod_loaders.sh` now tracks failures and triggers strict patrol mode
+3. **Orchestrator Patrol Fail-Closed** - Changed exception handler from fail-open (return True) to fail-closed (return False)
+
+**Impact:** All three prevent silent trading errors in production:
+- F2 prevents unintended paper trading if env var missing
+- F1 prevents orphaned loader failures from being masked
+- Patrol exception handler now properly halts if patrol itself fails
 
 ---
 
