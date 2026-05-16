@@ -155,7 +155,6 @@ locals {
     "feargreed"                  = "loadfeargreed.py"
     "calendar"                   = "loadcalendar.py"
     "trend_template_data"        = "load_trend_template_data.py"
-    "technicals_daily"           = "loadtechnicalsdaily.py"
     "stock_scores"               = "loadstockscores.py"
     "signals_daily"              = "loadbuyselldaily.py"
     "signals_weekly"             = "load_buysell_aggregate.py"
@@ -165,7 +164,6 @@ locals {
     "signals_etf_monthly"        = "load_buysell_etf_aggregate.py"
     "algo_metrics_daily"         = "load_algo_metrics_daily.py"
     "eod_bulk_refresh"           = "load_eod_bulk.py"
-    "market_data_batch"          = "load_market_data_batch.py"
   }
 
   scheduled_loaders = {
@@ -202,7 +200,6 @@ locals {
     }
 
     # 3:30am ET = 8:30am UTC Mon-Fri — 8 tiny loaders consolidated into one task
-    "market_data_batch" = {
       schedule    = "cron(30 8 ? * MON-FRI *)"
       description = "Market data batch: 8 tiny loaders in parallel - 3:30am ET"
     }
@@ -291,15 +288,7 @@ locals {
     # loadmarket, loadsectors, loadsentiment deleted — no real data sources.
     # NOTE: market_indices, econ_data, aaiidata, naaim_data, feargreed, calendar are run via market_data_batch.
     # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
-
-    "analyst_sentiment" = {
-      schedule    = "cron(0 5 ? * MON *)"
-      description = "Analyst sentiment - weekly Sunday night"
-    }
-    "analyst_upgrades" = {
-      schedule    = "cron(0 5 ? * MON *)"
-      description = "Analyst upgrades - weekly Sunday night (parallel)"
-    }
+    # NOTE: analyst_sentiment, analyst_upgrades deleted — no real data sources wired.
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
     # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
@@ -375,9 +364,7 @@ locals {
     "feargreed"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "calendar"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Sentiment & analysis — I/O bound with some compute
-    "analyst_sentiment" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "analyst_upgrades"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    # Stock scores (compute-heavy scoring) — run via Step Functions EOD pipeline
     "stock_scores"      = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
@@ -396,7 +383,6 @@ locals {
     "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
 
     # 8 tiny market-level loaders consolidated into one task (3:30am ET)
-    "market_data_batch" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 1 }
   }
 
   # For backward compatibility

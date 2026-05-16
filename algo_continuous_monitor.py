@@ -19,6 +19,7 @@ except ImportError:
 
 import os
 import time
+import json
 import argparse
 import psycopg2
 from pathlib import Path

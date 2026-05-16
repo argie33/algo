@@ -57,13 +57,9 @@ router.get("/", async (req, res) => {
       sector_pe AS (
         SELECT
           cp.sector,
-          AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
-          AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
-        FROM (
-          SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe
-          FROM value_metrics
-          ORDER BY symbol, date DESC
-        ) vm
+          AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
+          AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50) AS avg_forward_pe
+        FROM value_metrics vm
         JOIN company_profile cp ON vm.symbol = cp.ticker
         WHERE cp.sector IS NOT NULL
         GROUP BY cp.sector
