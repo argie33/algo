@@ -89,6 +89,28 @@ All deleted code is in git history. Restore via: `git log --oneline | grep -i "e
 
 ---
 
+## 🔄 CLAUDE MECHANICAL STEERING RULES (Enforced Before Action)
+
+**BEFORE creating ANY file/doc:**
+1. Is it production code (algo_*.py, load*.py, lambda/*, terraform/*)? → YES = Create
+2. Is it a git-tracked utility tool (VERIFICATION_SUITE.py)? → Only if essential
+3. Is it documentation? → STOP - Check rules below:
+   - **Is it required by user?** ("explain X", "document Y") → YES = Create as file
+   - **Is it STATUS-level info?** (session progress, blockers, next steps) → NO = Update STATUS.md instead
+   - **Is it permanent?** (pattern, architectural decision, constraint) → YES = Save to memory/ instead
+   - **Is it a duplicate?** (similar info exists elsewhere) → YES = Delete and consolidate
+   - **Will it be re-read 10+ times across sessions?** NO = Don't create as file
+4. Everything else → Delete it, no exceptions
+
+**Mechanical enforcement:**
+- Maximum 1 permanent documentation file per session
+- All session/progress info → STATUS.md only
+- All patterns/learnings → memory/ only
+- All diagnostic scripts/verify scripts → DELETE immediately
+- All temporary docs (AUDIT_*, SESSION_*, PHASE_*, etc.) → DELETE immediately
+
+---
+
 ## 🔄 CLAUDE BEST PRACTICES (Critical for Effective Collaboration)
 
 ### 1. DOCUMENTATION DISCIPLINE
