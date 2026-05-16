@@ -198,13 +198,7 @@ class StockScoresLoader(OptimalLoader):
     def _fetch_quality_metrics(self, symbol: str) -> Optional[dict]:
         """Fetch quality metrics from database if available."""
         try:
-            conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', 'localhost'),
-                port=int(os.getenv('DB_PORT', 5432)),
-                user=os.getenv('DB_USER', 'postgres'),
-                password=get_db_password(),
-                database=os.getenv('DB_NAME', 'stocks')
-            )
+            conn = self._connect()
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT operating_margin, net_margin, roe, roa, debt_to_equity, current_ratio, quick_ratio, interest_coverage FROM quality_metrics WHERE symbol = %s",
@@ -222,7 +216,6 @@ class StockScoresLoader(OptimalLoader):
                         'quick_ratio': row[6],
                         'interest_coverage': row[7]
                     }
-            conn.close()
         except Exception as e:
             logging.debug(f"Could not fetch quality_metrics for {symbol}: {e}")
         return None

@@ -299,8 +299,8 @@ class SignalComputer:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 
-        Computes (stock_return - SPY_return), then ranks against the universe
-        of all symbols on that date. Returns 0-100 percentile (higher = stronger).
+        Computes (stock_return - SPY_return) for all symbols, then ranks
+        the stock against the universe. Returns 0-100 percentile (higher = stronger).
         """
         self.cur.execute(
             """
@@ -312,28 +312,35 @@ class SignalComputer:
                     - 1
                 ) AS r
             ),
-            stock_ret AS (
-                SELECT (
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1)
-                    /
-                    NULLIF((SELECT close FROM price_daily WHERE symbol = %s AND date <= %s::date - INTERVAL '%s days' ORDER BY date DESC LIMIT 1), 0)
-                    - 1
-                ) AS r
+            all_returns AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol,
+                    (
+                        (SELECT close FROM price_daily p WHERE p.symbol = price_daily.symbol AND p.date <= %s ORDER BY p.date DESC LIMIT 1)
+                        /
+                        NULLIF((SELECT close FROM price_daily p WHERE p.symbol = price_daily.symbol AND p.date <= %s::date - INTERVAL '%s days' ORDER BY p.date DESC LIMIT 1), 0)
+                        - 1
+                    ) - (SELECT r FROM spy_ret) AS excess_return
+                FROM price_daily
+                WHERE date <= %s AND symbol IN (SELECT DISTINCT symbol FROM stock_symbols WHERE is_sp500 = true OR symbol = %s)
+                ORDER BY symbol, date DESC
+            ),
+            ranked AS (
+                SELECT
+                    symbol,
+                    excess_return,
+                    PERCENT_RANK() OVER (ORDER BY excess_return) * 100 AS percentile_rank
+                FROM all_returns
+                WHERE excess_return IS NOT NULL
             )
-            SELECT (SELECT r FROM stock_ret) - (SELECT r FROM spy_ret)
+            SELECT percentile_rank FROM ranked WHERE symbol = %s
             """,
-            (eval_date, eval_date, lookback, symbol, eval_date, symbol, eval_date, lookback),
+            (eval_date, eval_date, lookback, eval_date, eval_date, lookback, eval_date, symbol, symbol),
         )
         row = self.cur.fetchone()
         if not row or row[0] is None:
             return None
-        excess = float(row[0])
-        # Map excess return to 0-100 percentile heuristic:
-        # excess of 0    -> 50
-        # excess of +30% -> 95
-        # excess of -30% -> 5
-        pct = 50.0 + (excess * 150.0)
-        return max(0.0, min(100.0, pct))
+        return float(row[0])
 
     # ============================================================
     # WEINSTEIN 4-STAGE ANALYSIS

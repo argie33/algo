@@ -1138,11 +1138,15 @@ class FilterPipeline:
             return None
 
     def _count_sector_industry_overlap(self, new_info, existing_symbols) -> int:
-        """Count how many open positions + this-run candidates share sector/industry with new_info."""
+        """Count how many open positions share sector/industry with new_info.
+
+        Only checks EXISTING open positions, not pending candidates in this run.
+        This ensures deterministic rejections (not order-dependent).
+        """
         sector_count = 0
         industry_count = 0
 
-        # Open positions
+        # Open positions only — don't include pending candidates from this run
         for sym in existing_symbols:
             info = self._sector_cache.get(sym)
             if info is None:
@@ -1150,13 +1154,6 @@ class FilterPipeline:
                 self._sector_cache[sym] = info
             if not info:
                 continue
-            if info['sector'] == new_info['sector']:
-                sector_count += 1
-            if info['industry'] == new_info['industry']:
-                industry_count += 1
-
-        # Candidates from this run that have already passed T5
-        for sym, info in self._candidate_holdings.items():
             if info['sector'] == new_info['sector']:
                 sector_count += 1
             if info['industry'] == new_info['industry']:
