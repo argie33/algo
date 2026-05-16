@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quality Metrics Loader
+Quality Metrics Loader - Optimal Pattern (Refactored)
 
 Computes fundamental quality metrics from annual financials:
 - Operating Margin: Operating Income / Revenue
@@ -8,216 +8,215 @@ Computes fundamental quality metrics from annual financials:
 - ROE: Return on Equity
 - ROA: Return on Assets
 - Debt/Equity: Financial leverage
-- Current Ratio: Current Assets / Current Liabilities
-- Quick Ratio: (Current Assets - Inventory) / Current Liabilities
-- Interest Coverage: EBIT / Interest Expense
+- Quality Score: Composite (0-100)
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
 
-import os
-import psycopg2
+import argparse
 import logging
+import os
+import sys
+from datetime import date
 from pathlib import Path
-from dotenv import load_dotenv
-from typing import Dict, List, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("load_quality_metrics")
-
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
+from typing import List, Optional
 
 from credential_helper import get_db_password
 
-def get_db_config():
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": get_db_password() or os.getenv("DB_PASSWORD", "postgres"),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
-class QualityMetricsLoader:
-    def __init__(self):
-        self.config = get_db_config()
-        self.conn = None
-        self.cur = None
-        self.loaded_count = 0
-        self.failed_symbols = []
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = Path(__file__).parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
 
-    def connect(self):
+from optimal_loader import OptimalLoader
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+log = logging.getLogger(__name__)
+
+
+class QualityMetricsLoader(OptimalLoader):
+    table_name = "quality_metrics"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Compute quality metrics from balance sheet and income statement."""
         try:
-            self.conn = psycopg2.connect(**self.config)
-            self.cur = self.conn.cursor()
-            logger.info("Connected to database")
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            raise
-
-    def disconnect(self):
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-
-    def get_symbols(self) -> List[str]:
-        """Get list of symbols with both income AND balance sheet data."""
-        try:
-            # Only get symbols that have BOTH income statement and balance sheet
-            self.cur.execute("""
-                SELECT DISTINCT i.symbol
-                FROM annual_income_statement i
-                INNER JOIN annual_balance_sheet b ON i.symbol = b.symbol
-                ORDER BY i.symbol
-            """)
-            return [row[0] for row in self.cur.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to get symbols: {e}")
-            return []
-
-    def load_quality_metrics(self):
-        """Load quality metrics for all symbols."""
-        symbols = self.get_symbols()
-        logger.info(f"Loading quality metrics for {len(symbols)} symbols")
-
-        for symbol in symbols:
-            try:
-                metrics = self._compute_metrics(symbol)
-                if metrics:
-                    self._insert_metrics(symbol, metrics)
-                    self.loaded_count += 1
-            except Exception as e:
-                logger.warning(f"{symbol}: {e}")
-                self.failed_symbols.append(symbol)
+            import psycopg2
+        except ImportError:
+            return None
 
         try:
-            self.conn.commit()
-        except Exception as e:
-            logger.error(f"Commit failed: {e}")
-            self.conn.rollback()
-
-        logger.info(f"Loaded quality metrics: {self.loaded_count}/{len(symbols)} symbols")
-
-    def _compute_metrics(self, symbol: str) -> Optional[Dict]:
-        """Compute quality metrics for a symbol from annual financials."""
-        try:
-            # Get latest balance sheet
-            self.cur.execute("""
-                SELECT total_assets, current_assets, total_liabilities, stockholders_equity
-                FROM annual_balance_sheet
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """, (symbol,))
-            bs_row = self.cur.fetchone()
-            if not bs_row:
-                return None
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", 5432)),
+                user=os.getenv("DB_USER", "stocks"),
+                password=get_db_password(),
+                database=os.getenv("DB_NAME", "stocks"),
+            )
+            cur = conn.cursor()
 
             # Get latest income statement
-            self.cur.execute("""
-                SELECT revenue, net_income, operating_income
+            cur.execute("""
+                SELECT revenue, operating_income, net_income
                 FROM annual_income_statement
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
                 LIMIT 1
             """, (symbol,))
-            is_row = self.cur.fetchone()
-            if not is_row:
+            income_row = cur.fetchone()
+
+            # Get latest balance sheet
+            cur.execute("""
+                SELECT total_assets, stockholders_equity, current_assets, current_liabilities
+                FROM annual_balance_sheet
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC
+                LIMIT 1
+            """, (symbol,))
+            balance_row = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            if not income_row or not balance_row:
                 return None
 
-            metrics = {}
-            total_assets, current_assets, total_liab, equity = bs_row
-            revenue, net_income, operating_income = is_row
-
-            # Operating Margin
-            if operating_income and revenue and revenue > 0:
-                metrics['operating_margin'] = round((operating_income / revenue) * 100, 4)
-            else:
-                metrics['operating_margin'] = None
-
-            # Net Margin
-            if net_income and revenue and revenue > 0:
-                metrics['net_margin'] = round((net_income / revenue) * 100, 4)
-            else:
-                metrics['net_margin'] = None
-
-            # ROE: Net Income / Stockholders Equity
-            if net_income and equity and equity > 0:
-                metrics['roe'] = round((net_income / equity) * 100, 4)
-            else:
-                metrics['roe'] = None
-
-            # ROA: Net Income / Total Assets
-            if net_income and total_assets and total_assets > 0:
-                metrics['roa'] = round((net_income / total_assets) * 100, 4)
-            else:
-                metrics['roa'] = None
-
-            # Debt/Equity
-            if equity and equity > 0:
-                metrics['debt_to_equity'] = round(total_liab / equity, 4)
-            else:
-                metrics['debt_to_equity'] = None
-
-            # Current Ratio: Current Assets / Current Liabilities (not available, set to None)
-            metrics['current_ratio'] = None
-            metrics['quick_ratio'] = None
-
-            # Interest Coverage (would need interest expense data - skip for now)
-            metrics['interest_coverage'] = None
-
-            return metrics
-
-        except Exception as e:
-            logger.debug(f"{symbol}: compute_metrics failed: {e}")
+            metrics = self._compute_metrics(symbol, income_row, balance_row)
+            if metrics:
+                return [metrics]
             return None
 
-    def _insert_metrics(self, symbol: str, metrics: Dict):
-        """Insert quality metrics into database."""
-        try:
-            self.cur.execute("""
-                INSERT INTO quality_metrics (
-                    symbol, operating_margin, net_margin, roe, roa,
-                    debt_to_equity, current_ratio, quick_ratio, interest_coverage
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol) DO UPDATE SET
-                    operating_margin = EXCLUDED.operating_margin,
-                    net_margin = EXCLUDED.net_margin,
-                    roe = EXCLUDED.roe,
-                    roa = EXCLUDED.roa,
-                    debt_to_equity = EXCLUDED.debt_to_equity,
-                    current_ratio = EXCLUDED.current_ratio,
-                    quick_ratio = EXCLUDED.quick_ratio,
-                    interest_coverage = EXCLUDED.interest_coverage
-            """, (
-                symbol,
-                metrics.get('operating_margin'),
-                metrics.get('net_margin'),
-                metrics.get('roe'),
-                metrics.get('roa'),
-                metrics.get('debt_to_equity'),
-                metrics.get('current_ratio'),
-                metrics.get('quick_ratio'),
-                metrics.get('interest_coverage'),
-            ))
         except Exception as e:
-            logger.error(f"{symbol}: insert failed: {e}")
-            raise
+            log.debug(f"Error computing quality metrics for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _compute_metrics(symbol: str, income: tuple, balance: tuple) -> Optional[dict]:
+        """Compute quality metrics from financial data."""
+        revenue, operating_income, net_income = income
+        total_assets, stockholders_equity, current_assets, current_liabilities = balance
+
+        metrics = {"symbol": symbol}
+
+        # Operating Margin: Operating Income / Revenue
+        if revenue and revenue > 0 and operating_income is not None:
+            metrics['operating_margin'] = float(round((operating_income / revenue) * 100, 2))
+        else:
+            metrics['operating_margin'] = None
+
+        # Net Margin: Net Income / Revenue
+        if revenue and revenue > 0 and net_income is not None:
+            metrics['net_margin'] = float(round((net_income / revenue) * 100, 2))
+        else:
+            metrics['net_margin'] = None
+
+        # ROE: Return on Equity = Net Income / Shareholders' Equity
+        if stockholders_equity and stockholders_equity > 0 and net_income is not None:
+            metrics['roe'] = float(round((net_income / stockholders_equity) * 100, 2))
+        else:
+            metrics['roe'] = None
+
+        # ROA: Return on Assets = Net Income / Total Assets
+        if total_assets and total_assets > 0 and net_income is not None:
+            metrics['roa'] = float(round((net_income / total_assets) * 100, 2))
+        else:
+            metrics['roa'] = None
+
+        # Debt/Equity: (Total Assets - Equity) / Equity
+        if stockholders_equity and stockholders_equity > 0 and total_assets:
+            debt = total_assets - stockholders_equity
+            metrics['debt_to_equity'] = float(round(debt / stockholders_equity, 2))
+        else:
+            metrics['debt_to_equity'] = None
+
+        # Current Ratio: Current Assets / Current Liabilities
+        if current_liabilities and current_liabilities > 0:
+            metrics['current_ratio'] = float(round(current_assets / current_liabilities, 2))
+        else:
+            metrics['current_ratio'] = None
+
+        # Quality Score: Composite (0-100) based on profitability and financial health
+        score = 50.0  # Neutral baseline
+
+        if metrics['operating_margin'] is not None:
+            # Higher is better (up to 20% = +25 points)
+            om_score = min(25, metrics['operating_margin'] / 0.8)
+            score += om_score
+
+        if metrics['net_margin'] is not None:
+            # Higher is better (up to 10% = +25 points)
+            nm_score = min(25, metrics['net_margin'] / 0.4)
+            score += nm_score
+
+        if metrics['roe'] is not None and metrics['roe'] > 0:
+            # Higher ROE is better (up to 15% = +25 points)
+            roe_score = min(25, metrics['roe'] / 0.6)
+            score += roe_score
+
+        score = max(0, min(100, score))
+        metrics['quality_score'] = float(round(score, 1))
+        metrics['updated_at'] = date.today().isoformat()
+
+        return metrics
+
+    def transform(self, rows):
+        """No transformation needed."""
+        return rows
+
+
+def get_active_symbols() -> List[str]:
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=get_db_password(),
+        database=os.getenv("DB_NAME", "stocks"),
+    )
+    try:
+        with conn.cursor() as cur:
+            # Only get symbols with both income statement AND balance sheet
+            cur.execute("""
+                SELECT DISTINCT i.symbol
+                FROM annual_income_statement i
+                INNER JOIN annual_balance_sheet b ON i.symbol = b.symbol
+                ORDER BY i.symbol
+            """)
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def main():
+    parser = argparse.ArgumentParser(description="Quality metrics loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
+    parser.add_argument("--parallelism", type=int, default=8)
+    args = parser.parse_args()
+
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+
     loader = QualityMetricsLoader()
     try:
-        loader.connect()
-        loader.load_quality_metrics()
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        return 1
+        stats = loader.run(symbols, parallelism=args.parallelism)
     finally:
-        loader.disconnect()
-    return 0
+        loader.close()
 
-if __name__ == '__main__':
-    exit(main())
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

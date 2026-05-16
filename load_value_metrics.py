@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Value Metrics Loader
+Value Metrics Loader - Optimal Pattern (Refactored)
 
 Computes value metrics from financials:
 - Price to Book: Market Cap / Stockholders Equity
@@ -11,213 +11,197 @@ Computes value metrics from financials:
 Requires: annual_balance_sheet, annual_income_statement, key_metrics populated
 """
 
-import os
-import psycopg2
+import argparse
 import logging
+import os
+import sys
+from datetime import date
 from pathlib import Path
-from dotenv import load_dotenv
-from typing import Dict, List, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("load_value_metrics")
-
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
+from typing import List, Optional
 
 from credential_helper import get_db_password
 
-def get_db_config():
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": get_db_password() or os.getenv("DB_PASSWORD", "postgres"),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
-class ValueMetricsLoader:
-    def __init__(self):
-        self.config = get_db_config()
-        self.conn = None
-        self.cur = None
-        self.loaded_count = 0
-        self.failed_symbols = []
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = Path(__file__).parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
 
-    def connect(self):
+from optimal_loader import OptimalLoader
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+log = logging.getLogger(__name__)
+
+
+class ValueMetricsLoader(OptimalLoader):
+    table_name = "value_metrics"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Compute value metrics from financial data."""
         try:
-            self.conn = psycopg2.connect(**self.config)
-            self.cur = self.conn.cursor()
-            logger.info("Connected to database")
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            raise
+            import psycopg2
+        except ImportError:
+            return None
 
-    def disconnect(self):
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-
-    def get_symbols(self) -> List[str]:
-        """Get list of all active symbols."""
         try:
-            self.cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [row[0] for row in self.cur.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to get symbols: {e}")
-            return []
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", 5432)),
+                user=os.getenv("DB_USER", "stocks"),
+                password=get_db_password(),
+                database=os.getenv("DB_NAME", "stocks"),
+            )
+            cur = conn.cursor()
 
-    def load_value_metrics(self):
-        """Load value metrics for all symbols."""
-        symbols = self.get_symbols()
-        logger.info(f"Loading value metrics for {len(symbols)} symbols")
-
-        for symbol in symbols:
-            try:
-                metrics = self._compute_metrics(symbol)
-                if metrics:
-                    self._insert_metrics(symbol, metrics)
-                    self.loaded_count += 1
-                else:
-                    self.failed_symbols.append(symbol)
-            except Exception as e:
-                logger.warning(f"{symbol}: {e}")
-                self.failed_symbols.append(symbol)
-
-        self.conn.commit()
-        logger.info(f"Loaded value metrics: {self.loaded_count}/{len(symbols)} symbols")
-        if self.failed_symbols:
-            logger.warning(f"Failed ({len(self.failed_symbols)}): {', '.join(self.failed_symbols[:10])}")
-
-    def _compute_metrics(self, symbol: str) -> Optional[Dict]:
-        """Compute value metrics for a symbol."""
-        try:
-            # Get latest balance sheet for equity
-            self.cur.execute("""
+            # Get latest balance sheet equity
+            cur.execute("""
                 SELECT stockholders_equity FROM annual_balance_sheet
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
                 LIMIT 1
             """, (symbol,))
-            bs_row = self.cur.fetchone()
-            if not bs_row or not bs_row[0]:
-                return None
+            equity_row = cur.fetchone()
 
-            # Get latest income statement for revenue
-            self.cur.execute("""
+            # Get latest income statement revenue
+            cur.execute("""
                 SELECT revenue FROM annual_income_statement
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
                 LIMIT 1
             """, (symbol,))
-            is_row = self.cur.fetchone()
-            if not is_row or not is_row[0]:
-                return None
+            revenue_row = cur.fetchone()
 
-            # Get market cap and price
-            self.cur.execute("""
-                SELECT market_cap FROM key_metrics
-                WHERE ticker = %s OR ticker = %s
+            # Get current price (most recent daily price)
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = %s
+                ORDER BY date DESC
                 LIMIT 1
-            """, (symbol, symbol.lower()))
-            km_row = self.cur.fetchone()
-            market_cap = km_row[0] if km_row and km_row[0] else None
+            """, (symbol,))
+            price_row = cur.fetchone()
 
-            if not market_cap or market_cap <= 0:
+            # Get market cap from key_metrics
+            cur.execute("""
+                SELECT market_cap FROM key_metrics
+                WHERE symbol = %s
+                LIMIT 1
+            """, (symbol,))
+            market_cap_row = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            if not any([equity_row, revenue_row, price_row, market_cap_row]):
                 return None
 
-            metrics = {}
-            equity = bs_row[0]
-            revenue = is_row[0]
+            metrics = self._compute_metrics(
+                symbol,
+                equity_row[0] if equity_row else None,
+                revenue_row[0] if revenue_row else None,
+                price_row[0] if price_row else None,
+                market_cap_row[0] if market_cap_row else None,
+            )
 
-            # Price to Book: Market Cap / Stockholders Equity
-            if equity and equity > 0:
-                metrics['pb_ratio'] = round(market_cap / equity, 2)
-            else:
-                metrics['pb_ratio'] = None
-
-            # Price to Sales: Market Cap / Revenue
-            if revenue and revenue > 0:
-                metrics['ps_ratio'] = round(market_cap / revenue, 2)
-            else:
-                metrics['ps_ratio'] = None
-
-            # Dividend Yield (if available - would need dividend data)
-            # For now, default to None (would need dividend loader)
-            metrics['dividend_yield_pct'] = None
-
-            # Value Score: composite (0-100)
-            # Low PB + low PS + high dividend yield = good value
-            value_score = 50.0  # baseline
-            components = 0
-
-            if metrics.get('pb_ratio') is not None:
-                pb = metrics['pb_ratio']
-                if 0 < pb < 1:  # Trading below book
-                    value_score += 25
-                    components += 1
-                elif 1 <= pb <= 3:  # Reasonable PB
-                    value_score += 15
-                    components += 1
-                elif pb > 3:  # High PB
-                    value_score -= 5
-                    components += 1
-
-            if metrics.get('ps_ratio') is not None:
-                ps = metrics['ps_ratio']
-                if 0 < ps < 1:  # Cheap relative to sales
-                    value_score += 25
-                    components += 1
-                elif 1 <= ps <= 3:  # Reasonable PS
-                    value_score += 15
-                    components += 1
-                elif ps > 3:  # Expensive
-                    value_score -= 5
-                    components += 1
-
-            metrics['value_score'] = round(min(100, max(0, value_score)), 1)
-
-            return metrics
-
-        except Exception as e:
-            logger.warning(f"{symbol}: compute_metrics failed: {e}")
+            if metrics:
+                return [metrics]
             return None
 
-    def _insert_metrics(self, symbol: str, metrics: Dict):
-        """Insert value metrics into database."""
-        try:
-            self.cur.execute("""
-                DELETE FROM value_metrics WHERE symbol = %s
-            """, (symbol,))
-
-            self.cur.execute("""
-                INSERT INTO value_metrics (
-                    symbol, pb_ratio, ps_ratio, dividend_yield_pct,
-                    value_score, computed_at
-                ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (
-                symbol,
-                metrics.get('pb_ratio'),
-                metrics.get('ps_ratio'),
-                metrics.get('dividend_yield_pct'),
-                metrics.get('value_score'),
-            ))
         except Exception as e:
-            logger.error(f"{symbol}: insert failed: {e}")
-            raise
+            log.debug(f"Error computing value metrics for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _compute_metrics(symbol: str, equity: Optional[float], revenue: Optional[float],
+                        price: Optional[float], market_cap: Optional[float]) -> Optional[dict]:
+        """Compute value metrics from financial data."""
+        metrics = {"symbol": symbol}
+
+        # Price to Book: Market Cap / Stockholders Equity
+        if market_cap and equity and equity > 0:
+            pb = market_cap / equity
+            metrics['price_to_book'] = float(round(pb, 2))
+        else:
+            metrics['price_to_book'] = None
+
+        # Price to Sales: Market Cap / Revenue
+        if market_cap and revenue and revenue > 0:
+            ps = market_cap / revenue
+            metrics['price_to_sales'] = float(round(ps, 2))
+        else:
+            metrics['price_to_sales'] = None
+
+        # Value Score: Inverse of P/B and P/S (lower is better)
+        # Formula: Score based on attractive valuation multiples
+        score = 50.0  # Neutral baseline
+
+        if metrics['price_to_book'] is not None:
+            # Lower PB is better (max +25 for PB < 1.0, scales down)
+            pb_score = max(0, 25 * (2.0 - metrics['price_to_book']))
+            score += min(25, pb_score)
+
+        if metrics['price_to_sales'] is not None:
+            # Lower PS is better (max +25 for PS < 1.0)
+            ps_score = max(0, 25 * (3.0 - metrics['price_to_sales']))
+            score += min(25, ps_score)
+
+        score = max(0, min(100, score))
+        metrics['value_score'] = float(round(score, 1))
+        metrics['updated_at'] = date.today().isoformat()
+
+        return metrics
+
+    def transform(self, rows):
+        """No transformation needed."""
+        return rows
+
+
+def get_active_symbols() -> List[str]:
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=get_db_password(),
+        database=os.getenv("DB_NAME", "stocks"),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def main():
+    parser = argparse.ArgumentParser(description="Value metrics loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
+    parser.add_argument("--parallelism", type=int, default=8)
+    args = parser.parse_args()
+
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+
     loader = ValueMetricsLoader()
     try:
-        loader.connect()
-        loader.load_value_metrics()
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        return 1
+        stats = loader.run(symbols, parallelism=args.parallelism)
     finally:
-        loader.disconnect()
-    return 0
+        loader.close()
 
-if __name__ == '__main__':
-    exit(main())
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

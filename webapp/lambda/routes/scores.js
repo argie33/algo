@@ -12,8 +12,8 @@ router.get("/stockscores", async (req, res) => {
     const sortCol = ["composite_score", "momentum_score", "value_score", "quality_score"].includes(sort) ? sort : "composite_score";
     const sortOrder = order.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
-    const result = await query(`
-      SELECT 
+    const resultObj = await query(`
+      SELECT
         ss.symbol,
         COALESCE(cp.short_name, cp.display_name) as company_name,
         cp.sector,
@@ -33,17 +33,21 @@ router.get("/stockscores", async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
-    const countResult = await query(`
+    const countResultObj = await query(`
       SELECT COUNT(*) as total FROM stock_scores
     `);
 
+    const scores = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const countRows = Array.isArray(countResultObj) ? countResultObj : (countResultObj?.rows || []);
+    const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
+
     sendSuccess(res, {
-      scores: result,
+      scores: scores,
       pagination: {
-        total: countResult[0].total,
+        total: total,
         limit: limitNum,
         page: Math.max(parseInt(page) || 1, 1),
-        totalPages: Math.ceil(countResult[0].total / limitNum)
+        totalPages: Math.ceil(total / limitNum)
       }
     }, 200);
   } catch (error) {
