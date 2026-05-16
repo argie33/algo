@@ -32,6 +32,7 @@ tier_2_reference = [
     'loadearningshistory.py', 'loadearningsrevisions.py',
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
+    'loadsectors.py',
     'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
     'loadstockscores.py',
     'loadecondata.py', 'loadaaiidata.py', 'loadnaaim.py', 'loadfeargreed.py',
