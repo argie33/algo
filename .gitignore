@@ -124,3 +124,7 @@ DECISIONS_RATIONALE/
 DESIGNS_DEPRECATED/
 .docs_archive/
 .consolidation_plan.md
+
+# GitHub Actions build artifacts
+lambda-pkg/
+db-init-pkg/
