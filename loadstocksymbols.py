@@ -409,21 +409,17 @@ def insert_all(conn, records):
     logger.info("Inserting %d stock records", len(records))
     sql = """
       INSERT INTO stock_symbols (
-        symbol, exchange, security_name, market_category, etf
+        symbol, name, exchange
       ) VALUES %s
       ON CONFLICT (symbol) DO UPDATE SET
-        exchange = EXCLUDED.exchange,
-        security_name = EXCLUDED.security_name,
-        market_category = EXCLUDED.market_category,
-        etf = EXCLUDED.etf;
+        name = EXCLUDED.name,
+        exchange = EXCLUDED.exchange;
     """
     values = [
         (
             r["symbol"],
+            r["security_name"],  # map to 'name' column
             r["exchange"],
-            r["security_name"],
-            r["market_category"],
-            r["etf"],
         )
         for r in records
     ]
@@ -435,34 +431,18 @@ def insert_all(conn, records):
 def insert_etfs(conn, records):
     logger.info("Inserting %d ETF records", len(records))
     sql = """
-      INSERT INTO etf_symbols (
-        symbol, exchange, security_name, cqs_symbol,
-        market_category, test_issue, financial_status,
-        round_lot_size, etf, secondary_symbol
+      INSERT INTO stock_symbols (
+        symbol, name, exchange
       ) VALUES %s
       ON CONFLICT (symbol) DO UPDATE SET
-        exchange = EXCLUDED.exchange,
-        security_name = EXCLUDED.security_name,
-        cqs_symbol = EXCLUDED.cqs_symbol,
-        market_category = EXCLUDED.market_category,
-        test_issue = EXCLUDED.test_issue,
-        financial_status = EXCLUDED.financial_status,
-        round_lot_size = EXCLUDED.round_lot_size,
-        etf = EXCLUDED.etf,
-        secondary_symbol = EXCLUDED.secondary_symbol;
+        name = EXCLUDED.name,
+        exchange = EXCLUDED.exchange;
     """
     values = [
         (
             r["symbol"],
-            r["exchange"],
             r["security_name"],
-            r["cqs_symbol"],
-            r["market_category"],
-            r["test_issue"],
-            r["financial_status"],
-            r["round_lot_size"],
-            r["etf"],
-            r["secondary_symbol"],
+            r["exchange"],
         )
         for r in records
     ]
