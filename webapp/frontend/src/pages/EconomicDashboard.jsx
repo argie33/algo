@@ -531,19 +531,28 @@ export default function EconomicDashboard() {
         {/* ── INFLATION ─────────────────────────────────────────────────── */}
         {tab === 'inflation' && (
           <>
-            <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
-              <MacroKpi label="CPI (YoY)" ind={cpiInd} unit="%" invertGood />
-              <MacroKpi label="Fed Funds Rate" ind={fedRate} unit="%" />
-              <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
-                <div className="eyebrow">Real Rate (10Y − CPI)</div>
-                <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
-                  {yieldData?.currentCurve?.['10Y'] != null && cpiInd?.rawValue != null
-                    ? pct(yieldData.currentCurve['10Y'] - cpiInd.rawValue)
-                    : '—'}
+            {/* Calculate CPI YoY from history */}
+            {cpiInd?.history && cpiInd.history.length >= 13 && (() => {
+              const current = +cpiInd.history[0].value;
+              const yearAgo = +cpiInd.history[12].value;
+              const cpiYoY = yearAgo > 0 ? ((current - yearAgo) / yearAgo) * 100 : null;
+              const rate10Y = yieldData?.currentCurve?.['10Y'];
+              const realRate = cpiYoY != null && rate10Y != null ? rate10Y - cpiYoY : null;
+
+              return (
+                <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
+                  <MacroKpi label="CPI (YoY)" ind={cpiInd} unit="%" invertGood />
+                  <MacroKpi label="Fed Funds Rate" ind={fedRate} unit="%" />
+                  <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+                    <div className="eyebrow">Real Rate (10Y − CPI YoY)</div>
+                    <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+                      {realRate != null ? pct(realRate) : '—'}
+                    </div>
+                    <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Positive = restrictive policy</div>
+                  </div>
                 </div>
-                <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Positive = restrictive policy</div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Inflation vs Fed funds overlay */}
             {cpiInd?.history?.length > 0 && fedRate?.history?.length > 0 && (

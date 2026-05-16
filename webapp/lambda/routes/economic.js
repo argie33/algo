@@ -40,6 +40,8 @@ router.get("/leading-indicators", async (req, res) => {
         'INDPRO', 'UMCSENT', 'MICH', 'RSXFS', 'EMSRATIO',
         -- ADDITIONAL SECONDARY
         'FEDFUNDS',
+        -- ISM MANUFACTURING & SERVICES
+        'NAPM', 'NMFCI',
         -- NEW ECONOMIC INDICATORS (4) - Labor, Commodity, Credit, Housing
         'CIVPART', 'DCOILWTICO', 'MORTGAGE30US', 'BAMLH0A0HYM2',
         -- MONEY SUPPLY & FEDERAL POLICY
@@ -380,6 +382,34 @@ router.get("/leading-indicators", async (req, res) => {
             importance: "high",
             date: indicators["T10Y2Y"] ? indicators["T10Y2Y"].date : null,
             history: historicalData["T10Y2Y"] ? historicalData["T10Y2Y"].reverse() : [],
+          },
+          {
+            name: "ISM Manufacturing",
+            category: "LEI",
+            value: indicators["NAPM"] ? indicators["NAPM"].value.toFixed(1) : null,
+            rawValue: indicators["NAPM"] ? indicators["NAPM"].value : null,
+            unit: "Index",
+            ...calculateTrend("NAPM"),
+            signal: indicators["NAPM"] ? (indicators["NAPM"].value > 50 ? "Positive" : indicators["NAPM"].value < 45 ? "Negative" : null) : null,
+            description: "ISM Manufacturing PMI - manufacturing activity and strength",
+            strength: indicators["NAPM"] ? Math.min(100, Math.max(0, (indicators["NAPM"].value - 40) * 5)) : null,
+            importance: "high",
+            date: indicators["NAPM"] ? indicators["NAPM"].date : null,
+            history: historicalData["NAPM"] ? historicalData["NAPM"].reverse() : [],
+          },
+          {
+            name: "ISM Services",
+            category: "LEI",
+            value: indicators["NMFCI"] ? indicators["NMFCI"].value.toFixed(1) : null,
+            rawValue: indicators["NMFCI"] ? indicators["NMFCI"].value : null,
+            unit: "Index",
+            ...calculateTrend("NMFCI"),
+            signal: indicators["NMFCI"] ? (indicators["NMFCI"].value > 50 ? "Positive" : indicators["NMFCI"].value < 45 ? "Negative" : null) : null,
+            description: "ISM Services PMI - non-manufacturing activity and strength",
+            strength: indicators["NMFCI"] ? Math.min(100, Math.max(0, (indicators["NMFCI"].value - 40) * 5)) : null,
+            importance: "high",
+            date: indicators["NMFCI"] ? indicators["NMFCI"].date : null,
+            history: historicalData["NMFCI"] ? historicalData["NMFCI"].reverse() : [],
           },
         ].filter(ind => ind.rawValue !== null); // Filter out indicators with no data
 
