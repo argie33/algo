@@ -1587,6 +1587,37 @@ CREATE TABLE IF NOT EXISTS algo_information_coefficient (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Backtest Results - Historical backtest runs and performance
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100) UNIQUE NOT NULL,
+    run_name VARCHAR(255),
+    strategy_name VARCHAR(100),
+    date_start DATE,
+    date_end DATE,
+    total_signals INTEGER,
+    total_trades INTEGER,
+    winning_trades INTEGER,
+    losing_trades INTEGER,
+    win_rate NUMERIC(8, 4),
+    expectancy_per_trade NUMERIC(12, 2),
+    profit_factor NUMERIC(8, 4),
+    max_drawdown_pct NUMERIC(8, 4),
+    sharpe_annualized NUMERIC(8, 4),
+    sortino_annualized NUMERIC(8, 4),
+    calmar_ratio NUMERIC(8, 4),
+    total_return_pct NUMERIC(12, 4),
+    avg_win_pct NUMERIC(8, 4),
+    avg_loss_pct NUMERIC(8, 4),
+    avg_hold_days INTEGER,
+    notes TEXT,
+    run_timestamp TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(date_start DESC);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_strategy ON backtest_runs(strategy_name);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- OPERATIONAL MONITORING & EXECUTION TRACKING (PHASE 1-4 INTEGRATION)
 -- ════════════════════════════════════════════════════════════════════════════
