@@ -188,40 +188,40 @@ class SwingTraderScore:
 
             total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
-        # Letter grade
-        if total >= 85:
-            grade = 'A+'
-        elif total >= 75:
-            grade = 'A'
-        elif total >= 65:
-            grade = 'B'
-        elif total >= 55:
-            grade = 'C'
-        elif total >= 45:
-            grade = 'D'
-        else:
-            grade = 'F'
+            # Letter grade
+            if total >= 85:
+                grade = 'A+'
+            elif total >= 75:
+                grade = 'A'
+            elif total >= 65:
+                grade = 'B'
+            elif total >= 55:
+                grade = 'C'
+            elif total >= 45:
+                grade = 'D'
+            else:
+                grade = 'F'
 
-        result = {
-            'symbol': symbol,
-            'eval_date': str(eval_date),
-            'pass': True,
-            'swing_score': round(total, 1),
-            'grade': grade,
-            'components': {
-                'setup_quality': {'pts': round(setup_pts, 1), 'max': self.W_SETUP, 'detail': setup_detail},
-                'trend_quality': {'pts': round(trend_pts, 1), 'max': self.W_TREND, 'detail': trend_detail},
-                'momentum_rs':   {'pts': round(mom_pts, 1),   'max': self.W_MOMENTUM, 'detail': mom_detail},
-                'volume':        {'pts': round(vol_pts, 1),   'max': self.W_VOLUME, 'detail': vol_detail},
-                'fundamentals':  {'pts': round(fund_pts, 1),  'max': self.W_FUNDAMENTALS, 'detail': fund_detail},
-                'sector_industry': {'pts': round(sec_pts, 1), 'max': self.W_SECTOR, 'detail': sec_detail},
-                'multi_timeframe': {'pts': round(mtf_pts, 1), 'max': self.W_MULTI_TF, 'detail': mtf_detail},
-            },
-            'hard_gates': gates,
-        }
-        self._persist(symbol, eval_date, result)
-        logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
-        return result
+            result = {
+                'symbol': symbol,
+                'eval_date': str(eval_date),
+                'pass': True,
+                'swing_score': round(total, 1),
+                'grade': grade,
+                'components': {
+                    'setup_quality': {'pts': round(setup_pts, 1), 'max': self.W_SETUP, 'detail': setup_detail},
+                    'trend_quality': {'pts': round(trend_pts, 1), 'max': self.W_TREND, 'detail': trend_detail},
+                    'momentum_rs':   {'pts': round(mom_pts, 1),   'max': self.W_MOMENTUM, 'detail': mom_detail},
+                    'volume':        {'pts': round(vol_pts, 1),   'max': self.W_VOLUME, 'detail': vol_detail},
+                    'fundamentals':  {'pts': round(fund_pts, 1),  'max': self.W_FUNDAMENTALS, 'detail': fund_detail},
+                    'sector_industry': {'pts': round(sec_pts, 1), 'max': self.W_SECTOR, 'detail': sec_detail},
+                    'multi_timeframe': {'pts': round(mtf_pts, 1), 'max': self.W_MULTI_TF, 'detail': mtf_detail},
+                },
+                'hard_gates': gates,
+            }
+            self._persist(symbol, eval_date, result)
+            logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
+            return result
 
         except Exception as e:
             logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
