@@ -137,16 +137,16 @@ def backfill_sql():
         cur.execute('SELECT COUNT(*), COUNT(DISTINCT date), COUNT(DISTINCT symbol) FROM trend_template_data')
         total, dates, symbols = cur.fetchone()
 
-        print(f"\n✓ Backfill completed!")
+        print(f"\n[OK] Backfill completed!")
         print(f"  Total rows: {total:,}")
         print(f"  Unique dates: {dates}")
         print(f"  Unique symbols: {symbols}")
 
         if dates >= 1000:
-            print(f"\n✓ BACKFILL SUCCESSFUL - Ready for SQS regeneration")
+            print(f"\n[OK] BACKFILL SUCCESSFUL - Ready for SQS regeneration")
             return True
         else:
-            print(f"\n⚠ Backfill incomplete ({dates} dates)")
+            print(f"\n[WARN] Backfill incomplete ({dates} dates)")
             return False
 
     except Exception as e:
