@@ -18,36 +18,30 @@ tier_1_prices = [
     'loadpricedaily.py', 'loadetfpricedaily.py',
 ]
 
-# Tier 1b: Price aggregates (depends on tier 1, run after daily prices)
+# Tier 1b: Price aggregates and technical indicators (depends on tier 1, run after daily prices)
 tier_1b_aggregates = [
     'load_price_aggregate.py',  # Generates weekly and monthly from daily
     'load_etf_price_aggregate.py',  # Generates weekly and monthly ETF prices
+    'load_technical_indicators.py',  # Computes technical_data_daily (required for Phase 6)
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
-# Note: Annual/quarterly financial data consolidated via load_income_statement.py, load_balance_sheet.py, load_cash_flow.py
+# Note: Annual financial data only (quarterly empty, TTM depends on quarterly, stubs and broken loaders removed)
 tier_2_reference = [
     'loadcompanyprofile.py',
-    # Annual financials
+    # Annual financials only
     ('load_income_statement.py', []), ('load_balance_sheet.py', []), ('load_cash_flow.py', []),
-    # Quarterly financials
-    ('load_income_statement.py', ['--period', 'quarterly']),
-    ('load_balance_sheet.py', ['--period', 'quarterly']),
-    ('load_cash_flow.py', ['--period', 'quarterly']),
-    'loadttmincomestatement.py', 'loadttmcashflow.py',
     'loadearningshistory.py', 'loadearningsrevisions.py',
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
     'loadsectors.py', 'loadindustryranking.py',
-    'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
     'loadstockscores.py',
-    'loadecondata.py', 'loadaaiidata.py', 'loadnaaim.py', 'loadfeargreed.py',
-    'loadcalendar.py',
+    'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
 ]
 
-# Tier 2b: Computed metrics (depends on tier 2 financials)
+# Tier 2b: Computed metrics (depends on tier 2 financials, quality/value removed until annual financials fixed)
 tier_2b_metrics = [
-    'load_quality_metrics.py', 'load_growth_metrics.py', 'load_value_metrics.py',
+    'load_growth_metrics.py',
 ]
 
 # Tier 3: Technical signals (depends on prices)

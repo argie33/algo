@@ -1683,17 +1683,32 @@ class Orchestrator:
             today = _date.today()
 
             # 1. Check required tables exist
-            required_tables = [
+            # Hard blocks: data required before trading
+            required_hard = [
                 ('price_daily', 'Price data'),
                 ('technical_data_daily', 'Technical indicators'),
                 ('buy_sell_daily', 'Signal data'),
+            ]
+            # Soft checks: post-trade tables, only warn if missing (they get populated by orchestrator after trades)
+            required_soft = [
                 ('market_exposure_daily', 'Market exposure data'),
                 ('algo_risk_daily', 'Risk calculations'),
             ]
 
-            for table, description in required_tables:
+            for table, description in required_hard:
+                cur.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE date = %s",
+                    (today,)
+                )
+                count = cur.fetchone()[0]
+                if count == 0:
+                    issues.append(f"{description} missing for {today}")
+                else:
+                    logger.debug(f"  ✓ {table}: {count} rows for today")
+
+            # Check soft requirements (don't block, just warn)
+            for table, description in required_soft:
                 if table == 'algo_risk_daily':
-                    # Use report_date instead of date for risk table
                     cur.execute(
                         f"SELECT COUNT(*) FROM {table} WHERE report_date = %s",
                         (today,)
@@ -1705,7 +1720,7 @@ class Orchestrator:
                     )
                 count = cur.fetchone()[0]
                 if count == 0:
-                    issues.append(f"{description} missing for {today}")
+                    warnings.append(f"{description} not available (will be populated after trading)")
                 else:
                     logger.debug(f"  ✓ {table}: {count} rows for today")
 
