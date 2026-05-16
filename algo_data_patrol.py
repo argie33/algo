@@ -191,7 +191,7 @@ class DataPatrol:
             ('sector_ranking', 'date_recorded', 'daily', 10, WARN),
             ('industry_ranking', 'date_recorded', 'daily', 10, WARN),
             ('insider_transactions', 'trade_date', 'daily', 14, INFO),
-            ('analyst_upgrade_downgrade', 'date', 'daily', 14, INFO),  # Optional - no real API source
+            ('analyst_upgrade_downgrade', 'action_date', 'daily', 14, INFO),  # Optional - no real API source
             ('stock_scores', 'created_at', 'weekly', 14, WARN),
             ('aaii_sentiment', 'date', 'weekly', 14, INFO),  # Optional enrichment
             ('growth_metrics', 'created_at', 'monthly', 45, INFO),
@@ -204,7 +204,9 @@ class DataPatrol:
                 col_safe = assert_safe_column(col)
                 count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
                 if not latest_str:
-                    self.log('staleness', CRIT, tbl, f'EMPTY table {tbl}', {'count': count})
+                    # Use severity from config for empty tables (INFO for optional, CRIT for critical)
+                    empty_severity = sev_on_stale if sev_on_stale in (INFO, WARN) else CRIT
+                    self.log('staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
                 latest = datetime.strptime(latest_str, '%Y-%m-%d').date()
                 age = (today - latest).days
