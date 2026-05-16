@@ -18,6 +18,8 @@ const optional = {
   AWS_REGION: { default: "us-east-1" },
   WEBAPP_AWS_REGION: { default: "us-east-1" },
   FRED_API_KEY: { default: "" },
+  APCA_API_KEY_ID: { default: "" },
+  APCA_API_SECRET_KEY: { default: "" },
   ALPACA_API_KEY: { default: "" },
   ALPACA_API_SECRET: { default: "" },
   ALPACA_PAPER_TRADING: { default: "true" },

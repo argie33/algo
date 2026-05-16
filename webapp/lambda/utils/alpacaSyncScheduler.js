@@ -187,8 +187,8 @@ async function performAlpacaSync() {
 function initializeAlpacaSync() {
   try {
     // Check if credentials are configured
-    const apiKey = process.env.ALPACA_API_KEY;
-    const secretKey = process.env.ALPACA_SECRET_KEY;
+    const apiKey = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
+    const secretKey = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
 
     if (!apiKey || !secretKey) {
       console.warn("⚠️  Alpaca credentials not configured - scheduler skipped");

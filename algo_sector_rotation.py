@@ -263,17 +263,19 @@ class SectorRotationDetector:
         try:
             self.cur.execute(
                 """INSERT INTO sector_rotation_signal
-                   (date, sector, signal, strength, details)
-                   VALUES (%s, %s, %s, %s, %s)
+                   (date, sector, signal, strength, rank, details)
+                   VALUES (%s, %s, %s, %s, %s, %s)
                    ON CONFLICT (date, sector) DO UPDATE SET
                        signal = EXCLUDED.signal,
                        strength = EXCLUDED.strength,
+                       rank = EXCLUDED.rank,
                        details = EXCLUDED.details""",
                 (
                     eval_date,
                     'market_rotation',
                     result['signal'],
                     round(result.get('defensive_lead_score', 0) / 100.0, 4),
+                    1,  # single rotation signal per date
                     json.dumps({
                         'defensive_lead_score': result.get('defensive_lead_score'),
                         'cyclical_weak_score': result.get('cyclical_weak_score'),
