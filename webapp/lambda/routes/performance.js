@@ -157,7 +157,7 @@ async function getRecentTrades(req, res) {
 
     const tradesQuery = `
       SELECT
-        trade_id, symbol, entry_date, entry_price, exit_date, exit_price,
+        trade_id, symbol, trade_date AS entry_date, entry_price, exit_date, exit_price,
         profit_loss_dollars, profit_loss_pct, trade_duration_days,
         exit_r_multiple, status
       FROM algo_trades

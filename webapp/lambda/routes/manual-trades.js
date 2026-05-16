@@ -17,13 +17,10 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const result = await dbQuery(
-      `SELECT id, symbol, type as trade_type, quantity, execution_price as price,
-              order_value,
-              commission,
-              CASE WHEN commission IS NOT NULL THEN order_value + commission ELSE NULL END as total_cost,
-              execution_date
+      `SELECT id, symbol, side as trade_type, quantity, execution_price as price,
+              trade_date as execution_date
        FROM trades
-       ORDER BY execution_date DESC`,
+       ORDER BY trade_date DESC`,
       []
     );
 
@@ -45,11 +42,8 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await dbQuery(
-      `SELECT id, symbol, type as trade_type, quantity, execution_price as price,
-              order_value,
-              commission,
-              CASE WHEN commission IS NOT NULL THEN order_value + commission ELSE NULL END as total_cost,
-              execution_date
+      `SELECT id, symbol, side as trade_type, quantity, execution_price as price,
+              trade_date as execution_date
        FROM trades
        WHERE id = $1`,
       [id]
@@ -130,14 +124,11 @@ router.post('/', async (req, res) => {
 
     // Insert trade
     const result = await dbQuery(
-      `INSERT INTO trades (symbol, type, quantity, execution_price, execution_date, order_value, commission)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, symbol, type as trade_type, quantity, execution_price as price,
-                 order_value,
-                 commission,
-                 CASE WHEN commission IS NOT NULL THEN order_value + commission ELSE NULL END as total_cost,
-                 execution_date`,
-      [symbol.toUpperCase(), tradeType, qty, prc, tradeDate, orderValue, comm]
+      `INSERT INTO trades (symbol, side, quantity, execution_price, trade_date)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, symbol, side as trade_type, quantity, execution_price as price,
+                 trade_date as execution_date`,
+      [symbol.toUpperCase(), tradeType, qty, prc, tradeDate]
     );
 
     if (result.rowCount === 0) {

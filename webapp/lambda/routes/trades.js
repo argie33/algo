@@ -136,38 +136,31 @@ router.get('/', async (req, res) => {
         params.push(symbols);
       }
 
-      // Type filter (type is 'buy' or 'sell' - matches actual column name)
+      // Side filter (side is 'buy' or 'sell' - actual column name in trades table)
       if (types && types.length > 0) {
-        whereClause += ` AND type = ANY($${params.length + 1}::text[])`;
+        whereClause += ` AND side = ANY($${params.length + 1}::text[])`;
         params.push(types);
       }
 
       const dataQuery = `
-        SELECT
-          id, symbol, side, quantity, execution_price, execution_date,
-          order_value, commission
+        SELECT id, symbol, side, quantity, execution_price, trade_date
         FROM trades
         ${whereClause}
-        ORDER BY execution_date DESC
+        ORDER BY trade_date DESC
       `;
 
       const result = await dbQuery(dataQuery, params);
-      console.log(`📊 Database query result: ${result.rowCount} trades found`);
-      console.log('📋 Query:', dataQuery);
-      console.log('📋 Params:', params);
 
       result.rows.forEach(row => {
-        console.log(`📝 Processing trade: ${row.symbol} ${row.side} ${row.quantity}@${row.execution_price}`);
-
         allTrades.push({
           id: row.id,
           symbol: row.symbol,
           type: (row.side || 'buy').toLowerCase(),
           quantity: parseFloat(row.quantity),
           price: parseFloat(row.execution_price),
-          executionDate: row.execution_date,
-          orderValue: row.order_value ? parseFloat(row.order_value) : null,
-          commission: row.commission ? parseFloat(row.commission) : 0,
+          executionDate: row.trade_date,
+          orderValue: null,
+          commission: 0,
           source: 'manual',
           orderId: row.id,
           broker: 'manual',

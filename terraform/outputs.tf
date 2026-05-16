@@ -226,34 +226,6 @@ output "database_health_alarm_name" {
 # IAM Users & Credentials
 # ============================================================
 
-output "github_deployer_access_key_id" {
-  description = "Access key ID for GitHub Actions deployer"
-  value       = module.iam.github_deployer_access_key_id
-  sensitive   = true
-}
-
-output "github_deployer_secret_access_key" {
-  description = "Secret access key for GitHub Actions deployer"
-  value       = module.iam.github_deployer_secret_access_key
-  sensitive   = true
-}
-
-output "pipeline_user_name" {
-  description = "Name of pipeline automation IAM user"
-  value       = module.iam.pipeline_user_name
-}
-
-output "pipeline_access_key_id" {
-  description = "Access key ID for pipeline automation"
-  value       = module.iam.pipeline_access_key_id
-  sensitive   = true
-}
-
-output "pipeline_secret_access_key" {
-  description = "Secret access key for pipeline automation"
-  value       = module.iam.pipeline_secret_access_key
-  sensitive   = true
-}
 
 output "developer_user_name" {
   description = "Name of developer IAM user"

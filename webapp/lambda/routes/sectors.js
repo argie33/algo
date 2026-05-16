@@ -128,19 +128,16 @@ router.get("/:sector/trend", async (req, res) => {
 
     const resultObj = await query(`
       SELECT
-        sr.date,
-        sr.sector,
-        sr.avg_price,
-        sr.stock_count,
-        sr.composite_score,
+        sr.date_recorded AS date,
+        sr.sector_name AS sector,
+        sr.current_rank,
         sr.momentum_score,
         sr.rank_1w_ago,
-        sr.rank_4w_ago,
-        sr.rank_12w_ago
+        sr.rank_4w_ago
       FROM sector_ranking sr
-      WHERE sr.sector = $1
-        AND sr.date >= CURRENT_DATE - INTERVAL '${days} days'
-      ORDER BY sr.date DESC
+      WHERE sr.sector_name = $1
+        AND sr.date_recorded >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY sr.date_recorded DESC
     `, [sector]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);

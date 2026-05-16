@@ -92,22 +92,6 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  # Inject secrets from Secrets Manager for sensitive values
-  secrets = [
-    {
-      name      = "APCA_API_KEY_ID"
-      valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::"
-    },
-    {
-      name      = "APCA_API_SECRET_KEY"
-      valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::"
-    },
-    {
-      name      = "JWT_SECRET"
-      valueFrom = "${var.algo_secrets_arn}:JWT_SECRET::"
-    }
-  ]
-
   depends_on = [
     aws_cloudwatch_log_group.api_lambda
   ]
@@ -471,33 +455,16 @@ resource "aws_lambda_function" "algo" {
       ALERTS_SNS_TOPIC         = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE           = var.execution_mode
       ORCHESTRATOR_DRY_RUN     = tostring(var.orchestrator_dry_run)
+      APCA_API_KEY_ID          = var.alpaca_api_key_id
+      APCA_API_SECRET_KEY      = var.alpaca_api_secret_key
       APCA_API_BASE_URL        = var.alpaca_api_base_url
       ALPACA_PAPER_TRADING     = tostring(var.alpaca_paper_trading)
+      FRED_API_KEY             = var.fred_api_key
       LOG_LEVEL                = var.orchestrator_log_level
       DATA_PATROL_ENABLED      = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS   = tostring(var.data_patrol_timeout_ms)
     }
   }
-
-  # Inject secrets from Secrets Manager for sensitive values
-  secrets = [
-    {
-      name      = "APCA_API_KEY_ID"
-      valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::"
-    },
-    {
-      name      = "APCA_API_SECRET_KEY"
-      valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::"
-    },
-    {
-      name      = "FRED_API_KEY"
-      valueFrom = "${var.algo_secrets_arn}:FRED_API_KEY::"
-    },
-    {
-      name      = "JWT_SECRET"
-      valueFrom = "${var.algo_secrets_arn}:JWT_SECRET::"
-    }
-  ]
 
   depends_on = [
     aws_cloudwatch_log_group.algo_lambda

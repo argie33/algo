@@ -103,11 +103,18 @@ export default function PortfolioDashboard() {
   );
 
   const portfolio = status?.portfolio || {};
-  const market = markets?.market_health || {};
+  const mh = markets?.market_health || {};
+  // Normalize market_health field names to what the UI expects
+  const market = {
+    trend: mh.market_trend,
+    stage: mh.market_stage,
+    vix: mh.vix_level,
+    distribution_days: mh.distribution_days_4w,
+  };
   const totalValue = parseFloat(portfolio.total_value || 0);
 
-  // Check for critical errors
-  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError, breakersError];
+  // Check for critical errors — circuit-breakers is supplemental, don't block whole page
+  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
   const hasErrors = criticalErrors.some(err => err);
 
   if (hasErrors) {

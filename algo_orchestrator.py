@@ -429,7 +429,7 @@ class Orchestrator:
                                   'sector_ranking', 'industry_ranking', 'stock_scores'):
                         # Different tables use different date column names
                         if table == 'stock_scores':
-                            col = 'score_date'
+                            col = 'updated_at'
                         elif table in ('sector_ranking', 'industry_ranking'):
                             col = 'date_recorded'
                         else:

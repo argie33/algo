@@ -23,6 +23,10 @@ jobs:
         working-directory: ./terraform
     env:
       TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
+      TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
+      TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
 
     steps:
       - name: Checkout code

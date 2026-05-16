@@ -366,6 +366,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
         exit_price,
         exit_r_multiple,
         profit_loss_pct,
+        profit_loss_dollars,
         trade_duration_days
       FROM algo_trades
       ORDER BY trade_date DESC
@@ -482,7 +483,7 @@ router.get('/markets', async (req, res) => {
 
     // Sector ranking (latest)
     const sectorsQuery = `
-      SELECT sector_name, current_rank, momentum_score
+      SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
       FROM sector_ranking
       WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
         AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
@@ -545,6 +546,8 @@ router.get('/markets', async (req, res) => {
           name: r.sector_name,
           rank: r.current_rank,
           momentum: parseFloat(r.momentum_score || 0),
+          rank_1w_ago: r.rank_1w_ago,
+          rank_4w_ago: r.rank_4w_ago,
         })),
         sentiment: sentimentResult.rows.map(r => ({
           date: r.date,
