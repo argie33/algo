@@ -454,89 +454,9 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 
 # Commented out - Lambda policies moved to workflow
 
-# Commented out - Lambda creation moved to workflow
-# Lambda function for database initialization
-# data "archive_file" "db_init_lambda_zip" {
-  type        = "zip"
-  output_path = "${path.module}/.terraform/db_init_lambda.zip"
-
-  source {
-    content  = file("${path.module}/init.sql")
-    filename = "schema.sql"
-  }
-
-  # Inline Python code for executing SQL
-  source {
-    content = templatefile("${path.module}/db_init_lambda.py", {
-      db_host      = aws_db_instance.main.address
-      db_port      = aws_db_instance.main.port
-      db_name      = var.rds_db_name
-      db_user      = var.db_master_username
-      db_password  = var.db_master_password
-      schema_file  = "schema.sql"
-      sql_content  = file("${path.module}/init.sql")
-    })
-    filename = "lambda_function.py"
-  }
-}
-
-resource "aws_lambda_function" "db_init" {
-  filename      = data.archive_file.db_init_lambda_zip.output_path
-  function_name = "${var.project_name}-db-init-${var.environment}"
-  role          = aws_iam_role.db_init_lambda.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.11"
-  timeout       = 60
-  memory_size   = 256
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.rds_security_group_id]
-  }
-
-  environment {
-    variables = {
-      DB_HOST     = aws_db_instance.main.address
-      DB_PORT     = aws_db_instance.main.port
-      DB_NAME     = var.rds_db_name
-      DB_USER     = var.db_master_username
-      DB_PASSWORD = var.db_master_password
-    }
-  }
-
-  source_code_hash = data.archive_file.db_init_lambda_zip.output_base64sha256
-
-  layers = try([aws_lambda_layer_version.psycopg2[0].arn], [])
-
-  depends_on = [
-    aws_iam_role_policy_attachment.db_init_lambda_vpc,
-    aws_iam_role_policy_attachment.db_init_lambda_logs
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-db-init"
-  })
-}
-
-# Invoke Lambda after RDS is ready
-resource "null_resource" "invoke_db_init" {
-  provisioner "local-exec" {
-    command = <<-EOT
-      aws lambda invoke \
-        --function-name ${aws_lambda_function.db_init.function_name} \
-        --region ${var.aws_region} \
-        --payload '{}' \
-        /tmp/db-init-response.json && \
-        echo "Database initialization Lambda invoked successfully"
-    EOT
-  }
-
-  depends_on = [aws_lambda_function.db_init, aws_db_instance.main]
-
-  triggers = {
-    rds_instance_id = aws_db_instance.main.id
-  }
-}
+# All Lambda resources below are DISABLED and moved to GitHub Actions workflow.
+# The deploy-code.yml workflow now creates and invokes algo-db-init-dev Lambda.
+# Terraform no longer creates any db-init Lambda resources.
 
 # ============================================================
 # RDS Proxy - Connection Pooling
