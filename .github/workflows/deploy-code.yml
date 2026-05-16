@@ -36,7 +36,6 @@ jobs:
       algo_lambda_name: ${{ steps.names.outputs.algo_lambda_name }}
       frontend_bucket: ${{ steps.names.outputs.frontend_bucket }}
       cloudfront_id: ${{ steps.names.outputs.cloudfront_id }}
-      db_init_lambda_role_arn: ${{ steps.names.outputs.db_init_lambda_role_arn }}
 
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +73,6 @@ jobs:
           ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
           FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
           CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
-          DB_INIT_ROLE=$(echo "$TF_OUT" | jq -r '.lambda_db_init_role_arn.value // ""')
 
           # Fall back to listing if TF outputs are empty
           if [ -z "$FRONTEND_BUCKET" ]; then
@@ -92,7 +90,6 @@ jobs:
           echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
           echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF_ID}" >> $GITHUB_OUTPUT
-          echo "db_init_lambda_role_arn=${DB_INIT_ROLE}" >> $GITHUB_OUTPUT
 
           echo "API Lambda:  ${API_LAMBDA}"
           echo "Algo Lambda: ${ALGO_LAMBDA}"

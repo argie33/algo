@@ -71,16 +71,6 @@ output "lambda_algo_role_name" {
   value       = aws_iam_role.lambda_algo.name
 }
 
-output "lambda_db_init_role_arn" {
-  description = "ARN of Lambda DB Init execution role"
-  value       = aws_iam_role.lambda_db_init.arn
-}
-
-output "lambda_db_init_role_name" {
-  description = "Name of Lambda DB Init execution role"
-  value       = aws_iam_role.lambda_db_init.name
-}
-
 # EventBridge
 output "eventbridge_scheduler_role_arn" {
   description = "ARN of EventBridge Scheduler execution role"

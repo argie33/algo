@@ -1119,57 +1119,6 @@ data "aws_iam_policy_document" "lambda_algo" {
   }
 }
 
-# Lambda DB Init permissions
-resource "aws_iam_role" "lambda_db_init" {
-  name               = "${var.project_name}-lambda-db-init-${var.environment}"
-  description        = "Lambda DB init role for ${var.project_name}"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-lambda-db-init"
-  })
-}
-
-resource "aws_iam_role_policy" "lambda_db_init" {
-  name   = "${var.project_name}-lambda-db-init-policy"
-  role   = aws_iam_role.lambda_db_init.id
-  policy = data.aws_iam_policy_document.lambda_db_init.json
-}
-
-data "aws_iam_policy_document" "lambda_db_init" {
-  # VPC access (connects to RDS)
-  statement {
-    sid    = "VPCAccess"
-    effect = "Allow"
-
-    actions = [
-      "ec2:CreateNetworkInterface",
-      "ec2:DescribeNetworkInterfaces",
-      "ec2:DeleteNetworkInterface",
-      "ec2:AssignPrivateIpAddresses",
-      "ec2:UnassignPrivateIpAddresses"
-    ]
-
-    resources = ["*"]
-  }
-
-  # CloudWatch Logs
-  statement {
-    sid    = "CloudWatchLogs"
-    effect = "Allow"
-
-    actions = [
-      "logs:CreateLogGroup",
-      "logs:CreateLogStream",
-      "logs:PutLogEvents"
-    ]
-
-    resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
-    ]
-  }
-}
-
 # ============================================================
 # 7. EventBridge Scheduler Role
 # ============================================================
