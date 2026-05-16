@@ -1651,7 +1651,19 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
-                return json_response(200, [])
+                symbol = path.split('/api/sentiment/social/insights/')[-1].upper()
+                self.cur.execute("""
+                    SELECT date, twitter_sentiment_score, reddit_sentiment_score,
+                           stocktwits_sentiment_score, overall_sentiment_score,
+                           twitter_mention_count, reddit_mention_count,
+                           stocktwits_mention_count
+                    FROM sentiment_social
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 30
+                """, (symbol,))
+                rows = self.cur.fetchall()
+                return json_response(200, [dict(r) for r in rows] if rows else [])
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
