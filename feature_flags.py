@@ -165,21 +165,25 @@ class FeatureFlags:
 
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT value FROM feature_flags
+                    SELECT value, enabled FROM feature_flags
                     WHERE flag_name = %s
-                    AND enabled = true
                     ORDER BY updated_at DESC
                     LIMIT 1
                 """, (flag_name,))
 
                 row = cur.fetchone()
                 if row:
-                    value = row[0]
+                    value, enabled = row[0], row[1]
+                    # If flag is disabled, return False; otherwise parse and return value
+                    if not enabled:
+                        self._cache[flag_name] = False
+                        return False
                     # Parse value back to bool if it was boolean
-                    if value.lower() in ('true', 'false'):
-                        value = value.lower() == 'true'
-                    elif value.isdigit():
-                        value = int(value)
+                    if isinstance(value, str):
+                        if value.lower() in ('true', 'false'):
+                            value = value.lower() == 'true'
+                        elif value.isdigit():
+                            value = int(value)
                     self._cache[flag_name] = value
                     return value
 
