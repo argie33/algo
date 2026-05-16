@@ -144,13 +144,13 @@ audit = [
     # CATEGORY 13: GAPS / TODO
     ('TODO',  'Frontend full overhaul',                                 'DEFER', 'user explicitly next-up'),
     ('TODO',  'AWS production deploy',                                  'DEFER', 'when ready'),
-    ('TODO',  'Live WebSocket prices',                                  'GAP',  'optimization'),
+    ('TODO',  'Live WebSocket prices',                                  'DEFER', 'AWS real-time infrastructure TBD'),
     ('TODO',  'Performance metrics (Sharpe/Sortino/MDD)',               'DONE', 'lambda/api/lambda_function.py'),
-    ('TODO',  'Audit trail UI viewer',                                  'GAP',  'logged but not viewed'),
-    ('TODO',  'Notification system',                                    'GAP',  'logs only, no alerts'),
-    ('TODO',  'Backtest UI visualization',                              'GAP',  'depends on backfill'),
-    ('TODO',  'Pre-trade simulation in UI',                             'GAP',  'show impact before commit'),
-    ('TODO',  'Sector rotation -> exposure feed',                       'GAP',  'computed but not consumed'),
+    ('TODO',  'Audit trail UI viewer',                                  'DONE', 'AuditViewer.jsx - tabs + pagination'),
+    ('TODO',  'Notification system',                                    'DEFER', 'AWS SNS/SES service TBD'),
+    ('TODO',  'Backtest UI visualization',                              'DONE', 'equity curve + trades table'),
+    ('TODO',  'Pre-trade simulation in UI',                             'DONE', 'PreTradeSimulator.jsx + API endpoint'),
+    ('TODO',  'Sector rotation -> exposure feed',                       'DONE', 'SectorRotationSignalCard on MarketsHealth'),
 ]
 
 counts = {'DONE': 0, 'DEFER': 0, 'GAP': 0}

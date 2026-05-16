@@ -107,10 +107,10 @@ class CloudWatchMonitoring:
                     loader_name,
                     COUNT(*) as runs,
                     SUM(CASE WHEN status='success' THEN 1 ELSE 0 END)::float / COUNT(*) * 100 as success_rate,
-                    AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration_sec,
-                    SUM(rows_processed) as total_rows
-                FROM loader_sla_tracker
-                WHERE start_time >= NOW() - INTERVAL '7 days'
+                    AVG(duration_seconds) as avg_duration_sec,
+                    SUM(rows_succeeded) as total_rows
+                FROM loader_execution_history
+                WHERE completed_at >= NOW() - INTERVAL '7 days'
                 GROUP BY loader_name
                 ORDER BY loader_name
             """)

@@ -145,13 +145,14 @@ class SchemaValidator:
             },
             'constraints': ['severity']
         },
-        'loader_sla_tracker': {
+        'loader_execution_history': {
             'columns': {
                 'loader_name': 'character varying',
                 'status': 'character varying',
-                'start_time': 'timestamp without time zone',
+                'execution_date': 'date',
+                'completed_at': 'timestamp without time zone',
             },
-            'constraints': ['status', 'loader_name']
+            'constraints': ['status', 'loader_name', 'execution_date']
         },
         'economic_data': {
             'columns': {
@@ -287,7 +288,7 @@ class SchemaValidator:
             ('idx_algo_trades_status_date', 'algo_trades'),
             ('idx_algo_risk_daily_date', 'algo_risk_daily'),
             ('idx_market_exposure_daily_date', 'market_exposure_daily'),
-            ('idx_loader_sla_tracker_date_status', 'loader_sla_tracker'),
+            ('idx_loader_execution_history_date', 'loader_execution_history'),
         ]
 
         for index_name, table_name in critical_indexes:

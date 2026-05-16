@@ -1393,6 +1393,25 @@ CREATE TABLE IF NOT EXISTS algo_trade_adds (
     UNIQUE(trade_id, add_number)
 );
 
+-- Loader execution history for tracking SLA and performance
+CREATE TABLE IF NOT EXISTS loader_execution_history (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    table_name VARCHAR(80) NOT NULL,
+    execution_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    rows_attempted BIGINT,
+    rows_succeeded BIGINT,
+    rows_rejected BIGINT,
+    error_message TEXT,
+    started_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP NOT NULL,
+    duration_seconds DECIMAL(10, 2),
+    data_source VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, table_name, execution_date)
+);
+
 -- Data loader status monitoring
 CREATE TABLE IF NOT EXISTS data_loader_status (
     table_name VARCHAR(80) PRIMARY KEY,
@@ -1751,7 +1770,9 @@ CREATE INDEX IF NOT EXISTS idx_sector_rotation_date ON sector_rotation_signal(da
 CREATE INDEX IF NOT EXISTS idx_sector_rotation_sector ON sector_rotation_signal(sector);
 CREATE INDEX IF NOT EXISTS idx_swing_scores_symbol_date ON swing_trader_scores(symbol, date);
 
--- Indexes for new operational tables
+-- Indexes for loader operational tables
+CREATE INDEX IF NOT EXISTS idx_loader_execution_history_date ON loader_execution_history(execution_date);
+CREATE INDEX IF NOT EXISTS idx_loader_execution_history_loader ON loader_execution_history(loader_name);
 CREATE INDEX IF NOT EXISTS idx_loader_sla_status_check ON loader_sla_status(last_check_at);
 CREATE INDEX IF NOT EXISTS idx_signal_perf_symbol_date ON signal_trade_performance(symbol, signal_date);
 CREATE INDEX IF NOT EXISTS idx_signal_perf_base_type ON signal_trade_performance(base_type);

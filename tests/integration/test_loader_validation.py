@@ -222,9 +222,9 @@ class LoaderValidator:
                     loader_name,
                     COUNT(*) as runs,
                     SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes,
-                    MAX(end_time) as latest_run
-                FROM loader_sla_tracker
-                WHERE DATE(start_time) = %s
+                    MAX(completed_at) as latest_run
+                FROM loader_execution_history
+                WHERE DATE(execution_date) = %s
                 GROUP BY loader_name
                 ORDER BY loader_name
                 """,
