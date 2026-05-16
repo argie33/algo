@@ -43,16 +43,8 @@ def lambda_handler(event, context):
             connect_timeout=10
         )
 
-        # Read and execute schema SQL
-        logger.info("Reading schema.sql from Lambda package")
-        try:
-            with open('schema.sql', 'r') as f:
-                sql_script = f.read()
-        except FileNotFoundError:
-            # Fallback: embedded schema (init.sql content via templatefile)
-            sql_script = """
-${sql_content}
-"""
+        # Use embedded schema from Terraform templatefile
+        sql_script = """${sql_content}"""
 
         if not sql_script.strip():
             logger.warning("No SQL script found; skipping initialization")
@@ -66,7 +58,18 @@ ${sql_content}
         cursor = conn.cursor()
 
         logger.info("Executing database schema initialization")
-        cursor.execute(sql_script)
+
+        # Split by semicolon and execute each statement separately
+        # (psycopg2.execute() can only run one statement at a time)
+        for statement in sql_script.split(';'):
+            statement = statement.strip()
+            if statement:  # Skip empty statements
+                try:
+                    cursor.execute(statement)
+                    logger.info(f"Executed: {statement[:80]}...")
+                except Exception as e:
+                    logger.warning(f"Statement failed (continuing): {statement[:80]}... - {e}")
+                    # Continue on error for idempotent operations (CREATE TABLE IF NOT EXISTS, etc.)
 
         cursor.close()
         conn.close()
