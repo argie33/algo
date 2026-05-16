@@ -23,6 +23,7 @@ import logging
 import psycopg2
 import psycopg2.extras
 import re
+import time
 from datetime import datetime, timedelta, date, timezone
 from typing import Dict, Any, Optional, List
 
@@ -34,6 +35,12 @@ logger.setLevel(logging.INFO)
 # the RDS connection limit under concurrent Lambda scaling.
 _db_conn: Optional[Any] = None
 _db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-call latency
+
+# Rate limiting: track requests per IP
+# Format: {ip: [timestamp1, timestamp2, ...]}
+# Clean up old entries every 100 requests to prevent unbounded growth
+_rate_limit_tracker: Dict[str, list] = {}
+_rate_limit_check_count = 0
 
 
 def _load_creds() -> Dict:
@@ -105,6 +112,42 @@ def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict
 def error_response(status_code: int, error: str, message: str = '') -> Dict:
     """Return error response."""
     return json_response(status_code, {'error': error, 'message': message})
+
+
+def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
+    """Check if IP has exceeded rate limit. Returns True if request is allowed."""
+    global _rate_limit_tracker, _rate_limit_check_count
+
+    current_time = time.time()
+
+    # Clean up old entries periodically
+    _rate_limit_check_count += 1
+    if _rate_limit_check_count % 100 == 0:
+        for tracked_ip in list(_rate_limit_tracker.keys()):
+            _rate_limit_tracker[tracked_ip] = [
+                t for t in _rate_limit_tracker[tracked_ip]
+                if current_time - t < window_seconds
+            ]
+            if not _rate_limit_tracker[tracked_ip]:
+                del _rate_limit_tracker[tracked_ip]
+
+    # Check current IP
+    if ip not in _rate_limit_tracker:
+        _rate_limit_tracker[ip] = []
+
+    # Remove old requests outside the window
+    _rate_limit_tracker[ip] = [
+        t for t in _rate_limit_tracker[ip]
+        if current_time - t < window_seconds
+    ]
+
+    # Check if limit exceeded
+    if len(_rate_limit_tracker[ip]) >= max_requests:
+        return False
+
+    # Record this request
+    _rate_limit_tracker[ip].append(current_time)
+    return True
 
 
 class APIHandler:
@@ -1957,6 +2000,14 @@ def lambda_handler(event, context):
         # Parse request
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
+        # Get client IP for rate limiting
+        client_ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', 'unknown')
+
+        # Rate limiting: max 100 requests per minute per IP
+        if not check_rate_limit(client_ip, max_requests=100, window_seconds=60):
+            logger.warning(f"Rate limit exceeded for {client_ip}")
+            return error_response(429, 'rate_limit_exceeded', 'Too many requests. Max 100 per minute.')
+
         # API GW v2 HTTP API passes query params as plain strings, but all handlers
         # do params.get('key', [default])[0]. Normalize each value to a single-item list
         # so [0] indexing works uniformly regardless of whether a param was sent.

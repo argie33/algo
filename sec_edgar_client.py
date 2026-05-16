@@ -248,8 +248,14 @@ class SecEdgarClient:
         return self._aggregate_concepts(symbol, concepts, period)
 
     def get_income_statement(self, symbol: str, period: str = "annual") -> List[Dict[str, Any]]:
+        # Note: SEC EDGAR XBRL has renamed concepts over time
+        # "Revenues" only has data for FY2018+ (moved from old XBRL format)
+        # "SalesRevenueNet" has data for FY2009-2017 (older XBRL format)
+        # We fetch both and consolidate — prefer "Revenues", fallback to "SalesRevenueNet"
         concepts = [
-            "Revenues", "CostOfRevenue", "GrossProfit", "OperatingExpenses",
+            "Revenues", "SalesRevenueNet",  # Revenue (try both concept names)
+            "CostOfRevenue", "CostsAndExpenses",  # Cost (try both)
+            "GrossProfit", "OperatingExpenses",
             "OperatingIncomeLoss", "NetIncomeLoss", "EarningsPerShareBasic",
             "EarningsPerShareDiluted", "WeightedAverageNumberOfSharesOutstandingBasic",
         ]

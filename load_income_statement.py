@@ -43,14 +43,28 @@ _PERIOD_CONFIG = {
         "edgar_period": "annual",
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "revenue", "cost_of_revenue",
-            "gross_profit", "operating_income", "net_income", "earnings_per_share",
+            "gross_profit", "operating_expenses", "operating_income", "net_income", "earnings_per_share",
+            "shares_outstanding",
         }),
         "field_mapping": {
+            # Revenue: SEC EDGAR returns "Revenues" (FY2018+) or "SalesRevenueNet" (FY2009-2017)
             "revenues": "revenue",
+            "sales_revenue_net": "revenue",
+            # Cost of Revenue: SEC EDGAR returns "CostOfRevenue" or "CostsAndExpenses"
+            "cost_of_revenue": "cost_of_revenue",
+            "costs_and_expenses": "cost_of_revenue",
+            # Gross Profit
+            "gross_profit": "gross_profit",
+            # Operating metrics
+            "operating_expenses": "operating_expenses",
             "operating_income_loss": "operating_income",
+            # Net Income
             "net_income_loss": "net_income",
+            # EPS: SEC EDGAR returns both basic and diluted, we prefer basic
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",
+            # Shares outstanding
+            "weighted_average_number_of_shares_outstanding_basic": "shares_outstanding",
         },
     },
     "quarterly": {
@@ -62,6 +76,7 @@ _PERIOD_CONFIG = {
         }),
         "field_mapping": {
             "revenues": "revenue",
+            "sales_revenue_net": "revenue",
             "net_income_loss": "net_income",
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",

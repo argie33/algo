@@ -1246,9 +1246,9 @@ router.get('/performance', authenticateToken, async (req, res) => {
         const stdDev = Math.sqrt(
           validReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / validReturns.length
         );
-        const downside = validReturns.filter(r => r < 0);
-        const downStdDev = downside.length > 0
-          ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) : 0;
+        // Sortino downside deviation: MAR = 0, denominator is ALL periods (not just losing days)
+        const downStdDev = validReturns.length > 0
+          ? Math.sqrt(validReturns.reduce((s, r) => s + Math.pow(Math.min(r, 0), 2), 0) / validReturns.length) : 0;
 
         // Annualize: 252 trading days
         sharpe = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;

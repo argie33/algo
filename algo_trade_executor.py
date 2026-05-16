@@ -1067,7 +1067,7 @@ class TradeExecutor:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {'success': False, 'message': 'Alpaca credentials not configured'}
 
-        logger.info(f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f}")
+        logger.info(_redact_for_logs(f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f}"))
         try:
             # Build order payload
             order_data = {
