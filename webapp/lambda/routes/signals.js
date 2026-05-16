@@ -181,7 +181,7 @@ router.get("/etf", async (req, res) => {
     `, [limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, result, 200);
+    sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching ETF signals:", error);
     sendError(res, "Failed to fetch ETF signals: " + error.message, 500);

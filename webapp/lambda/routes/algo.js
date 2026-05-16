@@ -648,10 +648,14 @@ router.get('/swing-scores-history', async (req, res) => {
       success: true,
       items: result.rows.map(r => ({
         eval_date: r.eval_date,
+        date: r.eval_date,
         total: parseInt(r.total),
+        grade_aplus: parseInt(r.score_high), // scores >= 80
+        grade_a: parseInt(r.score_medium), // scores 60-79
+        pass_count: parseInt(r.score_high) + parseInt(r.score_medium), // A+ and A grades
+        low_scores: parseInt(r.score_low),
         high_scores: parseInt(r.score_high),
         medium_scores: parseInt(r.score_medium),
-        low_scores: parseInt(r.score_low),
         avg_score: parseFloat(r.avg_score),
       })),
       timestamp: new Date().toISOString(),
