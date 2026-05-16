@@ -100,29 +100,68 @@ class StockScoresLoader(OptimalLoader):
         if len(df) < 20:
             return None
 
+        # Technical analysis scores
         rsi = self._compute_rsi(df["close"], 14)
-        momentum = self._compute_momentum(df["close"], 20)
+        momentum_raw = self._compute_momentum(df["close"], 20)
 
-        # Return one aggregated score per symbol (most recent valid RSI)
+        # Volatility/Stability score (lower volatility = higher stability)
+        returns = df["close"].pct_change()
+        volatility = returns.rolling(20).std().iloc[-1] * 100  # Convert to percentage
+        stability_score = 100 - min(100, max(0, volatility * 10))  # 0-100 scale
+
+        # Find most recent valid index
         valid_idx = None
         for idx in range(len(rsi) - 1, -1, -1):
-            if not pd.isna(rsi.iloc[idx]) and not pd.isna(momentum.iloc[idx]):
+            if not pd.isna(rsi.iloc[idx]) and not pd.isna(momentum_raw.iloc[idx]):
                 valid_idx = idx
                 break
 
         if valid_idx is None:
             return None
 
-        rsi_val = float(rsi.iloc[valid_idx]) / 2
+        # Score components (0-100 scale, where 50 is neutral)
+        momentum_score = float(rsi.iloc[valid_idx])  # RSI: 0-100, oversold<30, overbought>70
+
+        # Price momentum: positive for uptrends, negative for downtrends
+        # Convert to 0-100 scale where 50 is neutral
+        momentum_pct = float(momentum_raw.iloc[valid_idx]) if not pd.isna(momentum_raw.iloc[valid_idx]) else 50.0
+
+        # Trend score: average return over last 5, 10, 20 days
+        ret_5 = (df["close"].iloc[-1] / df["close"].iloc[-6] - 1) * 50 if len(df) >= 6 else 0
+        ret_10 = (df["close"].iloc[-1] / df["close"].iloc[-11] - 1) * 50 if len(df) >= 11 else 0
+        ret_20 = (df["close"].iloc[-1] / df["close"].iloc[-21] - 1) * 50 if len(df) >= 21 else 0
+        positioning_score = 50 + ((ret_5 + ret_10 + ret_20) / 3)
+        positioning_score = max(0, min(100, positioning_score))
+
+        # Growth score: volatility-adjusted momentum (higher momentum with lower volatility = higher growth score)
+        growth_score = 50 + (momentum_pct * 0.8 - (volatility * 0.2))
+        growth_score = max(0, min(100, growth_score))
+
+        # Quality score: based on consistency (inverse of volatility)
+        quality_score = stability_score
+
+        # Value score: RSI-based (low RSI = potentially undervalued)
+        value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
+
+        # Composite: weighted average of all scores
+        composite_score = (
+            momentum_score * 0.20 +  # 20% momentum
+            growth_score * 0.20 +     # 20% growth
+            stability_score * 0.20 +  # 20% stability/quality
+            value_score * 0.15 +      # 15% value
+            positioning_score * 0.15 + # 15% positioning/trend
+            quality_score * 0.10      # 10% quality consistency
+        )
+
         score_row = {
             "symbol": symbol,
-            "value_score": 50.0,
-            "growth_score": 50.0,
-            "stability_score": 50.0,
-            "momentum_score": rsi_val,
-            "quality_score": 50.0,
-            "positioning_score": 50.0,
-            "composite_score": (50 + 50 + rsi_val + 50) / 4,
+            "value_score": float(value_score),
+            "growth_score": float(growth_score),
+            "stability_score": float(stability_score),
+            "momentum_score": float(momentum_score),
+            "quality_score": float(quality_score),
+            "positioning_score": float(positioning_score),
+            "composite_score": float(composite_score),
             "updated_at": str(date.today()),
         }
         return [score_row]  # Return single-item list as before
