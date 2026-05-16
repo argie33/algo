@@ -246,10 +246,47 @@ jobs:
           cd ..
           echo "Package size: $(du -sh db_init_lambda.zip | cut -f1)"
 
+      - name: Ensure DB Init Lambda Role Exists
+        run: |
+          ROLE_NAME="stocks-db-init-lambda-dev"
+
+          # Check if role exists
+          if ! aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null; then
+            echo "Creating DB Init Lambda role: $ROLE_NAME"
+
+            # Trust policy for Lambda service
+            TRUST_POLICY='{
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "lambda.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            }'
+
+            aws iam create-role \
+              --role-name "$ROLE_NAME" \
+              --assume-role-policy-document "$TRUST_POLICY"
+
+            # Attach basic Lambda execution policy for CloudWatch Logs and VPC
+            aws iam attach-role-policy \
+              --role-name "$ROLE_NAME" \
+              --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+
+            echo "Role created: $ROLE_NAME"
+          else
+            echo "Role already exists: $ROLE_NAME"
+          fi
+
       - name: Deploy DB Init Lambda
         run: |
           FUNC_NAME="algo-db-init-dev"
-          ROLE_ARN="${{ needs.resolve-infra.outputs.db_init_lambda_role_arn }}"
+          ROLE_NAME="stocks-db-init-lambda-dev"
+          ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/$ROLE_NAME"
 
           # Try to update existing function code
           if aws lambda get-function --function-name "$FUNC_NAME" --region $AWS_REGION >/dev/null 2>&1; then
