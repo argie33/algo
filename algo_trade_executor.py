@@ -11,6 +11,13 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
+from credential_helper import get_db_password, get_db_config
+try:
+    from credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
+
 import os
 import json
 import psycopg2
@@ -18,7 +25,6 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
-from credential_helper import get_db_password, get_db_config
 import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP
