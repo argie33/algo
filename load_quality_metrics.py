@@ -106,8 +106,7 @@ class QualityMetricsLoader:
         try:
             # Get latest balance sheet
             self.cur.execute("""
-                SELECT total_assets, current_assets, total_liabilities,
-                       current_liabilities, stockholders_equity
+                SELECT total_assets, current_assets, total_liabilities, stockholders_equity
                 FROM annual_balance_sheet
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
@@ -130,46 +129,42 @@ class QualityMetricsLoader:
                 return None
 
             metrics = {}
+            total_assets, current_assets, total_liab, equity = bs_row
+            revenue, net_income, operating_income = is_row
 
             # Operating Margin
-            if is_row[2] and is_row[0] and is_row[0] > 0:
-                metrics['operating_margin'] = round((is_row[2] / is_row[0]) * 100, 4)
+            if operating_income and revenue and revenue > 0:
+                metrics['operating_margin'] = round((operating_income / revenue) * 100, 4)
             else:
                 metrics['operating_margin'] = None
 
             # Net Margin
-            if is_row[1] and is_row[0] and is_row[0] > 0:
-                metrics['net_margin'] = round((is_row[1] / is_row[0]) * 100, 4)
+            if net_income and revenue and revenue > 0:
+                metrics['net_margin'] = round((net_income / revenue) * 100, 4)
             else:
                 metrics['net_margin'] = None
 
             # ROE: Net Income / Stockholders Equity
-            if is_row[1] and bs_row[4] and bs_row[4] > 0:
-                metrics['roe'] = round((is_row[1] / bs_row[4]) * 100, 4)
+            if net_income and equity and equity > 0:
+                metrics['roe'] = round((net_income / equity) * 100, 4)
             else:
                 metrics['roe'] = None
 
             # ROA: Net Income / Total Assets
-            if is_row[1] and bs_row[0] and bs_row[0] > 0:
-                metrics['roa'] = round((is_row[1] / bs_row[0]) * 100, 4)
+            if net_income and total_assets and total_assets > 0:
+                metrics['roa'] = round((net_income / total_assets) * 100, 4)
             else:
                 metrics['roa'] = None
 
             # Debt/Equity
-            if bs_row[4] and bs_row[4] > 0:
-                metrics['debt_to_equity'] = round(bs_row[2] / bs_row[4], 4)
+            if equity and equity > 0:
+                metrics['debt_to_equity'] = round(total_liab / equity, 4)
             else:
                 metrics['debt_to_equity'] = None
 
-            # Current Ratio: Current Assets / Current Liabilities
-            if bs_row[3] and bs_row[3] > 0 and bs_row[1]:
-                metrics['current_ratio'] = round(bs_row[1] / bs_row[3], 4)
-            else:
-                metrics['current_ratio'] = None
-
-            # Quick Ratio (simplified: current_assets / current_liabilities without inventory)
-            # For now, use current_ratio as proxy
-            metrics['quick_ratio'] = metrics['current_ratio']
+            # Current Ratio: Current Assets / Current Liabilities (not available, set to None)
+            metrics['current_ratio'] = None
+            metrics['quick_ratio'] = None
 
             # Interest Coverage (would need interest expense data - skip for now)
             metrics['interest_coverage'] = None
