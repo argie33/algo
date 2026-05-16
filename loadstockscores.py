@@ -103,25 +103,29 @@ class StockScoresLoader(OptimalLoader):
         rsi = self._compute_rsi(df["close"], 14)
         momentum = self._compute_momentum(df["close"], 20)
 
-        scores = []
-        for idx, close_price in enumerate(df["close"]):
-            if pd.isna(rsi.iloc[idx]) or pd.isna(momentum.iloc[idx]):
-                continue
+        # Return one aggregated score per symbol (most recent valid RSI)
+        valid_idx = None
+        for idx in range(len(rsi) - 1, -1, -1):
+            if not pd.isna(rsi.iloc[idx]) and not pd.isna(momentum.iloc[idx]):
+                valid_idx = idx
+                break
 
-            score_row = {
-                "symbol": symbol,
-                "value_score": 50.0,
-                "growth_score": 50.0,
-                "stability_score": 50.0,
-                "momentum_score": float(rsi.iloc[idx]) / 2,
-                "quality_score": 50.0,
-                "positioning_score": 50.0,
-                "composite_score": (50 + 50 + float(rsi.iloc[idx]) / 2 + 50) / 4,
-                "updated_at": str(date.today()),
-            }
-            scores.append(score_row)
+        if valid_idx is None:
+            return None
 
-        return scores if scores else None
+        rsi_val = float(rsi.iloc[valid_idx]) / 2
+        score_row = {
+            "symbol": symbol,
+            "value_score": 50.0,
+            "growth_score": 50.0,
+            "stability_score": 50.0,
+            "momentum_score": rsi_val,
+            "quality_score": 50.0,
+            "positioning_score": 50.0,
+            "composite_score": (50 + 50 + rsi_val + 50) / 4,
+            "updated_at": str(date.today()),
+        }
+        return [score_row]  # Return single-item list as before
 
     @staticmethod
     def _compute_rsi(closes, period=14):

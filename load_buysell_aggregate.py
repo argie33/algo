@@ -196,7 +196,6 @@ class BuySellAggregateLoader(OptimalLoader):
 
         result = {
             "symbol": symbol,
-            "timeframe": self.timeframe_value,
             "date": idx_date.isoformat(),
             "open": _f(row.get("open")),
             "high": _f(row.get("high")),
