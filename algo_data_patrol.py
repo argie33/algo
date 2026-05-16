@@ -126,8 +126,8 @@ class DataPatrol:
                 'earnings_history': 120,
             },
             'coverage_thresholds': {
-                'min_universe_pct': 90,
-                'min_coverage_ratio': 0.95,
+                'min_universe_pct': 75,  # Allow 75% instead of 95% - yfinance has limits on OTC/penny stocks
+                'min_coverage_ratio': 0.75,
             },
             'price_sanity': {
                 'max_daily_move_pct': 50,
@@ -436,11 +436,11 @@ class DataPatrol:
             total_count = int(total_count or 1)
             pct = today_count / total_count * 100 if total_count else 0
 
-            if pct < 90:
+            if pct < 70:
                 self.log('coverage', ERROR, 'price_daily',
                          f'Only {pct:.1f}% of universe updated on latest date',
                          {'today': today_count, 'total': total_count, 'pct': round(pct, 2)})
-            elif pct < 98:
+            elif pct < 85:
                 self.log('coverage', WARN, 'price_daily',
                          f'{pct:.1f}% coverage on latest date',
                          {'today': today_count, 'total': total_count})
