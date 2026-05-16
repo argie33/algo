@@ -69,6 +69,7 @@ class FeatureFlags:
         self.conn = None
         self._cache: Dict[str, Any] = {}
         self._cache_updated_at = None
+        self._cache_ttl_seconds = 30  # Refresh cache every 30 seconds
 
     def connect(self):
         """Connect to database."""
