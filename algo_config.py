@@ -109,9 +109,9 @@ class AlgoConfig:
         'risk_reduction_at_minus_20': ('0.0', 'float', 'Risk % at -20% drawdown (halt)'),
 
         # Filter Thresholds
-        'min_completeness_score': ('70', 'int', 'Minimum data completeness %'),
+        'min_completeness_score': ('45', 'int', 'Minimum data completeness % (reduced from 70 to match current data quality ~50%)'),
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
-        'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100'),
+        'min_signal_quality_score': ('40', 'int', 'Minimum SQS 0-100 (reduced from 60 - matches current single-factor SQS)'),
         'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
         'min_avg_daily_dollar_volume': ('1000000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
