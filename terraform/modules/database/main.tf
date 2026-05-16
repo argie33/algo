@@ -225,6 +225,8 @@ resource "aws_secretsmanager_secret_version" "algo_secrets" {
     APCA_API_SECRET_KEY  = var.alpaca_api_secret_key
     APCA_API_BASE_URL    = var.alpaca_api_base_url
     ALPACA_PAPER_TRADING = var.alpaca_paper_trading
+    FRED_API_KEY         = var.fred_api_key
+    JWT_SECRET           = var.jwt_secret
   })
 }
 
@@ -470,22 +472,6 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 # TODO: Re-enable when RDS Proxy is implemented
 
 # Store DB credentials in Secrets Manager for RDS Proxy to use
-resource "aws_secretsmanager_secret" "db_credentials" {
-  name                    = "${var.project_name}/rds-db-credentials-${var.environment}"
-  description             = "RDS database credentials for connection pooling"
-  recovery_window_in_days = 7
-
-  tags = var.common_tags
-}
-
-resource "aws_secretsmanager_secret_version" "db_credentials" {
-  secret_id = aws_secretsmanager_secret.db_credentials.id
-  secret_string = jsonencode({
-    username = var.db_master_username
-    password = var.db_master_password
-  })
-}
-
 # ============================================================
 # 9. RDS Proxy for Connection Pooling - DISABLED FOR NOW
 # ============================================================
@@ -542,8 +528,7 @@ data "aws_iam_policy_document" "rds_rotation_policy" {
     ]
 
     resources = [
-      aws_secretsmanager_secret.rds_credentials.arn,
-      aws_secretsmanager_secret.db_credentials.arn
+      aws_secretsmanager_secret.rds_credentials.arn
     ]
   }
 
