@@ -870,24 +870,25 @@ class MarketExposure:
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct,
-                     exposure_tier, is_entry_allowed)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    market_exposure_pct = EXCLUDED.market_exposure_pct,
-                    long_exposure_pct = EXCLUDED.long_exposure_pct,
-                    short_exposure_pct = EXCLUDED.short_exposure_pct,
-                    exposure_tier = EXCLUDED.exposure_tier,
-                    is_entry_allowed = EXCLUDED.is_entry_allowed,
+                    exposure_pct = EXCLUDED.exposure_pct,
+                    raw_score = EXCLUDED.raw_score,
+                    regime = EXCLUDED.regime,
+                    distribution_days = EXCLUDED.distribution_days,
+                    factors = EXCLUDED.factors,
+                    halt_reasons = EXCLUDED.halt_reasons,
                     created_at = CURRENT_TIMESTAMP
                 """,
                 (
                     eval_date,
                     result['exposure_pct'],
-                    result['exposure_pct'],  # long = total (paper trading, longs only)
-                    0.0,                      # short = 0 (paper trading, no shorts)
+                    result['score'],
                     result['regime'],
-                    not bool(result.get('halt_reasons')),
+                    result.get('distribution_days', 0),
+                    json.dumps(result.get('factors', {})),
+                    json.dumps(result.get('halt_reasons', [])),
                 ),
             )
             if self._owned:

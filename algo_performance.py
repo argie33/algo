@@ -557,14 +557,12 @@ class LivePerformance:
                 cur.execute(
                     """
                     INSERT INTO algo_performance_daily (
-                        report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
+                        report_date, rolling_sharpe_252d,
                         win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
-                        max_drawdown_pct, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        max_drawdown_pct
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (report_date) DO UPDATE SET
                         rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
-                        rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
-                        calmar_ratio = EXCLUDED.calmar_ratio,
                         win_rate_50t = EXCLUDED.win_rate_50t,
                         avg_win_r_50t = EXCLUDED.avg_win_r_50t,
                         avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
@@ -574,8 +572,6 @@ class LivePerformance:
                     (
                         report_date,
                         sharpe_val,
-                        sortino_val,
-                        calmar_val,
                         win_rate_val,
                         avg_win_r_val,
                         avg_loss_r_val,
