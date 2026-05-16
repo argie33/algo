@@ -44,6 +44,12 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year",
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
         }),
+        "field_mapping": {
+            "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
+            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+            "payments_to_acquire_property_plant_and_equipment": "capex",
+        },
     },
     "quarterly": {
         "table_name": "quarterly_cash_flow",
@@ -52,6 +58,10 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year", "fiscal_quarter",
             "operating_cash_flow", "free_cash_flow",
         }),
+        "field_mapping": {
+            "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            "payments_to_acquire_property_plant_and_equipment": "capex",
+        },
     },
 }
 
@@ -73,6 +83,7 @@ class CashFlowLoader(OptimalLoader):
         self.table_name = cfg["table_name"]
         self.primary_key = cfg["primary_key"]
         self._schema_cols = cfg["schema_cols"]
+        self._field_mapping = cfg.get("field_mapping", {})
         super().__init__()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -97,9 +108,28 @@ class CashFlowLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        filtered = [{k: v for k, v in r.items() if k in self._schema_cols} for r in rows]
+        transformed = []
+        for r in rows:
+            row = {}
+            capex = None
+            for sec_field, value in r.items():
+                # Apply field mapping first
+                db_field = self._field_mapping.get(sec_field, sec_field)
+                if db_field == "capex":
+                    capex = value
+                elif db_field in self._schema_cols:
+                    row[db_field] = value
+            # Calculate free_cash_flow if we have operating_cash_flow and capex
+            if "free_cash_flow" in self._schema_cols:
+                ocf = row.get("operating_cash_flow")
+                if ocf and capex:
+                    row["free_cash_flow"] = ocf - capex
+                elif ocf:
+                    row["free_cash_flow"] = ocf  # Fallback if no capex data
+            transformed.append(row)
+
         seen = {}
-        for row in filtered:
+        for row in transformed:
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:

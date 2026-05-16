@@ -612,7 +612,7 @@ router.get('/swing-scores', async (req, res) => {
 });
 
 // ============================================================
-// SWING SCORES HISTORY — grade counts per eval_date (for trend chart)
+// SWING SCORES HISTORY — score counts over time
 // ============================================================
 router.get('/swing-scores-history', async (req, res) => {
   try {
@@ -620,16 +620,15 @@ router.get('/swing-scores-history', async (req, res) => {
     const days = Math.min(parseInt(req.query.days) || 30, 180);
 
     const result = await pool.query(
-      `SELECT eval_date,
+      `SELECT DATE(date) as eval_date,
               COUNT(*) AS total,
-              COUNT(*) FILTER (WHERE grade = 'A+') AS grade_aplus,
-              COUNT(*) FILTER (WHERE grade = 'A')  AS grade_a,
-              COUNT(*) FILTER (WHERE grade = 'B')  AS grade_b,
-              COUNT(*) FILTER (WHERE grade = 'C')  AS grade_c,
-              COUNT(*) FILTER (WHERE pass_gates = TRUE) AS pass_count
+              COUNT(*) FILTER (WHERE score >= 80) AS score_high,
+              COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS score_medium,
+              COUNT(*) FILTER (WHERE score < 60) AS score_low,
+              ROUND(AVG(score)::numeric, 2) AS avg_score
        FROM swing_trader_scores
-       WHERE eval_date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-       GROUP BY eval_date
+       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+       GROUP BY DATE(date)
        ORDER BY eval_date ASC`,
       [days]
     );
@@ -639,17 +638,16 @@ router.get('/swing-scores-history', async (req, res) => {
       items: result.rows.map(r => ({
         eval_date: r.eval_date,
         total: parseInt(r.total),
-        grade_aplus: parseInt(r.grade_aplus),
-        grade_a: parseInt(r.grade_a),
-        grade_b: parseInt(r.grade_b),
-        grade_c: parseInt(r.grade_c),
-        pass_count: parseInt(r.pass_count),
+        high_scores: parseInt(r.score_high),
+        medium_scores: parseInt(r.score_medium),
+        low_scores: parseInt(r.score_low),
+        avg_score: parseFloat(r.avg_score),
       })),
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores-history:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 

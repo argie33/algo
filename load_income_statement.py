@@ -45,6 +45,13 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year", "revenue", "cost_of_revenue",
             "gross_profit", "operating_income", "net_income", "earnings_per_share",
         }),
+        "field_mapping": {
+            "revenues": "revenue",
+            "operating_income_loss": "operating_income",
+            "net_income_loss": "net_income",
+            "earnings_per_share_basic": "earnings_per_share",
+            "earnings_per_share_diluted": "earnings_per_share",
+        },
     },
     "quarterly": {
         "table_name": "quarterly_income_statement",
@@ -53,6 +60,12 @@ _PERIOD_CONFIG = {
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "fiscal_quarter", "revenue", "net_income", "earnings_per_share",
         }),
+        "field_mapping": {
+            "revenues": "revenue",
+            "net_income_loss": "net_income",
+            "earnings_per_share_basic": "earnings_per_share",
+            "earnings_per_share_diluted": "earnings_per_share",
+        },
     },
 }
 
@@ -75,6 +88,7 @@ class IncomeStatementLoader(OptimalLoader):
         self.primary_key = cfg["primary_key"]
         self._edgar_period = cfg["edgar_period"]
         self._schema_cols = cfg["schema_cols"]
+        self._field_mapping = cfg.get("field_mapping", {})
         super().__init__()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -99,9 +113,20 @@ class IncomeStatementLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        filtered = [{k: v for k, v in r.items() if k in self._schema_cols} for r in rows]
+        transformed = []
+        for r in rows:
+            row = {}
+            for sec_field, value in r.items():
+                # Apply field mapping first
+                db_field = self._field_mapping.get(sec_field, sec_field)
+                # Only keep fields in schema
+                if db_field in self._schema_cols:
+                    if db_field not in row:  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
+                        row[db_field] = value
+            transformed.append(row)
+
         seen = {}
-        for row in filtered:
+        for row in transformed:
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:

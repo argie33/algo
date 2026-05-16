@@ -69,11 +69,14 @@ class EarningsHistoryLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         try:
-            return (
-                row.get("earnings_date") is not None
-                and row.get("earnings_date") > 1990
-            )
-        except (KeyError, TypeError):
+            ed = row.get("earnings_date")
+            if ed is None:
+                return False
+            # Handle both date objects and numeric timestamps
+            if isinstance(ed, date):
+                return ed.year > 1990
+            return int(ed) > 1990
+        except (KeyError, TypeError, ValueError):
             return False
 
 

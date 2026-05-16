@@ -44,6 +44,11 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year",
             "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
+        "field_mapping": {
+            "assets": "total_assets",
+            "assets_current": "current_assets",
+            "liabilities": "total_liabilities",
+        },
     },
     "quarterly": {
         "table_name": "quarterly_balance_sheet",
@@ -52,6 +57,10 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year", "fiscal_quarter",
             "total_assets", "total_liabilities", "stockholders_equity",
         }),
+        "field_mapping": {
+            "assets": "total_assets",
+            "liabilities": "total_liabilities",
+        },
     },
 }
 
@@ -73,6 +82,7 @@ class BalanceSheetLoader(OptimalLoader):
         self.table_name = cfg["table_name"]
         self.primary_key = cfg["primary_key"]
         self._schema_cols = cfg["schema_cols"]
+        self._field_mapping = cfg.get("field_mapping", {})
         super().__init__()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -97,9 +107,19 @@ class BalanceSheetLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        filtered = [{k: v for k, v in r.items() if k in self._schema_cols} for r in rows]
+        transformed = []
+        for r in rows:
+            row = {}
+            for sec_field, value in r.items():
+                # Apply field mapping first
+                db_field = self._field_mapping.get(sec_field, sec_field)
+                # Only keep fields in schema
+                if db_field in self._schema_cols:
+                    row[db_field] = value
+            transformed.append(row)
+
         seen = {}
-        for row in filtered:
+        for row in transformed:
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
