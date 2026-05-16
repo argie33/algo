@@ -68,12 +68,13 @@ _PERIOD_CONFIG = {
     },
     "quarterly": {
         "table_name": "quarterly_income_statement",
-        "primary_key": ("symbol", "fiscal_year", "fiscal_period"),
+        "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
         "edgar_period": "quarterly",
         "schema_cols": frozenset({
-            "symbol", "fiscal_year", "fiscal_period", "revenue", "net_income", "earnings_per_share",
+            "symbol", "fiscal_year", "fiscal_quarter", "revenue", "net_income", "earnings_per_share",
         }),
         "field_mapping": {
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
             "revenues": "revenue",
             "sales_revenue_net": "revenue",
             "net_income_loss": "net_income",
@@ -126,6 +127,8 @@ class IncomeStatementLoader(OptimalLoader):
             logging.error("SEC EDGAR error for %s: %s", symbol, e)
             return None
 
+    _QUARTER_MAP = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
+
     def transform(self, rows):
         transformed = []
         for r in rows:
@@ -137,6 +140,9 @@ class IncomeStatementLoader(OptimalLoader):
                 if db_field in self._schema_cols:
                     if db_field not in row:  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
                         row[db_field] = value
+            # Convert fiscal_quarter from string "Q1".."Q4" to integer 1..4
+            if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
+                row["fiscal_quarter"] = self._QUARTER_MAP.get(row["fiscal_quarter"])
             transformed.append(row)
 
         seen = {}
@@ -144,7 +150,7 @@ class IncomeStatementLoader(OptimalLoader):
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
-                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_period"))
+                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
             if key not in seen:
                 seen[key] = row
         return list(seen.values())
@@ -155,7 +161,7 @@ class IncomeStatementLoader(OptimalLoader):
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
             return False
-        if self.period == "quarterly" and row.get("fiscal_period") is None:
+        if self.period == "quarterly" and row.get("fiscal_quarter") is None:
             return False
 
         # Reject rows where all key financial fields are NULL

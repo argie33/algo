@@ -227,6 +227,11 @@ class ExitEngine:
 
         # Compute R-multiple for use across rules (Curtis Faith's R-unit framework)
         risk_per_share = entry_price - init_stop
+        if risk_per_share <= 0:
+            logger.warning(
+                f"[exit_engine] {symbol}: init_stop ({init_stop:.2f}) >= entry ({entry_price:.2f}) "
+                "— R-based exits disabled for this position; hard stop still active"
+            )
         r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
 
         # 1. STOP (capital preservation always wins)

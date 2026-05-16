@@ -20,7 +20,7 @@ router.get("/stockscores", async (req, res) => {
 
     let whereClause = "WHERE ss.symbol IS NOT NULL";
     if (sp500Only) {
-      whereClause += " AND ss.is_sp500 = true";
+      whereClause += " AND sym.is_sp500 = true";
     }
 
     const resultObj = await query(`
@@ -39,6 +39,7 @@ router.get("/stockscores", async (req, res) => {
         ROUND(ss.composite_score::numeric, 2) as score_rounded
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN stock_symbols sym ON ss.symbol = sym.symbol
       ${whereClause}
       ORDER BY ${sortCol} ${sortOrder} NULLS LAST
       LIMIT $1 OFFSET $2
@@ -46,6 +47,7 @@ router.get("/stockscores", async (req, res) => {
 
     const countResultObj = await query(`
       SELECT COUNT(*) as total FROM stock_scores ss
+      LEFT JOIN stock_symbols sym ON ss.symbol = sym.symbol
       ${whereClause}
     `);
 

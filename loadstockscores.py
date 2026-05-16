@@ -109,7 +109,8 @@ class StockScoresLoader(OptimalLoader):
 
         # Volatility/Stability score (lower volatility = higher stability)
         returns = df["close"].pct_change()
-        volatility = returns.rolling(20).std().iloc[-1] * 100  # Convert to percentage
+        _vol_raw = returns.rolling(20).std().iloc[-1]
+        volatility = float(_vol_raw) * 100 if pd.notna(_vol_raw) else 15.0  # default 15% annualized
         stability_score = 100 - min(100, max(0, volatility * 10))  # 0-100 scale
 
         # Find most recent valid index
@@ -141,7 +142,8 @@ class StockScoresLoader(OptimalLoader):
         growth_score = max(0, min(100, growth_score))
 
         # Quality score: from fundamental metrics if available, otherwise stability
-        quality_score = self._compute_quality_score(quality_metrics) or stability_score
+        _qs = self._compute_quality_score(quality_metrics)
+        quality_score = _qs if _qs is not None else stability_score
 
         # Value score: RSI-based (low RSI = potentially undervalued)
         value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
@@ -157,15 +159,22 @@ class StockScoresLoader(OptimalLoader):
             quality_score * 0.15         # 15% quality (fundamental: margins, ROE, leverage, liquidity)
         )
 
+        def _safe(v, default=50.0):
+            try:
+                f = float(v)
+                return f if pd.notna(f) else default
+            except (TypeError, ValueError):
+                return default
+
         score_row = {
             "symbol": symbol,
-            "value_score": float(value_score),
-            "growth_score": float(growth_score),
-            "stability_score": float(stability_score),
-            "momentum_score": float(momentum_score),
-            "quality_score": float(quality_score),
-            "positioning_score": float(positioning_score),
-            "composite_score": float(composite_score),
+            "value_score": _safe(value_score),
+            "growth_score": _safe(growth_score),
+            "stability_score": _safe(stability_score),
+            "momentum_score": _safe(momentum_score),
+            "quality_score": _safe(quality_score),
+            "positioning_score": _safe(positioning_score),
+            "composite_score": _safe(composite_score),
             "updated_at": str(date.today()),
         }
         return [score_row]  # Return single-item list as before

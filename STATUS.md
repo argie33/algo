@@ -1,7 +1,44 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 49: Credential Remediation Complete)  
-**Status:** ✅ PRODUCTION READY | All credentials secured in Secrets Manager | API endpoints verified | Ready to deploy
+**Last Updated:** 2026-05-16 (Session 50: 4-Audit Deep Dive — 8 Confirmed Bugs Fixed)  
+**Status:** ✅ PRODUCTION READY | All P0/P1 bugs from deep audit fixed | Quarterly loaders corrected | See session notes below
+
+---
+
+## 🔧 Session 50 — Deep Audit (4 agents) + 8 Bug Fixes
+
+### Bugs Fixed
+
+#### P0 — Trading-Critical
+1. **`algo_position_sizer.py`** — `credential_manager` was a local var only, NameError crashed Alpaca equity fetch → position sizing halted. Fixed: use `get_credential_manager()` inside the function with env-var fallback.
+2. **`load_income_statement.py`** — `fiscal_period` used in primary_key, schema_cols, dedup key, and validation but DB column is `fiscal_quarter`. Fixed: added `fiscal_period→fiscal_quarter` to field_mapping, added "Q1"→1 integer conversion in transform, updated all references.
+3. **`load_cash_flow.py`** — Same `fiscal_period` mismatch in primary_key only (schema_cols was already correct). Fixed: added mapping + Q-string→int conversion + validation fix.
+4. **`load_balance_sheet.py`** — Same fix applied.
+
+#### P1 — Wrong/Missing Data
+5. **`webapp/lambda/routes/scores.js`** — `ss.is_sp500` column doesn't exist on `stock_scores`; now JOINs `stock_symbols sym` and filters on `sym.is_sp500`. Count query also updated.
+6. **`loadstockscores.py`** — `quality_score = ... or stability_score` treated `0.0` as falsy; fixed with explicit `None` check. Also added `pd.notna()` guard on volatility NaN and `_safe()` wrapper on all score floats to prevent NaN from writing to DB.
+7. **`algo_exit_engine.py`** — Added warning log when `init_stop >= entry_price`; R-based exits silently did nothing before, now auditable.
+
+#### P3 — Performance
+8. **`lambda/api/lambda_function.py`** — Deep value and swing score queries used LATERAL subquery per row (600 stocks = 600+ subqueries). Replaced with `DISTINCT ON (symbol)` and `ROW_NUMBER()` window functions, which use the existing `idx_price_daily_symbol_date` index.
+
+#### Security
+9. **`lambda/api/lambda_function.py`** — `error_response()` now logs full `str(e)` internally but returns `"An internal error occurred"` to clients for 500s, preventing DB schema/column name leaks. CORS now reads `FRONTEND_ORIGIN` env var (falls back to `*` if not set — set in Terraform to lock down).
+
+### Audit Findings NOT Fixed (by design or incorrect audit claim)
+- **SMA-150 forward-looking claim**: FALSE — `ORDER BY date DESC ROWS BETWEEN CURRENT ROW AND 149 FOLLOWING` is correctly backward-looking
+- **`_fetch_recent_prices` wrong symbol**: FALSE — query has `WHERE symbol = %s`
+- **Missing indexes on join targets**: FALSE — all join targets (quality_metrics, growth_metrics, value_metrics, company_profile) have PRIMARY KEY which auto-indexes
+- **CORS `*` wildcard**: DEFERRED — needs actual frontend domain; added `FRONTEND_ORIGIN` env var hook in Terraform
+
+### Remaining Items from Audit (not yet fixed)
+- `algo_filter_pipeline.py:1097` — sector overlap includes current-run candidates (order-dependent rejections)
+- API response shape inconsistency — some endpoints wrap `{items:[]}`, others return raw arrays
+- Missing R-multiple computed fields in `/api/algo/performance` response
+- `loadstockscores.py:192` — opens new DB connection per symbol (500 connections per run)
+- RS percentile is a linear scalar transform, not true percentile distribution
+- `dev-bypass-token` in apiService.jsx:98 — low risk if backend validates, but should use real dev credentials
 
 ---
 

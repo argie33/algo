@@ -68,12 +68,13 @@ _PERIOD_CONFIG = {
     },
     "quarterly": {
         "table_name": "quarterly_balance_sheet",
-        "primary_key": ("symbol", "fiscal_year", "fiscal_period"),
+        "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "fiscal_quarter",
             "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
             # SEC EDGAR client converts concept names to snake_case before returning
             "assets": "total_assets",
             "assets_current": "current_assets",
@@ -135,6 +136,9 @@ class BalanceSheetLoader(OptimalLoader):
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
                     row[db_field] = value
+            # Convert fiscal_quarter from string "Q1".."Q4" to integer 1..4
+            if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
+                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
             transformed.append(row)
 
         seen = {}
@@ -153,7 +157,7 @@ class BalanceSheetLoader(OptimalLoader):
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
             return False
-        if self.period == "quarterly" and row.get("fiscal_period") is None:
+        if self.period == "quarterly" and row.get("fiscal_quarter") is None:
             return False
 
         # Reject rows where all key balance sheet fields are NULL

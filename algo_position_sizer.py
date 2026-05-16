@@ -91,8 +91,14 @@ class PositionSizer:
     def _fetch_live_alpaca_equity(self):
         """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
         import requests
-        key = credential_manager.get_alpaca_credentials()["key"]
-        secret = credential_manager.get_alpaca_credentials()["secret"]
+        try:
+            from credential_manager import get_credential_manager as _get_cm
+            _creds = _get_cm().get_alpaca_credentials()
+            key = _creds.get("key")
+            secret = _creds.get("secret")
+        except Exception:
+            key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
+            secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_SECRET_KEY")
         base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         if not key or not secret:
             return None

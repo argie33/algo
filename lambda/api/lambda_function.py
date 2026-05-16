@@ -97,7 +97,7 @@ def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict
     """Return properly formatted API Gateway response."""
     default_headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': os.environ.get('FRONTEND_ORIGIN', '*'),
     }
     if headers:
         default_headers.update(headers)
@@ -110,8 +110,12 @@ def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict
 
 
 def error_response(status_code: int, error: str, message: str = '') -> Dict:
-    """Return error response."""
-    return json_response(status_code, {'error': error, 'message': message})
+    """Return error response. Internal errors are logged but not exposed to clients."""
+    if message:
+        logger.error(f"API error [{status_code}] {error}: {message}")
+    # Never return internal DB errors (column names, schema details) to clients
+    safe_message = message if status_code < 500 else 'An internal error occurred'
+    return json_response(status_code, {'error': error, 'message': safe_message})
 
 
 def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
@@ -1238,10 +1242,11 @@ class APIHandler:
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
-                LEFT JOIN LATERAL (
-                    SELECT close FROM price_daily
-                    WHERE symbol = sc.symbol ORDER BY date DESC LIMIT 1
-                ) pd_latest ON true
+                LEFT JOIN (
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM price_daily
+                    ORDER BY symbol, date DESC
+                ) pd_latest ON pd_latest.symbol = sc.symbol
                 WHERE sc.value_score > 0
                 ORDER BY sc.value_score DESC
                 LIMIT %s
@@ -1948,15 +1953,18 @@ class APIHandler:
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
-                LEFT JOIN LATERAL (
-                    SELECT close FROM price_daily
-                    WHERE symbol = sc.symbol ORDER BY date DESC LIMIT 1
-                ) pd ON true
-                LEFT JOIN LATERAL (
-                    SELECT close FROM price_daily
-                    WHERE symbol = sc.symbol AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = sc.symbol)
-                    ORDER BY date DESC LIMIT 1
-                ) pd_prev ON true
+                LEFT JOIN (
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM price_daily
+                    ORDER BY symbol, date DESC
+                ) pd ON pd.symbol = sc.symbol
+                LEFT JOIN (
+                    SELECT symbol, close FROM (
+                        SELECT symbol, close,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                    ) ranked WHERE rn = 2
+                ) pd_prev ON pd_prev.symbol = sc.symbol
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
