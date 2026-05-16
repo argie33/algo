@@ -1074,7 +1074,7 @@ class APIHandler:
                     COALESCE(td.ema_26, 0) as ema_26,
                     COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
                     COALESCE(tt.trend_direction, 'unknown') as trend,
-                    ss.company_name, cp.sector, cp.industry,
+                    ss.security_name, cp.sector, cp.industry,
                     COALESCE(swg.score, 0) AS swing_score,
                     swg.components->>'grade' AS grade
                 FROM buy_sell_daily bsd
@@ -1311,10 +1311,10 @@ class APIHandler:
                     sector_pe AS (
                         SELECT
                             cp.sector,
-                            AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
-                            AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
-                        FROM (SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe FROM value_metrics ORDER BY symbol, date DESC) vm
-                        JOIN company_profile cp ON vm.symbol = cp.symbol
+                            AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
+                            0::float AS avg_forward_pe
+                        FROM value_metrics vm
+                        JOIN company_profile cp ON vm.symbol = cp.ticker
                         WHERE cp.sector IS NOT NULL
                         GROUP BY cp.sector
                     ),
@@ -1433,10 +1433,10 @@ class APIHandler:
                     industry_pe AS (
                         SELECT
                             cp.industry,
-                            AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
-                            AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
-                        FROM (SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe FROM value_metrics ORDER BY symbol, date DESC) vm
-                        JOIN company_profile cp ON vm.symbol = cp.symbol
+                            AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
+                            0::float AS avg_forward_pe
+                        FROM value_metrics vm
+                        JOIN company_profile cp ON vm.symbol = cp.ticker
                         WHERE cp.industry IS NOT NULL
                         GROUP BY cp.industry
                     ),
@@ -1933,7 +1933,7 @@ class APIHandler:
                         WHEN pd_prev.close IS NOT NULL THEN ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
-                    cp.market_cap,
+                    km.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     qm.roe AS roe_pct,
@@ -1944,6 +1944,7 @@ class APIHandler:
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
+                LEFT JOIN key_metrics km ON km.symbol = sc.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol

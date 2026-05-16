@@ -79,7 +79,7 @@ BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 # -------------------------------
 # NAAIM columns
 # -------------------------------
-NAAIM_COLUMNS = ["date", "naaim_number_mean", "bearish", "quart1", "quart2", "quart3", "bullish", "deviation"]
+NAAIM_COLUMNS = ["date", "naaim_number_mean", "bullish", "bearish"]
 COL_LIST = ", ".join(NAAIM_COLUMNS)
 
 # -------------------------------
@@ -298,12 +298,8 @@ def load_naaim_data(cur, conn):
                 rows.append([
                     row['Date'],
                     None if pd.isna(row['NAAIM Number Mean/Average']) else float(row['NAAIM Number Mean/Average']),
-                    None if pd.isna(row['Bearish']) else float(row['Bearish']),
-                    None if pd.isna(row['Quart1']) else float(row['Quart1']),
-                    None if pd.isna(row['Quart2']) else float(row['Quart2']),
-                    None if pd.isna(row['Quart3']) else float(row['Quart3']),
                     None if pd.isna(row['Bullish']) else float(row['Bullish']),
-                    None if pd.isna(row['Deviation']) else float(row['Deviation'])
+                    None if pd.isna(row['Bearish']) else float(row['Bearish']),
                 ])
             except Exception as e:
                 logging.warning(f"Failed to process row {row}: {e}")
@@ -314,7 +310,7 @@ def load_naaim_data(cur, conn):
             return 0, 0, []
         
         # Batch insert the data
-        sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET naaim_number_mean = EXCLUDED.naaim_number_mean, bearish = EXCLUDED.bearish, quart1 = EXCLUDED.quart1, quart2 = EXCLUDED.quart2, quart3 = EXCLUDED.quart3, bullish = EXCLUDED.bullish, deviation = EXCLUDED.deviation"
+        sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET naaim_number_mean = EXCLUDED.naaim_number_mean, bullish = EXCLUDED.bullish, bearish = EXCLUDED.bearish"
         execute_values(cur, sql, rows)
         conn.commit()
         
@@ -355,13 +351,9 @@ def main():
             id                  SERIAL PRIMARY KEY,
             date                DATE         NOT NULL UNIQUE,
             naaim_number_mean   DOUBLE PRECISION,
-            bearish             DOUBLE PRECISION,
-            quart1              DOUBLE PRECISION,
-            quart2              DOUBLE PRECISION,
-            quart3              DOUBLE PRECISION,
             bullish             DOUBLE PRECISION,
-            deviation           DOUBLE PRECISION,
-            fetched_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            bearish             DOUBLE PRECISION,
+            created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
     

@@ -107,18 +107,12 @@ def _compute_monthly_stats(rows):
             continue
         rets = [r for _, r in observations]
         avg = sum(rets) / len(rets)
-        best = max(rets)
-        worst = min(rets)
         winning = sum(1 for r in rets if r > 0)
+        win_rate = winning / len(rets) * 100
         stats[month] = {
             "month": month,
-            "month_name": MONTH_NAMES[month],
-            "avg_return": round(avg, 4),
-            "best_return": round(best, 4),
-            "worst_return": round(worst, 4),
-            "years_counted": len(rets),
-            "winning_years": winning,
-            "losing_years": len(rets) - winning,
+            "avg_return_pct": round(avg, 4),
+            "win_rate_pct": round(win_rate, 2),
         }
     return stats
 
@@ -148,11 +142,9 @@ def _compute_dow_stats(rows):
         avg = sum(rets) / len(rets)
         win_rate = sum(1 for r in rets if r > 0) / len(rets) * 100
         stats[dow] = {
-            "day": DOW_NAMES[dow],
-            "day_num": dow + 1,
-            "avg_return": round(avg, 4),
-            "win_rate": round(win_rate, 2),
-            "days_counted": len(rets),
+            "day_of_week": dow + 1,  # JS convention: 1=Monday, 5=Friday
+            "avg_return_pct": round(avg, 4),
+            "win_rate_pct": round(win_rate, 2),
         }
     return stats
 
@@ -163,12 +155,9 @@ def _upsert_monthly(conn, stats):
         for row in stats.values():
             cur.execute(
                 """INSERT INTO seasonality_monthly_stats
-                   (month, month_name, avg_return, best_return, worst_return,
-                    years_counted, winning_years, losing_years)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (row["month"], row["month_name"], row["avg_return"],
-                 row["best_return"], row["worst_return"], row["years_counted"],
-                 row["winning_years"], row["losing_years"]),
+                   (symbol, month, avg_return_pct, win_rate_pct)
+                   VALUES (%s, %s, %s, %s)""",
+                (None, row["month"], row["avg_return_pct"], row["win_rate_pct"]),
             )
     conn.commit()
     log.info("Wrote %d monthly seasonality rows", len(stats))
@@ -180,10 +169,9 @@ def _upsert_dow(conn, stats):
         for row in stats.values():
             cur.execute(
                 """INSERT INTO seasonality_day_of_week
-                   (day, day_num, avg_return, win_rate, days_counted)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (row["day"], row["day_num"], row["avg_return"],
-                 row["win_rate"], row["days_counted"]),
+                   (symbol, day_of_week, avg_return_pct, win_rate_pct)
+                   VALUES (%s, %s, %s, %s)""",
+                (None, row["day_of_week"], row["avg_return_pct"], row["win_rate_pct"]),
             )
     conn.commit()
     log.info("Wrote %d day-of-week seasonality rows", len(stats))

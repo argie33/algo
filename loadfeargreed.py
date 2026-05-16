@@ -87,8 +87,16 @@ BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 # -------------------------------
 # Fear & Greed columns
 # -------------------------------
-FEAR_GREED_COLUMNS = ["date", "fear_greed_value"]
+FEAR_GREED_COLUMNS = ["date", "fear_greed_value", "fear_greed_label"]
 COL_LIST = ", ".join(FEAR_GREED_COLUMNS)
+
+def _value_to_label(v):
+    if v is None: return None
+    if v <= 24: return "Extreme Fear"
+    if v <= 44: return "Fear"
+    if v <= 55: return "Neutral"
+    if v <= 75: return "Greed"
+    return "Extreme Greed"
 
 # -------------------------------
 # CNN Fear & Greed API URL
@@ -223,9 +231,10 @@ async def load_fear_greed_data(cur, conn):
             try:
                 dt = timestamptodatestr(item['x'])
                 fear_greed_value = int(item['y']) if item['y'] is not None else None
+                label = _value_to_label(fear_greed_value)
 
                 # Keep the most recent data for each date (if duplicates exist)
-                rows_dict[dt] = [dt, fear_greed_value]
+                rows_dict[dt] = [dt, fear_greed_value, label]
             except Exception as e:
                 logging.warning(f"Failed to process item {item}: {e}")
                 continue
@@ -241,7 +250,7 @@ async def load_fear_greed_data(cur, conn):
 
         # Batch insert the data with proper error handling
         try:
-            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, created_at = CURRENT_TIMESTAMP"
+            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, fear_greed_label = EXCLUDED.fear_greed_label, created_at = CURRENT_TIMESTAMP"
             execute_values(cur, sql, rows)
             conn.commit()
             
@@ -286,6 +295,7 @@ async def main():
             id                  SERIAL PRIMARY KEY,
             date                DATE         NOT NULL UNIQUE,
             fear_greed_value    INTEGER,
+            fear_greed_label    VARCHAR(50),
             created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
