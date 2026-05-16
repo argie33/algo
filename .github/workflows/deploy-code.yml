@@ -92,6 +92,7 @@ jobs:
           echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
           echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF_ID}" >> $GITHUB_OUTPUT
+          echo "db_init_lambda_role_arn=${DB_INIT_ROLE}" >> $GITHUB_OUTPUT
 
           echo "API Lambda:  ${API_LAMBDA}"
           echo "Algo Lambda: ${ALGO_LAMBDA}"
@@ -248,7 +249,7 @@ jobs:
       - name: Deploy DB Init Lambda
         run: |
           FUNC_NAME="algo-db-init-dev"
-          ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-db-init-lambda-dev"
+          ROLE_ARN="${{ needs.resolve-infra.outputs.db_init_lambda_role_arn }}"
 
           # Try to update existing function code
           if aws lambda get-function --function-name "$FUNC_NAME" --region $AWS_REGION >/dev/null 2>&1; then
