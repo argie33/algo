@@ -82,6 +82,7 @@ class SignalComputer:
         self._owned = None
         self._nesting_level = 0
         self._price_cache = {}  # Cache for N+1 query optimization
+        self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
 
     def connect(self):
         if self.cur is None:
@@ -301,46 +302,71 @@ class SignalComputer:
 
         Computes (stock_return - SPY_return) for all symbols, then ranks
         the stock against the universe. Returns 0-100 percentile (higher = stronger).
+
+        Batch-cached per (eval_date, lookback): first call computes the full universe
+        in one query; subsequent calls within the same run are O(1) dict lookups.
         """
+        cache_key = (str(eval_date), lookback)
+        if cache_key in self._rs_percentile_cache:
+            return self._rs_percentile_cache[cache_key].get(symbol)
+
+        # Batch-compute RS percentiles for the full SP500 universe at once.
+        # Uses LATERAL JOINs instead of correlated subqueries to avoid N*2 round-trips.
         self.cur.execute(
             """
-            WITH spy_ret AS (
-                SELECT (
-                    (SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s ORDER BY date DESC LIMIT 1)
-                    /
-                    NULLIF((SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s::date - INTERVAL '%s days' ORDER BY date DESC LIMIT 1), 0)
-                    - 1
-                ) AS r
+            WITH
+            universe AS (
+                SELECT DISTINCT symbol FROM stock_symbols WHERE is_sp500 = true
+            ),
+            end_prices AS (
+                SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS end_close
+                FROM price_daily pd
+                JOIN universe u ON u.symbol = pd.symbol
+                WHERE pd.date <= %s
+                ORDER BY pd.symbol, pd.date DESC
+            ),
+            start_prices AS (
+                SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS start_close
+                FROM price_daily pd
+                JOIN universe u ON u.symbol = pd.symbol
+                WHERE pd.date <= %s::date - (%s || ' days')::INTERVAL
+                ORDER BY pd.symbol, pd.date DESC
+            ),
+            spy_end AS (
+                SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s
+                ORDER BY date DESC LIMIT 1
+            ),
+            spy_start AS (
+                SELECT close FROM price_daily WHERE symbol = 'SPY'
+                    AND date <= %s::date - (%s || ' days')::INTERVAL
+                ORDER BY date DESC LIMIT 1
+            ),
+            spy_ret AS (
+                SELECT (spy_end.close / NULLIF(spy_start.close, 0) - 1) AS r
+                FROM spy_end CROSS JOIN spy_start
             ),
             all_returns AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    (
-                        (SELECT close FROM price_daily p WHERE p.symbol = price_daily.symbol AND p.date <= %s ORDER BY p.date DESC LIMIT 1)
-                        /
-                        NULLIF((SELECT close FROM price_daily p WHERE p.symbol = price_daily.symbol AND p.date <= %s::date - INTERVAL '%s days' ORDER BY p.date DESC LIMIT 1), 0)
-                        - 1
-                    ) - (SELECT r FROM spy_ret) AS excess_return
-                FROM price_daily
-                WHERE date <= %s AND symbol IN (SELECT DISTINCT symbol FROM stock_symbols WHERE is_sp500 = true OR symbol = %s)
-                ORDER BY symbol, date DESC
+                SELECT
+                    ep.symbol,
+                    (ep.end_close / NULLIF(sp.start_close, 0) - 1) - (SELECT r FROM spy_ret) AS excess_return
+                FROM end_prices ep
+                JOIN start_prices sp ON sp.symbol = ep.symbol
             ),
             ranked AS (
                 SELECT
                     symbol,
-                    excess_return,
                     PERCENT_RANK() OVER (ORDER BY excess_return) * 100 AS percentile_rank
                 FROM all_returns
                 WHERE excess_return IS NOT NULL
             )
-            SELECT percentile_rank FROM ranked WHERE symbol = %s
+            SELECT symbol, percentile_rank FROM ranked
             """,
-            (eval_date, eval_date, lookback, eval_date, eval_date, lookback, eval_date, symbol, symbol),
+            (eval_date, eval_date, lookback, eval_date, eval_date, lookback),
         )
-        row = self.cur.fetchone()
-        if not row or row[0] is None:
-            return None
-        return float(row[0])
+        rows = self.cur.fetchall()
+        cache = {r[0]: float(r[1]) for r in rows if r[1] is not None}
+        self._rs_percentile_cache[cache_key] = cache
+        return cache.get(symbol)
 
     # ============================================================
     # WEINSTEIN 4-STAGE ANALYSIS
