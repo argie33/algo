@@ -11,8 +11,8 @@
 | **Deploy Status** | **STATUS.md** (detailed infrastructure status) |
 | **Current Infrastructure** | **STATUS.md → "CURRENT INFRASTRUCTURE STATUS"** |
 | Code changes | DECISION_MATRIX.md |
-| **Local dev** | **WSL Docker: `docker-compose up -d` in algo/ dir** |
-| Local test | memory/local_testing_setup.md |
+| **Local dev** | **`scripts/start-local.sh` (starts Docker + DB schema + checks status)** |
+| Local test | Run loaders: `python3 run-all-loaders.py` |
 | Troubleshoot | troubleshooting-guide.md |
 | Costs | .claude/cost-tracker.json |
 | Learn | quick-decision-tree.md |
@@ -28,16 +28,27 @@ Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS L
 - **Local:** Docker Compose in WSL (Windows). PostgreSQL + Redis running at localhost:5432 and localhost:6379
 - **Production:** Terraform IaC only. No CloudFormation. All resources defined in `terraform/` modules
 
-**Running Local Tests (WSL Docker):**
+**Local Development (ONE COMMAND):**
 ```bash
-# From Windows PowerShell:
-wsl -u argeropolos -e bash -c "cd /mnt/c/Users/arger/code/algo && docker-compose ps"
+# In WSL bash or Windows PowerShell with WSL:
+bash scripts/start-local.sh
 
-# Or directly in WSL terminal:
-cd /mnt/c/Users/arger/code/algo
-docker-compose up -d      # Start services
-python3 algo_orchestrator.py --mode paper --dry-run
+# This does:
+# 1. Starts PostgreSQL + Redis via docker-compose
+# 2. Initializes database schema
+# 3. Shows connection info and next steps
 ```
+
+**Load sample data (after startup):**
+```bash
+python3 run-all-loaders.py
+```
+
+**Stop local environment:**
+```bash
+docker-compose down
+```
+
 **Important:** Always use WSL for Docker. Docker Desktop does not work on this machine. All development/testing happens in WSL Ubuntu 24.04 LTS.
 
 ---

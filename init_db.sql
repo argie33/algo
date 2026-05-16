@@ -1,43 +1,3 @@
-#!/usr/bin/env python3
-"""
-AUTHORITATIVE Database Schema Initialization
-
-This is the SINGLE SOURCE OF TRUTH for all table definitions.
-All loaders must reference this file and insert only into defined columns.
-
-DO NOT modify without updating SCHEMA_DEFINITION.md
-
-Generated: 2026-04-25
-Status: ✅ AUTHORITATIVE
-"""
-
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-import psycopg2
-
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
-
-db_password = os.getenv("DB_PASSWORD", "")
-try:
-    from credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-    if credential_manager:
-        db_password = credential_manager.get_db_credentials()["password"]
-except Exception:
-    pass
-
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": db_password,
-    "database": os.getenv("DB_NAME", "stocks"),
-}
-
-SCHEMA = """
 -- ════════════════════════════════════════════════════════════════════════════
 -- CORE TABLES - Required for all systems
 -- ════════════════════════════════════════════════════════════════════════════
@@ -178,6 +138,7 @@ CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
     bullish_count INTEGER,
     bearish_count INTEGER,
     neutral_count INTEGER,
+    total_analysts INTEGER,
     target_price DECIMAL(12, 4),
     current_price DECIMAL(12, 4),
     upside_downside_percent DECIMAL(8, 2),
@@ -636,19 +597,42 @@ CREATE TABLE IF NOT EXISTS fear_greed_index (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analyst sentiment analysis for stocks
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+-- Market sentiment aggregates (puts/calls, VIX, broader sentiment scores)
+CREATE TABLE IF NOT EXISTS market_sentiment (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    total_analysts INTEGER,
+    date DATE NOT NULL UNIQUE,
+    fear_greed_index DECIMAL(8, 4),
+    put_call_ratio DECIMAL(8, 4),
+    vix DECIMAL(8, 4),
+    sentiment_score DECIMAL(8, 4),
+    bullish_pct DECIMAL(8, 2),
+    bearish_pct DECIMAL(8, 2),
+    neutral_pct DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Social sentiment aggregates (Twitter, Reddit, StockTwits, etc.)
+CREATE TABLE IF NOT EXISTS sentiment_social (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    twitter_sentiment_score DECIMAL(8, 4),
+    twitter_mention_count INTEGER,
+    reddit_sentiment_score DECIMAL(8, 4),
+    reddit_mention_count INTEGER,
+    stocktwits_sentiment_score DECIMAL(8, 4),
+    stocktwits_mention_count INTEGER,
+    overall_sentiment_score DECIMAL(8, 4),
+    sentiment_trend VARCHAR(20),
+    source_count INTEGER,
+    sentiment_breakdown JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
+
+-- NOTE: analyst_sentiment_analysis already defined above with full column set
+-- (target_price, current_price, upside_downside_percent, total_analysts)
+-- This duplicate definition removed to avoid confusion.
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- OPTIONS DATA
@@ -743,11 +727,13 @@ CREATE TABLE IF NOT EXISTS economic_calendar (
 -- Economic data time series
 CREATE TABLE IF NOT EXISTS economic_data (
     id SERIAL PRIMARY KEY,
-    series_id VARCHAR(50),
-    date DATE,
+    series_id VARCHAR(50) NOT NULL,
+    date DATE NOT NULL,
     value DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(series_id, date)
 );
+CREATE INDEX IF NOT EXISTS idx_economic_data_series_date ON economic_data(series_id, date DESC);
 
 -- Index metrics (market breadth, etc.)
 CREATE TABLE IF NOT EXISTS index_metrics (
@@ -806,25 +792,54 @@ CREATE TABLE IF NOT EXISTS industry_performance (
 -- SEASONALITY DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Day of week seasonality
+-- Day of week seasonality — SPY-based market aggregate (no per-symbol rows)
 CREATE TABLE IF NOT EXISTS seasonality_day_of_week (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    day_of_week INTEGER,
-    avg_return_pct DECIMAL(8, 4),
-    win_rate_pct DECIMAL(8, 4),
+    day VARCHAR(20),
+    day_num INTEGER,
+    avg_return DECIMAL(8, 4),
+    win_rate DECIMAL(8, 4),
+    days_counted INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='seasonality_day_of_week' AND column_name='day') THEN
+        ALTER TABLE seasonality_day_of_week
+            ADD COLUMN day VARCHAR(20),
+            ADD COLUMN day_num INTEGER,
+            ADD COLUMN avg_return DECIMAL(8,4),
+            ADD COLUMN win_rate DECIMAL(8,4),
+            ADD COLUMN days_counted INTEGER;
+    END IF;
+END $$;
 
--- Monthly seasonality patterns
+-- Monthly seasonality patterns — SPY-based market aggregate (no per-symbol rows)
 CREATE TABLE IF NOT EXISTS seasonality_monthly_stats (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
     month INTEGER,
-    avg_return_pct DECIMAL(8, 4),
-    win_rate_pct DECIMAL(8, 4),
+    month_name VARCHAR(20),
+    avg_return DECIMAL(8, 4),
+    best_return DECIMAL(8, 4),
+    worst_return DECIMAL(8, 4),
+    years_counted INTEGER,
+    winning_years INTEGER,
+    losing_years INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='seasonality_monthly_stats' AND column_name='month_name') THEN
+        ALTER TABLE seasonality_monthly_stats
+            ADD COLUMN month_name VARCHAR(20),
+            ADD COLUMN avg_return DECIMAL(8,4),
+            ADD COLUMN best_return DECIMAL(8,4),
+            ADD COLUMN worst_return DECIMAL(8,4),
+            ADD COLUMN years_counted INTEGER,
+            ADD COLUMN winning_years INTEGER,
+            ADD COLUMN losing_years INTEGER;
+    END IF;
+END $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- STRATEGY & ANALYSIS DATA
@@ -1306,7 +1321,7 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     bracket_order BOOLEAN DEFAULT FALSE,
     reentry_count INTEGER DEFAULT 0,
     prior_trade_id VARCHAR(100),
-    partial_exits_log JSONB,
+    partial_exits_log TEXT,
     partial_exit_count INTEGER DEFAULT 0,
     last_partial_exit_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1393,25 +1408,6 @@ CREATE TABLE IF NOT EXISTS algo_trade_adds (
     UNIQUE(trade_id, add_number)
 );
 
--- Loader execution history for tracking SLA and performance
-CREATE TABLE IF NOT EXISTS loader_execution_history (
-    id SERIAL PRIMARY KEY,
-    loader_name VARCHAR(100) NOT NULL,
-    table_name VARCHAR(80) NOT NULL,
-    execution_date DATE NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    rows_attempted BIGINT,
-    rows_succeeded BIGINT,
-    rows_rejected BIGINT,
-    error_message TEXT,
-    started_at TIMESTAMP NOT NULL,
-    completed_at TIMESTAMP NOT NULL,
-    duration_seconds DECIMAL(10, 2),
-    data_source VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(loader_name, table_name, execution_date)
-);
-
 -- Data loader status monitoring
 CREATE TABLE IF NOT EXISTS data_loader_status (
     table_name VARCHAR(80) PRIMARY KEY,
@@ -1455,13 +1451,14 @@ CREATE TABLE IF NOT EXISTS data_remediation_log (
 -- Market exposure daily snapshots
 CREATE TABLE IF NOT EXISTS market_exposure_daily (
     id SERIAL PRIMARY KEY,
-    date DATE NOT NULL UNIQUE,
+    date DATE NOT NULL,
     market_exposure_pct DECIMAL(8, 4),
     long_exposure_pct DECIMAL(8, 4),
     short_exposure_pct DECIMAL(8, 4),
-    exposure_tier VARCHAR(50),
+    exposure_tier VARCHAR(30),
     is_entry_allowed BOOLEAN,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date)
 );
 
 -- Notifications for UI
@@ -1499,6 +1496,8 @@ CREATE TABLE IF NOT EXISTS algo_tca (
 CREATE TABLE IF NOT EXISTS algo_performance_daily (
     report_date DATE PRIMARY KEY,
     rolling_sharpe_252d NUMERIC(8, 4),
+    rolling_sortino_252d NUMERIC(8, 4),
+    calmar_ratio NUMERIC(8, 4),
     win_rate_50t NUMERIC(6, 2),
     avg_win_r_50t NUMERIC(6, 3),
     avg_loss_r_50t NUMERIC(6, 3),
@@ -1508,6 +1507,9 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+-- Add new ratio columns to existing databases (idempotent)
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS rolling_sortino_252d NUMERIC(8, 4);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS calmar_ratio NUMERIC(8, 4);
 
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (
@@ -1757,6 +1759,205 @@ CREATE INDEX IF NOT EXISTS idx_algo_config_audit_date ON algo_config_audit(chang
 CREATE INDEX IF NOT EXISTS idx_algo_champion_challenger_date ON algo_champion_challenger(trial_date);
 CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_information_coefficient(ic_date);
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- BACKTEST & STRATEGY ANALYSIS TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    run_id SERIAL PRIMARY KEY,
+    run_name VARCHAR(200),
+    run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    strategy_name VARCHAR(200),
+    start_date DATE,
+    end_date DATE,
+    initial_capital DECIMAL(15,2),
+    final_value DECIMAL(15,2),
+    total_return DECIMAL(8,4),
+    annual_return DECIMAL(8,4),
+    max_drawdown DECIMAL(8,4),
+    sharpe_ratio DECIMAL(8,4),
+    sortino_ratio DECIMAL(8,4),
+    win_rate DECIMAL(8,4),
+    profit_factor DECIMAL(8,4),
+    num_trades INTEGER,
+    num_winning_trades INTEGER,
+    num_losing_trades INTEGER,
+    avg_win DECIMAL(15,2),
+    avg_loss DECIMAL(15,2),
+    largest_win DECIMAL(15,2),
+    largest_loss DECIMAL(15,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(run_name, run_timestamp)
+);
+
+CREATE TABLE IF NOT EXISTS backtest_trades (
+    trade_id SERIAL PRIMARY KEY,
+    run_id INTEGER REFERENCES backtest_runs(run_id),
+    symbol VARCHAR(20),
+    entry_date DATE,
+    exit_date DATE,
+    entry_price DECIMAL(12,4),
+    exit_price DECIMAL(12,4),
+    quantity DECIMAL(12,2),
+    entry_value DECIMAL(15,2),
+    exit_value DECIMAL(15,2),
+    profit_loss DECIMAL(15,2),
+    profit_loss_percent DECIMAL(8,4),
+    trade_outcome VARCHAR(50),
+    holding_days INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS safeguard_audit_log (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    symbol VARCHAR(20),
+    safeguard_name VARCHAR(100),
+    action VARCHAR(100),
+    reason TEXT,
+    details JSON,
+    severity VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ETF & MEAN REVERSION SIGNAL TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS etf_symbols (
+    symbol VARCHAR(20) PRIMARY KEY,
+    security_name VARCHAR(200),
+    asset_class VARCHAR(100),
+    expense_ratio DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    timeframe VARCHAR(20),
+    date DATE,
+    confluence_score DECIMAL(8,4),
+    signal VARCHAR(50),
+    price DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    zscore DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, timeframe, date)
+);
+
+CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    timeframe VARCHAR(20),
+    date DATE,
+    confluence_score DECIMAL(8,4),
+    signal VARCHAR(50),
+    price DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    zscore DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, timeframe, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- RANGE SIGNAL TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS range_signals_daily (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    signal VARCHAR(50),
+    resistance DECIMAL(12,4),
+    support DECIMAL(12,4),
+    current_price DECIMAL(12,4),
+    range_width DECIMAL(12,4),
+    risk_reward_ratio DECIMAL(8,4),
+    breakout_probability DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+CREATE TABLE IF NOT EXISTS range_signals_daily_etf (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    signal VARCHAR(50),
+    resistance DECIMAL(12,4),
+    support DECIMAL(12,4),
+    current_price DECIMAL(12,4),
+    range_width DECIMAL(12,4),
+    risk_reward_ratio DECIMAL(8,4),
+    breakout_probability DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMMODITY ANALYSIS TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS commodity_seasonality (
+    symbol VARCHAR(20),
+    month INTEGER,
+    avg_return DECIMAL(8,4),
+    win_rate DECIMAL(8,4),
+    volatility DECIMAL(8,4),
+    num_years INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(symbol, month)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_correlations (
+    symbol1 VARCHAR(20),
+    symbol2 VARCHAR(20),
+    correlation_30d DECIMAL(8,4),
+    correlation_90d DECIMAL(8,4),
+    correlation_1y DECIMAL(8,4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(symbol1, symbol2)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_technicals (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
+    date DATE,
+    rsi DECIMAL(8,4),
+    macd DECIMAL(12,4),
+    macd_signal DECIMAL(12,4),
+    sma_20 DECIMAL(12,4),
+    sma_50 DECIMAL(12,4),
+    sma_200 DECIMAL(12,4),
+    bb_upper DECIMAL(12,4),
+    bb_lower DECIMAL(12,4),
+    atr DECIMAL(12,4),
+    signal VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_macro_drivers (
+    series_id VARCHAR(50),
+    series_name VARCHAR(200),
+    date DATE,
+    value DECIMAL(15,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(series_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS commodity_events (
+    event_id SERIAL PRIMARY KEY,
+    event_name VARCHAR(200),
+    event_date DATE,
+    event_type VARCHAR(100),
+    description TEXT,
+    impact VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date);
@@ -1769,9 +1970,7 @@ CREATE INDEX IF NOT EXISTS idx_sector_rotation_date ON sector_rotation_signal(da
 CREATE INDEX IF NOT EXISTS idx_sector_rotation_sector ON sector_rotation_signal(sector);
 CREATE INDEX IF NOT EXISTS idx_swing_scores_symbol_date ON swing_trader_scores(symbol, date);
 
--- Indexes for loader operational tables
-CREATE INDEX IF NOT EXISTS idx_loader_execution_history_date ON loader_execution_history(execution_date);
-CREATE INDEX IF NOT EXISTS idx_loader_execution_history_loader ON loader_execution_history(loader_name);
+-- Indexes for new operational tables
 CREATE INDEX IF NOT EXISTS idx_loader_sla_status_check ON loader_sla_status(last_check_at);
 CREATE INDEX IF NOT EXISTS idx_signal_perf_symbol_date ON signal_trade_performance(symbol, signal_date);
 CREATE INDEX IF NOT EXISTS idx_signal_perf_base_type ON signal_trade_performance(base_type);
@@ -1782,175 +1981,568 @@ CREATE INDEX IF NOT EXISTS idx_rejection_symbol ON filter_rejection_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_order_trade_id ON order_execution_log(trade_id);
 CREATE INDEX IF NOT EXISTS idx_order_status ON order_execution_log(order_status);
 CREATE INDEX IF NOT EXISTS idx_order_timestamp ON order_execution_log(order_timestamp DESC);
-"""
 
-def _init_timescaledb(conn, cur):
-    """Initialize TimescaleDB extension and convert price tables to hypertables.
+-- Indexes for backtest and strategy tables
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_name ON backtest_runs(run_name);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_timestamp ON backtest_runs(run_timestamp);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_id ON backtest_trades(run_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_symbol ON safeguard_audit_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_timestamp ON safeguard_audit_log(timestamp);
 
-    TimescaleDB is a PostgreSQL extension that optimizes time-series queries.
-    Provides 10-100x faster queries on price data with automatic compression.
-    FREE on AWS RDS - just need to enable the extension.
-    """
-    try:
-        # 1. Enable TimescaleDB extension
-        print("  [1/4] Enabling TimescaleDB extension...")
-        try:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS timescaledb WITH SCHEMA public CASCADE")
-            print("    ✓ TimescaleDB extension enabled")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                print("    ✓ TimescaleDB extension already enabled")
-            else:
-                print(f"    ⚠ Extension creation note: {str(e)[:80]}")
+-- Indexes for signal tables
+CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_symbol_date ON mean_reversion_signals_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_etf_symbol_date ON mean_reversion_signals_daily_etf(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_range_signals_daily_symbol_date ON range_signals_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_range_signals_daily_etf_symbol_date ON range_signals_daily_etf(symbol, date);
 
-        # 2. Convert price_daily to hypertable
-        print("  [2/4] Converting price_daily to hypertable...")
-        try:
-            # Check if already a hypertable
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT 1 FROM timescaledb_information.hypertables
-                    WHERE hypertable_name = 'price_daily'
-                )
-            """)
-            is_hypertable = cur.fetchone()[0]
+-- Indexes for sentiment tables
+CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);
+CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol_date ON sentiment_social(symbol, date DESC);
+CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON sentiment_social(date DESC);
 
-            if is_hypertable:
-                print("    ✓ price_daily already a hypertable")
-            else:
-                cur.execute("""
-                    SELECT create_hypertable('price_daily', 'date',
-                        if_not_exists => TRUE,
-                        chunk_time_interval => INTERVAL '3 months'
-                    )
-                """)
-                print("    ✓ price_daily converted to hypertable (3-month chunks)")
-        except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+-- Indexes for commodity tables
+CREATE INDEX IF NOT EXISTS idx_commodity_seasonality_symbol ON commodity_seasonality(symbol);
+CREATE INDEX IF NOT EXISTS idx_commodity_technicals_symbol_date ON commodity_technicals(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_commodity_macro_drivers_series_date ON commodity_macro_drivers(series_id, date);
+CREATE INDEX IF NOT EXISTS idx_commodity_events_date ON commodity_events(event_date);
 
-        # 3. Enable compression on price_daily
-        print("  [3/4] Enabling automatic compression on price_daily...")
-        try:
-            cur.execute("""
-                ALTER TABLE price_daily SET (
-                    timescaledb.compress = true,
-                    timescaledb.compress_segmentby = 'symbol',
-                    timescaledb.compress_orderby = 'date DESC'
-                )
-            """)
-            # Schedule compression for data older than 30 days
-            cur.execute("""
-                SELECT add_compression_policy('price_daily', INTERVAL '30 days',
-                    if_not_exists => TRUE)
-            """)
-            print("    ✓ Compression enabled (auto-compress older than 30 days)")
-        except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+-- ════════════════════════════════════════════════════════════════════════════
+-- DERIVED VIEWS (API convenience — combine normalized tables)
+-- ════════════════════════════════════════════════════════════════════════════
 
-        # 4. Create continuous aggregate for daily rollups
-        print("  [4/4] Creating continuous aggregate for daily summaries...")
-        try:
-            cur.execute("""
-                CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_agg WITH (
-                    timescaledb.continuous,
-                    timescaledb.materialized_only = false
-                ) AS
-                SELECT
-                    time_bucket('1 day', date) as day,
-                    symbol,
-                    FIRST(open, date) as open,
-                    MAX(high) as high,
-                    MIN(low) as low,
-                    LAST(close, date) as close,
-                    SUM(volume) as volume
-                FROM price_daily
-                GROUP BY day, symbol
-                WITH DATA
-            """)
-            # Refresh policy for continuous aggregate
-            cur.execute("""
-                SELECT add_continuous_aggregate_policy(
-                    'price_daily_agg',
-                    start_offset => INTERVAL '7 days',
-                    end_offset => INTERVAL '1 hour',
-                    schedule_interval => INTERVAL '1 hour',
-                    if_not_exists => TRUE
-                )
-            """)
-            print("    ✓ Continuous aggregate created (auto-refreshed hourly)")
-        except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+-- stock_fundamentals: join scores + profiles + fundamental metrics
+-- Used by: /api/stocks/deep-value, /api/scores/stockscores
+CREATE OR REPLACE VIEW stock_fundamentals AS
+SELECT
+    ss.symbol,
+    COALESCE(cp.long_name, cp.short_name, ss.symbol) AS company_name,
+    cp.sector,
+    cp.industry,
+    -- Scores
+    sc.composite_score,
+    sc.momentum_score,
+    sc.quality_score,
+    sc.value_score,
+    sc.growth_score,
+    sc.positioning_score,
+    sc.stability_score,
+    -- Current price
+    pd.close AS current_price,
+    -- Value metrics
+    vm.pe_ratio AS trailing_pe,
+    vm.pb_ratio AS price_to_book,
+    vm.ps_ratio AS price_to_sales,
+    vm.peg_ratio,
+    vm.dividend_yield,
+    -- Quality metrics
+    qm.roe AS roe_pct,
+    qm.roa AS roa_pct,
+    qm.operating_margin AS op_margin_pct,
+    qm.net_margin AS net_margin_pct,
+    qm.debt_to_equity,
+    qm.current_ratio,
+    -- Growth metrics
+    gm.revenue_growth_1y AS revenue_growth_yoy_pct,
+    gm.eps_growth_1y AS eps_growth_yoy_pct,
+    gm.revenue_growth_3y AS revenue_growth_3y_pct,
+    gm.eps_growth_3y AS eps_growth_3y_pct,
+    -- Stability
+    stm.beta,
+    -- Derived: margin of safety (simplified: discount from 52w high)
+    CASE WHEN pd_52w.high_52w > 0
+         THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
+         ELSE NULL END AS margin_of_safety_pct,
+    pd_52w.high_52w,
+    pd_52w.low_52w,
+    -- drop_from_52w_high_pct: same as margin_of_safety_pct, alternate name used by deep-value query
+    CASE WHEN pd_52w.high_52w > 0
+         THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
+         ELSE NULL END AS drop_from_52w_high_pct,
+    -- Columns not derivable from current loaders — NULL placeholders for API compatibility
+    NULL::numeric AS forward_pe,
+    NULL::numeric AS gross_margin_pct,
+    NULL::numeric AS sector_median_pe,
+    NULL::numeric AS market_median_pe,
+    NULL::numeric AS discount_vs_sector_pe_pct,
+    NULL::numeric AS discount_vs_market_pe_pct,
+    NULL::numeric AS high_3y,
+    NULL::numeric AS drop_from_3y_high_pct,
+    NULL::numeric AS intrinsic_value_per_share,
+    NULL::numeric AS fcf_growth_yoy_pct,
+    NULL::numeric AS sustainable_growth_pct,
+    NULL::numeric AS op_margin_trend_pp,
+    NULL::numeric AS gross_margin_trend_pp,
+    NULL::numeric AS roe_trend_pp,
+    -- Generational score = composite_score (alias for UI compatibility)
+    sc.composite_score AS generational_score
+FROM stock_symbols ss
+LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+LEFT JOIN stock_scores sc ON sc.symbol = ss.symbol
+LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
+LEFT JOIN quality_metrics qm ON qm.symbol = ss.symbol
+LEFT JOIN growth_metrics gm ON gm.symbol = ss.symbol
+LEFT JOIN stability_metrics stm ON stm.symbol = ss.symbol
+LEFT JOIN LATERAL (
+    SELECT close FROM price_daily
+    WHERE symbol = ss.symbol
+    ORDER BY date DESC LIMIT 1
+) pd ON true
+LEFT JOIN LATERAL (
+    SELECT MAX(high) AS high_52w, MIN(low) AS low_52w
+    FROM price_daily
+    WHERE symbol = ss.symbol AND date >= CURRENT_DATE - INTERVAL '252 days'
+) pd_52w ON true
+WHERE sc.composite_score IS NOT NULL;
 
-        conn.commit()
-        print()
-        print("✓ TimescaleDB initialization complete!")
-        print("  • Time-series queries now 10-100x faster")
-        print("  • Automatic data compression (30+ days)")
-        print("  • Hourly summary aggregates")
-        print()
+-- sp500_list: placeholder — populated when SP500 data loader is added
+-- For now, returns symbols with composite_score > 60 as a proxy
+CREATE OR REPLACE VIEW sp500_list AS
+SELECT symbol FROM stock_scores WHERE composite_score > 60;
 
-    except Exception as e:
-        print(f"ERROR in TimescaleDB init: {e}")
+-- market_sentiment: alias for fear_greed_index for API compatibility
+CREATE OR REPLACE VIEW market_sentiment AS
+SELECT
+    date,
+    fear_greed_value AS fear_greed_index,
+    fear_greed_label AS label,
+    NULL::numeric AS put_call_ratio,
+    NULL::numeric AS vix,
+    fear_greed_value AS sentiment_score
+FROM fear_greed_index;
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- BUY/SELL SIGNAL TABLE SCHEMA MIGRATIONS
+-- The original buy_sell_daily/weekly/monthly tables had only 7 columns.
+-- The loadbuyselldaily loader and Node.js API require ~50 columns.
+-- These idempotent ALTERs add all missing columns and fix the UNIQUE constraint.
+-- ════════════════════════════════════════════════════════════════════════════
 
-def init_database():
-    """Initialize database schema."""
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Daily';
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS volume BIGINT;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stage_number INTEGER;
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_daily_symbol_timeframe_date_key') THEN
+        ALTER TABLE buy_sell_daily DROP CONSTRAINT IF EXISTS buy_sell_daily_symbol_date_key;
+        ALTER TABLE buy_sell_daily ADD CONSTRAINT buy_sell_daily_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
+    END IF;
+END $$;
 
-        print("╔════════════════════════════════════════════════════════╗")
-        print("║  Initializing Database Schema (AUTHORITATIVE)         ║")
-        print("╚════════════════════════════════════════════════════════╝")
-        print()
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Weekly';
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS volume BIGINT;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stage_number INTEGER;
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
+ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_weekly_symbol_timeframe_date_key') THEN
+        ALTER TABLE buy_sell_weekly DROP CONSTRAINT IF EXISTS buy_sell_weekly_symbol_date_key;
+        ALTER TABLE buy_sell_weekly ADD CONSTRAINT buy_sell_weekly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
+    END IF;
+END $$;
 
-        # Split by semicolon and execute each statement
-        statements = [s.strip() for s in SCHEMA.split(';') if s.strip()]
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Monthly';
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS volume BIGINT;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stage_number INTEGER;
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
+ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_monthly_symbol_timeframe_date_key') THEN
+        ALTER TABLE buy_sell_monthly DROP CONSTRAINT IF EXISTS buy_sell_monthly_symbol_date_key;
+        ALTER TABLE buy_sell_monthly ADD CONSTRAINT buy_sell_monthly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
+    END IF;
+END $$;
 
-        succeeded = 0
-        failed = 0
+-- ════════════════════════════════════════════════════════════════════════════
+-- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
+-- ════════════════════════════════════════════════════════════════════════════
 
-        for i, stmt in enumerate(statements, 1):
-            try:
-                cur.execute(stmt)
-                print(f"  ✓ [{i:2d}/{len(statements)}]")
-                succeeded += 1
-            except Exception as e:
-                print(f"  ✗ [{i:2d}/{len(statements)}] {str(e)[:60]}")
-                failed += 1
+-- Market overview indices (loadmarket.py) — SPY/QQQ/IWM/VIX daily OHLCV
+CREATE TABLE IF NOT EXISTS market_overview (
+    id SERIAL PRIMARY KEY,
+    index_name VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    market_cap DECIMAL(15, 2),
+    advance_decline_ratio DECIMAL(8, 4),
+    vix DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(index_name, date)
+);
+CREATE INDEX IF NOT EXISTS idx_market_overview_index_date ON market_overview(index_name, date);
+CREATE INDEX IF NOT EXISTS idx_market_overview_date ON market_overview(date);
 
-        conn.commit()
-        print()
-        print(f"✓ Schema initialization complete!")
-        print(f"  Succeeded: {succeeded}")
-        print(f"  Failed: {failed}")
-        print()
+-- Sector aggregate metrics (loadsectors.py) — one row per sector per day
+CREATE TABLE IF NOT EXISTS sectors (
+    id SERIAL PRIMARY KEY,
+    sector_name VARCHAR(100) NOT NULL,
+    metric_date DATE NOT NULL,
+    performance_ytd DECIMAL(8, 4),
+    performance_1y DECIMAL(8, 4),
+    performance_3y DECIMAL(8, 4),
+    pe_ratio DECIMAL(8, 4),
+    dividend_yield DECIMAL(8, 4),
+    market_cap DECIMAL(18, 2),
+    stock_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(sector_name, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sectors_metric_date ON sectors(metric_date);
 
-        # Initialize TimescaleDB for time-series optimization
-        print("╔════════════════════════════════════════════════════════╗")
-        print("║  Initializing TimescaleDB for Time-Series (10-100x)   ║")
-        print("╚════════════════════════════════════════════════════════╝")
-        print()
-        _init_timescaledb(conn, cur)
+-- Factor metrics (loadfactormetrics.py) — price + derived ratios per symbol per day
+-- Runs in Step Functions EOD pipeline; missing table blocks pipeline execution
+CREATE TABLE IF NOT EXISTS factor_metrics (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    metric_date DATE NOT NULL,
+    price DECIMAL(12, 4),
+    volume BIGINT,
+    momentum_3d DECIMAL(8, 4),
+    volatility_20d DECIMAL(8, 4),
+    pe_ratio DECIMAL(8, 4),
+    pb_ratio DECIMAL(8, 4),
+    dividend_yield DECIMAL(8, 4),
+    debt_to_equity DECIMAL(8, 4),
+    roe DECIMAL(8, 4),
+    roa DECIMAL(8, 4),
+    current_ratio DECIMAL(8, 4),
+    quick_ratio DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_factor_metrics_symbol_date ON factor_metrics(symbol, metric_date);
+CREATE INDEX IF NOT EXISTS idx_factor_metrics_date ON factor_metrics(metric_date);
 
-        print()
-        print("Schema is now READY for loaders to use")
-        print()
-        return failed == 0
+-- Relative performance (loadrelativeperformance.py) — OHLCV per symbol for RS calculation
+CREATE TABLE IF NOT EXISTS relative_performance (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_relative_performance_symbol_date ON relative_performance(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_relative_performance_date ON relative_performance(date);
 
-    except Exception as e:
-        print(f"ERROR: {e}")
-        return False
-    finally:
-        if conn:
-            cur.close()
-            conn.close()
+-- Social sentiment (loadsentiment.py) — stub loader; stores OHLCV passthrough until real
+-- sentiment source is wired. Table required so loader does not crash on LIKE staging.
+CREATE TABLE IF NOT EXISTS sentiment (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_sentiment_symbol_date ON sentiment(symbol, date);
 
-def main():
-    """Public API for database initialization (called by orchestrator)."""
-    return init_database()
+-- ════════════════════════════════════════════════════════════════════════════
+-- LOADER TRACKING & MONITORING
+-- ════════════════════════════════════════════════════════════════════════════
 
-if __name__ == "__main__":
-    import sys
-    success = init_database()
-    sys.exit(0 if success else 1)
+-- Loader execution metrics (loader_metrics.py)
+CREATE TABLE IF NOT EXISTS loader_execution_metrics (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    execution_date TIMESTAMP,
+    rows_inserted INTEGER,
+    rows_updated INTEGER,
+    rows_deleted INTEGER,
+    duration_seconds DECIMAL(8, 2),
+    success BOOLEAN,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, execution_date)
+);
+CREATE INDEX IF NOT EXISTS idx_loader_metrics_loader_name ON loader_execution_metrics(loader_name);
+CREATE INDEX IF NOT EXISTS idx_loader_metrics_execution_date ON loader_execution_metrics(execution_date);
+
+-- Loader execution history (loader_sla_tracker.py)
+CREATE TABLE IF NOT EXISTS loader_execution_history (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    execution_start TIMESTAMP,
+    execution_end TIMESTAMP,
+    status VARCHAR(20),
+    rows_processed INTEGER,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_loader_history_loader_name ON loader_execution_history(loader_name);
+CREATE INDEX IF NOT EXISTS idx_loader_history_execution_start ON loader_execution_history(execution_start);
+
+-- Loader SLA status tracking
+CREATE TABLE IF NOT EXISTS loader_sla_status (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    last_success_time TIMESTAMP,
+    last_failure_time TIMESTAMP,
+    consecutive_failures INTEGER DEFAULT 0,
+    status VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name)
+);
+CREATE INDEX IF NOT EXISTS idx_loader_sla_status_loader_name ON loader_sla_status(loader_name);
+
+-- Last updated timestamps (loadaaiidata.py, loadfeargreed.py, loadnaaim.py)
+CREATE TABLE IF NOT EXISTS last_updated (
+    id SERIAL PRIMARY KEY,
+    script_name VARCHAR(100) NOT NULL UNIQUE,
+    last_run TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_last_updated_script_name ON last_updated(script_name);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PERFORMANCE INDEXES (2026-05-15) — After Phase 1 Data Integrity
+-- ════════════════════════════════════════════════════════════════════════════
+-- Critical for orchestrator phases 2-7 execution speed
+
+-- PRICE DATA INDEXES — Most expensive queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_symbol_date
+ON price_daily (symbol, date)
+WHERE close IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_symbol_desc
+ON price_daily (symbol, date DESC)
+WHERE close > 0;
+
+-- TECHNICAL DATA INDEXES — Technical indicator queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_daily_date
+ON technical_data_daily (date)
+WHERE sma_20 IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_daily_symbol_date
+ON technical_data_daily (symbol, date)
+WHERE rsi IS NOT NULL;
+
+-- BUY/SELL SIGNAL INDEXES — Phase 2 signal generation, Phase 5 exit
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_date
+ON buy_sell_daily (date)
+WHERE buy_signal IS NOT NULL OR sell_signal IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_symbol_date
+ON buy_sell_daily (symbol, date)
+WHERE buy_signal IS NOT NULL;
+
+-- STOCK SCORES INDEXES — Entry qualification filtering
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_updated_at
+ON stock_scores (updated_at DESC)
+WHERE growth_score IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_symbol
+ON stock_scores (symbol)
+WHERE overall_score >= 0;
+
+-- POSITION TRACKING INDEXES — Phase 3-7 position lifecycle
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_status
+ON algo_positions (status)
+WHERE status IN ('open', 'pending_exit');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_symbol_status
+ON algo_positions (symbol, status, entry_date DESC)
+WHERE status = 'open';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_exit_conditions
+ON algo_positions (status, exit_reason IS NULL, created_at)
+WHERE status = 'open';
+
+-- TRADE EXECUTION INDEXES — Trade history and reconciliation
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_status_date
+ON algo_trades (status, trade_date DESC)
+WHERE status IN ('filled', 'pending', 'failed');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_position_id
+ON algo_trades (position_id)
+WHERE position_id IS NOT NULL;
+
+-- RISK TRACKING INDEXES — VaR/concentration monitoring
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_risk_daily_date
+ON algo_risk_daily (report_date DESC)
+WHERE report_date IS NOT NULL;
+
+-- MARKET EXPOSURE INDEXES — Regime detection
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_market_exposure_daily_date
+ON market_exposure_daily (date DESC)
+WHERE exposure_tier IS NOT NULL;
+
+-- PORTFOLIO SNAPSHOT INDEXES — Drawdown and performance calculations
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_portfolio_snapshots_date
+ON algo_portfolio_snapshots (snapshot_date DESC)
+WHERE total_portfolio_value > 0;
+
+-- AUDIT & MONITORING INDEXES
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_audit_log_action_date
+ON algo_audit_log (action_date DESC, action_type)
+WHERE action_date >= NOW() - INTERVAL '30 days';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_data_patrol_log_severity
+ON data_patrol_log (severity, created_at DESC)
+WHERE severity IN ('error', 'critical');
+
+-- LOADER SLA TRACKING INDEXES
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_loader_sla_tracker_date_status
+ON loader_sla_tracker (start_time DESC, status)
+WHERE start_time >= NOW() - INTERVAL '7 days';
+
+-- ECONOMIC DATA INDEXES — Credit spreads, yield curve
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_economic_data_series_date
+ON economic_data (series_id, date DESC)
+WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
+  AND value IS NOT NULL;
