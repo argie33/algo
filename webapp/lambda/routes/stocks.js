@@ -13,11 +13,13 @@ router.get("/list", async (req, res) => {
     const result = await query(`
       SELECT 
         ss.symbol,
-        cp.name as company_name,
+        COALESCE(cp.short_name, cp.display_name, cp.long_name) as company_name,
         cp.sector,
         cp.industry,
         ss.composite_score,
-        ss.momentum_score
+        ss.momentum_score,
+        ss.quality_score,
+        ss.value_score
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
       WHERE ss.symbol IS NOT NULL
@@ -40,15 +42,19 @@ router.get("/:symbol", async (req, res) => {
     const result = await query(`
       SELECT 
         ss.symbol,
-        cp.name as company_name,
+        COALESCE(cp.short_name, cp.display_name, cp.long_name) as company_name,
         cp.sector,
         cp.industry,
+        cp.website,
+        cp.employees,
         ss.composite_score,
         ss.momentum_score,
         ss.quality_score,
         ss.value_score,
         ss.growth_score,
-        ss.stability_score
+        ss.stability_score,
+        ss.positioning_score,
+        ss.updated_at
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
       WHERE ss.symbol = $1

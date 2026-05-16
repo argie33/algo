@@ -42,8 +42,8 @@ logging.basicConfig(
 
 class SectorsLoader(OptimalLoader):
     table_name = "sector_performance"
-    primary_key = ("sector_name", "metric_date")
-    watermark_field = "metric_date"
+    primary_key = ("sector", "date")
+    watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute sector performance metrics from price_daily + company_profile."""
@@ -125,7 +125,7 @@ class SectorsLoader(OptimalLoader):
         """Validate sector row."""
         if not super()._validate_row(row):
             return False
-        return row.get("sector_name") is not None
+        return row.get("sector") is not None and row.get("return_pct") is not None
 
 
 def main():
