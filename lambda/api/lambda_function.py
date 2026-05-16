@@ -1685,8 +1685,7 @@ class APIHandler:
                 self.cur.execute("""
                     SELECT event_date AS date, event_name, country, importance,
                            category, event_time,
-                           forecast_value AS forecast, actual_value AS actual,
-                           previous_value AS previous
+                           forecast_value, actual_value, previous_value
                     FROM economic_calendar
                     ORDER BY event_date DESC
                     LIMIT 100
@@ -1715,7 +1714,10 @@ class APIHandler:
             'DFF': 'Federal Funds Rate',
             'MMNRNJ': 'MZM Money Stock',
             'T10Y2Y': 'Yield Curve (10Y-2Y)',
+            'GDPC1': 'GDP Growth',
         }
+        # Series that report absolute levels but should be shown as YoY % change
+        yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS'}
 
         try:
             # Get latest values for all indicators
@@ -1761,10 +1763,33 @@ class APIHandler:
                 value, date = latest_rows[series_id]
                 history = sorted(history_by_series.get(series_id, []), key=lambda x: x['date'])
 
-                # Calculate trend (up/down/flat)
+                # For level series, compute YoY % change so the frontend gets a meaningful rate
+                display_value = value
+                if series_id in yoy_pct_series and len(history) >= 12:
+                    # history is sorted ascending; last = most recent, -13 ≈ 1 year ago
+                    cur_h  = history[-1] if history else None
+                    yr_ago = history[-13] if len(history) >= 13 else history[0]
+                    if cur_h and yr_ago and yr_ago.get('value') and cur_h.get('value'):
+                        prior = float(yr_ago['value'])
+                        if prior != 0:
+                            display_value = round((float(cur_h['value']) - prior) / abs(prior) * 100, 2)
+                    # Replace history values with rolling YoY % change too
+                    yoy_history = []
+                    for idx in range(12, len(history)):
+                        cur_v  = history[idx].get('value')
+                        yr_v   = history[idx - 12].get('value')
+                        if cur_v is not None and yr_v and float(yr_v) != 0:
+                            yoy_history.append({
+                                'date': history[idx]['date'],
+                                'value': round((float(cur_v) - float(yr_v)) / abs(float(yr_v)) * 100, 2)
+                            })
+                    if yoy_history:
+                        history = yoy_history
+
+                # Calculate trend (up/down/flat) on the (possibly transformed) history
                 if len(history) >= 2:
-                    recent_avg = sum([h['value'] for h in history[:3] if h['value']] or [0]) / max(1, len([h for h in history[:3] if h['value']]))
-                    older_avg = sum([h['value'] for h in history[-3:] if h['value']] or [0]) / max(1, len([h for h in history[-3:] if h['value']]))
+                    recent_avg = sum([h['value'] for h in history[-3:] if h['value'] is not None] or [0]) / max(1, len([h for h in history[-3:] if h['value'] is not None]))
+                    older_avg  = sum([h['value'] for h in history[:3]  if h['value'] is not None] or [0]) / max(1, len([h for h in history[:3]  if h['value'] is not None]))
                     if older_avg and recent_avg:
                         trend = 'up' if recent_avg > older_avg * 1.01 else 'down' if recent_avg < older_avg * 0.99 else 'flat'
                     else:
@@ -1775,7 +1800,7 @@ class APIHandler:
                 indicators.append({
                     'name': name,
                     'series_id': series_id,
-                    'rawValue': value,
+                    'rawValue': display_value,
                     'date': str(date),
                     'history': history,
                     'trend': trend
