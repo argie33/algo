@@ -1,7 +1,43 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 55: Economic calendar pipeline complete + GDP display fix + trend direction bug)  
-**Status:** ✅ PRODUCTION READY | Economic calendar end-to-end fixed | GDP shows YoY growth rate | Trend direction bug corrected
+**Last Updated:** 2026-05-16 (Session 56: COMPREHENSIVE FULL-STACK AUDIT + PLAN)  
+**Status:** ⚠️ PRODUCTION-INTENT BUT LIVE BUGS FOUND | 10 confirmed bugs, detailed implementation plan in place  
+**Key Finding:** TradingSignals & ServiceHealth pages are broken (showing empty data); API response inconsistency is root cause
+
+---
+
+## 🔍 **SESSION 56 — COMPREHENSIVE AUDIT FINDINGS & IMPLEMENTATION PLAN**
+
+### Summary
+A 3-agent deep audit discovered **10 confirmed bugs**, several of them live UI failures:
+1. **API response shape inconsistency** (45+ endpoints) — TradingSignals signals empty, ServiceHealth patrol log empty
+2. **loadstockscores DB connection leak** (dormant, will trigger on re-enable)
+3. **Sector overlap non-deterministic** — same sector stocks approved multiple times in same run
+4. **RS percentile wrong in 3 places** — using linear formulas instead of true percentile ranking
+5. **Missing R_multiple in performance API** — column exists but not selected
+6. **StockDetail.jsx breaks** after API fix — 5+ break points (scoreData indexing, array spread, etc.)
+7. **SectorAnalysis.jsx breaks** — Stage2LeadersChart component issues
+8. **Sentiment.jsx conditional break** — divergence endpoint may return envelope
+9. **Config validator bug** — sector_drawdown_halt_pct violates its own 0-100 rule
+10. **Dead code** — performance.js route not used, incompatible response shape
+
+### Implementation Approach (No Corners Cut)
+- **Design phase complete:** Full architectural audit of response shapes, component interactions, data flow
+- **Component impact analysis complete:** Audited all 10 major pages; identified which will break with API change
+- **Comprehensive plan:** 17-page detailed plan with exact file/line references, code snippets, verification steps
+- **Minimal-change strategy:** Fix only what's broken, don't refactor beyond scope
+- **Verification built-in:** Every fix has specific verification steps
+
+### Critical Path
+1. Fix API response contract (responseNormalizer.js + 45 Python lambda endpoints) — unblocks TradingSignals + ServiceHealth
+2. Pre-fix component breaks (StockDetail, SectorAnalysis, Sentiment) — add defensive guards before API change
+3. Fix sector overlap, RS percentile, R_multiple, config validator, DB connection, dead code
+
+**Estimated time:** ~4 hours total  
+**Risk level:** MEDIUM — large-scale API change, but fully planned and component-impact tested  
+**Next step:** Start implementation in priority order
+
+**See:** `C:\Users\arger\.claude\plans\iridescent-watching-bengio.md` for full detailed plan (17 pages)
 
 ---
 

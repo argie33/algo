@@ -33,16 +33,16 @@ export const extractData = (response) => {
   }
 
   // Priority order for extracting data:
-  // 1. data.items (most common paginated response)
+  // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (data.items) {
-    return data.items;
+    return data;  // Return the full envelope, not just items
   }
 
   // 2. data.data (nested structure)
   if (data.data) {
     // Check if data.data has items (double-nested)
     if (data.data.items) {
-      return data.data.items;
+      return data.data;  // Return the full nested object so components can access .items, .total, .pagination
     }
     // Return the data object itself
     return data.data;
