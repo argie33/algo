@@ -145,7 +145,7 @@ audit = [
     ('TODO',  'Frontend full overhaul',                                 'DEFER', 'user explicitly next-up'),
     ('TODO',  'AWS production deploy',                                  'DEFER', 'when ready'),
     ('TODO',  'Live WebSocket prices',                                  'GAP',  'optimization'),
-    ('TODO',  'Performance metrics (Sharpe/Sortino/MDD)',               'GAP',  'should add'),
+    ('TODO',  'Performance metrics (Sharpe/Sortino/MDD)',               'DONE', 'lambda/api/lambda_function.py'),
     ('TODO',  'Audit trail UI viewer',                                  'GAP',  'logged but not viewed'),
     ('TODO',  'Notification system',                                    'GAP',  'logs only, no alerts'),
     ('TODO',  'Backtest UI visualization',                              'GAP',  'depends on backfill'),
