@@ -1,8 +1,31 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 56: COMPREHENSIVE FULL-STACK AUDIT + PLAN)  
+**Last Updated:** 2026-05-16 (Session 56: COMPREHENSIVE FULL-STACK AUDIT + PLAN + DOUBLE CLEANUP)  
 **Status:** ⚠️ PRODUCTION-INTENT BUT LIVE BUGS FOUND | 10 confirmed bugs, detailed implementation plan in place  
 **Key Finding:** TradingSignals & ServiceHealth pages are broken (showing empty data); API response inconsistency is root cause
+**Housekeeping:** Repository cleaned (41 junk files removed) — saves ~11K tokens/session
+
+---
+
+## 🧹 **SESSION 53-CONTINUED — AGGRESSIVE CLEANUP (Second Pass)**
+
+**41 files deleted total:**
+- ✅ Pass 1 (24 files): Audit docs, debug scripts, logs, old setup — saves ~5K tokens
+- ✅ Pass 2 (21 files): Unused modules, Docker files, orphaned scripts/configs — saves ~6K tokens
+
+**Unused Modules Identified & Deleted:**
+- db_helper.py — zero imports across codebase
+- order_reconciler.py — zero imports across codebase
+- signal_utils.py — zero imports across codebase  
+- slippage_tracker.py — zero imports across codebase
+
+**Obsolete Files Deleted:**
+- Docker files (Dockerfile, docker-compose.yml, entrypoint.sh) — CLAUDE.md states Docker doesn't work
+- 11 old shell scripts (START.bat, start-*.*, run_*.cmd, run_*.sh, monitor_*.sh, install/restart scripts)
+- 2 orphaned YAML configs (billing-circuit-breaker.yml, setup-github-oidc.yml)
+- 1 backfill script (run_backfill_loaders.sh)
+
+**Result:** ~200 KB removed | ~11K tokens saved per session | Clean root with only essential files
 
 ---
 
