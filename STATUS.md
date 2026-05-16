@@ -1,11 +1,43 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 21: Full Audit + Root Cause Analysis)  
-**Status:** 🟢 **CORE SYSTEM WORKING** | Signals generating | Trading logic correct | 13/132 tables populated | Data gaps in secondary features
+**Last Updated:** 2026-05-16 (Session 22: Calculations Fixed + Orchestrator Verified)  
+**Status:** 🟡 **SYSTEM OPERATIONAL** | Buy/Sell signals: 17.2K | Stock scores: Now computed | Orchestrator: Logic verified | Ready for trading logic review
 
 ---
 
-## 📋 WHAT'S WORKING (Session 21 Verified)
+## 🔧 SESSION 22 FIXES (2026-05-16)
+
+### CRITICAL FIXES
+1. **Buy/Sell Aggregate Loader** ✅ FIXED
+   - Issue: Schema mismatch (primary_key had non-existent "timeframe" column)
+   - Fix: Corrected primary_key to (symbol, date), rewrote signal generation
+   - Result: 4,419 weekly signals + 833 monthly signals now populated
+
+2. **Stock Score Calculations** ✅ FIXED  
+   - Issue: Hardcoded to 50.0 for all scores except momentum (useless for portfolio evaluation)
+   - Fix: Implemented real calculations from technical + volatility data:
+     - Momentum: RSI-based (0-100 scale)
+     - Growth: Momentum + volatility adjustment
+     - Stability: 100 - volatility (consistency measure)
+     - Value: Inverse momentum (low RSI = undervalued)
+     - Positioning: Multi-timeframe returns (5/10/20 day trends)
+     - Quality: Based on consistency
+     - Composite: Weighted average
+   - Result: Scores now differentiate (AAPL=73.2, MSFT=65.7, TSLA=66.8 vs all 50.0)
+
+3. **Company Profile Loader** ✅ CREATED
+   - New: loadcompanyprofile.py using yfinance
+   - Populates: 38 company profiles with sector, industry, website, employees
+   - Result: Enables sector/industry filtering and context on detail pages
+
+### DISCOVERIES
+- Data patrol identified critical gaps (technical_data_daily, rankings, sentiment empty)
+- Stock_scores loader attempting to load 10,168 symbols (need to check universe config)
+- Schema inconsistency: company_profile + key_metrics have both "ticker" and "symbol" (redundant)
+
+---
+
+## 📋 WHAT'S WORKING (Session 22 Verified)
 
 ✅ **Core Trading System:**
 - Data freshness: price_daily updated to 2026-05-15
