@@ -9,6 +9,14 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 import os
 import logging
 
+try:
+    from defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "stocks"
+    DEFAULT_DB_NAME = "stocks"
+
 logger = logging.getLogger(__name__)
 try:
     import psycopg2
@@ -79,11 +87,11 @@ except (ValueError, AttributeError) as e:
         db_password = os.getenv("DB_PASSWORD", "")
 
     DB_CONFIG = {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
+        "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
+        "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+        "user": os.getenv("DB_USER", DEFAULT_DB_USER),
         "password": db_password,
-        "database": os.getenv("DB_NAME", "stocks"),
+        "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
     logger.warning("Using fallback DB credentials — credential_manager failed")
 

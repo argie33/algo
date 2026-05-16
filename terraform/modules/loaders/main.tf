@@ -442,6 +442,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name      = "DB_USER"
           valueFrom = "${var.db_secret_arn}:username::"
+        },
+        {
+          name      = "FRED_API_KEY"
+          valueFrom = "${var.algo_secrets_arn}:FRED_API_KEY::"
         }
       ]
 
@@ -473,10 +477,6 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "DB_NAME"
           value = var.db_name
-        },
-        {
-          name  = "FRED_API_KEY"
-          value = var.fred_api_key
         }
       ]
     }

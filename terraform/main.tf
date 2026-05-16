@@ -167,6 +167,7 @@ module "loaders" {
   common_tags             = local.common_tags
   sns_alert_topic_arn     = coalesce(module.services.sns_alerts_topic_arn, "")
   fred_api_key            = var.fred_api_key
+  algo_secrets_arn        = module.database.algo_secrets_arn
 }
 
 module "services" {
@@ -184,6 +185,7 @@ module "services" {
   rds_endpoint                   = module.database.rds_endpoint
   rds_database_name              = module.database.rds_database_name
   rds_credentials_secret_arn     = module.database.rds_credentials_secret_arn
+  algo_secrets_arn               = module.database.algo_secrets_arn
   frontend_bucket_name           = module.storage.frontend_bucket_name
   code_bucket_name               = module.storage.code_bucket_name
   data_loading_bucket_name       = module.storage.data_loading_bucket_name

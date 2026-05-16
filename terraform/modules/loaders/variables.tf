@@ -98,8 +98,13 @@ variable "sns_alert_topic_arn" {
 }
 
 variable "fred_api_key" {
-  description = "FRED API key for economic data (free at fred.stlouisfed.org)"
+  description = "FRED API key for economic data (free at fred.stlouisfed.org) - DEPRECATED: use algo_secrets_arn instead"
   type        = string
   default     = ""
   sensitive   = true
+}
+
+variable "algo_secrets_arn" {
+  description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
+  type        = string
 }

@@ -49,13 +49,7 @@ if env_file.exists():
 
 def _get_db_config():
     """Get DB config (lazy-loaded to support testing without credentials)."""
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": get_db_password(),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
+    return get_db_config()
 
 
 class ExitEngine:

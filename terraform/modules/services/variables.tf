@@ -106,6 +106,11 @@ variable "rds_credentials_secret_arn" {
   type        = string
 }
 
+variable "algo_secrets_arn" {
+  description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
+  type        = string
+}
+
 # ============================================================
 # Storage Configuration
 # ============================================================

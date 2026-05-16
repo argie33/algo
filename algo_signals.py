@@ -70,14 +70,8 @@ if env_file.exists():
     load_dotenv(env_file)
 
 def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
-    }
+    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
+    return get_db_config()
 
 
 class SignalComputer:
