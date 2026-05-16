@@ -342,51 +342,6 @@ const Settings = () => {
           </CardContent>
         </TabPanel>
       </Card>
-
-      {/* Add API Key Dialog */}
-      <Dialog open={showAddKeyDialog} onClose={() => setShowAddKeyDialog(false)}>
-        <DialogTitle>Add API Key</DialogTitle>
-        <DialogContent sx={{ minWidth: 400, pt: 2 }}>
-          <TextField
-            label="Provider"
-            value={newApiKey.provider}
-            onChange={(e) => setNewApiKey({ ...newApiKey, provider: e.target.value })}
-            select
-            SelectProps={{ native: true }}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            <option value="alpaca">Alpaca</option>
-            <option value="polygon">Polygon</option>
-            <option value="fred">FRED</option>
-          </TextField>
-
-          <TextField
-            label="API Key ID"
-            value={newApiKey.keyId}
-            onChange={(e) => setNewApiKey({ ...newApiKey, keyId: e.target.value })}
-            placeholder="Your API key ID"
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-
-          <TextField
-            label="API Secret"
-            type="password"
-            value={newApiKey.secret}
-            onChange={(e) => setNewApiKey({ ...newApiKey, secret: e.target.value })}
-            placeholder="Your API secret"
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAddKeyDialog(false)}>Cancel</Button>
-          <Button onClick={handleAddApiKey} variant="contained" disabled={loading}>
-            Add Key
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Container>
   );
 };
