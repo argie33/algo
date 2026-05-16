@@ -549,7 +549,9 @@ class Orchestrator:
             cur = conn.cursor()
 
             # In DEV mode, skip strict SLA/loader health checks
-            if not os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+            if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+                logger.info("  [DEV MODE] Skipping SLA and loader health checks")
+            else:
                 # Check critical loader SLA status first — fail-closed if data didn't load
                 try:
                     from loader_sla_tracker import get_tracker
@@ -599,19 +601,17 @@ class Orchestrator:
                                     self.log_phase_result(1, 'loader_health', 'halt',
                                                           f'No data loaded today: {msg}')
                                     return False
-            else:
-                logger.info("  [DEV MODE] Skipping SLA and loader health checks")
 
-                    # Other errors are just warnings
-                    if error_findings and self.verbose:
-                        for sev, check, msg in error_findings:
-                            if 'low_daily_load_volume' not in check:
-                                logger.warning(f"  [LOADER ERROR] {check}: {msg}")
-                finally:
-                    monitor.disconnect()
-            except Exception as e:
-                logger.warning(f"  [WARN] Loader health check failed: {e}")
-                # Don't fail-close on monitor error, just warn
+                        # Other errors are just warnings
+                        if error_findings and self.verbose:
+                            for sev, check, msg in error_findings:
+                                if 'low_daily_load_volume' not in check:
+                                    logger.warning(f"  [LOADER ERROR] {check}: {msg}")
+                    finally:
+                        monitor.disconnect()
+                except Exception as e:
+                    logger.warning(f"  [WARN] Loader health check failed: {e}")
+                    # Don't fail-close on monitor error, just warn
             cur.execute(
                 """
                 SELECT

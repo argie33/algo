@@ -276,6 +276,22 @@ def main():
         # PHASE 1: Finalize tracking (disabled for local testing)
         # loader.end_provenance_tracking(success=(stats["symbols_failed"] == 0))
 
+        # Record loader SLA status for orchestrator Phase 1 freshness check
+        try:
+            from loader_sla_tracker import get_tracker
+            from datetime import date
+            tracker = get_tracker()
+            latest_date = date.today() if stats["rows_inserted"] > 0 else None
+            tracker.update_sla_status(
+                loader_name="Price Daily",
+                table_name="price_daily",
+                latest_data_date=latest_date,
+                row_count_today=stats["rows_inserted"],
+                status="OK" if stats["symbols_failed"] == 0 else "PARTIAL",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record SLA status: {e}")
+
         return 0 if stats["symbols_failed"] == 0 else 1
 
     except Exception as e:
