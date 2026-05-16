@@ -65,7 +65,6 @@ _PERIOD_CONFIG = {
             "net_income_loss": "net_income",
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",
-            "fiscal_period": "fiscal_period",
         },
     },
 }

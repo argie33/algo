@@ -14,8 +14,14 @@ Critical series for algo_market_exposure.py:
   FEDFUNDS      — Fed funds effective rate
   UNRATE        — Unemployment rate
 
+Economic Dashboard series (economic.js /api/economic/leading-indicators):
+  All series below power the EconomicDashboard page tabs (Overview, Business
+  Cycle, Rates & Fed, Labor, Inflation, Growth, Housing). economic.js hard-
+  fails with 500 if the 15 required series are missing, so the full list must
+  be loaded on every daily run.
+
 Run:
-    python3 loadecondata.py [--parallelism 4]
+    python3 loadecondata.py [--parallelism 8]
 """
 
 try:
@@ -49,15 +55,83 @@ logging.basicConfig(
 )
 
 # FRED series to load — series_id is used as the "symbol" in OptimalLoader
-FRED_SERIES = [
-    "BAMLH0A0HYM2",   # HY OAS — critical for credit spread factor
-    "BAMLC0A0CM",     # IG OAS
-    "T10Y2Y",         # 10Y-2Y yield spread
-    "FEDFUNDS",       # Fed funds rate
+#
+# Group 1: Critical for algo_market_exposure.py circuit breakers
+FRED_SERIES_ALGO = [
+    "BAMLH0A0HYM2",   # HY OAS — credit spread circuit breaker
+    "BAMLC0A0CM",     # IG OAS — investment-grade complement
+    "T10Y2Y",         # 10Y-2Y yield spread — recession signal
+    "FEDFUNDS",       # Fed funds effective rate
     "UNRATE",         # Unemployment rate
     "USREC",          # US recession indicator (0/1)
     "DCOILWTICO",     # WTI crude oil price
 ]
+
+# Group 2: Required by economic.js /api/economic/leading-indicators
+# economic.js fails hard (HTTP 500) when any of these 15 are missing:
+# UNRATE, PAYEMS, CPIAUCSL, GDPC1, DGS10, DGS2, T10Y2Y, SP500, VIXCLS,
+# FEDFUNDS, INDPRO, HOUST, MICH, ICSA, BUSLOANS
+FRED_SERIES_DASHBOARD = [
+    # Labor market
+    "PAYEMS",         # Nonfarm Payrolls (monthly)
+    "ICSA",           # Initial Jobless Claims (weekly)
+    "UEMPMEAN",       # Average Duration of Unemployment (monthly)
+    "EMSRATIO",       # Employment-Population Ratio (monthly)
+    "CIVPART",        # Labor Force Participation Rate (monthly)
+    # Prices & inflation
+    "CPIAUCSL",       # Consumer Price Index (monthly)
+    "CPILFESL",       # Core CPI ex Food & Energy (monthly)
+    "PPIACO",         # Producer Price Index All Commodities (monthly)
+    # GDP & production
+    "GDPC1",          # Real GDP (quarterly)
+    "INDPRO",         # Industrial Production Index (monthly)
+    "CUMFSL",         # Capacity Utilization (monthly)
+    # Housing
+    "HOUST",          # Housing Starts (monthly)
+    "PERMIT",         # New Building Permits (monthly)
+    "MORTGAGE30US",   # 30-yr Fixed Rate Mortgage (weekly)
+    # Sentiment
+    "MICH",           # U of Michigan Consumer Sentiment (monthly)
+    "UMCSENT",        # U of Michigan Consumer Sentiment preliminary (monthly)
+    # Credit & lending
+    "BUSLOANS",       # Commercial & Industrial Loans (monthly)
+    # Equity & volatility (sourced from FRED, not price_daily)
+    "SP500",          # S&P 500 Index closing level (daily)
+    "VIXCLS",         # CBOE VIX (daily)
+    # Rates
+    "PRIME",          # Bank Prime Loan Rate (monthly)
+    # Trade
+    "TOTALSA",        # Total Light Vehicle Sales (monthly)
+    "IMPGS",          # Imports of Goods & Services (quarterly)
+    # Money supply
+    "M1SL",           # M1 Money Stock seasonally adjusted (monthly)
+    "M2SL",           # M2 Money Stock (monthly)
+    "WALCL",          # Fed Balance Sheet Total Assets (weekly)
+    # Retail
+    "RSXFS",          # Advance Retail Sales ex Food Services (monthly)
+]
+
+# Group 3: Full yield curve — required for yield-curve-full endpoint
+FRED_SERIES_YIELD_CURVE = [
+    "DGS3MO",         # 3-Month Treasury (daily)
+    "DGS6MO",         # 6-Month Treasury (daily)
+    "DGS1",           # 1-Year Treasury (daily)
+    "DGS2",           # 2-Year Treasury (daily)
+    "DGS3",           # 3-Year Treasury (daily)
+    "DGS5",           # 5-Year Treasury (daily)
+    "DGS7",           # 7-Year Treasury (daily)
+    "DGS10",          # 10-Year Treasury (daily)
+    "DGS20",          # 20-Year Treasury (daily)
+    "DGS30",          # 30-Year Treasury (daily)
+]
+
+# Combined — deduplicated (some IDs appear in multiple groups)
+_seen: set = set()
+FRED_SERIES = []
+for _s in FRED_SERIES_ALGO + FRED_SERIES_DASHBOARD + FRED_SERIES_YIELD_CURVE:
+    if _s not in _seen:
+        FRED_SERIES.append(_s)
+        _seen.add(_s)
 
 FRED_API_BASE = "https://api.stlouisfed.org/fred/series/observations"
 
