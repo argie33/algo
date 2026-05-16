@@ -143,6 +143,13 @@ class IncomeStatementLoader(OptimalLoader):
             return False
         if self.period == "quarterly" and row.get("fiscal_period") is None:
             return False
+
+        # Reject rows where all key financial fields are NULL
+        # (indicates API failure or no data available for this symbol/year)
+        financial_fields = ["gross_profit", "operating_income", "net_income", "cost_of_revenue"]
+        if all(row.get(field) is None for field in financial_fields):
+            return False
+
         return True
 
 

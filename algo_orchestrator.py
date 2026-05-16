@@ -1741,7 +1741,7 @@ class Orchestrator:
 
             # 3. Check signal data completeness
             cur.execute(
-                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR buy_signal IS NULL OR sell_signal IS NULL)",
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
                 (today,)
             )
             null_count = cur.fetchone()[0]

@@ -44,6 +44,18 @@ if env_file.exists():
     load_dotenv(env_file)
 
 
+def _redact_for_logs(message: str) -> str:
+    """Redact sensitive trade data from log messages. Masks prices and shares."""
+    import re
+    # Mask prices: $123.45 → $***
+    message = re.sub(r'\$[\d.]+', '$***', message)
+    # Mask shares: 100sh → ***sh
+    message = re.sub(r'(\d+)sh\b', '***sh', message)
+    # Mask slippage: +1.23% → +***%
+    message = re.sub(r'([+-]\d+\.\d+)%', '***%', message)
+    return message
+
+
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     # Get DB password from environment first, fall back to credential manager if needed
@@ -178,7 +190,13 @@ class TradeExecutor:
             }
 
         # Phase 5: Run independent pre-trade hard stops BEFORE anything else
-        portfolio_value = self._get_portfolio_value() or 100000.0
+        portfolio_value = self._get_portfolio_value()
+        if not portfolio_value or portfolio_value <= 0:
+            logger.error(f"execute_trade: cannot determine portfolio value for {symbol}, aborting")
+            return {
+                'success': False, 'trade_id': '', 'status': 'portfolio_value_unavailable',
+                'message': 'Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot'
+            }
         position_value = shares * entry_price
         pretrade_passed, pretrade_reason = self.pretrade.run_all(
             symbol=symbol,
@@ -433,7 +451,7 @@ class TradeExecutor:
             # If fill price differs from signal price (slippage), recalculate targets based on actual fill
             if executed_price and executed_price != entry_price:
                 slippage_pct = ((executed_price - entry_price) / entry_price * 100)
-                logger.info(f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})")
+                logger.info(_redact_for_logs(f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})"))
                 # Recalculate targets from actual fill price
                 actual_risk_per_share = executed_price - stop_loss_price
                 if actual_risk_per_share > 0:
@@ -445,8 +463,8 @@ class TradeExecutor:
                     target_3_price = round(executed_price + (actual_risk_per_share * t3_r), 2)
 
             # Compute initial position size pct using live or snapshot portfolio value
-            portfolio_value = self._get_portfolio_value() or 100000.0
-            position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0
+            _pv_for_pct = self._get_portfolio_value() or 0.0
+            position_size_pct = (shares * executed_price / _pv_for_pct * 100) if _pv_for_pct > 0 else 0
 
             # Build comprehensive entry reason
             entry_reason_parts = ['Algo signal — all tiers passed']
@@ -540,7 +558,7 @@ class TradeExecutor:
                     filled_qty = self._get_order_filled_quantity(alpaca_order_id)
                     if filled_qty and filled_qty > 0:
                         actual_shares = filled_qty
-                        logger.info(f"Partial fill detected: {actual_shares} of {shares} shares filled")
+                        logger.info(_redact_for_logs(f"Partial fill detected: {actual_shares} of {shares} shares filled"))
 
                 # B3: Defensive check for position value (ensure float precision)
                 position_value = float(actual_shares) * float(executed_price)
