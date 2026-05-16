@@ -98,8 +98,8 @@ class AlgoMetricsLoader:
             logger.info("ALGO METRICS DAILY LOADER")
             logger.info("="*70 + "\n")
 
-            # Get list of symbols
-            self.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
+            # Get list of symbols (use stock_symbols to cover full universe, not just those with prices)
+            self.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
             symbols = [row[0] for row in self.cur.fetchall()]
             logger.info(f"Processing {len(symbols)} symbols...\n")
 

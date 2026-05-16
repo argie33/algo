@@ -441,20 +441,20 @@ class FilterPipeline:
                 (symbol,),
             )
             row = self.cur.fetchone()
-            if not row or row[0] is None:
-                return {'pass': False, 'reason': 'No completeness data', 'completeness_pct': 0}
+            completeness = 0
+            if row and row[0] is not None:
+                completeness = float(row[0])
+                min_required = float(self.config.get('min_completeness_score', 70))
+                if completeness < min_required:
+                    return {
+                        'pass': False,
+                        'reason': f'Completeness {completeness:.0f}% < {min_required:.0f}%',
+                        'completeness_pct': completeness,
+                    }
 
-            completeness = float(row[0])
-            min_required = float(self.config.get('min_completeness_score', 70))
-            if completeness < min_required:
-                return {
-                    'pass': False,
-                    'reason': f'Completeness {completeness:.0f}% < {min_required:.0f}%',
-                    'completeness_pct': completeness,
-                }
-
+            # Check price freshness as fallback (if completeness data not ready yet)
             self.cur.execute(
-                "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
+                "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                 (symbol,),
             )
             price_row = self.cur.fetchone()
