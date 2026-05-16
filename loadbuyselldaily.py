@@ -273,7 +273,7 @@ class BuySellDailyLoader(OptimalLoader):
             if sig:
                 signals.append(sig)
 
-        return signals if signals else None
+        return signals
 
     @staticmethod
     def _compute_rsi(closes, period=14):

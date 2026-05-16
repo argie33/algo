@@ -426,7 +426,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
   try {
     const [sentimentResult, upgradeResult, momentumResult] = await Promise.all([
       query(
-        `SELECT analyst_count, bullish_count, bearish_count, neutral_count, total_analysts
+        `SELECT analyst_count, bullish_count, bearish_count, neutral_count
          FROM analyst_sentiment_analysis
          WHERE symbol = $1
          ORDER BY date DESC LIMIT 1`,
@@ -450,7 +450,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     ]);
 
     const row = sentimentResult.rows[0] || null;
-    const total = row ? (parseInt(row.total_analysts) || parseInt(row.analyst_count) || 0) : 0;
+    const total = row ? (parseInt(row.analyst_count) || 0) : 0;
     const bullish = row ? (parseInt(row.bullish_count) || 0) : 0;
     const bearish = row ? (parseInt(row.bearish_count) || 0) : 0;
     const neutral = row ? (parseInt(row.neutral_count) || 0) : 0;
