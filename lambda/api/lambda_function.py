@@ -1823,12 +1823,19 @@ class APIHandler:
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
-            allowed_sorts = [
-                'composite_score', 'momentum_score', 'quality_score', 'value_score',
-                'growth_score', 'positioning_score', 'stability_score', 'symbol'
-            ]
+            allowed_sorts = {
+                'composite_score': 'sc.composite_score',
+                'momentum_score': 'sc.momentum_score',
+                'quality_score': 'sc.quality_score',
+                'value_score': 'sc.value_score',
+                'growth_score': 'sc.growth_score',
+                'positioning_score': 'sc.positioning_score',
+                'stability_score': 'sc.stability_score',
+                'symbol': 'sc.symbol'
+            }
             if sort_by not in allowed_sorts:
                 sort_by = 'composite_score'
+            sort_col = allowed_sorts[sort_by]
             sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
 
             where_clause = "WHERE sc.composite_score > 0"
@@ -1877,7 +1884,7 @@ class APIHandler:
                     ORDER BY date DESC LIMIT 1
                 ) pd_prev ON true
                 {where_clause}
-                ORDER BY sc.{sort_by} {sort_direction}
+                ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """
             params_list.extend([limit, offset])
@@ -1953,7 +1960,13 @@ class APIHandler:
                 args.extend([limit, offset])
                 self.cur.execute(query, args)
                 trades = self.cur.fetchall()
-                self.cur.execute("SELECT COUNT(*) FROM algo_trades" + (" WHERE status = %s" if status_filter else ""), ([status_filter] if status_filter else []))
+                # Count total trades
+                count_query = "SELECT COUNT(*) FROM algo_trades WHERE 1=1"
+                count_args = []
+                if status_filter:
+                    count_query += " AND status = %s"
+                    count_args.append(status_filter)
+                self.cur.execute(count_query, count_args)
                 total = self.cur.fetchone()[0]
                 return json_response(200, {'data': [dict(t) for t in trades], 'total': total})
             elif path == '/api/trades/summary':
