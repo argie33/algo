@@ -38,7 +38,7 @@ router.get("/stockscores", async (req, res) => {
         ss.positioning_score,
         ROUND(ss.composite_score::numeric, 2) as score_rounded
       FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${whereClause}
       ORDER BY ${sortCol} ${sortOrder} NULLS LAST
       LIMIT $1 OFFSET $2

@@ -579,7 +579,7 @@ router.get('/swing-scores', async (req, res) => {
       `SELECT s.symbol, s.date, s.score, s.components,
               cp.short_name, cp.sector, cp.industry
        FROM swing_trader_scores s
-       LEFT JOIN company_profile cp ON cp.symbol = s.symbol
+       LEFT JOIN company_profile cp ON cp.ticker = s.symbol
        WHERE s.date = (SELECT MAX(date) FROM swing_trader_scores)
          AND s.score >= $1
        ORDER BY s.score DESC

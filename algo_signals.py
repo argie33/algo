@@ -542,8 +542,12 @@ class SignalComputer:
             closes = [float(r[3]) for r in rows]
             volumes = [float(r[4]) for r in rows]
 
-            peak_idx = highs.index(max(highs))  # 0 is most recent
-            peak = highs[peak_idx]
+            # Find the OLDEST occurrence of the max high (highest index in DESC-ordered data).
+            # Using .index() would find the most recent touch, which could be a failed
+            # breakout attempt and would make the base appear artificially short.
+            peak_val = max(highs)
+            peak_idx = max(i for i, h in enumerate(highs) if h == peak_val)
+            peak = peak_val
             # Slice from start of base (peak) through present
             base_highs = highs[:peak_idx + 1]
             base_lows = lows[:peak_idx + 1]

@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
         ss.quality_score,
         ss.value_score
       FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.symbol IS NOT NULL
       ORDER BY ss.composite_score DESC NULLS LAST
       LIMIT $1 OFFSET $2
@@ -52,7 +52,7 @@ router.get("/list", async (req, res) => {
         ss.quality_score,
         ss.value_score
       FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.symbol IS NOT NULL
       ORDER BY ss.composite_score DESC NULLS LAST
       LIMIT $1 OFFSET $2
@@ -87,7 +87,7 @@ router.get("/:symbol", async (req, res) => {
         ss.positioning_score,
         ss.updated_at
       FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.symbol = $1
     `, [upperSymbol]);
 
@@ -122,7 +122,7 @@ router.get("/deep-value", async (req, res) => {
         vm.dividend_yield
       FROM stock_scores ss
       LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.value_score IS NOT NULL
         AND ss.value_score > 50
       ORDER BY ss.value_score DESC, ss.composite_score DESC

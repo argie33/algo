@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
           FROM value_metrics
           ORDER BY symbol, date DESC
         ) vm
-        JOIN company_profile cp ON vm.symbol = cp.symbol
+        JOIN company_profile cp ON vm.symbol = cp.ticker
         WHERE cp.sector IS NOT NULL
         GROUP BY cp.sector
       ),

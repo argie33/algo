@@ -65,7 +65,7 @@ async function fetchIndustries(req, res) {
           FROM value_metrics
           ORDER BY symbol, date DESC
         ) vm
-        JOIN company_profile cp ON vm.symbol = cp.symbol
+        JOIN company_profile cp ON vm.symbol = cp.ticker
         WHERE cp.industry IS NOT NULL
         GROUP BY cp.industry
       ),
@@ -146,7 +146,7 @@ router.get("/:industry/trend", async (req, res) => {
           AVG(CAST(pd.close AS FLOAT)) as avg_price,
           COUNT(DISTINCT pd.symbol) as stock_count
         FROM price_daily pd
-        JOIN company_profile cp ON pd.symbol = cp.symbol
+        JOIN company_profile cp ON pd.symbol = cp.ticker
         WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
           AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
         GROUP BY DATE(pd.date)
@@ -191,7 +191,7 @@ router.get("/trend/industry/:industryName", async (req, res) => {
           AVG(CAST(pd.close AS FLOAT)) as avg_price,
           COUNT(DISTINCT pd.symbol) as stock_count
         FROM price_daily pd
-        JOIN company_profile cp ON pd.symbol = cp.symbol
+        JOIN company_profile cp ON pd.symbol = cp.ticker
         WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
           AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
         GROUP BY DATE(pd.date)
