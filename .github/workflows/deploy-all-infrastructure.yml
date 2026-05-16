@@ -149,19 +149,39 @@ jobs:
             module.vpc.aws_security_group_rule.rds_self_postgres \
             sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0efd52dc5e807f2e0
 
-      - name: Fix API Gateway Route (Terraform State)
+      - name: Fix API Gateway Route (AWS + Terraform State)
         run: |
           # AWS API Gateway v2 doesn't allow in-place authorization_type updates.
-          # If the route exists in state, remove it so Terraform can recreate it fresh.
-          # MUST run before terraform plan so the plan includes route recreation.
-          # This is idempotent: does nothing if the route isn't in state.
-          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
-            echo "Removing stuck API route from Terraform state (will be recreated with correct auth)"
-            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
-            echo "✅ Route removed from state, Terraform will recreate it in the plan"
+          # Solution: Delete the route from AWS, remove from state, let Terraform recreate it.
+          # MUST run before terraform plan so the plan includes route creation.
+
+          API_ID="2iqq1qhltj"
+          ROUTE_ID=$(aws apigatewayv2 get-routes \
+            --api-id $API_ID \
+            --query 'Items[?RouteKey==`$default`].RouteId' \
+            --output text \
+            --region $AWS_REGION 2>/dev/null || echo "")
+
+          if [ -n "$ROUTE_ID" ] && [ "$ROUTE_ID" != "None" ]; then
+            echo "Deleting existing route from AWS (has wrong auth config)"
+            aws apigatewayv2 delete-route \
+              --api-id $API_ID \
+              --route-id $ROUTE_ID \
+              --region $AWS_REGION
+            echo "✅ Route deleted from AWS"
           else
-            echo "Route not in state, nothing to fix"
+            echo "Route not found in AWS (already deleted or never created)"
           fi
+
+          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
+            echo "Removing route from Terraform state (will be recreated with correct auth)"
+            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
+            echo "✅ Route removed from state"
+          else
+            echo "Route not in state"
+          fi
+
+          echo "Terraform will now create the route with authorization_type = NONE"
 
       - name: Terraform Plan
         run: |
