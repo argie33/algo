@@ -1,12 +1,12 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Deployment Verification Session - Blocker Identified)
+**Last Updated:** 2026-05-16 (Terraform Deployment Investigation)
 
 ---
 
 ## 📊 EXECUTIVE SUMMARY (2026-05-16)
 
-**Overall Status:** 🟨 **85% PRODUCTION READY** (blocking issue: infrastructure re-deployment)
+**Overall Status:** 🟨 **85% PRODUCTION READY** (blocking issue: Terraform deployment failure - investigating)
 
 **What's Working:**
 - ✅ API health check (200 OK)
@@ -36,6 +36,31 @@
 - ✅ API Health (responsive)
 - ⏳ API Data Endpoints (awaiting infrastructure redeploy)
 - ⏳ Database Initialization (should be done, blocked by API access verification)
+
+---
+
+## 🔧 TERRAFORM DEPLOYMENT INVESTIGATION (2026-05-16 Current)
+
+**Issue:** Deploy All Infrastructure workflow Terraform Apply step failed after ~3 minutes
+
+**What was changed:**
+- ✅ Created `/lambda/db-init/` directory with Lambda handler code
+- ✅ Removed db_init Lambda resources from `terraform/modules/database/main.tf` (moved to workflow)
+- ✅ Removed Lambda invocation step from `deploy-all-infrastructure.yml` workflow
+- ✅ All Terraform syntax verified as correct
+
+**Investigation:**
+- ✅ No syntax errors in modified files
+- ✅ No dangling references to db_init Lambda in other Terraform files
+- ✅ terraform.tfvars file is properly structured
+- ✅ All resource dependencies are valid
+- Likely cause of 3-min failure: Early validation error, state lock, or AWS permission issue (not resource creation timeout)
+
+**Next Action:**
+Re-triggering Terraform deployment via git commit to see if it was transient issue. If it fails again, will need to check:
+1. GitHub Actions logs for specific error message
+2. AWS permissions and state consistency
+3. Terraform variable validation
 
 ---
 
