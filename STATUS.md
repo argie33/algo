@@ -5,6 +5,58 @@
 
 ---
 
+## 🟢 SESSION 16-PART3: LOCAL DEVELOPMENT SETUP - WINDOWS POSTGRESQL (2026-05-16)
+
+**Objective:** Set up local development without Docker/WSL blocker
+
+### ✅ APPROACH: Direct PostgreSQL on Windows
+
+**Why this approach:**
+- ❌ Docker/WSL blocked (CPU virtualization disabled in BIOS)
+- ✅ PostgreSQL on Windows works directly
+- ✅ No BIOS changes needed
+- ✅ Faster setup (~15 minutes vs WSL install time)
+- ✅ Same testing capability
+
+### 📋 LOCAL SETUP STEPS
+
+1. **Install PostgreSQL 16 on Windows** (~5 min)
+   - Download from: https://www.postgresql.org/download/windows/
+   - Default settings, remember password
+
+2. **Create local database** (~1 min)
+   ```bash
+   psql -U postgres
+   CREATE DATABASE stocks;
+   CREATE USER stocks WITH PASSWORD 'postgres';
+   GRANT ALL PRIVILEGES ON DATABASE stocks TO stocks;
+   ```
+
+3. **Initialize schema** (~2 min)
+   ```bash
+   python3 init_database.py
+   ```
+
+4. **Load data** (~20 min)
+   ```bash
+   python3 run-all-loaders.py
+   # Or by tier for faster feedback
+   ```
+
+5. **Verify and test** (~5 min)
+   ```bash
+   python3 algo_orchestrator.py --mode paper --dry-run
+   ```
+
+**Total time:** ~30 minutes to fully working local environment
+
+### 📄 DOCUMENTATION CREATED
+- ✅ LOCAL_SETUP.md — Step-by-step guide (no Docker/WSL needed)
+- ✅ Connection string: `postgresql://stocks:postgres@localhost:5432/stocks`
+- ✅ Troubleshooting guide included
+
+---
+
 ## ✅ SESSION 16-PART2: COMPREHENSIVE QUALITY AUDIT & CRITICAL BUG FIX (2026-05-16)
 
 **Objective:** Full system audit to find issues blocking production readiness
