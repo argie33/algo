@@ -42,7 +42,7 @@ class TestOrchestratorWithRealDatabase:
 
         try:
             # Only patch the final Alpaca order submission to prevent real trades
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order', return_value=MagicMock()):
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order', return_value=MagicMock()):
                 result = orch.run()
 
             # Verify orchestrator completed successfully

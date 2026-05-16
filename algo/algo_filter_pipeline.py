@@ -112,6 +112,9 @@ class FilterPipeline:
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
             self._snapshot_eval_date = eval_date
 
+            # Reset candidate holdings to prevent sector counts from prior runs bleeding through
+            self._candidate_holdings = {}
+
             logger.info(f"\n{'='*70}")
             logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
             logger.info(f"{'='*70}\n")

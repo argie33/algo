@@ -294,18 +294,19 @@ function SectorRelativeChart({ sectors }) {
       .map(s => s.sector_name || s.sector);
   }, [sectors]);
 
-  // One query that fans out internally — keeps hook count constant
+  // Use batch endpoint instead of individual requests to reduce API calls from 150+ to 1
   const { data: merged, loading: isLoading } = useApiQuery(
     ['sector-relative-90', top.join('|')],
     async () => {
       if (top.length === 0) return [];
-      const results = await Promise.all(top.map(name =>
-        api.get(`/api/sectors/${encodeURIComponent(name)}/trend?days=90`)
-           .then(r => ({ name, trendData: (r.data?.data || r.data)?.trendData || [] }))
-           .catch(() => ({ name, trendData: [] }))
-      ));
+      const sectorsList = top.map(encodeURIComponent).join(',');
+      const batchData = await api.get(`/api/sectors/trends-batch?sectors=${sectorsList}&days=90`)
+        .then(r => r.data?.data || r.data)
+        .catch(() => ({}));
+
       const all = {};
-      for (const { name, trendData } of results) {
+      for (const name of top) {
+        const trendData = batchData[name] || [];
         if (!trendData || trendData.length === 0) continue;
         const firstPrice = trendData[0]?.avgPrice;
         if (firstPrice == null) continue;
