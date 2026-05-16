@@ -153,7 +153,6 @@ locals {
     "calendar"                   = "loadcalendar.py"
     "analyst_sentiment"          = "loadanalystsentiment.py"
     "analyst_upgrades"           = "loadanalystupgradedowngrade.py"
-    "factor_metrics"             = "loadfactormetrics.py"
     "trend_template_data"        = "load_trend_template_data.py"
     "technicals_daily"           = "loadtechnicalsdaily.py"
     "stock_scores"               = "loadstockscores.py"
@@ -265,11 +264,10 @@ locals {
       description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
-    # NOTE: market_overview, market_indices, sector_performance, econ_data, aaiidata,
-    # naaim_data, feargreed, calendar are now run by market_data_batch above.
-    # NOTE: market_overview, sector_performance, relative_performance, social_sentiment removed —
-    # no real data source; market_overview duplicates price_daily; sector_performance wrote zeros.
-    # NOTE: factor_metrics and stock_scores moved to Step Functions EOD pipeline.
+    # NOTE: market_overview, sector_performance, relative_performance, social_sentiment,
+    # loadmarket, loadsectors, loadsentiment deleted — no real data sources.
+    # NOTE: market_indices, econ_data, aaiidata, naaim_data, feargreed, calendar are run via market_data_batch.
+    # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
 
     "analyst_sentiment" = {
       schedule    = "cron(0 5 ? * MON *)"
@@ -349,7 +347,6 @@ locals {
     # Sentiment & analysis — I/O bound with some compute
     "analyst_sentiment" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "analyst_upgrades"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "factor_metrics"    = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
     "stock_scores"      = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols

@@ -48,10 +48,10 @@ class EventCalendarLoader(OptimalLoader):
         """Fetch incremental data."""
         try:
             rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
+            return rows if rows else []
         except Exception as e:
             logging.debug(f"Fetch error for {symbol}: {e}")
-            return None
+            return []
 
     def transform(self, rows):
         """Transform rows."""

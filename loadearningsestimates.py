@@ -50,13 +50,13 @@ class EarningsEstimatesLoader(OptimalLoader):
         try:
             estimates = self.router.fetch_earnings(symbol)
             if not estimates:
-                return None
+                return []
             since_year = int(since) if since else 2000
             filtered = [e for e in estimates if e.get("fiscal_year", 0) > since_year]
-            return filtered if filtered else None
+            return filtered if filtered else []
         except Exception as e:
             logging.debug(f"Estimates fetch error for {symbol}: {e}")
-            return None
+            return []
 
     def transform(self, rows):
         """Rows are already clean from data source router."""

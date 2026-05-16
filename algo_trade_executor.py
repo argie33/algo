@@ -528,8 +528,8 @@ class TradeExecutor:
                         actual_shares = filled_qty
                         logger.info(f"Partial fill detected: {actual_shares} of {shares} shares filled")
 
-                # B3: Defensive check for position value
-                position_value = actual_shares * executed_price
+                # B3: Defensive check for position value (ensure float precision)
+                position_value = float(actual_shares) * float(executed_price)
                 if position_value <= 0:
                     return {
                         'success': False, 'trade_id': trade_id, 'status': 'invalid',

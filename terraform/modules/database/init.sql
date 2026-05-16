@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
     bullish_count INTEGER,
     bearish_count INTEGER,
     neutral_count INTEGER,
+    total_analysts INTEGER,
     target_price DECIMAL(12, 4),
     current_price DECIMAL(12, 4),
     upside_downside_percent DECIMAL(8, 2),
@@ -596,19 +597,42 @@ CREATE TABLE IF NOT EXISTS fear_greed_index (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analyst sentiment analysis for stocks
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+-- Market sentiment aggregates (puts/calls, VIX, broader sentiment scores)
+CREATE TABLE IF NOT EXISTS market_sentiment (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    total_analysts INTEGER,
+    date DATE NOT NULL UNIQUE,
+    fear_greed_index DECIMAL(8, 4),
+    put_call_ratio DECIMAL(8, 4),
+    vix DECIMAL(8, 4),
+    sentiment_score DECIMAL(8, 4),
+    bullish_pct DECIMAL(8, 2),
+    bearish_pct DECIMAL(8, 2),
+    neutral_pct DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Social sentiment aggregates (Twitter, Reddit, StockTwits, etc.)
+CREATE TABLE IF NOT EXISTS sentiment_social (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    twitter_sentiment_score DECIMAL(8, 4),
+    twitter_mention_count INTEGER,
+    reddit_sentiment_score DECIMAL(8, 4),
+    reddit_mention_count INTEGER,
+    stocktwits_sentiment_score DECIMAL(8, 4),
+    stocktwits_mention_count INTEGER,
+    overall_sentiment_score DECIMAL(8, 4),
+    sentiment_trend VARCHAR(20),
+    source_count INTEGER,
+    sentiment_breakdown JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
+
+-- NOTE: analyst_sentiment_analysis already defined above with full column set
+-- (target_price, current_price, upside_downside_percent, total_analysts)
+-- This duplicate definition removed to avoid confusion.
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- OPTIONS DATA
@@ -1971,6 +1995,13 @@ CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_symbol_date ON mean_
 CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_etf_symbol_date ON mean_reversion_signals_daily_etf(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_range_signals_daily_symbol_date ON range_signals_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_range_signals_daily_etf_symbol_date ON range_signals_daily_etf(symbol, date);
+
+-- Indexes for sentiment tables
+CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);
+CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol_date ON sentiment_social(symbol, date DESC);
+CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON sentiment_social(date DESC);
 
 -- Indexes for commodity tables
 CREATE INDEX IF NOT EXISTS idx_commodity_seasonality_symbol ON commodity_seasonality(symbol);

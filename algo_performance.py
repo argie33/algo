@@ -368,10 +368,12 @@ class LivePerformance:
         finally:
             if cur:
                 try: cur.close()
-                except Exception: pass
+                except Exception as e:
+                    logger.warning(f"Failed to close cursor: {e}")
             if conn:
                 try: conn.close()
-                except Exception: pass
+                except Exception as e:
+                    logger.warning(f"Failed to close connection: {e}")
 
     def calmar_ratio(self, lookback_days: int = 252) -> Optional[float]:
         """Calmar ratio = annualized return / abs(max drawdown).
@@ -424,10 +426,12 @@ class LivePerformance:
         finally:
             if cur:
                 try: cur.close()
-                except Exception: pass
+                except Exception as e:
+                    logger.warning(f"Failed to close cursor: {e}")
             if conn:
                 try: conn.close()
-                except Exception: pass
+                except Exception as e:
+                    logger.warning(f"Failed to close connection: {e}")
 
     def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
         """Compare live metrics to backtest reference metrics.

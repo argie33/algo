@@ -50,11 +50,11 @@ class EarningsHistoryLoader(OptimalLoader):
         try:
             earnings = self.router.fetch_earnings(symbol)
             if not earnings:
-                return None
+                return []
             return earnings
         except Exception as e:
             logging.debug(f"Earnings fetch error for {symbol}: {e}")
-            return None
+            return []
 
     def transform(self, rows):
         """Rows are already clean from data source router."""

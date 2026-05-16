@@ -54,28 +54,28 @@ class BuySellETFDailyLoader(OptimalLoader):
             start = since + timedelta(days=1)
 
         if start >= end:
-            return None
+            return []
 
         rows = self.router.fetch_ohlcv(symbol, start, end)
         if not rows:
-            return None
+            return []
 
         return self._compute_signals(symbol, rows)
 
     def _compute_signals(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 20:
-            return None
+            return []
 
         try:
             import pandas as pd
             import numpy as np
         except ImportError:
-            return None
+            return []
 
         df = pd.DataFrame(price_rows)
         if not all(c in df.columns for c in ["close", "high", "low"]):
-            return None
+            return []
 
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         df["high"] = pd.to_numeric(df["high"], errors="coerce")

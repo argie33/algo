@@ -141,7 +141,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         rows = self._fetch_price_daily(symbol, start, end)
         if not rows:
-            return None
+            return []
 
         # Fetch SPY data for Mansfield RS calculation
         spy_rows = self._fetch_price_daily('SPY', start, end)
@@ -152,7 +152,7 @@ class BuySellDailyLoader(OptimalLoader):
         signals = self._compute_signals(symbol, rows, trend_data, spy_rows)
         if not signals:
             # No signals computed at all (e.g., insufficient data)
-            return None
+            return []
 
         # Only emit signals strictly newer than the watermark
         if since is not None:
@@ -223,21 +223,21 @@ class BuySellDailyLoader(OptimalLoader):
     def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None, spy_rows: List[dict] = None) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 50:
-            return None
+            return []
 
         try:
             import pandas as pd
             import numpy as np
         except ImportError:
             log.error("pandas/numpy not available")
-            return None
+            return []
 
         if trend_data is None:
             trend_data = {}
 
         df = pd.DataFrame(price_rows)
         if not all(c in df.columns for c in ["close", "high", "low"]):
-            return None
+            return []
 
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         df["high"] = pd.to_numeric(df["high"], errors="coerce")
@@ -245,7 +245,7 @@ class BuySellDailyLoader(OptimalLoader):
         df = df.dropna(subset=["close"]).reset_index(drop=True)
 
         if len(df) < 50:
-            return None
+            return []
 
         # Prepare SPY data for Mansfield RS calculation
         spy_df = None

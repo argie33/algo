@@ -161,6 +161,7 @@ class PositionMonitor:
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
+                  AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
                 """
             )
             positions = self.cur.fetchall()

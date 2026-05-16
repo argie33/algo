@@ -65,16 +65,19 @@ def get_db_connection():
         try:
             _db_conn.isolation_level  # lightweight liveness probe
             return _db_conn
-        except Exception:
-            pass  # connection is dead — fall through to reconnect
+        except Exception as e:
+            logger.warning(f"Cached connection dead, reconnecting: {e}")
     try:
         creds = _load_creds()
+        # Handle both 'username' and 'user' keys (Secrets Manager vs env vars)
+        username = creds.get('username') or creds.get('user')
+        database = creds.get('dbname') or creds.get('database')
         _db_conn = psycopg2.connect(
             host=creds.get('host'),
             port=int(creds.get('port', 5432)),
-            user=creds.get('username'),
+            user=username,
             password=creds.get('password'),
-            database=creds.get('dbname'),
+            database=database,
             connect_timeout=5,
             options='-c statement_timeout=25000',  # 25s query timeout
         )
@@ -231,7 +234,7 @@ class APIHandler:
                 return json_response(200, {'ok': True})
             except Exception as e:
                 logger.error(f"notification mark-read error: {e}")
-                return json_response(200, {'ok': False})
+                return json_response(500, {'ok': False, 'error': 'Failed to update notification'})
         # Handle DELETE /api/algo/notifications/{id}
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
@@ -241,7 +244,7 @@ class APIHandler:
                 return json_response(200, {'ok': True})
             except Exception as e:
                 logger.error(f"notification delete error: {e}")
-                return json_response(200, {'ok': False})
+                return json_response(500, {'ok': False, 'error': 'Failed to delete notification'})
         # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
@@ -471,7 +474,7 @@ class APIHandler:
             return json_response(200, [dict(c) for c in reversed(curve) if c])
         except Exception as e:
             logger.error(f"Error fetching equity curve: {e}", exc_info=True)
-            return json_response(200, [])
+            return json_response(500, {'error': 'Failed to fetch equity curve'})
 
     def _get_data_status(self) -> Dict:
         """Get data freshness status."""
@@ -504,7 +507,7 @@ class APIHandler:
             return json_response(200, [dict(n) for n in notifs])
         except Exception as e:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
-            return json_response(200, [])
+            return json_response(500, {'error': 'Failed to fetch notifications'})
 
     def _get_patrol_log(self, limit: int = 50) -> Dict:
         """Get data patrol findings."""
@@ -519,7 +522,7 @@ class APIHandler:
             return json_response(200, [dict(f) for f in findings])
         except Exception as e:
             logger.error(f"Error fetching patrol log: {e}", exc_info=True)
-            return json_response(200, [])
+            return json_response(500, {'error': 'Failed to fetch patrol log'})
 
     def _get_sector_rotation(self, days: int = 180) -> Dict:
         """Get sector rotation data."""
@@ -752,8 +755,8 @@ class APIHandler:
             row = self.cur.fetchone()
             return json_response(200, dict(row) if row else {})
         except Exception as e:
-            logger.error(f"algo_config_key error: {e}")
-            return json_response(200, {})
+            logger.error(f"algo_config_key error: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Config key error: {str(e)}')
 
     def _get_algo_audit_log(self, limit: int = 100, action_type: str = None) -> Dict:
         """Return algo audit log entries."""
@@ -776,8 +779,8 @@ class APIHandler:
             rows = self.cur.fetchall()
             return json_response(200, {'data': [dict(r) for r in rows], 'total': len(rows)})
         except Exception as e:
-            logger.error(f"algo_audit_log error: {e}")
-            return json_response(200, {'data': [], 'total': 0})
+            logger.error(f"algo_audit_log error: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Audit log error: {str(e)}')
 
     def _get_signal_performance(self, days: int = 90) -> Dict:
         """Return signal trade performance summary."""
@@ -810,8 +813,8 @@ class APIHandler:
                 'trades': [dict(t) for t in trades],
             })
         except Exception as e:
-            logger.error(f"signal_performance error: {e}")
-            return json_response(200, {'summary': {}, 'trades': []})
+            logger.error(f"signal_performance error: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Signal performance error: {str(e)}')
 
     def _get_signal_performance_by_pattern(self, days: int = 90) -> Dict:
         """Return signal performance grouped by base_type (pattern)."""
@@ -833,17 +836,19 @@ class APIHandler:
             rows = self.cur.fetchall()
             return json_response(200, [dict(r) for r in rows])
         except Exception as e:
-            logger.error(f"signal_performance_by_pattern error: {e}")
-            return json_response(200, [])
+            logger.error(f"signal_performance_by_pattern error: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Signal performance pattern error: {str(e)}')
 
     def _handle_financials(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/financials/{symbol}/* endpoints."""
         try:
             parts = path.split('/')
             if len(parts) < 4:
-                return json_response(200, {})
+                return error_response(400, 'invalid_path', 'Path must include symbol: /api/financials/{symbol}/{endpoint}')
             symbol = parts[3].upper()
-            endpoint = parts[4] if len(parts) > 4 else ''
+            endpoint = parts[4] if len(parts) > 4 else None
+            if not endpoint:
+                return error_response(400, 'invalid_path', 'Path must include endpoint (income-statement, balance-sheet, cash-flow, key-metrics)')
             period = params.get('period', ['annual'])[0] if params else 'annual'
 
             if endpoint == 'income-statement':
@@ -907,12 +912,14 @@ class APIHandler:
                     WHERE km.symbol = %s
                 """, (symbol,))
                 row = self.cur.fetchone()
-                return json_response(200, dict(row) if row else {})
+                if not row:
+                    return json_response(200, {})  # Empty is acceptable for this endpoint
+                return json_response(200, dict(row))
 
-            return json_response(200, {})
+            return error_response(400, 'invalid_endpoint', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
         except Exception as e:
             logger.error(f"financials handler error: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'internal_error', f'Financials handler error: {str(e)}')
 
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
@@ -927,54 +934,63 @@ class APIHandler:
             return error_response(404, 'not_found', f'No signals handler for {path}')
 
     def _get_signals_stocks(self, limit: int = 500, timeframe: str = 'daily') -> Dict:
-        """Get stock trading signals with full enrichment."""
+        """Get stock trading signals with technical enrichment from normalized tables."""
         try:
             self.cur.execute("""
                 SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.signal_triggered_date,
-                    bsd.timeframe, bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-                    bsd.buylevel, bsd.stoplevel, bsd.strength, bsd.signal_strength,
-                    bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
-                    bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
-                    bsd.exit_trigger_3_price, bsd.exit_trigger_4_price,
-                    bsd.initial_stop, bsd.trailing_stop, bsd.sell_level,
-                    bsd.rsi, bsd.adx, bsd.atr, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-                    bsd.base_type, bsd.base_length_days, bsd.signal_type,
-                    bsd.market_stage, bsd.breakout_quality,
-                    bsd.entry_quality_score, bsd.risk_reward_ratio,
-                    bsd.mansfield_rs, bsd.sata_score, bsd.rs_rating,
-                    bsd.avg_volume_50d, bsd.volume_surge_pct,
+                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
+                    bsd.strength, bsd.reason,
+                    COALESCE(td.close, 0) as close,
+                    COALESCE(td.rsi, 0) as rsi,
+                    COALESCE(td.adx, 0) as adx,
+                    COALESCE(td.atr, 0) as atr,
+                    COALESCE(td.sma_50, 0) as sma_50,
+                    COALESCE(td.sma_200, 0) as sma_200,
+                    COALESCE(td.ema_21, 0) as ema_21,
+                    COALESCE(tt.stage, 'unknown') as market_stage,
+                    COALESCE(tt.trend, 'unknown') as trend,
                     ss.company_name, cp.sector, cp.industry,
-                    swg.score AS swing_score,
-                    swg.components->>'grade' AS grade,
-                    swg.components->>'pass_gates' AS pass_gates,
-                    swg.components->>'fail_reason' AS fail_reason
+                    COALESCE(swg.score, 0) AS swing_score,
+                    swg.components->>'grade' AS grade
                 FROM buy_sell_daily bsd
+                LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
+                    AND bsd.date = td.date
+                LEFT JOIN trend_template_daily tt ON bsd.symbol = tt.symbol
+                    AND bsd.date = tt.date
                 LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
                 LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
                     AND swg.date >= CURRENT_DATE - INTERVAL '1 day'
                 WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
-                ORDER BY bsd.signal_triggered_date DESC, bsd.date DESC
+                  AND bsd.signal IN ('BUY', 'SELL')
+                ORDER BY bsd.date DESC, bsd.symbol ASC
                 LIMIT %s
             """, (limit,))
             signals = self.cur.fetchall()
             return json_response(200, [dict(s) for s in signals])
         except Exception as e:
-            logger.error(f"get_signals_stocks failed: {e}")
-            return json_response(200, [])
+            logger.error(f"get_signals_stocks failed: {e}", exc_info=True)
+            return json_response(500, {'error': 'Failed to fetch signals', 'detail': str(e)})
 
     def _get_signals_etf(self, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
         try:
             self.cur.execute("""
                 SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.signal_triggered_date,
-                    bsd.close, bsd.volume, bsd.rsi, bsd.sma_50, bsd.sma_200,
-                    bsd.base_type, bsd.market_stage, bsd.entry_quality_score,
+                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
+                    bsd.strength, bsd.reason,
+                    COALESCE(td.close, 0) as close,
+                    COALESCE(td.rsi, 0) as rsi,
+                    COALESCE(td.sma_50, 0) as sma_50,
+                    COALESCE(td.sma_200, 0) as sma_200,
+                    COALESCE(tt.stage, 'unknown') as market_stage,
                     ss.company_name
-                FROM buy_sell_daily bsd
-                LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
+                FROM buy_sell_daily_etf bsd
+                LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
+                    AND bsd.date = td.date
+                LEFT JOIN trend_template_daily tt ON bsd.symbol = tt.symbol
+                    AND bsd.date = tt.date
+                LEFT JOIN etf_symbols ss ON bsd.symbol = ss.symbol
                 WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
                 AND bsd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
                 ORDER BY bsd.signal_triggered_date DESC
@@ -984,7 +1000,7 @@ class APIHandler:
             return json_response(200, [dict(s) for s in signals])
         except Exception as e:
             logger.error(f"get_signals_etf failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'internal_error', f'Signals ETF error: {str(e)}')
 
     def _handle_prices(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/prices/* endpoints."""
@@ -1011,7 +1027,7 @@ class APIHandler:
             return json_response(200, [dict(p) for p in reversed(prices)])
         except Exception as e:
             logger.error(f"get_price_history failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'internal_error', f'Price history error: {str(e)}')
 
     def _handle_stocks(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/stocks and /api/stocks/* endpoints."""
@@ -1121,10 +1137,15 @@ class APIHandler:
                 return json_response(200, {'total_value': total, 'cash': 0, 'exposure': 0.75})
             elif path == '/api/portfolio/allocation':
                 self.cur.execute("""
-                    SELECT sector, COUNT(*) as count, SUM(position_value) as value
-                    FROM algo_positions
-                    WHERE status = 'open'
-                    GROUP BY sector
+                    SELECT
+                        COALESCE(cp.sector, 'Unknown') as sector,
+                        COUNT(*) as count,
+                        SUM(ap.position_value) as value
+                    FROM algo_positions ap
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    WHERE ap.status = 'open'
+                    GROUP BY COALESCE(cp.sector, 'Unknown')
+                    ORDER BY value DESC
                 """)
                 alloc = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in alloc])
@@ -1280,20 +1301,19 @@ class APIHandler:
                 dist = self.cur.fetchall()
                 return json_response(200, [dict(d) for d in dist] if dist else [])
             elif path == '/api/market/seasonality':
-                symbol = params.get('symbol', ['SPY'])[0] if params else 'SPY'
+                # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
                 self.cur.execute("""
-                    SELECT month, avg_return_pct, win_rate_pct
+                    SELECT month, month_name, avg_return, best_return, worst_return,
+                           winning_years, losing_years, years_counted
                     FROM seasonality_monthly_stats
-                    WHERE symbol = %s
                     ORDER BY month
-                """, (symbol,))
+                """)
                 monthly = self.cur.fetchall()
                 self.cur.execute("""
-                    SELECT day_of_week, avg_return_pct, win_rate_pct
+                    SELECT day, day_num, avg_return, win_rate, days_counted
                     FROM seasonality_day_of_week
-                    WHERE symbol = %s
-                    ORDER BY day_of_week
-                """, (symbol,))
+                    ORDER BY day_num
+                """)
                 dow = self.cur.fetchall()
                 return json_response(200, {
                     'monthly': [dict(r) for r in monthly],
@@ -1458,10 +1478,10 @@ class APIHandler:
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
                 return json_response(200, [])
-            return json_response(200, {})
+            return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'internal_error', f'Sentiment handler error: {str(e)}')
 
     def _handle_commodities(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/commodities/* endpoints."""
@@ -1551,10 +1571,10 @@ class APIHandler:
                 """, (symbol,))
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
-            return json_response(200, {})
+            return error_response(404, 'not_found', f'No commodities handler for {path}')
         except Exception as e:
             logger.error(f"Error in commodities handler: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'internal_error', f'Commodities handler error: {str(e)}')
 
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
@@ -1643,10 +1663,10 @@ class APIHandler:
                 """, (limit,))
                 backtests = self.cur.fetchall()
                 return json_response(200, [dict(b) for b in backtests] if backtests else [])
-            return json_response(200, {})
+            return error_response(404, 'not_found', f'No research handler for {path}')
         except Exception as e:
-            logger.error(f"get_backtests failed: {e}")
-            return json_response(200, [])
+            logger.error(f"get_backtests failed: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Research handler error: {str(e)}')
 
 
     def _handle_audit(self, path: str, method: str, params: Dict) -> Dict:

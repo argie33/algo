@@ -45,9 +45,9 @@ class AnalystRatingsLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        # No real analyst ratings API wired yet; return None to avoid writing
-        # OHLCV data into analyst_upgrade_downgrade (wrong schema entirely).
-        return None
+        # No real analyst ratings API wired yet; return [] to update watermark
+        # without writing placeholder data (STATUS.md 2026-05-10 cleanup)
+        return []
 
     def transform(self, rows):
         return rows

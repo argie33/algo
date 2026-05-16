@@ -21,10 +21,13 @@ credential_manager = get_credential_manager()
 
 import psycopg2
 import os
+import logging
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -55,7 +58,7 @@ class PortfolioRisk:
             self.conn = psycopg2.connect(**_get_db_config())
             self.cur = self.conn.cursor()
         except Exception as e:
-            print(f"PortfolioRisk: DB connection failed: {e}")
+            logger.error(f"DB connection failed: {e}", exc_info=True)
             raise
 
     def disconnect(self):
@@ -184,7 +187,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: cvar error: {e}")
+            logger.error(f"CVaR calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -254,7 +257,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: stressed_var error: {e}")
+            logger.error(f"Stressed VaR calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -324,7 +327,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: beta_exposure error: {e}")
+            logger.error(f"Beta exposure calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -401,7 +404,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: concentration_report error: {e}")
+            logger.error(f"Concentration report error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -469,27 +472,30 @@ class PortfolioRisk:
                 var_pct_val = float(var_metrics['var_pct']) if var_metrics else None
                 cvar_pct_val = float(cvar_metrics['cvar_pct']) if cvar_metrics else None
                 stressed_var_pct_val = float(stressed_var['stressed_var_pct']) if stressed_var else None
+                portfolio_beta_val = float(beta['portfolio_beta']) if beta else 1.0
 
                 cur.execute(
                     """
                     INSERT INTO algo_risk_daily (
-                        report_date, var_95_pct, cvar_95_pct, stressed_var_99_pct, created_at
-                    ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        report_date, var_pct_95, cvar_pct_95, stressed_var_pct, portfolio_beta
+                    ) VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (report_date) DO UPDATE SET
-                        var_95_pct = EXCLUDED.var_95_pct,
-                        cvar_95_pct = EXCLUDED.cvar_95_pct,
-                        stressed_var_99_pct = EXCLUDED.stressed_var_99_pct
+                        var_pct_95 = EXCLUDED.var_pct_95,
+                        cvar_pct_95 = EXCLUDED.cvar_pct_95,
+                        stressed_var_pct = EXCLUDED.stressed_var_pct,
+                        portfolio_beta = EXCLUDED.portfolio_beta
                     """,
                     (
                         report_date,
                         var_pct_val,
                         cvar_pct_val,
                         stressed_var_pct_val,
+                        portfolio_beta_val,
                     )
                 )
                 conn.commit()
             except Exception as e:
-                print(f"PortfolioRisk: Failed to persist risk report: {e}")
+                logger.error(f"Failed to persist risk report: {e}", exc_info=True)
             finally:
                 if cur:
                     try:
@@ -505,5 +511,5 @@ class PortfolioRisk:
             return result
 
         except Exception as e:
-            print(f"PortfolioRisk: generate_daily_risk_report error: {e}")
+            logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}

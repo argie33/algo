@@ -8,7 +8,7 @@
  * Pipeline DAG:
  *   eod_bulk_refresh
  *     → technicals_daily
- *       → [parallel] trend_template_data + stock_scores + factor_metrics
+ *       → [parallel] trend_template_data + stock_scores
  *         → [parallel] signals_daily + signals_weekly + signals_monthly
  *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
  *           → algo_metrics_daily
@@ -227,28 +227,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   Cluster        = var.ecs_cluster_arn
                   LaunchType     = "FARGATE"
                   TaskDefinition = var.loader_task_definition_arns["stock_scores"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "FactorMetrics"
-            States = {
-              FactorMetrics = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["factor_metrics"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{

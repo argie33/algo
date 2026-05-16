@@ -45,10 +45,13 @@ credential_manager = get_credential_manager()
 
 import os
 import json
+import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -886,7 +889,7 @@ class MarketExposure:
             if self._owned:
                 self._owned.commit()
         except Exception as e:
-            print(f"  [ERROR] persist market_exposure failed for {eval_date}: {e}")
+            logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

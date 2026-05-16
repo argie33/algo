@@ -91,8 +91,8 @@ def load_stock_scores(conn):
         cur = conn.cursor()
         execute_values(
             cur,
-            "INSERT INTO stock_scores (symbol, overall_score, momentum_score, quality_score, value_score, score_date, factor_breakdown) VALUES %s ON CONFLICT (symbol, score_date) DO NOTHING",
-            scores,
+            "INSERT INTO stock_scores (symbol, composite_score, momentum_score, quality_score, value_score, growth_score, stability_score, positioning_score) VALUES %s ON CONFLICT (symbol) DO UPDATE SET momentum_score=EXCLUDED.momentum_score, quality_score=EXCLUDED.quality_score, value_score=EXCLUDED.value_score, composite_score=EXCLUDED.composite_score",
+            [(s[0], s[1], s[2], s[3], s[4], 0, 0, 0) for s in scores],
             page_size=1000
         )
         conn.commit()

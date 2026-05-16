@@ -1,11 +1,15 @@
 # Stock Analytics Platform
 
-Master deploy: `gh workflow run deploy-all-infrastructure.yml --repo argie33/algo`
+**🚀 DEPLOYMENT: GitHub Actions IaC Only — No Manual AWS Work**
+- Push to `main` → Auto-deploys via `deploy-all-infrastructure.yml` workflow
+- Watch at: https://github.com/argie33/algo/actions
+- **Never manually create/modify AWS resources — use Terraform only**
 
 | Need | See |
 |------|-----|
-| Status | STATUS.md |
-| Deploy | deployment-reference.md |
+| **✅ How to Deploy (START HERE)** | **DEPLOYMENT_GUIDE.md** |
+| **Deploy Status** | **STATUS.md** (detailed infrastructure status) |
+| **Current Infrastructure** | **STATUS.md → "CURRENT INFRASTRUCTURE STATUS"** |
 | Code changes | DECISION_MATRIX.md |
 | **Local dev** | **WSL Docker: `docker-compose up -d` in algo/ dir** |
 | Local test | memory/local_testing_setup.md |

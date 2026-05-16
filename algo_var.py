@@ -21,10 +21,13 @@ credential_manager = get_credential_manager()
 
 import psycopg2
 import os
+import logging
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -55,7 +58,7 @@ class PortfolioRisk:
             self.conn = psycopg2.connect(**_get_db_config())
             self.cur = self.conn.cursor()
         except Exception as e:
-            print(f"PortfolioRisk: DB connection failed: {e}")
+            logger.error(f"DB connection failed: {e}", exc_info=True)
             raise
 
     def disconnect(self):
@@ -92,8 +95,10 @@ class PortfolioRisk:
             )
             rows = cur.fetchall()
 
-            if len(rows) < 30:
+            if len(rows) < 5:
                 return None
+            if len(rows) < 30:
+                logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
             values = [float(row[1]) for row in rows]
             returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
@@ -116,7 +121,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: historical_var error: {e}")
+            logger.error(f"historical_var error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -156,8 +161,10 @@ class PortfolioRisk:
             )
             rows = cur.fetchall()
 
-            if len(rows) < 30:
+            if len(rows) < 5:
                 return None
+            if len(rows) < 30:
+                logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
             values = [float(row[1]) for row in rows]
             returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
@@ -184,7 +191,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: cvar error: {e}")
+            logger.error(f"CVaR calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -254,7 +261,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: stressed_var error: {e}")
+            logger.error(f"Stressed VaR calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -374,7 +381,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: beta_exposure error: {e}")
+            logger.error(f"Beta exposure calculation error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -452,7 +459,7 @@ class PortfolioRisk:
             }
 
         except Exception as e:
-            print(f"PortfolioRisk: concentration_report error: {e}")
+            logger.error(f"Concentration report error: {e}", exc_info=True)
             return None
         finally:
             if cur:
@@ -540,7 +547,7 @@ class PortfolioRisk:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"PortfolioRisk: Failed to persist risk report: {e}")
+                logger.error(f"Failed to persist risk report: {e}", exc_info=True)
             finally:
                 if cur:
                     try:
@@ -556,5 +563,5 @@ class PortfolioRisk:
             return result
 
         except Exception as e:
-            print(f"PortfolioRisk: generate_daily_risk_report error: {e}")
+            logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}

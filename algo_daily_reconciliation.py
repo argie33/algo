@@ -384,7 +384,7 @@ class DailyReconciliation:
                     'imported_external',
                 ))
 
-                # Insert position
+                # Insert position (use same stop as calculated in trade above)
                 self.cur.execute("""
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
@@ -397,7 +397,7 @@ class DailyReconciliation:
                 """, (
                     position_id, sym, int(qty), avg_entry, cur_price,
                     pos_value, pnl, pnl_pct, PositionStatus.OPEN.value, [trade_id],
-                    avg_entry * 0.92,  # placeholder 8% stop
+                    stop_loss_price,  # use calculated stop, not hardcoded 8%
                 ))
                 imported += 1
             except Exception as e:

@@ -178,21 +178,12 @@ class StressTestRunner:
             }
 
     def _parse_backtest_output(self, output: str, period_key: str) -> Dict:
-        """
-        Parse metrics from backtest output.
-
-        This is a placeholder - actual parsing depends on algo_backtest.py output format.
-        For now, returns dummy values that should be populated from logs.
-        """
-        # TODO: Parse actual output from algo_backtest.py
-        # For now, placeholder
-        return {
-            'total_trades': 0,
-            'win_rate': 0.0,
-            'sharpe': 0.0,
-            'max_dd': 0.0,
-            'total_return': 0.0,
-        }
+        """Extract backtest metrics from orchestrator output."""
+        raise NotImplementedError(
+            "_parse_backtest_output not yet implemented. "
+            "Requires definition of algo_backtest.py output format and metric extraction. "
+            "Until then, use CloudWatch logs directly for backtest validation."
+        )
 
     def run_all_crashes(self) -> List[Dict]:
         """Run backtests on all crash periods plus one normal period."""

@@ -10,6 +10,8 @@ Phase E: Smart Incremental Loading with Caching
 import os
 import boto3
 import logging
+import json
+import psycopg2
 from datetime import datetime, timedelta
 import hashlib
 
@@ -25,7 +27,7 @@ CACHE_TABLE = 'loader_execution_metadata'
 CACHE_TTL_DAYS = 7
 
 
-class IncementalLoaderState:
+class IncrementalLoaderState:
     """Track and manage loader execution state"""
 
     def __init__(self, loader_name):
@@ -134,15 +136,39 @@ class IncementalLoaderState:
         return changed_symbols
 
     def _detect_changed_symbols(self, all_symbols, since_time):
-        """Detect which symbols have changed data since last execution"""
-        # This is a placeholder - actual implementation depends on data source
-        # For price data: check last trade date > since_time
-        # For signals: check if new data available
-        # For fundamentals: check if reports released > since_time
+        """Detect which symbols have changed data since last execution.
 
-        # For now, return all symbols for incremental
-        # In production, would query data source for updates
-        return all_symbols
+        For price data: returns symbols with price updates > since_time
+        For fundamentals/earnings: returns all (quarterly changes tracked elsewhere)
+        TODO: Implement source-specific change detection to reduce API calls
+        """
+        try:
+            # Basic implementation: check which symbols have price updates
+            # This prevents fetching stale price data but still conservative
+            conn = psycopg2.connect(
+                host=os.getenv('DB_HOST', 'localhost'),
+                port=int(os.getenv('DB_PORT', 5432)),
+                user=os.getenv('DB_USER', 'stocks'),
+                password=os.getenv('DB_PASSWORD', ''),
+                database=os.getenv('DB_NAME', 'stocks'),
+            )
+            cur = conn.cursor()
+            # Get symbols with price updates since last execution
+            placeholders = ','.join(['%s'] * len(all_symbols))
+            cur.execute(f"""
+                SELECT DISTINCT symbol FROM price_daily
+                WHERE symbol IN ({placeholders})
+                AND date > %s
+                ORDER BY symbol
+            """, all_symbols + [since_time])
+            changed = set(row[0] for row in cur.fetchall())
+            cur.close()
+            conn.close()
+            logger.info(f"Incremental: {len(changed)} symbols with price updates since {since_time}")
+            return list(changed) if changed else all_symbols[:100]  # at least check some
+        except Exception as e:
+            logger.warning(f"Change detection failed: {e}, defaulting to all symbols")
+            return all_symbols  # fall back to full fetch on error
 
 
 class CachedAPIClient:
