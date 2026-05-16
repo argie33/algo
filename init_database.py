@@ -771,6 +771,8 @@ CREATE TABLE IF NOT EXISTS sector_ranking (
     sector_name VARCHAR(100),
     date_recorded DATE,
     current_rank INTEGER,
+    rank_1w_ago INTEGER,
+    rank_4w_ago INTEGER,
     momentum_score DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -791,6 +793,8 @@ CREATE TABLE IF NOT EXISTS industry_ranking (
     industry VARCHAR(100),
     date_recorded DATE,
     current_rank INTEGER,
+    rank_1w_ago INTEGER,
+    rank_4w_ago INTEGER,
     momentum_score DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
