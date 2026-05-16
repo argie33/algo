@@ -15,8 +15,8 @@ const TOOLTIP_STYLE = {
 const COLORS = ['var(--brand)', 'var(--purple)', 'var(--success)', 'var(--amber)', 'var(--danger)', 'var(--cyan)'];
 
 function RiskTab({ circuitBreakers, markets, positions = [] }) {
-  const breakers = circuitBreakers?.breakers || [];
-  const anyTriggered = circuitBreakers?.any_triggered;
+  const breakers = Array.isArray(circuitBreakers) ? circuitBreakers : (circuitBreakers?.breakers || []);
+  const anyTriggered = Array.isArray(circuitBreakers) ? false : circuitBreakers?.any_triggered;
 
   const sectorExposure = React.useMemo(() => {
     const totals = {};
@@ -40,7 +40,7 @@ function RiskTab({ circuitBreakers, markets, positions = [] }) {
     <div style={{ padding: 'var(--space-4)' }}>
       {anyTriggered && (
         <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
-          <strong>{circuitBreakers.triggered_count} circuit breaker{circuitBreakers.triggered_count !== 1 ? 's' : ''} triggered</strong> — new entries halted
+          <strong>{!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length} circuit breaker{(!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length) !== 1 ? 's' : ''} triggered</strong> — new entries halted
         </div>
       )}
 
