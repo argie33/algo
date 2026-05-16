@@ -94,9 +94,6 @@ export default function EconomicDashboard() {
       }
     }
 
-    // IG Credit Spread (correct key is BAMLH0A0IG)
-    const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
-
     const t10y3m = yieldData?.spreads?.T10Y3M;
     const t10y2y = yieldData?.spreads?.T10Y2Y;
     const spread = t10y3m ?? t10y2y;
@@ -533,9 +530,10 @@ export default function EconomicDashboard() {
           <>
             {/* Calculate CPI YoY from history */}
             {cpiInd?.history && cpiInd.history.length >= 13 && (() => {
-              const current = +cpiInd.history[0].value;
-              const yearAgo = +cpiInd.history[12].value;
-              const cpiYoY = yearAgo > 0 ? ((current - yearAgo) / yearAgo) * 100 : null;
+              const sorted = [...cpiInd.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+              const current = sorted[0]?.value ? +sorted[0].value : null;
+              const yearAgo = sorted[12]?.value ? +sorted[12].value : null;
+              const cpiYoY = yearAgo > 0 && current != null ? ((current - yearAgo) / yearAgo) * 100 : null;
               const rate10Y = yieldData?.currentCurve?.['10Y'];
               const realRate = cpiYoY != null && rate10Y != null ? rate10Y - cpiYoY : null;
 
