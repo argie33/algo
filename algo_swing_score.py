@@ -44,11 +44,14 @@ except ImportError:
 import os
 import json
 import psycopg2
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Tuple, Any, Optional
 from algo_signals import SignalComputer
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -158,30 +161,32 @@ class SwingTraderScore:
         Returns:
             Dict with swing_score, grade, components breakdown, and hard-gate details
         """
-        self.connect()
+        try:
+            self.connect()
 
-        # Hard gates
-        gates = self._check_hard_gates(symbol, eval_date, sector, industry)
-        if not gates['pass']:
-            return {
-                'symbol': symbol,
-                'eval_date': str(eval_date),
-                'pass': False,
-                'reason': gates['reason'],
-                'hard_gates': gates,
-                'swing_score': 0.0,
-            }
+            # Hard gates
+            gates = self._check_hard_gates(symbol, eval_date, sector, industry)
+            if not gates['pass']:
+                logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
+                return {
+                    'symbol': symbol,
+                    'eval_date': str(eval_date),
+                    'pass': False,
+                    'reason': gates['reason'],
+                    'hard_gates': gates,
+                    'swing_score': 0.0,
+                }
 
-        # Compute components
-        setup_pts, setup_detail = self._setup_component(symbol, eval_date)
-        trend_pts, trend_detail = self._trend_component(symbol, eval_date)
-        mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
-        vol_pts, vol_detail = self._volume_component(symbol, eval_date)
-        fund_pts, fund_detail = self._fundamentals_component(symbol)
-        sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
-        mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
+            # Compute components
+            setup_pts, setup_detail = self._setup_component(symbol, eval_date)
+            trend_pts, trend_detail = self._trend_component(symbol, eval_date)
+            mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
+            vol_pts, vol_detail = self._volume_component(symbol, eval_date)
+            fund_pts, fund_detail = self._fundamentals_component(symbol)
+            sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
+            mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
 
-        total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
+            total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
         # Letter grade
         if total >= 85:
@@ -215,7 +220,20 @@ class SwingTraderScore:
             'hard_gates': gates,
         }
         self._persist(symbol, eval_date, result)
+        logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
         return result
+
+        except Exception as e:
+            logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
+            return {
+                'symbol': symbol,
+                'eval_date': str(eval_date),
+                'pass': False,
+                'reason': f'calculation error: {str(e)[:60]}',
+                'swing_score': 0.0,
+            }
+        finally:
+            self.disconnect()
 
     # ============= HARD GATES =============
 
