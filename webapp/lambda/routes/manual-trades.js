@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching manual trades', err);
-    return sendError(res, 500, 'Failed to fetch trades', 'DB_ERROR');
+    return sendError(res, 'Failed to fetch trades', 500, 'DB_ERROR');
   }
 });
 
@@ -50,13 +50,13 @@ router.get('/:id', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 404, 'Trade not found', 'NOT_FOUND');
+      return sendError(res, 'Trade not found', 404, 'NOT_FOUND');
     }
 
     return sendSuccess(res, result.rows[0]);
   } catch (err) {
     console.error('Error fetching trade', err);
-    return sendError(res, 500, 'Failed to fetch trade', 'DB_ERROR');
+    return sendError(res, 'Failed to fetch trade', 500, 'DB_ERROR');
   }
 });
 

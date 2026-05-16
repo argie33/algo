@@ -420,6 +420,20 @@ router.get("/leading-indicators", async (req, res) => {
             date: indicators["NMFCI"] ? indicators["NMFCI"].date : null,
             history: historicalData["NMFCI"] ? historicalData["NMFCI"].reverse() : [],
           },
+          {
+            name: "30Y Mortgage Rate",
+            category: "SECONDARY",
+            value: indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value : null,
+            unit: "%",
+            ...calculateTrend("MORTGAGE30US"),
+            signal: indicators["MORTGAGE30US"] ? (indicators["MORTGAGE30US"].value < 5 ? "Positive" : indicators["MORTGAGE30US"].value > 7 ? "Negative" : null) : null,
+            description: "Primary mortgage market survey - 30-year fixed rate mortgage average",
+            strength: indicators["MORTGAGE30US"] ? Math.min(100, Math.max(0, 100 - indicators["MORTGAGE30US"].value * 10)) : null,
+            importance: "medium",
+            date: indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].date : null,
+            history: historicalData["MORTGAGE30US"] ? historicalData["MORTGAGE30US"].reverse() : [],
+          },
         ].filter(ind => ind.rawValue !== null); // Filter out indicators with no data
 
     // Return in standard format with data wrapper and success field

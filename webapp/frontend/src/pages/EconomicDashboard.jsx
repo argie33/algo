@@ -232,6 +232,7 @@ export default function EconomicDashboard() {
   const indproInd  = ind('Industrial Production');
   const housingInd = ind('Housing Starts') || ind('Housing');
   const michInd    = ind('Consumer Sentiment') || ind('Michigan');
+  const mortgageInd = ind('Mortgage Rate') || ind('MORTGAGE30US');
 
   return (
     <div className="main-content">
@@ -613,7 +614,7 @@ export default function EconomicDashboard() {
             <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
               <MacroKpi label="Housing Starts" ind={housingInd} unit="K" />
               <MacroKpi label="Consumer Sentiment" ind={michInd} unit="" />
-              <MacroKpi label="30Y Mortgage Rate" ind={null} unit="%" />
+              <MacroKpi label="30Y Mortgage Rate" ind={mortgageInd} unit="%" />
             </div>
 
             {housingInd && <IndHistory ind={housingInd} title="Housing Starts" sub="New residential construction — Census Bureau (thousands)" color="var(--cyan)" />}
