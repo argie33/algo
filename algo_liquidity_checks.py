@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from structured_logger import get_logger
+from credential_helper import get_db_config
 import os
 
 env_file = Path(__file__).parent / '.env.local'
@@ -30,13 +31,8 @@ class LiquidityChecks:
     def connect(self):
         """Connect to database."""
         if not self.conn:
-            self.conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", 5432)),
-                user=os.getenv("DB_USER", "stocks"),
-                password=os.getenv("DB_PASSWORD", "postgres"),
-                database=os.getenv("DB_NAME", "stocks"),
-            )
+            config = get_db_config()
+            self.conn = psycopg2.connect(**config)
 
     def disconnect(self):
         """Disconnect from database."""
