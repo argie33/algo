@@ -8,15 +8,18 @@
 ## 🔍 **SESSION 55 — ECONOMIC CALENDAR PIPELINE + API FIXES**
 
 ### Fixes Applied
-- **`init_database.py`**: Updated `economic_calendar` schema (event_id, event_date, category, forecast_value, etc.) to match `init_db.sql`. Added `_run_migrations()` for idempotent ALTER TABLE upgrades on existing databases.
-- **`/api/economic/calendar`**: Query now uses new column names (event_date, forecast_value, etc.) and returns them with names the frontend expects.
-- **`/api/economic/leading-indicators`**: Added GDPC1 (Real GDP) to indicator map. Convert GDPC1/INDPRO/RSXFS/PAYEMS from absolute levels to YoY % change — GDP was showing $25T raw value where frontend expected growth %.
-- **Trend direction bug fixed**: `history[:3]` = oldest, `history[-3:]` = newest — original code had `recent_avg/older_avg` variable names swapped so 'up' trend actually meant falling.
+- **`init_database.py`**: Updated `economic_calendar` schema; added `_run_migrations()` for idempotent ALTER TABLE on existing databases.
+- **`/api/economic/calendar`**: Query now uses new column names matching what the frontend checks (`forecast_value`, not `forecast`).
+- **`/api/economic/leading-indicators`**: Added GDPC1 (Real GDP). Convert GDPC1/INDPRO/RSXFS/PAYEMS/HOUST from absolute levels to YoY % change (GDP was showing $25T raw). Fixed FRED series IDs: `DFF→FEDFUNDS`, `MMNRNJ→M2SL` (those series were never loaded). Added `UMCSENT` (Consumer Sentiment) and `HOUST` (Housing Starts).
+- **Trend direction bug**: `history[:3]`=oldest, `history[-3:]`=newest — variable names `recent_avg`/`older_avg` were swapped, so "up" trend actually meant falling.
+- **Staleness defaults unified**: circuit_breaker.py and orchestrator.py both had different fallback defaults (5 and 7 days). Now both use 3 to match `algo_config.py`.
+- **Exit engine critical bug**: `SET active_stop = %s` in stop-raise UPDATE used wrong column name. DB column is `current_stop_price`. All trailing stop raises after T1/T2 were silently discarded — positions lost protection.
+- **TD Sequential r_mult duplicate removed**: `r_mult_local` in TD block was identical calculation to existing `r_mult`. Simplified to use `r_mult` directly.
+- **`exit_time` now written on full exit**: Schema column existed but was never populated; now set to `CURRENT_TIMESTAMP` on trade close.
 
 ### Open Items (Remaining)
-- **Rate limiting**: In-memory only; won't survive Lambda scaling across instances. Needs DynamoDB/ElastiCache backing for true distributed rate limiting.
-- **Composite score weights**: Fixed 20/19/19/12/15/15 split regardless of market regime; could shift dynamically in bear markets.
-- **TD Sequential Combo 13**: `combo_13_complete` key never emitted by `td_sequential()` in algo_signals.py → exit path in algo_exit_engine.py line 340 permanently dead. Safe (conservative) but worth documenting.
+- **Rate limiting**: In-memory only; won't survive Lambda scaling across instances.
+- **Composite score weights**: Fixed split regardless of market regime.
 - **API response shape**: 6 formats across 35 endpoints; frontend handles defensively, low priority.
 
 ---
