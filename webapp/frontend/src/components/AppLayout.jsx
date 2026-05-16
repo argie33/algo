@@ -16,7 +16,7 @@ import {
   Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, Sliders, GitBranch,
-  HeartPulse, Zap, Boxes, Crosshair,
+  HeartPulse, Zap, Crosshair,
   Bot, BarChart2, Bell,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,7 +35,6 @@ const NAV_SECTIONS = [
       { text: 'Sector Analysis', icon: Briefcase,  path: '/app/sectors' },
       { text: 'Sentiment',       icon: Activity,   path: '/app/sentiment' },
       { text: 'Economic',        icon: Globe,      path: '/app/economic' },
-      { text: 'Commodities',     icon: Boxes,      path: '/app/commodities' },
     ],
   },
   {

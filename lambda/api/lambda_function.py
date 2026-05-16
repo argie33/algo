@@ -14,7 +14,6 @@ Endpoints:
 - /api/market/* — market data
 - /api/economic/* — economic indicators
 - /api/sentiment/* — market sentiment
-- /api/commodities/* — commodity data
 - /api/health — API health check
 """
 
@@ -232,10 +231,6 @@ class APIHandler:
             # Sentiment endpoints
             if path.startswith('/api/sentiment/'):
                 return self._handle_sentiment(path, method, query_params)
-
-            # Commodities endpoints
-            if path.startswith('/api/commodities/'):
-                return self._handle_commodities(path, method, query_params)
 
             # Research endpoints
             if path.startswith('/api/research/'):
@@ -1741,99 +1736,6 @@ class APIHandler:
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', f'Sentiment handler error: {str(e)}')
-
-    def _handle_commodities(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/commodities/* endpoints."""
-        try:
-            if path == '/api/commodities/prices':
-                limit = int(params.get('limit', [50])[0]) if params else 50
-                self.cur.execute("""
-                    SELECT symbol, name, price, date
-                    FROM commodity_prices
-                    ORDER BY symbol
-                    LIMIT %s
-                """, (limit,))
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/commodities/categories':
-                self.cur.execute("SELECT category, symbols FROM commodity_categories ORDER BY category")
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/commodities/correlations':
-                self.cur.execute("""
-                    SELECT symbol1, symbol2, correlation_30d, correlation_90d, correlation_1y
-                    FROM commodity_correlations
-                    ORDER BY ABS(correlation_90d) DESC
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/commodities/events':
-                self.cur.execute("""
-                    SELECT event_name, event_date, event_type, description, impact
-                    FROM commodity_events
-                    ORDER BY event_date DESC
-                    LIMIT 50
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/commodities/macro':
-                self.cur.execute("""
-                    SELECT DISTINCT ON (series_id) series_id, series_name, date, value
-                    FROM commodity_macro_drivers
-                    ORDER BY series_id, date DESC
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/commodities/market-summary':
-                self.cur.execute("""
-                    SELECT cp.symbol, cp.name, cp.price, cp.date,
-                           cph.open, cph.high, cph.low, cph.close, cph.volume
-                    FROM commodity_prices cp
-                    LEFT JOIN commodity_price_history cph
-                        ON cph.symbol = cp.symbol
-                        AND cph.date = cp.date
-                    ORDER BY cp.symbol
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path.startswith('/api/commodities/technicals/'):
-                symbol = path.split('/api/commodities/technicals/')[-1].upper()
-                self.cur.execute("""
-                    SELECT date, rsi, macd, macd_signal, sma_20, sma_50, sma_200,
-                           bb_upper, bb_lower, atr, signal
-                    FROM commodity_technicals
-                    WHERE symbol = %s
-                    ORDER BY date DESC
-                    LIMIT 60
-                """, (symbol,))
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path.startswith('/api/commodities/seasonality/'):
-                symbol = path.split('/api/commodities/seasonality/')[-1].upper()
-                self.cur.execute("""
-                    SELECT month, avg_return, win_rate, volatility, num_years
-                    FROM commodity_seasonality
-                    WHERE symbol = %s
-                    ORDER BY month
-                """, (symbol,))
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path.startswith('/api/commodities/cot/'):
-                symbol = path.split('/api/commodities/cot/')[-1].upper()
-                self.cur.execute("""
-                    SELECT date, commercial_long, commercial_short,
-                           non_commercial_long, non_commercial_short
-                    FROM cot_data
-                    WHERE symbol = %s
-                    ORDER BY date DESC
-                    LIMIT 52
-                """, (symbol,))
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            return error_response(404, 'not_found', f'No commodities handler for {path}')
-        except Exception as e:
-            logger.error(f"Error in commodities handler: {e}", exc_info=True)
-            return error_response(500, 'internal_error', f'Commodities handler error: {str(e)}')
 
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""

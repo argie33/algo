@@ -17,7 +17,6 @@ import {
   TrendingUp as TrendingUpIcon,
   Business as BusinessIcon,
   SwapHoriz as SwapHorizIcon,
-  Grain as GrainIcon,
 } from "@mui/icons-material";
 
 // Dashboard pages - Lazy-loaded for code splitting
@@ -30,7 +29,6 @@ const BacktestResults = React.lazy(() => import("./pages/BacktestResults"));
 const EconomicDashboard = React.lazy(() => import("./pages/EconomicDashboard"));
 const SectorAnalysis = React.lazy(() => import("./pages/SectorAnalysis"));
 const Sentiment = React.lazy(() => import("./pages/Sentiment"));
-const CommoditiesAnalysis = React.lazy(() => import("./pages/CommoditiesAnalysis"));
 const ScoresDashboard = React.lazy(() => import("./pages/ScoresDashboard"));
 const MetricsDashboard = React.lazy(() => import("./pages/MetricsDashboard"));
 const TradeTracker = React.lazy(() => import("./pages/TradeTracker"));
@@ -81,12 +79,6 @@ const menuItems = [
     text: "Sectors",
     icon: <BusinessIcon />,
     path: "/app/sectors",
-    category: "markets",
-  },
-  {
-    text: "Commodities",
-    icon: <GrainIcon />,
-    path: "/app/commodities",
     category: "markets",
   },
 
@@ -403,7 +395,6 @@ function App() {
           <Route path="/app/economic" element={<EconomicDashboard />} />
           <Route path="/app/sectors" element={<SectorAnalysis />} />
           <Route path="/app/sentiment" element={<Sentiment />} />
-          <Route path="/app/commodities" element={<CommoditiesAnalysis />} />
 
           {/* Stocks Analysis & Signals */}
           <Route path="/app/deep-value" element={<DeepValueStocks />} />

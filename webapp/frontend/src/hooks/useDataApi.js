@@ -84,17 +84,6 @@ export const useEconomicData = (params = {}) => {
 };
 
 /**
- * Get commodities data
- */
-export const useCommodities = (params = {}) => {
-  const { limit = 50 } = params;
-  return useApiQuery(
-    ['commodities', limit],
-    () => api.get('/api/commodities/prices', { params: { limit } })
-  );
-};
-
-/**
  * Get health status of all services
  */
 export const useServiceHealth = () => {
@@ -113,6 +102,5 @@ export default {
   usePriceHistory,
   useIndustries,
   useEconomicData,
-  useCommodities,
   useServiceHealth,
 };
