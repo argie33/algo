@@ -43,12 +43,19 @@ _PERIOD_CONFIG = {
         "schema_cols": frozenset({
             "symbol", "fiscal_year",
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
+            "capex", "depreciation", "depreciation_and_amortization",
         }),
         "field_mapping": {
+            # Operating activities
             "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            # Investing activities
             "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
-            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
             "payments_to_acquire_property_plant_and_equipment": "capex",
+            # Financing activities
+            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+            # Depreciation metrics
+            "depreciation": "depreciation",
+            "depreciation_and_amortization": "depreciation_and_amortization",
         },
     },
     "quarterly": {
@@ -56,11 +63,16 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year", "fiscal_period"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "fiscal_quarter",
-            "operating_cash_flow", "free_cash_flow",
+            "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
         }),
         "field_mapping": {
+            # Operating activities
             "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            # Investing activities
+            "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
             "payments_to_acquire_property_plant_and_equipment": "capex",
+            # Financing activities
+            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
         },
     },
 }

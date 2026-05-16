@@ -190,12 +190,12 @@ class DataPatrol:
             ('market_health_daily', 'date', 'daily', 7, ERROR),
             ('sector_ranking', 'date_recorded', 'daily', 10, WARN),
             ('industry_ranking', 'date_recorded', 'daily', 10, WARN),
-            ('insider_transactions', 'transaction_date', 'daily', 14, WARN),
-            ('analyst_upgrade_downgrade', 'action_date', 'daily', 14, INFO),
-            ('stock_scores', 'score_date', 'weekly', 14, ERROR),
+            ('insider_transactions', 'trade_date', 'daily', 14, WARN),
+            ('analyst_upgrade_downgrade', 'date', 'daily', 14, INFO),
+            ('stock_scores', 'created_at', 'weekly', 14, ERROR),
             ('aaii_sentiment', 'date', 'weekly', 14, WARN),
-            ('growth_metrics', 'date', 'monthly', 45, WARN),
-            ('earnings_history', 'quarter', 'quarterly', 120, INFO),
+            ('growth_metrics', 'created_at', 'monthly', 45, WARN),
+            ('earnings_history', 'earnings_date', 'quarterly', 120, INFO),
         ]
         today = _date.today()
         for tbl, col, freq, max_days, sev_on_stale in sources:
