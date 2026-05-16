@@ -7,3 +7,4 @@ cognito_enabled           = false  # Public API access (no authentication requir
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
 # For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
 # Or create terraform.tfvars.local (gitignored) with: rds_password = "..."
+# Trigger deployment - force re-apply Terraform for Cognito auth fix
