@@ -1711,13 +1711,15 @@ class APIHandler:
             'INDPRO': 'Industrial Production',
             'RSXFS': 'Retail Sales',
             'CPIAUCSL': 'CPI - All Urban Consumers',
-            'DFF': 'Federal Funds Rate',
-            'MMNRNJ': 'MZM Money Stock',
+            'FEDFUNDS': 'Federal Funds Rate',
+            'M2SL': 'M2 Money Supply',
             'T10Y2Y': 'Yield Curve (10Y-2Y)',
             'GDPC1': 'GDP Growth',
+            'UMCSENT': 'Consumer Sentiment',
+            'HOUST': 'Housing Starts',
         }
         # Series that report absolute levels but should be shown as YoY % change
-        yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS'}
+        yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS', 'HOUST'}
 
         try:
             # Get latest values for all indicators
