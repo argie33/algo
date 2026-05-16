@@ -58,13 +58,14 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year", "fiscal_period"),
         "edgar_period": "quarterly",
         "schema_cols": frozenset({
-            "symbol", "fiscal_year", "fiscal_quarter", "revenue", "net_income", "earnings_per_share",
+            "symbol", "fiscal_year", "fiscal_period", "revenue", "net_income", "earnings_per_share",
         }),
         "field_mapping": {
             "revenues": "revenue",
             "net_income_loss": "net_income",
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",
+            "fiscal_period": "fiscal_period",
         },
     },
 }
@@ -130,7 +131,7 @@ class IncomeStatementLoader(OptimalLoader):
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
-                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
+                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_period"))
             if key not in seen:
                 seen[key] = row
         return list(seen.values())

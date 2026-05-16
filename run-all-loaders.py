@@ -39,9 +39,11 @@ tier_2_reference = [
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
 ]
 
-# Tier 2b: Computed metrics (depends on tier 2 financials, quality/value removed until annual financials fixed)
+# Tier 2b: Computed metrics (depends on tier 2 financials)
 tier_2b_metrics = [
     'load_growth_metrics.py',
+    'load_quality_metrics.py',
+    'load_value_metrics.py',
 ]
 
 # Tier 3: Technical signals (depends on prices)

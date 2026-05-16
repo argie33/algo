@@ -254,7 +254,7 @@ class APIHandler:
 
             # Contact endpoints
             if path == '/api/contact' or path.startswith('/api/contact/'):
-                return self._handle_contact(path, method, query_params)
+                return self._handle_contact(path, method, query_params, body)
 
             return error_response(404, 'not_found', f'No handler for {path}')
 
@@ -421,9 +421,9 @@ class APIHandler:
         try:
             import numpy as np
             self.cur.execute("""
-                SELECT trade_id, symbol, entry_date, exit_date, entry_price, exit_price,
+                SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price,
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
-                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - entry_date) as holding_days
+                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
                 FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date ASC
             """)
             trades = [dict(row) for row in self.cur.fetchall()]
