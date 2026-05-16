@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Algo Metrics Daily Loader (ORCHESTRATOR)
 
@@ -18,6 +17,7 @@ Single unified script that calculates ALL algo metrics daily in one efficient pa
 Runs as single atomic transaction. Idempotent design - safe to run multiple times per day.
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

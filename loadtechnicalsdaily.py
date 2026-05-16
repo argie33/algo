@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
-# fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 loadtechnicalsdaily.py — Canonical loader for technical_data_daily
 
@@ -17,6 +15,7 @@ USAGE:
   python3 loadtechnicalsdaily.py --symbol AAPL  # single symbol
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
