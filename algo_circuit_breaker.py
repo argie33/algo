@@ -31,7 +31,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
-from typing import Dict, List, Any, Tuple
+from typing import Dict, Any
 from trade_status import TradeStatus, PositionStatus
 import logging
 

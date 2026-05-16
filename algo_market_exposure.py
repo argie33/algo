@@ -55,7 +55,7 @@ import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, date as _date
+from datetime import date as _date
 
 logger = logging.getLogger(__name__)
 

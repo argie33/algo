@@ -26,8 +26,8 @@ except ImportError:
 import psycopg2
 import os
 import logging
-from datetime import datetime, date, timedelta
-from typing import Optional, Dict, Any, List
+from datetime import datetime, date
+from typing import Optional, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
 

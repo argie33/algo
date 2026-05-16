@@ -179,37 +179,6 @@ class EconomicCalendar:
             logger.warning(f"Failed to get quiet period status: {e}")
             return {'next_release': None, 'is_quiet': True}
 
-    def populate_sample_calendar(self) -> None:
-        """Populate economic calendar with sample 2026 events."""
-        events = [
-            ('ISM Manufacturing', datetime(2026, 5, 1, 14, 0), 'high'),
-            ('ISM Services', datetime(2026, 5, 5, 14, 0), 'high'),
-            ('Jobless Claims', datetime(2026, 5, 7, 13, 30), 'medium'),
-            ('Non-Farm Payroll', datetime(2026, 5, 8, 13, 30), 'high'),
-            ('Retail Sales', datetime(2026, 5, 15, 13, 30), 'high'),
-            ('PPI', datetime(2026, 5, 14, 13, 30), 'high'),
-            ('CPI', datetime(2026, 5, 12, 13, 30), 'high'),
-            ('FOMC Meeting', datetime(2026, 5, 19, 18, 0), 'high'),
-        ]
-
-        try:
-            conn = psycopg2.connect(**_get_db_config())
-            cur = conn.cursor()
-
-            for event_name, scheduled_time, impact in events:
-                cur.execute(
-                    """INSERT INTO economic_calendar (event_name, scheduled_time, impact, description)
-                       VALUES (%s, %s, %s, %s)
-                       ON CONFLICT DO NOTHING""",
-                    (event_name, scheduled_time, impact, f"{event_name} economic data release")
-                )
-
-            conn.commit()
-            cur.close()
-            conn.close()
-            logger.info("Economic calendar populated with sample events")
-        except Exception as e:
-            logger.warning(f"Failed to populate economic calendar: {e}")
 
 
 if __name__ == "__main__":

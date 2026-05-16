@@ -23,7 +23,7 @@ import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 from trade_status import TradeStatus, PositionStatus
 from alpaca_response_validator import AlpacaResponseValidator
