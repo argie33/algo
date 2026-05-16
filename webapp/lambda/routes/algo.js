@@ -1842,24 +1842,22 @@ router.get('/sector-rotation', async (req, res) => {
     const limit = parseInt(req.query.limit) || 90;
 
     const result = await pool.query(
-      `SELECT date, defensive_lead_score, cyclical_weak_score, signal,
-              defensive_avg_rs, cyclical_avg_rs, spread, weeks_persistent
+      `SELECT date, sector, signal, strength, rank, details
        FROM sector_rotation_signal
-       ORDER BY date DESC LIMIT $1`,
+       ORDER BY date DESC, rank ASC NULLS LAST LIMIT $1`,
       [limit]
     );
 
     return res.json({
       success: true,
-      items: result.rows.reverse().map(r => ({
+      items: result.rows.map(r => ({
         date: r.date,
-        defensive_lead_score: parseFloat(r.defensive_lead_score || 0),
-        cyclical_weak_score: parseFloat(r.cyclical_weak_score || 0),
+        sector: r.sector,
         signal: r.signal,
-        defensive_avg_rs: parseFloat(r.defensive_avg_rs || 0),
-        cyclical_avg_rs: parseFloat(r.cyclical_avg_rs || 0),
-        spread: parseFloat(r.spread || 0),
-        weeks_persistent: r.weeks_persistent,
+        strength: parseFloat(r.strength || 0),
+        rank: r.rank,
+        // details JSONB may contain extended metrics from algo_sector_rotation.py
+        ...(r.details || {}),
       })),
       timestamp: new Date(),
     });
