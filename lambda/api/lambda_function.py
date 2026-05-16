@@ -728,7 +728,7 @@ class APIHandler:
         """Get latest market exposure from market_exposure_daily."""
         try:
             self.cur.execute("""
-                SELECT date, exposure_pct, regime, raw_score, distribution_days, factors, halt_reasons
+                SELECT date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -736,26 +736,12 @@ class APIHandler:
             row = self.cur.fetchone()
             if not row:
                 return json_response(200, {'current_exposure': None, 'exposure_tier': None})
-            regime = row.get('regime', 'caution')
-            regime_tier_map = {
-                'bull': 'tier_1_strong_uptrend',
-                'uptrend': 'tier_1_strong_uptrend',
-                'pressure': 'tier_2_pressure',
-                'caution': 'tier_3_caution',
-                'correction': 'tier_4_correction',
-                'bear': 'tier_4_correction',
-            }
-            exposure_tier = regime_tier_map.get(regime, 'tier_3_caution')
-            halt_reasons = json.loads(row.get('halt_reasons') or '[]') if row.get('halt_reasons') else []
-            is_entry_allowed = len(halt_reasons) == 0
             return json_response(200, {
-                'current_exposure': float(row['exposure_pct'] or 0),
-                'exposure_tier': exposure_tier,
-                'is_entry_allowed': is_entry_allowed,
-                'regime': regime,
-                'raw_score': float(row.get('raw_score') or 0),
-                'distribution_days': row.get('distribution_days', 0),
-                'halt_reasons': halt_reasons,
+                'current_exposure': float(row['market_exposure_pct'] or 0),
+                'long_exposure': float(row['long_exposure_pct'] or 0),
+                'short_exposure': float(row['short_exposure_pct'] or 0),
+                'exposure_tier': row.get('exposure_tier', 'tier_3_caution'),
+                'is_entry_allowed': bool(row.get('is_entry_allowed', False)),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except Exception as e:
