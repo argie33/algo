@@ -45,24 +45,25 @@ _PERIOD_CONFIG = {
             "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
-            # Total assets (SEC EDGAR uses PascalCase)
-            "Assets": "total_assets",
+            # SEC EDGAR client converts concept names to snake_case before returning
+            # Total assets
+            "assets": "total_assets",
             # Current assets
-            "AssetsCurrent": "current_assets",
-            "CashAndCashEquivalentsAtCarryingValue": "cash_and_equivalents",
-            "AccountsReceivableNetCurrent": "accounts_receivable",
-            "InventoryNet": "inventory",
+            "assets_current": "current_assets",
+            "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
+            "accounts_receivable_net_current": "accounts_receivable",
+            "inventory_net": "inventory",
             # Fixed assets
-            "PropertyPlantAndEquipmentNet": "ppe_net",
-            "Goodwill": "goodwill",
+            "property_plant_and_equipment_net": "ppe_net",
+            "goodwill": "goodwill",
             # Total liabilities
-            "Liabilities": "total_liabilities",
+            "liabilities": "total_liabilities",
             # Current liabilities
-            "LiabilitiesCurrent": "current_liabilities",
+            "liabilities_current": "current_liabilities",
             # Equity
-            "StockholdersEquity": "stockholders_equity",
+            "stockholders_equity": "stockholders_equity",
             # Long-term debt
-            "LongTermDebt": "long_term_debt",
+            "long_term_debt": "long_term_debt",
         },
     },
     "quarterly": {
@@ -73,10 +74,11 @@ _PERIOD_CONFIG = {
             "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
-            "Assets": "total_assets",
-            "AssetsCurrent": "current_assets",
-            "Liabilities": "total_liabilities",
-            "StockholdersEquity": "stockholders_equity",
+            # SEC EDGAR client converts concept names to snake_case before returning
+            "assets": "total_assets",
+            "assets_current": "current_assets",
+            "liabilities": "total_liabilities",
+            "stockholders_equity": "stockholders_equity",
         },
     },
 }
