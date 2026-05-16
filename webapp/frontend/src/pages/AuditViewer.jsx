@@ -7,18 +7,21 @@ const AuditViewer = () => {
   const { apiUrl: API_BASE_URL } = getApiConfig();
   const [limit, setLimit] = useState(100);
   const [expandedId, setExpandedId] = useState(null);
+  const [activeTab, setActiveTab] = useState('trades');
+  const [offset, setOffset] = useState(0);
 
   const { data: auditData, loading: auditLoading, error: auditError, refetch } = useApiQuery(
-    ['auditLog', limit],
+    ['auditLog', activeTab, limit, offset],
     async () => {
-      const response = await fetch(`${API_BASE_URL}/api/algo/audit-log?limit=${limit}`);
-      if (!response.ok) throw new Error('Failed to fetch audit logs');
+      const endpoint = activeTab === 'trades' ? '/api/audit/trades' : activeTab === 'config' ? '/api/audit/config' : '/api/audit/safeguards';
+      const response = await fetch(`${API_BASE_URL}${endpoint}?limit=${limit}&offset=${offset}`);
+      if (!response.ok) throw new Error(`Failed to fetch ${activeTab} audit logs`);
       return response.json();
     },
     { staleTime: 30000 }
   );
 
-  const items = auditData?.items || [];
+  const items = auditData?.data || [];
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -51,9 +54,30 @@ const AuditViewer = () => {
     <div style={{ padding: '20px', background: 'var(--bg-primary)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>Audit Trail</h2>
-        <button onClick={() => refetch()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button onClick={() => { setOffset(0); refetch(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--accent-color)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
           <RefreshCw size={16} /> Refresh
         </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)' }}>
+        {['trades', 'config', 'safeguards'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); setOffset(0); }}
+            style={{
+              padding: '10px 16px',
+              background: activeTab === tab ? 'var(--accent-color)' : 'transparent',
+              color: activeTab === tab ? 'white' : 'var(--text-secondary)',
+              border: 'none',
+              cursor: 'pointer',
+              borderBottom: activeTab === tab ? '2px solid var(--accent-color)' : 'none',
+              textTransform: 'capitalize',
+              fontWeight: activeTab === tab ? 'bold' : 'normal'
+            }}
+          >
+            {tab === 'trades' ? 'Trade Actions' : tab === 'config' ? 'Config Changes' : 'Safeguard Activations'}
+          </button>
+        ))}
       </div>
 
       {auditError && (
@@ -119,6 +143,46 @@ const AuditViewer = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+            Showing {offset + 1}-{Math.min(offset + limit, (auditData?.pagination?.total || 0))} of {auditData?.pagination?.total || 0}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setOffset(Math.max(0, offset - limit))}
+              disabled={offset === 0}
+              style={{
+                padding: '8px 12px',
+                background: offset === 0 ? 'var(--bg-secondary)' : 'var(--accent-color)',
+                color: offset === 0 ? 'var(--text-secondary)' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: offset === 0 ? 'not-allowed' : 'pointer',
+                opacity: offset === 0 ? 0.5 : 1
+              }}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setOffset(offset + limit)}
+              disabled={offset + limit >= (auditData?.pagination?.total || 0)}
+              style={{
+                padding: '8px 12px',
+                background: offset + limit >= (auditData?.pagination?.total || 0) ? 'var(--bg-secondary)' : 'var(--accent-color)',
+                color: offset + limit >= (auditData?.pagination?.total || 0) ? 'var(--text-secondary)' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: offset + limit >= (auditData?.pagination?.total || 0) ? 'not-allowed' : 'pointer',
+                opacity: offset + limit >= (auditData?.pagination?.total || 0) ? 0.5 : 1
+              }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>
