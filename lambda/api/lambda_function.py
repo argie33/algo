@@ -1921,7 +1921,7 @@ class APIHandler:
             return error_response(500, 'database_error', str(e))
 
 
-    def _handle_contact(self, path: str, method: str, params: Dict) -> Dict:
+    def _handle_contact(self, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/contact and /api/contact/submissions."""
         try:
             if path == '/api/contact/submissions':
@@ -1934,8 +1934,18 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows])
             elif path == '/api/contact' and method == 'POST':
+                data = body or {}
+                name = str(data.get('name', ''))[:200]
+                email = str(data.get('email', ''))[:200]
+                subject = str(data.get('subject', ''))[:500]
+                message = str(data.get('message', ''))[:5000]
+                self.cur.execute("""
+                    INSERT INTO contact_submissions (name, email, subject, message, status, submitted_at)
+                    VALUES (%s, %s, %s, %s, 'new', NOW())
+                """, (name, email, subject, message))
+                self.conn.commit()
                 return json_response(200, {'ok': True, 'message': 'Contact form submission received'})
-            return error_response(500, 'database_error', str(e))
+            return error_response(404, 'not_found', f'No handler for {path}')
         except Exception as e:
             logger.error(f"contact handler error: {e}")
             return error_response(500, 'database_error', str(e))
