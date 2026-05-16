@@ -154,6 +154,23 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     UNIQUE(symbol, quarter)
 );
 
+-- Forward-looking earnings calendar (upcoming announcements for blackout enforcement)
+CREATE TABLE IF NOT EXISTS earnings_calendar (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    earnings_date DATE NOT NULL,
+    announce_time TIME,
+    eps_estimate DECIMAL(12, 4),
+    actual_eps DECIMAL(12, 4),
+    revenue_estimate BIGINT,
+    actual_revenue BIGINT,
+    fiscal_period VARCHAR(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, earnings_date),
+    INDEX idx_symbol_date (symbol, earnings_date)
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- ANALYST DATA
 -- ════════════════════════════════════════════════════════════════════════════

@@ -1067,6 +1067,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily_etf (
     date DATE NOT NULL,
     signal VARCHAR(20),
     strength DECIMAL(8, 4),
+    reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
@@ -1078,6 +1079,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_weekly_etf (
     date DATE NOT NULL,
     signal VARCHAR(20),
     strength DECIMAL(8, 4),
+    reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
@@ -1089,6 +1091,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly_etf (
     date DATE NOT NULL,
     signal VARCHAR(20),
     strength DECIMAL(8, 4),
+    reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
@@ -2544,5 +2547,19 @@ WHERE start_time >= NOW() - INTERVAL '7 days';
 -- ECONOMIC DATA INDEXES — Credit spreads, yield curve
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_economic_data_series_date
 ON economic_data (series_id, date DESC)
-WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
+WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE');
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MIGRATIONS — Add missing columns to existing tables
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Add reason column to ETF signal tables (Session 39 fix for ETF signals)
+ALTER TABLE IF EXISTS buy_sell_daily_etf
+ADD COLUMN IF NOT EXISTS reason VARCHAR(255);
+
+ALTER TABLE IF EXISTS buy_sell_weekly_etf
+ADD COLUMN IF NOT EXISTS reason VARCHAR(255);
+
+ALTER TABLE IF EXISTS buy_sell_monthly_etf
+ADD COLUMN IF NOT EXISTS reason VARCHAR(255);
   AND value IS NOT NULL;

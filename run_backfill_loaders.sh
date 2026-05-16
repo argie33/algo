@@ -43,7 +43,7 @@ python3 loadbuyselldaily.py --parallelism 4
 
 # Backfill metrics that depend on prices (trend_template)
 echo "$LOG_PREFIX 4. Backfilling trend_template_data..."
-python3 loadtrend.py --parallelism 4
+python3 load_algo_metrics_daily.py --parallelism 4
 
 echo "$LOG_PREFIX === BACKFILL COMPLETE ==="
 echo "$LOG_PREFIX You can now run:"

@@ -32,6 +32,7 @@ tier_2_reference = [
     # Annual financials only
     ('load_income_statement.py', []), ('load_balance_sheet.py', []), ('load_cash_flow.py', []),
     'loadearningshistory.py', 'loadearningsrevisions.py',
+    'load_earnings_calendar.py',  # Upcoming earnings dates for blackout enforcement
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
     'loadsectors.py',  # Note: industry_ranking populated by loadsectors.py
