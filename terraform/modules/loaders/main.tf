@@ -141,6 +141,7 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"      = "loadttmincomestatement.py"
     "financials_ttm_cashflow"    = "loadttmcashflow.py"
+    "key_metrics"                = "load_key_metrics.py"
     "earnings_history"   = "loadearningshistory.py"
     "earnings_revisions" = "loadearningsrevisions.py"
     "earnings_surprise"  = "loadearningsestimates.py"
@@ -234,6 +235,13 @@ locals {
       schedule    = "cron(0 4 ? * MON *)"
       description = "Quarterly cash flow - Sunday 11pm ET (parallel)"
     }
+
+    # Key metrics — market cap and shareholding (slowly changing, run weekly Sunday night)
+    "key_metrics" = {
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Key metrics (market cap, insider/institution holdings) - Sunday 11pm ET"
+    }
+
     # TTM loaders depend on quarterly data — run 2 hours after quarterly to avoid race condition
     "financials_ttm_income" = {
       schedule    = "cron(0 6 ? * MON *)"
@@ -329,6 +337,9 @@ locals {
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+
+    # Key metrics (market cap, insider holdings) — I/O bound, rate-limited by Finnhub (free tier ~60/min)
+    "key_metrics"                   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Earnings data (11:00am ET) — I/O bound
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
