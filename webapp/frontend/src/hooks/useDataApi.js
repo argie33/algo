@@ -66,10 +66,10 @@ export const usePriceHistory = (symbol, params = {}) => {
  * Get industries list
  */
 export const useIndustries = (params = {}) => {
-  const { limit = 500 } = params;
-  return useApiQuery(
-    ['industries', limit],
-    () => api.get('/api/industries', { params: { limit } })
+  const { limit = 500, page = 1 } = params;
+  return useApiPaginatedQuery(
+    ['industries', limit, page],
+    () => api.get('/api/industries', { params: { limit, page } })
   );
 };
 

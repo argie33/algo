@@ -134,7 +134,7 @@ router.get('/evaluate', async (req, res) => {
     // Now: 1 query with CTEs joining all scoring data
     const result = await pool.query(`
       WITH latest_signals AS (
-        SELECT symbol, date, signal, entry_price
+        SELECT symbol, date, signal
         FROM buy_sell_daily
         WHERE signal = 'BUY'
         ORDER BY date DESC, symbol
@@ -158,7 +158,7 @@ router.get('/evaluate', async (req, res) => {
         ORDER BY symbol, date DESC
       )
       SELECT
-        s.symbol, s.date, s.entry_price,
+        s.symbol, s.date,
         COALESCE(tt.minervini_trend_score, 0)::int as trend_score,
         COALESCE(tt.percent_from_52w_low, 0)::numeric as pct_from_52w_low,
         COALESCE(dc.composite_completeness_pct, 0)::numeric as completeness_pct,
@@ -180,7 +180,6 @@ router.get('/evaluate', async (req, res) => {
       return {
         symbol: row.symbol,
         date: row.date,
-        entry_price: row.entry_price,
         trend_score: row.trend_score,
         pct_from_52w_low: row.pct_from_52w_low,
         completeness_pct: row.completeness_pct,

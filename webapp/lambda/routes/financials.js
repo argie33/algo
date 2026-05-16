@@ -147,11 +147,7 @@ router.get("/:symbol/cash-flow", async (req, res) => {
     });
   } catch (error) {
     console.error("Cash flow error:", error);
-    return sendSuccess(res, {
-      symbol: upperSymbol,
-      period: period,
-      financialData: []
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -163,7 +159,8 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
     const result = await query(`
       SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
-             cp.exchange, km.market_cap, km.held_percent_insiders, km.held_percent_institutions
+             cp.exchange, cp.website, cp.employees, cp.currency_code,
+             km.market_cap, km.held_percent_insiders, km.held_percent_institutions
       FROM company_profile cp
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE cp.ticker = $1
