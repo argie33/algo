@@ -289,24 +289,28 @@ class DataProvenanceTracker:
         if not self.db_conn:
             return
 
-        with self.db_conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO data_loader_runs
-                (run_id, loader_name, table_name, source_api, parameters, start_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-                """,
-                (
-                    self.run_id,
-                    self.loader_name,
-                    self.table_name,
-                    source_api,
-                    json.dumps(parameters) if parameters else None,
-                    self.start_time,
-                ),
-            )
-        self.db_conn.commit()
+        try:
+            with self.db_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO data_loader_runs
+                    (run_id, loader_name, table_name, source_api, parameters, start_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (
+                        self.run_id,
+                        self.loader_name,
+                        self.table_name,
+                        source_api,
+                        json.dumps(parameters) if parameters else None,
+                        self.start_time,
+                    ),
+                )
+            self.db_conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to insert loader run: {e}", exc_info=True)
+            # Allow system to continue - provenance is non-critical
 
     def _insert_provenance_record(self, record: Dict):
         """Insert a provenance record for a tick."""
