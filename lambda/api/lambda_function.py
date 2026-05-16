@@ -143,6 +143,19 @@ class APIHandler:
             return max(0, min(offset, max_offset))
         except (ValueError, TypeError):
             return 0
+
+    def _sanitize_error(self, exc: Exception) -> str:
+        """Sanitize exception messages to prevent information leakage."""
+        error_str = str(exc)
+        # Hide database-specific details
+        if 'relation' in error_str or 'column' in error_str or 'syntax error' in error_str:
+            return 'database_error'
+        if 'authentication' in error_str or 'permission' in error_str:
+            return 'permission_denied'
+        if 'connection' in error_str or 'timeout' in error_str:
+            return 'connection_error'
+        # Generic error for anything else
+        return 'operation_failed'
             if self.conn and not self.conn.closed:
                 self.conn.rollback()
         except Exception as e:
