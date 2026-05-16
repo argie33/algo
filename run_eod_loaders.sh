@@ -18,36 +18,42 @@ fi
 
 # 2. Load in dependency order
 echo "$LOG_PREFIX 2. Loading EOD data..."
+LOADER_WARNINGS=""
 
 # Phase 1: Foundation — price, technicals, Pine signals
 # Use the bulk loader for daily EOD top-up (5000 syms in ~5 min via batched
 # yfinance). The per-symbol loadpricedaily.py is reserved for backfilling
 # years of history because yfinance throttles per-symbol calls.
 echo "$LOG_PREFIX   1/6 load_eod_bulk.py (price_daily)"
-python3 load_eod_bulk.py --days 10 || echo "$LOG_PREFIX WARN: load_eod_bulk.py failed"
+python3 load_eod_bulk.py --days 10 || { echo "$LOG_PREFIX WARN: load_eod_bulk.py failed"; LOADER_WARNINGS="$LOADER_WARNINGS load_eod_bulk"; }
 
 echo "$LOG_PREFIX   2/6 loadbuyselldaily.py"
-python3 loadbuyselldaily.py || echo "$LOG_PREFIX WARN: loadbuyselldaily.py failed"
+python3 loadbuyselldaily.py || { echo "$LOG_PREFIX WARN: loadbuyselldaily.py failed"; LOADER_WARNINGS="$LOADER_WARNINGS loadbuyselldaily"; }
 
 # Phase 2: Computed metrics (require Phase 1 data)
 echo "$LOG_PREFIX   3/6 load_algo_metrics_daily.py"
-python3 load_algo_metrics_daily.py || echo "$LOG_PREFIX WARN: algo_metrics failed"
+python3 load_algo_metrics_daily.py || { echo "$LOG_PREFIX WARN: algo_metrics failed"; LOADER_WARNINGS="$LOADER_WARNINGS load_algo_metrics_daily"; }
 
 # Phase 3: Sector/industry ranks (require ETF + company_profile data)
 echo "$LOG_PREFIX   4/6 loadsectors.py"
-python3 loadsectors.py || echo "$LOG_PREFIX WARN: sector_industry_ranking failed"
+python3 loadsectors.py || { echo "$LOG_PREFIX WARN: sector_industry_ranking failed"; LOADER_WARNINGS="$LOADER_WARNINGS loadsectors"; }
 
 # Phase 4: Sector rotation signal (uses sector_ranking)
 echo "$LOG_PREFIX   5/6 algo_sector_rotation.py"
-python3 algo_sector_rotation.py || echo "$LOG_PREFIX WARN: sector_rotation failed"
+python3 algo_sector_rotation.py || { echo "$LOG_PREFIX WARN: sector_rotation failed"; LOADER_WARNINGS="$LOADER_WARNINGS algo_sector_rotation"; }
 
 # Market exposure (depends on everything above)
 echo "$LOG_PREFIX   6/6 algo_market_exposure.py"
-python3 algo_market_exposure.py || echo "$LOG_PREFIX WARN: market_exposure failed"
+python3 algo_market_exposure.py || { echo "$LOG_PREFIX WARN: market_exposure failed"; LOADER_WARNINGS="$LOADER_WARNINGS algo_market_exposure"; }
 
-# 3. Post-load patrol
+# 3. Post-load patrol (strict mode if any loaders failed)
 echo "$LOG_PREFIX 3. Post-load patrol..."
-python3 algo_data_patrol.py
+if [ -n "$LOADER_WARNINGS" ]; then
+    echo "$LOG_PREFIX   STRICT MODE: loaders failed ($LOADER_WARNINGS) — enabling strict patrol"
+    python3 algo_data_patrol.py --strict
+else
+    python3 algo_data_patrol.py
+fi
 PATROL_EXIT=$?
 
 # 3b. Automatic remediation on findings

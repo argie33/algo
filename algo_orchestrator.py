@@ -300,10 +300,11 @@ class Orchestrator:
             return True
 
         except Exception as e:
-            # If patrol check fails, don't block (assume manual run/oversight)
-            if self.verbose:
-                logger.warning(f"  [WARN] Could not check data patrol: {e}")
-            return True
+            # If patrol check fails, fail-closed (don't trade on uncertain data)
+            logger.error(f"  [HALT] Data patrol check failed: {e}")
+            self.log_phase_result(1, 'data_patrol', 'halt',
+                                  f'Patrol execution error: {str(e)[:100]}')
+            return False
 
     # ---------- Logging helpers ----------
 
@@ -1813,7 +1814,9 @@ class Orchestrator:
                 return False  # Fail-closed: can't get credentials
             key = credential_manager.get_alpaca_credentials()["key"]
             secret = credential_manager.get_alpaca_credentials()["secret"]
-            base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            base = os.getenv('APCA_API_BASE_URL')
+            if not base:
+                raise ValueError("APCA_API_BASE_URL environment variable not set — refusing to trade without explicit endpoint configuration")
             if not key or not secret:
                 mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
                 if mode == 'auto':
