@@ -240,7 +240,8 @@ class DataProvenanceTracker:
             # Get the loader run metadata
             cur.execute(
                 """
-                SELECT * FROM data_loader_runs
+                SELECT run_id, loader_name, table_name, source_api, parameters, start_at
+                FROM data_loader_runs
                 WHERE run_id = %s
                 """,
                 (run_id,),
@@ -250,7 +251,9 @@ class DataProvenanceTracker:
             # Get all ticks from this run
             cur.execute(
                 """
-                SELECT * FROM data_provenance_log
+                SELECT provenance_id, run_id, loader_name, table_name, symbol, tick_date,
+                       source_timestamp, load_timestamp, source_api, data_checksum, data_hash, data_size_bytes
+                FROM data_provenance_log
                 WHERE run_id = %s
                 ORDER BY symbol, tick_date
                 """,
@@ -261,7 +264,8 @@ class DataProvenanceTracker:
             # Get all errors from this run
             cur.execute(
                 """
-                SELECT * FROM data_provenance_errors
+                SELECT run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at
+                FROM data_provenance_errors
                 WHERE run_id = %s
                 ORDER BY recorded_at
                 """,
