@@ -30,8 +30,8 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-from data_tick_validator import validate_score_tick
-from data_provenance_tracker import DataProvenanceTracker
+from utils.data_tick_validator import validate_score_tick
+from utils.data_provenance_tracker import DataProvenanceTracker
 from data_watermark_manager import WatermarkManager
 
 # >>> dotenv-autoload >>>

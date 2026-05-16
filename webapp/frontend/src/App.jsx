@@ -400,7 +400,7 @@ function App() {
           <Route path="/app/backtests" element={<BacktestResults />} />
 
           {/* Algo */}
-          <Route path="/app/algo-dashboard" element={<AlgoTradingDashboard />} />
+          <Route path="/app/algo-dashboard" element={<ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute>} />
 
           {/* Admin & Settings */}
           <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />

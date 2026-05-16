@@ -129,15 +129,21 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
         args = []
         loader_name = loader
 
-    if not os.path.exists(loader):
+    # Look for loader in loaders/ subdirectory
+    loader_path = os.path.join('loaders', loader)
+    if not os.path.exists(loader_path):
         return (loader_name, False, False, "not found")
 
     try:
+        # Set PYTHONPATH to include root directory so loaders can import config modules
+        env = os.environ.copy()
+        env['PYTHONPATH'] = os.getcwd()
         result = subprocess.run(
-            ['python3', loader] + args,
+            ['python3', loader_path] + args,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=300,
+            env=env
         )
 
         if result.returncode == 0:

@@ -25,7 +25,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
-from algo_market_calendar import MarketCalendar
+from algo.algo_market_calendar import MarketCalendar
 from credential_helper import get_db_password, get_db_config
 
 env_file = Path(__file__).parent / '.env.local'
@@ -161,7 +161,7 @@ class ContinuousMonitor:
     def _alert_critical(self, issues):
         """Send alert on critical findings."""
         try:
-            from algo_alerts import AlertManager
+            from algo.algo_alerts import AlertManager
             alerts = AlertManager()
             alerts.send_patrol_alert(
                 f"CONTINUOUS-{datetime.now().strftime('%Y%m%d-%H%M%S')}",

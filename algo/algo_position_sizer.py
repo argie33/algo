@@ -211,7 +211,7 @@ class PositionSizer:
     def get_phase_size_multiplier(self, symbol):
         """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
         try:
-            from algo_signals import SignalComputer
+            from algo.algo_signals import SignalComputer
             from datetime import date as _date
             sc = SignalComputer(cur=self.cur)
             phase = sc.stage2_phase(symbol, _date.today())
@@ -402,7 +402,7 @@ class PositionSizer:
             return [0.50, 0.33, 0.17]
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
 
     config = get_config()
     sizer = PositionSizer(config)

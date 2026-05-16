@@ -79,7 +79,7 @@ class DailyReconciliation:
             if not alpaca_data:
                 logger.error("CRITICAL: Alpaca account fetch failed — cannot reconcile")
                 try:
-                    from algo_notifications import notify
+                    from algo.algo_notifications import notify
                     notify('critical', title='Alpaca Connection Failed',
                            message='Daily reconciliation cannot proceed without Alpaca account data')
                 except Exception as e:
@@ -291,7 +291,7 @@ class DailyReconciliation:
                     db_qty = int(row[0] or 0)
                     if abs(db_qty - qty) > 0.1:  # Allow small rounding differences
                         try:
-                            from algo_notifications import notify
+                            from algo.algo_notifications import notify
                             notify(
                                 kind='position_drift',
                                 severity='critical',
@@ -419,7 +419,7 @@ class DailyReconciliation:
                 """, (PositionStatus.ORPHANED.value, sym, PositionStatus.OPEN.value))
                 # Alert: position missing from Alpaca
                 try:
-                    from algo_notifications import notify
+                    from algo.algo_notifications import notify
                     notify(
                         kind='position_drift',
                         severity='critical',
@@ -651,7 +651,7 @@ class DailyReconciliation:
             return None
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
 
     config = get_config()
     reconciliation = DailyReconciliation(config)

@@ -3,7 +3,7 @@
 Retry and rate-limiting utilities for the algo data pipeline.
 
 Usage — decorator:
-    from algo_retry import retry, RateLimiter
+    from algo.algo_retry import retry, RateLimiter
 
     @retry(max_attempts=3, exceptions=(requests.HTTPError, ConnectionError))
     def fetch_price(symbol):

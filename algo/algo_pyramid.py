@@ -45,7 +45,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
-from algo_pretrade_checks import PreTradeChecks
+from algo.algo_pretrade_checks import PreTradeChecks
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -280,7 +280,7 @@ class PyramidEngine:
 
     def execute_add(self, recommendation):
         """Execute pyramid add: send order to Alpaca + persist locally."""
-        from algo_trade_executor import TradeExecutor
+        from algo.algo_trade_executor import TradeExecutor
         r = recommendation
 
         # Get portfolio value for PreTradeChecks
@@ -359,7 +359,7 @@ class PyramidEngine:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     e = PyramidEngine(get_config())
     recs = e.evaluate_pyramid_adds()
     print(f"\n{'='*70}\nPYRAMID ADD RECOMMENDATIONS\n{'='*70}")

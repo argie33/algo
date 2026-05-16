@@ -57,7 +57,7 @@ from typing import Dict, List, Tuple, Optional, Any
 logger = logging.getLogger(__name__)
 
 try:
-    from algo_connection_monitor import on_connect as monitor_on_connect, on_disconnect as monitor_on_disconnect
+    from algo.algo_connection_monitor import on_connect as monitor_on_connect, on_disconnect as monitor_on_disconnect
 except ImportError:
     # If monitor not available, provide no-op functions
     def monitor_on_connect():

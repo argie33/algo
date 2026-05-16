@@ -23,7 +23,7 @@ from credential_helper import get_db_password, get_db_config
 logger = logging.getLogger(__name__)
 
 try:
-    from algo_alerts import AlertManager
+    from algo.algo_alerts import AlertManager
 except ImportError:
     class AlertManager:
         def critical(self, *args, **kwargs): pass
@@ -119,7 +119,7 @@ class EarningsBlackout:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     config = get_config()
     eb = EarningsBlackout(config)
 

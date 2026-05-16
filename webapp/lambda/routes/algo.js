@@ -561,19 +561,33 @@ router.get('/markets', async (req, res) => {
 router.get('/swing-scores', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
     const minScore = parseFloat(req.query.min_score) || 0;
+    const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
+
+    let whereClauses = [
+      `s.date = (SELECT MAX(date) FROM swing_trader_scores)`,
+      `s.score >= $1`
+    ];
+    const params = [minScore];
+
+    if (symbol) {
+      params.push(symbol);
+      whereClauses.push(`s.symbol = $${params.length}`);
+    }
+
+    params.push(limit);
+    const limitParamNum = params.length;
 
     const result = await pool.query(
       `SELECT s.symbol, s.date, s.score, s.components,
               cp.short_name, cp.sector, cp.industry
        FROM swing_trader_scores s
        LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-       WHERE s.date = (SELECT MAX(date) FROM swing_trader_scores)
-         AND s.score >= $1
+       WHERE ${whereClauses.join(' AND ')}
        ORDER BY s.score DESC
-       LIMIT $2`,
-      [minScore, limit]
+       LIMIT $${limitParamNum}`,
+      params
     );
 
     return res.json({
@@ -938,7 +952,7 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
 router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
     const minSeverity = req.query.min_severity || 'warn';
     const sevOrder = { info: 0, warn: 1, error: 2, critical: 3 };
     const minSev = sevOrder[minSeverity] || 1;
@@ -984,7 +998,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
     const kind = req.query.kind || null;
     const severity = req.query.severity || null;
     const unread = req.query.unread === 'true';
@@ -1395,7 +1409,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
 router.get('/equity-curve', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 180;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 180, 1), 1000);
     const result = await pool.query(`
       SELECT snapshot_date, total_portfolio_value, daily_return_pct,
              unrealized_pnl_pct, position_count
@@ -1427,7 +1441,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
 router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 100;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
     const actionFilter = req.query.action_type || null;
 
     let query_str = `
@@ -1829,7 +1843,7 @@ router.get('/sector-stage2', async (req, res) => {
 router.get('/sector-rotation', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = parseInt(req.query.limit) || 90;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 90, 1), 1000);
 
     const result = await pool.query(
       `SELECT date, sector, signal, strength, rank, details

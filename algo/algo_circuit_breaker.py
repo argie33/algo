@@ -130,7 +130,7 @@ class CircuitBreaker:
             # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
             # Do NOT allow trading when we can't verify safety checks
             try:
-                from algo_notifications import notify
+                from algo.algo_notifications import notify
                 notify(
                     'critical',
                     title='CIRCUIT BREAKER CHECK FAILED',
@@ -594,7 +594,7 @@ class CircuitBreaker:
             logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
         try:
-            from algo_notifications import notify
+            from algo.algo_notifications import notify
             notify(
                 severity='critical',
                 title='Trading Halted by Circuit Breaker',
@@ -606,7 +606,7 @@ class CircuitBreaker:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     cb = CircuitBreaker(get_config())
     result = cb.check_all()
     logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")

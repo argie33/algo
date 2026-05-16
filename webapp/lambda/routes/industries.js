@@ -7,7 +7,7 @@ const router = express.Router();
 async function fetchIndustries(req, res) {
   try {
     const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 5000);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 500, 1), 5000);
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 

@@ -695,7 +695,7 @@ class PositionMonitor:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
 

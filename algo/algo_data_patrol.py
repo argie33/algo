@@ -54,7 +54,7 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
-from algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

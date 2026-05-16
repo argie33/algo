@@ -14,7 +14,7 @@ const router = express.Router();
 router.get("/calendar", async (req, res) => {
   try {
     const { period = "past", limit = 50 } = req.query;
-    const limitNum = Math.min(parseInt(limit), 5000);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 5000);
 
     let result;
 
@@ -185,7 +185,7 @@ router.get("/fresh-data", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const { limit = 50 } = req.query;
-    const limitNum = Math.min(parseInt(limit), 5000);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 5000);
     const result = await query(`
       SELECT symbol, quarter, fiscal_quarter, fiscal_year,
              eps_actual, eps_estimate, eps_surprise_pct, created_at

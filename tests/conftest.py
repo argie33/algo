@@ -9,12 +9,16 @@ Provides:
 """
 
 import os
+import sys
 import pytest
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from unittest.mock import MagicMock, patch
+
+# Add root directory to path so tests can import algo modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load test env vars
 env_file = Path(__file__).parent.parent / '.env.test'

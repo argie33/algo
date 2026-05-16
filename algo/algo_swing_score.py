@@ -49,7 +49,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Tuple, Any, Optional
-from algo_signals import SignalComputer
+from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 

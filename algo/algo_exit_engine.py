@@ -35,8 +35,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from trade_performance_auditor import TradePerformanceAuditor
-from algo_trade_executor import TradeExecutor
-from algo_signals import SignalComputer
+from algo.algo_trade_executor import TradeExecutor
+from algo.algo_signals import SignalComputer
 from trade_status import TradeStatus, PositionStatus
 import logging
 from typing import Dict, List, Any, Optional, Tuple
@@ -330,7 +330,7 @@ class ExitEngine:
                     'new_stop': chand_stop,
                 }
 
-        # 7. TD SEQUENTIAL / COMBO EXHAUSTION (DeMark)
+        # 8. TD SEQUENTIAL / COMBO EXHAUSTION (DeMark)
         # 9-count: partial exit (50%) at exhaustion top
         # 13-count COMBO: full exit (much stronger signal)
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
@@ -350,7 +350,7 @@ class ExitEngine:
                         'new_stop': max(active_stop, entry_price),
                     }
 
-        # 12. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
+        # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
         # Institutional distribution day after parabolic run — exit 50%
         if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
             down_pct = (prev_close - cur_price) / prev_close * 100.0
@@ -708,7 +708,7 @@ class ExitEngine:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     config = get_config()
     engine = ExitEngine(config)
     exits = engine.check_and_execute_exits()

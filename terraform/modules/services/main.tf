@@ -89,6 +89,7 @@ resource "aws_lambda_function" "api" {
       NODE_ENV             = "production"
       CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
     }
   }
 

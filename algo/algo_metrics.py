@@ -22,7 +22,7 @@ Alarm targets (Terraform should wire these up):
     SignalsGenerated = 0 for 3 consecutive days → notify algo team
 
 Usage:
-    from algo_metrics import MetricsPublisher
+    from algo.algo_metrics import MetricsPublisher
     m = MetricsPublisher()
     m.put_orchestrator_result(success=True, phase_results={...})
     m.put_signal_count(signals=142)

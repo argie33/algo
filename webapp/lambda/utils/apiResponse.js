@@ -32,12 +32,28 @@ module.exports = {
 
   // Standard error response with optional detailed context
   sendError: (res, error, statusCode = 500, details = null) => {
-    const errorMsg = typeof error === 'string' ? error : (error?.message || 'Internal server error');
+    let errorMsg = typeof error === 'string' ? error : (error?.message || 'Internal server error');
     const response = {
       success: false,
       error: errorMsg,
       timestamp: new Date().toISOString()
     };
+
+    // In production, sanitize error messages to avoid leaking internal details
+    if (process.env.NODE_ENV === 'production' && statusCode === 500) {
+      // Sanitize DB/system errors that leak schema, paths, or sensitive details
+      const sensitivePatterns = [
+        /ENOENT|EACCES|permission denied/i,
+        /column|table|database|schema/i,
+        /connection|timeout|ECONNREFUSED/i,
+        /password|secret|token|api[_-]key/i,
+        /\/[a-z]/i // file paths
+      ];
+
+      if (sensitivePatterns.some(p => p.test(errorMsg))) {
+        response.error = 'An error occurred processing your request';
+      }
+    }
 
     // Include detailed error context in development mode
     if (process.env.NODE_ENV === 'development' && details) {

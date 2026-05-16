@@ -198,7 +198,7 @@ class MarketExposure:
             # If defensive sectors are leading cyclicals, reduce score
             # (Mansfield rotation research: this precedes broad-market tops)
             try:
-                from algo_sector_rotation import SectorRotationDetector
+                from algo.algo_sector_rotation import SectorRotationDetector
                 detector = SectorRotationDetector()
                 detector.cur = self.cur  # share connection
                 detector._owned = None

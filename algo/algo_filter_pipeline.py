@@ -19,12 +19,12 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 from credential_helper import get_db_password, get_db_config
-from algo_config import get_config
-from algo_advanced_filters import AdvancedFilters
-from algo_swing_score import SwingTraderScore
+from algo.algo_config import get_config
+from algo.algo_advanced_filters import AdvancedFilters
+from algo.algo_swing_score import SwingTraderScore
 from filter_rejection_tracker import RejectionTracker
-from algo_earnings_blackout import EarningsBlackout
-from algo_trendline_support import TrendlineSupport
+from algo.algo_earnings_blackout import EarningsBlackout
+from algo.algo_trendline_support import TrendlineSupport
 from trade_status import PositionStatus
 from feature_flags import get_flags
 import logging
@@ -160,6 +160,9 @@ class FilterPipeline:
             earnings_blackout = EarningsBlackout(self.config)
             trendline = TrendlineSupport(cur=self.cur)
 
+            # Get current date for signal freshness check (use TODAY, not eval_date, which may be historical)
+            today = _date.today()
+
             for symbol, signal_date, _signal in signals:
                 # Check earnings blackout FIRST (fail-closed on earnings risk)
                 blackout_check = earnings_blackout.run(symbol, signal_date)
@@ -168,9 +171,9 @@ class FilterPipeline:
                     pre_tier_rejections['earnings_blackout'] += 1
                     continue
 
-                # A1: Signal Age Gate — reject signals older than max_signal_age_days
+                # A1: Signal Age Gate — reject signals older than max_signal_age_days (measured from TODAY, not eval_date)
                 max_signal_age_days = int(self.config.get('max_signal_age_days', 3))
-                signal_age = (eval_date - signal_date).days
+                signal_age = (today - signal_date).days
                 if signal_age > max_signal_age_days:
                     logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
                     pre_tier_rejections['signal_age'] += 1
@@ -927,7 +930,7 @@ class FilterPipeline:
 
         # Try base-type-specific stop first (most accurate per the canon)
         try:
-            from algo_signals import SignalComputer
+            from algo.algo_signals import SignalComputer
             sc = SignalComputer(cur=self.cur)
             base_stop_info = sc.base_type_stop(symbol, signal_date, entry, atr)
             if base_stop_info and base_stop_info['stop_price'] > 0:
@@ -995,7 +998,7 @@ class FilterPipeline:
             if signal_date:
                 # Check liquidity
                 try:
-                    from algo_liquidity_checks import LiquidityChecks
+                    from algo.algo_liquidity_checks import LiquidityChecks
                     lq = LiquidityChecks(self.config)
                     lq_passed, lq_reason = lq.run_all(symbol, entry_price, signal_date)
                     if not lq_passed:
@@ -1005,7 +1008,7 @@ class FilterPipeline:
 
                 # Check earnings blackout
                 try:
-                    from algo_earnings_blackout import EarningsBlackout
+                    from algo.algo_earnings_blackout import EarningsBlackout
                     eb = EarningsBlackout(self.config)
                     eb_result = eb.run(symbol, signal_date)
                     if not eb_result.get('pass', True):
@@ -1081,7 +1084,7 @@ class FilterPipeline:
                     stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
                     logger.warning(f'[T5] Stop calculation FAILED for {symbol}; using 5% emergency fallback: {stop_loss_price:.2f} (no ATR available) — RISK INFLATED')
 
-            from algo_position_sizer import PositionSizer
+            from algo.algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)
             result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price)
 

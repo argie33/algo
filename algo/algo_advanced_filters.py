@@ -47,7 +47,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
-from algo_signals import SignalComputer
+from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
@@ -702,7 +702,7 @@ class AdvancedFilters:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     f = AdvancedFilters(get_config())
     ctx = f.load_market_context(_date(2026, 4, 24))
     print("Strong sectors:", ctx['strong_sectors'])

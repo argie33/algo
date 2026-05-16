@@ -25,22 +25,40 @@ router.get("/", async (req, res) => {
 
     const positions = Array.isArray(positionsObj) ? positionsObj : (positionsObj?.rows || []);
 
-    // Get portfolio summary from positions
-    const totalValue = positions.reduce((sum, p) => sum + (p.current_price * p.quantity || 0), 0);
-    const totalPnL = positions.reduce((sum, p) => sum + (p.pnl || 0), 0);
+    // Get latest portfolio snapshot for real cash and total value data
+    const snapshotObj = await query(`
+      SELECT
+        total_portfolio_value,
+        total_cash,
+        total_equity,
+        position_count,
+        unrealized_pnl_total,
+        unrealized_pnl_pct,
+        daily_return_pct
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC
+      LIMIT 1
+    `);
+
+    const snapshot = Array.isArray(snapshotObj) ? snapshotObj[0] : snapshotObj?.rows?.[0];
+
+    // Calculate summary from real data when available, fallback to positions if no snapshot
+    const totalValue = snapshot?.total_portfolio_value || positions.reduce((sum, p) => sum + (p.current_price * p.quantity || 0), 0);
+    const cashAvailable = snapshot?.total_cash || 0;
+    const totalPnL = snapshot?.unrealized_pnl_total || positions.reduce((sum, p) => sum + (p.pnl || 0), 0);
 
     const summary = {
       total_positions: positions.length,
       total_value: totalValue,
-      cash_available: 0,
+      cash_available: cashAvailable,
       daily_pnl: totalPnL,
-      daily_pnl_percent: totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0
+      daily_pnl_percent: snapshot?.unrealized_pnl_pct !== undefined ? snapshot.unrealized_pnl_pct : (totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0)
     };
 
     sendSuccess(res, {
       summary,
       positions,
-      latest_snapshot: null
+      latest_snapshot: snapshot || null
     }, 200);
   } catch (error) {
     sendError(res, `Failed to retrieve portfolio: ${error.message}`, 500);

@@ -67,8 +67,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple
-from algo_alerts import AlertManager
-from algo_market_calendar import MarketCalendar
+from algo.algo_alerts import AlertManager
+from algo.algo_market_calendar import MarketCalendar
 from trade_status import PositionStatus
 import logging
 from monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
@@ -88,7 +88,7 @@ class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
     def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
-        from algo_config import get_config
+        from algo.algo_config import get_config
         self.config = config or get_config()
         self.run_date = run_date or _date.today()
         self.dry_run = dry_run
@@ -582,7 +582,7 @@ class Orchestrator:
 
                 # Check loader health via monitor — fail-closed if critical data missing
                 try:
-                    from algo_loader_monitor import LoaderMonitor
+                    from algo.algo_loader_monitor import LoaderMonitor
                     monitor = LoaderMonitor()
                     monitor.connect()
                     try:
@@ -661,7 +661,7 @@ class Orchestrator:
             stale_items = []
 
             try:
-                from algo_metrics import MetricsPublisher
+                from algo.algo_metrics import MetricsPublisher
                 _metrics = MetricsPublisher(dry_run=self.dry_run)
             except Exception:
                 _metrics = None
@@ -703,7 +703,7 @@ class Orchestrator:
 
             # Margin health check (Phase 1 - production safeguard)
             try:
-                from algo_margin_monitor import MarginMonitor
+                from algo.algo_margin_monitor import MarginMonitor
                 mm = MarginMonitor()
                 margin_info = mm.get_margin_usage()
                 if margin_info and margin_info['margin_usage_pct'] > 70:
@@ -744,7 +744,7 @@ class Orchestrator:
     def phase_2_circuit_breakers(self) -> bool:
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
         try:
-            from algo_circuit_breaker import CircuitBreaker
+            from algo.algo_circuit_breaker import CircuitBreaker
             cb = CircuitBreaker(self.config)
             result = cb.check_all(self.run_date)
 
@@ -755,7 +755,7 @@ class Orchestrator:
 
             # Publish per-breaker CloudWatch metrics (non-blocking)
             try:
-                from algo_metrics import MetricsPublisher
+                from algo.algo_metrics import MetricsPublisher
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     for name, state in result.get('checks', {}).items():
                         _m.put_circuit_breaker(name, bool(state.get('halted')))
@@ -764,7 +764,7 @@ class Orchestrator:
 
             # Check market circuit breakers (market-wide halts, L1/L2/L3)
             try:
-                from algo_market_events import MarketEventHandler
+                from algo.algo_market_events import MarketEventHandler
                 meh = MarketEventHandler(self.config)
                 cb_result = meh.check_market_circuit_breaker()
                 if cb_result and cb_result.get('triggered'):
@@ -805,12 +805,12 @@ class Orchestrator:
     def phase_3_position_monitor(self) -> List[Dict[str, Any]]:
         self.log_phase_start(3, 'POSITION MONITOR')
         try:
-            from algo_position_monitor import PositionMonitor
+            from algo.algo_position_monitor import PositionMonitor
             monitor = PositionMonitor(self.config)
 
             # Check for single-stock halts on open positions
             try:
-                from algo_market_events import MarketEventHandler
+                from algo.algo_market_events import MarketEventHandler
                 meh = MarketEventHandler(self.config)
                 # Get open positions from position monitor
                 open_positions = monitor.get_open_positions() or []
@@ -863,7 +863,7 @@ class Orchestrator:
         """
         self.log_phase_start('3a', 'POSITION RECONCILIATION')
         try:
-            from algo_reconciliation import PositionReconciler
+            from algo.algo_reconciliation import PositionReconciler
             reconciler = PositionReconciler()
             result = reconciler.reconcile()
 
@@ -906,8 +906,8 @@ class Orchestrator:
         self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
         try:
             # Refresh market exposure first
-            from algo_market_exposure import MarketExposure
-            from algo_market_exposure_policy import ExposurePolicy
+            from algo.algo_market_exposure import MarketExposure
+            from algo.algo_market_exposure_policy import ExposurePolicy
             me = MarketExposure()
             exposure = me.compute(self.run_date)
             logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
@@ -960,8 +960,8 @@ class Orchestrator:
     def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(4, 'EXIT EXECUTION')
         try:
-            from algo_trade_executor import TradeExecutor
-            from algo_exit_engine import ExitEngine
+            from algo.algo_trade_executor import TradeExecutor
+            from algo.algo_exit_engine import ExitEngine
 
             # Detect Phase 3 crash: if position monitor errored, _position_recs is []
             # but we may have real open positions. Log a critical alert so we know.
@@ -1177,7 +1177,7 @@ class Orchestrator:
         """Add to winners (Livermore) — runs after exits, before new entries."""
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
         try:
-            from algo_pyramid import PyramidEngine
+            from algo.algo_pyramid import PyramidEngine
             engine = PyramidEngine(self.config)
             recs = engine.evaluate_pyramid_adds(self.run_date)
 
@@ -1207,7 +1207,7 @@ class Orchestrator:
     def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         try:
-            from algo_filter_pipeline import FilterPipeline
+            from algo.algo_filter_pipeline import FilterPipeline
             exposure_mult = 1.0
             if hasattr(self, '_exposure_constraints') and self._exposure_constraints:
                 exposure_mult = self._exposure_constraints.get('risk_multiplier', 1.0)
@@ -1228,7 +1228,7 @@ class Orchestrator:
         except RuntimeError as e:
             logger.critical(f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}")
             try:
-                from algo_metrics import MetricsPublisher
+                from algo.algo_metrics import MetricsPublisher
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
             except Exception:
@@ -1245,7 +1245,7 @@ class Orchestrator:
     def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(6, 'ENTRY EXECUTION')
         try:
-            from algo_trade_executor import TradeExecutor
+            from algo.algo_trade_executor import TradeExecutor
             executor = TradeExecutor(self.config)
             qualified = getattr(self, '_qualified_trades', [])
             constraints = getattr(self, '_exposure_constraints', None)
@@ -1329,7 +1329,7 @@ class Orchestrator:
 
             # Margin entry gate (Phase 6 - production safeguard)
             try:
-                from algo_margin_monitor import MarginMonitor
+                from algo.algo_margin_monitor import MarginMonitor
                 mm = MarginMonitor()
                 can_enter, margin_reason = mm.can_enter_new_position()
                 if not can_enter:
@@ -1417,7 +1417,7 @@ class Orchestrator:
     def phase_7_reconcile(self) -> Dict[str, Any]:
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
         try:
-            from algo_daily_reconciliation import DailyReconciliation
+            from algo.algo_daily_reconciliation import DailyReconciliation
             recon = DailyReconciliation(self.config)
             result = recon.run_daily_reconciliation(self.run_date)
             status = 'success' if result.get('success') else 'error'
@@ -1432,7 +1432,7 @@ class Orchestrator:
             perf_status = 'warn'
             perf_summary = 'N/A'
             try:
-                from algo_performance import LivePerformance
+                from algo.algo_performance import LivePerformance
                 perf = LivePerformance(self.config)
                 perf_report = perf.generate_daily_report(self.run_date)
                 if perf_report and perf_report.get('status') == 'ok':
@@ -1457,7 +1457,7 @@ class Orchestrator:
             risk_status = 'warn'
             risk_summary = 'N/A'
             try:
-                from algo_var import PortfolioRisk
+                from algo.algo_var import PortfolioRisk
                 risk = PortfolioRisk(self.config)
                 risk_report = risk.generate_daily_risk_report(self.run_date)
                 if risk_report and risk_report.get('status') == 'ok':
@@ -1521,7 +1521,7 @@ class Orchestrator:
             # Full patrol (16 checks) is run separately on a slower schedule
             logger.info("\nRunning critical data patrol checks...")
             try:
-                from algo_data_patrol import DataPatrol
+                from algo.algo_data_patrol import DataPatrol
                 patrol = DataPatrol()
                 patrol.run(quick=True)  # Only run the 5 critical checks, not the full 16-check suite
             except Exception as e:
@@ -1553,7 +1553,7 @@ class Orchestrator:
                     logger.error(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
                     logger.info("Skipping all trading phases. Continuing with monitoring only.")
                     try:
-                        from algo_notifications import notify
+                        from algo.algo_notifications import notify
                         notify(
                             'critical',
                             title='Database Circuit Breaker Activated',
@@ -1885,7 +1885,7 @@ class Orchestrator:
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:
-            from algo_metrics import MetricsPublisher
+            from algo.algo_metrics import MetricsPublisher
             with MetricsPublisher(dry_run=self.dry_run) as m:
                 m.put_orchestrator_result(result['success'], self.phase_results)
 
@@ -1915,7 +1915,7 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-    from algo_logging import configure_root_logger
+    from algo.algo_logging import configure_root_logger
     configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
 
     import argparse

@@ -83,7 +83,8 @@ router.get('/', async (req, res, next) => {
 router.get('/:run_id', async (req, res, next) => {
   try {
     const { run_id } = req.params;
-    const { limit = 100, offset = 0 } = req.query;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     // Get run details
     const runQ = `

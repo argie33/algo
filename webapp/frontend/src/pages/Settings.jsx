@@ -193,15 +193,9 @@ const Settings = () => {
               aria-controls="settings-tabpanel-0"
             />
             <Tab
-              label="API Keys"
+              label="Preferences"
               id="settings-tab-1"
               aria-controls="settings-tabpanel-1"
-              data-testid="api-keys-tab"
-            />
-            <Tab
-              label="Preferences"
-              id="settings-tab-2"
-              aria-controls="settings-tabpanel-2"
             />
             <Tab
               label="Account"
@@ -253,65 +247,8 @@ const Settings = () => {
           </CardContent>
         </TabPanel>
 
-        {/* API Keys Tab */}
-        <TabPanel value={tabIndex} index={1}>
-          <CardContent>
-            <Box sx={{ mb: 3 }}>
-              <Button
-                variant="contained"
-                onClick={() => setShowAddKeyDialog(true)}
-                data-testid="add-api-key-button"
-                sx={{ mb: 2 }}
-              >
-                Add API Key
-              </Button>
-
-              {Object.keys(apiKeys).length > 0 ? (
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Provider</TableCell>
-                        <TableCell>Key ID</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.entries(apiKeys).map(([provider, key]) => (
-                        <TableRow key={provider}>
-                          <TableCell sx={{ textTransform: "capitalize" }}>
-                            {provider}
-                          </TableCell>
-                          <TableCell>{key.keyId || "—"}</TableCell>
-                          <TableCell>
-                            {key.isValid ? "✓ Valid" : "✗ Invalid"}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              color="error"
-                              startIcon={<DeleteIcon />}
-                              onClick={() => handleDeleteApiKey(provider)}
-                              disabled={loading}
-                            >
-                              Delete
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography color="textSecondary">No API keys configured</Typography>
-              )}
-            </Box>
-          </CardContent>
-        </TabPanel>
-
         {/* Preferences Tab */}
-        <TabPanel value={tabIndex} index={2}>
+        <TabPanel value={tabIndex} index={1}>
           <CardContent>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <FormControlLabel
@@ -352,7 +289,7 @@ const Settings = () => {
         </TabPanel>
 
         {/* Account Tab */}
-        <TabPanel value={tabIndex} index={3}>
+        <TabPanel value={tabIndex} index={2}>
           <CardContent>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>

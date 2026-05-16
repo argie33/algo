@@ -119,7 +119,7 @@ class OptimalLoader(ABC):
     @property
     def router(self):
         if self._router is None:
-            from data_source_router import DataSourceRouter
+            from utils.data_source_router import DataSourceRouter
             self._router = DataSourceRouter()
         return self._router
 
@@ -127,7 +127,7 @@ class OptimalLoader(ABC):
         if self._dedup is not None:
             return self._dedup
         try:
-            from bloom_dedup import LoadDedup
+            from utils.bloom_dedup import LoadDedup
             self._dedup = LoadDedup(namespace=self.table_name)
         except Exception as e:
             log.debug("Dedup unavailable (%s) �� using DB-only dedup", e)
@@ -348,7 +348,7 @@ class OptimalLoader(ABC):
         )
 
         try:
-            from algo_metrics import MetricsPublisher
+            from algo.algo_metrics import MetricsPublisher
             with MetricsPublisher() as m:
                 m.put_loader_result(self.table_name, self._stats)
         except Exception as e:

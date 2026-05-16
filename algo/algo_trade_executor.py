@@ -32,9 +32,9 @@ import logging
 from typing import Dict, Any
 
 from trade_status import TradeStatus, PositionStatus
-from alpaca_response_validator import AlpacaResponseValidator
+from utils.alpaca_response_validator import AlpacaResponseValidator
 from db_retry_helper import OptimisticLockRetry, RetryConfig
-from algo_notifications import TradeNotificationService
+from algo.algo_notifications import TradeNotificationService
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
@@ -73,11 +73,11 @@ class TradeExecutor:
         self.cur = None
 
         # Wire TCA engine for execution quality tracking
-        from algo_tca import TCAEngine
+        from algo.algo_tca import TCAEngine
         self.tca = TCAEngine(config)
 
         # Wire pre-trade hard stops (Phase 5: independent risk layer)
-        from algo_pretrade_checks import PreTradeChecks
+        from algo.algo_pretrade_checks import PreTradeChecks
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Wire order execution tracker (Phase 4 integration)
@@ -370,7 +370,7 @@ class TradeExecutor:
                 if not order_result['success']:
                     # Alert on Alpaca API failure
                     try:
-                        from algo_alerts import AlertManager
+                        from algo.algo_alerts import AlertManager
                         AlertManager().send_position_alert(
                             symbol, 'EXECUTION_FAILURE', 'CRITICAL',
                             f'Order submission failed: {order_result.get("message", "Unknown error")}'
@@ -416,7 +416,7 @@ class TradeExecutor:
                     if order_status in ('rejected', 'cancelled', 'expired'):
                         # B7: Alert on order rejection
                         try:
-                            from algo_notifications import notify
+                            from algo.algo_notifications import notify
                             notify(
                                 'critical',
                                 title=f'Order {order_status.upper()}: {symbol}',
@@ -589,7 +589,7 @@ class TradeExecutor:
                     # Alert if slippage excessive
                     if 'alert' in tca_result:
                         try:
-                            from algo_notifications import notify
+                            from algo.algo_notifications import notify
                             alert_data = tca_result['alert']
                             notify(
                                 alert_data['severity'].lower(),
@@ -644,7 +644,7 @@ class TradeExecutor:
                         else:
                             logger.critical(f"DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
                         try:
-                            from algo_notifications import notify
+                            from algo.algo_notifications import notify
                             notify(
                                 'critical',
                                 title='ORPHANED ORDER PREVENTION TRIGGERED',
@@ -819,7 +819,7 @@ class TradeExecutor:
                 else:
                     # B7: Alert on exit order failure
                     try:
-                        from algo_notifications import notify
+                        from algo.algo_notifications import notify
                         notify(
                             'critical',
                             title=f'EXIT ORDER FAILED: {symbol}',
@@ -1022,7 +1022,7 @@ class TradeExecutor:
                 from datetime import datetime, timedelta
                 if snapshot_date and (datetime.now().date() - snapshot_date).days > 1:
                     try:
-                        from algo_notifications import notify
+                        from algo.algo_notifications import notify
                         notify(
                             kind='portfolio_value_stale',
                             severity='warning',
@@ -1355,7 +1355,7 @@ class TradeExecutor:
 
 
 if __name__ == "__main__":
-    from algo_config import get_config
+    from algo.algo_config import get_config
     config = get_config()
     executor = TradeExecutor(config)
     result = executor.execute_trade(

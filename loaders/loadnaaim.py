@@ -386,7 +386,7 @@ def main():
     logging.info(f"NAAIM — total: {total}, inserted: {inserted}, failed: {len(failed)}")
 
     try:
-        from algo_metrics import MetricsPublisher
+        from algo.algo_metrics import MetricsPublisher
         with MetricsPublisher() as _m:
             _m.put_loader_result("naaim", {
                 'rows_inserted': inserted,

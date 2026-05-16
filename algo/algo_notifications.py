@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, Optional, Dict, List
 from dotenv import load_dotenv
 
-from algo_alerts import AlertManager
-from algo_config import DATABASE_CONFIG
+from algo.algo_alerts import AlertManager
+from algo.algo_config import DATABASE_CONFIG
 
 try:
     import psycopg2

@@ -31,7 +31,7 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date, datetime, timedelta
-from algo_sql_safety import assert_safe_table, assert_safe_column
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
