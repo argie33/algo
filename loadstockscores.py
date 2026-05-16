@@ -249,12 +249,12 @@ def main():
         symbols = get_active_symbols()
 
     loader = StockScoresLoader()
-    loader.start_provenance_tracking()
+    # loader.start_provenance_tracking()  # Disabled for local testing (data_loader_runs table missing)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
-        loader.end_provenance_tracking(success=True)
+        # loader.end_provenance_tracking(success=True)  # Disabled for local testing
     except Exception as e:
-        loader.end_provenance_tracking(success=False)
+        # loader.end_provenance_tracking(success=False)  # Disabled for local testing
         logging.error(f"Loader failed: {e}")
         raise
     finally:

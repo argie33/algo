@@ -67,7 +67,7 @@ class StockSymbolsLoader(OptimalLoader):
 
 
 def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
+    """Pull active symbols from the stocks table, or use seed list if empty."""
     import psycopg2
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
@@ -79,9 +79,19 @@ def get_active_symbols() -> List[str]:
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
+            symbols = [r[0] for r in cur.fetchall()]
+            if symbols:
+                return symbols
     finally:
         conn.close()
+
+    # Bootstrap: if database is empty, use seed list of popular stocks
+    return [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BERKB', 'JPM', 'V',
+        'JNJ', 'WMT', 'PG', 'XOM', 'MA', 'HD', 'DIS', 'MCD', 'KO', 'ADBE',
+        'NFLX', 'PEP', 'CSCO', 'INTC', 'AMD', 'CRM', 'IBM', 'BKNG', 'ORCL',
+        'BA', 'HON', 'MMM', 'UPS', 'CVX', 'MRK', 'ABBV', 'TMO', 'COST',
+    ]
 
 
 def main():

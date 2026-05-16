@@ -99,10 +99,10 @@ def run_loader(loader: str) -> Tuple[str, bool, bool, str]:
     except Exception as e:
         return (loader, False, False, str(e)[:100])
 
-def run_tier(tier_name: str, loaders: List[str], workers: int = 4) -> None:
+def run_tier(tier_name: str, loaders: List[str], workers: int = 1) -> None:
     """Run a tier of loaders in parallel."""
     logger.info(f"\n{tier_name}")
-    logger.info(f"  Starting {len(loaders)} loaders...")
+    logger.info(f"  Starting {len(loaders)} loaders (max {workers} workers)...")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(run_loader, loader): loader for loader in loaders}
