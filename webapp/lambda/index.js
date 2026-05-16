@@ -189,12 +189,12 @@ app.use((req, res, next) => {
 
 // Note: Rate limiting removed - API Gateway handles this
 
-// Global OPTIONS handler for CORS preflight requests (MUST be before CORS middleware)
-app.options('*', (req, res) => {
+// Global OPTIONS handler for CORS preflight requests
+// Use regex pattern instead of '*' which is invalid in Express 5.x
+app.options(/.*/, (req, res) => {
   const origin = req.headers.origin;
 
-  // FIXED: Use exact domain matching instead of substring patterns
-  // List of explicitly allowed origins - no wildcards or substring matching
+  // List of explicitly allowed origins
   const allowedOrigins = [
     process.env.CLOUDFRONT_DOMAIN,
     process.env.API_GATEWAY_URL,
@@ -203,10 +203,9 @@ app.options('*', (req, res) => {
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
     process.env.FRONTEND_URL
-  ].filter(Boolean); // Remove undefined values
+  ].filter(Boolean);
 
   let allowedOrigin = null;
-
   if (origin && allowedOrigins.includes(origin)) {
     allowedOrigin = origin;
   }
@@ -886,8 +885,8 @@ app.get("/api/debug/stock-scores-count", async (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// 404 handler for API routes (before SPA fallback)
-app.all("/api/*", (req, res) => {
+// 404 handler for API routes (use regex instead of /api/*)
+app.all(/^\/api\/.*/, (req, res) => {
   res.status(404).json({
     error: "Not Found",
     message: `API endpoint ${req.originalUrl} does not exist`,
@@ -918,8 +917,8 @@ app.use(express.static(mainBuildPath, {
   etag: false
 }));
 
-// SPA fallback for frontend routes (must be last - only applies to non-API paths)
-app.get('*', (req, res) => {
+// SPA fallback for frontend routes (use regex instead of '*')
+app.get(/.*/, (req, res) => {
   // CRITICAL: Do NOT serve SPA for /api/* paths - these should 404 via the handler above
   if (req.path.startsWith('/api')) {
     return res.status(404).json({
