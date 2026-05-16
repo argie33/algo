@@ -484,7 +484,7 @@ router.get('/markets', async (req, res) => {
 
     // Sector ranking (latest)
     const sectorsQuery = `
-      SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago, rank_12w_ago
+      SELECT sector_name, current_rank, momentum_score
       FROM sector_ranking
       WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
         AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
@@ -547,8 +547,6 @@ router.get('/markets', async (req, res) => {
           name: r.sector_name,
           rank: r.current_rank,
           momentum: parseFloat(r.momentum_score || 0),
-          rank_1w_ago: r.rank_1w_ago,
-          rank_4w_ago: r.rank_4w_ago,
         })),
         sentiment: sentimentResult.rows.map(r => ({
           date: r.date,
@@ -579,16 +577,13 @@ router.get('/swing-scores', async (req, res) => {
     const minScore = parseFloat(req.query.min_score) || 0;
 
     const result = await pool.query(
-      `SELECT s.symbol, s.eval_date, s.swing_score, s.grade,
-              s.setup_pts, s.trend_pts, s.momentum_pts, s.volume_pts,
-              s.fundamentals_pts, s.sector_pts, s.multi_tf_pts,
-              s.pass_gates, s.fail_reason, s.components,
-              cp.sector, cp.industry
+      `SELECT s.symbol, s.date, s.score, s.components,
+              cp.short_name, cp.sector, cp.industry
        FROM swing_trader_scores s
-       LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-       WHERE s.eval_date = (SELECT MAX(eval_date) FROM swing_trader_scores)
-         AND s.swing_score >= $1
-       ORDER BY s.swing_score DESC
+       LEFT JOIN company_profile cp ON cp.symbol = s.symbol
+       WHERE s.date = (SELECT MAX(date) FROM swing_trader_scores)
+         AND s.score >= $1
+       ORDER BY s.score DESC
        LIMIT $2`,
       [minScore, limit]
     );
@@ -597,32 +592,21 @@ router.get('/swing-scores', async (req, res) => {
       success: true,
       items: result.rows.map(r => ({
         symbol: r.symbol,
-        eval_date: r.eval_date,
-        swing_score: parseFloat(r.swing_score),
-        grade: r.grade,
-        components: {
-          setup: parseFloat(r.setup_pts || 0),
-          trend: parseFloat(r.trend_pts || 0),
-          momentum: parseFloat(r.momentum_pts || 0),
-          volume: parseFloat(r.volume_pts || 0),
-          fundamentals: parseFloat(r.fundamentals_pts || 0),
-          sector: parseFloat(r.sector_pts || 0),
-          multi_tf: parseFloat(r.multi_tf_pts || 0),
-        },
-        pass_gates: r.pass_gates,
-        fail_reason: r.fail_reason,
-        details: r.components,
+        date: r.date,
+        score: parseFloat(r.score),
+        components: r.components ? (typeof r.components === 'string' ? JSON.parse(r.components) : r.components) : {},
+        company_name: r.short_name,
         sector: r.sector,
         industry: r.industry,
       })),
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores:', error);
     return res.status(500).json({
       success: false,
       error: error.message,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   }
 });

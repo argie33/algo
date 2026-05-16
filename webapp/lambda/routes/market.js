@@ -2772,6 +2772,62 @@ router.get("/sentiment", async (req, res) => {
   }
 });
 
+// GET /api/market/top-movers - Top gainers and losers
+router.get("/top-movers", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+
+    const result = await query(`
+      WITH latest_prices AS (
+        SELECT
+          symbol,
+          open,
+          close,
+          ((close - open) / NULLIF(open, 0) * 100) as change_pct
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
+          AND close IS NOT NULL
+          AND open IS NOT NULL
+      )
+      SELECT
+        symbol,
+        open,
+        close,
+        change_pct,
+        CASE
+          WHEN change_pct > 0 THEN 'gainer'
+          WHEN change_pct < 0 THEN 'loser'
+          ELSE 'unchanged'
+        END as type
+      FROM latest_prices
+      ORDER BY ABS(change_pct) DESC
+      LIMIT $1
+    `, [limit * 2]);
+
+    const gainers = (result.rows || []).filter(r => r.type === 'gainer').slice(0, limit);
+    const losers = (result.rows || []).filter(r => r.type === 'loser').slice(0, limit);
+
+    return sendSuccess(res, {
+      gainers: gainers.map(r => ({
+        symbol: r.symbol,
+        open: parseFloat(r.open),
+        close: parseFloat(r.close),
+        change_pct: parseFloat(r.change_pct)
+      })),
+      losers: losers.map(r => ({
+        symbol: r.symbol,
+        open: parseFloat(r.open),
+        close: parseFloat(r.close),
+        change_pct: parseFloat(r.change_pct)
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching top movers:", error);
+    return sendError(res, error.message || "Failed to fetch top movers", 500);
+  }
+});
+
 // Fresh Market Data Endpoint - Direct from yfinance
 // Returns latest market data when database is unavailable
 router.get("/fresh-data", async (req, res) => {

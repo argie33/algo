@@ -115,7 +115,15 @@ class EconDataLoader(OptimalLoader):
 
     def __init__(self):
         super().__init__()
-        self._api_key = os.getenv("FRED_API_KEY", "")
+        # Get FRED API key from credential manager (tries AWS Secrets Manager first, then env vars)
+        if credential_manager:
+            try:
+                self._api_key = credential_manager.get_secret("FRED_API_KEY", default="")
+            except Exception as e:
+                logging.warning(f"Credential manager failed: {e}, falling back to environment")
+                self._api_key = os.getenv("FRED_API_KEY", "")
+        else:
+            self._api_key = os.getenv("FRED_API_KEY", "")
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         if not self._api_key:
@@ -142,8 +150,18 @@ def main():
     parser.add_argument("--parallelism", type=int, default=4)
     args = parser.parse_args()
 
-    if not os.getenv("FRED_API_KEY"):
-        logging.error("FRED_API_KEY environment variable not set. "
+    # Get FRED API key from credential manager or environment
+    api_key = None
+    if credential_manager:
+        try:
+            api_key = credential_manager.get_secret("FRED_API_KEY", default=None)
+        except Exception:
+            api_key = os.getenv("FRED_API_KEY")
+    else:
+        api_key = os.getenv("FRED_API_KEY")
+
+    if not api_key:
+        logging.error("FRED_API_KEY not found in AWS Secrets Manager or environment variables. "
                       "Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html")
         return 1
 
