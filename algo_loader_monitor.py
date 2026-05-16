@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Loader Failure Monitor — Detects when data loaders fail silently
 
@@ -15,6 +15,8 @@ USAGE:
   python3 algo_loader_monitor.py --check-symbols BRK.B,LEN.B,WSO.B
   python3 algo_loader_monitor.py --check-freshness
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

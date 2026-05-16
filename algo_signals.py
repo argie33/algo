@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Precise Swing-Trading Signal Computations - Best-of-canon implementations
 
@@ -37,6 +37,8 @@ SIGNALS IMPLEMENTED:
   pivot_breakout(symbol, eval_date)
       Detects breakout from a pivot high (Livermore line of least resistance).
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

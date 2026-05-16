@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Swing Trader Score - Research-weighted composite specifically for swing trading
 
@@ -32,6 +32,8 @@ The score becomes the PRIMARY ranking field in the filter pipeline,
 replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

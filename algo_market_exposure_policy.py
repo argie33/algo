@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Market Exposure Action Policy - Maps exposure score to concrete actions
 
@@ -24,6 +24,8 @@ Per Minervini, Tharp, O'Neil best practices:
 Each tier has a complete action profile that the orchestrator applies
 in Phase 2.5 (between circuit breakers and position monitor).
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

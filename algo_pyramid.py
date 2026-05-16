@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Pyramid - Add to Winners (Livermore principle)
 
@@ -31,6 +31,8 @@ Persists adds to algo_trade_adds table for audit + dashboard display.
 Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

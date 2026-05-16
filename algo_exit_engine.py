@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Exit Engine - Monitor positions and execute exits (HARDENED)
 
@@ -20,6 +20,8 @@ State tracked on algo_positions:
   - target_levels_hit (0/1/2/3): which T-levels have already triggered
   - current_stop_price: trailed stop after T1/T2 hits
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

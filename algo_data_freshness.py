@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Data Freshness Monitor & Loader Schedule
 
@@ -32,6 +32,8 @@ USAGE:
   python3 algo_data_freshness.py           # print status report
   python3 algo_data_freshness.py --json    # JSON output for piping
 """
+
+from credential_helper import get_db_password, get_db_config
 
 import json
 try:

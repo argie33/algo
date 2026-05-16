@@ -1087,6 +1087,124 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ============================================================
+// ============================================================
+// PRE-TRADE SIMULATION — Impact analysis before execution
+// ============================================================
+router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { symbol, entry_price, position_dollars, position_pct } = req.body;
+
+    if (!symbol || (!position_dollars && !position_pct)) {
+      return sendError(res, 'symbol and (position_dollars or position_pct) required', 400);
+    }
+
+    // Get current portfolio data
+    const portfolioResult = await pool.query(`
+      SELECT total_portfolio_value, cash_available, num_positions,
+             total_invested_pct, sector_concentration, industry_concentration
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC LIMIT 1
+    `);
+
+    if (!portfolioResult.rows.length) {
+      return sendError(res, 'Portfolio snapshot not available', 404);
+    }
+
+    const portfolio = portfolioResult.rows[0];
+    const totalValue = parseFloat(portfolio.total_portfolio_value || 0);
+    const cashAvail = parseFloat(portfolio.cash_available || 0);
+    const numPos = parseInt(portfolio.num_positions || 0);
+
+    // Calculate position size
+    let posSize = position_dollars ? parseFloat(position_dollars) : (totalValue * parseFloat(position_pct || 0) / 100);
+    const posPercent = (posSize / totalValue) * 100;
+
+    // Get stock metrics
+    const stockResult = await pool.query(`
+      SELECT symbol, sector, industry, current_price, market_cap,
+             risk_score, volatility, min_position_size
+      FROM company_profile
+      WHERE symbol = $1
+    `, [symbol.toUpperCase()]);
+
+    const stock = stockResult.rows[0];
+    if (!stock) {
+      return sendError(res, `Stock ${symbol} not found`, 404);
+    }
+
+    // Get current positions in same sector/industry
+    const sectorResult = await pool.query(`
+      SELECT SUM(position_value) as sector_invested, COUNT(*) as sector_count
+      FROM algo_positions
+      WHERE status = 'active' AND sector = $1
+    `, [stock.sector]);
+
+    const sectorData = sectorResult.rows[0];
+    const newSectorTotal = (parseFloat(sectorData.sector_invested || 0) + posSize) / totalValue * 100;
+
+    // Get current open positions
+    const posResult = await pool.query(`
+      SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'active'
+    `);
+    const openCount = parseInt(posResult.rows[0]?.open_count || 0);
+
+    // Calculate max drawdown impact (worst case 15% pullback)
+    const riskOnTrade = parseFloat(stock.risk_score || 0.5);
+    const volatilityFactor = parseFloat(stock.volatility || 1.0);
+    const drawdownImpact = posPercent * riskOnTrade * volatilityFactor * 0.15 / 100;
+
+    // Check constraints
+    const constraints = {
+      position_limit_ok: openCount < 6, // max 6 positions
+      size_limit_ok: posPercent <= 15,   // max 15% per position
+      sector_limit_ok: newSectorTotal <= 30, // max 30% in one sector
+      cash_ok: cashAvail >= posSize,     // have cash
+      risk_ok: drawdownImpact <= 0.05    // max 5% portfolio impact
+    };
+
+    const allOk = Object.values(constraints).every(v => v);
+
+    return sendSuccess(res, {
+      symbol: symbol.toUpperCase(),
+      entry_price: parseFloat(entry_price || stock.current_price),
+      position_size_dollars: posSize,
+      position_size_percent: posPercent,
+      sector: stock.sector,
+      risk_score: riskOnTrade,
+      volatility: volatilityFactor,
+
+      portfolio_impact: {
+        new_total_positions: openCount + 1,
+        position_limit: 6,
+        position_limit_ok: constraints.position_limit_ok,
+
+        new_position_percent: posPercent,
+        max_position_percent: 15,
+        position_size_ok: constraints.size_limit_ok,
+
+        new_sector_percent: newSectorTotal,
+        max_sector_percent: 30,
+        sector_limit_ok: constraints.sector_limit_ok,
+
+        worst_case_drawdown_impact: drawdownImpact,
+        max_acceptable_impact: 0.05,
+        drawdown_risk_ok: constraints.risk_ok,
+
+        cash_required: posSize,
+        cash_available: cashAvail,
+        cash_ok: constraints.cash_ok
+      },
+
+      all_constraints_met: allOk,
+      recommendation: allOk ? 'READY TO TRADE' : 'CONSTRAINTS VIOLATED'
+    });
+  } catch (error) {
+    console.error('Pre-trade simulation error:', error);
+    return sendError(res, error.message);
+  }
+});
+
 // PERFORMANCE METRICS — Sharpe, Sortino, Calmar, max DD, profit factor
 // ============================================================
 router.get('/performance', authenticateToken, async (req, res) => {

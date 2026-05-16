@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Performance Analysis — Compare Backtest vs Live Trading Results
 
@@ -18,6 +18,8 @@ USAGE:
     python3 algo_performance_analysis.py
     # Generates PERFORMANCE_ANALYSIS_REPORT.md
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

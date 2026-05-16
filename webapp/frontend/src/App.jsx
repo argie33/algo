@@ -41,6 +41,7 @@ const Settings = React.lazy(() => import("./pages/Settings"));
 const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboard"));
 const SignalIntelligence = React.lazy(() => import("./pages/SignalIntelligence"));
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
+const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
 
 import { useAuth } from "./contexts/AuthContext";
@@ -115,6 +116,13 @@ const menuItems = [
     icon: <TrendingUpIcon />,
     path: "/app/performance",
     category: "portfolio",
+  },
+  {
+    text: "Pre-Trade Simulator",
+    icon: <TrendingUpIcon />,
+    path: "/app/pre-trade-simulator",
+    category: "portfolio",
+    adminOnly: true,
   },
 
   // Analysis Section
@@ -423,6 +431,7 @@ function App() {
           <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />
           <Route path="/app/notifications" element={<ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute>} />
           <Route path="/app/audit" element={<ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute>} />
+          <Route path="/app/pre-trade-simulator" element={<ProtectedRoute requireAuth requireRole="admin"><PreTradeSimulator /></ProtectedRoute>} />
           <Route path="/app/settings" element={<ProtectedRoute requireAuth><Settings /></ProtectedRoute>} />
         </Routes>
         </Suspense>

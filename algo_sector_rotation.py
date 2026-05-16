@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Sector Rotation Detector — defensive leadership early warning
 
@@ -18,6 +18,8 @@ This module:
 When defensive_lead_score >= 60, the market exposure model reduces the
 composite score by 5-10 points (handled in algo_market_exposure.py).
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

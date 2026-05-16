@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Quantitative Market Exposure Engine - Research-backed 11-factor composite
 
@@ -40,6 +40,8 @@ Output:
 
 Persists daily to market_exposure_daily table for dashboard / audit.
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Circuit Breakers - Kill-switch risk halts (institutional safety layer)
 
@@ -22,6 +22,8 @@ When a circuit breaker fires:
   - returned to caller for display / notification
   - persists state until cleared (e.g., recovery threshold met)
 """
+
+from credential_helper import get_db_password, get_db_config
 
 import os
 import json

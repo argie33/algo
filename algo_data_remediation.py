@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Data Remediation — automatic actions when patrol finds problems
 
@@ -18,6 +18,8 @@ USAGE (called by run_eod_loaders.sh + manually):
   python3 algo_data_remediation.py
   python3 algo_data_remediation.py --dry-run
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

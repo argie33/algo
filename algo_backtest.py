@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Backtester Module — Walk-forward optimization and historical performance validation
 
@@ -19,6 +19,8 @@ Walk-Forward Optimization (WFO):
 - Calculate Walk-Forward Efficiency (WFE) = out-of-sample / in-sample Sharpe
 - Warn if WFE < 0.5 (curve-fitting detected)
 """
+
+from credential_helper import get_db_password, get_db_config
 
 import os
 import sys

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Pyramid Engine — Scale winners with additional entries
 
@@ -18,6 +18,8 @@ Risk Management:
 - Position scale: 1.0 base, 0.67 second add, 0.44 third add
 - Stop loss anchored to initial entry price
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

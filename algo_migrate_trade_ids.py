@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Migration: Backfill trade_ids VARCHAR to trade_ids_arr TEXT[].
 
@@ -12,6 +12,8 @@ USAGE:
   python3 algo_migrate_trade_ids.py --verify      # Verify migration
   python3 algo_migrate_trade_ids.py --cleanup     # Drop old trade_ids column
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager

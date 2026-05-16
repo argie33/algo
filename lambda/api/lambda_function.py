@@ -1364,8 +1364,8 @@ class APIHandler:
             elif path == '/api/market/sentiment':
                 range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
                 self.cur.execute("""
-                    SELECT date, fear_greed_index as value
-                    FROM market_sentiment
+                    SELECT date, fear_greed_value as value
+                    FROM fear_greed_index
                     WHERE date >= CURRENT_DATE - INTERVAL '%s days'
                     ORDER BY date DESC
                 """, (range_days,))
@@ -1404,8 +1404,8 @@ class APIHandler:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
-                SELECT date, fear_greed_index as value, label
-                FROM market_sentiment
+                SELECT date, fear_greed_value as value, fear_greed_label as label
+                FROM fear_greed_index
                 WHERE date >= %s
                 ORDER BY date DESC
             """, (cutoff_date,))
@@ -1616,9 +1616,10 @@ class APIHandler:
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
                 self.cur.execute("""
-                    SELECT date, fear_greed_index, put_call_ratio, vix, sentiment_score
-                    FROM market_sentiment
-                    ORDER BY date DESC
+                    SELECT fg.date, fg.fear_greed_value, mh.put_call_ratio, mh.vix_level
+                    FROM fear_greed_index fg
+                    LEFT JOIN market_health_daily mh ON fg.date = mh.date
+                    ORDER BY fg.date DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 sentiment = self.cur.fetchall()

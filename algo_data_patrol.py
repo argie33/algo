@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
+
 """
 Data Patrol — Continuous integrity watchdog
 
@@ -36,6 +36,8 @@ USAGE:
   python3 algo_data_patrol.py --quick            # critical checks only (P1,P3,P7,P9)
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
+
+from credential_helper import get_db_password, get_db_config
 
 try:
     from credential_manager import get_credential_manager
