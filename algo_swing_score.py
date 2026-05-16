@@ -606,9 +606,11 @@ class SwingTraderScore:
         ratio_pts = 0.0
         if row and row[0] and row[1]:
             ratio = float(row[0]) / float(row[1])
-            # 1.5x = full 6 pts (Bulkowski 65% breakout success threshold)
-            if ratio >= 1.5:
-                ratio_pts = 6
+            # Breakout volume ratio tiers
+            if ratio >= 2.0:
+                ratio_pts = 8  # >2x volume = exceptional breakout strength
+            elif ratio >= 1.5:
+                ratio_pts = 6  # 1.5x = full points (Bulkowski 65% success threshold)
             elif ratio >= 1.2:
                 ratio_pts = 5
             elif ratio >= 1.0:
@@ -637,8 +639,8 @@ class SwingTraderScore:
         accum = int(row[0]) if row else 0
         dist = int(row[1]) if row else 0
         net = accum - dist
-        # +5 net = full 6 pts
-        accum_pts = max(0.0, min(6.0, (net + 2) * 0.75))
+        # +5 net = full 6 pts (floor at 0 when net <= -1)
+        accum_pts = max(0.0, min(6.0, (net + 1) * 0.75))
 
         pts = ratio_pts + accum_pts
         return pts, {
