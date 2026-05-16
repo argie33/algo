@@ -1456,12 +1456,11 @@ CREATE TABLE IF NOT EXISTS data_remediation_log (
 CREATE TABLE IF NOT EXISTS market_exposure_daily (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL UNIQUE,
-    exposure_pct DECIMAL(8, 4),
-    raw_score DECIMAL(8, 4),
-    regime VARCHAR(50),
-    distribution_days INTEGER,
-    factors JSONB,
-    halt_reasons TEXT,
+    market_exposure_pct DECIMAL(8, 4),
+    long_exposure_pct DECIMAL(8, 4),
+    short_exposure_pct DECIMAL(8, 4),
+    exposure_tier VARCHAR(50),
+    is_entry_allowed BOOLEAN,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
