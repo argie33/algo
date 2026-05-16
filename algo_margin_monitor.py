@@ -25,8 +25,8 @@ class MarginMonitor:
         self.config = config or {}
         self.alert_threshold = float(self.config.get('margin_alert_pct', 70.0))
         self.halt_threshold = float(self.config.get('margin_halt_pct', 80.0))
-        self.alpaca_api_key = os.getenv("ALPACA_API_KEY", "")
-        self.alpaca_secret = os.getenv("ALPACA_SECRET_KEY", "")
+        self.alpaca_api_key = os.getenv("APCA_API_KEY_ID", "")
+        self.alpaca_secret = os.getenv("APCA_API_SECRET_KEY", "")
         self.base_url = "https://paper-api.alpaca.markets" if os.getenv("ALPACA_PAPER") == "true" else "https://api.alpaca.markets"
 
     def get_margin_usage(self) -> Dict[str, float]:
