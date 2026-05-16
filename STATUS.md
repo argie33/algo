@@ -1,7 +1,126 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 15: Code Cleanup & Quality Assurance)  
-**Status:** 🟢 **PRODUCTION READY** (All AI slop removed, code clean, no messy implementations)
+**Last Updated:** 2026-05-16 (Session 16: Local + AWS Setup with Data Loading)  
+**Status:** 🔄 **DUAL ENVIRONMENT SETUP IN PROGRESS** (Code ready, infrastructure deploying, local WSL setup needed)
+
+---
+
+## 🔄 SESSION 16: LOCAL + AWS DUAL ENVIRONMENT SETUP (2026-05-16)
+
+**Objective:** Get both local and AWS environments working with real data, enable comprehensive testing
+
+### 📋 PHASE 1: GITHUB ACTIONS DEPLOYMENT (Auto-triggered)
+
+**Status:** ⏳ Waiting for GitHub Actions to complete
+- Recent commits queued: d74554b19, 67acad91a (cleanup + infrastructure)
+- Workflow: `deploy-all-infrastructure.yml`
+- Expected changes: Terraform apply to fix API Gateway JWT → NONE auth
+- ETA: ~10-15 minutes from workflow start
+- Monitor: https://github.com/argie33/algo/actions
+
+**What will happen:**
+1. GitHub Actions pulls latest code
+2. Terraform init (S3 backend setup)
+3. Terraform validate (syntax check)
+4. Terraform plan (show JWT → NONE change)
+5. Terraform apply (update API Gateway route)
+6. API auto-deploy (redeploy with new auth)
+7. Result: `/api/*` endpoints return 200 (not 401)
+
+### 📋 PHASE 2: LOCAL ENVIRONMENT SETUP (After GitHub Actions completes)
+
+**Currently Blocked:** WSL not installed on Windows
+
+**Steps to fix:**
+```powershell
+# 1. Install WSL Ubuntu 24.04 LTS
+wsl --install -d Ubuntu-24.04
+
+# 2. Start Docker in WSL
+bash scripts/start-local.sh
+# This runs:
+#   - docker-compose up -d (PostgreSQL + Redis)
+#   - python3 init_database.py (create schema)
+
+# 3. Verify Docker is ready
+docker-compose ps
+
+# 4. Load local data
+python3 run-all-loaders.py
+# Tier 0: Stock symbols (~1 min)
+# Tier 1: Price data (~5 min, parallel)
+# Tier 2: Reference data (~10 min, parallel)
+# Tier 3: Trading signals (~3 min)
+# Tier 4: Algo metrics (~2 min)
+# Total: ~20 minutes for full dataset
+```
+
+### 📋 PHASE 3: AWS DATA LOADING (After API 401 fix)
+
+**Steps:**
+```bash
+# 1. Verify API works
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/algo/status
+# Expected: 200 OK with JSON
+
+# 2. Trigger data loaders (or wait for 4:05pm ET scheduled run)
+bash scripts/load-data-cloud.sh
+
+# 3. Monitor loader execution
+aws logs tail /aws/lambda/algo-orchestrator --follow
+
+# 4. Verify data in AWS
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/stocks?limit=5
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/scores/stockscores?limit=5
+```
+
+### 📋 PHASE 4: COMPREHENSIVE TESTING (Both environments)
+
+**Local Testing (after data loaded):**
+```bash
+# Test orchestrator (7 phases)
+python3 algo_orchestrator.py --mode paper --dry-run
+
+# Check data freshness
+python3 -c "
+import psycopg2
+conn = psycopg2.connect('dbname=stocks user=stocks password=postgres host=localhost')
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM stock_symbols')
+print(f'Symbols: {cur.fetchone()[0]}')
+cur.execute('SELECT COUNT(*) FROM price_daily')
+print(f'Prices: {cur.fetchone()[0]}')
+cur.execute('SELECT COUNT(*) FROM buy_sell_daily')
+print(f'Signals: {cur.fetchone()[0]}')
+"
+```
+
+**AWS Testing (after data loaded):**
+```bash
+# Test 10 API endpoints
+for endpoint in /api/stocks /api/scores/stockscores /api/signals /api/algo/status /api/algo/exposure-policy; do
+  curl -s "${API_URL}${endpoint}?limit=1" | jq . | head -5
+done
+
+# Test dashboard data flow
+curl -s "${API_URL}/api/metrics/dashboard?limit=5" | jq '.data | length'
+```
+
+### ✅ SUCCESS CRITERIA
+
+**Local:**
+- ✅ Docker running (PostgreSQL + Redis)
+- ✅ Database has 50,000+ stock symbols
+- ✅ Price data for last 252 days
+- ✅ Trading signals computed
+- ✅ Orchestrator runs all 7 phases without errors
+
+**AWS:**
+- ✅ API returns 200 (not 401)
+- ✅ Data loaders triggered and running
+- ✅ Database populated via loaders
+- ✅ API endpoints return real data
+- ✅ Frontend can fetch and display data
 
 ---
 
