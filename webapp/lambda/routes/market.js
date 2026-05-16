@@ -2483,17 +2483,10 @@ router.get("/technicals", async (req, res) => {
           const result = await query(`
             SELECT
               symbol,
-              MAX(running_count) as count,
+              MAX(distribution_count) as count,
               json_agg(
-                json_build_object(
-                  'date', date,
-                  'close_price', close_price,
-                  'change_pct', change_pct,
-                  'volume', volume,
-                  'volume_ratio', volume_ratio,
-                  'days_ago', days_ago,
-                  'running_count', running_count
-                )
+                json_build_object('date', date, 'count', distribution_count)
+                ORDER BY date DESC
               ) as days
             FROM distribution_days
             WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
@@ -2865,17 +2858,10 @@ router.get("/technicals-fresh", async (req, res) => {
           const result = await query(`
             SELECT
               symbol,
-              MAX(running_count) as count,
+              MAX(distribution_count) as count,
               json_agg(
-                json_build_object(
-                  'date', date,
-                  'close_price', close_price,
-                  'change_pct', change_pct,
-                  'volume', volume,
-                  'volume_ratio', volume_ratio,
-                  'days_ago', days_ago,
-                  'running_count', running_count
-                )
+                json_build_object('date', date, 'count', distribution_count)
+                ORDER BY date DESC
               ) as days
             FROM distribution_days
             WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
@@ -3047,7 +3033,7 @@ router.get("/cap-distribution", async (req, res) => {
           END as category,
           COUNT(*) as count,
           SUM(market_cap) as total_cap
-        FROM market_data
+        FROM key_metrics
         WHERE market_cap > 0
         GROUP BY category
       )
