@@ -7,7 +7,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     // Get algorithm positions - correct column names from algo_positions schema
-    const positions = await query(`
+    const positionsObj = await query(`
       SELECT
         symbol,
         created_at as entry_date,
@@ -22,6 +22,8 @@ router.get("/", async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 50
     `);
+
+    const positions = Array.isArray(positionsObj) ? positionsObj : (positionsObj?.rows || []);
 
     // Get portfolio summary from positions
     const totalValue = positions.reduce((sum, p) => sum + (p.current_price * p.quantity || 0), 0);
@@ -48,7 +50,7 @@ router.get("/", async (req, res) => {
 // GET /holdings - Get current holdings
 router.get("/holdings", async (req, res) => {
   try {
-    const holdings = await query(`
+    const holdingsObj = await query(`
       SELECT
         symbol,
         quantity,
@@ -62,6 +64,7 @@ router.get("/holdings", async (req, res) => {
       ORDER BY (quantity * current_price) DESC
     `);
 
+    const holdings = Array.isArray(holdingsObj) ? holdingsObj : (holdingsObj?.rows || []);
     sendSuccess(res, holdings, 200);
   } catch (error) {
     sendError(res, `Failed to retrieve holdings: ${error.message}`, 500);
@@ -71,7 +74,7 @@ router.get("/holdings", async (req, res) => {
 // GET /performance - Get portfolio performance
 router.get("/performance", async (req, res) => {
   try {
-    const performance = await query(`
+    const performanceObj = await query(`
       SELECT
         DATE(trade_date) as metric_date,
         COUNT(*) as total_trades,
@@ -88,6 +91,7 @@ router.get("/performance", async (req, res) => {
       LIMIT 90
     `);
 
+    const performance = Array.isArray(performanceObj) ? performanceObj : (performanceObj?.rows || []);
     sendSuccess(res, performance, 200);
   } catch (error) {
     sendError(res, `Failed to retrieve performance: ${error.message}`, 500);

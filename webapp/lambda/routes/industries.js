@@ -60,11 +60,7 @@ async function fetchIndustries(req, res) {
           cp.industry,
           AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
           AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 200) AS avg_forward_pe
-        FROM (
-          SELECT symbol, pe_ratio, pb_ratio
-          FROM value_metrics
-          ORDER BY symbol, date DESC
-        ) vm
+        FROM value_metrics vm
         JOIN company_profile cp ON vm.symbol = cp.ticker
         WHERE cp.industry IS NOT NULL
         GROUP BY cp.industry
