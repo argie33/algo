@@ -11,9 +11,6 @@ Generated: 2026-04-25
 Status: ✅ AUTHORITATIVE
 """
 
-from credential_manager import get_credential_manager
-credential_manager = get_credential_manager()
-
 import os
 import psycopg2
 from pathlib import Path
@@ -23,11 +20,21 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
+# Get DB password from environment first, fall back to credential manager if needed
+db_password = os.getenv("DB_PASSWORD")
+if not db_password:
+    try:
+        from credential_manager import get_credential_manager
+        credential_manager = get_credential_manager()
+        db_password = credential_manager.get_db_credentials()["password"]
+    except Exception:
+        db_password = "postgres"  # Default for local dev
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
     "user": os.getenv("DB_USER", "stocks"),
-    "password": credential_manager.get_db_credentials()["password"],
+    "password": db_password,
     "database": os.getenv("DB_NAME", "stocks"),
 }
 
