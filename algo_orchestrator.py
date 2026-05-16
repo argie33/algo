@@ -206,6 +206,11 @@ class Orchestrator:
         Only checks the LATEST patrol run (not accumulated from all runs in 24h).
         Returns: True if patrol OK, False if critical/error issues found.
         """
+        # In DEV mode, skip strict patrol checks to allow testing with partial data
+        if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+            logger.info("  [DEV MODE] Skipping strict data patrol checks")
+            return True
+
         try:
             # Get LATEST patrol run ID first
             cur.execute("""
