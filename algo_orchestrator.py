@@ -657,7 +657,7 @@ class Orchestrator:
             }
             # In DEV_MODE, be lenient about data staleness (allow up to 365 days old)
             is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
-            max_stale = 365 if is_dev_mode else int(self.config.get('max_data_staleness_days', 7))
+            max_stale = 365 if is_dev_mode else int(self.config.get('max_data_staleness_days', 3))
             stale_items = []
 
             try:

@@ -439,7 +439,7 @@ class CircuitBreaker:
             return {'halted': True, 'reason': 'No SPY data at all'}
         latest = row[0]
         days_stale = (current_date - latest).days
-        threshold = int(self.config.get('max_data_staleness_days', 5))
+        threshold = int(self.config.get('max_data_staleness_days', 3))
         return {
             'halted': days_stale > threshold,
             'reason': f'Data {days_stale}d stale > {threshold}d max' if days_stale > threshold else f'{days_stale}d old',
