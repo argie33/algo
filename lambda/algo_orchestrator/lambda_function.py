@@ -16,8 +16,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'paper')
-# DRY_RUN_MODE='true' only if explicitly set. Default to LIVE execution for actual testing.
-DRY_RUN = os.getenv('DRY_RUN_MODE', 'false').lower() == 'true'
+# ORCHESTRATOR_DRY_RUN is set by Terraform. Default to LIVE execution (false).
+DRY_RUN = os.getenv('ORCHESTRATOR_DRY_RUN', 'false').lower() == 'true'
 
 def get_database_credentials():
     """Fetch database credentials from AWS Secrets Manager."""
