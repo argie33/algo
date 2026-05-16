@@ -149,6 +149,20 @@ jobs:
             module.vpc.aws_security_group_rule.rds_self_postgres \
             sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0efd52dc5e807f2e0
 
+      - name: Fix API Gateway Route (Terraform State)
+        run: |
+          # AWS API Gateway v2 doesn't allow in-place authorization_type updates.
+          # If the route exists in state, remove it so Terraform can recreate it fresh.
+          # MUST run before terraform plan so the plan includes route recreation.
+          # This is idempotent: does nothing if the route isn't in state.
+          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
+            echo "Removing stuck API route from Terraform state (will be recreated with correct auth)"
+            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
+            echo "✅ Route removed from state, Terraform will recreate it in the plan"
+          else
+            echo "Route not in state, nothing to fix"
+          fi
+
       - name: Terraform Plan
         run: |
           terraform plan \
@@ -157,19 +171,6 @@ jobs:
             -detailed-exitcode || EXIT=$?
           # exit 0 = no changes, 2 = changes, other = error
           if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
-
-      - name: Fix API Gateway Route (Terraform State)
-        run: |
-          # AWS API Gateway v2 doesn't allow in-place authorization_type updates.
-          # If the route exists in state, remove it so Terraform can recreate it fresh.
-          # This is idempotent: does nothing if the route isn't in state.
-          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
-            echo "Removing stuck API route from Terraform state (will be recreated with correct auth)"
-            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
-            echo "✅ Route removed from state, Terraform will recreate it"
-          else
-            echo "Route not in state, nothing to fix"
-          fi
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
