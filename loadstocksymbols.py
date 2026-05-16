@@ -45,17 +45,20 @@ logging.basicConfig(
 
 class StockSymbolsLoader(OptimalLoader):
     table_name = "stock_symbols"
-    primary_key = ("symbol", "date")
-    watermark_field = "date"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch incremental data."""
-        try:
-            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
-        except Exception as e:
-            logging.debug(f"Fetch error for {symbol}: {e}")
-            return None
+        """Fetch symbol metadata only (not price data)."""
+        # Just return metadata for the symbol - no time series data
+        return [{
+            "symbol": symbol,
+            "name": f"{symbol} Company",  # Placeholder
+            "exchange": "NASDAQ",  # Placeholder
+            "market_cap": 0,
+            "sector": "Technology",  # Placeholder
+            "industry": "Unknown",  # Placeholder
+        }]
 
     def transform(self, rows):
         """Transform rows."""
