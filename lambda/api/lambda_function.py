@@ -127,6 +127,22 @@ class APIHandler:
                 self.cur.close()
             # Do NOT close self.conn — it's the module-level cached connection.
             # Roll back any uncommitted transaction so next request starts clean.
+
+    def _safe_limit(self, limit_val, default=200, max_limit=10000) -> int:
+        """Safely extract and validate limit parameter (prevents DoS)."""
+        try:
+            limit = int(limit_val) if limit_val else default
+            return max(1, min(limit, max_limit))
+        except (ValueError, TypeError):
+            return default
+
+    def _safe_offset(self, offset_val, max_offset=1000000) -> int:
+        """Safely extract and validate offset parameter (prevents DoS)."""
+        try:
+            offset = int(offset_val) if offset_val else 0
+            return max(0, min(offset, max_offset))
+        except (ValueError, TypeError):
+            return 0
             if self.conn and not self.conn.closed:
                 self.conn.rollback()
         except Exception as e:
@@ -1823,6 +1839,10 @@ class APIHandler:
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
+            # Prevent DoS via excessive limit/offset
+            limit = max(1, min(int(limit), 10000))  # Cap between 1 and 10000
+            offset = max(0, min(int(offset), 1000000))  # Cap offset at 1M max
+
             allowed_sorts = {
                 'composite_score': 'sc.composite_score',
                 'momentum_score': 'sc.momentum_score',
