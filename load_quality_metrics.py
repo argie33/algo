@@ -182,7 +182,8 @@ class QualityMetricsLoader(OptimalLoader):
             score += roe_score
 
         score = max(0, min(100, score))
-        metrics['quality_score'] = float(round(score, 1))
+        # Note: quality_score is computed but not stored in DB (no column in quality_metrics table)
+        # metrics['quality_score'] = float(round(score, 1))
 
         return metrics
 
