@@ -83,6 +83,35 @@ class FilterPipeline:
             self.conn.close()
         self.cur = self.conn = None
 
+    def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
+        """Apply exposure tier multiplier to position size.
+
+        Multipliers based on market exposure tier:
+        - NORMAL: 1.0x (full position size)
+        - CAUTION: 0.75x (75% position size, reduced risk)
+        - PRESSURE: 0.5x (50% position size, minimum size)
+
+        Args:
+            base_size: Base position size in dollars
+            tier: Exposure tier ('NORMAL', 'CAUTION', 'PRESSURE')
+            base_risk_pct: Base risk as percentage (for context, not used in multiplier)
+
+        Returns:
+            Adjusted position size after applying tier multiplier
+        """
+        multipliers = {
+            'NORMAL': 1.0,
+            'CAUTION': 0.75,
+            'PRESSURE': 0.5,
+            'HALT': 0.0,  # No trading allowed
+        }
+
+        multiplier = multipliers.get(tier, 1.0)  # Default to NORMAL if unknown
+        adjusted_size = base_size * multiplier
+
+        logger.debug(f"Tier multiplier: {tier} ({multiplier}x) -> ${base_size:.0f} → ${adjusted_size:.0f}")
+        return adjusted_size
+
     def evaluate_signals(self, eval_date=None) -> List[Dict[str, Any]]:
         """Evaluate all buy signals through filter pipeline.
 
