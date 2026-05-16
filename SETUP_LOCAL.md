@@ -32,16 +32,22 @@ DB_PASSWORD=<your_postgres_password>
 DB_NAME=stocks
 ```
 
-### 3. Initialize database + load data
+### 3. Initialize database
 ```bash
-# Create schema (132 tables)
-python3 init_database.py
+# On Windows, set UTF-8 encoding to avoid character issues
+set PYTHONIOENCODING=utf-8
 
-# Load all data (5 tiers, ~20 minutes)
+# Create schema (116+ tables, takes ~1 minute)
+python3 init_database.py
+```
+
+### 4. Load data
+```bash
+# Load all data through 5-tier dependency pipeline (~20 minutes)
 python3 run-all-loaders.py
 ```
 
-## Verify Everything Works
+### 5. Verify everything works
 ```bash
 # Check data was loaded
 python3 -c "
@@ -71,8 +77,12 @@ python3 algo_orchestrator.py --mode paper --dry-run
 **"password authentication failed"**
 - Fix: Update DB_PASSWORD in .env.local with your actual PostgreSQL password
 
+**"character encoding" or "UnicodeEncodeError"**
+- Windows encoding issue with init_database.py
+- Fix: Set UTF-8 before running: `set PYTHONIOENCODING=utf-8` then `python3 init_database.py`
+
 **"stocks database does not exist"**
-- Run: `python3 init_database.py` again
+- Run: `python3 init_database.py` again (with UTF-8 encoding set)
 
 **"FATAL: remaining connection slots are reserved"**
 - PostgreSQL is out of connections
@@ -81,10 +91,12 @@ python3 algo_orchestrator.py --mode paper --dry-run
 **Loaders timing out**
 - Reduce parallelism: Edit `run-all-loaders.py`, change `max_workers=4` to `max_workers=2`
 
-## Next Steps
-1. Load data: `python3 run-all-loaders.py`
-2. Test orchestrator: `python3 algo_orchestrator.py --mode paper --dry-run`
-3. For AWS: Push to main, watch GitHub Actions deploy
+## Next Steps (After Setup Complete)
+1. ✅ Schema initialized
+2. ✅ Data loaded via loaders
+3. Test orchestrator: `python3 algo_orchestrator.py --mode paper --dry-run`
+4. Check data quality: Verify record counts match expectations
+5. For AWS deployment: Push to main branch, watch GitHub Actions at https://github.com/argie33/algo/actions
 
 ## Questions?
 - Check STATUS.md for current issues
