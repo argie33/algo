@@ -16,7 +16,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -309,3 +308,4 @@ class RejectionTracker:
 
         finally:
             self.disconnect()
+

@@ -17,7 +17,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import sys
@@ -252,3 +251,4 @@ if __name__ == "__main__":
     backfill = BackfillMetrics()
     success = backfill.run()
     sys.exit(0 if success else 1)
+

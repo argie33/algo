@@ -29,7 +29,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -371,3 +370,4 @@ if __name__ == "__main__":
             print(f"  HALT NEW ENTRIES")
         if tier.get('force_exit_negative_r'):
             print(f"  FORCE EXIT LOSERS")
+

@@ -23,7 +23,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import json
@@ -308,3 +307,4 @@ if __name__ == "__main__":
                               key=lambda x: x[1]['rs_excess_4w'], reverse=True):
             tag = '[DEF]' if d['is_defensive'] else '[CYC]' if d['is_cyclical'] else '[   ]'
             print(f"    {tag} {sec:25s} {d['etf']:5s}  RS_4w={d['rs_excess_4w']:+6.2f}%  RS_12w={d['rs_excess_12w']:+6.2f}%")
+

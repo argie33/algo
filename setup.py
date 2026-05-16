@@ -11,7 +11,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import sys
@@ -307,3 +306,4 @@ if __name__ == '__main__':
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

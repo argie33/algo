@@ -37,7 +37,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
         SELECT trade_id, symbol, entry_price, stop_loss_price, status, alpaca_order_id
         FROM algo_trades
@@ -81,3 +80,4 @@ finally:
             conn.close()
         except Exception:
             pass
+

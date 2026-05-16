@@ -23,7 +23,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -209,3 +208,4 @@ if __name__ == '__main__':
         print(f"    {cand['symbol']:6s} Entry: {cand['entry_price']:7.2f} "
               f"Current: {cand['current_price']:7.2f} "
               f"R: {cand['r_multiple']:+.2f} P&L: {cand['unrealized_pnl_pct']:+.1f}%")
+

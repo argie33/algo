@@ -38,7 +38,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -341,3 +340,4 @@ if __name__ == "__main__":
         )
         import sys
         sys.exit(1 if critical_problems > 0 else 0)
+

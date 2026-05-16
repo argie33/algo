@@ -22,7 +22,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import argparse
 import io
@@ -354,3 +353,4 @@ if __name__ == "__main__":
     syms = args.symbols.split(",") if args.symbols else None
     run(symbol_filter=syms, days=args.days, batch_size=args.batch,
         sleep_between=args.sleep, use_alpaca=not args.no_alpaca)
+

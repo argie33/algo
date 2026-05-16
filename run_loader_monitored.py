@@ -8,7 +8,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import sys
 import time
@@ -165,3 +164,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -8,7 +8,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import sys
 import pandas as pd
@@ -123,3 +122,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Test failed: {e}")
         sys.exit(1)
+

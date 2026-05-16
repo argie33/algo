@@ -22,7 +22,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import sys
@@ -491,3 +490,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

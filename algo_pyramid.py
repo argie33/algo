@@ -36,7 +36,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -339,3 +338,4 @@ if __name__ == "__main__":
         print(f"\n  {r['symbol']:6s} #{r['add_number']}: +{r['add_size_shares']} sh @ "
               f"${r['add_price']:.2f}  R={r['r_at_add']}")
         print(f"         {r['reason']}")
+

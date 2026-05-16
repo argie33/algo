@@ -13,7 +13,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import json
@@ -185,3 +184,4 @@ if __name__ == '__main__':
 
     import sys
     sys.exit(0 if result.get('critical_count', 0) == 0 else 1)
+

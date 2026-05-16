@@ -909,7 +909,7 @@ class APIHandler:
                            cp.sector, cp.industry
                     FROM key_metrics km
                     LEFT JOIN company_profile cp ON cp.ticker = km.ticker
-                    WHERE km.symbol = %s
+                    WHERE km.ticker = %s
                 """, (symbol,))
                 row = self.cur.fetchone()
                 if not row:

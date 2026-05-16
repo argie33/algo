@@ -3,7 +3,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 ﻿#!/usr/bin/env python3
 """
@@ -148,3 +147,4 @@ class ComprehensiveAudit:
 if __name__ == '__main__':
     audit = ComprehensiveAudit()
     audit.run()
+

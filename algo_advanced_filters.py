@@ -31,7 +31,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import logging
@@ -721,3 +720,4 @@ if __name__ == "__main__":
         print(f"  subscores: {result['subscores']}")
         print(f"  components: {result['components']}")
     f.disconnect()
+

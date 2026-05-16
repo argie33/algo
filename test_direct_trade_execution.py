@@ -17,7 +17,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -255,3 +254,4 @@ print("  [OK] Position appears in Alpaca account")
 print("  [OK] Position closed")
 print("  [OK] All components of pipeline work together")
 print("\nConclusion: System is READY for real trading\n")
+

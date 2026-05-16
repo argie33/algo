@@ -21,7 +21,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import os
@@ -569,3 +568,4 @@ class PortfolioRisk:
         except Exception as e:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}
+

@@ -8,7 +8,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import sys
 import psycopg2
@@ -294,3 +293,4 @@ if __name__ == '__main__':
         sys.exit(0 if success else 1)
     finally:
         test.cleanup()
+

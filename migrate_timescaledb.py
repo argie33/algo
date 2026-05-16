@@ -21,7 +21,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import argparse
@@ -359,3 +358,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

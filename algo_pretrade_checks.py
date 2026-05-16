@@ -19,7 +19,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import os
@@ -315,3 +314,4 @@ class PreTradeChecks:
 
         print(f"[PRE-TRADE CHECKS PASSED] {symbol} {side} @ ${entry_price:.2f}")
         return True, None
+

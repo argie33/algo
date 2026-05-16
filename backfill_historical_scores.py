@@ -28,7 +28,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import argparse
@@ -192,3 +191,4 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size', type=int, default=100, help='Commit batch')
     args = parser.parse_args()
     backfill(args.days, args.symbols, args.batch_size)
+

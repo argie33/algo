@@ -56,7 +56,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import sys
@@ -1711,3 +1710,4 @@ if __name__ == "__main__":
         logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
     final = orch.run()
     sys.exit(0 if final['success'] else 1)
+

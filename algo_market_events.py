@@ -15,7 +15,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import os
@@ -425,3 +424,4 @@ class MarketEventHandler:
         result['checks']['after_hours_window'] = after_hours
 
         return result
+

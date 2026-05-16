@@ -19,7 +19,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 from datetime import date
@@ -310,3 +309,4 @@ class TCAEngine:
         except Exception as e:
             print(f"TCA: monthly_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
+

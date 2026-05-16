@@ -8,7 +8,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 from psycopg2.extras import execute_batch
@@ -131,3 +130,4 @@ def update_patterns():
 
 if __name__ == "__main__":
     update_patterns()
+

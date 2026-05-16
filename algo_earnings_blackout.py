@@ -10,7 +10,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -131,3 +130,4 @@ if __name__ == "__main__":
 
     upcoming = eb.get_upcoming_earnings("AAPL")
     print(f"AAPL upcoming earnings: {upcoming}")
+

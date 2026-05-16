@@ -23,7 +23,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import os
@@ -385,3 +384,4 @@ class PaperModeGates:
         }
 
         return result
+

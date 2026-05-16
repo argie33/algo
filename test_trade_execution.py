@@ -17,7 +17,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import psycopg2
@@ -232,3 +231,4 @@ print("  ✅ Trade recorded in database")
 print("  ✅ Database-Alpaca sync verified")
 print("  ✅ Position closed without errors")
 print("\nConclusion: System is ready to execute real trades when signals trigger\n")
+

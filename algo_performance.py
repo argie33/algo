@@ -17,7 +17,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import psycopg2
 import json
@@ -597,3 +596,4 @@ class LivePerformance:
         except Exception as e:
             logger.error(f"Performance: generate_daily_report failed: {e}")
             return {'status': 'error', 'message': str(e)}
+

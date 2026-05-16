@@ -36,7 +36,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
         SELECT symbol, date, close, volume
         FROM price_daily
@@ -106,3 +105,4 @@ finally:
             conn.close()
         except Exception:
             pass
+

@@ -24,7 +24,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-credential_manager = get_credential_manager()
 
 import os
 import json
@@ -678,3 +677,4 @@ if __name__ == "__main__":
     from algo_config import get_config
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
+
