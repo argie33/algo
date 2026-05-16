@@ -41,8 +41,8 @@ router.get("/list", async (req, res) => {
     const limitNum = Math.min(parseInt(limit) || 50, 1000);
     const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
 
-    const result = await query(`
-      SELECT 
+    const resultObj = await query(`
+      SELECT
         ss.symbol,
         COALESCE(cp.short_name, cp.display_name, cp.long_name) as company_name,
         cp.sector,
@@ -58,6 +58,7 @@ router.get("/list", async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
     sendSuccess(res, result, 200);
   } catch (error) {
     sendError(res, "Failed to fetch stocks: " + error.message, 500);
@@ -70,8 +71,8 @@ router.get("/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const upperSymbol = symbol.toUpperCase();
 
-    const result = await query(`
-      SELECT 
+    const resultObj = await query(`
+      SELECT
         ss.symbol,
         COALESCE(cp.short_name, cp.display_name, cp.long_name) as company_name,
         cp.sector,
@@ -90,6 +91,8 @@ router.get("/:symbol", async (req, res) => {
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ss.symbol = $1
     `, [upperSymbol]);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
     if (result.length === 0) {
       return sendError(res, `Stock ${upperSymbol} not found`, 404);
