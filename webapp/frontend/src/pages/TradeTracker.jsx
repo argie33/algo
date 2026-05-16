@@ -317,10 +317,10 @@ function ActivityView() {
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  const { data: log, loading: isLoading, refetch } = useApiQuery(
+  const { data: log, loading: isLoading, error: logError, refetch } = useApiQuery(
     ['algo-audit-log', filter],
     () => api.get(`/api/algo/audit-log?limit=300${filter ? '&action_type=' + filter : ''}`),
-    { refetchInterval: 60000 }
+    { refetchInterval: 60000, retry: false }
   );
 
   const items = useMemo(() => {
@@ -365,7 +365,9 @@ function ActivityView() {
           </div>
         </div>
 
-        {isLoading ? <Empty title="Loading…" /> : items.length === 0 ? (
+        {isLoading ? <Empty title="Loading…" /> : logError?.status === 403 ? (
+          <Empty title="Admin access required" desc="The audit log is restricted to admin accounts." />
+        ) : items.length === 0 ? (
           <Empty title="No activity yet" desc="The algo logs every decision here. Entries appear after each orchestrator run." />
         ) : (
           <div className="flex flex-col gap-2">

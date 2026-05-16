@@ -231,15 +231,18 @@ resource "aws_cloudwatch_dashboard" "main" {
 # Composite Alarms
 # ============================================================
 
-# Composite alarm: API is unhealthy (5xx + errors)
-# NOTE: Disabled - alarms referenced don't exist yet
-# TODO: Re-enable once underlying CloudWatch alarms are created for API Gateway and Lambda
-# This alarm will trigger when either 5xx errors OR Lambda errors exceed thresholds
-# alarm_rule = "ALARM(${var.apigw_5xx_alarm_name}) OR ALARM(${var.api_lambda_errors_alarm_name})"
-# For now, disabled to allow initial deployment without dependency on non-existent alarms
-# resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
-#   count = 0
-# }
+# Composite alarm: API is unhealthy (5xx errors OR Lambda errors exceed thresholds)
+resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
+  count             = var.sns_alerts_topic_arn != "" ? 1 : 0
+  alarm_name        = "${var.project_name}-api-unhealthy-${var.environment}"
+  alarm_description = "Composite alarm: API Gateway 5xx errors OR Lambda errors detected"
+  actions_enabled   = true
+  alarm_actions     = [var.sns_alerts_topic_arn]
+
+  alarm_rule = "ALARM(\"${var.apigw_5xx_alarm_name}\") OR ALARM(\"${var.api_lambda_errors_alarm_name}\")"
+
+  tags = var.common_tags
+}
 
 # Composite alarm: Database is unhealthy (high CPU + connection issues)
 # NOTE: Disabled until RDS alarms are created
