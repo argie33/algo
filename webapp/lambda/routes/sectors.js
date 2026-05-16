@@ -124,4 +124,40 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /:sector/trend - Get historical trend data for a specific sector
+router.get("/:sector/trend", async (req, res) => {
+  try {
+    const { sector } = req.params;
+    const days = Math.min(parseInt(req.query.days) || 90, 365);
+
+    const resultObj = await query(`
+      SELECT
+        sr.date,
+        sr.sector,
+        sr.avg_price,
+        sr.stock_count,
+        sr.composite_score,
+        sr.momentum_score,
+        sr.rank_1w_ago,
+        sr.rank_4w_ago,
+        sr.rank_12w_ago
+      FROM sector_ranking sr
+      WHERE sr.sector = $1
+        AND sr.date >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY sr.date DESC
+    `, [sector]);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+
+    if (result.length === 0) {
+      return sendError(res, `No trend data for sector: ${sector}`, 404);
+    }
+
+    sendSuccess(res, result, 200);
+  } catch (error) {
+    console.error("Error fetching sector trend:", error);
+    sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+  }
+});
+
 module.exports = router;

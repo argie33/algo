@@ -588,15 +588,28 @@ router.get('/swing-scores', async (req, res) => {
 
     return res.json({
       success: true,
-      items: result.rows.map(r => ({
-        symbol: r.symbol,
-        date: r.date,
-        score: parseFloat(r.score),
-        components: r.components ? (typeof r.components === 'string' ? JSON.parse(r.components) : r.components) : {},
-        company_name: r.short_name,
-        sector: r.sector,
-        industry: r.industry,
-      })),
+      items: result.rows.map(r => {
+        const score = parseFloat(r.score);
+        let grade = 'C';
+        if (score >= 80) grade = 'A';
+        else if (score >= 70) grade = 'B';
+        else if (score >= 60) grade = 'C';
+        else grade = 'D';
+
+        return {
+          symbol: r.symbol,
+          date: r.date,
+          swing_score: score,
+          score: score, // alias for compatibility
+          grade: grade,
+          pass_gates: score >= 60,
+          fail_reason: score < 60 ? 'Score below threshold' : null,
+          components: r.components ? (typeof r.components === 'string' ? JSON.parse(r.components) : r.components) : {},
+          company_name: r.short_name,
+          sector: r.sector,
+          industry: r.industry,
+        };
+      }),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -2024,5 +2037,45 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/algo/signal-performance-by-pattern
+ * Analyze trade performance grouped by signal pattern/type
+ */
+router.get('/signal-performance-by-pattern', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        COALESCE(base_type, 'Unknown') as pattern,
+        COUNT(*) as total_trades,
+        SUM(CASE WHEN status = 'closed' AND profit_loss_dollars > 0 THEN 1 ELSE 0 END) as winning_trades,
+        SUM(CASE WHEN status = 'closed' AND profit_loss_dollars < 0 THEN 1 ELSE 0 END) as losing_trades,
+        COUNT(*) FILTER (WHERE status = 'closed') as closed_trades,
+        ROUND(AVG(CASE WHEN status = 'closed' THEN profit_loss_pct ELSE NULL END)::numeric, 2) as avg_return_pct,
+        ROUND(SUM(profit_loss_dollars)::numeric, 2) as total_pnl,
+        ROUND((SUM(CASE WHEN status = 'closed' AND profit_loss_dollars > 0 THEN 1 ELSE 0 END)::float /
+               NULLIF(COUNT(*) FILTER (WHERE status = 'closed'), 0) * 100)::numeric, 1) as win_rate_pct
+      FROM algo_trades
+      WHERE trade_date >= CURRENT_DATE - INTERVAL '90 days'
+      GROUP BY base_type
+      ORDER BY total_trades DESC
+    `);
+
+    const patterns = result.rows.map(r => ({
+      pattern: r.pattern,
+      total_trades: r.total_trades,
+      winning_trades: r.winning_trades || 0,
+      losing_trades: r.losing_trades || 0,
+      closed_trades: r.closed_trades || 0,
+      avg_return_pct: parseFloat(r.avg_return_pct || 0),
+      total_pnl: parseFloat(r.total_pnl || 0),
+      win_rate_pct: parseFloat(r.win_rate_pct || 0)
+    }));
+
+    return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
+  } catch (error) {
+    return sendSuccess(res, { patterns: [], timestamp: new Date() }, 200);
+  }
+});
 
 module.exports = router;

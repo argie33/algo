@@ -51,10 +51,6 @@ python3 algo_sector_rotation.py || echo "$LOG_PREFIX WARN: sector_rotation faile
 echo "$LOG_PREFIX   - algo_market_exposure.py"
 python3 algo_market_exposure.py || echo "$LOG_PREFIX WARN: market_exposure failed"
 
-# Swing trader scores (last — needs every input above)
-echo "$LOG_PREFIX   - loadswingscores.py"
-python3 loadswingscores.py || echo "$LOG_PREFIX WARN: swing_scores failed"
-
 # 3. Post-load patrol
 echo "$LOG_PREFIX 3. Post-load patrol..."
 python3 algo_data_patrol.py

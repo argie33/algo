@@ -101,4 +101,40 @@ router.get("/:symbol", async (req, res) => {
   }
 });
 
+// GET /deep-value - Get deep value stock screener
+router.get("/deep-value", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 600, 5000);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+    const resultObj = await query(`
+      SELECT
+        ss.symbol,
+        COALESCE(cp.short_name, cp.display_name, cp.long_name) as company_name,
+        cp.sector,
+        cp.industry,
+        ss.value_score,
+        ss.composite_score,
+        ss.growth_score,
+        ss.stability_score,
+        vm.pe_ratio,
+        vm.pb_ratio,
+        vm.dividend_yield
+      FROM stock_scores ss
+      LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
+      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      WHERE ss.value_score IS NOT NULL
+        AND ss.value_score > 50
+      ORDER BY ss.value_score DESC, ss.composite_score DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    sendSuccess(res, result, 200);
+  } catch (error) {
+    console.error("Error fetching deep value stocks:", error);
+    sendError(res, "Failed to fetch deep value stocks: " + error.message, 500);
+  }
+});
+
 module.exports = router;

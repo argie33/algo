@@ -84,4 +84,108 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /stocks - Get stock trading signals
+router.get("/stocks", async (req, res) => {
+  try {
+    const timeframe = req.query.timeframe || "daily";
+    const symbol = req.query.symbol?.toUpperCase();
+    const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+    // Validate timeframe
+    const timeframeMap = {
+      daily: "buy_sell_daily",
+      weekly: "buy_sell_weekly",
+      monthly: "buy_sell_monthly"
+    };
+    const tableName = timeframeMap[timeframe];
+    if (!tableName) {
+      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
+    }
+
+    // Build WHERE clause
+    let whereClause = `WHERE bsd.signal IN ('BUY', 'SELL')`;
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      whereClause += ` AND bsd.symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    // Get signals for regular stocks (exclude major indices/ETFs)
+    const resultObj = await query(`
+      SELECT
+        bsd.id,
+        bsd.symbol,
+        '${timeframe}'::text as timeframe,
+        bsd.date,
+        bsd.signal,
+        bsd.strength,
+        bsd.reason,
+        ss.name as company_name,
+        cp.sector,
+        cp.industry
+      FROM ${tableName} bsd
+      LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
+      LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
+      ${whereClause}
+        AND bsd.symbol NOT IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
+      ORDER BY bsd.date DESC, bsd.symbol ASC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `, [...params, limit, offset]);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    sendSuccess(res, { items: result }, 200);
+  } catch (error) {
+    console.error("Error fetching stock signals:", error);
+    sendError(res, "Failed to fetch stock signals: " + error.message, 500);
+  }
+});
+
+// GET /etf - Get ETF trading signals
+router.get("/etf", async (req, res) => {
+  try {
+    const timeframe = req.query.timeframe || "daily";
+    const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+    // Validate timeframe
+    const timeframeMap = {
+      daily: "buy_sell_daily_etf",
+      weekly: "buy_sell_weekly_etf",
+      monthly: "buy_sell_monthly_etf"
+    };
+    const tableName = timeframeMap[timeframe];
+    if (!tableName) {
+      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
+    }
+
+    // Get signals for major indices/ETFs
+    const resultObj = await query(`
+      SELECT
+        bsd.id,
+        bsd.symbol,
+        '${timeframe}'::text as timeframe,
+        bsd.date,
+        bsd.signal,
+        bsd.strength,
+        bsd.reason,
+        cp.short_name as company_name
+      FROM ${tableName} bsd
+      LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
+      WHERE bsd.signal IN ('BUY', 'SELL')
+      ORDER BY bsd.date DESC
+      LIMIT $${1} OFFSET $${2}
+    `, [limit, offset]);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    sendSuccess(res, result, 200);
+  } catch (error) {
+    console.error("Error fetching ETF signals:", error);
+    sendError(res, "Failed to fetch ETF signals: " + error.message, 500);
+  }
+});
+
 module.exports = router;

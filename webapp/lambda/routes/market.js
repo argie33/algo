@@ -2225,65 +2225,6 @@ router.get("/fear-greed", async (req, res) => {
   }
 });
 
-// NAAIM - Professional advisor sentiment indicator
-router.get("/naaim", async (req, res) => {
-  try {
-    const fs = require("fs");
-    const comprehensivePath = getMarketDataPath();
-    const { range = "30d" } = req.query;
-
-    // Try to get NAAIM data from comprehensive market data file first
-    if (fs.existsSync(comprehensivePath)) {
-      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-      const naaim = data.sentiment?.naaim || [];
-
-      if (naaim.length > 0) {
-        return sendSuccess(res, {
-          items: naaim,
-          range: range,
-          count: naaim.length,
-          source: "fresh-data"
-        });
-      }
-    }
-
-    // Fallback to database
-    if (!query) {
-      return sendError(res, "Database service unavailable", 500);
-    }
-
-    let days = 30;
-    switch(range) {
-      case "90d": days = 90; break;
-      case "6m": days = 180; break;
-      case "1y": days = 365; break;
-      case "all": days = 10000; break;
-      default: days = 30;
-    }
-
-    const result = await query(`
-      SELECT date, bullish, bearish FROM naaim
-      WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-      ORDER BY date ASC LIMIT $2
-    `, [days, 1000]);
-
-    const data = (result?.rows || []).map(row => ({
-      date: row.date,
-      value: parseFloat(row.bullish || 0)
-    }));
-
-    return sendSuccess(res, {
-      items: data.length > 0 ? data : [],
-      range: range,
-      count: data.length
-    });
-
-  } catch (error) {
-    console.error("NAAIM sentiment error:", error);
-    return sendError(res, "Failed to fetch NAAIM sentiment", 500);
-  }
-});
-
 // ============================================================================
 // UNIFIED MARKET DATA ENDPOINT - Get all market data in one call
 // ============================================================================

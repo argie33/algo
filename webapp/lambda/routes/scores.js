@@ -6,10 +6,15 @@ const router = express.Router();
 // GET /stockscores - Get stock scores
 router.get("/stockscores", async (req, res) => {
   try {
-    const { limit = 50, page = 1, sort = "composite_score", order = "DESC" } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 50, 1000);
-    const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
-    const sortCol = ["composite_score", "momentum_score", "value_score", "quality_score"].includes(sort) ? sort : "composite_score";
+    // Accept both 'sort' and 'sortBy' (frontend uses sortBy)
+    const sortParam = req.query.sortBy || req.query.sort || "composite_score";
+    const { limit = 50, page = 1, order = "DESC" } = req.query;
+    const limitNum = Math.min(parseInt(limit) || 50, 5000);
+    // Accept both page-based and offset-based pagination
+    const offsetParam = req.query.offset != null ? Math.max(0, parseInt(req.query.offset) || 0) : null;
+    const offset = offsetParam !== null ? offsetParam : (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
+    const VALID_SORT_COLS = ["composite_score", "momentum_score", "value_score", "quality_score", "growth_score", "stability_score", "positioning_score"];
+    const sortCol = VALID_SORT_COLS.includes(sortParam) ? sortParam : "composite_score";
     const sortOrder = order.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
     const resultObj = await query(`
@@ -42,7 +47,7 @@ router.get("/stockscores", async (req, res) => {
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
     sendSuccess(res, {
-      scores: scores,
+      items: scores,
       pagination: {
         total: total,
         limit: limitNum,

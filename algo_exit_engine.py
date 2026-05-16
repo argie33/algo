@@ -159,20 +159,34 @@ class ExitEngine:
                 stage = exit_signal['stage']
                 new_stop = exit_signal.get('new_stop')
 
-                # Route ALL updates through executor (no direct UPDATE bypass)
-                # Even stop-raise-only (fraction=0) must use executor for atomicity and audit logging
+                # Route exit through executor (atomicity + audit logging)
+                # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
                 logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
                 if fraction > 0:
                     logger.info(f"      (exit {int(fraction*100)}%)")
 
-                result = self.executor.exit_trade(
-                    trade_id=trade_id,
-                    exit_price=cur_price,
-                    exit_reason=exit_signal['reason'],
-                    exit_fraction=max(fraction, 1e-6) if fraction >= 0 else 1e-6,
-                    exit_stage=stage,
-                    new_stop_price=new_stop,
-                )
+                # If fraction=0, this is a stop-raise-only signal (no exit)
+                if fraction == 0:
+                    if new_stop:
+                        # Update stop only (no exit execution)
+                        self.cur.execute("""
+                            UPDATE algo_positions
+                            SET active_stop = %s, updated_at = NOW()
+                            WHERE trade_id = %s
+                        """, (new_stop, trade_id))
+                        self.conn.commit()
+                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
+                        exits_executed += 1
+                    result = {'success': True}
+                else:
+                    result = self.executor.exit_trade(
+                        trade_id=trade_id,
+                        exit_price=cur_price,
+                        exit_reason=exit_signal['reason'],
+                        exit_fraction=fraction,  # Use fraction directly, no min() forcing
+                        exit_stage=stage,
+                        new_stop_price=new_stop,
+                    )
 
                 if result.get('success'):
                     exits_executed += 1

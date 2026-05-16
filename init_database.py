@@ -1638,6 +1638,27 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
 CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(date_start DESC);
 CREATE INDEX IF NOT EXISTS idx_backtest_runs_strategy ON backtest_runs(strategy_name);
 
+-- Backtest Trades - Individual trade details from backtest runs
+CREATE TABLE IF NOT EXISTS backtest_trades (
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100) NOT NULL REFERENCES backtest_runs(run_id) ON DELETE CASCADE,
+    symbol VARCHAR(10) NOT NULL,
+    entry_date DATE NOT NULL,
+    exit_date DATE,
+    entry_price DECIMAL(12, 4),
+    exit_price DECIMAL(12, 4),
+    quantity INTEGER,
+    profit_loss DECIMAL(12, 4),
+    profit_loss_pct DECIMAL(8, 4),
+    trade_outcome VARCHAR(10),  -- 'WIN' | 'LOSS' | 'BREAKEVEN'
+    holding_days INTEGER,
+    exit_reason VARCHAR(50),
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_id ON backtest_trades(run_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- OPERATIONAL MONITORING & EXECUTION TRACKING (PHASE 1-4 INTEGRATION)
 -- ════════════════════════════════════════════════════════════════════════════

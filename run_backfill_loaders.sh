@@ -41,11 +41,8 @@ python3 loadtechnicalsdaily.py --parallelism 8
 echo "$LOG_PREFIX 3. Backfilling buy_sell signals..."
 python3 loadbuyselldaily.py --parallelism 4
 
-# Backfill metrics that depend on prices (trend_template, swing_scores)
-echo "$LOG_PREFIX 4. Backfilling signal_quality_scores..."
-python3 loadswingscores.py --parallelism 8
-
-echo "$LOG_PREFIX 5. Backfilling trend_template_data..."
+# Backfill metrics that depend on prices (trend_template)
+echo "$LOG_PREFIX 4. Backfilling trend_template_data..."
 python3 loadtrend.py --parallelism 4
 
 echo "$LOG_PREFIX === BACKFILL COMPLETE ==="

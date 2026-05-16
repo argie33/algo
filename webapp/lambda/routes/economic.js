@@ -177,6 +177,15 @@ router.get("/leading-indicators", async (req, res) => {
       };
     };
 
+    // Calculate CPI YoY% change (CPIAUCSL is an index ~310, not a percentage)
+    // Frontend EconomicRegimeClock expects rawValue to be YoY inflation %
+    let cpiYoY = null;
+    if (historicalData['CPIAUCSL'] && historicalData['CPIAUCSL'].length >= 13) {
+      const currentCPI = historicalData['CPIAUCSL'][0].value;
+      const yearAgoCPI = historicalData['CPIAUCSL'][12].value;  // 12 months ago
+      cpiYoY = ((currentCPI - yearAgoCPI) / yearAgoCPI) * 100;
+    }
+
     // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
     // Note: Consumer Sentiment uses UMCSENT (correct series). MICH on FRED is
     // Michigan Inflation Expectations (~2-5%), not the 50-100 sentiment index.
@@ -218,13 +227,13 @@ router.get("/leading-indicators", async (req, res) => {
           {
             name: "Inflation (CPI)",
             category: "LEI", // Official Leading Economic Indicator
-            value: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value.toFixed(1) : null,
-            rawValue: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
-            unit: "Index",
+            value: cpiYoY != null ? cpiYoY.toFixed(1) + "%" : (indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value.toFixed(1) : null),
+            rawValue: cpiYoY,  // YoY% inflation, not index level
+            unit: "%",
             ...calculateTrend("CPIAUCSL"),
-            signal: indicators["CPIAUCSL"] ? (indicators["CPIAUCSL"].value < 260 ? "Positive" : indicators["CPIAUCSL"].value > 310 ? "Negative" : null) : null,
-            description: "Consumer Price Index measuring inflation",
-            strength: indicators["CPIAUCSL"] ? Math.min(100, Math.max(0, 100 - Math.abs(indicators["CPIAUCSL"].value - 280))) : null,
+            signal: cpiYoY != null ? (cpiYoY < 2.5 ? "Positive" : cpiYoY > 4.5 ? "Negative" : null) : null,
+            description: "Consumer Price Index year-over-year inflation rate",
+            strength: cpiYoY != null ? Math.min(100, Math.max(0, 100 - Math.abs(cpiYoY - 2) * 15)) : null,
             importance: "high",
             date: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].date : null,
             history: historicalData["CPIAUCSL"] ? historicalData["CPIAUCSL"].reverse() : [],
@@ -527,7 +536,7 @@ router.get("/yield-curve-full", async (req, res) => {
       };
     }
 
-    console.log(`✅ Yield curve data: ${Object.keys(currentCurve).length} maturities, spreads: ${Object.keys(treasurySpreads).filter(k => treasurySpreads[k] !== null).length}, isInverted: ${isInverted}`);
+    console.log(`[OK] Yield curve data: ${Object.keys(currentCurve).length} maturities, spreads: ${Object.keys(treasurySpreads).filter(k => treasurySpreads[k] !== null).length}, isInverted: ${isInverted}`);
 
     return sendSuccess(res, {
       currentCurve,
@@ -552,6 +561,7 @@ router.get("/yield-curve-full", async (req, res) => {
         history: {
           'BAMLH0A0HYM2': dataBySeriesAndDate['BAMLH0A0HYM2'] || [],
           'BAMLH0A0IG': dataBySeriesAndDate['BAMLH0A0IG'] || [],
+          'BAMLC0A0CM': dataBySeriesAndDate['BAMLH0A0IG'] || [],  // Alias for frontend compatibility
           'BAMLH0A0PRI': dataBySeriesAndDate['BAMLH0A0PRI'] || [],
           'BAA': dataBySeriesAndDate['BAA'] || [],
           'AAA': dataBySeriesAndDate['AAA'] || [],
