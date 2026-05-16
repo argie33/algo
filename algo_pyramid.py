@@ -43,6 +43,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
+from algo_pretrade_checks import PreTradeChecks
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -279,6 +280,33 @@ class PyramidEngine:
         """Execute pyramid add: send order to Alpaca + persist locally."""
         from algo_trade_executor import TradeExecutor
         r = recommendation
+
+        # Get portfolio value for PreTradeChecks
+        self.connect()
+        try:
+            self.cur.execute("SELECT SUM(current_value) FROM portfolio WHERE status = 'active'")
+            portfolio_row = self.cur.fetchone()
+            portfolio_value = portfolio_row[0] if portfolio_row and portfolio_row[0] else 100000
+        except Exception as e:
+            print(f"Warning: Could not get portfolio value: {e}")
+            portfolio_value = 100000
+        finally:
+            self.disconnect()
+
+        # Run PreTradeChecks before sending order
+        pretrade_checks = PreTradeChecks(self.config)
+        position_value = r['add_size_shares'] * r['add_price']
+        checks_passed, check_reason = pretrade_checks.run_all(
+            symbol=r['symbol'],
+            entry_price=r['add_price'],
+            position_value=position_value,
+            portfolio_value=portfolio_value,
+            side='BUY'  # Pyramid adds are always BUY (adding to winners)
+        )
+
+        if not checks_passed:
+            return {'success': False, 'message': f"PreTradeChecks failed: {check_reason}"}
+
         executor = TradeExecutor(self.config)
 
         # Send buy order to Alpaca for the add (simple buy, no bracket)

@@ -216,6 +216,11 @@ export default function MarketsHealth() {
         <SectorRotationMap markets={m} onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} />
       </div>
 
+      {/* ──────────── 14b. Sector Rotation Signal ──────────── */}
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        <SectorRotationSignalCard />
+      </div>
+
       {/* ──────────── 15-16. Yield Curve + VIX Term Structure ──────────── */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <YieldCurveCard />
@@ -1213,6 +1218,95 @@ function SectorRotationMap({ markets, onSelect }) {
               <div className="stile-sub">{sub}</div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 14b. SECTOR ROTATION SIGNAL (Defensive vs Cyclical)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SectorRotationSignalCard() {
+  const { data, loading, error } = useApiQuery(
+    ['sector-rotation'],
+    () => api.get('/api/algo/sector-rotation?limit=90'),
+    { refetchInterval: 1000 * 60 * 15 }
+  );
+
+  if (loading && !data?.items?.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
+  if (error || !data?.items?.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
+
+  const items = data.items || [];
+  const latest = items[items.length - 1];
+  const prior = items[items.length - 2] || latest;
+
+  const signalColor = latest?.signal === 'defensive_lead' ? C.cyan : latest?.signal === 'cyclical_strength' ? C.success : C.amber;
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Sector Rotation Signal</div>
+          <div className="card-sub">Defensive vs Cyclical leadership · {latest?.weeks_persistent || 0} weeks persistent</div>
+        </div>
+        <span className="badge" style={{ background: signalColor, color: 'white' }}>
+          {String(latest?.signal || 'neutral').replace(/_/g, ' ').toUpperCase()}
+        </span>
+      </div>
+      <div className="card-body">
+        <div style={{ height: 200 }}>
+          <ResponsiveContainer>
+            <LineChart data={items.map(d => ({
+              date: fmtDate(d.date),
+              fullDate: d.date,
+              defensive: parseFloat(d.defensive_lead_score || 0),
+              cyclical: parseFloat(d.cyclical_weak_score || 0),
+              signal: d.signal
+            }))} margin={{ top: 8, right: 16, bottom: 20, left: 0 }}>
+              <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
+              <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 11 }} />
+              <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} domain={[0, 100]} />
+              <RTooltip
+                contentStyle={TOOLTIP_STYLE}
+                formatter={(v) => [num(v, 1), v === items[items.length - 1]?.defensive_lead_score ? 'Defensive' : 'Cyclical']}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="defensive" stroke={C.cyan} strokeWidth={2.5} name="Defensive Lead" dot={false} />
+              <Line type="monotone" dataKey="cyclical" stroke={C.success} strokeWidth={2.5} name="Cyclical Strength" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
+          <div className="stile">
+            <div className="stile-label">Defensive Lead</div>
+            <div className="stile-value mono tnum" style={{ color: C.cyan }}>
+              {num(latest?.defensive_lead_score, 1)}
+            </div>
+            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
+              {latest?.defensive_avg_rs > 0 ? '+' : ''}{num(latest?.defensive_avg_rs, 2)}% RS avg
+            </div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Cyclical Weakness</div>
+            <div className="stile-value mono tnum" style={{ color: C.success }}>
+              {num(latest?.cyclical_weak_score, 1)}
+            </div>
+            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
+              {latest?.cyclical_avg_rs > 0 ? '+' : ''}{num(latest?.cyclical_avg_rs, 2)}% RS avg
+            </div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Spread</div>
+            <div className="stile-value mono tnum" style={{ color: signalColor }}>
+              {num(latest?.spread, 1)}
+            </div>
+            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
+              {latest?.weeks_persistent || 0} wks persistent
+            </div>
+          </div>
         </div>
       </div>
     </div>
