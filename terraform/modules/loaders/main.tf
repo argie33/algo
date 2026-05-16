@@ -142,6 +142,9 @@ locals {
     "financials_ttm_income"      = "loadttmincomestatement.py"
     "financials_ttm_cashflow"    = "loadttmcashflow.py"
     "key_metrics"                = "load_key_metrics.py"
+    "growth_metrics"             = "load_growth_metrics.py"
+    "quality_metrics"            = "load_quality_metrics.py"
+    "value_metrics"              = "load_value_metrics.py"
     "earnings_history"   = "loadearningshistory.py"
     "earnings_revisions" = "loadearningsrevisions.py"
     "earnings_surprise"  = "loadearningsestimates.py"
@@ -252,6 +255,21 @@ locals {
       description = "TTM cash flow - Monday 1am ET (after quarterly finishes)"
     }
 
+    # Computed metrics — run daily after market close (4pm ET) so issues can be fixed before next trading day
+    # 21:00 UTC = 5pm EDT / 6pm EST (safe margin after 4pm market close)
+    "growth_metrics" = {
+      schedule    = "cron(0 21 ? * MON-FRI *)"
+      description = "Growth metrics (revenue/EPS growth) - Daily 5pm ET (after market close)"
+    }
+    "quality_metrics" = {
+      schedule    = "cron(5 21 ? * MON-FRI *)"
+      description = "Quality metrics (ROE, margins, D/E) - Daily 5:05pm ET (after market close)"
+    }
+    "value_metrics" = {
+      schedule    = "cron(10 21 ? * MON-FRI *)"
+      description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:10pm ET (after market close)"
+    }
+
     # Earnings — run Sunday night only (data changes quarterly)
     "earnings_history" = {
       schedule    = "cron(0 4 ? * MON *)"
@@ -340,6 +358,11 @@ locals {
 
     # Key metrics (market cap, insider holdings) — I/O bound, rate-limited by Finnhub (free tier ~60/min)
     "key_metrics"                   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+
+    # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
+    "growth_metrics"                = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "quality_metrics"               = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "value_metrics"                 = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Earnings data (11:00am ET) — I/O bound
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
