@@ -1307,7 +1307,7 @@ class Orchestrator:
                         conn.close()
                     except Exception:
                         pass
-            max_positions = int(self.config.get('max_positions', 6))
+            max_positions = int(self.config.get('max_positions', 12))
             open_slots = max(0, max_positions - open_count)
 
             # Apply daily entry cap from exposure tier

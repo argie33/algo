@@ -1079,10 +1079,9 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       return sendError(res, 'symbol and (position_dollars or position_pct) required', 400);
     }
 
-    // Get current portfolio data
+    // Get current portfolio data — use actual column names from schema
     const portfolioResult = await pool.query(`
-      SELECT total_portfolio_value, cash_available, num_positions,
-             total_invested_pct, sector_concentration, industry_concentration
+      SELECT total_portfolio_value, total_cash, position_count
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC LIMIT 1
     `);
@@ -1093,8 +1092,8 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
 
     const portfolio = portfolioResult.rows[0];
     const totalValue = parseFloat(portfolio.total_portfolio_value || 0);
-    const cashAvail = parseFloat(portfolio.cash_available || 0);
-    const numPos = parseInt(portfolio.num_positions || 0);
+    const cashAvail = parseFloat(portfolio.total_cash || 0);
+    const numPos = parseInt(portfolio.position_count || 0);
 
     // Calculate position size
     let posSize = position_dollars ? parseFloat(position_dollars) : (totalValue * parseFloat(position_pct || 0) / 100);
@@ -1119,11 +1118,13 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       return sendError(res, `Stock ${symbol} not found`, 404);
     }
 
-    // Get current positions in same sector/industry
+    // Get current positions in same sector — join company_profile since algo_positions
+    // has no sector column.
     const sectorResult = await pool.query(`
-      SELECT SUM(position_value) as sector_invested, COUNT(*) as sector_count
-      FROM algo_positions
-      WHERE status = 'open' AND sector = $1
+      SELECT SUM(p.position_value) as sector_invested, COUNT(*) as sector_count
+      FROM algo_positions p
+      JOIN company_profile cp ON cp.ticker = p.symbol
+      WHERE p.status = 'open' AND cp.sector = $1
     `, [stock.sector]);
 
     const sectorData = sectorResult.rows[0];
