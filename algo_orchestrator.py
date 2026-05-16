@@ -1674,13 +1674,22 @@ class Orchestrator:
                 ('price_daily', 'Price data'),
                 ('technical_data_daily', 'Technical indicators'),
                 ('buy_sell_daily', 'Signal data'),
+                ('market_exposure_daily', 'Market exposure data'),
+                ('algo_risk_daily', 'Risk calculations'),
             ]
 
             for table, description in required_tables:
-                cur.execute(
-                    f"SELECT COUNT(*) FROM {table} WHERE date = %s",
-                    (today,)
-                )
+                if table == 'algo_risk_daily':
+                    # Use report_date instead of date for risk table
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE report_date = %s",
+                        (today,)
+                    )
+                else:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE date = %s",
+                        (today,)
+                    )
                 count = cur.fetchone()[0]
                 if count == 0:
                     issues.append(f"{description} missing for {today}")
