@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Master Orchestrator - Daily Trading Workflow (institutional desk style)
 
@@ -52,6 +51,7 @@ After every phase, results are written to algo_audit_log so the dashboard
 can show exactly what happened and when.
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
