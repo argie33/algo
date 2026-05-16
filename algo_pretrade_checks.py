@@ -111,7 +111,8 @@ class PreTradeChecks:
                 if resp.status_code == 200:
                     data = resp.json()
                     current_price = float(data.get('quote', {}).get('ap', 0))  # ask price
-            except:
+            except (requests.RequestException, ValueError, KeyError) as e:
+                # Fallback to database if API call fails
                 pass
 
             # Fallback: use database latest close price

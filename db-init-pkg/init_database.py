@@ -1756,6 +1756,58 @@ CREATE INDEX IF NOT EXISTS idx_rejection_symbol ON filter_rejection_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_order_trade_id ON order_execution_log(trade_id);
 CREATE INDEX IF NOT EXISTS idx_order_status ON order_execution_log(order_status);
 CREATE INDEX IF NOT EXISTS idx_order_timestamp ON order_execution_log(order_timestamp DESC);
+
+-- Loader tracking tables
+CREATE TABLE IF NOT EXISTS loader_execution_metrics (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    execution_date TIMESTAMP,
+    rows_inserted INTEGER,
+    rows_updated INTEGER,
+    rows_deleted INTEGER,
+    duration_seconds DECIMAL(8, 2),
+    success BOOLEAN,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, execution_date)
+);
+CREATE INDEX IF NOT EXISTS idx_loader_metrics_loader_name ON loader_execution_metrics(loader_name);
+CREATE INDEX IF NOT EXISTS idx_loader_metrics_execution_date ON loader_execution_metrics(execution_date);
+
+CREATE TABLE IF NOT EXISTS loader_execution_history (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    execution_start TIMESTAMP,
+    execution_end TIMESTAMP,
+    status VARCHAR(20),
+    rows_processed INTEGER,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_loader_history_loader_name ON loader_execution_history(loader_name);
+CREATE INDEX IF NOT EXISTS idx_loader_history_execution_start ON loader_execution_history(execution_start);
+
+CREATE TABLE IF NOT EXISTS loader_sla_status (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    last_success_time TIMESTAMP,
+    last_failure_time TIMESTAMP,
+    consecutive_failures INTEGER DEFAULT 0,
+    status VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name)
+);
+CREATE INDEX IF NOT EXISTS idx_loader_sla_status_loader_name ON loader_sla_status(loader_name);
+
+CREATE TABLE IF NOT EXISTS last_updated (
+    id SERIAL PRIMARY KEY,
+    script_name VARCHAR(100) NOT NULL UNIQUE,
+    last_run TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_last_updated_script_name ON last_updated(script_name);
 """
 
 def _init_timescaledb(conn, cur):
