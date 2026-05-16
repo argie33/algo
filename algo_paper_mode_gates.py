@@ -123,7 +123,7 @@ class PaperModeGates:
             self.cur.execute(
                 """
                 SELECT rolling_sharpe_252d FROM algo_performance_daily
-                WHERE report_date >= %s
+                WHERE report_date <= %s
                 ORDER BY report_date DESC LIMIT 1
                 """,
                 (date.today(),)
@@ -155,7 +155,7 @@ class PaperModeGates:
             self.cur.execute(
                 """
                 SELECT max_drawdown_pct FROM algo_performance_daily
-                WHERE report_date >= %s
+                WHERE report_date <= %s
                 ORDER BY report_date DESC LIMIT 1
                 """,
                 (date.today(),)
@@ -292,11 +292,21 @@ class PaperModeGates:
                         'passed': gate_7_position_health,
                         'requirement': 'No orphaned positions, DB mismatches',
                     },
-                },
+            }
+
+            # Calculate failed gates count for the approval message
+            failed_gates_count = sum([not g["passed"] for g in gates_dict.values() if isinstance(g, dict)])
+
+            # Build the result dict with the approval message
+            result = {
+                'overall_status': 'APPROVED' if all_gates_pass else 'BLOCKED',
+                'paper_trading_days': paper_duration_days,
+                'paper_start_date': paper_start_date.isoformat(),
+                'gates': gates_dict,
                 'approval_message': (
                     'PAPER TRADING VALIDATION PASSED — READY FOR PRODUCTION SIGN-OFF ✅'
                     if all_gates_pass
-                    else f'BLOCKED: {sum([not g["passed"] for g in result["gates"].values() if isinstance(g, dict)])} gates failed'
+                    else f'BLOCKED: {failed_gates_count} gates failed'
                 ),
             }
 
