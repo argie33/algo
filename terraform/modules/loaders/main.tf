@@ -200,6 +200,7 @@ locals {
     }
 
     # 3:30am ET = 8:30am UTC Mon-Fri — 8 tiny loaders consolidated into one task
+    "market_data_batch" = {
       schedule    = "cron(30 8 ? * MON-FRI *)"
       description = "Market data batch: 8 tiny loaders in parallel - 3:30am ET"
     }
@@ -286,7 +287,7 @@ locals {
 
     # NOTE: market_overview, sector_performance, relative_performance, social_sentiment,
     # loadmarket, loadsectors, loadsentiment deleted — no real data sources.
-are scheduled separately via EventBridge.
+    # NOTE: Some loaders are scheduled separately via EventBridge.
     # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
     # NOTE: analyst_sentiment, analyst_upgrades deleted — no real data sources wired.
 
