@@ -1,7 +1,45 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 18: Comprehensive Health Check + Data Freshness Audit)  
-**Status:** 🟢 **PRODUCTION-READY** | All critical paths verified | Ready for deployment
+**Last Updated:** 2026-05-16 (Session 11: IaC Fix for API Gateway Route)  
+**Status:** 🟡 **APPLYING FIX** | Terraform state issue being resolved via automation | Monitoring deployment...
+
+---
+
+## 🔧 SESSION 11: PROPER IaC FIX FOR TERRAFORM APPLY BLOCKER (2026-05-16)
+
+**Objective:** Resolve API Gateway route authentication blocker using Infrastructure as Code (not manual AWS work)
+
+### ✅ SOLUTION IMPLEMENTED: Terraform State Auto-Cleanup in CI/CD
+
+**The Right Way (IaC-Compliant):**
+- AWS API Gateway v2 doesn't support in-place `authorization_type` updates on existing routes
+- **Solution:** Add a pre-apply step in GitHub Actions that removes the stuck route from Terraform state
+- Terraform then destroys the old route (in AWS) and recreates it with correct configuration
+- Completely automated, no manual AWS Console work required
+- Idempotent: only runs if the route is stuck in state
+
+**Code Change:** `.github/workflows/deploy-all-infrastructure.yml`
+- Added "Fix API Gateway Route (Terraform State)" step before Terraform Apply
+- Checks if route is in state, removes it, logs action
+- Terraform.apply then: destroy old route → recreate with `authorization_type = "NONE"`
+- Result: API will return 200 instead of 401
+
+**Commit:** `e6b36b805` - "fix: Auto-remove stuck API Gateway route from Terraform state before apply"
+
+**Current Status:** 
+- Fix pushed to main (2026-05-16 ~14:00 UTC)
+- GitHub Actions deployment in progress (Run #326)
+- Monitoring: Watching for completion
+
+### Why This Approach?
+
+| Approach | Pros | Cons | Verdict |
+|----------|------|------|---------|
+| Manual AWS Console | Quick | Violates "IaC only" principle ❌ | Not acceptable |
+| Manual `terraform state rm` locally | Better than console | Requires AWS credentials locally ❌ | Harder for user |
+| **Terraform state rm in CI/CD** | **Fully automated ✅** | **None** | **✅ CHOSEN** |
+
+The fix is now self-service: any future code push will automatically handle this AWS limitation.
 
 ---
 
