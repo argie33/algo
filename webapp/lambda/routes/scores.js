@@ -9,6 +9,7 @@ router.get("/stockscores", async (req, res) => {
     // Accept both 'sort' and 'sortBy' (frontend uses sortBy)
     const sortParam = req.query.sortBy || req.query.sort || "composite_score";
     const { limit = 50, page = 1, order = "DESC" } = req.query;
+    const sp500Only = req.query.sp500Only === 'true' || req.query.sp500_only === 'true';
     const limitNum = Math.min(parseInt(limit) || 50, 5000);
     // Accept both page-based and offset-based pagination
     const offsetParam = req.query.offset != null ? Math.max(0, parseInt(req.query.offset) || 0) : null;
@@ -16,6 +17,11 @@ router.get("/stockscores", async (req, res) => {
     const VALID_SORT_COLS = ["composite_score", "momentum_score", "value_score", "quality_score", "growth_score", "stability_score", "positioning_score"];
     const sortCol = VALID_SORT_COLS.includes(sortParam) ? sortParam : "composite_score";
     const sortOrder = order.toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+    let whereClause = "WHERE ss.symbol IS NOT NULL";
+    if (sp500Only) {
+      whereClause += " AND ss.is_sp500 = true";
+    }
 
     const resultObj = await query(`
       SELECT
@@ -33,13 +39,14 @@ router.get("/stockscores", async (req, res) => {
         ROUND(ss.composite_score::numeric, 2) as score_rounded
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
-      WHERE ss.symbol IS NOT NULL
+      ${whereClause}
       ORDER BY ${sortCol} ${sortOrder} NULLS LAST
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
     const countResultObj = await query(`
-      SELECT COUNT(*) as total FROM stock_scores
+      SELECT COUNT(*) as total FROM stock_scores ss
+      ${whereClause}
     `);
 
     const scores = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);

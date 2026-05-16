@@ -82,55 +82,9 @@ output "eventbridge_scheduler_role_name" {
   value       = aws_iam_role.eventbridge_scheduler.name
 }
 
-# GitHub Deployer User
-output "github_deployer_user_name" {
-  description = "Name of GitHub Actions deployer IAM user"
-  value       = aws_iam_user.github_deployer.name
-}
-
-output "github_deployer_user_arn" {
-  description = "ARN of GitHub Actions deployer IAM user"
-  value       = aws_iam_user.github_deployer.arn
-}
-
-output "github_deployer_access_key_id" {
-  description = "Access key ID for GitHub Actions deployer"
-  value       = aws_iam_access_key.github_deployer.id
-  sensitive   = true
-}
-
-output "github_deployer_secret_access_key" {
-  description = "Secret access key for GitHub Actions deployer (keep secure!)"
-  value       = aws_iam_access_key.github_deployer.secret
-  sensitive   = true
-}
-
-# Pipeline/Automation User
-output "pipeline_user_name" {
-  description = "Name of pipeline automation IAM user"
-  value       = aws_iam_user.pipeline.name
-}
-
-output "pipeline_user_arn" {
-  description = "ARN of pipeline automation IAM user"
-  value       = aws_iam_user.pipeline.arn
-}
-
-output "pipeline_access_key_id" {
-  description = "Access key ID for pipeline automation"
-  value       = aws_iam_access_key.pipeline.id
-  sensitive   = true
-}
-
-output "pipeline_secret_access_key" {
-  description = "Secret access key for pipeline automation (keep secure!)"
-  value       = aws_iam_access_key.pipeline.secret
-  sensitive   = true
-}
-
 # Developer User
 output "developer_user_name" {
-  description = "Name of developer IAM user (for user login)"
+  description = "Name of developer IAM user (for local CLI access)"
   value       = aws_iam_user.developer.name
 }
 
@@ -139,14 +93,19 @@ output "developer_user_arn" {
   value       = aws_iam_user.developer.arn
 }
 
+output "developer_access_key_id" {
+  description = "Access key ID for local developer CLI use (read-only verification)"
+  value       = aws_iam_access_key.developer.id
+  sensitive   = true
+}
+
+output "developer_secret_access_key" {
+  description = "Secret access key for local developer CLI use (keep secure, SAVE IMMEDIATELY)"
+  value       = aws_iam_access_key.developer.secret
+  sensitive   = true
+}
+
 output "developer_console_login_url" {
   description = "AWS Console login URL for developer user"
   value       = "https://${var.aws_account_id}.signin.aws.amazon.com/console"
-}
-
-# Pipeline user secret key (SENSITIVE - for local CLI setup only)
-output "pipeline_secret_key_for_cli" {
-  description = "Secret access key for pipeline user CLI setup (SAVE IMMEDIATELY)"
-  value       = aws_iam_access_key.pipeline.secret
-  sensitive   = true
 }
