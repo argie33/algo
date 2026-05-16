@@ -49,10 +49,11 @@
 - Updated tools-and-access.md - clarified PostgreSQL config
 - Updated STATUS.md - removed Docker/WSL blocker from next steps
 
-**4. Added Verification Tools** ✅
-- Created verify_setup.py - comprehensive setup checker
-- Created init_schema_simple.py - alternative schema initializer
-- Both available for troubleshooting
+**4. Updated CLAUDE.md Steering Rules** ✅
+- Made doc creation rules explicit and mechanical
+- Prevents extra docs from being created
+- All session info → STATUS.md only
+- All utility scripts → DELETE immediately
 
 ### 📋 CURRENT STATE
 
@@ -64,25 +65,20 @@
 
 ### 🎯 NEXT IMMEDIATE STEPS (FOR YOU)
 
-1. **Verify setup** (2 minutes):
+1. **Initialize schema** (1 minute):
    ```bash
-   python3 verify_setup.py
+   set PYTHONIOENCODING=utf-8
+   python3 init_database.py
    ```
-   Should show: "Database ready, waiting for data loaders"
+   Creates 116 tables in stocks database
 
 2. **Load data** (20 minutes):
    ```bash
    python3 run-all-loaders.py
    ```
-   Will populate stock_symbols, price_daily, buy_sell_daily, scores, etc.
+   Populates stock_symbols, price_daily, buy_sell_daily, scores via 5-tier loader pipeline
 
-3. **Verify data loaded** (1 minute):
-   ```bash
-   python3 verify_setup.py
-   ```
-   Should show: "Data loaded OK" with record counts
-
-4. **Test orchestrator** (10 minutes):
+3. **Test orchestrator** (10 minutes):
    ```bash
    python3 algo_orchestrator.py --mode paper --dry-run
    ```
