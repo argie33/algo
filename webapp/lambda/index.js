@@ -794,8 +794,8 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
 app.use("/api/signals", cacheMiddleware(15), signalsRoutes);
 app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
 app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
+app.use("/api/trades/manual", manualTradesRoutes);  // Mount more specific route first
 app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
-app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", require("./routes/user"));
 
 // New strategy routes

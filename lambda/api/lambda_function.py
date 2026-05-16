@@ -1036,9 +1036,10 @@ class APIHandler:
                     COALESCE(td.atr, 0) as atr,
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(td.ema_21, 0) as ema_21,
-                    COALESCE(tt.stage, 'unknown') as market_stage,
-                    COALESCE(tt.trend, 'unknown') as trend,
+                    COALESCE(td.ema_12, 0) as ema_12,
+                    COALESCE(td.ema_26, 0) as ema_26,
+                    COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
+                    COALESCE(tt.trend_direction, 'unknown') as trend,
                     ss.company_name, cp.sector, cp.industry,
                     COALESCE(swg.score, 0) AS swing_score,
                     swg.components->>'grade' AS grade
@@ -1073,8 +1074,8 @@ class APIHandler:
                     COALESCE(td.rsi, 0) as rsi,
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(tt.stage, 'unknown') as market_stage,
-                    COALESCE(cp.company_name, bsd.symbol) as company_name
+                    COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
+                    COALESCE(cp.short_name, cp.long_name, bsd.symbol) as company_name
                 FROM buy_sell_daily_etf bsd
                 LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
                     AND bsd.date = td.date
@@ -1083,7 +1084,7 @@ class APIHandler:
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
                 WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
                 AND bsd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
-                ORDER BY bsd.signal_triggered_date DESC
+                ORDER BY bsd.date DESC
                 LIMIT %s
             """, (limit,))
             signals = self.cur.fetchall()

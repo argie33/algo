@@ -121,22 +121,9 @@ router.put("/settings", authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/user/alerts - Get user alerts
+// GET /api/user/alerts - Get user alerts (not yet implemented)
 router.get("/alerts", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user?.id || req.query.user_id;
-
-    if (!userId) {
-      return sendError(res, "User ID required", 400);
-    }
-
-    return sendSuccess(res, {
-      alerts: []
-    });
-  } catch (error) {
-    console.error("Alerts fetch error:", error);
-    return sendError(res, "Failed to fetch alerts", 500);
-  }
+  return sendError(res, "Alerts feature not yet implemented", 501);
 });
 
 module.exports = router;

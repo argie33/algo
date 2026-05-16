@@ -18,11 +18,11 @@ tier_1_prices = [
     'loadpricedaily.py', 'loadetfpricedaily.py',
 ]
 
-# Tier 1b: Price aggregates and technical indicators (depends on tier 1, run after daily prices)
+# Tier 1b: Price aggregates (depends on tier 1, run after daily prices)
 tier_1b_aggregates = [
     'load_price_aggregate.py',  # Generates weekly and monthly from daily
     'load_etf_price_aggregate.py',  # Generates weekly and monthly ETF prices
-    'load_technical_indicators.py',  # Computes technical_data_daily (required for Phase 6)
+    # Note: technical_data_daily is populated by load_algo_metrics_daily.py in Tier 4
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
@@ -34,7 +34,7 @@ tier_2_reference = [
     'loadearningshistory.py', 'loadearningsrevisions.py',
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
-    'loadsectors.py', 'loadindustryranking.py',
+    'loadsectors.py',  # Note: industry_ranking populated by loadsectors.py
     ('loadstockscores.py', ['--parallelism', '16']),  # 16 workers: compensates for retry delays
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
 ]
