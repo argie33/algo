@@ -48,7 +48,7 @@ class TestOrderRejection:
         executor = TradeExecutor(test_config)
 
         with patch.object(executor, '_send_alpaca_order') as mock_send, \
-             patch('algo_notifications.notify') as mock_notify:
+             patch('algo.algo_notifications.notify') as mock_notify:
 
             mock_send.return_value = {
                 'success': False,
@@ -214,7 +214,7 @@ class TestBadData:
         executor = TradeExecutor(test_config)
 
         # Mock pre-trade checks to pass so we can test the actual price validation
-        with patch('algo_pretrade_checks.PreTradeChecks.run_all', return_value=(True, None)):
+        with patch('algo.algo_pretrade_checks.PreTradeChecks.run_all', return_value=(True, None)):
             result = executor.execute_trade(
                 symbol='AAPL',
                 entry_price=150.00,
@@ -233,7 +233,7 @@ class TestBadData:
         executor = TradeExecutor(test_config)
 
         # Mock pre-trade checks to pass so we can test the actual price validation
-        with patch('algo_pretrade_checks.PreTradeChecks.run_all', return_value=(True, None)):
+        with patch('algo.algo_pretrade_checks.PreTradeChecks.run_all', return_value=(True, None)):
             result = executor.execute_trade(
                 symbol='AAPL',
                 entry_price=150.00,

@@ -44,7 +44,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None

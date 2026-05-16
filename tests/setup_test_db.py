@@ -27,7 +27,7 @@ if env_file.exists():
 db_password = os.getenv("TEST_DB_PASSWORD") or os.getenv("DB_PASSWORD")
 if not db_password:
     try:
-        from credential_manager import get_credential_manager
+        from config.credential_manager import get_credential_manager
         credential_manager = get_credential_manager()
         db_password = credential_manager.get_db_credentials()["password"]
     except Exception:

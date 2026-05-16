@@ -100,7 +100,7 @@ def add_credential_import(content: str) -> str:
             break
 
     # Insert import
-    lines.insert(insert_idx, 'from credential_manager import get_credential_manager')
+    lines.insert(insert_idx, 'from config.credential_manager import get_credential_manager')
     lines.insert(insert_idx + 1, 'credential_manager = get_credential_manager()')
     lines.insert(insert_idx + 2, '')
 

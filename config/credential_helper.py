@@ -44,7 +44,7 @@ def get_db_password() -> str:
 
     # 2. Try credential_manager (local dev with AWS access)
     try:
-        from credential_manager import get_credential_manager
+        from config.credential_manager import get_credential_manager
         cm = get_credential_manager()
         if cm:
             creds = cm.get_db_credentials()

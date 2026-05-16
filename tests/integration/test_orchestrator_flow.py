@@ -71,8 +71,8 @@ class TestOrchestratorWithRealDatabase:
         try:
             # If circuit breaker returns False (halted), entries should be skipped
             # This test verifies the orchestrator respects the circuit breaker decision
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order'), \
-                 patch('algo_market_calendar.MarketCalendar.is_trading_day', return_value=True):
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'), \
+                 patch('algo.algo_market_calendar.MarketCalendar.is_trading_day', return_value=True):
 
                 result = orch.run()
 
@@ -98,7 +98,7 @@ class TestOrchestratorWithRealDatabase:
             lock_path.unlink()
 
         try:
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order'):
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'):
                 result = orch.run()
 
                 assert result is not None
@@ -129,7 +129,7 @@ class TestOrchestratorErrorHandling:
 
         try:
             # Simulate DB connection failure
-            with patch('algo_orchestrator.psycopg2.connect', side_effect=Exception('DB unavailable')):
+            with patch('algo.algo_orchestrator.psycopg2.connect', side_effect=Exception('DB unavailable')):
                 result = orch.run()
 
                 # Orchestrator should handle gracefully
@@ -154,8 +154,8 @@ class TestOrchestratorErrorHandling:
             lock_path.unlink()
 
         try:
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order'), \
-                 patch('algo_market_calendar.MarketCalendar.is_trading_day', return_value=True):
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'), \
+                 patch('algo.algo_market_calendar.MarketCalendar.is_trading_day', return_value=True):
 
                 # Should not crash even without lock file
                 result = orch.run()
@@ -184,8 +184,8 @@ class TestOrchestratorControlFlow:
             lock_path.unlink()
 
         try:
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order'), \
-                 patch('algo_orchestrator.psycopg2.connect') as mock_conn:
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'), \
+                 patch('algo.algo_orchestrator.psycopg2.connect') as mock_conn:
 
                 # Mock minimal DB connection
                 mock_conn.return_value = MagicMock()
@@ -214,7 +214,7 @@ class TestOrchestratorControlFlow:
             lock_path.unlink()
 
         try:
-            with patch('algo_trade_executor.TradeExecutor._send_alpaca_order') as mock_alpaca:
+            with patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order') as mock_alpaca:
                 result = orch.run()
 
                 # In dry-run, even if signals exist, trades should be logged but not sent

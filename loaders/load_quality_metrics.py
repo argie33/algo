@@ -24,7 +24,7 @@ from typing import List, Optional
 from credential_helper import get_db_password
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
@@ -32,6 +32,8 @@ except ImportError:
 try:
     from dotenv import load_dotenv as _load_dotenv
     _env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
     if _env_file.exists():
         _load_dotenv(_env_file)
 except ImportError:

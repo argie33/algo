@@ -16,11 +16,13 @@ import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
@@ -30,7 +32,7 @@ def _get_db_config():
     db_password = os.getenv("DB_PASSWORD")
     if not db_password:
         try:
-            from credential_manager import get_credential_manager
+            from config.credential_manager import get_credential_manager
             credential_manager = get_credential_manager()
             db_password = get_db_password()
         except Exception:
@@ -95,7 +97,7 @@ class PositionSizer:
         """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
         import requests
         try:
-            from credential_manager import get_credential_manager as _get_cm
+            from config.credential_manager import get_credential_manager as _get_cm
             _creds = _get_cm().get_alpaca_credentials()
             key = _creds.get("key")
             secret = _creds.get("secret")

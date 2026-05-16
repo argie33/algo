@@ -11,7 +11,7 @@ Configuration via environment variables:
 """
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
@@ -33,6 +33,8 @@ except ImportError:
     TWILIO_AVAILABLE = False
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 

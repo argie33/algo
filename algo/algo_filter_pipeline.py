@@ -18,7 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from algo.algo_config import get_config
 from algo.algo_advanced_filters import AdvancedFilters
 from algo.algo_swing_score import SwingTraderScore
@@ -32,6 +32,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 

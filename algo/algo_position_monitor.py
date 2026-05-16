@@ -20,7 +20,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
@@ -28,7 +28,7 @@ except ImportError:
 import os
 import json
 import psycopg2
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 import requests
 from pathlib import Path
 from dotenv import load_dotenv
@@ -39,6 +39,8 @@ from utils.db_connection_pool import get_db_pool
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 

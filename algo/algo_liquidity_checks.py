@@ -9,10 +9,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from utils.structured_logger import get_logger
-from credential_helper import get_db_config
+from config.credential_helper import get_db_config
 import os
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 

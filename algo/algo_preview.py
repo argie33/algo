@@ -17,12 +17,14 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv as _load_dotenv
     _env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
     if _env_file.exists():
         _load_dotenv(_env_file)
 except ImportError:
     pass
 
-from credential_helper import get_db_password
+from config.credential_helper import get_db_password
 
 
 def get_db_conn():

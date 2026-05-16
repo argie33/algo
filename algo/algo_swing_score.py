@@ -33,10 +33,10 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
@@ -54,6 +54,8 @@ from algo.algo_signals import SignalComputer
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 

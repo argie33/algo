@@ -4,7 +4,7 @@ Update base_type patterns in database using proven Tier 1 algorithm
 Bypasses technical indicator issues - PATTERNS ONLY
 """
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None

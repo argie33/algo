@@ -18,10 +18,10 @@ import os
 import sys
 from datetime import date, timedelta
 from typing import List, Optional
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None

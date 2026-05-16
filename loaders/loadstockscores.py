@@ -26,7 +26,7 @@ from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
 try:
-    from credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
@@ -392,13 +392,7 @@ class StockScoresLoader(OptimalLoader):
 
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
-        db_conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
-            password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
-        )
+        db_conn = self._connect()
         self.tracker = DataProvenanceTracker(
             loader_name="loadstockscores",
             table_name="stock_scores",

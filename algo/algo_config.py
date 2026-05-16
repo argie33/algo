@@ -27,6 +27,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():  # fallback: root when running from subdirectory
+    env_file = Path(__file__).parent.parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
@@ -34,8 +36,8 @@ if env_file.exists():
 # where AWS credentials aren't available
 _cred_mgr = None
 try:
-    from credential_manager import get_credential_manager
-    from credential_validator import assert_credentials
+    from config.credential_manager import get_credential_manager
+    from config.credential_validator import assert_credentials
     _cred_mgr = get_credential_manager()
 except Exception as e:
     logger.warning(f"Credential manager not available (expected in CI): {e}")

@@ -18,7 +18,7 @@ import psycopg2
 from datetime import datetime, date
 from typing import Optional, Dict, List
 import os
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from pathlib import Path
 from dotenv import load_dotenv
 

@@ -14,7 +14,7 @@ except ImportError:
     print("ERROR: psycopg2 not found. Please add psycopg2 layer to Lambda.")
     raise
 
-from credential_manager import get_credential_manager
+from config.credential_manager import get_credential_manager
 
 # Read schema from packaged SQL file
 def load_schema():

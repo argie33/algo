@@ -11,7 +11,7 @@ Run:
 """
 
 
-from credential_manager import get_credential_manager
+from config.credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
 import argparse
