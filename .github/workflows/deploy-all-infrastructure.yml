@@ -158,6 +158,19 @@ jobs:
           # exit 0 = no changes, 2 = changes, other = error
           if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
 
+      - name: Fix API Gateway Route (Terraform State)
+        run: |
+          # AWS API Gateway v2 doesn't allow in-place authorization_type updates.
+          # If the route exists in state, remove it so Terraform can recreate it fresh.
+          # This is idempotent: does nothing if the route isn't in state.
+          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
+            echo "Removing stuck API route from Terraform state (will be recreated with correct auth)"
+            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
+            echo "✅ Route removed from state, Terraform will recreate it"
+          else
+            echo "Route not in state, nothing to fix"
+          fi
+
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
