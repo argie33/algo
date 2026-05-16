@@ -92,13 +92,6 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  # Inject Alpaca credentials and JWT_SECRET from Secrets Manager
-  secrets = [
-    { name = "APCA_API_KEY_ID",     valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::" },
-    { name = "APCA_API_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::" },
-    { name = "JWT_SECRET",          valueFrom = "${var.algo_secrets_arn}:JWT_SECRET::" },
-  ]
-
   depends_on = [
     aws_cloudwatch_log_group.api_lambda
   ]
@@ -189,8 +182,9 @@ resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
-  authorizer_id      = var.cognito_enabled ? try(aws_apigatewayv2_authorizer.cognito[0].id, null) : null
+  authorization_type = "NONE"
+  # Cognito auth disabled for MVP; can be enabled by uncommenting cognito authorizer resource above
+  authorizer_id      = null
 
   lifecycle {
     # Force replacement to ensure authorization_type is properly applied
@@ -469,13 +463,6 @@ resource "aws_lambda_function" "algo" {
       DATA_PATROL_TIMEOUT_MS   = tostring(var.data_patrol_timeout_ms)
     }
   }
-
-  # Inject Alpaca credentials and FRED API key from Secrets Manager (not plaintext env)
-  secrets = [
-    { name = "APCA_API_KEY_ID",     valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::" },
-    { name = "APCA_API_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::" },
-    { name = "FRED_API_KEY",        valueFrom = "${var.algo_secrets_arn}:FRED_API_KEY::" },
-  ]
 
   depends_on = [
     aws_cloudwatch_log_group.algo_lambda
