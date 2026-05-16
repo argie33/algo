@@ -15,27 +15,33 @@ tier_0 = ['loadstocksymbols.py']
 
 # Tier 1: Price data (depends on symbols, can run in parallel with tier 2)
 tier_1_prices = [
-    'loadpricedaily.py', 'loadpriceweekly.py', 'loadpricemonthly.py',
-    'loadetfpricedaily.py', 'loadetfpriceweekly.py', 'loadetfpricemonthly.py',
+    'loadpricedaily.py', 'loadetfpricedaily.py',
+]
+
+# Tier 1b: Price aggregates (depends on tier 1, run after daily prices)
+tier_1b_aggregates = [
+    'load_price_aggregate.py',  # Generates weekly and monthly from daily
+    'load_etf_price_aggregate.py',  # Generates weekly and monthly ETF prices
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
+# Note: Annual/quarterly financial data consolidated via load_income_statement.py, load_balance_sheet.py, load_cash_flow.py
 tier_2_reference = [
-    'loadannualincomestatement.py', 'loadannualbalancesheet.py', 'loadannualcashflow.py',
-    'loadquarterlyincomestatement.py', 'loadquarterlybalancesheet.py', 'loadquarterlycashflow.py',
+    'load_income_statement.py', 'load_balance_sheet.py', 'load_cash_flow.py',
     'loadttmincomestatement.py', 'loadttmcashflow.py',
-    'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningssurprise.py', 'load_sp500_earnings.py',
-    'loadmarket.py', 'loadmarketindices.py', 'loadsectors.py', 'loadrelativeperformance.py', 'loadseasonality.py',
-    'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py', 'loadsentiment.py',
-    'loadfactormetrics.py', 'loadstockscores.py',
+    'loadearningshistory.py', 'loadearningsrevisions.py',
+    'load_key_metrics.py',
+    'loadmarketindices.py', 'loadseasonality.py',
+    'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
+    'loadstockscores.py',
     'loadecondata.py', 'loadaaiidata.py', 'loadnaaim.py', 'loadfeargreed.py',
     'loadcalendar.py',
 ]
 
 # Tier 3: Technical signals (depends on prices)
+# Weekly/monthly signals aggregated from daily via load_buysell_aggregate.py
 tier_3_signals = [
-    'loadbuysell_etf_daily.py', 'loadbuyselldaily.py', 'loadbuysellweekly.py', 'loadbuysellmonthly.py',
-    'loadetfsignals.py',
+    'loadbuyselldaily.py', 'loadbuysell_etf_daily.py',
 ]
 
 # Tier 4: Algo metrics (depends on signals)
@@ -44,13 +50,14 @@ tier_4_metrics = ['load_algo_metrics_daily.py']
 # All loaders in execution order (but within tiers, parallel)
 tiers = [
     ('Tier 0: Stock symbols', tier_0),
-    ('Tier 1: Price data (6 parallel)', tier_1_prices),
+    ('Tier 1: Price data (parallel)', tier_1_prices),
+    ('Tier 1b: Price aggregates (weekly/monthly)', tier_1b_aggregates),
     ('Tier 2: Reference data (parallel)', tier_2_reference),
     ('Tier 3: Trading signals (parallel)', tier_3_signals),
     ('Tier 4: Algo metrics', tier_4_metrics),
 ]
 
-all_loaders = tier_0 + tier_1_prices + tier_2_reference + tier_3_signals + tier_4_metrics
+all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_2_reference + tier_3_signals + tier_4_metrics
 logger.info(f"\n{'='*70}")
 logger.info(f"Running {len(all_loaders)} loaders across 5 dependency tiers")
 logger.info(f"{'='*70}\n")
