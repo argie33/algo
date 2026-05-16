@@ -866,32 +866,44 @@ class MarketExposure:
 
     def _persist(self, eval_date, result):
         try:
+            # Determine tier from regime
+            regime = result.get('regime', 'caution')
+            if regime == 'confirmed_uptrend':
+                tier = 'tier_1_strong_uptrend'
+            elif regime == 'uptrend_under_pressure':
+                tier = 'tier_2_pressure'
+            elif regime == 'caution':
+                tier = 'tier_3_caution'
+            else:
+                tier = 'tier_4_correction'
+
+            # Can enter if no halt reasons
+            is_entry_allowed = len(result.get('halt_reasons', [])) == 0
+
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    exposure_pct = EXCLUDED.exposure_pct,
-                    raw_score = EXCLUDED.raw_score,
-                    regime = EXCLUDED.regime,
-                    distribution_days = EXCLUDED.distribution_days,
-                    factors = EXCLUDED.factors,
-                    halt_reasons = EXCLUDED.halt_reasons,
-                    created_at = CURRENT_TIMESTAMP
+                    market_exposure_pct = EXCLUDED.market_exposure_pct,
+                    long_exposure_pct = EXCLUDED.long_exposure_pct,
+                    short_exposure_pct = EXCLUDED.short_exposure_pct,
+                    exposure_tier = EXCLUDED.exposure_tier,
+                    is_entry_allowed = EXCLUDED.is_entry_allowed
                 """,
                 (
                     eval_date,
-                    result['exposure_pct'],
-                    result['score'],
-                    result['regime'],
-                    result.get('distribution_days', 0),
-                    json.dumps(result.get('factors', {})),
-                    json.dumps(result.get('halt_reasons', [])),
+                    result['exposure_pct'],  # Main exposure %
+                    result['exposure_pct'],  # Long exposure (same as main for now)
+                    0.0,                      # Short exposure (not used yet)
+                    tier,
+                    is_entry_allowed,
                 ),
             )
             if self._owned:
                 self._owned.commit()
+            logger.info(f"persist market_exposure OK for {eval_date}: {result['exposure_pct']}% ({tier})")
         except Exception as e:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
 
