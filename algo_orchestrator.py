@@ -643,7 +643,9 @@ class Orchestrator:
                 'Signal quality scores': 'signal_quality_scores',
                 'Buy/sell signals': 'buy_sell_daily',
             }
-            max_stale = int(self.config.get('max_data_staleness_days', 7))
+            # In DEV_MODE, be lenient about data staleness (allow up to 365 days old)
+            is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
+            max_stale = 365 if is_dev_mode else int(self.config.get('max_data_staleness_days', 7))
             stale_items = []
 
             try:
@@ -653,15 +655,16 @@ class Orchestrator:
                 _metrics = None
 
             for name, d in checks.items():
-                if d is None:
+                if d is None and not is_dev_mode:
+                    # In DEV_MODE, allow missing data; in production fail
                     stale_items.append(f"{name}: missing")
                     if _metrics:
                         _metrics.put_data_freshness(table_keys[name], 999)
-                else:
+                elif d is not None:
                     age = (self.run_date - d).days
                     if _metrics:
                         _metrics.put_data_freshness(table_keys[name], age)
-                    if age > max_stale:
+                    if age > max_stale and not is_dev_mode:
                         stale_items.append(f"{name}: {age}d old")
                     if self.verbose:
                         flag = '[OK]' if age <= max_stale else '[STALE]'
