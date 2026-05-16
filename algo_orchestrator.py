@@ -80,14 +80,8 @@ if env_file.exists():
     load_dotenv(env_file)
 
 def _get_db_config():
-    """Get DB config (lazy-loaded to support testing without credentials)."""
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": get_db_password(),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
+    """Get DB config (lazy-loaded, uses centralized credential_helper)."""
+    return get_db_config()
 
 
 class Orchestrator:
@@ -109,6 +103,7 @@ class Orchestrator:
 
         if init_db:
             self._ensure_schema_initialized()
+            self._initialize_feature_flags()
 
     # ---------- Database health monitoring (B4) ----------
 
@@ -199,6 +194,19 @@ class Orchestrator:
                     conn.close()
                 except Exception:
                     pass
+
+    def _initialize_feature_flags(self):
+        """Initialize feature flags with safe defaults on startup."""
+        try:
+            from feature_flags import initialize_safe_defaults, create_feature_flags_table
+            # Ensure table exists
+            create_feature_flags_table()
+            # Initialize safe defaults
+            initialize_safe_defaults()
+        except Exception as e:
+            if self.verbose:
+                logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
+            # Don't fail the orchestrator if flags aren't available
 
     def _check_data_patrol(self, cur):
         """Check data patrol results. Fail-closed if critical/error findings.

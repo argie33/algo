@@ -34,24 +34,8 @@ if env_file.exists():
 logger = get_logger(__name__)
 
 def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    # Get DB password from environment first, fall back to credential manager if needed
-    db_password = os.getenv("DB_PASSWORD")
-    if not db_password:
-        try:
-            from credential_manager import get_credential_manager
-            credential_manager = get_credential_manager()
-            db_password = get_db_password()
-        except Exception:
-            db_password = "postgres"  # Default for local dev
-
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": db_password,
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
+    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
+    return get_db_config()
 
 
 class FeatureFlagType(Enum):
@@ -246,7 +230,37 @@ class FeatureFlags:
             return default
 
 
-# Create feature_flags table
+# Safe default feature flags (fail-closed / conservative)
+DEFAULT_FEATURE_FLAGS = {
+    # Signal Pipeline - All enabled by default (safe = enabled)
+    'signal_tier_1_enabled': ('signal_tier', True, 'Enable Tier 1: Data Quality Gates'),
+    'signal_tier_2_enabled': ('signal_tier', True, 'Enable Tier 2: Market Health Gates'),
+    'signal_tier_3_enabled': ('signal_tier', True, 'Enable Tier 3: Trend Template Confirmation'),
+    'signal_tier_4_enabled': ('signal_tier', True, 'Enable Tier 4: Signal Quality Scores'),
+    'signal_tier_5_enabled': ('signal_tier', True, 'Enable Tier 5: Portfolio Health'),
+
+    # Risk Management - All enabled by default (conservative = enabled)
+    'circuit_breaker_enabled': ('signal_tier', True, 'Enable circuit breaker on extreme VIX/breadth'),
+    'earnings_blackout_enabled': ('signal_tier', True, 'Enable earnings date blackout'),
+    'position_sizing_enabled': ('signal_tier', True, 'Enable dynamic position sizing by tier'),
+    'max_position_size_pct': ('rollout', 8.0, 'Maximum single position size as % of portfolio'),
+    'base_risk_pct': ('rollout', 0.75, 'Base portfolio risk per trade'),
+
+    # Trading Execution
+    'paper_trading_mode': ('signal_tier', True, 'Use paper trading (safe = true)'),
+    'require_manual_approval': ('signal_tier', False, 'Require manual approval before trades'),
+    'execute_trades': ('signal_tier', True, 'Execute trades (false = dry-run only)'),
+
+    # Data Quality
+    'skip_missing_data': ('signal_tier', True, 'Skip trades when key data is missing'),
+    'require_current_prices': ('signal_tier', True, 'Require current market prices (< 1 day old)'),
+
+    # A/B Testing & Rollout
+    'rollout_new_signals_pct': ('rollout', 100, 'Percentage of new signals to evaluate (0-100)'),
+    'ab_test_tier_5_variant': ('ab_test', 'control', 'Variant for Tier 5 A/B test: control or experimental'),
+}
+
+
 def create_feature_flags_table():
     """Create feature_flags table if it doesn't exist."""
     try:
@@ -273,6 +287,41 @@ def create_feature_flags_table():
             logger.info("Feature flags table created")
     except Exception as e:
         logger.error(f"Failed to create feature flags table: {e}")
+
+
+def initialize_safe_defaults():
+    """Initialize feature flags with safe (fail-closed) defaults.
+
+    Called on system startup to ensure all critical feature flags are set.
+    Safe defaults = conservative behavior that prevents accidental trades.
+    """
+    try:
+        flags = FeatureFlags()
+        flags.connect()
+
+        initialized_count = 0
+        for flag_name, (flag_type, default_value, description) in DEFAULT_FEATURE_FLAGS.items():
+            # Check if flag already exists
+            with flags.conn.cursor() as cur:
+                cur.execute("""
+                    SELECT value FROM feature_flags WHERE flag_name = %s
+                """, (flag_name,))
+                existing = cur.fetchone()
+
+            # Only set if doesn't exist (preserve any manual overrides)
+            if not existing:
+                flags.set_flag(flag_name, flag_type, default_value, description)
+                initialized_count += 1
+
+        flags.disconnect()
+
+        if initialized_count > 0:
+            logger.info(f"Initialized {initialized_count} feature flags with safe defaults")
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize feature flags: {e}")
+        return False
 
 
 # Singleton
