@@ -1376,31 +1376,10 @@ class APIHandler:
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
-            if path == '/api/economic':
-                self.cur.execute("""
-                    SELECT DISTINCT ON (series_id) series_id, date, value
-                    FROM economic_data
-                    ORDER BY series_id, date DESC
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
-            elif path == '/api/economic/leading-indicators':
-                self.cur.execute("""
-                    SELECT DISTINCT ON (series_id) series_id, date, value
-                    FROM economic_data
-                    ORDER BY series_id, date DESC
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
+            if path == '/api/economic/leading-indicators':
+                return self._get_leading_indicators()
             elif path == '/api/economic/yield-curve-full':
-                self.cur.execute("""
-                    SELECT DISTINCT ON (series_id) series_id, date, value
-                    FROM economic_data
-                    WHERE series_id LIKE '%YIELD%' OR series_id LIKE '%DGS%'
-                    ORDER BY series_id, date DESC
-                """)
-                rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
+                return self._get_yield_curve_full()
             elif path == '/api/economic/calendar':
                 self.cur.execute("""
                     SELECT date, event_name, country, importance, forecast, actual, previous
@@ -1410,10 +1389,163 @@ class APIHandler:
                 """)
                 events = self.cur.fetchall()
                 return json_response(200, [dict(e) for e in events] if events else [])
+            elif path == '/api/economic':
+                # Combine all economic data
+                return self._get_leading_indicators()
             return error_response(404, 'not_found', f'No economic handler for {path}')
         except Exception as e:
             logger.error(f"Error in economic handler: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
+
+    def _get_leading_indicators(self) -> Dict:
+        """Get leading economic indicators formatted for EconomicDashboard."""
+        # Maps FRED series IDs to indicator names
+        indicator_map = {
+            'UNRATE': 'Unemployment Rate',
+            'PAYEMS': 'Total Nonfarm Payroll',
+            'ICSA': 'Initial Claims',
+            'CIVPART': 'Labor Force Participation',
+            'INDPRO': 'Industrial Production',
+            'RSXFS': 'Retail Sales',
+            'CPIAUCSL': 'CPI - All Urban Consumers',
+            'DFF': 'Federal Funds Rate',
+            'MMNRNJ': 'MZM Money Stock',
+            'T10Y2Y': 'Yield Curve (10Y-2Y)',
+        }
+
+        try:
+            # Get latest values for all indicators
+            self.cur.execute("""
+                WITH latest AS (
+                    SELECT series_id, date, value,
+                           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                    FROM economic_data
+                )
+                SELECT series_id, date, value
+                FROM latest
+                WHERE rn = 1
+            """)
+            latest_rows = {row['series_id']: (float(row['value']) if row['value'] else None, row['date'])
+                          for row in self.cur.fetchall()}
+
+            # Get history for each indicator (last 12-24 months)
+            self.cur.execute("""
+                SELECT series_id, date, value
+                FROM economic_data
+                WHERE date >= CURRENT_DATE - INTERVAL '24 months'
+                ORDER BY series_id, date DESC
+            """)
+            all_history = self.cur.fetchall()
+
+            # Group by series_id
+            history_by_series = {}
+            for row in all_history:
+                sid = row['series_id']
+                if sid not in history_by_series:
+                    history_by_series[sid] = []
+                history_by_series[sid].append({
+                    'date': str(row['date']),
+                    'value': float(row['value']) if row['value'] else None
+                })
+
+            # Build indicator objects
+            indicators = []
+            for series_id, name in indicator_map.items():
+                if series_id not in latest_rows:
+                    continue
+
+                value, date = latest_rows[series_id]
+                history = sorted(history_by_series.get(series_id, []), key=lambda x: x['date'])
+
+                # Calculate trend (up/down/flat)
+                if len(history) >= 2:
+                    recent_avg = sum([h['value'] for h in history[:3] if h['value']] or [0]) / max(1, len([h for h in history[:3] if h['value']]))
+                    older_avg = sum([h['value'] for h in history[-3:] if h['value']] or [0]) / max(1, len([h for h in history[-3:] if h['value']]))
+                    if older_avg and recent_avg:
+                        trend = 'up' if recent_avg > older_avg * 1.01 else 'down' if recent_avg < older_avg * 0.99 else 'flat'
+                    else:
+                        trend = 'flat'
+                else:
+                    trend = 'flat'
+
+                indicators.append({
+                    'name': name,
+                    'series_id': series_id,
+                    'rawValue': value,
+                    'date': str(date),
+                    'history': history,
+                    'trend': trend
+                })
+
+            return json_response(200, {'indicators': indicators})
+
+        except Exception as e:
+            logger.error(f"get_leading_indicators error: {e}", exc_info=True)
+            return json_response(200, {'indicators': []})
+
+    def _get_yield_curve_full(self) -> Dict:
+        """Get yield curve and credit spread data formatted for EconomicDashboard."""
+        try:
+            # Get latest yield curve data
+            self.cur.execute("""
+                WITH latest AS (
+                    SELECT series_id, date, value,
+                           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                    FROM economic_data
+                    WHERE series_id IN ('DGS2', 'DGS5', 'DGS10', 'DGS30', 'T10Y3M', 'T10Y2Y',
+                                       'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
+                )
+                SELECT series_id, date, value
+                FROM latest
+                WHERE rn = 1
+            """)
+            latest_rows = self.cur.fetchall()
+
+            # Get history for spreads and VIX
+            self.cur.execute("""
+                SELECT series_id, date, value
+                FROM economic_data
+                WHERE date >= CURRENT_DATE - INTERVAL '12 months'
+                AND series_id IN ('BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
+                ORDER BY series_id, date
+            """)
+            history_rows = self.cur.fetchall()
+
+            # Build response
+            spreads = {}
+            credit = {'history': {}}
+
+            for row in latest_rows:
+                sid = row['series_id']
+                val = float(row['value']) if row['value'] else None
+
+                if sid == 'T10Y3M':
+                    spreads['T10Y3M'] = val / 100 if val else None  # Convert to decimal
+                elif sid == 'T10Y2Y':
+                    spreads['T10Y2Y'] = val / 100 if val else None
+                elif sid in ('BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS'):
+                    if sid not in credit['history']:
+                        credit['history'][sid] = []
+
+            # Add history for credit series
+            history_by_series = {}
+            for row in history_rows:
+                sid = row['series_id']
+                if sid not in history_by_series:
+                    history_by_series[sid] = []
+                history_by_series[sid].append({
+                    'date': str(row['date']),
+                    'value': float(row['value']) if row['value'] else None
+                })
+
+            for sid, hist in history_by_series.items():
+                credit['history'][sid] = sorted(hist, key=lambda x: x['date'])
+
+            return json_response(200, {'spreads': spreads, 'credit': credit})
+
+        except Exception as e:
+            logger.error(f"get_yield_curve_full error: {e}", exc_info=True)
+            return json_response(200, {'spreads': {}, 'credit': {'history': {}}})
 
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
