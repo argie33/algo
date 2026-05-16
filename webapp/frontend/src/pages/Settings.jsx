@@ -27,7 +27,7 @@ import {
   Grid,
 } from "@mui/material";
 import { Settings as SettingsIcon, Delete as DeleteIcon } from "@mui/icons-material";
-import api from "../services/api";
+import api, { getSettings, updateSettings } from "../services/api";
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -63,13 +63,8 @@ const Settings = () => {
     const loadSettings = async () => {
       setLoading(true);
       try {
-        const [settingsRes, keysRes] = await Promise.all([
-          api.getSettings?.() || Promise.resolve({}),
-          api.getApiKeys?.() || Promise.resolve({}),
-        ]);
-
-        setSettings(settingsRes || {});
-        setApiKeys(keysRes?.data || {});
+        const settingsRes = await getSettings();
+        setSettings(settingsRes?.data || settingsRes || {});
       } catch (err) {
         setError("Failed to load settings");
         console.error("Settings load error:", err);
@@ -88,11 +83,12 @@ const Settings = () => {
   const handleSaveGeneralSettings = async () => {
     try {
       setLoading(true);
-      await api.updateSettings?.(settings);
+      await updateSettings(settings);
       setMessage("Settings saved successfully!");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
       setError("Failed to save settings");
+      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
@@ -144,19 +140,17 @@ const Settings = () => {
   const handleNotificationChange = async (key, value) => {
     const updated = {
       ...settings,
-      notifications: {
-        ...settings.notifications,
-        [key]: value,
-      },
+      [key]: value,
     };
     setSettings(updated);
 
     try {
-      await api.updateSettings?.(updated);
+      await updateSettings(updated);
       setMessage("Preferences updated!");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
       setError("Failed to update preferences");
+      console.error("Error:", err);
     }
   };
 

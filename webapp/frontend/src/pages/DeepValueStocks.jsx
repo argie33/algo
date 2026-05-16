@@ -48,7 +48,7 @@ const DeepValueStocks = () => {
   );
 
   const stocks = useMemo(() => {
-    const stocksData = Array.isArray(rawStocks) ? rawStocks : [];
+    const stocksData = Array.isArray(rawStocks) ? rawStocks : (rawStocks?.items || []);
     const num = (v) => v != null ? parseFloat(v) : null;
       return stocksData.map(s => ({
         ...s,

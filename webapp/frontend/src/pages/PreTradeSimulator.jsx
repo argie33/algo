@@ -190,15 +190,15 @@ const PreTradeSimulator = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Entry Price</span>
-                <span style={{ fontWeight: 'bold' }}>${result.entry_price.toFixed(2)}</span>
+                <span style={{ fontWeight: 'bold' }}>${(result.entry_price ?? 0).toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Position Size</span>
-                <span style={{ fontWeight: 'bold' }}>${result.position_size_dollars.toFixed(2)}</span>
+                <span style={{ fontWeight: 'bold' }}>${(result.position_size_dollars ?? 0).toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>% of Portfolio</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--amber)' }}>{result.position_size_percent.toFixed(2)}%</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--amber)' }}>{(result.position_size_percent ?? 0).toFixed(2)}%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Sector</span>
@@ -206,7 +206,7 @@ const PreTradeSimulator = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Risk Score</span>
-                <span style={{ fontWeight: 'bold' }}>{(result.risk_score * 100).toFixed(0)}%</span>
+                <span style={{ fontWeight: 'bold' }}>{((result.risk_score ?? 0) * 100).toFixed(0)}%</span>
               </div>
             </div>
           </div>

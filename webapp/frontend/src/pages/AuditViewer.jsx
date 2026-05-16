@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { getApiConfig } from '../services/api';
+import api from '../services/api';
 
 const AuditViewer = () => {
-  const { apiUrl: API_BASE_URL } = getApiConfig();
   const [limit, setLimit] = useState(100);
   const [expandedId, setExpandedId] = useState(null);
   const [activeTab, setActiveTab] = useState('trades');
@@ -14,9 +13,7 @@ const AuditViewer = () => {
     ['auditLog', activeTab, limit, offset],
     async () => {
       const endpoint = activeTab === 'trades' ? '/api/audit/trades' : activeTab === 'config' ? '/api/audit/config' : '/api/audit/safeguards';
-      const response = await fetch(`${API_BASE_URL}${endpoint}?limit=${limit}&offset=${offset}`);
-      if (!response.ok) throw new Error(`Failed to fetch ${activeTab} audit logs`);
-      return response.json();
+      return api.get(endpoint, { params: { limit, offset } });
     },
     { staleTime: 30000 }
   );
