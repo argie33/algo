@@ -107,23 +107,41 @@ All deleted code is in git history. Restore via: `git log --oneline | grep -i "e
 
 ## 🔄 CLAUDE MECHANICAL STEERING RULES (Enforced Before Action)
 
-**BEFORE creating ANY file/doc:**
-1. Is it production code (algo_*.py, load*.py, lambda/*, terraform/*)? → YES = Create
-2. Is it a git-tracked utility tool (VERIFICATION_SUITE.py)? → Only if essential
-3. Is it documentation? → STOP - Check rules below:
-   - **Is it required by user?** ("explain X", "document Y") → YES = Create as file
-   - **Is it STATUS-level info?** (session progress, blockers, next steps) → NO = Update STATUS.md instead
-   - **Is it permanent?** (pattern, architectural decision, constraint) → YES = Save to memory/ instead
-   - **Is it a duplicate?** (similar info exists elsewhere) → YES = Delete and consolidate
-   - **Will it be re-read 10+ times across sessions?** NO = Don't create as file
-4. Everything else → Delete it, no exceptions
+### ⚠️ ABSOLUTE RULE: NO EXTRA DOCS
 
-**Mechanical enforcement:**
+**Do NOT create new documentation files.** Period. Before creating anything, ask:
+1. Is the user explicitly asking me to create a doc? ("document X", "create Y guide")
+   - YES → Only if they ask
+   - NO → STOP, don't create it
+
+2. Is it session/progress info (setup steps, next steps, blockers)?
+   - YES → Put it in STATUS.md, NOT a new file
+   - NO → Continue to #3
+
+3. Is it a reusable pattern (pattern, principle, constraint)?
+   - YES → Save to memory/, NOT a new file
+   - NO → STOP, delete it
+
+4. Is it diagnostic/utility (verify scripts, temp setup helpers)?
+   - YES → DELETE it, don't commit
+   - NO → OK to create if it's production code
+
+### The Quick Test
+
+If you catch yourself creating:
+- ✅ `algo_*.py`, `load*.py`, `lambda/*`, `terraform/*` → Keep (production code)
+- ❌ `SETUP*.md`, `READY*.md`, `GUIDE*.md`, `verify*.py` → DELETE (not production)
+- ❌ `*TEMP*.md`, `SESSION*.md`, `AUDIT*.md` → DELETE (temp docs)
+- ❌ `init*.py` (utility) → DELETE unless truly essential
+- ✅ Updates to existing: `STATUS.md`, `CLAUDE.md`, memory files → OK
+
+### Mechanical enforcement:
 - Maximum 1 permanent documentation file per session
-- All session/progress info → STATUS.md only
-- All patterns/learnings → memory/ only
-- All diagnostic scripts/verify scripts → DELETE immediately
-- All temporary docs (AUDIT_*, SESSION_*, PHASE_*, etc.) → DELETE immediately
+- All session/progress info → STATUS.md ONLY
+- All patterns/learnings → memory/ ONLY
+- All diagnostic scripts → DELETE IMMEDIATELY
+- All temporary docs → DELETE IMMEDIATELY
+- All utility helpers → DELETE IMMEDIATELY unless core functionality
 
 ---
 
