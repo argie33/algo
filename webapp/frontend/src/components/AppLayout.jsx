@@ -57,8 +57,7 @@ const NAV_SECTIONS = [
   {
     title: 'Algo',
     items: [
-      { text: 'Algo Dashboard',      icon: Bot,       path: '/app/algo-dashboard' },
-      { text: 'Signal Intelligence', icon: BarChart2, path: '/app/signal-performance' },
+      { text: 'Algo Dashboard', icon: Bot, path: '/app/algo-dashboard' },
     ],
   },
   {

@@ -387,12 +387,6 @@ class APIHandler:
             limit = int(params.get('limit', [100])[0]) if params else 100
             action_type = params.get('action_type', [None])[0] if params else None
             return self._get_algo_audit_log(limit, action_type)
-        elif path == '/api/algo/signal-performance':
-            days = int(params.get('days', [90])[0]) if params else 90
-            return self._get_signal_performance(days)
-        elif path == '/api/algo/signal-performance-by-pattern':
-            days = int(params.get('days', [90])[0]) if params else 90
-            return self._get_signal_performance_by_pattern(days)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
@@ -813,20 +807,21 @@ class APIHandler:
         """Get latest market exposure from market_exposure_daily."""
         try:
             self.cur.execute("""
-                SELECT date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
+                SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
             """)
             row = self.cur.fetchone()
             if not row:
-                return json_response(200, {'current_exposure': None, 'exposure_tier': None})
+                return json_response(200, {'current_exposure': None, 'regime': None})
             return json_response(200, {
-                'current_exposure': float(row['market_exposure_pct'] or 0),
-                'long_exposure': float(row['long_exposure_pct'] or 0),
-                'short_exposure': float(row['short_exposure_pct'] or 0),
-                'exposure_tier': row.get('exposure_tier', 'tier_3_caution'),
-                'is_entry_allowed': bool(row.get('is_entry_allowed', False)),
+                'current_exposure': float(row['exposure_pct'] or 0),
+                'raw_score': float(row['raw_score'] or 0),
+                'regime': row.get('regime', 'unknown'),
+                'distribution_days': int(row.get('distribution_days', 0)),
+                'factors': row.get('factors'),
+                'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except Exception as e:
@@ -894,63 +889,6 @@ class APIHandler:
         except Exception as e:
             logger.error(f"algo_audit_log error: {e}", exc_info=True)
             return error_response(500, 'internal_error', f'Audit log error: {str(e)}')
-
-    def _get_signal_performance(self, days: int = 90) -> Dict:
-        """Return signal trade performance summary."""
-        try:
-            self.cur.execute("""
-                SELECT
-                    COUNT(*) as total_signals,
-                    SUM(CASE WHEN win THEN 1 ELSE 0 END) as wins,
-                    AVG(r_multiple) as avg_r_multiple,
-                    AVG(hold_days) as avg_hold_days,
-                    AVG(realized_pnl_pct) as avg_pnl_pct,
-                    SUM(CASE WHEN target_1_hit THEN 1 ELSE 0 END) as target_1_hits,
-                    SUM(CASE WHEN target_2_hit THEN 1 ELSE 0 END) as target_2_hits,
-                    SUM(CASE WHEN exit_by_stop THEN 1 ELSE 0 END) as stop_exits
-                FROM signal_trade_performance
-                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-            """, (days,))
-            summary = self.cur.fetchone()
-            self.cur.execute("""
-                SELECT signal_date, symbol, base_type, swing_score, entry_price,
-                       exit_price, r_multiple, win, hold_days, realized_pnl_pct
-                FROM signal_trade_performance
-                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                ORDER BY signal_date DESC
-                LIMIT 200
-            """, (days,))
-            trades = self.cur.fetchall()
-            return json_response(200, {
-                'summary': dict(summary) if summary else {},
-                'trades': [dict(t) for t in trades],
-            })
-        except Exception as e:
-            logger.error(f"signal_performance error: {e}", exc_info=True)
-            return error_response(500, 'internal_error', f'Signal performance error: {str(e)}')
-
-    def _get_signal_performance_by_pattern(self, days: int = 90) -> Dict:
-        """Return signal performance grouped by base_type (pattern)."""
-        try:
-            self.cur.execute("""
-                SELECT
-                    base_type,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN win THEN 1 ELSE 0 END) as wins,
-                    ROUND(AVG(r_multiple)::numeric, 2) as avg_r,
-                    ROUND(AVG(realized_pnl_pct)::numeric, 4) as avg_pnl_pct,
-                    ROUND(AVG(hold_days)::numeric, 1) as avg_hold_days
-                FROM signal_trade_performance
-                WHERE signal_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                  AND base_type IS NOT NULL
-                GROUP BY base_type
-                ORDER BY avg_r DESC
-            """, (days,))
-            rows = self.cur.fetchall()
-            return json_response(200, [dict(r) for r in rows])
-        except Exception as e:
-            logger.error(f"signal_performance_by_pattern error: {e}", exc_info=True)
-            return error_response(500, 'internal_error', f'Signal performance pattern error: {str(e)}')
 
     def _handle_financials(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/financials/{symbol}/* endpoints."""

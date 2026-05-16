@@ -37,7 +37,6 @@ const PerformanceMetrics = React.lazy(() => import("./pages/PerformanceMetrics")
 const ServiceHealth = React.lazy(() => import("./pages/ServiceHealth"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboard"));
-const SignalIntelligence = React.lazy(() => import("./pages/SignalIntelligence"));
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
 const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
@@ -416,7 +415,6 @@ function App() {
 
           {/* Algo */}
           <Route path="/app/algo-dashboard" element={<AlgoTradingDashboard />} />
-          <Route path="/app/signal-performance" element={<SignalIntelligence />} />
 
           {/* Admin & Settings */}
           <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />
