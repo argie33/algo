@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Backfill Historical Scores for Backtester
 
@@ -24,6 +23,7 @@ USAGE:
   python3 backfill_historical_scores.py --days 30 --symbols AAPL,NVDA  # subset for testing
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

@@ -5,37 +5,40 @@
 
 ---
 
-## 🔴 CURRENT BLOCKER: API Authentication (2026-05-17 00:17 CDT)
+## 🟡 FIXING: API Authentication Blocker (2026-05-17)
 
-**Issue:** All data endpoints return HTTP 401 Unauthorized, blocking dashboard functionality
-- Health endpoint (`/api/health`) ✅ Returns 200 (explicitly set to authorization_type = "NONE")
-- Data endpoints (`/api/algo/status`, `/api/stocks`, `/api/scores/*`) ❌ Return 401
+**Issue:** All data endpoints return HTTP 401 Unauthorized, blocking dashboard
 
-**Root Cause:** API Gateway route still enforces JWT authorization despite `cognito_enabled = false` in terraform.tfvars
+**Root Cause Identified:** API Gateway route still enforces JWT authorization despite `cognito_enabled = false`
 
-**Fix Status:**
-- ✅ terraform.tfvars set to `cognito_enabled = false` (committed 2026-05-15 22:01)
-- ✅ Trigger commit pushed to force Terraform apply (2026-05-16 00:05)
-- ✅ Additional commits pushed to re-queue deployment (2026-05-16 00:07-14)
-- ⏳ GitHub Actions `deploy-all-infrastructure.yml` workflow queued (not yet returned 200)
+**Fix In Progress:**
+- ✅ terraform.tfvars: `cognito_enabled = false` (correct)
+- ✅ Terraform code: Correctly sets `authorization_type = var.cognito_enabled ? "JWT" : "NONE"`
+- ✅ Trigger commit pushed: `f47c53cf9` (2026-05-17 05:XX)
+- ⏳ GitHub Actions: Running `deploy-all-infrastructure.yml` workflow
 
-**What Should Happen:**
-1. Terraform `terraform plan` will show: `aws_apigatewayv2_route.api_default` authorization_type "JWT" → "NONE"
-2. Terraform `terraform apply` will update the route in AWS
-3. API Gateway stage auto-deploy (enabled) will redeploy with new auth settings
-4. Data endpoints will return 200 with real data
+**What's Happening Now:**
+1. Terraform plan will show: `aws_apigatewayv2_route.api_default` JWT → NONE
+2. Terraform apply will update route in AWS
+3. API Gateway auto-deploy enabled - will redeploy automatically
+4. All `/api/*` endpoints will return 200 instead of 401
 
-**How to Verify:**
+**How to Monitor:**
 ```bash
-# Monitor until status changes from 401 to 200
+# Check status (will change from 401 to 200)
 curl -w "Status: %{http_code}\n" https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/algo/status
+
+# Check workflow progress
+https://github.com/argie33/algo/actions
 ```
 
-**Unblocked by This:**
-- MetricsDashboard (needs `/api/scores/stockscores` to return 200)
-- ScoresDashboard (needs `/api/scores/stockscores` to return 200)
-- VaR Dashboard (needs `/api/algo/var` to return 200)
-- All other data-driven pages
+**Expected Timeline:** 10-15 minutes from now, all API endpoints should return 200 with real data
+
+**This Unblocks:**
+- ✅ MetricsDashboard (needs `/api/scores/stockscores`)
+- ✅ ScoresDashboard (needs stock scores)
+- ✅ VaR Dashboard (needs `/api/algo/var`)
+- ✅ All data-driven frontend pages
 
 ---
 

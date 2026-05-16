@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Backfill price data for Stage 2 stocks (BRK-B, LEN-B, WSO-B)
 
@@ -15,6 +14,7 @@ This script:
 3. Verifies data was loaded successfully
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

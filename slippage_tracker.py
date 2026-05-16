@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Slippage Tracking - Measure order execution quality
 
@@ -21,6 +20,7 @@ Tracks:
 - Alerts if slippage is bad
 """
 
+from credential_helper import get_db_password, get_db_config
 import logging
 import os
 import psycopg2

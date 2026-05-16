@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Trade Performance Attribution & Win Rate Analysis
 
@@ -15,6 +14,7 @@ Enables analytics:
 - Best sector: Tech 80% win rate
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

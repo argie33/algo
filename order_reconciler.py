@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Continuous Order Reconciliation - Sync local orders with Alpaca
 
@@ -23,6 +22,7 @@ Manual override:
   python3 order_reconciler.py --force-sell <symbol> <quantity>
 """
 
+from credential_helper import get_db_password, get_db_config
 import logging
 import os
 import psycopg2

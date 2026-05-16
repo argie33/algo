@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Order Execution Audit Trail
 
@@ -14,6 +13,7 @@ Enables:
 - Fill quality analysis (avg slippage %, fill rate)
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

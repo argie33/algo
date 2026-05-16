@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Backfill Algo Metrics
 
@@ -13,6 +12,7 @@ critical market health and trend template data for historical periods.
 Run once, or schedule daily for incremental updates.
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

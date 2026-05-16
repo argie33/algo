@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 Lambda wrapper for lightweight loaders.
 
@@ -24,6 +23,7 @@ DEPLOYMENT:
       --environment Variables="{DB_HOST=...,DB_USER=stocks,...}"
 """
 
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

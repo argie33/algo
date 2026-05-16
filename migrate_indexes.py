@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from credential_helper import get_db_password, get_db_config
 """
 RDS PostgreSQL time-series index migration — BRIN-driven, idempotent.
 
@@ -22,7 +21,7 @@ USAGE:
     python3 migrate_indexes.py --check    # report only, no changes
 """
 
-
+from credential_helper import get_db_password, get_db_config
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
