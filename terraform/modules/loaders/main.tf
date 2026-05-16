@@ -154,8 +154,6 @@ locals {
     "naaim_data"                 = "loadnaaim.py"
     "feargreed"                  = "loadfeargreed.py"
     "calendar"                   = "loadcalendar.py"
-    "analyst_sentiment"          = "loadanalystsentiment.py"
-    "analyst_upgrades"           = "loadanalystupgradedowngrade.py"
     "trend_template_data"        = "load_trend_template_data.py"
     "technicals_daily"           = "loadtechnicalsdaily.py"
     "stock_scores"               = "loadstockscores.py"
