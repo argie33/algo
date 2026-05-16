@@ -43,18 +43,16 @@
 - ✓ Analyst sentiment (loadanalystsentiment.py) — Tier 2
 - ✓ Research (backtest results) — generated internally
 
-**Incomplete Features** ❌
-- ❌ Sector performance (/api/sectors) — no production loaders, only experimental
-- ❌ Industry performance (/api/industries) — no production loaders, only experimental
+**Restored Features** ✅ (were accidentally deleted, now fixed)
+- ✅ Sector performance (/api/sectors) — loadsectors.py restored to Tier 2
+- ✅ Industry performance (/api/industries) — included in loadsectors.py 
+
+**Still Incomplete** ❌
 - ❌ Commodities (/api/commodities) — no loaders found, tables empty
 
 ### 🎯 OUTSTANDING QUESTIONS (Blocking Complete Production Readiness)
 
-1. **Sector/Industry Data** — Do you want to enable these features?
-   - Option A: Remove /api/sectors and /api/industries endpoints (consistent with "no experimental loaders")
-   - Option B: Create production loaders for these data sources
-
-2. **Commodities Data** — Do you want commodities analysis?
+1. **Commodities Data** — Do you want commodities analysis?
    - Option A: Remove /api/commodities endpoints and CommoditiesAnalysis page
    - Option B: Create loaders for commodity data sources
 
@@ -68,9 +66,9 @@
 
 ### 📋 REMAINING TASKS
 
-- [ ] Tasks #4-6 (indexes, logging, math validation) — minor code quality improvements
-- [ ] Decide on sector/industry/commodities features
-- [ ] Verify financial data is actually being loaded (need database access to check)
+- [ ] Tasks #4-6 (indexes, logging, math validation) — minor code quality improvements  
+- [ ] Decide on commodities data feature (add loaders or remove endpoint)
+- [ ] Verify financial & earnings data are actually being loaded  
 - [ ] End-to-end test: loaders → database → API → frontend
 
 ---
