@@ -146,6 +146,12 @@ class CashFlowLoader(OptimalLoader):
             return False
         if self.period == "quarterly" and row.get("fiscal_period") is None:
             return False
+
+        # Reject rows where all key cash flow fields are NULL
+        cash_fields = ["operating_cash_flow", "investing_cash_flow", "financing_cash_flow"]
+        if all(row.get(field) is None for field in cash_fields):
+            return False
+
         return True
 
 

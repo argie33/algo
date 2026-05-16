@@ -136,6 +136,12 @@ class BalanceSheetLoader(OptimalLoader):
             return False
         if self.period == "quarterly" and row.get("fiscal_period") is None:
             return False
+
+        # Reject rows where all key balance sheet fields are NULL
+        balance_fields = ["total_assets", "current_assets", "total_liabilities"]
+        if all(row.get(field) is None for field in balance_fields):
+            return False
+
         return True
 
 
