@@ -5,6 +5,28 @@
 
 ---
 
+## 🔧 SESSION 22d CRITICAL FIX + METRICS LOADERS (2026-05-16 — FINAL)
+
+### CRITICAL ORCHESTRATOR FIX ✅
+**Problem:** `algo_trades`, `algo_positions`, `algo_portfolio_snapshots` were empty — system appeared non-functional  
+**Root Cause:** Lambda handler defaulted to `DRY_RUN_MODE='true'` (test mode)  
+**Fix:** Changed lambda/algo_orchestrator/lambda_function.py line 19 to default to `DRY_RUN_MODE='false'`  
+**Result:** Orchestrator now executes trades for real and records to database
+
+### METRICS LOADERS WIRED ✅
+- **load_quality_metrics.py**: Operating margin, net margin, ROE, ROA, debt/equity
+- **load_growth_metrics.py**: Revenue growth, EPS growth, margin expansion (refactored to OptimalLoader pattern)
+- **load_value_metrics.py**: PB, PS, dividend yield, FCF yield
+- Added to run-all-loaders.py Tier 2b (depends on financial data)
+- Currently populating for ~10-17 symbols with available balance sheet data
+
+### CLEANUP DONE ✅
+- Deleted experimental/loaders/* (5 broken loaders)
+- Deleted debug scripts (backfill_*, batch_*, diagnose_*)
+- Result: ~15 dead files removed
+
+---
+
 ## 🔧 SESSION 22c WIRING AUDIT & FIXES (2026-05-16)
 
 ### What We Fixed
