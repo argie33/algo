@@ -147,6 +147,7 @@ locals {
     "value_metrics"              = "load_value_metrics.py"
     "earnings_history"   = "loadearningshistory.py"
     "earnings_revisions" = "loadearningsrevisions.py"
+    "earnings_surprise"  = "loadearningsestimates.py"
     "market_indices"             = "loadmarketindices.py"
     "seasonality"                = "loadseasonality.py"
     "econ_data"                  = "loadecondata.py"
@@ -164,6 +165,7 @@ locals {
     "signals_etf_monthly"        = "load_buysell_etf_aggregate.py"
     "algo_metrics_daily"         = "load_algo_metrics_daily.py"
     "eod_bulk_refresh"           = "load_eod_bulk.py"
+    "market_data_batch"          = "load_market_data_batch.py"
   }
 
   scheduled_loaders = {
@@ -379,7 +381,8 @@ locals {
     # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
     "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
 
-    # 8 tiny market-level loaders consolidated into one task (3:30am ET)
+    # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
+    "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
 
   # For backward compatibility

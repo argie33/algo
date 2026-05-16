@@ -440,7 +440,11 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             trades = self.cur.fetchall()
-            return json_response(200, [dict(t) for t in trades])
+            items = [dict(t) for t in trades]
+            return json_response(200, {
+                'items': items,
+                'pagination': {'total': len(items), 'limit': limit, 'offset': 0}
+            })
         except Exception as e:
             logger.error(f"get_algo_trades failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -458,7 +462,11 @@ class APIHandler:
                 ORDER BY position_value DESC
             """)
             positions = self.cur.fetchall()
-            return json_response(200, [dict(p) for p in positions])
+            items = [dict(p) for p in positions]
+            return json_response(200, {
+                'items': items,
+                'pagination': {'total': len(items), 'limit': 10000, 'offset': 0}
+            })
         except Exception as e:
             logger.error(f"get_algo_positions failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -1267,10 +1275,30 @@ class APIHandler:
         """Handle /api/portfolio/* endpoints."""
         try:
             if path == '/api/portfolio/summary':
-                self.cur.execute("SELECT SUM(position_value) as total FROM algo_positions WHERE status='open'")
+                self.cur.execute("""
+                    SELECT
+                        COALESCE(SUM(position_value), 0) as total_invested,
+                        COUNT(*) as position_count
+                    FROM algo_positions WHERE status='open'
+                """)
                 row = self.cur.fetchone()
-                total = float(row['total'] or 0) if row else 0
-                return json_response(200, {'total_value': total, 'cash': 0, 'exposure': 0.75})
+                total_invested = float(row['total_invested'] or 0) if row else 0
+                position_count = int(row['position_count'] or 0) if row else 0
+                # Get latest account value from snapshots for real exposure calc
+                self.cur.execute("""
+                    SELECT portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                snap = self.cur.fetchone()
+                portfolio_value = float(snap['portfolio_value'] or 0) if snap else 0
+                exposure = round(total_invested / portfolio_value, 4) if portfolio_value > 0 else 0.0
+                return json_response(200, {
+                    'total_value': total_invested,
+                    'portfolio_value': portfolio_value,
+                    'position_count': position_count,
+                    'cash': max(0, portfolio_value - total_invested),
+                    'exposure': exposure,
+                })
             elif path == '/api/portfolio/allocation':
                 self.cur.execute("""
                     SELECT

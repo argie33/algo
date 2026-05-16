@@ -424,10 +424,17 @@ class SignalComputer:
 
             cur_close = float(rows[0][1])
             sma_150_now = float(rows[0][2])
-            sma_150_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_150_now
             recent_high = float(rows[0][3]) if rows[0][3] is not None else cur_close
 
             # Slope = % change of 30-wk MA over last 30 trading days
+            # Search for the closest non-None SMA in the 25-34 bar range (target: 30d ago)
+            sma_150_30d_ago = None
+            for i in range(25, 35):
+                if len(rows) > i and rows[i][2] is not None:
+                    sma_150_30d_ago = float(rows[i][2])
+                    break
+            if sma_150_30d_ago is None:
+                return {'stage': 0, 'reason': 'Cannot compute 30-wk MA slope (historical SMA missing)'}
             slope_pct = ((sma_150_now - sma_150_30d_ago) / sma_150_30d_ago * 100.0) if sma_150_30d_ago > 0 else 0.0
             price_vs_ma = ((cur_close - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
 

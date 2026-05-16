@@ -168,9 +168,10 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
     fiscal_period VARCHAR(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, earnings_date),
-    INDEX idx_symbol_date (symbol, earnings_date)
+    UNIQUE(symbol, earnings_date)
 );
+
+CREATE INDEX IF NOT EXISTS idx_earnings_calendar_symbol_date ON earnings_calendar(symbol, earnings_date);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- ANALYST DATA

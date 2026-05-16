@@ -65,7 +65,7 @@ import psycopg2
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, date as _date, timedelta
+from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple
 from algo_alerts import AlertManager
 from algo_market_calendar import MarketCalendar
@@ -1506,6 +1506,15 @@ class Orchestrator:
         logger.info(f"#   run_id: {self.run_id}")
         logger.info(f"{'#'*70}")
 
+        # Loudly warn if DEV_MODE is active — this bypasses all data freshness and patrol gates
+        if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+            logger.critical("=" * 70)
+            logger.critical("⚠️  DEV_MODE=true IS ACTIVE — ALL DATA QUALITY GATES ARE BYPASSED")
+            logger.critical("   Do NOT run with DEV_MODE in production or with real capital.")
+            logger.critical("=" * 70)
+            if not self.dry_run:
+                logger.critical("   DEV_MODE + LIVE mode detected — proceeding but data may be stale.")
+
         # Check market calendar
         if not MarketCalendar.is_trading_day(self.run_date):
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
@@ -1744,7 +1753,7 @@ class Orchestrator:
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                age_hours = (datetime.now(timezone.utc) - result[0]).total_seconds() / 3600
                 if age_hours > 24:
                     issues.append(f"Price data too stale: {age_hours:.1f} hours old")
                 elif age_hours > 1:
@@ -1785,7 +1794,7 @@ class Orchestrator:
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                age_hours = (datetime.now(timezone.utc) - result[0]).total_seconds() / 3600
                 if age_hours > 12:
                     issues.append(f"Technical data stale: {age_hours:.1f} hours old")
             else:
