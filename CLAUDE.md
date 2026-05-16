@@ -10,6 +10,7 @@
 | **✅ How to Deploy (START HERE)** | **DEPLOYMENT_GUIDE.md** |
 | **Deploy Status** | **STATUS.md** (detailed infrastructure status) |
 | **Current Infrastructure** | **STATUS.md → "CURRENT INFRASTRUCTURE STATUS"** |
+| **Verify AWS Data** | **AWS_CLI_SETUP.md** (set up read-only CLI access) |
 | Code changes | DECISION_MATRIX.md |
 | **Local dev** | **"Local Development (3 STEPS)" below** |
 | Local test | Run loaders: `python3 run-all-loaders.py` |

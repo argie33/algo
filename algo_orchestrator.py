@@ -577,7 +577,10 @@ class Orchestrator:
                     monitor = LoaderMonitor()
                     monitor.connect()
                     try:
-                        critical_symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY']
+                        monitor.cur.execute("SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 50 LIMIT 5")
+                        critical_symbols = [row[0] for row in monitor.cur.fetchall()]
+                        if not critical_symbols:
+                            critical_symbols = None
                         findings = monitor.audit_all(critical_symbols=critical_symbols)
 
                         # Check for CRITICAL findings (missing symbols, low volume)

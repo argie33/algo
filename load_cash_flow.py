@@ -45,16 +45,16 @@ _PERIOD_CONFIG = {
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
         }),
         "field_mapping": {
-            # Operating activities
-            "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            # Operating activities (SEC EDGAR uses PascalCase)
+            "NetCashProvidedByUsedInOperatingActivities": "operating_cash_flow",
             # Investing activities
-            "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
-            "payments_to_acquire_property_plant_and_equipment": "capex",
+            "NetCashProvidedByUsedInInvestingActivities": "investing_cash_flow",
+            "PaymentsToAcquirePropertyPlantAndEquipment": "capex",
             # Financing activities
-            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+            "NetCashProvidedByUsedInFinancingActivities": "financing_cash_flow",
             # Depreciation metrics
-            "depreciation": "depreciation",
-            "depreciation_and_amortization": "depreciation_and_amortization",
+            "Depreciation": "depreciation",
+            "DepreciationAndAmortization": "depreciation_and_amortization",
         },
     },
     "quarterly": {
@@ -65,13 +65,13 @@ _PERIOD_CONFIG = {
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
         }),
         "field_mapping": {
-            # Operating activities
-            "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+            # Operating activities (SEC EDGAR uses PascalCase)
+            "NetCashProvidedByUsedInOperatingActivities": "operating_cash_flow",
             # Investing activities
-            "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
-            "payments_to_acquire_property_plant_and_equipment": "capex",
+            "NetCashProvidedByUsedInInvestingActivities": "investing_cash_flow",
+            "PaymentsToAcquirePropertyPlantAndEquipment": "capex",
             # Financing activities
-            "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+            "NetCashProvidedByUsedInFinancingActivities": "financing_cash_flow",
         },
     },
 }
