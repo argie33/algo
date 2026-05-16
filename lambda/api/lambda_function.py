@@ -198,10 +198,6 @@ class APIHandler:
             return 'connection_error'
         # Generic error for anything else
         return 'operation_failed'
-            if self.conn and not self.conn.closed:
-                self.conn.rollback()
-        except Exception as e:
-            logger.warning(f"Failed to release cursor: {e}")
 
     def _parse_range_param(self, params: Dict) -> int:
         """Parse range parameter safely. Format: '30d', '1y', etc. Default: 30 days."""

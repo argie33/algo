@@ -565,7 +565,6 @@ class SwingTraderScore:
             'return_6m': round(r6 * 100, 1),
             'short_interest_pct': round(short_interest, 1) if short_interest is not None else None,
             'short_interest_bonus_pts': si_pts,
-            'eps_surprise_pct': round(eps_surprise, 1) if eps_surprise is not None else None,
             'earnings_momentum_pts': earnings_pts,
         }
 
