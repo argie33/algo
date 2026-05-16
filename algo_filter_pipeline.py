@@ -141,6 +141,17 @@ class FilterPipeline:
             advanced_blocked = 0
             passed_all_tiers = []
 
+            # Track pre-tier rejections for comprehensive rejection logging
+            pre_tier_rejections = {
+                'earnings_blackout': 0,
+                'signal_age': 0,
+                'stage_not_2': 0,
+                'close_quality': 0,
+                'volume': 0,
+                'no_trend_data': 0,
+                'no_entry_price': 0,
+            }
+
             # NEW: Initialize rejection tracker (Phase 3 integration)
             tracker = RejectionTracker()
 
@@ -153,6 +164,7 @@ class FilterPipeline:
                 blackout_check = earnings_blackout.run(symbol, signal_date)
                 if not blackout_check['pass']:
                     logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
+                    pre_tier_rejections['earnings_blackout'] += 1
                     continue
 
                 # A1: Signal Age Gate — reject signals older than max_signal_age_days
@@ -160,6 +172,7 @@ class FilterPipeline:
                 signal_age = (eval_date - signal_date).days
                 if signal_age > max_signal_age_days:
                     logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
+                    pre_tier_rejections['signal_age'] += 1
                     continue
 
                 # Fetch stage, trend score, and price data for signal date
@@ -179,6 +192,7 @@ class FilterPipeline:
                     # A1: Stage 2 + Volume check
                     if stage_number != 2:
                         logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2)")
+                        pre_tier_rejections['stage_not_2'] += 1
                         continue
 
                     # A2: Close Quality Gate — close must be in upper N% of day's range
@@ -188,6 +202,7 @@ class FilterPipeline:
                         close_pct_of_range = ((close - day_low) / day_range * 100) if day_range > 0 else 0
                         if close_pct_of_range < min_close_quality_pct:
                             logger.info(f"  SKIP {symbol}: Close at {close_pct_of_range:.0f}% of range (need >{min_close_quality_pct:.0f}%)")
+                            pre_tier_rejections['close_quality'] += 1
                             continue
 
                     # A3: Volume Hard Gate — min breakout volume ratio
@@ -196,15 +211,18 @@ class FilterPipeline:
                         vol_ratio = volume / avg_vol_50d
                         if vol_ratio < min_vol_ratio:
                             logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.2f}x 50-day avg (need >{min_vol_ratio}x)")
+                            pre_tier_rejections['volume'] += 1
                             continue
                 else:
                     logger.info(f"  SKIP {symbol}: No trend or price data for {signal_date}")
+                    pre_tier_rejections['no_trend_data'] += 1
                     continue
 
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
                 entry_date = self._get_next_trading_day(signal_date)
                 entry_price = self._get_market_close(symbol, entry_date)
                 if entry_price is None:
+                    pre_tier_rejections['no_entry_price'] += 1
                     continue
 
                 # Validate entry near trendline support (optional confluence check)
@@ -288,14 +306,39 @@ class FilterPipeline:
                 self._persist_signal_evaluation(result, eval_date)
 
             logger.info(f"\n{'='*70}")
-            logger.info("Tier pass-through summary:")
+            logger.info("FILTER REJECTION ANALYSIS:")
+            logger.info(f"{'='*70}")
+
+            # Pre-tier rejections
+            total_pre_tier = sum(pre_tier_rejections.values())
+            if total_pre_tier > 0:
+                logger.info("PRE-TIER REJECTIONS (before tier evaluation):")
+                for reason, count in sorted(pre_tier_rejections.items(), key=lambda x: -x[1]):
+                    if count > 0:
+                        logger.info(f"  {reason:20s}: {count:3d} signals")
+                logger.info(f"  {'TOTAL PRE-TIER':20s}: {total_pre_tier:3d} signals")
+
+            # Tier pass-through
+            logger.info("\nTIER PASS-THROUGH ANALYSIS:")
             logger.info(f"  T1 Data Quality:     {tier_pass_counts[1]:3d}/{len(signals)}")
             logger.info(f"  T2 Market Health:    {tier_pass_counts[2]:3d}/{len(signals)}")
             logger.info(f"  T3 Trend Template:   {tier_pass_counts[3]:3d}/{len(signals)}")
             logger.info(f"  T4 Signal Quality:   {tier_pass_counts[4]:3d}/{len(signals)}")
             logger.info(f"  T5 Portfolio:        {tier_pass_counts[5]:3d}/{len(signals)}")
-            logger.info(f"  T6 Advanced Filters: {advanced_passed:3d}/{tier_pass_counts[5]} passed, "
-                        f"{advanced_blocked} blocked")
+
+            # Advanced filters
+            logger.info(f"\nADVANCED FILTER RESULTS:")
+            logger.info(f"  Passed all tiers:    {len(passed_all_tiers):3d}")
+            logger.info(f"  Advanced passed:     {advanced_passed:3d} (of {tier_pass_counts[5]})")
+            logger.info(f"  Advanced blocked:    {advanced_blocked:3d} (of {tier_pass_counts[5]})")
+
+            # Summary
+            qualified = len(passed_all_tiers)
+            logger.info(f"\nFINAL RESULTS:")
+            logger.info(f"  Input signals:       {len(signals):3d}")
+            logger.info(f"  Pre-tier rejected:   {total_pre_tier:3d}")
+            logger.info(f"  Tier-level rejected: {len(signals) - total_pre_tier - qualified:3d}")
+            logger.info(f"  QUALIFIED FOR TRADE: {qualified:3d}")
             logger.info(f"{'='*70}")
 
             # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
