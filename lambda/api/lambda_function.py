@@ -405,15 +405,33 @@ class APIHandler:
             sortino = (mean_ret / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0.0
             cumulative, running_max = np.cumprod(1 + daily_returns), np.maximum.accumulate(np.cumprod(1 + daily_returns))
             max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
-            return json_response(200, {'total_trades': total, 'winning_trades': winning, 'losing_trades': losing,
-                'win_rate': round((winning / total * 100) if total > 0 else 0.0, 2), 'profit_factor': round(profit_factor, 2),
-                'total_pnl_dollars': round(sum(pnls_dollars), 2), 'total_pnl_pct': round(sum(pnls_pcts), 2),
+            win_rate_pct = round((winning / total * 100) if total > 0 else 0.0, 2)
+            return json_response(200, {
+                'total_trades': total,
+                'winning_trades': winning,
+                'losing_trades': losing,
+                'win_rate': win_rate_pct,
+                'win_rate_pct': win_rate_pct,
+                'profit_factor': round(profit_factor, 2),
+                'total_pnl_dollars': round(sum(pnls_dollars), 2),
+                'total_pnl_pct': round(sum(pnls_pcts), 2),
+                'total_return_pct': round(sum(pnls_pcts), 2),
                 'avg_trade_pct': round(float(np.mean(pnls_pcts)) if pnls_pcts else 0.0, 2),
+                'avg_win_pct': round(float(np.mean([p for p in pnls_pcts if p > 0])) if any(p > 0 for p in pnls_pcts) else 0.0, 2),
+                'avg_loss_pct': round(float(np.mean([p for p in pnls_pcts if p < 0])) if any(p < 0 for p in pnls_pcts) else 0.0, 2),
                 'best_trade_pct': round(float(np.max(pnls_pcts)) if pnls_pcts else 0.0, 2),
                 'worst_trade_pct': round(float(np.min(pnls_pcts)) if pnls_pcts else 0.0, 2),
-                'sharpe_ratio': round(sharpe, 2), 'sortino_ratio': round(sortino, 2),
+                'sharpe_annualized': round(sharpe, 2),
+                'sharpe_ratio': round(sharpe, 2),
+                'sortino_annualized': round(sortino, 2),
+                'sortino_ratio': round(sortino, 2),
                 'max_drawdown_pct': round(max_dd * 100, 2),
-                'avg_holding_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1)})
+                'calmar_ratio': round(sum(pnls_pcts) / 100 / abs(max_dd) if max_dd < 0 else 0.0, 2),
+                'expectancy_r': round((wins_sum - losses_sum) / total if total > 0 else 0.0, 2),
+                'avg_hold_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
+                'avg_holding_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
+                'portfolio_snapshots': 0
+            })
         except Exception as e:
             logger.error(f"get_algo_performance failed: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
