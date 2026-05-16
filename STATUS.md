@@ -55,7 +55,47 @@
 - [ ] ScoresDashboard shows prices
 - [ ] No new errors in CloudWatch logs
 
-**Status:** ✅ All fixes committed and pushed to main → GitHub Actions deploying now
+**Status:** ✅ All fixes committed and pushed to main → Awaiting GitHub Actions infrastructure redeploy
+
+---
+
+## 🔧 DEPLOYMENT BLOCKER ANALYSIS (2026-05-16)
+
+**Current Situation:**
+- ✅ Code is correct (cognito_enabled = false in Terraform defaults)
+- ✅ API health endpoint accessible (proves Lambda is working)
+- ❌ Data endpoints return 401 (Cognito still enforced at API Gateway level)
+
+**Root Cause:**
+- Terraform configuration has cognito_enabled = false (correct)
+- But infrastructure hasn't been re-applied to update the API Gateway routes
+- GitHub Actions workflow `deploy-all-infrastructure.yml` should auto-deploy on push to main
+
+**Required Action:**
+Option A (Automatic - Recommended):
+1. GitHub Actions CI should have triggered on recent commits
+2. Check: https://github.com/argie33/algo/actions
+3. Look for `deploy-all-infrastructure.yml` workflow
+4. Should show Terraform job, then Docker/Lambda job
+5. Once completed, API routes will be updated → 401 errors should disappear
+
+Option B (Manual - If CI doesn't trigger):
+```bash
+cd terraform
+terraform plan
+terraform apply
+# This will update API Gateway routes to remove JWT auth requirement
+```
+
+**Next Check:**
+Once 401 errors are resolved, run Phase 1 verification:
+```bash
+# Test with data endpoints (will return data once auth is fixed)
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/stocks?limit=5
+curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/algo/status
+```
+
+**Timeline:** Infrastructure re-deployment typically takes 5-10 minutes once triggered
 
 ---
 
