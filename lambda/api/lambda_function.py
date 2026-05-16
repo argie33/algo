@@ -167,8 +167,12 @@ class APIHandler:
         try:
             if self.cur:
                 self.cur.close()
-            # Do NOT close self.conn — it's the module-level cached connection.
-            # Roll back any uncommitted transaction so next request starts clean.
+            # Roll back any uncommitted transaction so next request starts clean
+            if self.conn:
+                self.conn.rollback()
+        except Exception as e:
+            logger.debug(f"Error during disconnect: {e}")
+        # Do NOT close self.conn — it's the module-level cached connection for reuse
 
     def _safe_limit(self, limit_val, default=200, max_limit=10000) -> int:
         """Safely extract and validate limit parameter (prevents DoS)."""

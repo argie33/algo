@@ -310,7 +310,24 @@ jobs:
           fi
 
           aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION || echo "Wait completed or timed out"
-          echo "✅ DB Init Lambda deployed: $FUNC_NAME"
+          echo "DB Init Lambda deployed: $FUNC_NAME"
+
+      - name: Invoke DB Init Lambda
+        run: |
+          FUNC_NAME="algo-db-init-dev"
+          aws lambda invoke \
+            --function-name "$FUNC_NAME" \
+            --region $AWS_REGION \
+            --payload '{}' \
+            /tmp/db-init-response.json
+          echo "DB Init response:"
+          cat /tmp/db-init-response.json
+          # Fail if response contains FunctionError
+          if grep -q '"FunctionError"' /tmp/db-init-response.json 2>/dev/null; then
+            echo "ERROR: DB Init Lambda returned an error"
+            exit 1
+          fi
+          echo "DB Init Lambda invoked successfully"
 
   # ──────────────────────────────────────────────────────────────
   # Frontend

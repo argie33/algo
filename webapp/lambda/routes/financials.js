@@ -204,10 +204,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     });
   } catch (error) {
     console.error("Key metrics error:", error);
-    return sendSuccess(res, {
-      symbol: upperSymbol,
-      metricsData: {}
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -236,7 +233,7 @@ router.get("/all", async (req, res) => {
     });
   } catch (error) {
     console.error("All financials error:", error);
-    return sendPaginated(res, [], { limit: 50, offset: 0, total: 0, page: 1 });
+    return sendError(res, error.message, 500);
   }
 });
 

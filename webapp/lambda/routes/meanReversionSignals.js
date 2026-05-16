@@ -37,7 +37,7 @@ router.get('/', async (req, res, next) => {
     let q = `
       SELECT
         mrs.*,
-        ss.name as company_name
+        ss.security_name as company_name
       FROM ${tableName} mrs
       LEFT JOIN ${symbolsTable} ss ON mrs.symbol = ss.symbol
       WHERE mrs.timeframe = $1
@@ -100,7 +100,7 @@ router.get('/:symbol', async (req, res, next) => {
     const q = `
       SELECT
         mrs.*,
-        ss.name
+        ss.security_name
       FROM mean_reversion_signals_daily mrs
       LEFT JOIN stock_symbols ss ON mrs.symbol = ss.symbol
       WHERE mrs.symbol = $1

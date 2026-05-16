@@ -34,8 +34,7 @@ router.get('/status', async (req, res) => {
         total_portfolio_value,
         position_count,
         unrealized_pnl_pct,
-        daily_return_pct,
-        market_health_status
+        daily_return_pct
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC
       LIMIT 1
@@ -44,7 +43,8 @@ router.get('/status', async (req, res) => {
     const snapshot = snapshotResult.rows[0] || {
       position_count: 0,
       unrealized_pnl_pct: 0,
-      daily_return_pct: 0
+      daily_return_pct: 0,
+      total_portfolio_value: 0
     };
 
     // Get active positions count
@@ -2117,7 +2117,8 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
   } catch (error) {
-    return sendSuccess(res, { patterns: [], timestamp: new Date() }, 200);
+    console.error("Signal performance by pattern error:", error);
+    return sendError(res, error.message, 500);
   }
 });
 

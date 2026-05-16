@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
         br.total_signals, br.total_trades, br.winning_trades, br.losing_trades,
         br.win_rate, br.avg_win_pct, br.avg_loss_pct,
         br.expectancy_per_trade, br.total_return_pct, br.max_drawdown_pct,
-        br.sharpe_annualized, br.sortino_annualized, br.profit_factor,
+        br.sharpe_annualized AS sharpe, br.sortino_annualized, br.profit_factor,
         br.notes
       FROM backtest_runs br
     `;

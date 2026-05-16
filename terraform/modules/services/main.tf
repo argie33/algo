@@ -459,6 +459,8 @@ resource "aws_lambda_function" "algo" {
       APCA_API_SECRET_KEY      = var.alpaca_api_secret_key
       APCA_API_BASE_URL        = var.alpaca_api_base_url
       APCA_API_IS_PAPER        = tostring(var.alpaca_paper_trading)
+      FRED_API_KEY             = var.fred_api_key
+      LOG_LEVEL                = var.orchestrator_log_level
     }
   }
 

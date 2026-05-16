@@ -4,6 +4,7 @@ Eliminates duplication of get_db_config() across all loaders
 """
 
 import os
+import json
 import logging
 import boto3
 import psycopg2
@@ -22,7 +23,7 @@ def get_db_config() -> Dict[str, any]:
         EnvironmentError: If no configuration source is available
     """
     aws_region = os.environ.get("AWS_REGION")
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN") or os.environ.get("DATABASE_SECRET_ARN")
 
     # Try AWS first if configured
     if aws_region and db_secret_arn:

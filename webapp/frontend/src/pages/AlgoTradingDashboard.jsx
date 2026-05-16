@@ -168,11 +168,11 @@ function AlgoTradingDashboard() {
           <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
         </div>
         <div className="page-head-actions">
-          {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].some(Boolean) && (
-            <span className="badge badge-danger" title={`Failed: ${['status','markets','scores','positions','trades','config','data-status','policy','evaluate','patrol','notifications','circuit-breakers','data-quality','rejection-funnel']
-              .filter((_, i) => [err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13][i])
+          {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16].some(Boolean) && (
+            <span className="badge badge-danger" title={`Failed: ${['status','markets','scores','positions','trades','config','data-status','policy','evaluate','patrol','notifications','circuit-breakers','data-quality','rejection-funnel','performance','equity-curve','audit-log']
+              .filter((_, i) => [err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16][i])
               .join(', ')}`}>
-              ⚠ {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13].filter(Boolean).length} data source(s) failed
+              ⚠ {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16].filter(Boolean).length} data source(s) failed
             </span>
           )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>

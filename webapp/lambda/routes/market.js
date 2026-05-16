@@ -707,23 +707,14 @@ router.get("/distribution-days", async (req, res) => {
       return sendError(res, "Distribution days service unavailable", 500);
     }
 
-    // Get distribution days for major indices
-    // Use MAX(running_count) to get the current running count (since last follow-through day)
-    // This is the proper IBD metric, not total count
+    // Get distribution days for major indices (table has: symbol, date, distribution_count)
     const distributionQuery = `
       SELECT
         symbol,
-        MAX(running_count) as count,
+        MAX(distribution_count) as count,
         json_agg(
-          json_build_object(
-            'date', date,
-            'close_price', close_price,
-            'change_pct', change_pct,
-            'volume', volume,
-            'volume_ratio', volume_ratio,
-            'days_ago', days_ago,
-            'running_count', running_count
-          ) 
+          json_build_object('date', date, 'count', distribution_count)
+          ORDER BY date DESC
         ) as days
       FROM distribution_days
       WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
@@ -2344,7 +2335,7 @@ async function getMarketDataHandler(req, res) {
         try {
           const result = await query(`
             SELECT DISTINCT ON (date)
-              date, index_value, rating
+              date, fear_greed_value, fear_greed_label
             FROM fear_greed_index
             ORDER BY date DESC LIMIT 30
           `);
@@ -2638,7 +2629,7 @@ router.get("/sentiment", async (req, res) => {
             bearish,
             neutral,
             date,
-            fetched_at as timestamp
+            created_at as timestamp
           FROM aaii_sentiment
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
@@ -2650,10 +2641,10 @@ router.get("/sentiment", async (req, res) => {
       (async () => {
         const result = await query(`
           SELECT
-            index_value as value,
-            rating,
+            fear_greed_value as value,
+            fear_greed_label as rating,
             date,
-            fetched_at as timestamp
+            created_at as timestamp
           FROM fear_greed_index
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
@@ -2666,11 +2657,10 @@ router.get("/sentiment", async (req, res) => {
         const result = await query(`
           SELECT
             naaim_number_mean as mean,
-            quart2 as median,
-            quart1 as min,
-            quart3 as max,
+            bullish,
+            bearish,
             date,
-            fetched_at as timestamp
+            created_at as timestamp
           FROM naaim
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
@@ -3039,46 +3029,6 @@ router.get("/technicals-fresh", async (req, res) => {
   } catch (error) {
     console.error("Market technicals fresh error:", error.message);
     return sendError(res, error.message ? `Failed to fetch market technicals: ${error.message}` : "Failed to fetch market technicals", 500);
-  }
-});
-
-// TOP MOVERS - Gainers and Losers
-router.get("/top-movers", async (req, res) => {
-  try {
-    const { limit = 20 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 20, 500);
-
-    // Get latest market date from cache (5 min TTL)
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
-    if (!latestDate) {
-      return sendError(res, "No market data available", 500);
-    }
-
-    const result = await query(`
-      WITH latest_prices AS (
-        SELECT symbol, close, open,
-          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
-        FROM price_daily pd
-        WHERE date >= ($1::date - INTERVAL '2 days')
-      ),
-      price_changes AS (
-        SELECT symbol, close, open,
-          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_pct
-        FROM latest_prices
-        WHERE rn = 1
-      )
-      SELECT symbol, change_pct, close FROM price_changes
-      WHERE change_pct != 0
-      ORDER BY change_pct DESC
-      LIMIT $2;
-    `, [latestDate, limitNum * 2]);
-
-    const gainers = result.rows.slice(0, limitNum);
-    const losers = result.rows.slice().reverse().slice(0, limitNum);
-
-    sendSuccess(res, { gainers, losers });
-  } catch (error) {
-    sendSuccess(res, { gainers: [], losers: [] });
   }
 });
 
