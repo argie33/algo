@@ -1,7 +1,41 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 9: Comprehensive Health Audit & Fix)  
-**Status:** 🟡 **UNDER REVIEW** (Found issues, systematic fixes in progress)
+**Last Updated:** 2026-05-17 (Session 9: API Auth Blocker Resolution)  
+**Status:** 🟡 **DEPLOYMENT PENDING** (API authorization blocker, Terraform fix in progress)
+
+---
+
+## 🔴 CURRENT BLOCKER: API Authentication (2026-05-17 00:17 CDT)
+
+**Issue:** All data endpoints return HTTP 401 Unauthorized, blocking dashboard functionality
+- Health endpoint (`/api/health`) ✅ Returns 200 (explicitly set to authorization_type = "NONE")
+- Data endpoints (`/api/algo/status`, `/api/stocks`, `/api/scores/*`) ❌ Return 401
+
+**Root Cause:** API Gateway route still enforces JWT authorization despite `cognito_enabled = false` in terraform.tfvars
+
+**Fix Status:**
+- ✅ terraform.tfvars set to `cognito_enabled = false` (committed 2026-05-15 22:01)
+- ✅ Trigger commit pushed to force Terraform apply (2026-05-16 00:05)
+- ✅ Additional commits pushed to re-queue deployment (2026-05-16 00:07-14)
+- ⏳ GitHub Actions `deploy-all-infrastructure.yml` workflow queued (not yet returned 200)
+
+**What Should Happen:**
+1. Terraform `terraform plan` will show: `aws_apigatewayv2_route.api_default` authorization_type "JWT" → "NONE"
+2. Terraform `terraform apply` will update the route in AWS
+3. API Gateway stage auto-deploy (enabled) will redeploy with new auth settings
+4. Data endpoints will return 200 with real data
+
+**How to Verify:**
+```bash
+# Monitor until status changes from 401 to 200
+curl -w "Status: %{http_code}\n" https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/algo/status
+```
+
+**Unblocked by This:**
+- MetricsDashboard (needs `/api/scores/stockscores` to return 200)
+- ScoresDashboard (needs `/api/scores/stockscores` to return 200)
+- VaR Dashboard (needs `/api/algo/var` to return 200)
+- All other data-driven pages
 
 ---
 
