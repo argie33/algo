@@ -1683,9 +1683,12 @@ class APIHandler:
                 return self._get_yield_curve_full()
             elif path == '/api/economic/calendar':
                 self.cur.execute("""
-                    SELECT date, event_name, country, importance, forecast, actual, previous
+                    SELECT event_date AS date, event_name, country, importance,
+                           category, event_time,
+                           forecast_value AS forecast, actual_value AS actual,
+                           previous_value AS previous
                     FROM economic_calendar
-                    ORDER BY date DESC
+                    ORDER BY event_date DESC
                     LIMIT 100
                 """)
                 events = self.cur.fetchall()

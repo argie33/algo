@@ -724,17 +724,22 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
 -- ECONOMIC & MARKET INDEX DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Economic calendar events
+-- Economic calendar events (FRED release dates and upcoming data)
 CREATE TABLE IF NOT EXISTS economic_calendar (
     id SERIAL PRIMARY KEY,
-    date DATE,
+    event_id VARCHAR(100),
+    event_date DATE NOT NULL,
+    event_time TIME,
     event_name VARCHAR(255),
-    country VARCHAR(50),
+    category VARCHAR(100),
+    country VARCHAR(50) DEFAULT 'US',
     importance VARCHAR(20),
-    forecast DECIMAL(12, 4),
-    actual DECIMAL(12, 4),
-    previous DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    forecast_value DECIMAL(12, 4),
+    actual_value DECIMAL(12, 4),
+    previous_value DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, event_date)
 );
 
 -- Economic data time series
@@ -1839,6 +1844,43 @@ CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symb
 CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
 """
 
+def _run_migrations(conn, cur):
+    """Apply schema migrations for existing databases.
+
+    Each migration is idempotent (ADD COLUMN IF NOT EXISTS). Run after SCHEMA
+    so new installs skip them (columns already exist) and upgrades get them.
+    """
+    migrations = [
+        # economic_calendar: rename + new columns (2026-05-16)
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_id VARCHAR(100)",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_date DATE",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_time TIME",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS forecast_value DECIMAL(12, 4)",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS actual_value DECIMAL(12, 4)",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS previous_value DECIMAL(12, 4)",
+        "ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        # Back-fill event_date from legacy 'date' column
+        "UPDATE economic_calendar SET event_date = date WHERE event_date IS NULL AND date IS NOT NULL",
+        # Back-fill forecast/previous from legacy column names
+        "UPDATE economic_calendar SET forecast_value = forecast WHERE forecast_value IS NULL AND forecast IS NOT NULL",
+        "UPDATE economic_calendar SET actual_value = actual WHERE actual_value IS NULL AND actual IS NOT NULL",
+        "UPDATE economic_calendar SET previous_value = previous WHERE previous_value IS NULL AND previous IS NOT NULL",
+    ]
+
+    succeeded = 0
+    for stmt in migrations:
+        try:
+            cur.execute(stmt)
+            succeeded += 1
+        except Exception:
+            pass  # Migration already applied or not applicable
+
+    conn.commit()
+    if succeeded:
+        print(f"  ✓ Applied {succeeded} schema migrations")
+
+
 def _init_timescaledb(conn, cur):
     """Initialize TimescaleDB extension and convert price tables to hypertables.
 
@@ -1980,6 +2022,9 @@ def init_database():
         print(f"  Succeeded: {succeeded}")
         print(f"  Failed: {failed}")
         print()
+
+        # Apply migrations for existing databases
+        _run_migrations(conn, cur)
 
         # Initialize TimescaleDB for time-series optimization
         print("╔════════════════════════════════════════════════════════╗")
