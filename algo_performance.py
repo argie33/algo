@@ -492,14 +492,23 @@ class LivePerformance:
             if not report_date:
                 report_date = date.today()
 
+            logger.info(f"Generating daily performance report for {report_date}")
+
             # Compute all metrics (each handles its own connection)
             sharpe = self.rolling_sharpe(252)
+            logger.debug(f"  Sharpe ratio: {sharpe}")
             sortino = self.rolling_sortino(252)
+            logger.debug(f"  Sortino ratio: {sortino}")
             calmar = self.calmar_ratio(252)
+            logger.debug(f"  Calmar ratio: {calmar}")
             wr = self.win_rate(50)
+            logger.debug(f"  Win rate: {wr['win_rate_pct'] if wr else None}%")
             expectancy = self.expectancy(50)
+            logger.debug(f"  Expectancy: {expectancy}")
             max_dd = self.max_drawdown()
+            logger.debug(f"  Max drawdown: {max_dd}%")
             comparison = self.backtest_vs_live_comparison()
+            logger.debug(f"  Backtest vs live: {comparison}")
 
             result = {
                 'report_date': report_date,
@@ -528,6 +537,7 @@ class LivePerformance:
                 if sharpe_ratio and sharpe_ratio < 0.7:
                     result['status'] = 'warning'
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
+                    logger.warning(f"  Performance warning: {result['warning']}")
 
             # Upsert into database with fresh connection (insert or replace if already exists for this date)
             # Convert numpy scalars to Python floats to prevent "schema 'np'" errors in psycopg2
@@ -579,6 +589,9 @@ class LivePerformance:
                     )
                 )
                 conn.commit()
+                logger.info(f"✓ Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
+            except Exception as e:
+                logger.error(f"Failed to persist performance report: {e}", exc_info=True)
             finally:
                 if cur:
                     try:
@@ -594,6 +607,6 @@ class LivePerformance:
             return result
 
         except Exception as e:
-            logger.error(f"Performance: generate_daily_report failed: {e}")
+            logger.error(f"Performance: generate_daily_report failed: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}
 

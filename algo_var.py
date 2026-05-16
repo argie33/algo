@@ -489,12 +489,20 @@ class PortfolioRisk:
             if not report_date:
                 report_date = date.today()
 
+            logger.info(f"Generating daily risk report for {report_date}")
+
             # Compute all risk metrics (each handles its own connection)
             var_metrics = self.historical_var()
             cvar_metrics = self.cvar()
             stressed_var = self.stressed_var()
             beta = self.beta_exposure()
             concentration = self.concentration_report()
+
+            logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <unavailable>")
+            logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <unavailable>")
+            logger.debug(f"  Stressed VaR: {stressed_var['stressed_var_pct']:.3f}%" if stressed_var else "  Stressed VaR: <unavailable>")
+            logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
+            logger.debug(f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%" if concentration else "  Top 5 Concentration: <unavailable>")
 
             result = {
                 'report_date': report_date,
@@ -510,15 +518,21 @@ class PortfolioRisk:
 
             # Alert if VaR > 2%
             if var_metrics and var_metrics['var_pct'] > 2.0:
-                result['alerts'].append(f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)")
+                msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
+                result['alerts'].append(msg)
+                logger.warning(msg)
 
             # Alert if concentration > 30%
             if concentration and concentration['top_5_concentration_pct'] > 30:
-                result['alerts'].append(f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)")
+                msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
+                result['alerts'].append(msg)
+                logger.warning(msg)
 
             # Alert if beta > 2.0
             if beta and beta['portfolio_beta'] > 2.0:
-                result['alerts'].append(f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)")
+                msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)"
+                result['alerts'].append(msg)
+                logger.warning(msg)
 
             conn = None
             cur = None
@@ -555,6 +569,7 @@ class PortfolioRisk:
                     )
                 )
                 conn.commit()
+                logger.info(f"✓ Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%")
             except Exception as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
             finally:

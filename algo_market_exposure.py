@@ -108,6 +108,7 @@ class MarketExposure:
         if not eval_date:
             eval_date = _date.today()
 
+        logger.info(f"Computing market exposure for {eval_date}")
         self.connect()
         try:
             factors = {}
@@ -122,66 +123,77 @@ class MarketExposure:
                 'max': self.W_IBD_STATE,
             }
             score += ibd_pts
+            logger.debug(f"  IBD state: {ibd['state']}, {ibd_pts:.1f} pts")
 
             # --- 2. Trend 30-week MA (SPY vs SMA_150 + slope) ---
             t30 = self._trend_30wk(eval_date)
             t30_pts = self.W_TREND_30WK * t30['score_factor']
             factors['trend_30wk'] = {**t30, 'pts': round(t30_pts, 1), 'max': self.W_TREND_30WK}
             score += t30_pts
+            logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
 
             # --- 3. Breadth: % stocks above 50-DMA ---
             b50 = self._pct_above_ma(eval_date, ma_days=50)
             b50_pts = self.W_BREADTH_50 * b50['score_factor']
             factors['breadth_50dma'] = {**b50, 'pts': round(b50_pts, 1), 'max': self.W_BREADTH_50}
             score += b50_pts
+            logger.debug(f"  Breadth 50-DMA: {b50.get('value', 0):.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self._pct_above_ma(eval_date, ma_days=200)
             b200_pts = self.W_BREADTH_200 * b200['score_factor']
             factors['breadth_200dma'] = {**b200, 'pts': round(b200_pts, 1), 'max': self.W_BREADTH_200}
             score += b200_pts
+            logger.debug(f"  Breadth 200-DMA: {b200.get('value', 0):.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. VIX regime ---
             vix = self._vix_regime(eval_date)
             vix_pts = self.W_VIX * vix['score_factor']
             factors['vix_regime'] = {**vix, 'pts': round(vix_pts, 1), 'max': self.W_VIX}
             score += vix_pts
+            logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
 
             # --- 6. McClellan oscillator ---
             mc = self._mcclellan(eval_date)
             mc_pts = self.W_MCCLELLAN * mc['score_factor']
             factors['mcclellan'] = {**mc, 'pts': round(mc_pts, 1), 'max': self.W_MCCLELLAN}
             score += mc_pts
+            logger.debug(f"  McClellan: {mc_pts:.1f} pts")
 
             # --- 7. New highs vs new lows ---
             nhnl = self._new_highs_lows(eval_date)
             nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl['score_factor']
             factors['new_highs_lows'] = {**nhnl, 'pts': round(nhnl_pts, 1), 'max': self.W_NEW_HIGHS_LOWS}
             score += nhnl_pts
+            logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 8. A/D line confirmation ---
             ad = self._ad_line(eval_date)
             ad_pts = self.W_AD_LINE * ad['score_factor']
             factors['ad_line'] = {**ad, 'pts': round(ad_pts, 1), 'max': self.W_AD_LINE}
             score += ad_pts
+            logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 9. AAII sentiment (contrarian) ---
             aaii = self._aaii_sentiment(eval_date)
             aaii_pts = self.W_AAII * aaii['score_factor']
             factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
             score += aaii_pts
+            logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date)
             cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
             factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
             score += cs_pts
+            logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 11. NAAIM professional manager positioning ---
             naaim = self._naaim_sentiment(eval_date)
             naaim_pts = self.W_NAAIM * naaim['score_factor']
             factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
             score += naaim_pts
+            logger.debug(f"  NAAIM positioning: {naaim_pts:.1f} pts")
 
             score = max(0.0, min(100.0, score))
 
@@ -258,6 +270,11 @@ class MarketExposure:
                 halt_reasons.append(f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)')
                 cap = min(cap, 30.0)
 
+            if halt_reasons:
+                logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
+            if cap < 100.0:
+                logger.info(f"  Score capped from {score:.1f}% to {cap}%")
+
             final = min(score, cap)
 
             # Determine recommended state
@@ -269,6 +286,8 @@ class MarketExposure:
                 regime = 'caution'
             else:
                 regime = 'correction'
+
+            logger.info(f"  Final score: {final}% ({regime})")
 
             result = {
                 'eval_date': str(eval_date),
