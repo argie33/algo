@@ -1245,7 +1245,7 @@ class Orchestrator:
             # 30 min of open (queued for opening cross). Skip the gate in
             # paper/dry/review mode so testing works after hours, but enforce
             # strictly on auto/live.
-            mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
+            mode = self.config.get('execution_mode', 'paper').lower() if hasattr(self.config, 'get') else 'paper'
             if mode == 'auto':
                 if not self._is_market_open_or_imminent():
                     self.log_phase_result(

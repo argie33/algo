@@ -826,7 +826,10 @@ class FilterPipeline:
                 return {'pass': True, 'reason': 'Insufficient RS data'}
 
             # Calculate slope using linear regression on the last N days
+            # NOTE: Data is fetched DESC (newest first), so reverse it to get chronological order
+            # x=0 should be oldest, x=N-1 should be newest, so slope > 0 means RS is IMPROVING
             rs_line_values = [x[1] for x in rs_line_with_dates[:slope_days]]
+            rs_line_values.reverse()  # Fix: make oldest first so slope calculation is correct
             x_values = list(range(slope_days))
 
             # Simple linear regression: slope = sum((x - x_mean) * (y - y_mean)) / sum((x - x_mean)^2)

@@ -666,11 +666,32 @@ class PositionMonitor:
             return []
         finally:
             self.disconnect()
-        print(
-            f"          stop ${rec['active_stop']:.2f} -> ${rec['proposed_stop']:.2f} | "
-            f"RS={rec['rs_label']} | sector={rec['sector_state']} | flags={flags_str}"
-        )
-        logger.info(f"          -> {rec['action']}: {rec['action_reason']}")
+
+    def get_open_positions(self):
+        """Get list of open positions for halt checking and monitoring.
+
+        Returns a list of dicts with at least 'symbol' and optionally 'name'.
+        Used by orchestrator for single-stock halt detection.
+        """
+        need_disconnect = False
+        if self.cur is None:
+            self.connect()
+            need_disconnect = True
+
+        try:
+            self.cur.execute("""
+                SELECT DISTINCT symbol FROM algo_positions
+                WHERE status = 'open' AND quantity > 0
+                ORDER BY symbol
+            """)
+            positions = self.cur.fetchall()
+            return [{'symbol': row[0], 'name': row[0]} for row in positions] if positions else []
+        except Exception as e:
+            logger.warning(f"Failed to fetch open positions: {e}")
+            return []
+        finally:
+            if need_disconnect:
+                self.disconnect()
 
 
 if __name__ == "__main__":

@@ -1315,6 +1315,8 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     partial_exits_log JSONB,
     partial_exit_count INTEGER DEFAULT 0,
     last_partial_exit_date DATE,
+    mae_pct DECIMAL(5, 2),
+    mfe_pct DECIMAL(5, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, signal_date, entry_price)
@@ -1369,6 +1371,19 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     distribution_days_market INTEGER,
     market_health_status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Portfolio value tracking for circuit breaker drawdown checks
+CREATE TABLE IF NOT EXISTS portfolio_history (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    total_value DECIMAL(14, 2) NOT NULL,
+    cash DECIMAL(14, 2) NOT NULL,
+    positions_count INTEGER DEFAULT 0,
+    drawdown_pct DECIMAL(8, 4) DEFAULT 0,
+    daily_return_pct DECIMAL(8, 4) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Audit log for all algo actions (compliance + debugging)
