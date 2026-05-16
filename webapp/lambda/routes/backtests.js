@@ -195,7 +195,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     }, "Backtest created successfully", 201);
   } catch (error) {
     console.error("Error creating backtest", error);
-    return sendError(res, 500, "Failed to create backtest", "DB_ERROR");
+    return sendError(res, "Failed to create backtest: " + error.message, 500);
   }
 });
 
