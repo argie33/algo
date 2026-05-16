@@ -128,6 +128,62 @@ router.get("/", fetchIndustries);
 // GET /industries - Alias for backward compatibility
 router.get("/industries", fetchIndustries);
 
+// GET /trends-batch - Get trend data for multiple industries (comma-separated)
+router.get("/trends-batch", async (req, res) => {
+  try {
+    const { industries: industriesList, days = 90 } = req.query;
+    if (!industriesList) {
+      return sendError(res, 'industries parameter required (comma-separated)', 400);
+    }
+
+    const industries = industriesList.split(',').map(i => i.trim()).filter(i => i.length > 0);
+    const daysNum = Math.min(parseInt(days) || 90, 365);
+
+    if (industries.length === 0) {
+      return sendSuccess(res, {});
+    }
+
+    const placeholders = industries.map((_, i) => `LOWER(TRIM(cp.industry)) = LOWER(TRIM($${i + 1}))`).join(' OR ');
+    const result = await query(`
+      WITH prices AS (
+        SELECT
+          cp.industry,
+          DATE(pd.date) as date,
+          AVG(CAST(pd.close AS FLOAT)) as avg_price,
+          COUNT(DISTINCT pd.symbol) as stock_count
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE (${placeholders})
+          AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        GROUP BY cp.industry, DATE(pd.date)
+        ORDER BY cp.industry, date ASC
+      )
+      SELECT industry, date, avg_price, stock_count,
+        ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (PARTITION BY industry ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
+      FROM prices
+      ORDER BY industry, date ASC
+    `, industries);
+
+    const grouped = {};
+    (result?.rows || []).forEach(row => {
+      if (!grouped[row.industry]) {
+        grouped[row.industry] = [];
+      }
+      grouped[row.industry].push({
+        date: row.date,
+        avgPrice: parseFloat(row.avg_price) || 0,
+        stockCount: parseInt(row.stock_count) || 0,
+        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
+      });
+    });
+
+    sendSuccess(res, grouped, 200);
+  } catch (error) {
+    console.error("Error fetching industry trends batch:", error);
+    sendError(res, "Failed to fetch industry trends: " + error.message, 500);
+  }
+});
+
 // GET /:industry/trend - Industry trend (proper REST structure)
 router.get("/:industry/trend", async (req, res) => {
   try {

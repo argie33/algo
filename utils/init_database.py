@@ -2042,9 +2042,11 @@ def init_database():
         print(f"ERROR: {e}")
         return False
     finally:
-        if conn:
+        try:
             cur.close()
             conn.close()
+        except Exception:
+            pass
 
 def main():
     """Public API for database initialization (called by orchestrator)."""

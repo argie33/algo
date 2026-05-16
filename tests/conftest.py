@@ -232,10 +232,10 @@ def reset_imports():
     # Clean up module-level state if needed
     import sys
     # Don't remove actual modules, just reset any singletons
-    if 'algo_config' in sys.modules:
+    if 'algo.algo_config' in sys.modules:
         # Reset global config instance
         import algo.algo_config
-        algo_config._instance = None
+        algo.algo_config._instance = None
 
 
 def pytest_configure(config):

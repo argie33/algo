@@ -120,6 +120,52 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /trends-batch - Get trend data for multiple sectors (comma-separated)
+router.get("/trends-batch", async (req, res) => {
+  try {
+    const { sectors: sectorsList, days = 90 } = req.query;
+    if (!sectorsList) {
+      return sendError(res, 'sectors parameter required (comma-separated)', 400);
+    }
+
+    const sectors = sectorsList.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+    const daysNum = Math.min(parseInt(days) || 90, 365);
+
+    if (sectors.length === 0) {
+      return sendSuccess(res, {});
+    }
+
+    const placeholders = sectors.map((_, i) => `$${i + 1}`).join(',');
+    const resultObj = await query(`
+      SELECT
+        sr.date_recorded AS date,
+        sr.sector_name AS sector,
+        sr.current_rank,
+        sr.momentum_score,
+        sr.rank_1w_ago,
+        sr.rank_4w_ago
+      FROM sector_ranking sr
+      WHERE sr.sector_name IN (${placeholders})
+        AND sr.date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY sr.sector_name, sr.date_recorded DESC
+    `, sectors);
+
+    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const grouped = {};
+    result.forEach(row => {
+      if (!grouped[row.sector]) {
+        grouped[row.sector] = [];
+      }
+      grouped[row.sector].push(row);
+    });
+
+    sendSuccess(res, grouped, 200);
+  } catch (error) {
+    console.error("Error fetching sector trends batch:", error);
+    sendError(res, "Failed to fetch sector trends: " + error.message, 500);
+  }
+});
+
 // GET /:sector/trend - Get historical trend data for a specific sector
 router.get("/:sector/trend", async (req, res) => {
   try {
