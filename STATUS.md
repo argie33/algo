@@ -1,11 +1,58 @@
 # System Status
 
-**Last Updated:** 2026-05-15 (Comprehensive platform audit complete)
-**Project Status:** ⚠️ **85% Complete — Platform audit complete, critical issues identified and fixed, ready for full verification**
+**Last Updated:** 2026-05-15 20:15 (Critical bug fixed, Phase 1 verification ongoing)
+**Project Status:** 🔧 **CRITICAL FIX APPLIED — Market exposure data persistence bug fixed. Verifying deployment and data flow.**
 
 ---
 
-## 🔍 COMPREHENSIVE PLATFORM AUDIT COMPLETE (2026-05-15)
+## 🔧 CRITICAL FIX: MARKET EXPOSURE DATA PERSISTENCE (2026-05-15)
+
+**ISSUE FOUND & FIXED:**
+The market exposure calculation was producing correct values but **ALL data was silently failing to persist** to the database because:
+- Code was trying to INSERT into columns that don't exist (exposure_pct, raw_score, regime, etc.)
+- Database schema actually has different columns (market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed)
+- This caused a silent error - no exception thrown, just no data persisted
+
+**IMPACT:** 
+- Dashboard showing potentially stale market exposure data
+- Risk management system flying blind on current market regime
+- Orchestrator Phase 3 (position monitor) couldn't see real exposure conditions for risk-adjusted entry decisions
+
+**FIX APPLIED (Commit 3036ed12f):**
+✅ Updated INSERT statement to use correct column names
+✅ Map exposure_pct → market_exposure_pct  
+✅ Derive exposure_tier from regime classification
+✅ Set is_entry_allowed based on halt_reasons
+✅ Added logging for successful persistence
+
+**STATUS:** Fix committed and ready for GitHub Actions deployment
+
+---
+
+## 📊 DATA PIPELINE SCHEDULE
+
+**EventBridge Trigger:** Every weekday (Mon-Fri) at 4:05pm ET (20:05 UTC)
+- Runs 5 minutes after market close (4:00pm ET)
+- Gives Alpaca time to settle EOD prices
+- Triggers Step Functions state machine for data loading pipeline
+
+**Pipeline DAG:**
+```
+eod_bulk_refresh
+  → technicals_daily
+    → [parallel] trend_template_data + stock_scores
+      → [parallel] signals_daily/weekly/monthly (daily + ETF)
+        → algo_metrics_daily
+          → Invoke algo orchestrator Lambda
+```
+
+**Data Loading Locations:**
+- Most loaders: Docker ECS tasks (build + deploy via GitHub Actions)
+- Key Lambda-based loaders: lambda/orchestrator, lambda/api
+
+---
+
+## 🔍 COMPREHENSIVE PLATFORM AUDIT FINDINGS
 
 **Scope:** Full audit of data pipeline, calculations, API endpoints, and frontend pages
 
@@ -45,6 +92,34 @@ Choose verification depth:
 3. Fix identified issues (varies)
 4. Test all frontend pages (1-2 hours)
 5. Deploy and verify in AWS
+
+---
+
+## 🔐 COMPREHENSIVE CREDENTIALS HANDLING FIX (2026-05-15)
+
+**Root Cause Identified:** GitHub Actions CI was failing immediately because multiple Python files imported `credential_manager` at module level, which requires AWS Secrets Manager access (not available in CI).
+
+**Solution:** Implemented uniform credential handling pattern across all critical files:
+1. Check `DB_PASSWORD` environment variable first (provided by CI)
+2. Fall back to `credential_manager` only if env var not set
+3. Handle exceptions gracefully for non-AWS environments
+
+**Files Fixed (10 total):**
+- Core modules: `init_database.py`, `algo_config.py`
+- Test setup: `setup_test_db.py`
+- Unit tests: `algo_position_sizer.py`, `algo_circuit_breaker.py`, `algo_filter_pipeline.py`, `algo_trade_executor.py`
+- Integration tests: `algo_orchestrator.py`
+- Test imports: `algo_backtest.py`
+- Runtime: `feature_flags.py`
+
+**Additional Fixes (auto-applied):**
+- API handler NameError fixes in lambda/api/lambda_function.py
+
+**Environment Support:**
+- ✅ Local dev: .env.local + credential_manager
+- ✅ CI: DB_PASSWORD environment variable
+- ✅ AWS Lambda: DATABASE_SECRET_ARN → Secrets Manager
+- ✅ AWS ECS: Secrets Manager injection
 
 ---
 
