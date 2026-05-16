@@ -1,7 +1,82 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 26: Comprehensive System Audit + Architectural Improvements | Session 28: Code Cleanup & Performance)  
-**Status:** 🟢 **PRODUCTION READY** | 51/118 tables populated | Full market coverage (10,167 symbols) | Signal traceability added | API rate limited | Pre-trade validation fixed
+**Last Updated:** 2026-05-16 (Session 29: Financial Data Fix + System Health Audit)  
+**Status:** 🟡 **IN PROGRESS** | Financial data loaders running | SEC EDGAR concept mapping fixed | Metrics blocked on financial data completion
+
+---
+
+## 🔧 SESSION 29: FINANCIAL DATA FIX & PRODUCTION READINESS AUDIT
+
+### CRITICAL ISSUE FOUND & FIXED
+
+**Problem:** Financial data had 0% revenue data (1,331 income statement rows with NULL revenue)
+
+**Root Cause:** SEC EDGAR API renamed "Revenues" concept between fiscal years
+- FY2018+ uses "Revenues" concept
+- FY2009-2017 uses "SalesRevenueNet" concept  
+- Loader only fetched "Revenues", missing all historical data
+
+**Solution:** Updated SEC EDGAR client & loaders to fetch both concept names with fallback mapping
+- `sec_edgar_client.py`: get_income_statement() now fetches ["Revenues", "SalesRevenueNet", "CostOfRevenue", "CostsAndExpenses"]
+- `load_income_statement.py`: Field mapping handles both names → single schema columns
+- Result: Revenue data now at 61.6% (was 0%) on test batch
+
+### Current Status
+
+**Data Pipeline (IN PROGRESS):**
+- ✅ Financial loaders fixed and reloading (running in background)
+- ✅ Income statement: 159+ rows, 61.6% with revenue data (10-symbol batch)
+- ⚠️ Balance sheet: 25 rows (loader still running for full 10,167 symbols)
+- ⏳ Full reload ETA: ~2-3 hours for 10,167 symbols at SEC EDGAR rate limits
+
+**Blocked Components:**
+- ❌ Quality metrics: 4 rows (should be 374+) — blocked on financial data
+- ⏳ Value metrics: 377 rows (OK, but will update after financial data)
+- ⏳ Stock scores: 571 rows (should be 10,167) — depends on financial data completion
+
+**System Tests:**
+- ⚠️ Orchestrator runnable but flagged data quality issues (non-critical for trading)
+- ✅ Price data: 274K rows, latest 2026-05-15, 77% coverage
+- ❌ Market health: 1 row (loads daily, not historical)
+- ❌ Trading activity: 1 trade, 1 position (never actually runs)
+
+### ⚠️ REMAINING ISSUES IDENTIFIED
+
+**Before metrics can run (blocked on financial data):**
+1. Financial data reload must complete (balance sheet + income statement for all symbols)
+2. Quality metrics need recalculation once financial data is complete
+
+**Data quality issues (non-blocking, won't prevent trading):**
+- analyst_upgrade_downgrade: Column schema mismatch ("date" column missing)
+- aaii_sentiment: EMPTY (optional for trading)
+- insider_transactions: EMPTY (optional)
+- earnings_history: Column whitelist issue ("earnings_date")
+
+**Not yet tested:**
+- Orchestrator Phase execution (Phase 1-7 workflow)
+- Actual trade execution through Alpaca
+- Calculation accuracy (P&L, metrics, scoring)
+- Performance under full 10,167 symbol load
+- API endpoint data accuracy across all pages
+
+### 🎯 NEXT STEPS (PRIORITY ORDER)
+
+**Immediate (next 1-2 hours):**
+1. ✅ Monitor financial data loaders to completion
+2. ⏳ Re-enable quality_metrics.py in run-all-loaders pipeline
+3. ⏳ Run quality metrics for all symbols once financial data loaded
+4. ⏳ Run stock_scores loader for full symbol universe
+
+**Short-term (today):**
+1. Test orchestrator end-to-end with current data
+2. Identify calculation accuracy issues (P&L, metrics, scores)
+3. Fix any orchestrator Phase failures
+4. Verify API endpoints return correct calculated data
+
+**Medium-term (if issues found):**
+1. Fix calculation bugs
+2. Optimize performance if needed
+3. Security review of data pipeline and API endpoints
 
 ---
 
