@@ -112,7 +112,7 @@ const getStocksSignals = async (req, res) => {
     const useEarningsJoin = !!symbolFilter;
 
     const actualColumns = useTechJoin ? `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      bsd.id, bsd.symbol, '${timeframe}'::text as timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
       bsd.signal,
       bsd.buylevel, bsd.stoplevel, bsd.inposition,
@@ -150,7 +150,7 @@ const getStocksSignals = async (req, res) => {
       ss.name as company_name,
       ${useEarningsJoin ? 'eh_next.next_earnings_date, (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings' : "NULL::date as next_earnings_date, NULL::integer as days_to_earnings"}
     ` : `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      bsd.id, bsd.symbol, '${timeframe}'::text as timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
       bsd.signal,
       bsd.buylevel, bsd.stoplevel, bsd.inposition,

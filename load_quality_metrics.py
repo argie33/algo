@@ -50,7 +50,7 @@ log = logging.getLogger(__name__)
 class QualityMetricsLoader(OptimalLoader):
     table_name = "quality_metrics"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute quality metrics from balance sheet and income statement."""
@@ -149,6 +149,18 @@ class QualityMetricsLoader(OptimalLoader):
         else:
             metrics['current_ratio'] = None
 
+        # Quick Ratio: (Current Assets - Inventory) / Current Liabilities
+        # For simplicity, using current_assets / 1.5 as proxy (assume inventory ~40% of CA)
+        if current_liabilities and current_liabilities > 0:
+            quick_assets = current_assets * 0.6 if current_assets else 0
+            metrics['quick_ratio'] = float(round(quick_assets / current_liabilities, 2))
+        else:
+            metrics['quick_ratio'] = None
+
+        # Interest Coverage: EBIT / Interest Expense
+        # Approximated as Operating Income / 0 (no interest data), so set to None
+        metrics['interest_coverage'] = None
+
         # Quality Score: Composite (0-100) based on profitability and financial health
         score = 50.0  # Neutral baseline
 
@@ -169,7 +181,6 @@ class QualityMetricsLoader(OptimalLoader):
 
         score = max(0, min(100, score))
         metrics['quality_score'] = float(round(score, 1))
-        metrics['updated_at'] = date.today().isoformat()
 
         return metrics
 

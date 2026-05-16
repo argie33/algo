@@ -2,11 +2,9 @@
 """
 Growth Metrics Loader - Optimal Pattern (Refactored)
 
-Computes growth metrics from annual financials:
-- Revenue Growth: YoY revenue growth
-- EPS Growth: YoY earnings per share growth
-- Gross Margin Expansion: Change in gross margin
-- Operating Margin Trend: Change in operating margin
+Computes multi-year growth metrics from annual financials:
+- Revenue Growth: 1Y, 3Y, 5Y YoY growth
+- EPS Growth: 1Y, 3Y, 5Y YoY growth
 - Growth Score: Composite (0-100)
 
 Requires: annual_income_statement populated
@@ -49,10 +47,10 @@ log = logging.getLogger(__name__)
 class GrowthMetricsLoader(OptimalLoader):
     table_name = "growth_metrics"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute growth metrics from annual income statement."""
+        """Compute multi-year growth metrics from annual income statement."""
         try:
             import psycopg2
         except ImportError:
@@ -68,14 +66,13 @@ class GrowthMetricsLoader(OptimalLoader):
             )
             cur = conn.cursor()
 
-            # Fetch latest 2 years of financials for YoY comparison
+            # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
             cur.execute("""
-                SELECT fiscal_year, revenue, cost_of_revenue, gross_profit,
-                       operating_income, net_income, earnings_per_share
+                SELECT fiscal_year, revenue, earnings_per_share
                 FROM annual_income_statement
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
-                LIMIT 2
+                LIMIT 10
             """, (symbol,))
 
             rows = cur.fetchall()
@@ -85,10 +82,12 @@ class GrowthMetricsLoader(OptimalLoader):
             if not rows or len(rows) < 1:
                 return None
 
-            latest = rows[0]
-            prev = rows[1] if len(rows) > 1 else None
+            # Sort by year ascending for easier calculation
+            rows = list(reversed(rows))
 
-            metrics = self._compute_metrics(symbol, latest, prev)
+            latest = rows[-1]  # Most recent year
+            metrics = self._compute_metrics(symbol, latest, rows)
+
             if metrics:
                 return [metrics]
             return None
@@ -98,72 +97,36 @@ class GrowthMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _compute_metrics(symbol: str, latest: tuple, prev: Optional[tuple]) -> Optional[dict]:
-        """Compute growth metrics from financial data."""
-        fiscal_year, revenue, cost_of_revenue, gross_profit, operating_income, net_income, eps = latest
+    def _compute_metrics(symbol: str, latest: tuple, all_years: list) -> Optional[dict]:
+        """Compute multi-year growth metrics."""
+        latest_year, latest_rev, latest_eps = latest
 
-        metrics = {
-            "symbol": symbol,
-            "fiscal_year": fiscal_year,
-        }
+        metrics = {"symbol": symbol}
 
-        # Revenue Growth: YoY
-        if prev and revenue and prev[1]:  # prev[1] = previous revenue
-            rev_growth = ((revenue - prev[1]) / abs(prev[1])) * 100
-            metrics['revenue_growth_pct'] = float(round(rev_growth, 2))
-        else:
-            metrics['revenue_growth_pct'] = None
-
-        # EPS Growth: YoY
-        if prev and eps and prev[6]:  # prev[6] = previous EPS
-            eps_growth = ((eps - prev[6]) / abs(prev[6])) * 100
-            metrics['eps_growth_pct'] = float(round(eps_growth, 2))
-        else:
-            metrics['eps_growth_pct'] = None
-
-        # Gross Margin: (Gross Profit / Revenue) * 100
-        if revenue and revenue > 0 and gross_profit is not None:
-            latest_gm = (gross_profit / revenue) * 100
-            metrics['gross_margin_pct'] = float(round(latest_gm, 2))
-
-            # Gross Margin Expansion
-            if prev and prev[1] and prev[1] > 0 and prev[3]:  # prev[3] = previous gross_profit
-                prev_gm = (prev[3] / prev[1]) * 100
-                metrics['gross_margin_expansion_pct'] = float(round(latest_gm - prev_gm, 2))
+        # Calculate 1Y, 3Y, 5Y growth rates
+        for lookback in [1, 3, 5]:
+            # Revenue growth
+            idx = -(lookback + 1)
+            if len(all_years) > lookback and all_years[idx] and latest_rev:
+                prev_year, prev_rev, prev_eps = all_years[idx]
+                if prev_rev and prev_rev > 0:
+                    rev_growth = (((latest_rev / prev_rev) ** (1.0 / lookback)) - 1) * 100
+                    metrics[f'revenue_growth_{lookback}y'] = float(round(rev_growth, 2))
+                else:
+                    metrics[f'revenue_growth_{lookback}y'] = None
             else:
-                metrics['gross_margin_expansion_pct'] = None
-        else:
-            metrics['gross_margin_pct'] = None
-            metrics['gross_margin_expansion_pct'] = None
+                metrics[f'revenue_growth_{lookback}y'] = None
 
-        # Operating Margin: (Operating Income / Revenue) * 100
-        if revenue and revenue > 0 and operating_income is not None:
-            latest_om = (operating_income / revenue) * 100
-            metrics['operating_margin_pct'] = float(round(latest_om, 2))
-
-            # Operating Margin Trend
-            if prev and prev[1] and prev[1] > 0 and prev[4] is not None:  # prev[4] = previous operating_income
-                prev_om = (prev[4] / prev[1]) * 100
-                metrics['operating_margin_expansion_pct'] = float(round(latest_om - prev_om, 2))
+            # EPS growth
+            if len(all_years) > lookback and all_years[idx] and latest_eps:
+                prev_year, prev_rev, prev_eps = all_years[idx]
+                if prev_eps and prev_eps > 0:
+                    eps_growth = (((latest_eps / prev_eps) ** (1.0 / lookback)) - 1) * 100
+                    metrics[f'eps_growth_{lookback}y'] = float(round(eps_growth, 2))
+                else:
+                    metrics[f'eps_growth_{lookback}y'] = None
             else:
-                metrics['operating_margin_expansion_pct'] = None
-        else:
-            metrics['operating_margin_pct'] = None
-            metrics['operating_margin_expansion_pct'] = None
-
-        # Growth Score: Composite (0-100)
-        # Higher is better: positive YoY growth, expanding margins
-        score = 50.0  # Neutral baseline
-
-        if metrics['revenue_growth_pct'] is not None:
-            score += min(25, metrics['revenue_growth_pct'] / 4)  # Cap at +25
-
-        if metrics['eps_growth_pct'] is not None:
-            score += min(25, metrics['eps_growth_pct'] / 4)  # Cap at +25
-
-        score = max(0, min(100, score))
-        metrics['growth_score'] = float(round(score, 1))
-        metrics['updated_at'] = date.today().isoformat()
+                metrics[f'eps_growth_{lookback}y'] = None
 
         return metrics
 

@@ -28,7 +28,12 @@ tier_1b_aggregates = [
 # Note: Annual/quarterly financial data consolidated via load_income_statement.py, load_balance_sheet.py, load_cash_flow.py
 tier_2_reference = [
     'loadcompanyprofile.py',
-    'load_income_statement.py', 'load_balance_sheet.py', 'load_cash_flow.py',
+    # Annual financials
+    ('load_income_statement.py', []), ('load_balance_sheet.py', []), ('load_cash_flow.py', []),
+    # Quarterly financials
+    ('load_income_statement.py', ['--period', 'quarterly']),
+    ('load_balance_sheet.py', ['--period', 'quarterly']),
+    ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadttmincomestatement.py', 'loadttmcashflow.py',
     'loadearningshistory.py', 'loadearningsrevisions.py',
     'load_key_metrics.py',
@@ -81,30 +86,45 @@ successful = []
 rate_limited = []
 total_start = time.time()
 
-def run_loader(loader: str) -> Tuple[str, bool, bool, str]:
-    """Run a single loader. Returns (loader, success, rate_limited, error_msg)."""
+def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
+    """Run a single loader.
+
+    Accepts either:
+    - 'loader.py' (string)
+    - ('loader.py', ['--arg', 'value']) (tuple)
+
+    Returns (loader_name, success, rate_limited, error_msg).
+    """
+    if isinstance(loader_spec, tuple):
+        loader, args = loader_spec
+        loader_name = f"{loader} {' '.join(args)}"
+    else:
+        loader = loader_spec
+        args = []
+        loader_name = loader
+
     if not os.path.exists(loader):
-        return (loader, False, False, "not found")
+        return (loader_name, False, False, "not found")
 
     try:
         result = subprocess.run(
-            ['python3', loader],
+            ['python3', loader] + args,
             capture_output=True,
             text=True,
             timeout=300
         )
 
         if result.returncode == 0:
-            return (loader, True, False, "")
+            return (loader_name, True, False, "")
         elif '429' in result.stderr or 'rate' in result.stderr.lower():
-            return (loader, False, True, result.stderr[:200])
+            return (loader_name, False, True, result.stderr[:200])
         else:
-            return (loader, False, False, result.stderr[:200])
+            return (loader_name, False, False, result.stderr[:200])
 
     except subprocess.TimeoutExpired:
-        return (loader, False, False, "timeout")
+        return (loader_name, False, False, "timeout")
     except Exception as e:
-        return (loader, False, False, str(e)[:100])
+        return (loader_name, False, False, str(e)[:100])
 
 def run_tier(tier_name: str, loaders: List[str], workers: int = 1) -> None:
     """Run a tier of loaders in parallel."""
