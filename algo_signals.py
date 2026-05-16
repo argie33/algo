@@ -851,7 +851,7 @@ class SignalComputer:
           'weeks_since_30wk_uptrend': int,
           'price_above_50dma_pct': float,
           'estimated_base_count': int,
-          'size_multiplier': float (1.0 / 1.0 / 0.5 / 0.0),
+          'size_multiplier': float (1.0 to 2.5),
         }
         """
         self.connect()
