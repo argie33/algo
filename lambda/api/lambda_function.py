@@ -1792,6 +1792,12 @@ class APIHandler:
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     pd.close AS current_price,
+                    pd.close AS price,
+                    ROUND(CASE
+                        WHEN pd_prev.close IS NOT NULL THEN ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0)) * 100
+                        ELSE NULL
+                    END, 2) AS change_percent,
+                    cp.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     qm.roe AS roe_pct,
@@ -1809,6 +1815,11 @@ class APIHandler:
                     SELECT close FROM price_daily
                     WHERE symbol = sc.symbol ORDER BY date DESC LIMIT 1
                 ) pd ON true
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = sc.symbol AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = sc.symbol)
+                    ORDER BY date DESC LIMIT 1
+                ) pd_prev ON true
                 {where_clause}
                 ORDER BY sc.{sort_by} {sort_direction}
                 LIMIT %s OFFSET %s
