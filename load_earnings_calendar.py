@@ -177,7 +177,7 @@ class EarningsCalendarLoader:
         # Commit all changes
         try:
             self.conn.commit()
-            logger.info(f"✓ Committed {total_loaded} earnings calendar records")
+            logger.info(f"[OK] Committed {total_loaded} earnings calendar records")
         except Exception as e:
             self.conn.rollback()
             logger.error(f"Failed to commit earnings: {e}")
