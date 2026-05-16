@@ -548,55 +548,59 @@ class Orchestrator:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 
-            # Check critical loader SLA status first — fail-closed if data didn't load
-            try:
-                from loader_sla_tracker import get_tracker
-                tracker = get_tracker()
-                all_critical_ok, failures = tracker.check_critical_loaders()
-
-                if not all_critical_ok:
-                    failure_msg = "; ".join(failures)
-                    self.log_phase_result(1, 'loader_sla_check', 'halt',
-                                          f'Critical loaders failed SLA: {failure_msg}')
-                    logger.critical(f"Algo halted: {failure_msg}")
-                    return False
-
-                logger.info("  [OK] All critical loaders have fresh data")
-
-            except Exception as e:
-                logger.warning(f"  [WARN] SLA check failed: {e}")
-                # Don't fail-close on SLA check error, just warn
-
-            # Check loader health via monitor — fail-closed if critical data missing
-            try:
-                from algo_loader_monitor import LoaderMonitor
-                monitor = LoaderMonitor()
-                monitor.connect()
+            # In DEV mode, skip strict SLA/loader health checks
+            if not os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+                # Check critical loader SLA status first — fail-closed if data didn't load
                 try:
-                    critical_symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY']
-                    findings = monitor.audit_all(critical_symbols=critical_symbols)
+                    from loader_sla_tracker import get_tracker
+                    tracker = get_tracker()
+                    all_critical_ok, failures = tracker.check_critical_loaders()
 
-                    # Check for CRITICAL findings (missing symbols, low volume)
-                    critical_findings = [f for f in findings if f[0] == 'CRITICAL']
-                    error_findings = [f for f in findings if f[0] == 'ERROR']
-
-                    if critical_findings or error_findings:
-                        self.alerts.send_loader_alert(findings)
-
-                    if critical_findings:
-                        messages = [f[2] for f in critical_findings]
-                        self.log_phase_result(1, 'loader_health', 'halt',
-                                              f'Loader critical: {"; ".join(messages)}')
+                    if not all_critical_ok:
+                        failure_msg = "; ".join(failures)
+                        self.log_phase_result(1, 'loader_sla_check', 'halt',
+                                              f'Critical loaders failed SLA: {failure_msg}')
+                        logger.critical(f"Algo halted: {failure_msg}")
                         return False
 
-                    # Fail-closed on ERROR if it's a data volume issue (0 symbols loaded today)
-                    volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
-                    if volume_error:
-                        for _, _, msg in volume_error:
-                            if '0 symbols' in msg:  # Zero data loaded today
-                                self.log_phase_result(1, 'loader_health', 'halt',
-                                                      f'No data loaded today: {msg}')
-                                return False
+                    logger.info("  [OK] All critical loaders have fresh data")
+
+                except Exception as e:
+                    logger.warning(f"  [WARN] SLA check failed: {e}")
+                    # Don't fail-close on SLA check error, just warn
+
+                # Check loader health via monitor — fail-closed if critical data missing
+                try:
+                    from algo_loader_monitor import LoaderMonitor
+                    monitor = LoaderMonitor()
+                    monitor.connect()
+                    try:
+                        critical_symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY']
+                        findings = monitor.audit_all(critical_symbols=critical_symbols)
+
+                        # Check for CRITICAL findings (missing symbols, low volume)
+                        critical_findings = [f for f in findings if f[0] == 'CRITICAL']
+                        error_findings = [f for f in findings if f[0] == 'ERROR']
+
+                        if critical_findings or error_findings:
+                            self.alerts.send_loader_alert(findings)
+
+                        if critical_findings:
+                            messages = [f[2] for f in critical_findings]
+                            self.log_phase_result(1, 'loader_health', 'halt',
+                                                  f'Loader critical: {"; ".join(messages)}')
+                            return False
+
+                        # Fail-closed on ERROR if it's a data volume issue (0 symbols loaded today)
+                        volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
+                        if volume_error:
+                            for _, _, msg in volume_error:
+                                if '0 symbols' in msg:  # Zero data loaded today
+                                    self.log_phase_result(1, 'loader_health', 'halt',
+                                                          f'No data loaded today: {msg}')
+                                    return False
+            else:
+                logger.info("  [DEV MODE] Skipping SLA and loader health checks")
 
                     # Other errors are just warnings
                     if error_findings and self.verbose:
