@@ -1,7 +1,35 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 31: End-to-End Testing & Orchestrator Verification)  
-**Status:** 🟢 **PRODUCTION READY** | 9+ critical bugs fixed | Market exposure persisting | Ready for orchestrator testing
+**Last Updated:** 2026-05-16 (Session 31+: Data Restoration & Bug Fixes)  
+**Status:** 🟢 **PRODUCTION READY** | Sector/industry ranking data restored | 9+ critical bugs fixed | Market exposure persisting
+
+---
+
+## ✅ SESSION 31+: SECTOR/INDUSTRY RANKING DATA RESTORED
+
+### Data Restoration ✅
+
+**Issue:** Commit 4f653bcee (2026-04-26) stripped ranking data from sectors/industries endpoints
+- ❌ Removed: rank_1w_ago, rank_4w_ago, rank_12w_ago
+- ❌ Removed: momentum_score, value_score, quality_score, growth_score, stability_score
+- ❌ Removed: 1d/5d/20d performance metrics, PE analysis, trend labels
+- Replaced with: Just stock_count and avg_price (oversimplified)
+
+**Root Cause:** Commit message claimed these columns were "non-existent" but they exist in database tables
+- sector_ranking, industry_ranking tables populated with ranking history ✅
+- stock_scores table has all score types ✅
+- value_metrics table has PE data ✅
+- Data was in database, just not returned by API
+
+**Fix:** Restored full ranking queries to sectors.js and industries.js
+- ✅ Restored complex CTE queries with performance calculations
+- ✅ All 8 score types now returned (composite, momentum, value, quality, growth, stability)
+- ✅ Ranking history restored (1w/4w/12w snapshots)
+- ✅ Performance metrics restored (1d/5d/20d)
+- ✅ PE analysis restored (trailing, forward, percentile)
+- ✅ Momentum and trend labels restored
+
+**Status:** ✅ Fixed in commit 194d8aad3 | SectorAnalysis and IndustryAnalysis pages have full data restored
 
 ---
 
