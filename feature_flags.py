@@ -24,11 +24,6 @@ from enum import Enum
 from pathlib import Path
 from dotenv import load_dotenv
 
-try:
-    from credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
 from structured_logger import get_logger
 
 env_file = Path(__file__).parent / '.env.local'
@@ -36,16 +31,25 @@ if env_file.exists():
     load_dotenv(env_file)
 
 logger = get_logger(__name__)
-credential_manager = get_credential_manager()
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
+    # Get DB password from environment first, fall back to credential manager if needed
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        try:
+            from credential_manager import get_credential_manager
+            credential_manager = get_credential_manager()
+            db_password = credential_manager.get_db_credentials()["password"]
+        except Exception:
+            db_password = "postgres"  # Default for local dev
+
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": credential_manager.get_db_credentials()["password"],
-    "database": os.getenv("DB_NAME", "stocks"),
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "user": os.getenv("DB_USER", "stocks"),
+        "password": db_password,
+        "database": os.getenv("DB_NAME", "stocks"),
     }
 
 

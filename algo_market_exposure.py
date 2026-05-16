@@ -897,9 +897,10 @@ class MarketExposure:
                     eval_date,
                     result['exposure_pct'],
                     result.get('score', result['exposure_pct']),
-                    result.get('regime', 'caution')
-                    tier,
-                    is_entry_allowed,
+                    result.get('regime', 'caution'),
+                    result.get('distribution_days', 0),
+                    json.dumps(result.get('factors', {})),
+                    json.dumps(result.get('halt_reasons', [])),
                 ),
             )
             if self._owned:
