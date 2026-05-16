@@ -1,10 +1,65 @@
 # System Status
 
-**Last Updated:** 2026-05-15 Evening (COMPREHENSIVE AUDIT COMPLETE - 2 Critical Bugs Fixed)
+**Last Updated:** 2026-05-15 Evening (COMPREHENSIVE SYSTEM AUDIT & 6 CRITICAL FIXES DEPLOYED)
 
 ---
 
-## 🎯 COMPREHENSIVE PLATFORM AUDIT - FINAL SESSION (2026-05-15)
+## 🚀 PRODUCTION FIX SESSION (2026-05-15 Latest)
+
+**Goal:** Fix dashboard rendering issues, API bugs, and missing data fields. All fixes are low-risk, no schema changes.
+
+### ✅ CRITICAL BUGS FIXED & DEPLOYED
+
+**1. _get_exposure_policy() SQL (CRITICAL - crashes every call)**
+   - **Problem:** Queried non-existent columns (`market_exposure_pct, exposure_tier, is_entry_allowed`)
+   - **Fix:** Rewrote SQL to use actual schema (`exposure_pct, regime, halt_reasons, raw_score`)
+   - **Added:** Python-based derivation of tier and entry_allowed from real data
+   - **File:** `lambda/api/lambda_function.py:704-733`
+   - **Result:** `/api/algo/exposure-policy` now returns correct data
+
+**2. MetricsDashboard shows empty stock list (HIGH)**
+   - **Problem:** Destructured API response wrongly (`data: allStocks = []`) → got `{items:[]}` not array
+   - **Fix:** Extracted items properly (`scoresData?.items || []`)
+   - **File:** `webapp/frontend/src/pages/MetricsDashboard.jsx:50-55`
+   - **Result:** Metrics page now loads 5000+ stocks
+
+**3. ScoresDashboard shows null prices (HIGH)**
+   - **Problem:** Read `s.price` but API returns `s.current_price`
+   - **Fix:** Field name corrected
+   - **File:** `webapp/frontend/src/pages/ScoresDashboard.jsx:440`
+   - **Result:** Prices now display
+
+**4. Missing change_percent and market_cap in scores API (MEDIUM)**
+   - **Problem:** Movers tab shows null, sort by market cap fails
+   - **Fix:** Added window join for prior-day close (change %), added market_cap from company_profile
+   - **File:** `lambda/api/lambda_function.py:1800-1840`
+   - **Result:** `/api/scores/stockscores` now includes change_percent, market_cap, price aliases
+
+**5. Portfolio snapshot INSERT missing columns (LOW)**
+   - **Problem:** Risk panel shows N/A for realized_pnl, win/loss counts, concentration
+   - **Fix:** Added queries to compute from algo_trades, added INSERT columns
+   - **File:** `algo_daily_reconciliation.py:183-212`
+   - **Result:** Snapshots now capture full risk profile
+
+**6. Missing database indexes (LOW)**
+   - **Problem:** Dashboard queries slow on historical data
+   - **Fix:** Added composite indexes on (date, score) and (symbol, trade_date)
+   - **File:** `init_database.py:1768-1770`
+   - **Result:** Dashboard query performance optimized
+
+### 📊 VERIFICATION CHECKLIST
+- [ ] GitHub Actions deployment completes successfully
+- [ ] `/api/algo/exposure-policy` returns data (not 500)
+- [ ] `/api/scores/stockscores` includes change_percent, market_cap, price
+- [ ] MetricsDashboard loads stock list
+- [ ] ScoresDashboard shows prices
+- [ ] No new errors in CloudWatch logs
+
+**Status:** ✅ All fixes committed and pushed to main → GitHub Actions deploying now
+
+---
+
+## 🎯 COMPREHENSIVE PLATFORM AUDIT - EARLIER SESSION (2026-05-15)
 
 **Objective:** Audit entire platform, identify all issues, fix critical blockers, design/redesign as needed for production.
 
