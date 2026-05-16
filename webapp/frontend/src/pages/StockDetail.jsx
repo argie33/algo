@@ -243,11 +243,10 @@ export default function StockDetail() {
   const industry = companyInfo.Industry || profile.industry || null;
   const marketCap = valuation['Market Cap'] || profile.market_cap || null;
 
-  // Check for critical errors that block page display
-  const criticalErrors = [priceError, profileError, keyMetricsError, signalsError, swingScoreError];
-  const hasErrors = criticalErrors.some(err => err);
+  // Check for critical errors that block page display (price chart is essential)
+  const hasCriticalError = priceError;
 
-  if (hasErrors) {
+  if (hasCriticalError) {
     return (
       <div className="main-content">
         <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>
@@ -255,24 +254,11 @@ export default function StockDetail() {
         </button>
         <div className="card" style={{ background: 'var(--surface-danger)', borderLeft: '3px solid var(--error)' }}>
           <div style={{ padding: 'var(--space-4)' }}>
-            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load stock details</div>
+            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load price data</div>
             <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)' }}>
-              {priceError && <div>• Price data unavailable</div>}
-              {profileError && <div>• Company profile unavailable</div>}
-              {keyMetricsError && <div>• Key metrics unavailable</div>}
-              {signalsError && <div>• Signals data unavailable</div>}
-              {swingScoreError && <div>• Algo evaluation unavailable</div>}
+              Price history is required to display the chart.
             </div>
-            <button
-              className="btn btn-sm"
-              onClick={() => {
-                priceError && refetchPrice?.();
-                profileError && refetchProfile?.();
-                keyMetricsError && refetchKeyMetrics?.();
-                signalsError && refetchSignals?.();
-                swingScoreError && refetchSwingScore?.();
-              }}
-            >
+            <button className="btn btn-sm" onClick={() => refetchPrice?.()}>
               <RefreshCw size={14} /> Retry
             </button>
           </div>

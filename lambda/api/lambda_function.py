@@ -1078,7 +1078,7 @@ class APIHandler:
                 return error_response(400, 'invalid_period', f'Period must be "upcoming" or "past", got "{period}"')
 
             if symbol:
-                sql = sql.replace('FROM earnings_history', f'FROM earnings_history WHERE symbol = %s')
+                sql = sql.replace('WHERE earnings_date', 'WHERE symbol = %s AND earnings_date')
                 params_tuple = (symbol,) + params_tuple
 
             self.cur.execute(sql, params_tuple)
@@ -1352,7 +1352,14 @@ class APIHandler:
                 offset = (page - 1) * limit
 
                 self.cur.execute("""
-                    WITH sector_scores AS (
+                    WITH sector_perf AS (
+                        SELECT sector,
+                               ROUND(SUM(CASE WHEN return_pct > 0 THEN return_pct ELSE 0 END) / NULLIF(COUNT(*), 0), 2) as perf_20d
+                        FROM sector_performance
+                        WHERE date >= CURRENT_DATE - INTERVAL '20 days'
+                        GROUP BY sector
+                    ),
+                    sector_scores AS (
                         SELECT
                             cp.sector as sector_name,
                             COUNT(DISTINCT cp.symbol) as stock_count,
@@ -1361,11 +1368,13 @@ class APIHandler:
                             AVG(ss.value_score) as value_score,
                             AVG(ss.quality_score) as quality_score,
                             AVG(ss.growth_score) as growth_score,
-                            AVG(ss.stability_score) as stability_score
+                            AVG(ss.stability_score) as stability_score,
+                            COALESCE(sp.perf_20d, 0) as perf_20d
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        LEFT JOIN sector_perf sp ON sp.sector = cp.sector
                         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
-                        GROUP BY cp.sector
+                        GROUP BY cp.sector, sp.perf_20d
                     ),
                     ranked AS (
                         SELECT *,
@@ -1473,7 +1482,14 @@ class APIHandler:
                 offset = (page - 1) * limit
 
                 self.cur.execute("""
-                    WITH industry_scores AS (
+                    WITH industry_perf AS (
+                        SELECT industry,
+                               ROUND(SUM(CASE WHEN return_pct > 0 THEN return_pct ELSE 0 END) / NULLIF(COUNT(*), 0), 2) as perf_20d
+                        FROM industry_performance
+                        WHERE date >= CURRENT_DATE - INTERVAL '20 days'
+                        GROUP BY industry
+                    ),
+                    industry_scores AS (
                         SELECT
                             cp.industry,
                             cp.sector,
@@ -1483,11 +1499,13 @@ class APIHandler:
                             AVG(ss.value_score) as value_score,
                             AVG(ss.quality_score) as quality_score,
                             AVG(ss.growth_score) as growth_score,
-                            AVG(ss.stability_score) as stability_score
+                            AVG(ss.stability_score) as stability_score,
+                            COALESCE(ip.perf_20d, 0) as perf_20d
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        LEFT JOIN industry_perf ip ON ip.industry = cp.industry
                         WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
-                        GROUP BY cp.industry, cp.sector
+                        GROUP BY cp.industry, cp.sector, ip.perf_20d
                     ),
                     ranked AS (
                         SELECT *,
@@ -1601,7 +1619,7 @@ class APIHandler:
                             WHERE date < (SELECT MAX(date) FROM price_daily)
                         )
                     )
-                    SELECT t.symbol, ss.company_name,
+                    SELECT t.symbol, ss.security_name,
                            ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
                     FROM today t
                     JOIN yesterday y ON t.symbol = y.symbol
@@ -1673,7 +1691,6 @@ class APIHandler:
                 """)
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
-            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"market handler error: {e}")
             return error_response(500, 'database_error', str(e))

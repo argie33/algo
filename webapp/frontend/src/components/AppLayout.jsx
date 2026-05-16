@@ -52,7 +52,6 @@ const NAV_SECTIONS = [
     items: [
       { text: 'Portfolio',     icon: Wallet,  path: '/app/portfolio' },
       { text: 'Trade Tracker', icon: History, path: '/app/trades' },
-      { text: 'Optimizer',     icon: Sliders, path: '/app/optimizer' },
     ],
   },
   {
@@ -312,11 +311,13 @@ const REGIME_VARIANT = {
 };
 
 function ExposurePill({ exposure }) {
+  if (!exposure) return null;
   const regime = (exposure.regime || '').replace(/uptrend_under_pressure/, 'pressure');
   const variant = REGIME_VARIANT[regime] || '';
+  const pct = exposure.exposure_pct ?? '—';
   return (
     <span className={`badge ${variant} mono tnum`}>
-      EXP {exposure.exposure_pct}%
+      EXP {pct}%
     </span>
   );
 }

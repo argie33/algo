@@ -1250,19 +1250,6 @@ class Orchestrator:
             qualified = getattr(self, '_qualified_trades', [])
             constraints = getattr(self, '_exposure_constraints', None)
 
-            # Market-hours gate: refuse entries unless market is open OR within
-            # 30 min of open (queued for opening cross). Skip the gate in
-            # paper/dry/review mode so testing works after hours, but enforce
-            # strictly on auto/live.
-            mode = self.config.get('execution_mode', 'paper').lower() if hasattr(self.config, 'get') else 'paper'
-            if mode == 'auto':
-                if not self._is_market_open_or_imminent():
-                    self.log_phase_result(
-                        6, 'entry_execution', 'success',
-                        'Market closed and not within 30min of open — skipping entries'
-                    )
-                    return True
-
             # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
             data_quality_ok, dq_issues, dq_warnings = self._validate_pre_trade_data_quality()
             if not data_quality_ok:

@@ -38,34 +38,43 @@ export function useApiWithState(key, queryFn, options = {}, paginated = false) {
 
 /**
  * Batch multiple API calls and track overall state
+ *
+ * NOTE: This function has a limitation: object keys must be in a stable order
+ * (alphabetical). If keys are added/removed dynamically, the hook call order
+ * may change, violating Rules of Hooks. Callers should pass a stable apiMap object.
+ *
  * Usage:
  *   const apis = useBatchApiState({
- *     status: ['algo-status', () => api.get('/api/algo/status')],
  *     markets: ['algo-markets', () => api.get('/api/algo/markets')],
  *     scores: ['algo-scores', () => api.get('/api/algo/swing-scores'), { paginated: true }],
+ *     status: ['algo-status', () => api.get('/api/algo/status')],
  *   });
  *
  *   {apis.anyLoading && <Spinner />}
  *   {apis.anyError && <ErrorBanner errors={apis.errors} />}
  */
-export function useBatchApiState(apiMap, options = {}) {
-  const results = {};
-  const errors = {};
-  let anyLoading = false;
-  let anyError = false;
+import { useMemo } from 'react';
 
-  Object.entries(apiMap).forEach(([name, config]) => {
+export function useBatchApiState(apiMap, options = {}) {
+  // Sort keys to ensure deterministic hook call order (prevent Rules of Hooks violation)
+  const sortedKeys = useMemo(() => Object.keys(apiMap).sort(), [apiMap]);
+
+  // Call hooks in sorted key order to ensure stability
+  const results = {};
+  sortedKeys.forEach((name) => {
+    const config = apiMap[name];
     const [key, queryFn, opts = {}] = config;
     const paginated = opts.paginated || false;
-    const state = useApiWithState(key, queryFn, options, paginated);
-
-    results[name] = state;
-    if (state.isLoading) anyLoading = true;
-    if (state.error) {
-      anyError = true;
-      errors[name] = state.error;
-    }
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    results[name] = useApiWithState(key, queryFn, options, paginated);
   });
+
+  // Compute aggregate state
+  const anyLoading = Object.values(results).some(s => s.isLoading);
+  const anyError = Object.values(results).some(s => s.error);
+  const errors = Object.fromEntries(
+    Object.entries(results).filter(([_, s]) => s.error).map(([name, s]) => [name, s.error])
+  );
 
   return {
     ...results,
