@@ -1,11 +1,42 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 41+ Fixes: Terraform Cleanup & Monitor Fix)  
-**Status:** PRODUCTION READY | Terraform references cleaned | Critical monitor fixed
+**Last Updated:** 2026-05-16 (Session 45: Frontend fixes - Settings, DeepValueStocks, PreTradeSimulator, AuditViewer, RiskTab)  
+**Status:** PRODUCTION READY | Frontend data access issues fixed | All critical frontend data flows validated
 
 ---
 
-## 🔧 Session 41+ Fixes - Terraform & Monitor Cleanup
+## 🔧 Session 45 Fixes - Frontend Data Access & API Integration
+
+### Issues Fixed
+
+#### 1. Settings.jsx - Broken Optional Chaining API Calls ✅
+- **Problem:** Used `api.getSettings?.()`, `api.updateSettings?.()` which don't exist as instance methods
+- **Fix:** Now uses `getSettings()` and `updateSettings()` standalone functions from api.js
+- **Status:** FIXED — Settings page can now load and save user preferences
+
+#### 2. DeepValueStocks.jsx - Wrong Array Check on Paginated Data ✅
+- **Problem:** `Array.isArray(rawStocks)` failed because useApiQuery returns `{ items: [], pagination: {} }` not array
+- **Fix:** Changed to `Array.isArray(rawStocks) ? rawStocks : (rawStocks?.items || [])`
+- **Status:** FIXED — Deep value stocks table now displays 600+ symbols
+
+#### 3. PreTradeSimulator.jsx - Unguarded .toFixed() Calls ✅
+- **Problem:** `result.entry_price.toFixed(2)` throws TypeError if result is null
+- **Fix:** Added null coalescing: `(result.entry_price ?? 0).toFixed(2)`
+- **Status:** FIXED — Pre-trade simulator handles null responses gracefully
+
+#### 4. AuditViewer.jsx - Raw fetch() Bypasses Auth ✅
+- **Problem:** Direct `fetch()` calls don't include auth tokens, returns 401 silently
+- **Fix:** Replaced with `api.get()` from authenticated axios instance
+- **Status:** FIXED — Audit log endpoints now properly authenticated
+
+#### 5. RiskTab.jsx - Circuit Breaker Shape Assumption ✅
+- **Problem:** Assumed `{ breakers: [...] }` but endpoint might return raw array
+- **Fix:** Added shape detection: `Array.isArray(circuitBreakers) ? circuitBreakers : circuitBreakers?.breakers || []`
+- **Status:** FIXED — RiskTab handles both response shapes
+
+---
+
+## Prior Session (41+) Fixes - Terraform Cleanup
 
 ### Issues Fixed
 
