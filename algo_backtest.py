@@ -1,5 +1,5 @@
-from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
+from credential_helper import get_db_password, get_db_config
 """
 Backtester Module — Walk-forward optimization and historical performance validation
 

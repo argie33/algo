@@ -1,4 +1,3 @@
-from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
 """
 Hedge-Fund-Style Multi-Factor Filter & Scoring (Tier 6+)
@@ -32,6 +31,15 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
+
+try:
+    from credential_helper import get_db_password, get_db_config
+except ImportError:
+    # Fallback if credential_helper not available
+    def get_db_password():
+        return credential_manager.get_db_credentials()["password"] if credential_manager else ""
+    def get_db_config():
+        return credential_manager.get_db_credentials() if credential_manager else {}
 
 import os
 import logging

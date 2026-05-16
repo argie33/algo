@@ -1,5 +1,5 @@
-from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
+from credential_helper import get_db_password, get_db_config
 """
 CloudWatch Monitoring - Metrics and Alarms for Data Pipeline Visibility
 

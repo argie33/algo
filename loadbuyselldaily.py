@@ -1,5 +1,5 @@
-from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
+from credential_helper import get_db_password, get_db_config
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 Daily Buy/Sell Signals Loader - Optimal Pattern.

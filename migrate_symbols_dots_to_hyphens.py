@@ -1,5 +1,5 @@
-from credential_helper import get_db_password, get_db_config
 #!/usr/bin/env python3
+from credential_helper import get_db_password, get_db_config
 """
 Migration: Convert symbol format from dots to hyphens (BRK.B -> BRK-B)
 
