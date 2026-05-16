@@ -174,6 +174,10 @@ resource "aws_lambda_permission" "api_gateway" {
 # API route - Public access (no auth required)
 # NOTE: Cognito is disabled (cognito_enabled=false in tfvars)
 # The API Gateway authorization is intentionally set to NONE for public access
+#
+# IMPORTANT: This route MUST have authorization_type="NONE" for public API access.
+# If AWS doesn't allow updating an existing route's authorization, Terraform will
+# need to destroy and recreate it. The lifecycle rules below handle this.
 resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
@@ -181,10 +185,12 @@ resource "aws_apigatewayv2_route" "api_default" {
   authorization_type = "NONE"
 
   lifecycle {
-    create_before_destroy = true
+    # Force replacement if authorization_type can't be updated in-place
+    replace_triggered_by = [aws_apigatewayv2_integration.api_lambda.id]
+    ignore_changes      = []  # Don't ignore any changes
   }
 
-  depends_on = [aws_apigatewayv2_integration.api_lambda]
+  depends_on = [aws_apigatewayv2_integration.api_lambda, aws_apigatewayv2_stage.api]
 }
 
 # Health check is unauthenticated so monitors and load balancers can reach it
