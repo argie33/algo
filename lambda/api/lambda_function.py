@@ -132,6 +132,24 @@ class APIHandler:
         except Exception as e:
             logger.warning(f"Failed to release cursor: {e}")
 
+    def _parse_range_param(self, params: Dict) -> int:
+        """Parse range parameter safely. Format: '30d', '1y', etc. Default: 30 days."""
+        if not params:
+            return 30
+        range_str = params.get('range', ['30d'])[0] if params else '30d'
+        try:
+            # Validate format: must be digits followed by 'd'
+            if not range_str.endswith('d'):
+                return 30
+            days_str = range_str[:-1]
+            if not days_str.isdigit():
+                return 30
+            days = int(days_str)
+            # Clamp to reasonable range (1-365 days)
+            return max(1, min(days, 365))
+        except (ValueError, AttributeError):
+            return 30
+
     def route(self, path: str, method: str = 'GET', query_params: Dict = None, body: Dict = None) -> Dict:
         """Route request to appropriate handler."""
         query_params = query_params or {}
@@ -1387,7 +1405,7 @@ class APIHandler:
                     'day_of_week': [dict(r) for r in dow],
                 })
             elif path == '/api/market/sentiment':
-                range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
+                range_days = self._parse_range_param(params) if params else 30
                 self.cur.execute("""
                     SELECT date, fear_greed_value as value
                     FROM fear_greed_index
@@ -1397,7 +1415,7 @@ class APIHandler:
                 sentiment = self.cur.fetchall()
                 return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/market/fear-greed':
-                range_days = int(params.get('range', ['30d'])[0].replace('d', '')) if params else 30
+                range_days = self._parse_range_param(params) if params else 30
                 return self._get_fear_greed_history(range_days)
             elif path == '/api/market/status':
                 self.cur.execute("""
