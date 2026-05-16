@@ -189,6 +189,7 @@ router.get("/etf", async (req, res) => {
     }
 
     // Get signals for major indices/ETFs with technical enrichment
+    // Note: ETF tables don't have 'reason' column
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -197,7 +198,6 @@ router.get("/etf", async (req, res) => {
         bsd.date,
         bsd.signal,
         bsd.strength,
-        bsd.reason,
         cp.short_name as company_name,
         tdd.rsi,
         tdd.atr,
