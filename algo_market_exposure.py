@@ -918,25 +918,29 @@ class MarketExposure:
                 short_exp = abs(exposure_pct)
 
             import json
+            factors_json = json.dumps(result.get('factors', {}))
+            halt_reasons_str = '; '.join(result.get('halt_reasons', []))
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    market_exposure_pct = EXCLUDED.market_exposure_pct,
-                    long_exposure_pct = EXCLUDED.long_exposure_pct,
-                    short_exposure_pct = EXCLUDED.short_exposure_pct,
-                    exposure_tier = EXCLUDED.exposure_tier,
-                    is_entry_allowed = EXCLUDED.is_entry_allowed
+                    exposure_pct = EXCLUDED.exposure_pct,
+                    raw_score = EXCLUDED.raw_score,
+                    regime = EXCLUDED.regime,
+                    distribution_days = EXCLUDED.distribution_days,
+                    factors = EXCLUDED.factors,
+                    halt_reasons = EXCLUDED.halt_reasons
                 """,
                 (
                     eval_date,
                     exposure_pct,
-                    long_exp,
-                    short_exp,
-                    tier,
-                    is_entry_allowed,
+                    result.get('raw_score', exposure_pct),
+                    result.get('regime', 'unknown'),
+                    result.get('distribution_days', 0),
+                    factors_json,
+                    halt_reasons_str,
                 ),
             )
             if self._owned:

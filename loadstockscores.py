@@ -137,20 +137,20 @@ class StockScoresLoader(OptimalLoader):
         growth_score = 50 + (momentum_pct * 0.8 - (volatility * 0.2))
         growth_score = max(0, min(100, growth_score))
 
-        # Quality score: based on consistency (inverse of volatility)
+        # Quality score: same as stability (inverse volatility) — kept for schema compatibility
         quality_score = stability_score
 
         # Value score: RSI-based (low RSI = potentially undervalued)
         value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
 
-        # Composite: weighted average of all scores
+        # Composite: weighted average — 5 distinct factors, each weighted once
+        # quality_score is excluded here to avoid double-counting stability
         composite_score = (
-            momentum_score * 0.20 +  # 20% momentum
-            growth_score * 0.20 +     # 20% growth
-            stability_score * 0.20 +  # 20% stability/quality
-            value_score * 0.15 +      # 15% value
-            positioning_score * 0.15 + # 15% positioning/trend
-            quality_score * 0.10      # 10% quality consistency
+            momentum_score * 0.25 +    # 25% momentum (RSI)
+            growth_score * 0.20 +      # 20% growth (momentum + vol-adjusted)
+            stability_score * 0.20 +   # 20% stability (inverse volatility)
+            value_score * 0.15 +       # 15% value (RSI-inverted)
+            positioning_score * 0.20   # 20% positioning (recent returns)
         )
 
         score_row = {
