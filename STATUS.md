@@ -261,16 +261,71 @@ Systematic verification that:
 - ✅ **Target R-multiples** — Present in performance endpoint (verified in code)
 
 **Current Session (51) Work Plan:**
-- 🔄 PHASE 1.1: Verify data pipeline (30 loaders, 132 tables)
-- [ ] PHASE 1.2: Verify calculation accuracy (RSI, quality scores, exits)
-- [ ] PHASE 1.3: Test signal generation (dry-run orchestrator)
-- [ ] PHASE 1.4: Test Alpaca integration (paper trading)
-- [ ] PHASE 2.1: Standardize API response shapes
-- [ ] PHASE 2.2: Frontend data validation (test all pages)
-- [ ] PHASE 3: Performance optimization
-- [ ] PHASE 4: Security hardening
-- [ ] PHASE 5: End-to-end testing
-- [ ] PHASE 6: Production deployment verification
+
+### PHASE 1: CRITICAL PATH VERIFICATION
+
+#### 1.1: Data Pipeline
+- ✅ All 30 loaders present (verified: 9,558 lines of loader code)
+- ✅ Database schema complete (175 CREATE statements: 111 tables + 64 indexes)
+- [ ] Run full loader pipeline locally (requires PostgreSQL)
+- [ ] Verify row counts for each major table
+- [ ] Check data freshness (most recent dates)
+
+#### 1.2: Calculation Accuracy
+- ✅ RSI formula — Wilder's method verified in loadstockscores.py:185-190
+- ✅ Quality score — Proper scaling verified (margins, ROE, debt ratios)
+- ✅ RS percentile — Using PERCENT_RANK() window function (correct!)
+- ✅ Position sizing — Kelly formula, risk limits verified
+- ✅ Exit logic — Targets (2R/3R/5R), stops, trailing logic verified
+- [ ] Test calculations against known inputs (sample stocks)
+
+#### 1.3: Signal Generation
+- [ ] Run orchestrator dry-run: `python3 algo_orchestrator.py --mode paper --dry-run`
+- [ ] Verify 7 phases complete
+- [ ] Check signal count is reasonable for current market
+- [ ] Validate filter pipeline rejections make sense
+
+#### 1.4: Alpaca Integration
+- [ ] Test paper account connection
+- [ ] Execute 5 test trades
+- [ ] Verify positions appear in portfolio
+- [ ] Check P&L calculation matches Alpaca
+
+### PHASE 2: API & FRONTEND INTEGRATION
+
+#### 2.1: API Response Shapes
+- ✅ Key endpoints verified using `{success: true, items: [], pagination: {}}`
+- ✅ Frontend has guards for response shape variations (verified: 64 shape-handling lines)
+- [ ] Test all 20+ routes load without errors
+- [ ] Verify pagination works (stocks, trades, signals)
+- [ ] Check error responses (404, 500, etc.)
+
+#### 2.2: Frontend Pages (30+ pages)
+- [ ] Test each major page loads without console errors
+- [ ] Verify data displays correctly
+- [ ] Check null-safety on edge cases (empty results, missing data)
+- [ ] Test calculations display match database values
+
+### PHASE 3: PERFORMANCE
+
+- [ ] Profile database queries with EXPLAIN ANALYZE
+- [ ] Measure API response times (target: <500ms p95)
+- [ ] Test Lambda cold start (target: <5s)
+- [ ] Measure warm response (target: <500ms)
+
+### PHASE 4: SECURITY
+
+- [ ] Verify no plaintext secrets in logs
+- [ ] Test auth token validation
+- [ ] Verify error messages don't leak schema info
+- [ ] Test input validation (SQL injection, XSS, etc.)
+
+### PHASE 5: END-TO-END
+
+- [ ] Dry-run orchestrator (all 7 phases)
+- [ ] Live paper trading (execute real trades)
+- [ ] Monitor for 24-48 hours
+- [ ] Verify exits trigger correctly
 
 ---
 

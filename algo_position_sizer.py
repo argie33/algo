@@ -317,8 +317,21 @@ class PositionSizer:
                     'reason': 'Invalid entry or stop price'
                 }
 
+            # Apply minimum risk floor so cascading multipliers never silently reduce to 0
+            min_risk_floor = float(self.config.get('min_risk_pct_floor', 0.10)) / 100
+            if adjusted_risk_pct < min_risk_floor:
+                adjusted_risk_pct = min_risk_floor
+                risk_dollars = portfolio_value * adjusted_risk_pct
+
             risk_per_share = entry_price - stop_loss_price
             shares = int(risk_dollars / risk_per_share) if risk_per_share > 0 else 0
+
+            if shares < 1:
+                return {
+                    'shares': 0, 'position_size_pct': 0, 'risk_dollars': 0,
+                    'status': 'too_small',
+                    'reason': f'Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}',
+                }
 
             # Check max position size
             position_value = shares * entry_price

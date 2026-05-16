@@ -268,27 +268,17 @@ router.get("/divergence", async (req, res) => {
 
     const result = await query(queryStr, params);
 
-    return res.json({
-      items: result.rows || [],
-      success: true
-    });
+    return sendSuccess(res, result.rows || []);
   } catch (error) {
     console.error("Sentiment divergence error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch sentiment divergence",
-      success: false
-    });
+    return sendError(res, "Failed to fetch sentiment divergence", 500);
   }
 });
 
 // GET /api/sentiment/social/insights/:symbol - Social sentiment insights for a specific symbol
 router.get("/social/insights/:symbol", (req, res) => {
   const { symbol } = req.params;
-  res.status(404).json({
-    success: false,
-    error: "Social sentiment data not available",
-    symbol: symbol.toUpperCase()
-  });
+  return sendError(res, "Social sentiment data not available", 404);
 });
 
 // GET /api/sentiment/analyst/insights/:symbol - Analyst sentiment insights for a specific symbol
@@ -316,7 +306,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.json({
+      return sendSuccess(res, {
         symbol: symbol.toUpperCase(),
         analyst_count: 0,
         bullish_count: 0,
@@ -324,8 +314,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
         neutral_count: 0,
         target_price: null,
         current_price: null,
-        upside_downside_percent: null,
-        message: "No analyst data available"
+        upside_downside_percent: null
       });
     }
 
@@ -339,7 +328,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     if (bullish_pct > 50) consensus = 'buy';
     else if (bearish_pct > 50) consensus = 'sell';
 
-    return res.json({
+    return sendSuccess(res, {
       symbol: row.symbol,
       date: row.date,
       analyst_count: row.analyst_count || 0,
@@ -356,10 +345,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst insights error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch analyst insights",
-      success: false
-    });
+    return sendError(res, "Failed to fetch analyst insights", 500);
   }
 });
 
@@ -377,18 +363,10 @@ router.get("/aaii", async (req, res) => {
       console.warn("aaii_sentiment table not available:", e.message);
     }
 
-    return res.json({
-      data: aaii,
-      timestamp: new Date().toISOString(),
-      success: true
-    });
+    return sendSuccess(res, aaii);
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return res.json({
-      data: null,
-      timestamp: new Date().toISOString(),
-      success: true
-    });
+    return sendSuccess(res, null);
   }
 });
 

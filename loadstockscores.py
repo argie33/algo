@@ -61,6 +61,7 @@ class StockScoresLoader(OptimalLoader):
         self.tracker = None
         self.watermark_mgr = None
         self.run_id = None
+        self._quality_metrics_cache = {}  # Cache all quality metrics in memory (symbol → dict)
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch price data and compute scores."""
@@ -195,30 +196,36 @@ class StockScoresLoader(OptimalLoader):
         returns = closes.pct_change(period)
         return 50 + (returns * 50).clip(-50, 50)
 
-    def _fetch_quality_metrics(self, symbol: str) -> Optional[dict]:
-        """Fetch quality metrics from database if available."""
+    def _batch_load_quality_metrics(self, symbols: List[str]) -> None:
+        """Batch load all quality metrics once to avoid per-symbol queries."""
+        if not symbols:
+            return
         try:
             conn = self._connect()
+            placeholders = ','.join(['%s'] * len(symbols))
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT operating_margin, net_margin, roe, roa, debt_to_equity, current_ratio, quick_ratio, interest_coverage FROM quality_metrics WHERE symbol = %s",
-                    (symbol,)
-                )
-                row = cur.fetchone()
-                if row:
-                    return {
-                        'operating_margin': row[0],
-                        'net_margin': row[1],
-                        'roe': row[2],
-                        'roa': row[3],
-                        'debt_to_equity': row[4],
-                        'current_ratio': row[5],
-                        'quick_ratio': row[6],
-                        'interest_coverage': row[7]
+                cur.execute(f"""
+                    SELECT symbol, operating_margin, net_margin, roe, roa,
+                           debt_to_equity, current_ratio, quick_ratio, interest_coverage
+                    FROM quality_metrics WHERE symbol IN ({placeholders})
+                """, tuple(symbols))
+                for row in cur.fetchall():
+                    self._quality_metrics_cache[row[0]] = {
+                        'operating_margin': row[1],
+                        'net_margin': row[2],
+                        'roe': row[3],
+                        'roa': row[4],
+                        'debt_to_equity': row[5],
+                        'current_ratio': row[6],
+                        'quick_ratio': row[7],
+                        'interest_coverage': row[8]
                     }
         except Exception as e:
-            logging.debug(f"Could not fetch quality_metrics for {symbol}: {e}")
-        return None
+            logging.debug(f"Could not batch load quality_metrics: {e}")
+
+    def _fetch_quality_metrics(self, symbol: str) -> Optional[dict]:
+        """Fetch quality metrics from cache (pre-loaded in batch)."""
+        return self._quality_metrics_cache.get(symbol)
 
     @staticmethod
     def _compute_quality_score(quality_metrics: Optional[dict]) -> Optional[float]:
@@ -378,6 +385,8 @@ def main():
         symbols = get_active_symbols()
 
     loader = StockScoresLoader()
+    # Batch load quality metrics once to avoid per-symbol database hits (performance optimization)
+    loader._batch_load_quality_metrics(symbols)
     # loader.start_provenance_tracking()  # Disabled for local testing (data_loader_runs table missing)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)

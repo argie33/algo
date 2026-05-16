@@ -730,9 +730,9 @@ class FilterPipeline:
             if len(volumes) < 50:
                 return {'pass': True, 'reason': 'No volume data'}
 
-            # 10-day vs 50-day average volume
+            # 10-day vs 50-day average volume (use exactly 50 bars for the baseline)
             vol_10d_avg = sum(volumes[:10]) / 10.0
-            vol_50d_avg = sum(volumes) / len(volumes)
+            vol_50d_avg = sum(volumes[:50]) / 50.0
 
             if vol_10d_avg > 0 and vol_50d_avg > 0:
                 vol_decline_pct = ((vol_50d_avg - vol_10d_avg) / vol_50d_avg) * 100.0
@@ -786,7 +786,7 @@ class FilterPipeline:
             if rs_pct_from_high > 5.0:
                 return {
                     'pass': False,
-                    'reason': f'RS-line {rs_pct_from_high:.1f}% below 52w high (need <5% to trade)',
+                    'reason': f'RS-line {rs_pct_from_high:.1f}% below 60d high (need <5% to trade)',
                 }
 
             return {'pass': True, 'reason': f'RS-line strong: {rs_pct_from_high:.1f}% from high'}

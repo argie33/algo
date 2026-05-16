@@ -1105,7 +1105,7 @@ class APIHandler:
             return json_response(200, [dict(s) for s in signals])
         except Exception as e:
             logger.error(f"get_signals_stocks failed: {e}", exc_info=True)
-            return json_response(500, {'error': 'Failed to fetch signals', 'detail': str(e)})
+            return error_response(500, 'signals_error', 'Failed to fetch signals')
 
     def _get_signals_etf(self, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
@@ -1878,9 +1878,7 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
-                # Social sentiment table not yet populated (requires external API)
-                # Return empty dataset for now
-                return json_response(200, [])
+                return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
@@ -2068,7 +2066,7 @@ class APIHandler:
                 """)
                 summary = self.cur.fetchone()
                 return json_response(200, dict(summary) if summary else {})
-            return error_response(500, 'database_error', str(e))
+            return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')
         except Exception as e:
             logger.error(f"Error in trades handler: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
