@@ -1262,7 +1262,7 @@ class APIHandler:
                 """)
                 alloc = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in alloc])
-            return error_response(500, 'database_error', str(e))
+            return error_response(404, 'not_found', f'Unknown portfolio endpoint: {path}')
         except Exception as e:
             logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
