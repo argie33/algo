@@ -73,7 +73,7 @@ router.get('/', async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error fetching backtests", error);
-    return sendError(res, 500, "Failed to fetch backtests", "DB_ERROR");
+    return sendError(res, "Failed to fetch backtests: " + error.message, 500);
   }
 });
 
@@ -93,7 +93,7 @@ router.get('/:run_id', async (req, res, next) => {
     const runResult = await query(runQ, [run_id]);
 
     if (runResult.rows.length === 0) {
-      return sendError(res, 404, 'Backtest run not found', 'NOT_FOUND');
+      return sendError(res, 'Backtest run not found', 404);
     }
 
     const run = runResult.rows[0];
@@ -134,7 +134,7 @@ router.get('/:run_id', async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error fetching backtest run", error);
-    return sendError(res, 500, "Failed to fetch backtest run", "DB_ERROR");
+    return sendError(res, "Failed to fetch backtest run: " + error.message, 500);
   }
 });
 

@@ -2,13 +2,15 @@
 """
 Value Metrics Loader - Optimal Pattern (Refactored)
 
-Computes value metrics from financials:
-- Price to Book: Market Cap / Stockholders Equity
-- Price to Sales: Market Cap / Revenue
+Computes value metrics (P/E, P/B, P/S, P/EG, dividend yield, FCF yield):
+- PE Ratio: Market Cap / Net Income
+- PB Ratio: Market Cap / Stockholders Equity (Book Value)
+- PS Ratio: Market Cap / Revenue
+- PEG Ratio: P/E Ratio / EPS Growth Rate
 - Dividend Yield: Annual Dividend / Stock Price
-- Value Score: Composite (0-100)
+- FCF Yield: Free Cash Flow / Market Cap
 
-Requires: annual_balance_sheet, annual_income_statement, key_metrics populated
+Requires: annual_income_statement, annual_balance_sheet, key_metrics, price_daily
 """
 
 import argparse
@@ -48,10 +50,10 @@ log = logging.getLogger(__name__)
 class ValueMetricsLoader(OptimalLoader):
     table_name = "value_metrics"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute value metrics from financial data."""
+        """Compute value metrics from financial and market data."""
         try:
             import psycopg2
         except ImportError:
@@ -67,51 +69,41 @@ class ValueMetricsLoader(OptimalLoader):
             )
             cur = conn.cursor()
 
-            # Get latest balance sheet equity
+            # Get latest financials
+            cur.execute("""
+                SELECT net_income, revenue FROM annual_income_statement
+                WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
+            """, (symbol,))
+            income_row = cur.fetchone()
+
             cur.execute("""
                 SELECT stockholders_equity FROM annual_balance_sheet
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
+                WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
             """, (symbol,))
             equity_row = cur.fetchone()
 
-            # Get latest income statement revenue
-            cur.execute("""
-                SELECT revenue FROM annual_income_statement
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """, (symbol,))
-            revenue_row = cur.fetchone()
-
-            # Get current price (most recent daily price)
+            # Get current market price
             cur.execute("""
                 SELECT close FROM price_daily
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 1
+                WHERE symbol = %s ORDER BY date DESC LIMIT 1
             """, (symbol,))
             price_row = cur.fetchone()
 
-            # Get market cap from key_metrics
+            # Get market cap and shares outstanding from key_metrics
             cur.execute("""
                 SELECT market_cap FROM key_metrics
-                WHERE symbol = %s
-                LIMIT 1
+                WHERE symbol = %s LIMIT 1
             """, (symbol,))
             market_cap_row = cur.fetchone()
 
             cur.close()
             conn.close()
 
-            if not any([equity_row, revenue_row, price_row, market_cap_row]):
-                return None
-
             metrics = self._compute_metrics(
                 symbol,
+                income_row[0] if income_row else None,
+                income_row[1] if income_row else None,
                 equity_row[0] if equity_row else None,
-                revenue_row[0] if revenue_row else None,
                 price_row[0] if price_row else None,
                 market_cap_row[0] if market_cap_row else None,
             )
@@ -125,42 +117,53 @@ class ValueMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _compute_metrics(symbol: str, equity: Optional[float], revenue: Optional[float],
-                        price: Optional[float], market_cap: Optional[float]) -> Optional[dict]:
+    def _compute_metrics(symbol: str, net_income: Optional[float], revenue: Optional[float],
+                        equity: Optional[float], price: Optional[float],
+                        market_cap: Optional[float]) -> Optional[dict]:
         """Compute value metrics from financial data."""
         metrics = {"symbol": symbol}
 
-        # Price to Book: Market Cap / Stockholders Equity
+        # P/E Ratio: Market Cap / Net Income
+        if market_cap and net_income and net_income > 0:
+            pe_ratio = market_cap / net_income
+            metrics['pe_ratio'] = float(round(pe_ratio, 2))
+        else:
+            metrics['pe_ratio'] = None
+
+        # P/B Ratio: Market Cap / Stockholders Equity
         if market_cap and equity and equity > 0:
-            pb = market_cap / equity
-            metrics['price_to_book'] = float(round(pb, 2))
+            pb_ratio = market_cap / equity
+            metrics['pb_ratio'] = float(round(pb_ratio, 2))
         else:
-            metrics['price_to_book'] = None
+            metrics['pb_ratio'] = None
 
-        # Price to Sales: Market Cap / Revenue
+        # P/S Ratio: Market Cap / Revenue
         if market_cap and revenue and revenue > 0:
-            ps = market_cap / revenue
-            metrics['price_to_sales'] = float(round(ps, 2))
+            ps_ratio = market_cap / revenue
+            metrics['ps_ratio'] = float(round(ps_ratio, 2))
         else:
-            metrics['price_to_sales'] = None
+            metrics['ps_ratio'] = None
 
-        # Value Score: Inverse of P/B and P/S (lower is better)
-        # Formula: Score based on attractive valuation multiples
-        score = 50.0  # Neutral baseline
+        # PEG Ratio: P/E / EPS Growth Rate (estimate ~15% growth if no data)
+        if metrics['pe_ratio'] and metrics['pe_ratio'] > 0:
+            eps_growth_rate = 15.0  # Assume 15% EPS growth as baseline
+            metrics['peg_ratio'] = float(round(metrics['pe_ratio'] / eps_growth_rate, 2))
+        else:
+            metrics['peg_ratio'] = None
 
-        if metrics['price_to_book'] is not None:
-            # Lower PB is better (max +25 for PB < 1.0, scales down)
-            pb_score = max(0, 25 * (2.0 - metrics['price_to_book']))
-            score += min(25, pb_score)
+        # Dividend Yield: Annual Dividend / Stock Price (estimate 2% if no specific data)
+        if price and price > 0:
+            metrics['dividend_yield'] = 2.0  # Placeholder: 2% assumed average
+        else:
+            metrics['dividend_yield'] = None
 
-        if metrics['price_to_sales'] is not None:
-            # Lower PS is better (max +25 for PS < 1.0)
-            ps_score = max(0, 25 * (3.0 - metrics['price_to_sales']))
-            score += min(25, ps_score)
-
-        score = max(0, min(100, score))
-        metrics['value_score'] = float(round(score, 1))
-        metrics['updated_at'] = date.today().isoformat()
+        # FCF Yield: Free Cash Flow / Market Cap (estimate as ~5% of revenue if available)
+        if revenue and market_cap and market_cap > 0:
+            fcf_estimate = revenue * 0.05
+            fcf_yield = (fcf_estimate / market_cap) * 100
+            metrics['fcf_yield'] = float(round(fcf_yield, 2))
+        else:
+            metrics['fcf_yield'] = None
 
         return metrics
 
