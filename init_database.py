@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
     security_name VARCHAR(255),
     market_category VARCHAR(50),
     is_sp500 BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
     etf VARCHAR(5),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
