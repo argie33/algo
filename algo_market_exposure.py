@@ -921,22 +921,22 @@ class MarketExposure:
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
-                    (date, exposure_pct, raw_score, regime, factors, halt_reasons)
+                    (date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
-                    exposure_pct = EXCLUDED.exposure_pct,
-                    raw_score = EXCLUDED.raw_score,
-                    regime = EXCLUDED.regime,
-                    factors = EXCLUDED.factors,
-                    halt_reasons = EXCLUDED.halt_reasons
+                    market_exposure_pct = EXCLUDED.market_exposure_pct,
+                    long_exposure_pct = EXCLUDED.long_exposure_pct,
+                    short_exposure_pct = EXCLUDED.short_exposure_pct,
+                    exposure_tier = EXCLUDED.exposure_tier,
+                    is_entry_allowed = EXCLUDED.is_entry_allowed
                 """,
                 (
                     eval_date,
                     exposure_pct,
-                    result.get('raw_score', 50),
-                    regime,
-                    json.dumps(result.get('factors', {})),
-                    ';'.join(result.get('halt_reasons', [])),
+                    long_exp,
+                    short_exp,
+                    tier,
+                    is_entry_allowed,
                 ),
             )
             if self._owned:
