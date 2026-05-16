@@ -863,6 +863,7 @@ class TradeExecutor:
                     """
                     UPDATE algo_trades
                     SET exit_date = CURRENT_DATE,
+                        exit_time = CURRENT_TIMESTAMP,
                         exit_price = %s,
                         exit_reason = %s,
                         exit_r_multiple = %s,
