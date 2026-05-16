@@ -316,71 +316,51 @@ curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/algo/status
 
 ---
 
-## 🎯 IMMEDIATE NEXT STEPS (Priority Order)
+## 🚀 DEPLOYMENT & NEXT STEPS
 
-### 1️⃣ VERIFY DEPLOYMENT (Blocking All Tests)
-**Status:** WAITING  
-**What to do:**
-1. Check GitHub Actions: https://github.com/argie33/algo/actions
-   - Should show `deploy-all-infrastructure.yml` workflow
-   - Expected status: ✅ PASSED (green)
-   - If ❌ FAILED: Check error logs, fix code, re-push
-
-2. Test API is responding:
-   ```bash
-   curl https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/health
-   # Expected: {"status": "healthy", "timestamp": "2026-05-15T..."}
-   ```
-
-3. If deployment failed or API unresponsive:
-   - **For CI failure:** Read CloudWatch logs, identify error, fix in code, push to main
-   - **For API failure:** Check AWS console → Lambda → algo-api-lambda logs
-
-**Time estimate:** 10-15 minutes  
-**Blockers:** None (deployment is automatic)
-
-### 2️⃣ VERIFY DATA PIPELINE (Most Critical for Trading)
-**Status:** READY-TO-TEST  
-**Once deployed, run:**
+### Pre-Deployment Verification
+**Run locally before deploying:**
 ```bash
-python3 comprehensive_validation_suite.py --check data
-```
-Or manually:
-```bash
-# Price data - should have today's candles
-SELECT COUNT(*) FROM price_daily WHERE date = CURRENT_DATE;
-# Expected: 500+ rows
+# 1. System readiness (6 critical checks)
+python3 verify_system_ready.py
 
-# Trading signals - should have today's signals
-SELECT COUNT(*) FROM buy_sell_daily WHERE date = CURRENT_DATE;
-# Expected: 100+ rows
+# 2. Data integrity (pre-trade validation)
+python3 verify_data_integrity.py
 
-# Technical indicators - should be fresh
-SELECT COUNT(*) FROM technical_data_daily WHERE date = CURRENT_DATE;
-# Expected: 500+ rows
-
-# Stock quality scores - should be scored
-SELECT COUNT(*) FROM stock_scores WHERE updated_at::date = CURRENT_DATE;
-# Expected: 500+ rows
+# 3. Loader audit (schema validation)
+python3 audit_loaders.py
 ```
 
-**If any table is empty:**
-- Data loaders didn't run
-- Check ECS task logs: `aws logs tail /aws/ecs/data-loaders --since 6h`
-- Re-run loaders manually if needed
+**Expected Output:**
+```
+✓ ALL CHECKS PASSED - System ready for trading
+```
 
-**Time estimate:** 15-20 minutes  
-**Blockers:** Deployment must pass first
-
-### 3️⃣ VERIFY API ENDPOINTS
-**Status:** READY-TO-TEST  
-**Once data is fresh, test 5 critical endpoints:**
+### Deployment
+**From main branch:**
 ```bash
-curl https://API/api/algo/status         # Trading algo status
-curl https://API/api/stocks?limit=10     # Stock screener
-curl https://API/api/sectors             # Sector analysis
-curl https://API/api/signals/stocks      # Trading signals
-curl https://API/api/economic/leading-indicators  # Economic data
+git push origin main
+```
+
+GitHub Actions will automatically:
+1. Run CI tests
+2. Build Docker image
+3. Deploy Lambda functions
+4. Update Terraform infrastructure
+
+**Monitor at:** https://github.com/argie33/algo/actions
+
+### Post-Deployment Verification
+**Once infrastructure is deployed:**
+```bash
+# Check API health
+curl https://<api-endpoint>/api/health
+
+# Run data integrity check
+python3 verify_data_integrity.py
+
+# Monitor logs
+aws logs tail /aws/lambda/algo-orchestrator --follow
 ```
 
 **Expected:** All return HTTP 200 with non-empty data
