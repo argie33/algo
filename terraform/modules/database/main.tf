@@ -646,7 +646,11 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
 resource "aws_dynamodb_table" "watermarks" {
   name           = "${var.project_name}-watermarks-${var.environment}"
   billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "source"
+
+  key_schema {
+    attribute_name = "source"
+    key_type       = "HASH"
+  }
 
   attribute {
     name = "source"
@@ -666,8 +670,14 @@ resource "aws_dynamodb_table" "watermarks" {
   # Global secondary index for querying by status (for monitoring)
   global_secondary_index {
     name            = "StatusIndex"
-    hash_key        = "status"
-    range_key       = "updated_at"
+    key_schema {
+      attribute_name = "status"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "updated_at"
+      key_type       = "RANGE"
+    }
     projection_type = "ALL"
   }
 
