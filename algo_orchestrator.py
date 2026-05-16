@@ -1572,17 +1572,72 @@ class Orchestrator:
                 self.phase_7_reconcile()
                 return self._final_report()
 
-            self.phase_3a_reconciliation()
-            with TimeBlock("phase_3_position_monitor"):
-                self.phase_3_position_monitor()
-            self.phase_3b_exposure_policy()
-            self.phase_4_exit_execution()
-            self.phase_4b_pyramid_adds()
-            with TimeBlock("phase_5_signal_generation"):
-                self.phase_5_signal_generation()
-            with TimeBlock("phase_6_entry_execution"):
-                self.phase_6_entry_execution()
-            self.phase_7_reconcile()
+            # Phase 3a: Reconciliation
+            try:
+                self.phase_3a_reconciliation()
+                logger.info("✓ Phase 3a (Reconciliation) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 3a (Reconciliation) failed: {e}", exc_info=True)
+                self.log_phase_result(3, 'reconciliation', 'error', str(e))
+
+            # Phase 3: Position Monitor
+            try:
+                with TimeBlock("phase_3_position_monitor"):
+                    self.phase_3_position_monitor()
+                logger.info("✓ Phase 3 (Position Monitor) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
+                self.log_phase_result(3, 'position_monitor', 'error', str(e))
+
+            # Phase 3b: Exposure Policy
+            try:
+                self.phase_3b_exposure_policy()
+                logger.info("✓ Phase 3b (Exposure Policy) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
+                self.log_phase_result('3b', 'exposure_policy', 'error', str(e))
+
+            # Phase 4: Exit Execution
+            try:
+                self.phase_4_exit_execution()
+                logger.info("✓ Phase 4 (Exit Execution) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
+                self.log_phase_result(4, 'exit_execution', 'error', str(e))
+
+            # Phase 4b: Pyramid Adds
+            try:
+                self.phase_4b_pyramid_adds()
+                logger.info("✓ Phase 4b (Pyramid Adds) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 4b (Pyramid Adds) failed: {e}", exc_info=True)
+                self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
+
+            # Phase 5: Signal Generation
+            try:
+                with TimeBlock("phase_5_signal_generation"):
+                    self.phase_5_signal_generation()
+                logger.info("✓ Phase 5 (Signal Generation) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
+                self.log_phase_result(5, 'signal_generation', 'error', str(e))
+
+            # Phase 6: Entry Execution
+            try:
+                with TimeBlock("phase_6_entry_execution"):
+                    self.phase_6_entry_execution()
+                logger.info("✓ Phase 6 (Entry Execution) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
+                self.log_phase_result(6, 'entry_execution', 'error', str(e))
+
+            # Phase 7: Reconciliation
+            try:
+                self.phase_7_reconcile()
+                logger.info("✓ Phase 7 (Reconciliation) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
+                self.log_phase_result(7, 'reconciliation', 'error', str(e))
 
             # Log performance metrics at end
             log_metrics_summary()

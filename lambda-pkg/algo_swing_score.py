@@ -36,6 +36,7 @@ from credential_manager import get_credential_manager
 credential_manager = get_credential_manager()
 
 import os
+import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

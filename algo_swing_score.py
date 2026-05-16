@@ -533,27 +533,8 @@ class SwingTraderScore:
         except Exception:
             pass
 
-        # EARNINGS SURPRISE MOMENTUM BONUS (+2 pts)
-        # Large positive EPS surprise + time since earnings (>45d) = institutional buying momentum
+        # EARNINGS SURPRISE MOMENTUM removed (no earnings_metrics data source)
         earnings_pts = 0.0
-        eps_surprise = None
-        try:
-            self.cur.execute(
-                """SELECT earnings_surprise_pct, report_date FROM earnings_metrics
-                   WHERE symbol = %s ORDER BY report_date DESC LIMIT 1""",
-                (symbol,),
-            )
-            r = self.cur.fetchone()
-            if r and r[0] is not None:
-                eps_surprise = float(r[0])
-                report_date = r[1]
-                if report_date is not None:
-                    days_since_report = (eval_date - report_date).days
-                    # Trigger: EPS surprise > 15% AND report > 45 days ago (momentum sustained)
-                    if eps_surprise > 15 and days_since_report > 45:
-                        earnings_pts = 2.0
-        except Exception:
-            pass
 
         pts = min(self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts)
         return pts, {
