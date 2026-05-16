@@ -182,12 +182,14 @@ resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
+  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
+  authorizer_id      = var.cognito_enabled ? try(aws_apigatewayv2_authorizer.cognito[0].id, null) : null
 
   lifecycle {
-    # Force replacement if authorization_type can't be updated in-place
-    replace_triggered_by = [aws_apigatewayv2_integration.api_lambda.id]
-    ignore_changes      = []  # Don't ignore any changes
+    # Force replacement to ensure authorization_type is properly applied
+    # AWS API Gateway sometimes caches old auth settings, so recreation ensures clean state
+    create_before_destroy = true
+    ignore_changes        = []
   }
 
   depends_on = [aws_apigatewayv2_integration.api_lambda, aws_apigatewayv2_stage.api]
