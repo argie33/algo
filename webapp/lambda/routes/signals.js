@@ -49,7 +49,7 @@ router.get("/", async (req, res) => {
     const countRows = Array.isArray(countResultObj) ? countResultObj : (countResultObj?.rows || []);
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
-    // Get paginated results
+    // Get paginated results with technical enrichment
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -59,9 +59,18 @@ router.get("/", async (req, res) => {
         bsd.signal,
         bsd.strength,
         bsd.reason,
-        ss.name as company_name
+        ss.name as company_name,
+        tdd.rsi,
+        tdd.atr,
+        tdd.adx,
+        tdd.sma_50,
+        tdd.sma_200,
+        pd.close as current_price,
+        pd.volume
       FROM ${tableName} bsd
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
+      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
+      LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       ${whereClause}
       ORDER BY bsd.date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -115,6 +124,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Get signals for regular stocks (exclude major indices/ETFs)
+    // Enrich with technical data (RSI, ATR, SMA, ADX)
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -126,10 +136,26 @@ router.get("/stocks", async (req, res) => {
         bsd.reason,
         ss.name as company_name,
         cp.sector,
-        cp.industry
+        cp.industry,
+        tdd.rsi,
+        tdd.atr,
+        tdd.adx,
+        tdd.sma_20,
+        tdd.sma_50,
+        tdd.sma_200,
+        tdd.ema_12,
+        tdd.ema_26,
+        tdd.macd,
+        tdd.mom,
+        pd.close as current_price,
+        pd.high as high_52w,
+        pd.low as low_52w,
+        pd.volume
       FROM ${tableName} bsd
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
+      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
+      LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       ${whereClause}
         AND bsd.symbol NOT IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
       ORDER BY bsd.date DESC, bsd.symbol ASC
@@ -162,7 +188,7 @@ router.get("/etf", async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
-    // Get signals for major indices/ETFs
+    // Get signals for major indices/ETFs with technical enrichment
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -172,9 +198,20 @@ router.get("/etf", async (req, res) => {
         bsd.signal,
         bsd.strength,
         bsd.reason,
-        cp.short_name as company_name
+        cp.short_name as company_name,
+        tdd.rsi,
+        tdd.atr,
+        tdd.adx,
+        tdd.sma_50,
+        tdd.sma_200,
+        tdd.ema_12,
+        tdd.ema_26,
+        pd.close as current_price,
+        pd.volume
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
+      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
+      LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       WHERE bsd.signal IN ('BUY', 'SELL')
       ORDER BY bsd.date DESC
       LIMIT $${1} OFFSET $${2}
