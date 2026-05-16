@@ -146,14 +146,15 @@ class StockScoresLoader(OptimalLoader):
         # Value score: RSI-based (low RSI = potentially undervalued)
         value_score = max(0, min(100, 50 + (30 - momentum_score) * 0.5))
 
-        # Composite: weighted average — 5 distinct factors, each weighted once
-        # quality_score is excluded here to avoid double-counting stability
+        # Composite: weighted average — 6 factors combining technical + fundamental metrics
+        # quality_score (fundamental strength) now integrated with appropriate weighting
         composite_score = (
-            momentum_score * 0.25 +    # 25% momentum (RSI)
-            growth_score * 0.20 +      # 20% growth (momentum + vol-adjusted)
-            stability_score * 0.20 +   # 20% stability (inverse volatility)
-            value_score * 0.15 +       # 15% value (RSI-inverted)
-            positioning_score * 0.20   # 20% positioning (recent returns)
+            momentum_score * 0.20 +      # 20% momentum (RSI-based)
+            growth_score * 0.19 +        # 19% growth (momentum + vol-adjusted)
+            stability_score * 0.19 +     # 19% stability (inverse volatility)
+            value_score * 0.12 +         # 12% value (RSI-inverted, undervaluation signal)
+            positioning_score * 0.15 +   # 15% positioning (recent returns, trend strength)
+            quality_score * 0.15         # 15% quality (fundamental: margins, ROE, leverage, liquidity)
         )
 
         score_row = {
