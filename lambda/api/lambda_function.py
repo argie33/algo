@@ -955,7 +955,7 @@ class APIHandler:
                 """, (symbol,))
                 row = self.cur.fetchone()
                 if not row:
-                    return error_response(500, 'database_error', str(e))
+                    return json_response(200, {})
                 return json_response(200, dict(row))
 
             return error_response(400, 'invalid_endpoint', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
