@@ -12,10 +12,13 @@ Rules:
 """
 
 import os
+import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from credential_helper import get_db_password, get_db_config
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -230,9 +233,10 @@ class PositionSizer:
             result = self.cur.fetchone()
             return float(result[0]) if result else 0.0
         except Exception as e:
-            print(f"WARNING: Could not fetch position values: {e}")
-            # B13: Assume high value to prevent over-sizing new positions
-            return 999999.0
+            logger.error(f"WARNING: Could not fetch position values: {e}")
+            # B13: Fail-closed — return portfolio_value (100% invested) to block new entries
+            portfolio_value = self.get_portfolio_value()
+            return portfolio_value if portfolio_value > 0 else 999999.0
 
     def get_position_count(self):
         """Get count of active positions.
@@ -246,9 +250,9 @@ class PositionSizer:
             result = self.cur.fetchone()
             return result[0] if result else 0
         except Exception as e:
-            print(f"WARNING: Could not fetch position count: {e}")
-            # B13: Assume max positions to prevent over-trading
-            return 999
+            logger.error(f"WARNING: Could not fetch position count: {e}")
+            # B13: Return max_positions to block new entries (not 999 which is confusing)
+            return int(self.config.get('max_positions', 12))
 
     def calculate_position_size(self, symbol, entry_price, stop_loss_price):
         """

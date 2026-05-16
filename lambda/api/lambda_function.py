@@ -478,6 +478,7 @@ class APIHandler:
             self.cur.execute("""
                 SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price,
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
+                       exit_r_multiple,
                        EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
                 FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date ASC
             """)
@@ -490,6 +491,7 @@ class APIHandler:
             pnls_dollars = [float(t['profit_loss_dollars'] or 0) for t in trades]
             pnls_pcts = [float(t['profit_loss_pct'] or 0) for t in trades]
             holding_days = [float(t['holding_days'] or 0) for t in trades if t['holding_days']]
+            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
             winning, losing = sum(1 for p in pnls_dollars if p > 0), sum(1 for p in pnls_dollars if p < 0)
             total = len(trades)
             wins_sum, losses_sum = sum(p for p in pnls_dollars if p > 0), abs(sum(p for p in pnls_dollars if p < 0))
@@ -553,6 +555,9 @@ class APIHandler:
                 'expectancy_r': round((wins_sum - losses_sum) / total if total > 0 else 0.0, 2),
                 'avg_hold_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
                 'avg_holding_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
+                'avg_r_multiple': round(float(np.mean(r_multiples)) if r_multiples else 0.0, 2),
+                'avg_win_r': round(float(np.mean([r for r in r_multiples if r > 0])) if any(r > 0 for r in r_multiples) else 0.0, 2),
+                'avg_loss_r': round(float(np.mean([r for r in r_multiples if r < 0])) if any(r < 0 for r in r_multiples) else 0.0, 2),
                 'portfolio_snapshots': 0
             })
         except Exception as e:
