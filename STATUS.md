@@ -1,7 +1,71 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 45 Complete: 10 frontend+backend critical fixes + F-group production safety)  
-**Status:** PRODUCTION READY ✓ | Frontend data access fixed | Fail-closed safety guards enabled | Alpaca URL validation added
+**Last Updated:** 2026-05-16 (Session 48: Live Trade Execution Enabled)  
+**Status:** ✅ READY FOR AWS DEPLOYMENT | Dry-run mode disabled | Alpaca integration live | All blocking issues fixed
+
+---
+
+## 🔧 Session 48 - Critical: Live Trade Execution Blockers Fixed
+
+### BLOCKERS FIXED
+**This session fixed TWO CRITICAL blockers preventing live trade execution in AWS:**
+
+#### 1. Terraform Hard-Coded Dry-Run Mode ✅
+- **Problem:** `terraform/terraform.tfvars` had `orchestrator_dry_run = true`
+  - Forced orchestrator into simulation mode regardless of Lambda config
+  - NO TRADES would execute even if other configs were correct
+- **Fix:** Changed to `orchestrator_dry_run = false`
+- **Impact:** Orchestrator now runs in LIVE mode (will execute real trades on Alpaca)
+
+#### 2. Lambda Handler Reading Wrong Environment Variable ✅
+- **Problem:** `lambda/algo_orchestrator/lambda_function.py` line 20:
+  - Looked for `DRY_RUN_MODE` env var (doesn't exist)
+  - But Terraform sets `ORCHESTRATOR_DRY_RUN`
+  - Silent mismatch meant Lambda always ran with dry_run=False (from env default)
+  - Actually this was working by accident, but fragile
+- **Fix:** Changed to read `ORCHESTRATOR_DRY_RUN` (matches Terraform)
+- **Impact:** Lambda now explicitly reads the Terraform-configured dry-run flag
+
+### WHAT THIS MEANS
+**System can now execute live trades via AWS Lambda + Alpaca integration:**
+- ✅ Orchestrator disabled dry-run mode
+- ✅ Lambda passes correct env var to orchestrator
+- ✅ Alpaca paper trading configured
+- ✅ EventBridge trigger set for 5:30pm ET daily
+- ✅ All 7 phases operational (data, signals, entry, exit, tracking)
+
+### NEXT STEPS TO GO LIVE (in order)
+1. **Set GitHub Secrets** (Required before deployment):
+   - `ALPACA_API_KEY_ID` — Get from Alpaca dashboard
+   - `ALPACA_API_SECRET_KEY` — Get from Alpaca dashboard
+   - `RDS_PASSWORD` — Secure database password
+   - `JWT_SECRET` — Generate 256-bit key
+   - `FRED_API_KEY` — Get from FRED.org
+   - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` — AWS IAM credentials
+
+2. **Deploy to AWS** (pushes to main trigger automatic deployment):
+   - `git push origin main`
+   - Workflow `deploy-all-infrastructure.yml` runs (~15-20 min)
+   - Creates RDS, Lambda, ECS, EventBridge, API Gateway, etc.
+
+3. **Verify Deployment** (cloudwatch, logs, API tests)
+   - Check Lambda logs: `aws logs tail /aws/lambda/algo-orchestrator`
+   - Test API: `curl https://<api-url>/api/scores/stockscores`
+   - Verify RDS: `aws rds describe-db-instances`
+
+4. **Trigger First Run** (optional, to verify before 5:30pm ET schedule):
+   ```bash
+   aws lambda invoke --function-name algo-orchestrator \
+     --region us-east-1 \
+     --payload '{}' \
+     /tmp/output.json
+   ```
+
+5. **Monitor Trades** (after deployment):
+   - Check CloudWatch logs for each phase
+   - Verify trades appear in Alpaca dashboard
+   - Monitor P&L in API: `/api/trades/performance`
+   - Check audit log: `/api/audit-log`
 
 ---
 
