@@ -1644,8 +1644,8 @@ class APIHandler:
             scores = self.cur.fetchall()
             return json_response(200, [dict(s) for s in scores])
         except Exception as e:
-            logger.error(f"get_stock_scores failed: {e}")
-            return json_response(200, [])
+            logger.error(f"get_stock_scores failed: {e}", exc_info=True)
+            return error_response(500, 'internal_error', f'Stock scores error: {str(e)}')
 
 
 
@@ -1683,10 +1683,10 @@ class APIHandler:
                 """, (limit,))
                 audits = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in audits] if audits else [])
-            return json_response(200, {})
+            return error_response(404, 'not_found', f'No audit handler for {path}')
         except Exception as e:
             logger.error(f"Error in audit handler: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'internal_error', f'Audit handler error: {str(e)}')
 
     def _handle_trades(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/trades and /api/trades/* endpoints."""

@@ -5,9 +5,29 @@
 
 ---
 
-## 🔧 Latest Session Work (2026-05-15 — Audit & Fixes)
+## 🔧 Latest Session Work (2026-05-15 — Comprehensive Audit & Critical Fixes)
 
-**9 Critical Fixes Applied:**
+**FIXES APPLIED:**
+
+✅ **P0 - Stress Test Runner** (algo_stress_test_runner.py + lambda-pkg copy)
+- Removed hardcoded zero metrics that returned fake data
+- Now raises NotImplementedError instead of silently failing
+- Prevents validation of circuit breakers with fake metrics
+
+✅ **P1 - API Error Responses** (lambda/api/lambda_function.py)
+- Fixed notification PATCH/DELETE to return HTTP 500 on errors (was 200)
+- Fixed equity curve error handler (500 instead of 200 with empty array)
+- Fixed notifications fetch error handler (500 instead of 200)
+- Fixed patrol log error handler (500 instead of 200)
+- Added error messages to responses instead of bare False/empty
+
+✅ **Orphaned Loaders Deleted** (4 files removed)
+- loadrelativeperformance.py (writes to non-existent table)
+- loadmarketsentiment.py (aggregates from non-existent sources)
+- loadsectorranking.py (orphaned, not scheduled in Terraform)
+- loadindustryranking.py (orphaned, not scheduled in Terraform)
+
+**7 Remaining Critical Fixes Needed:**
 1. ✅ Added `market_sentiment` table to database schema (was completely missing)
 2. ✅ Removed duplicate `analyst_sentiment_analysis` table definition
 3. ✅ Added missing `total_analysts` column to analyst_sentiment_analysis
