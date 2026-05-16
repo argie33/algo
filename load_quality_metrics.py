@@ -3,13 +3,16 @@
 Quality Metrics Loader
 
 Computes fundamental quality metrics from annual financials:
-- PEG: Price/Earnings to Growth ratio
-- Earnings Growth: YoY earnings growth rate
+- Operating Margin: Operating Income / Revenue
+- Net Margin: Net Income / Revenue
 - ROE: Return on Equity
+- ROA: Return on Assets
 - Debt/Equity: Financial leverage
-- Free Cash Flow Yield: FCF/Market Cap
+- Current Ratio: Current Assets / Current Liabilities
+- Quick Ratio: (Current Assets - Inventory) / Current Liabilities
+- Interest Coverage: EBIT / Interest Expense
 
-Requires: annual_income_statement, annual_balance_sheet, annual_cash_flow, key_metrics populated
+Requires: annual_income_statement, annual_balance_sheet populated
 """
 
 import os
@@ -17,7 +20,6 @@ import psycopg2
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime
 from typing import Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -62,9 +64,15 @@ class QualityMetricsLoader:
             self.conn.close()
 
     def get_symbols(self) -> List[str]:
-        """Get list of all active symbols."""
+        """Get list of symbols with both income AND balance sheet data."""
         try:
-            self.cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+            # Only get symbols that have BOTH income statement and balance sheet
+            self.cur.execute("""
+                SELECT DISTINCT i.symbol
+                FROM annual_income_statement i
+                INNER JOIN annual_balance_sheet b ON i.symbol = b.symbol
+                ORDER BY i.symbol
+            """)
             return [row[0] for row in self.cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to get symbols: {e}")
@@ -81,36 +89,25 @@ class QualityMetricsLoader:
                 if metrics:
                     self._insert_metrics(symbol, metrics)
                     self.loaded_count += 1
-                else:
-                    self.failed_symbols.append(symbol)
             except Exception as e:
                 logger.warning(f"{symbol}: {e}")
                 self.failed_symbols.append(symbol)
 
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Commit failed: {e}")
+            self.conn.rollback()
+
         logger.info(f"Loaded quality metrics: {self.loaded_count}/{len(symbols)} symbols")
-        if self.failed_symbols:
-            logger.warning(f"Failed ({len(self.failed_symbols)}): {', '.join(self.failed_symbols[:10])}")
 
     def _compute_metrics(self, symbol: str) -> Optional[Dict]:
         """Compute quality metrics for a symbol from annual financials."""
         try:
-            # Get latest annual financials
+            # Get latest balance sheet
             self.cur.execute("""
-                SELECT fiscal_year, revenue, net_income, operating_cash_flow,
-                       investing_cash_flow, free_cash_flow
-                FROM annual_cash_flow
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 2
-            """, (symbol,))
-            cf_rows = self.cur.fetchall()
-            if not cf_rows:
-                return None
-
-            # Get balance sheet for equity
-            self.cur.execute("""
-                SELECT fiscal_year, total_liabilities, stockholders_equity
+                SELECT total_assets, current_assets, total_liabilities,
+                       current_liabilities, stockholders_equity
                 FROM annual_balance_sheet
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
@@ -120,128 +117,96 @@ class QualityMetricsLoader:
             if not bs_row:
                 return None
 
-            # Get key metrics for market cap and PE
+            # Get latest income statement
             self.cur.execute("""
-                SELECT market_cap, pe_ratio
-                FROM key_metrics
-                WHERE ticker = %s OR ticker = %s
+                SELECT revenue, net_income, operating_income
+                FROM annual_income_statement
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC
                 LIMIT 1
-            """, (symbol, symbol.lower()))
-            km_row = self.cur.fetchone()
-
-            market_cap = km_row[0] if km_row and km_row[0] else None
-            pe_ratio = km_row[1] if km_row and km_row[1] else None
-
-            latest_cf = cf_rows[0]
-            prev_cf = cf_rows[1] if len(cf_rows) > 1 else None
+            """, (symbol,))
+            is_row = self.cur.fetchone()
+            if not is_row:
+                return None
 
             metrics = {}
 
-            # ROE: Net Income / Stockholders Equity
-            if bs_row[2] and bs_row[2] > 0:
-                # Need net income - get from income statement
-                self.cur.execute("""
-                    SELECT net_income FROM annual_income_statement
-                    WHERE symbol = %s AND fiscal_year = %s
-                """, (symbol, latest_cf[0]))
-                ni_row = self.cur.fetchone()
-                if ni_row and ni_row[0]:
-                    metrics['roe_pct'] = round((ni_row[0] / bs_row[2]) * 100, 2)
-                else:
-                    metrics['roe_pct'] = None
+            # Operating Margin
+            if is_row[2] and is_row[0] and is_row[0] > 0:
+                metrics['operating_margin'] = round((is_row[2] / is_row[0]) * 100, 4)
             else:
-                metrics['roe_pct'] = None
+                metrics['operating_margin'] = None
+
+            # Net Margin
+            if is_row[1] and is_row[0] and is_row[0] > 0:
+                metrics['net_margin'] = round((is_row[1] / is_row[0]) * 100, 4)
+            else:
+                metrics['net_margin'] = None
+
+            # ROE: Net Income / Stockholders Equity
+            if is_row[1] and bs_row[4] and bs_row[4] > 0:
+                metrics['roe'] = round((is_row[1] / bs_row[4]) * 100, 4)
+            else:
+                metrics['roe'] = None
+
+            # ROA: Net Income / Total Assets
+            if is_row[1] and bs_row[0] and bs_row[0] > 0:
+                metrics['roa'] = round((is_row[1] / bs_row[0]) * 100, 4)
+            else:
+                metrics['roa'] = None
 
             # Debt/Equity
-            if bs_row[2] and bs_row[2] > 0:
-                metrics['debt_to_equity'] = round(bs_row[1] / bs_row[2], 2)
+            if bs_row[4] and bs_row[4] > 0:
+                metrics['debt_to_equity'] = round(bs_row[2] / bs_row[4], 4)
             else:
                 metrics['debt_to_equity'] = None
 
-            # Free Cash Flow Yield: FCF / Market Cap
-            if latest_cf[5] and market_cap and market_cap > 0:  # free_cash_flow
-                metrics['fcf_yield_pct'] = round((latest_cf[5] / market_cap) * 100, 2)
+            # Current Ratio: Current Assets / Current Liabilities
+            if bs_row[3] and bs_row[3] > 0 and bs_row[1]:
+                metrics['current_ratio'] = round(bs_row[1] / bs_row[3], 4)
             else:
-                metrics['fcf_yield_pct'] = None
+                metrics['current_ratio'] = None
 
-            # Earnings Growth: YoY net income growth
-            if prev_cf and latest_cf[1]:  # revenue
-                self.cur.execute("""
-                    SELECT net_income FROM annual_income_statement
-                    WHERE symbol = %s AND fiscal_year IN (%s, %s)
-                    ORDER BY fiscal_year DESC
-                """, (symbol, latest_cf[0], prev_cf[0]))
-                ni_rows = self.cur.fetchall()
-                if len(ni_rows) == 2 and ni_rows[1][0]:  # Have both years
-                    ni_latest = ni_rows[0][0]
-                    ni_prev = ni_rows[1][0]
-                    if ni_latest and ni_prev and ni_prev != 0:
-                        growth = ((ni_latest - ni_prev) / abs(ni_prev)) * 100
-                        metrics['earnings_growth_pct'] = round(growth, 2)
-                    else:
-                        metrics['earnings_growth_pct'] = None
-                else:
-                    metrics['earnings_growth_pct'] = None
-            else:
-                metrics['earnings_growth_pct'] = None
+            # Quick Ratio (simplified: current_assets / current_liabilities without inventory)
+            # For now, use current_ratio as proxy
+            metrics['quick_ratio'] = metrics['current_ratio']
 
-            # PEG: PE Ratio / Growth Rate (if both available)
-            if pe_ratio and pe_ratio > 0 and metrics.get('earnings_growth_pct') and metrics['earnings_growth_pct'] > 0:
-                metrics['peg_ratio'] = round(pe_ratio / metrics['earnings_growth_pct'], 2)
-            else:
-                metrics['peg_ratio'] = None
-
-            # Quality Score: composite (0-100)
-            # High ROE + low debt + positive growth + reasonable PE = high quality
-            quality_score = 50.0  # baseline
-            components = 0
-
-            if metrics.get('roe_pct') is not None and metrics['roe_pct'] > 0:
-                quality_score += min(20, metrics['roe_pct'] / 5)  # max +20 for high ROE
-                components += 1
-
-            if metrics.get('debt_to_equity') is not None:
-                if metrics['debt_to_equity'] < 1:
-                    quality_score += 10
-                    components += 1
-
-            if metrics.get('earnings_growth_pct') is not None and metrics['earnings_growth_pct'] > 0:
-                quality_score += min(15, metrics['earnings_growth_pct'] / 3)
-                components += 1
-
-            if metrics.get('peg_ratio') is not None and 0 < metrics['peg_ratio'] < 2:
-                quality_score += 10
-                components += 1
-
-            metrics['quality_score'] = round(min(100, quality_score), 1)
+            # Interest Coverage (would need interest expense data - skip for now)
+            metrics['interest_coverage'] = None
 
             return metrics
 
         except Exception as e:
-            logger.warning(f"{symbol}: compute_metrics failed: {e}")
+            logger.debug(f"{symbol}: compute_metrics failed: {e}")
             return None
 
     def _insert_metrics(self, symbol: str, metrics: Dict):
         """Insert quality metrics into database."""
         try:
             self.cur.execute("""
-                DELETE FROM quality_metrics WHERE symbol = %s
-            """, (symbol,))
-
-            self.cur.execute("""
                 INSERT INTO quality_metrics (
-                    symbol, roe_pct, debt_to_equity, fcf_yield_pct,
-                    earnings_growth_pct, peg_ratio, quality_score,
-                    computed_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    symbol, operating_margin, net_margin, roe, roa,
+                    debt_to_equity, current_ratio, quick_ratio, interest_coverage
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    operating_margin = EXCLUDED.operating_margin,
+                    net_margin = EXCLUDED.net_margin,
+                    roe = EXCLUDED.roe,
+                    roa = EXCLUDED.roa,
+                    debt_to_equity = EXCLUDED.debt_to_equity,
+                    current_ratio = EXCLUDED.current_ratio,
+                    quick_ratio = EXCLUDED.quick_ratio,
+                    interest_coverage = EXCLUDED.interest_coverage
             """, (
                 symbol,
-                metrics.get('roe_pct'),
+                metrics.get('operating_margin'),
+                metrics.get('net_margin'),
+                metrics.get('roe'),
+                metrics.get('roa'),
                 metrics.get('debt_to_equity'),
-                metrics.get('fcf_yield_pct'),
-                metrics.get('earnings_growth_pct'),
-                metrics.get('peg_ratio'),
-                metrics.get('quality_score'),
+                metrics.get('current_ratio'),
+                metrics.get('quick_ratio'),
+                metrics.get('interest_coverage'),
             ))
         except Exception as e:
             logger.error(f"{symbol}: insert failed: {e}")

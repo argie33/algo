@@ -97,18 +97,13 @@ class SectorsLoader(OptimalLoader):
                 """)
                 rows = cur.fetchall()
 
-            today = date.today().isoformat()
+            today = date.today()
             return [
                 {
-                    "sector_name": r[0],
-                    "metric_date": today,
-                    "performance_ytd": round(float(r[2] or 0), 4),
-                    "performance_1y": round(float(r[3] or 0), 4),
-                    "performance_3y": None,
-                    "pe_ratio": None,
-                    "dividend_yield": None,
-                    "market_cap": None,
-                    "stock_count": int(r[1]),
+                    "sector": r[0],
+                    "date": today,
+                    "return_pct": round(float(r[2] or 0), 4),  # YTD return
+                    "relative_strength": round((float(r[3] or 0) - 100) / 100, 4),  # 1Y as RS proxy
                 }
                 for r in rows
             ]
