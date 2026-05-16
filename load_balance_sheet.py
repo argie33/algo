@@ -42,8 +42,7 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year",
-            "total_assets", "current_assets", "total_liabilities", "current_liabilities", "stockholders_equity",
-            "cash_and_equivalents", "accounts_receivable", "inventory", "ppe_net", "goodwill", "long_term_debt",
+            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
             # Total assets

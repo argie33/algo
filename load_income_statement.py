@@ -43,8 +43,7 @@ _PERIOD_CONFIG = {
         "edgar_period": "annual",
         "schema_cols": frozenset({
             "symbol", "fiscal_year", "revenue", "cost_of_revenue",
-            "gross_profit", "operating_expenses", "operating_income", "net_income", "earnings_per_share",
-            "shares_outstanding",
+            "gross_profit", "operating_income", "net_income", "earnings_per_share",
         }),
         "field_mapping": {
             # Revenue: SEC EDGAR returns "Revenues" (FY2018+) or "SalesRevenueNet" (FY2009-2017)

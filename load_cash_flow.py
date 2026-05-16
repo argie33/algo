@@ -43,7 +43,6 @@ _PERIOD_CONFIG = {
         "schema_cols": frozenset({
             "symbol", "fiscal_year",
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
-            "capex", "depreciation", "depreciation_and_amortization",
         }),
         "field_mapping": {
             # Operating activities
