@@ -916,7 +916,7 @@ class FilterPipeline:
             )
             row = self.cur.fetchone()
             sqs = float(row[0]) if row and row[0] is not None else 0
-            min_sqs = float(self.config.get('min_signal_quality_score', 60))
+            min_sqs = float(self.config.get('min_signal_quality_score', 40))
             if sqs < min_sqs:
                 return {'pass': False, 'reason': f'SQS {sqs:.0f} < {min_sqs:.0f}', 'sqs': sqs}
             return {'pass': True, 'reason': f'SQS {sqs:.0f}', 'sqs': sqs}
