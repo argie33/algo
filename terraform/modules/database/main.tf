@@ -432,43 +432,31 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 }
 
 # ============================================================
-# 10. Database Initialization (PostgreSQL Schema)
+# 10. Database Initialization (PostgreSQL Schema) - MOVED TO WORKFLOW
 # ============================================================
-# Lambda function executes SQL schema initialization on RDS
-# Runs after RDS instance is available; idempotent (uses IF NOT EXISTS)
+# DISABLED: Database initialization now handled by GitHub Actions workflow
+# (deploy-code.yml: deploy-db-init-lambda job)
+#
+# Previous approach created conflicts:
+# - Terraform created stocks-db-init-dev Lambda
+# - Workflow tried to invoke algo-db-init-dev (different name, didn't exist)
+# - This caused Terraform apply to fail when trying to invoke non-existent Lambda
+#
+# The workflow approach (lambda/db-init/) is now authoritative for db-init.
+# It runs AFTER Terraform so the Lambda code is deployed before invocation.
 
-# IAM role for database init Lambda
-resource "aws_iam_role" "db_init_lambda" {
-  name = "${var.project_name}-db-init-lambda-${var.environment}"
+# COMMENTED OUT - was: aws_iam_role for database init Lambda
+# # Commented out - Lambda role and creation moved to workflow
+# resource "aws_iam_role" "db_init_lambda" {
+#   name = "${var.project_name}-db-init-lambda-${var.environment}"
+#   ...
+# }
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
+# Commented out - Lambda policies moved to workflow
 
-# VPC execution policy
-resource "aws_iam_role_policy_attachment" "db_init_lambda_vpc" {
-  role       = aws_iam_role.db_init_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-# CloudWatch logs policy
-resource "aws_iam_role_policy_attachment" "db_init_lambda_logs" {
-  role       = aws_iam_role.db_init_lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
+# Commented out - Lambda creation moved to workflow
 # Lambda function for database initialization
-data "archive_file" "db_init_lambda_zip" {
+# data "archive_file" "db_init_lambda_zip" {
   type        = "zip"
   output_path = "${path.module}/.terraform/db_init_lambda.zip"
 

@@ -161,18 +161,10 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
-      - name: Run DB schema initialization
-        run: |
-          # Always invoke db-init Lambda after Terraform to ensure schema is current.
-          # The Lambda runs init.sql which uses CREATE TABLE IF NOT EXISTS — fully idempotent.
-          aws lambda invoke \
-            --function-name algo-db-init-dev \
-            --region $AWS_REGION \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /tmp/db-init-response.json
-          echo "DB init response:"
-          cat /tmp/db-init-response.json
+      # NOTE: Database initialization is now handled by deploy-code.yml
+      # (deploy-db-init-lambda job) which invokes algo-db-init-dev after
+      # the Lambda code is deployed. This avoids timing issues where the Lambda
+      # function doesn't exist yet during Terraform apply.
 
       - name: Delete orphaned API Gateways
         run: |
