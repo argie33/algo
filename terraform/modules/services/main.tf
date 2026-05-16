@@ -166,14 +166,14 @@ resource "aws_apigatewayv2_authorizer" "cognito" {
 
 # TODO: Wire cognito module outputs to authorizer after root module is applied
 
-# API route with conditional authentication based on cognito_enabled
+# API route - Public access (no auth required)
+# NOTE: Cognito is disabled (cognito_enabled=false in tfvars)
+# The API Gateway authorization is intentionally set to NONE for public access
 resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
-  # Use splat syntax to safely reference authorizer only when it exists
-  authorizer_id      = length(aws_apigatewayv2_authorizer.cognito) > 0 ? aws_apigatewayv2_authorizer.cognito[0].id : null
+  authorization_type = "NONE"
 }
 
 # Health check is unauthenticated so monitors and load balancers can reach it
