@@ -23,7 +23,7 @@ class TestDrawdownCircuitBreaker:
 
     def test_no_halt_under_threshold(self, test_config):
         """Drawdown 15% should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -41,7 +41,7 @@ class TestDrawdownCircuitBreaker:
 
     def test_halt_at_threshold(self, test_config):
         """Drawdown 20% should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -64,7 +64,7 @@ class TestDailyLossCircuitBreaker:
 
     def test_no_halt_under_daily_loss(self, test_config):
         """Daily loss 1% should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -80,7 +80,7 @@ class TestDailyLossCircuitBreaker:
 
     def test_halt_on_daily_loss(self, test_config):
         """Daily loss 2%+ should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -101,7 +101,7 @@ class TestConsecutiveLossesCircuitBreaker:
 
     def test_two_consecutive_losses_ok(self, test_config):
         """2 consecutive losses should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -122,7 +122,7 @@ class TestConsecutiveLossesCircuitBreaker:
 
     def test_three_consecutive_losses_halt(self, test_config):
         """3 consecutive losses should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -148,7 +148,7 @@ class TestTotalRiskCircuitBreaker:
 
     def test_low_open_risk_ok(self, test_config):
         """2% open risk should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -168,7 +168,7 @@ class TestTotalRiskCircuitBreaker:
 
     def test_high_open_risk_halt(self, test_config):
         """5% open risk should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -193,7 +193,7 @@ class TestVIXCircuitBreaker:
 
     def test_low_vix_ok(self, test_config):
         """VIX 20 should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -209,7 +209,7 @@ class TestVIXCircuitBreaker:
 
     def test_high_vix_halt(self, test_config):
         """VIX 40 should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -230,7 +230,7 @@ class TestMarketStageCircuitBreaker:
 
     def test_uptrend_ok(self, test_config):
         """Market stage 1-2 (uptrend) should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -246,7 +246,7 @@ class TestMarketStageCircuitBreaker:
 
     def test_downtrend_halt(self, test_config):
         """Market stage 4 (downtrend) should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -267,7 +267,7 @@ class TestWeeklyLossCircuitBreaker:
 
     def test_low_weekly_loss_ok(self, test_config):
         """Weekly loss 3% should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -285,7 +285,7 @@ class TestWeeklyLossCircuitBreaker:
 
     def test_high_weekly_loss_halt(self, test_config):
         """Weekly loss 5%+ should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -308,7 +308,7 @@ class TestDataFreshnessCircuitBreaker:
 
     def test_fresh_data_ok(self, test_config):
         """Data from today should not halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -324,7 +324,7 @@ class TestDataFreshnessCircuitBreaker:
 
     def test_stale_data_halt(self, test_config):
         """Data > max_data_staleness_days (default 5) should halt."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -347,7 +347,7 @@ class TestAllCircuitBreakers:
 
     def test_all_clear_no_halt(self, test_config):
         """All CBs green should not halt trading."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -369,7 +369,7 @@ class TestAllCircuitBreakers:
 
     def test_one_cb_fires_halt_trading(self, test_config):
         """Any CB firing should halt trading."""
-        from algo_circuit_breaker import CircuitBreaker
+        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 

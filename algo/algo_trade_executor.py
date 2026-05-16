@@ -31,7 +31,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import logging
 from typing import Dict, Any
 
-from trade_status import TradeStatus, PositionStatus
+from utils.trade_status import TradeStatus, PositionStatus
 from utils.alpaca_response_validator import AlpacaResponseValidator
 from utils.db_retry_helper import OptimisticLockRetry, RetryConfig
 from algo.algo_notifications import TradeNotificationService
@@ -81,7 +81,7 @@ class TradeExecutor:
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Wire order execution tracker (Phase 4 integration)
-        from order_execution_tracker import OrderExecutionTracker
+        from utils.order_execution_tracker import OrderExecutionTracker
         self.order_tracker = OrderExecutionTracker(config)
 
         # Hard live-trading safety guard. Prevents accidental real-money trading

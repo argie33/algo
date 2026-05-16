@@ -21,7 +21,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath

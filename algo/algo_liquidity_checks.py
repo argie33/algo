@@ -8,7 +8,7 @@ import psycopg2
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
-from structured_logger import get_logger
+from utils.structured_logger import get_logger
 from credential_helper import get_db_config
 import os
 

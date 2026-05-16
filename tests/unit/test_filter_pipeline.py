@@ -24,7 +24,7 @@ class TestTier1DataQuality:
 
     def test_stock_with_sufficient_price_history_passes(self, seeded_test_db, test_config):
         """Stock with sufficient price data should pass T1."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
         import psycopg2
 
         # Connect to test DB and create test data
@@ -65,7 +65,7 @@ class TestTier1DataQuality:
 
     def test_stock_with_insufficient_volume_fails(self, seeded_test_db, test_config):
         """Stock with low volume should fail T1."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
         import psycopg2
 
         conn = psycopg2.connect(
@@ -108,7 +108,7 @@ class TestTier2MarketHealth:
 
     def test_market_health_filter_logic(self, seeded_test_db, test_config):
         """Test T2 filter evaluates market conditions correctly."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         result = pipeline._tier2_market_health(date.today())
@@ -125,7 +125,7 @@ class TestTier3TrendTemplate:
 
     def test_strong_trend_template_evaluation(self, seeded_test_db, test_config):
         """Test T3 evaluates trend templates correctly."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         # Test with a known stock that should have trend data
         pipeline = FilterPipeline()
@@ -145,7 +145,7 @@ class TestTier4SignalQuality:
 
     def test_signal_quality_filter_logic(self, seeded_test_db, test_config):
         """Test T4 filter evaluates SQS correctly."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         result = pipeline._tier4_signal_quality('AAPL', date.today())
@@ -162,7 +162,7 @@ class TestTier5PortfolioHealth:
 
     def test_portfolio_health_filter_logic(self, seeded_test_db, test_config):
         """Test T5 filter validates portfolio constraints."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         # Test with empty portfolio (should have room for new position)
@@ -180,7 +180,7 @@ class TestExposureTierMultipliers:
 
     def test_normal_tier_full_sizing(self, test_config):
         """NORMAL tier should apply 1.0x multiplier."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         # Position size = 50000, NORMAL tier = 1.0x
@@ -191,7 +191,7 @@ class TestExposureTierMultipliers:
 
     def test_caution_tier_reduced_sizing(self, test_config):
         """CAUTION tier should apply 0.75x multiplier."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         # Position size with CAUTION = 0.75x
@@ -202,7 +202,7 @@ class TestExposureTierMultipliers:
 
     def test_pressure_tier_severely_reduced(self, test_config):
         """PRESSURE tier should apply 0.5x multiplier."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         # Position size with PRESSURE = 0.5x
@@ -214,7 +214,7 @@ class TestExposureTierMultipliers:
 
     def test_halt_tier_blocks_new_entries(self, test_config):
         """HALT tier should return 0 (no new entries)."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         # Position size with HALT = 0x (no entries)
@@ -229,7 +229,7 @@ class TestTier5PortfolioHealth:
 
     def test_duplicate_position_rejected(self, test_config):
         """Cannot enter same symbol twice."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
@@ -247,7 +247,7 @@ class TestTier5PortfolioHealth:
 
     def test_max_positions_reached(self, test_config):
         """Cannot enter if at max_positions (default 12)."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
@@ -264,7 +264,7 @@ class TestTier5PortfolioHealth:
 
     def test_sector_concentration_limit(self, test_config):
         """Cannot exceed max_positions_per_sector (default 3)."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
@@ -281,7 +281,7 @@ class TestTier5PortfolioHealth:
 
     def test_position_sized_correctly(self, test_config):
         """Valid entry should calculate correct share count."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
@@ -307,7 +307,7 @@ class TestExposureTierMultiplier:
 
     def test_normal_tier_1x_multiplier(self, test_config):
         """NORMAL tier (risk_mult=1.0) — full size."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline(exposure_risk_multiplier=1.0)
 
@@ -346,7 +346,7 @@ class TestFullPipelineFlow:
 
     def test_qualified_candidate_passes_all_tiers(self, test_config):
         """Strong candidate should pass all 5 tiers."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 
@@ -376,7 +376,7 @@ class TestFullPipelineFlow:
 
     def test_weak_candidate_fails_early(self, test_config):
         """Weak candidate should fail early (T1 or T2)."""
-        from algo_filter_pipeline import FilterPipeline
+        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 

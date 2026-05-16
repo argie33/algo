@@ -254,7 +254,7 @@ class DataSourceRouter:
 
     def _sec_client(self):
         if self._sec is None:
-            from sec_edgar_client import SecEdgarClient
+            from utils.sec_edgar_client import SecEdgarClient
             self._sec = SecEdgarClient()
         return self._sec
 

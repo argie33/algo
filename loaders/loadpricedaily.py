@@ -26,7 +26,7 @@ import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
@@ -35,7 +35,7 @@ except ImportError:
 from utils.data_tick_validator import validate_price_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager
-from monitoring_context import TimeBlock
+from utils.monitoring_context import TimeBlock
 
 _credential_manager = credential_manager
 

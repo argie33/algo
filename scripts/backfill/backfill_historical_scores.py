@@ -43,7 +43,7 @@ if env_file.exists():
     load_dotenv(env_file)
 
 sys.path.insert(0, str(Path(__file__).parent))
-from algo_signals import SignalComputer
+from algo.algo_signals import SignalComputer
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""

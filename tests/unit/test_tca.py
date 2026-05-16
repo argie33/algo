@@ -12,7 +12,7 @@ Validates:
 import pytest
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch, call
-from algo_tca import TCAEngine
+from algo.algo_tca import TCAEngine
 
 
 @pytest.fixture

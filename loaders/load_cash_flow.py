@@ -20,7 +20,7 @@ from datetime import date
 from typing import List, Optional
 from credential_helper import get_db_password, get_db_config
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 from pathlib import Path as _DotenvPath
 try:
@@ -102,7 +102,7 @@ class CashFlowLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         try:
-            from sec_edgar_client import SecEdgarClient
+            from utils.sec_edgar_client import SecEdgarClient
         except ImportError as e:
             logging.error("SecEdgarClient import failed: %s — financial data unavailable", e)
             return None

@@ -137,7 +137,7 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
     try:
         # Set PYTHONPATH to include root directory so loaders can import config modules
         env = os.environ.copy()
-        env['PYTHONPATH'] = os.getcwd()
+        env['PYTHONPATH'] = os.getcwd() + os.pathsep + os.path.join(os.getcwd(), 'config')
         result = subprocess.run(
             ['python3', loader_path] + args,
             capture_output=True,

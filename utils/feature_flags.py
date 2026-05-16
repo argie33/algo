@@ -25,7 +25,7 @@ from enum import Enum
 from pathlib import Path
 from dotenv import load_dotenv
 
-from structured_logger import get_logger
+from utils.structured_logger import get_logger
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

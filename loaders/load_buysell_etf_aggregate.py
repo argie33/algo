@@ -20,7 +20,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 from credential_helper import get_db_password, get_db_config
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 from pathlib import Path as _DotenvPath
 try:

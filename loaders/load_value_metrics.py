@@ -37,7 +37,7 @@ try:
 except ImportError:
     pass
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 logging.basicConfig(
     level=logging.INFO,

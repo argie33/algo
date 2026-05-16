@@ -13,7 +13,7 @@ Tests:
 
 import pytest
 from unittest.mock import MagicMock, patch
-from algo_position_sizer import PositionSizer
+from algo.algo_position_sizer import PositionSizer
 
 
 @pytest.mark.unit

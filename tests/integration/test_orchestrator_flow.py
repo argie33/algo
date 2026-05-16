@@ -27,7 +27,7 @@ class TestOrchestratorWithRealDatabase:
 
     def test_full_pipeline_dry_run(self, seeded_test_db, test_config):
         """Full orchestrator pipeline in dry-run should complete all 7 phases."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         # Create orchestrator in dry-run mode
         orch = Orchestrator(
@@ -57,7 +57,7 @@ class TestOrchestratorWithRealDatabase:
 
     def test_circuit_breaker_gates_entries(self, seeded_test_db, test_config):
         """Circuit breaker firing should skip entry but allow exits/monitoring."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -86,7 +86,7 @@ class TestOrchestratorWithRealDatabase:
 
     def test_all_phases_complete(self, seeded_test_db, test_config):
         """All 7 phases should attempt to execute in real mode."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -116,7 +116,7 @@ class TestOrchestratorErrorHandling:
 
     def test_db_connection_error_triggers_degraded_mode(self, test_config):
         """When DB is unavailable, orchestrator should enter degraded mode."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -142,7 +142,7 @@ class TestOrchestratorErrorHandling:
 
     def test_missing_lock_file_not_fatal(self, test_config):
         """Missing lock file directory should not crash orchestrator."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -172,7 +172,7 @@ class TestOrchestratorControlFlow:
 
     def test_orchestrator_returns_dict(self, test_config):
         """Orchestrator.run() should always return a dict."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -202,7 +202,7 @@ class TestOrchestratorControlFlow:
 
     def test_dry_run_mode_skips_trades(self, test_config):
         """In dry-run mode, no trades should be sent to Alpaca."""
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),

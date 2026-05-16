@@ -25,7 +25,7 @@ from algo.algo_swing_score import SwingTraderScore
 from utils.filter_rejection_tracker import RejectionTracker
 from algo.algo_earnings_blackout import EarningsBlackout
 from algo.algo_trendline_support import TrendlineSupport
-from trade_status import PositionStatus
+from utils.trade_status import PositionStatus
 from utils.feature_flags import get_flags
 import logging
 

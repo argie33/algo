@@ -10,7 +10,7 @@ router.get("/stockscores", async (req, res) => {
     const sortParam = req.query.sortBy || req.query.sort || "composite_score";
     const { limit = 50, page = 1, order = "DESC" } = req.query;
     const sp500Only = req.query.sp500Only === 'true' || req.query.sp500_only === 'true';
-    const limitNum = Math.min(parseInt(limit) || 50, 5000);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 5000);
     // Accept both page-based and offset-based pagination
     const offsetParam = req.query.offset != null ? Math.max(0, parseInt(req.query.offset) || 0) : null;
     const offset = offsetParam !== null ? offsetParam : (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;

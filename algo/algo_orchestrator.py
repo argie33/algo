@@ -69,7 +69,7 @@ from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
-from trade_status import PositionStatus
+from utils.trade_status import PositionStatus
 import logging
 from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
@@ -1527,23 +1527,9 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"  [WARN] Data patrol failed: {e}")
 
-            # Load stock quality scores (daily quality/growth/momentum/value ratings)
-            # This populates the stock_scores table used by advanced filters
-            logger.info("\nLoading stock quality scores...")
-            try:
-                from loadstockscores import StockScoresLoader, get_active_symbols
-                symbols = get_active_symbols()
-                if not symbols:
-                    logger.warning("  [WARN] No active symbols available for stock scores loader")
-                else:
-                    loader = StockScoresLoader()
-                    stats = loader.run(symbols=symbols, parallelism=4)  # Moderate parallelism, doesn't block trading
-                    if self.verbose:
-                        logger.info(f"  Stock scores loaded: {stats.get('symbols_loaded', 0)} symbols, "
-                                   f"{stats.get('symbols_failed', 0)} failures")
-                    loader.close()
-            except Exception as e:
-                logger.warning(f"  [WARN] Stock scores load failed (won't block trading): {e}")
+            # NOTE: Stock scores are loaded by the Step Functions EOD pipeline BEFORE the orchestrator is invoked.
+            # Do NOT reload them here—it's redundant and adds multi-minute latency before trading begins.
+            # Phase 1 will verify freshness; if scores are stale, the gate will fail-closed.
 
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():

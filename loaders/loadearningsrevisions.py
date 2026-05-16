@@ -25,7 +25,7 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 _credential_manager = get_credential_manager()
 

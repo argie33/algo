@@ -24,7 +24,7 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
-from trade_status import TradeStatus, PositionStatus
+from utils.trade_status import TradeStatus, PositionStatus
 
 logger = logging.getLogger(__name__)
 env_file = Path(__file__).parent / '.env.local'

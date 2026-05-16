@@ -24,7 +24,7 @@ import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 try:
     from credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

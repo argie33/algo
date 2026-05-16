@@ -36,7 +36,7 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 logging.basicConfig(
     level=logging.INFO,

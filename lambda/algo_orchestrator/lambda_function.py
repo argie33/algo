@@ -61,7 +61,7 @@ def lambda_handler(event, context):
 
         # Import and run orchestrator directly (no subprocess)
         # Import from the root-level algo_orchestrator.py module, not the package
-        from algo_orchestrator import Orchestrator
+        from algo.algo_orchestrator import Orchestrator
 
         orchestrator = Orchestrator(
             run_date=None,

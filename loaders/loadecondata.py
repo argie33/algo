@@ -38,7 +38,7 @@ import time
 from datetime import date, timedelta
 from typing import List, Optional
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 from pathlib import Path as _DotenvPath
 try:

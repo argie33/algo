@@ -576,11 +576,10 @@ class SignalComputer:
             closes = [float(r[3]) for r in rows]
             volumes = [float(r[4]) for r in rows]
 
-            # Find the OLDEST occurrence of the max high (highest index in DESC-ordered data).
-            # Using .index() would find the most recent touch, which could be a failed
-            # breakout attempt and would make the base appear artificially short.
+            # Find the MOST RECENT occurrence of the max high (lowest index in DESC-ordered data).
+            # This is the current resistance level. Earlier peaks are old setup failures.
             peak_val = max(highs)
-            peak_idx = max(i for i, h in enumerate(highs) if h == peak_val)
+            peak_idx = min(i for i, h in enumerate(highs) if h == peak_val)
             peak = peak_val
             # Slice from start of base (peak) through present
             base_highs = highs[:peak_idx + 1]
@@ -919,12 +918,13 @@ class SignalComputer:
 
             # Walk back to find when 30-week MA started rising (slope positive)
             weeks_uptrend = 0
-            for i in range(1, len(rows)):
-                if rows[i][2] is None:
+            for i in range(len(rows) - 1):
+                if rows[i][2] is None or rows[i+1][2] is None:
                     continue
-                prior_sma = float(rows[i][2])
-                if cur_sma > prior_sma:
-                    # Still rising
+                sma_this = float(rows[i][2])
+                sma_next = float(rows[i+1][2])
+                if sma_this > sma_next:
+                    # Consecutive uptrend continues
                     weeks_uptrend = (rows[0][0] - rows[i][0]).days // 7
                 else:
                     break
@@ -1756,9 +1756,9 @@ class SignalComputer:
                         'vol_ratio': round(today_vol / max_down_vol, 2) if max_down_vol > 0 else 0,
                     }
 
-            # Also check if pocket pivot fired 1-2 days ago (within last 3 days)
+            # Also check if pocket pivot fired 1-2 days ago (yesterday and day-2 only)
             up_day_dates = []
-            for row in rows[:3]:  # Last 3 rows
+            for row in rows[1:3]:  # Skip today, check yesterday and day-2
                 date, close, prev_close, vol, rn = row
                 vol = float(vol) if vol else 0
                 prev_close = float(prev_close) if prev_close is not None else None

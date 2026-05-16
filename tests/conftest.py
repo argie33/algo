@@ -15,6 +15,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 # Add root directory to path so tests can import algo modules
@@ -82,7 +83,7 @@ def seeded_test_db(request):
 @pytest.fixture(scope="session")
 def test_config():
     """Provide test configuration with institutional defaults."""
-    from algo_config import AlgoConfig
+    from algo.algo_config import AlgoConfig
 
     config = AlgoConfig()
     # Override with test-safe defaults
@@ -233,7 +234,7 @@ def reset_imports():
     # Don't remove actual modules, just reset any singletons
     if 'algo_config' in sys.modules:
         # Reset global config instance
-        import algo_config
+        import algo.algo_config
         algo_config._instance = None
 
 

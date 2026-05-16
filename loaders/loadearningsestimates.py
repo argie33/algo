@@ -25,7 +25,7 @@ from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
-from optimal_loader import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():

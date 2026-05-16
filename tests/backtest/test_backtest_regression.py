@@ -44,7 +44,7 @@ class TestBacktestRegression:
         """
         # Only run if we can connect to test database
         try:
-            from algo_backtest import Backtester
+            from algo.algo_backtest import Backtester
             from datetime import timedelta
 
             # Use rolling 1-year window from today
@@ -146,7 +146,7 @@ class TestBacktestRobustness:
     def test_backtest_runs_without_error(self, test_config):
         """Basic sanity check: backtest starts and completes."""
         try:
-            from algo_backtest import Backtester
+            from algo.algo_backtest import Backtester
             bt = Backtester(
                 start_date=date(2026, 1, 1),
                 end_date=date(2026, 1, 31),
