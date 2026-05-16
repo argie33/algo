@@ -71,7 +71,7 @@ from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
 from trade_status import PositionStatus
 import logging
-from monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
+from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ class Orchestrator:
     def _initialize_feature_flags(self):
         """Initialize feature flags with safe defaults on startup."""
         try:
-            from feature_flags import initialize_safe_defaults, create_feature_flags_table
+            from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
             # Ensure table exists
             create_feature_flags_table()
             # Initialize safe defaults

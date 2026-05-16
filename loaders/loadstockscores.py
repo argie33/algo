@@ -32,7 +32,7 @@ except ImportError:
     credential_manager = None
 from utils.data_tick_validator import validate_score_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
-from data_watermark_manager import WatermarkManager
+from utils.data_watermark_manager import WatermarkManager
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath

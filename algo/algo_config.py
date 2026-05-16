@@ -10,7 +10,7 @@ import os
 import logging
 
 try:
-    from defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 except ImportError:
     DEFAULT_DB_HOST = "localhost"
     DEFAULT_DB_PORT = 5432

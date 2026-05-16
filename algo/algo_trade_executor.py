@@ -33,7 +33,7 @@ from typing import Dict, Any
 
 from trade_status import TradeStatus, PositionStatus
 from utils.alpaca_response_validator import AlpacaResponseValidator
-from db_retry_helper import OptimisticLockRetry, RetryConfig
+from utils.db_retry_helper import OptimisticLockRetry, RetryConfig
 from algo.algo_notifications import TradeNotificationService
 
 logger = logging.getLogger(__name__)

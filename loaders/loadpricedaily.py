@@ -34,7 +34,7 @@ except ImportError:
     credential_manager = None
 from utils.data_tick_validator import validate_price_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
-from data_watermark_manager import WatermarkManager
+from utils.data_watermark_manager import WatermarkManager
 from monitoring_context import TimeBlock
 
 _credential_manager = credential_manager
