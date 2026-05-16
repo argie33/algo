@@ -143,13 +143,25 @@ class FeatureFlags:
             return False
 
     def get_flag(self, flag_name: str, default: Any = None) -> Any:
-        """Get a feature flag value."""
+        """Get a feature flag value (with TTL cache)."""
         try:
             self.connect()
 
-            # Try cache first
-            if flag_name in self._cache:
+            # Check cache with TTL (refresh every 30 seconds)
+            from datetime import datetime as dt
+            now = dt.now()
+            cache_expired = (
+                self._cache_updated_at is None or
+                (now - self._cache_updated_at).total_seconds() > self._cache_ttl_seconds
+            )
+
+            if flag_name in self._cache and not cache_expired:
                 return self._cache[flag_name]
+
+            # Refresh cache if expired
+            if cache_expired:
+                self._cache.clear()
+                self._cache_updated_at = now
 
             with self.conn.cursor() as cur:
                 cur.execute("""
