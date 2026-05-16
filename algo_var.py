@@ -530,22 +530,28 @@ class PortfolioRisk:
                 var_pct_val = float(var_metrics['var_pct']) if var_metrics else None
                 cvar_pct_val = float(cvar_metrics['cvar_pct']) if cvar_metrics else None
                 stressed_var_pct_val = float(stressed_var['stressed_var_pct']) if stressed_var else None
+                portfolio_beta_val = float(beta['portfolio_beta']) if beta else None
+                top_5_conc_val = float(concentration['top_5_concentration_pct']) if concentration else None
 
                 cur.execute(
                     """
                     INSERT INTO algo_risk_daily (
-                        report_date, var_pct_95, cvar_pct_95, stressed_var_pct, created_at
-                    ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        report_date, var_pct_95, cvar_pct_95, stressed_var_pct, portfolio_beta, top_5_concentration
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (report_date) DO UPDATE SET
                         var_pct_95 = EXCLUDED.var_pct_95,
                         cvar_pct_95 = EXCLUDED.cvar_pct_95,
-                        stressed_var_pct = EXCLUDED.stressed_var_pct
+                        stressed_var_pct = EXCLUDED.stressed_var_pct,
+                        portfolio_beta = EXCLUDED.portfolio_beta,
+                        top_5_concentration = EXCLUDED.top_5_concentration
                     """,
                     (
                         report_date,
                         var_pct_val,
                         cvar_pct_val,
                         stressed_var_pct_val,
+                        portfolio_beta_val,
+                        top_5_conc_val,
                     )
                 )
                 conn.commit()

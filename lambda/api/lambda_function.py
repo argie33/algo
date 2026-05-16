@@ -538,7 +538,7 @@ class APIHandler:
             return json_response(200, [dict(r) for r in rotation])
         except Exception as e:
             logger.error(f"Error fetching sector rotation: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_sector_breadth(self) -> Dict:
         """Get sector breadth indicators (derived from price_daily by sector)."""
@@ -560,7 +560,7 @@ class APIHandler:
             return json_response(200, [dict(b) for b in breadth])
         except Exception as e:
             logger.error(f"Error fetching sector breadth: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_swing_scores(self, limit: int = 100) -> Dict:
         """Get swing trade candidates with scoring."""
@@ -580,7 +580,7 @@ class APIHandler:
             return json_response(200, [dict(s) for s in scores])
         except Exception as e:
             logger.error(f"get_swing_scores failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_swing_scores_history(self, days: int = 30) -> Dict:
         """Get swing scores historical data."""
@@ -599,7 +599,7 @@ class APIHandler:
             return json_response(200, [dict(h) for h in history])
         except Exception as e:
             logger.error(f"get_swing_scores_history failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_rejection_funnel(self) -> Dict:
         """Get signal rejection funnel."""
@@ -622,7 +622,7 @@ class APIHandler:
             return json_response(200, [dict(f) for f in funnel])
         except Exception as e:
             logger.error(f"Error fetching rejection funnel: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_markets(self) -> Dict:
         """Get current market regime data."""
@@ -640,7 +640,7 @@ class APIHandler:
             return json_response(200, [dict(m) for m in markets])
         except Exception as e:
             logger.error(f"Error fetching markets data: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_algo_evaluate(self) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
@@ -736,7 +736,7 @@ class APIHandler:
             return json_response(200, [dict(r) for r in rows])
         except Exception as e:
             logger.error(f"get_sector_stage2 failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_algo_config(self) -> Dict:
         """Return all algo configuration rows."""
@@ -746,7 +746,7 @@ class APIHandler:
             return json_response(200, [dict(r) for r in rows])
         except Exception as e:
             logger.error(f"algo_config error: {e}")
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _get_algo_config_key(self, key: str) -> Dict:
         """Return a single algo config key."""
@@ -913,7 +913,7 @@ class APIHandler:
                 """, (symbol,))
                 row = self.cur.fetchone()
                 if not row:
-                    return json_response(200, {})  # Empty is acceptable for this endpoint
+                    return error_response(500, 'database_error', str(e))
                 return json_response(200, dict(row))
 
             return error_response(400, 'invalid_endpoint', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
@@ -1060,7 +1060,7 @@ class APIHandler:
                 return json_response(200, [dict(s) for s in stocks])
             except Exception as e:
                 logger.error(f"stocks list error: {e}")
-                return json_response(200, [])
+                return error_response(500, 'database_error', str(e))
         elif path.startswith('/api/stocks/'):
             symbol = path.split('/api/stocks/')[-1]
             try:
@@ -1077,7 +1077,7 @@ class APIHandler:
                 return json_response(200, dict(row) if row else {})
             except Exception as e:
                 logger.error(f"stock detail error: {e}")
-                return json_response(200, {})
+                return error_response(500, 'database_error', str(e))
         else:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
 
@@ -1125,7 +1125,7 @@ class APIHandler:
             return json_response(200, [dict(s) for s in stocks])
         except Exception as e:
             logger.error(f"get_deep_value_stocks failed: {e}")
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _handle_portfolio(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/portfolio/* endpoints."""
@@ -1149,10 +1149,10 @@ class APIHandler:
                 """)
                 alloc = self.cur.fetchall()
                 return json_response(200, [dict(a) for a in alloc])
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
 
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints."""
@@ -1189,7 +1189,7 @@ class APIHandler:
                 sector_name = parts[3] if len(parts) > 3 else None
                 days = int(params.get('days', [90])[0]) if params else 90
                 if not sector_name:
-                    return json_response(200, [])
+                    return error_response(500, 'database_error', str(e))
                 self.cur.execute("""
                     SELECT date, sector, return_pct, relative_strength
                     FROM sector_performance
@@ -1211,7 +1211,7 @@ class APIHandler:
                 industry_name = parts[3] if len(parts) > 3 else None
                 days = int(params.get('days', [90])[0]) if params else 90
                 if not industry_name:
-                    return json_response(200, [])
+                    return error_response(500, 'database_error', str(e))
                 self.cur.execute("""
                     SELECT date, industry, return_pct
                     FROM industry_performance
@@ -1235,7 +1235,7 @@ class APIHandler:
                 return json_response(200, [dict(r) for r in rows])
         except Exception as e:
             logger.error(f"Error in industries handler: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _handle_market(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/market/* endpoints."""
@@ -1352,10 +1352,10 @@ class APIHandler:
                 """)
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"market handler error: {e}")
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
 
     def _get_fear_greed_history(self, days: int = 30) -> Dict:
         """Get fear/greed index history."""
@@ -1371,7 +1371,7 @@ class APIHandler:
             return json_response(200, [dict(h) for h in history] if history else [])
         except Exception as e:
             logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
-            return json_response(200, [])
+            return error_response(500, 'database_error', str(e))
 
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
@@ -1410,10 +1410,10 @@ class APIHandler:
                 """)
                 events = self.cur.fetchall()
                 return json_response(200, [dict(e) for e in events] if events else [])
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"Error in economic handler: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
 
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
@@ -1436,7 +1436,7 @@ class APIHandler:
                         'vix_level': float(row['vix_level']) if row['vix_level'] else None,
                         'date': str(row['date']),
                     })
-                return json_response(200, {})
+                return error_response(500, 'database_error', str(e))
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
                 limit = int(params.get('limit', [5000])[0]) if params else 5000
                 page = int(params.get('page', [1])[0]) if params else 1
@@ -1477,7 +1477,7 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
-                return json_response(200, [])
+                return error_response(500, 'database_error', str(e))
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
@@ -1726,10 +1726,10 @@ class APIHandler:
                 """)
                 summary = self.cur.fetchone()
                 return json_response(200, dict(summary) if summary else {})
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"Error in trades handler: {e}", exc_info=True)
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
 
 
     def _handle_contact(self, path: str, method: str, params: Dict) -> Dict:
@@ -1746,10 +1746,10 @@ class APIHandler:
                 return json_response(200, [dict(r) for r in rows])
             elif path == '/api/contact' and method == 'POST':
                 return json_response(200, {'ok': True, 'message': 'Contact form submission received'})
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
         except Exception as e:
             logger.error(f"contact handler error: {e}")
-            return json_response(200, {})
+            return error_response(500, 'database_error', str(e))
 
 
 def lambda_handler(event, context):
