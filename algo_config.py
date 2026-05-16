@@ -22,25 +22,31 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-# Centralized credential manager
-from credential_manager import get_credential_manager
-from credential_validator import assert_credentials
-
-_cred_mgr = get_credential_manager()
+# Try to import credential manager, but gracefully handle CI/test environments
+# where AWS credentials aren't available
+_cred_mgr = None
+try:
+    from credential_manager import get_credential_manager
+    from credential_validator import assert_credentials
+    _cred_mgr = get_credential_manager()
+except Exception as e:
+    logger.warning(f"Credential manager not available (expected in CI): {e}")
+    # Continue without credential_manager; we'll use environment variables instead
 
 
 def validate_environment():
     """Validate that all required environment variables are set.
 
     Called on module load. Logs issues and continues; raises on critical failures.
-    Uses credential_validator for centralized validation.
+    Uses credential_validator for centralized validation if available.
     """
-    # Run credential validation (logs warnings/errors, fails on critical issues)
-    try:
-        assert_credentials(on_failure="warn")  # Log issues but continue
-    except Exception as e:
-        logger.error(f"Credential validation failed: {e}")
-        raise RuntimeError(f"Critical credential error: {e}")
+    # Run credential validation if credential_manager is available
+    if _cred_mgr is not None:
+        try:
+            assert_credentials(on_failure="warn")  # Log issues but continue
+        except Exception as e:
+            logger.error(f"Credential validation failed: {e}")
+            raise RuntimeError(f"Critical credential error: {e}")
 
     return True
 
@@ -50,16 +56,26 @@ try:
     validate_environment()
 except Exception as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
-    raise
+    # Don't raise in CI environments; just log and continue
+    if _cred_mgr is None:
+        logger.warning("Skipping validation error in CI mode")
+    else:
+        raise
 
 try:
-    DB_CONFIG = _cred_mgr.get_db_credentials()
-except ValueError as e:
-    logger.error(f"Failed to load DB credentials: {e}")
-    # Fallback to env vars for backward compatibility during migration
+    if _cred_mgr:
+        DB_CONFIG = _cred_mgr.get_db_credentials()
+    else:
+        raise ValueError("Using environment variables instead")
+except (ValueError, AttributeError) as e:
+    logger.warning(f"Failed to load DB credentials from manager: {e}")
+    # Fallback to env vars for backward compatibility during migration and CI
     try:
-        db_password = _cred_mgr.get_db_credentials()["password"]
-    except ValueError:
+        if _cred_mgr:
+            db_password = _cred_mgr.get_db_credentials()["password"]
+        else:
+            db_password = os.getenv("DB_PASSWORD", "")
+    except (ValueError, AttributeError):
         db_password = os.getenv("DB_PASSWORD", "")
 
     DB_CONFIG = {
