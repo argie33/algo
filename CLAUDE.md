@@ -11,7 +11,7 @@
 | **Deploy Status** | **STATUS.md** (detailed infrastructure status) |
 | **Current Infrastructure** | **STATUS.md → "CURRENT INFRASTRUCTURE STATUS"** |
 | Code changes | DECISION_MATRIX.md |
-| **Local dev** | **`scripts/start-local.sh` (starts Docker + DB schema + checks status)** |
+| **Local dev** | **"Local Development (3 STEPS)" below** |
 | Local test | Run loaders: `python3 run-all-loaders.py` |
 | Troubleshoot | troubleshooting-guide.md |
 | Costs | .claude/cost-tracker.json |
@@ -25,31 +25,47 @@
 Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS Lambda/ECS, EventBridge 5:30pm ET.
 
 **Infrastructure:** 
-- **Local:** Docker Compose in WSL (Windows). PostgreSQL + Redis running at localhost:5432 and localhost:6379
+- **Local:** PostgreSQL on Windows (localhost:5432). Redis optional for caching.
 - **Production:** Terraform IaC only. No CloudFormation. All resources defined in `terraform/` modules
 
-**Local Development (ONE COMMAND):**
-```bash
-# In WSL bash or Windows PowerShell with WSL:
-bash scripts/start-local.sh
+**Local Development (3 STEPS):**
 
-# This does:
-# 1. Starts PostgreSQL + Redis via docker-compose
-# 2. Initializes database schema
-# 3. Shows connection info and next steps
+**Step 1: Ensure PostgreSQL is running on Windows**
+```
+PostgreSQL should be installed and running on localhost:5432
+Your .env.local should have the correct DB_PASSWORD
 ```
 
-**Load sample data (after startup):**
+**Step 2: Initialize database schema**
+```bash
+python3 init_database.py
+# Creates 132 tables in the 'stocks' database
+```
+
+**Step 3: Load data**
 ```bash
 python3 run-all-loaders.py
+# Loads all data through 5-tier loader pipeline (~20 minutes)
 ```
 
-**Stop local environment:**
+**That's it.** You now have a fully populated local database.
+
+**Testing the system:**
 ```bash
-docker-compose down
+# Test orchestrator (all 7 phases)
+python3 algo_orchestrator.py --mode paper --dry-run
+
+# Check data freshness
+python3 -c "
+import psycopg2
+conn = psycopg2.connect('host=localhost user=postgres password=YOUR_PASSWORD dbname=stocks')
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM stock_symbols')
+print(f'Symbols: {cur.fetchone()[0]}')
+"
 ```
 
-**Important:** Always use WSL for Docker. Docker Desktop does not work on this machine. All development/testing happens in WSL Ubuntu 24.04 LTS.
+**Important:** Use PostgreSQL directly on Windows. No Docker/WSL needed. Docker Desktop doesn't work on this machine.
 
 ---
 
