@@ -478,7 +478,7 @@ variable "common_tags" {
 variable "cognito_enabled" {
   description = "Enable Cognito user pool"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cognito_user_pool_name" {
