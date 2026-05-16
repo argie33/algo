@@ -166,13 +166,13 @@ resource "aws_apigatewayv2_authorizer" "cognito" {
 
 # TODO: Wire cognito module outputs to authorizer after root module is applied
 
-# All API routes require a valid Cognito JWT token
+# All API routes require a valid Cognito JWT token (or public access if cognito_enabled=false)
 resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = var.cognito_enabled ? "JWT" : "NONE"
-  authorizer_id      = var.cognito_enabled ? aws_apigatewayv2_authorizer.cognito[0].id : null
+  authorizer_id      = try(aws_apigatewayv2_authorizer.cognito[0].id, null)
 }
 
 # Health check is unauthenticated so monitors and load balancers can reach it
