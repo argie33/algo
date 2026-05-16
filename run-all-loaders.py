@@ -26,7 +26,11 @@ tier_1b_aggregates = [
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
-# Note: Annual financial data only (quarterly empty, TTM depends on quarterly, stubs and broken loaders removed)
+# Note: Annual financial data only. Quarterly loaders intentionally excluded.
+#   Design decision: System uses annual financials to avoid complexity of TTM (trailing twelve months)
+#   calculations. Quarterly data requires careful aggregation logic and period alignment.
+#   If quarterly data is needed in future, would require: (1) quarterly loaders, (2) TTM aggregation logic,
+#   (3) period overlap handling. For now, annual data provides sufficient fundamental context.
 tier_2_reference = [
     'loadcompanyprofile.py',
     # Annual financials only
