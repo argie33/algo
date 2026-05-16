@@ -1299,14 +1299,17 @@ class FilterPipeline:
 
         try:
             # Fetch 60-day price history for new symbol and each existing symbol
+            symbols_to_check = [new_symbol] + list(existing_symbols)
+            # Build placeholders dynamically: %s, %s, %s, ... one for each symbol
+            placeholders = ','.join(['%s'] * len(symbols_to_check))
             self.cur.execute(
-                """
+                f"""
                 SELECT symbol, date, close FROM price_daily
-                WHERE symbol IN (%s)
+                WHERE symbol IN ({placeholders})
                   AND date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY symbol, date
                 """,
-                (tuple([new_symbol] + list(existing_symbols)),)
+                tuple(symbols_to_check)
             )
             rows = self.cur.fetchall()
             if not rows:

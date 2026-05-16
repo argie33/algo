@@ -176,6 +176,12 @@ class AlgoConfig:
         'max_weekly_loss_pct': ('5.0', 'float', 'Max weekly loss % before halt'),
         'max_data_staleness_days': ('3', 'int', 'Max data age in days'),
         'daily_profit_cap_pct': ('2.0', 'float', 'Daily profit cap %'),
+        'sector_drawdown_halt_pct': ('-12.0', 'float', 'Sector drawdown % to halt trading'),
+
+        # Position Monitoring & Re-entry
+        'position_halt_flag_count': ('2', 'int', 'Flags to propose early exit'),
+        'max_reentries_per_name': ('2', 'int', 'Max times to re-enter same symbol'),
+        'min_days_before_reentry_same_symbol': ('5', 'int', 'Days to wait before re-entering symbol'),
 
         # Economic Calendar
         'halt_entries_before_major_release_minutes': ('60', 'int', 'Halt entries N minutes before major release'),

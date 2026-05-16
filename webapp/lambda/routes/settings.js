@@ -1,5 +1,6 @@
 const express = require("express");
-const { query, sendSuccess, sendError, sendNotFound } = require("../utils");
+const { query } = require("../utils/database");
+const { sendSuccess, sendError, sendNotFound } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();

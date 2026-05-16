@@ -371,7 +371,7 @@ class PositionMonitor:
 
         if target_hits >= 1:
             candidates.append(entry_price)  # at least breakeven after T1
-        if target_hits >= 2:
+        if target_hits >= 2 and t1_price is not None:
             candidates.append(float(t1_price))  # at T1 price after T2
 
         # Don't let trailing stop get within 1.0 ATR of price (room to breathe)

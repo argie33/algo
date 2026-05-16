@@ -25,25 +25,25 @@ router.get("/", async (req, res) => {
 
     // Get portfolio snapshot if available
     const snapshot = await query(`
-      SELECT 
-        total_value,
-        cash_available,
-        invested_value,
-        daily_pnl,
-        daily_pnl_percent,
-        portfolio_date
+      SELECT
+        total_portfolio_value,
+        total_cash,
+        total_equity,
+        realized_pnl_today,
+        daily_return_pct,
+        snapshot_date
       FROM algo_portfolio_snapshots
-      ORDER BY portfolio_date DESC
+      ORDER BY snapshot_date DESC
       LIMIT 1
     `).catch(() => []);
 
     // Calculate summary stats
     const summary = {
       total_positions: positions.length,
-      total_value: snapshot.length > 0 ? snapshot[0].total_value : 0,
-      cash_available: snapshot.length > 0 ? snapshot[0].cash_available : 0,
-      daily_pnl: snapshot.length > 0 ? snapshot[0].daily_pnl : 0,
-      daily_pnl_percent: snapshot.length > 0 ? snapshot[0].daily_pnl_percent : 0
+      total_value: snapshot.length > 0 ? snapshot[0].total_portfolio_value : 0,
+      cash_available: snapshot.length > 0 ? snapshot[0].total_cash : 0,
+      daily_pnl: snapshot.length > 0 ? snapshot[0].realized_pnl_today : 0,
+      daily_pnl_percent: snapshot.length > 0 ? snapshot[0].daily_return_pct : 0
     };
 
     sendSuccess(res, {

@@ -681,7 +681,7 @@ class TradeExecutor:
 
     # ---------- Exit (full or partial) ----------
 
-    def _update_position_with_retry(self, position_id, new_qty, new_stop_price=None, full_exit=False, target_levels_hit=0):
+    def _update_position_with_retry(self, position_id, new_qty, new_stop_price=None, full_exit=False, target_levels_hit=0, exit_stage=None):
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
@@ -710,14 +710,17 @@ class TradeExecutor:
                     (PositionStatus.CLOSED.value, position_id, current_qty)
                 )
             else:
+                # Only increment target_levels_hit if this exit was due to hitting a target price
+                # (exit_stage like 'target_1', 'target_2', 'target_3'), not for stop/forced/time-based exits
+                increment_targets = 1 if (exit_stage and 'target' in exit_stage.lower()) else 0
                 self.cur.execute(
                     """UPDATE algo_positions
                        SET quantity = %s,
                            position_value = %s * current_price,
-                           target_levels_hit = COALESCE(target_levels_hit, 0) + 1,
+                           target_levels_hit = COALESCE(target_levels_hit, 0) + %s,
                            current_stop_price = %s
                        WHERE position_id = %s AND quantity = %s""",
-                    (new_qty, new_qty, new_stop_price, position_id, current_qty)
+                    (new_qty, new_qty, increment_targets, new_stop_price, position_id, current_qty)
                 )
 
             return self.cur.rowcount > 0  # True if update succeeded
@@ -918,7 +921,8 @@ class TradeExecutor:
                 new_qty=new_qty,
                 new_stop_price=effective_stop,
                 full_exit=full_exit or new_qty <= 0,
-                target_levels_hit=target_hits or 0
+                target_levels_hit=target_hits or 0,
+                exit_stage=exit_stage
             )
 
             if not update_success:
