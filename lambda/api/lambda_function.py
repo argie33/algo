@@ -472,14 +472,40 @@ class APIHandler:
             total = len(trades)
             wins_sum, losses_sum = sum(p for p in pnls_dollars if p > 0), abs(sum(p for p in pnls_dollars if p < 0))
             profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
-            daily_returns = np.array(pnls_pcts) / 100.0
-            mean_ret, std_ret = float(np.mean(daily_returns)), float(np.std(daily_returns))
-            sharpe = (mean_ret / std_ret * np.sqrt(252)) if std_ret > 0 and len(daily_returns) > 1 else 0.0
-            downside = np.array([r for r in daily_returns if r < 0])
-            downside_vol = float(np.std(downside)) if len(downside) > 0 else 0.0
-            sortino = (mean_ret / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0.0
-            cumulative, running_max = np.cumprod(1 + daily_returns), np.maximum.accumulate(np.cumprod(1 + daily_returns))
-            max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+
+            # Compute Sharpe and Sortino from daily portfolio returns (not per-trade returns)
+            sharpe, sortino, max_dd = 0.0, 0.0, 0.0
+            try:
+                self.cur.execute("""
+                    SELECT snapshot_date, total_portfolio_value
+                    FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date ASC
+                """)
+                snapshots = [dict(row) for row in self.cur.fetchall()]
+                if len(snapshots) > 1:
+                    portfolio_values = np.array([float(s['total_portfolio_value'] or 0) for s in snapshots])
+                    portfolio_returns = np.diff(portfolio_values) / portfolio_values[:-1]
+                    if len(portfolio_returns) > 0:
+                        mean_ret = float(np.mean(portfolio_returns))
+                        std_ret = float(np.std(portfolio_returns))
+                        sharpe = (mean_ret / std_ret * np.sqrt(252)) if std_ret > 0 else 0.0
+                        downside = np.array([r for r in portfolio_returns if r < 0])
+                        downside_vol = float(np.std(downside)) if len(downside) > 0 else 0.0
+                        sortino = (mean_ret / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0.0
+                        cumulative = np.cumprod(1 + portfolio_returns)
+                        running_max = np.maximum.accumulate(cumulative)
+                        max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+            except Exception as e:
+                logger.debug(f"Could not compute Sharpe/Sortino from snapshots: {e}")
+
+            # Fallback max_dd from cumulative trade returns if snapshots unavailable
+            if max_dd == 0.0 and len(pnls_pcts) > 0:
+                daily_returns = np.array(pnls_pcts) / 100.0
+                cumulative = np.cumprod(1 + daily_returns)
+                running_max = np.maximum.accumulate(cumulative)
+                max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+            else:
+                daily_returns = np.array(pnls_pcts) / 100.0
             win_rate_pct = round((winning / total * 100) if total > 0 else 0.0, 2)
             return json_response(200, {
                 'total_trades': total,

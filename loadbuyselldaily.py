@@ -398,14 +398,19 @@ class BuySellDailyLoader(OptimalLoader):
                     stock_old = None
                     spy_old = None
 
-                    # Search for closes ~60 days prior
+                    # Search for closes ~60 days prior in both stock and SPY data
                     for i in range(50, 80):
                         check_date = date_pd - pd.Timedelta(days=i)
+                        # Get spy_old from SPY dataframe
                         if check_date in spy_df.index:
                             spy_old = spy_df.loc[check_date, "close"]
+                        # Get stock_old from stock dataframe
+                        if df is not None and check_date in df.index:
+                            stock_old = df.loc[check_date, "close"]
+                        if spy_old and stock_old:
                             break
 
-                    if spy_old and spy_recent and spy_old > 0:
+                    if stock_old and spy_old and spy_recent and spy_old > 0:
                         stock_return = (stock_recent - stock_old) / stock_old if stock_old > 0 else 0
                         spy_return = (spy_recent - spy_old) / spy_old
                         # Relative strength: 100 = tied, >100 = stock outperforming, <100 = underperforming

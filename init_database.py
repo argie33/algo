@@ -531,16 +531,6 @@ CREATE TABLE IF NOT EXISTS institutional_positioning (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Positioning metrics summary
-CREATE TABLE IF NOT EXISTS positioning_metrics (
-    symbol VARCHAR(20) PRIMARY KEY,
-    institutional_ownership DECIMAL(8, 4),
-    insider_ownership DECIMAL(8, 4),
-    short_interest_percent DECIMAL(8, 4),
-    shares_short_prior_month BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMMODITY & MARKET DATA
 -- ════════════════════════════════════════════════════════════════════════════
@@ -636,20 +626,6 @@ CREATE TABLE IF NOT EXISTS fear_greed_index (
     fear_greed_value DECIMAL(8, 4),
     fear_greed_label VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Analyst sentiment analysis for stocks
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    total_analysts INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════

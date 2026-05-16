@@ -171,10 +171,11 @@ router.get('/evaluate', async (req, res) => {
     `);
 
     // Transform into evaluation objects
+    // Thresholds match algo_filter_pipeline.py: tier1=45 (session 31), tier4=40 (session 30)
     const evaluated = result.rows.map(row => {
-      const tier1 = row.completeness_pct >= 70;
+      const tier1 = row.completeness_pct >= 45;
       const tier3 = row.trend_score >= 8;
-      const tier4 = row.sqs >= 60;
+      const tier4 = row.sqs >= 40;
 
       return {
         symbol: row.symbol,
@@ -2048,7 +2049,8 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
  */
 router.get('/signal-performance-by-pattern', async (req, res) => {
   try {
-    const result = await query(`
+    const pool = getPool();
+    const result = await pool.query(`
       SELECT
         COALESCE(base_type, 'Unknown') as pattern,
         COUNT(*) as total_trades,
