@@ -175,6 +175,129 @@ These block everything else:
 
 ---
 
+---
+
+## 🎯 **MASTER EXECUTION CHECKLIST — PRODUCTION READINESS**
+
+**Overall Status:** Code 100% complete | Testing 0% | Production Readiness 85/100 | Blocker: E2E testing required
+
+### ⚡ CRITICAL PATH (DO FIRST - BLOCKS EVERYTHING)
+
+#### TIER 1: LOCAL VALIDATION & TESTING
+- [ ] **1.1** Run full data pipeline locally
+  - `python3 init_database.py && python3 run-all-loaders.py`
+  - Expected: All 30 loaders complete, <15 min, no connection errors
+  - Verify: 132 tables have data, freshness dates >= today-1d
+  
+- [ ] **1.2** Test orchestrator dry-run: `python3 algo_orchestrator.py --mode paper --dry-run`
+  - Expected: All 7 phases complete, reasonable signal count, no NaN/None
+  
+- [ ] **1.3** Database consistency checks
+  - Row counts (stock_scores, price_daily, etc.)
+  - No orphaned records or duplicates
+  - Date ranges are current
+
+#### TIER 1.5: FRONTEND E2E TESTING (30+ pages)
+- [ ] **2.1** Load all 30+ pages in browser, verify zero console errors
+  - Pages: Economic, Market, Portfolio, Signals, Trades, Risk, Performance, Detail, Backtests, etc.
+  
+- [ ] **2.2** Verify calculations match database
+  - P&L values, Sharpe/Sortino, trend scores, RS percentiles
+  - Exact number matching (no rounding mismatches)
+  
+- [ ] **2.3** Test edge cases
+  - Zero trades, 100+ trades, all losses, all gains
+  - Missing data scenarios
+
+#### TIER 1.6: PAPER TRADING TEST (24-48 hours)
+- [ ] **3.1** Run live orchestrator: `python3 algo_orchestrator.py --mode paper` (remove --dry-run)
+  - Expected: 5-10 trades execute on Alpaca paper account
+  - Verify: Positions appear, exits trigger, P&L updates correctly
+  
+- [ ] **3.2** Monitor for 24-48 hours
+  - Check CloudWatch logs daily
+  - Verify no exceptions, data freshness maintained
+  - Monitor Alpaca account for trades/fills
+
+---
+
+### 🔴 TIER 2: PERFORMANCE & SECURITY (Before Production)
+
+#### TIER 2.1: PERFORMANCE BENCHMARKING
+- [ ] **4.1** API response times
+  - Run 100+ requests to each major endpoint
+  - Target: All endpoints <200ms p95
+  
+- [ ] **4.2** Loader performance
+  - Target: 500 symbols in <2 min
+  - Verify: 10-15x improvement from connection pooling
+  
+- [ ] **4.3** Lambda cold/warm start
+  - Target: Cold <5s, warm <500ms
+  - Measure: CloudWatch logs
+
+#### TIER 2.2: SECURITY VERIFICATION
+- [ ] **5.1** Credential security
+  - Verify: No plaintext secrets in CloudWatch logs
+  - Check: All credentials from Secrets Manager
+  
+- [ ] **5.2** Authentication & rate limiting
+  - Verify: Protected endpoints require JWT
+  - Check: Rate limiting active (100 req/min)
+  
+- [ ] **5.3** Input validation
+  - Test: SQL injection prevention (parameterized queries)
+  - Test: XSS prevention, bad input handling
+
+#### TIER 2.3: AWS INFRASTRUCTURE VERIFICATION
+- [ ] **6.1** Deploy to AWS (push to main branch)
+  - Verify: GitHub Actions pipeline succeeds
+  - Check: All 6 Lambda functions deployed
+  - Verify: RDS accessible, API Gateway responding
+  - Check: EventBridge schedule active (5:30pm ET)
+  
+- [ ] **6.2** Verify CloudWatch monitoring
+  - Check: Metrics being collected
+  - Verify: Error rates <0.1%
+  - Check: Alarms configured and functional
+
+---
+
+### 🟡 TIER 3: PRODUCTION HARDENING (Nice-to-have)
+
+#### TIER 3.1: REMAINING CODE FIXES (Session 52 Batch 4)
+- [ ] **7.1** Wire `interest_coverage` into quality score
+  - File: `loadstockscores.py`
+  
+- [ ] **7.2** Compute real Mansfield RS (currently stores 0.0)
+  - File: `load_technical_indicators.py`
+  
+- [ ] **7.3** Resolve orphaned `performance.js` endpoint
+  - File: `webapp/lambda/routes/performance.js`
+
+#### TIER 3.2: API STANDARDIZATION (20+ secondary endpoints)
+- [ ] **8.1** Audit remaining secondary routes (algo.js, backtests.js, earnings.js, etc.)
+  - Current: 6 response formats across 45 endpoints
+  - Target: All use `{success, data|items, pagination, timestamp}`
+
+#### TIER 3.3: TEST COVERAGE
+- [ ] **9.1** Add tests for critical modules
+  - Priority: `algo_orchestrator`, `algo_exit_engine`, `algo_filter_pipeline`
+  - Current: ~12 test files, ~7% coverage
+  - Target: 50%+ coverage on critical paths
+
+---
+
+### 🟢 TIER 4: POST-PRODUCTION OPTIMIZATIONS
+
+#### TIER 4.1: ADVANCED OPTIMIZATIONS
+- [ ] **10.1** Refactor RS percentile queries (N×2 subqueries → JOIN-based)
+- [ ] **10.2** Upgrade rate limiting to DynamoDB/ElastiCache
+- [ ] **10.3** Dynamic composite score weights (shift in bear/bull markets)
+- [ ] **10.4** Document API in OpenAPI/Swagger spec
+
+---
+
 ## 📊 **SESSIONS 56-57 — COMPREHENSIVE FULL-STACK AUDIT & VERIFICATION SUMMARY**
 
 ### Session 56: Deep Audit Findings
