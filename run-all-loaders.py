@@ -35,7 +35,7 @@ tier_2_reference = [
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
     'loadsectors.py', 'loadindustryranking.py',
-    'loadstockscores.py',
+    ('loadstockscores.py', ['--parallelism', '8']),  # Enable parallelism: 8 concurrent workers
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
 ]
 
