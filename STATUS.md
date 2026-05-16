@@ -1,7 +1,23 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 54: 4-Agent Full-Stack Audit + R-multiple tracking + Position sizer hardening)  
-**Status:** ✅ PRODUCTION READY | All audit issues resolved | R-multiple stats in performance API | Position sizer error handling corrected | Repository clean
+**Last Updated:** 2026-05-16 (Session 55: Economic calendar pipeline complete + GDP display fix + trend direction bug)  
+**Status:** ✅ PRODUCTION READY | Economic calendar end-to-end fixed | GDP shows YoY growth rate | Trend direction bug corrected
+
+---
+
+## 🔍 **SESSION 55 — ECONOMIC CALENDAR PIPELINE + API FIXES**
+
+### Fixes Applied
+- **`init_database.py`**: Updated `economic_calendar` schema (event_id, event_date, category, forecast_value, etc.) to match `init_db.sql`. Added `_run_migrations()` for idempotent ALTER TABLE upgrades on existing databases.
+- **`/api/economic/calendar`**: Query now uses new column names (event_date, forecast_value, etc.) and returns them with names the frontend expects.
+- **`/api/economic/leading-indicators`**: Added GDPC1 (Real GDP) to indicator map. Convert GDPC1/INDPRO/RSXFS/PAYEMS from absolute levels to YoY % change — GDP was showing $25T raw value where frontend expected growth %.
+- **Trend direction bug fixed**: `history[:3]` = oldest, `history[-3:]` = newest — original code had `recent_avg/older_avg` variable names swapped so 'up' trend actually meant falling.
+
+### Open Items (Remaining)
+- **Rate limiting**: In-memory only; won't survive Lambda scaling across instances. Needs DynamoDB/ElastiCache backing for true distributed rate limiting.
+- **Composite score weights**: Fixed 20/19/19/12/15/15 split regardless of market regime; could shift dynamically in bear markets.
+- **TD Sequential Combo 13**: `combo_13_complete` key never emitted by `td_sequential()` in algo_signals.py → exit path in algo_exit_engine.py line 340 permanently dead. Safe (conservative) but worth documenting.
+- **API response shape**: 6 formats across 35 endpoints; frontend handles defensively, low priority.
 
 ---
 
