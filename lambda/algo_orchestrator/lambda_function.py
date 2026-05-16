@@ -16,7 +16,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'paper')
-DRY_RUN = os.getenv('DRY_RUN_MODE', 'true').lower() == 'true'
+# DRY_RUN_MODE='true' only if explicitly set. Default to LIVE execution for actual testing.
+DRY_RUN = os.getenv('DRY_RUN_MODE', 'false').lower() == 'true'
 
 def get_database_credentials():
     """Fetch database credentials from AWS Secrets Manager."""

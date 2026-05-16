@@ -147,7 +147,7 @@ const getStocksSignals = async (req, res) => {
       COALESCE(bsd.ema_21, t.ema_12) as ema_21,
       t.ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
-      ss.security_name as company_name,
+      ss.name as company_name,
       ${useEarningsJoin ? 'eh_next.next_earnings_date, (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings' : "NULL::date as next_earnings_date, NULL::integer as days_to_earnings"}
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
@@ -181,7 +181,7 @@ const getStocksSignals = async (req, res) => {
       bsd.sma_50, bsd.sma_200, bsd.ema_21,
       NULL::numeric as ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
-      ss.security_name as company_name,
+      ss.name as company_name,
       ${useEarningsJoin ? 'eh_next.next_earnings_date, (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings' : "NULL::date as next_earnings_date, NULL::integer as days_to_earnings"}
     `;
 
@@ -498,7 +498,7 @@ router.get("/etf", async (req, res) => {
     const signalsQuery = `
       SELECT
         ${actualColumns},
-        es.security_name as company_name
+        es.name as company_name
       FROM ${tableName} bsd
       LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker

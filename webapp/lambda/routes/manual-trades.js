@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
       count: result.rowCount || 0
     });
   } catch (err) {
-    logger.error('Error fetching manual trades', err);
+    console.error('Error fetching manual trades', err);
     return sendError(res, 500, 'Failed to fetch trades', 'DB_ERROR');
   }
 });
@@ -61,7 +61,7 @@ router.get('/:id', async (req, res) => {
 
     return sendSuccess(res, result.rows[0]);
   } catch (err) {
-    logger.error('Error fetching trade', err);
+    console.error('Error fetching trade', err);
     return sendError(res, 500, 'Failed to fetch trade', 'DB_ERROR');
   }
 });

@@ -18,11 +18,11 @@ async function fetchAlpacaData(apiKey, secretKey, baseURL) {
    */
   try {
     if (!apiKey || !secretKey) {
-      logger.warn('Alpaca credentials NOT configured');
+      console.warn('Alpaca credentials NOT configured');
       return { success: false, status: 401, error: 'Alpaca credentials not configured' };
     }
 
-    logger.info(`Fetching Alpaca data from: ${baseURL}`);
+    console.log(`Fetching Alpaca data from: ${baseURL}`);
 
     // Create abort controller with 5 second timeout
     const ALPACA_API_TIMEOUT_MS = 5000;
@@ -49,37 +49,37 @@ async function fetchAlpacaData(apiKey, secretKey, baseURL) {
 
       clearTimeout(timeout);
 
-      logger.debug(`Alpaca Account API Response: ${accountRes.status}`);
+      console.debug(`Alpaca Account API Response: ${accountRes.status}`);
 
       if (!accountRes.ok) {
-        logger.error('Failed to fetch Alpaca account', null, { status: accountRes.status });
+        console.error('Failed to fetch Alpaca account', null, { status: accountRes.status });
         return { success: false, status: accountRes.status, error: `Alpaca API returned ${accountRes.status}` };
       }
 
       const account = await accountRes.json();
-      logger.info(`Account fetched: portfolio_value=$${account.portfolio_value}`);
+      console.log(`Account fetched: portfolio_value=$${account.portfolio_value}`);
 
       let positions = [];
       if (positionsRes.ok) {
         positions = await positionsRes.json();
-        logger.debug(`Positions fetched: ${positions.length} positions`);
+        console.debug(`Positions fetched: ${positions.length} positions`);
       } else {
-        logger.warn(`Positions fetch returned ${positionsRes.status}`);
+        console.warn(`Positions fetch returned ${positionsRes.status}`);
       }
 
       return { success: true, data: { account, positions } };
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
-        logger.error('Alpaca API timeout', error);
+        console.error('Alpaca API timeout', error);
         return { success: false, status: 503, error: 'Alpaca API timeout' };
       } else {
-        logger.error("Alpaca fetch error", error);
+        console.error("Alpaca fetch error", error);
         return { success: false, status: 503, error: error.message };
       }
     }
   } catch (error) {
-    logger.error("Error in fetchAlpacaData", error);
+    console.error("Error in fetchAlpacaData", error);
     return { success: false, status: 500, error: error.message };
   }
 }

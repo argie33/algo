@@ -72,7 +72,7 @@ router.get('/', async (req, res, next) => {
       hasPrev: parseInt(offset) > 0
     });
   } catch (error) {
-    logger.error("Error fetching backtests", error);
+    console.error("Error fetching backtests", error);
     return sendError(res, 500, "Failed to fetch backtests", "DB_ERROR");
   }
 });
@@ -133,7 +133,7 @@ router.get('/:run_id', async (req, res, next) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error("Error fetching backtest run", error);
+    console.error("Error fetching backtest run", error);
     return sendError(res, 500, "Failed to fetch backtest run", "DB_ERROR");
   }
 });
@@ -194,7 +194,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       run_id: result.rows[0].run_id
     }, "Backtest created successfully", 201);
   } catch (error) {
-    logger.error("Error creating backtest", error);
+    console.error("Error creating backtest", error);
     return sendError(res, 500, "Failed to create backtest", "DB_ERROR");
   }
 });

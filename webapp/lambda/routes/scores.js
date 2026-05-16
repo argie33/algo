@@ -441,7 +441,7 @@ const SCORE_COLUMNS = [
   'ss.growth_score',
   'ss.positioning_score',
   'ss.stability_score',
-  'st.security_name as company_name',
+  'st.name as company_name',
   'cp.sector',
   'cp.industry',
   'pd.close as current_price',

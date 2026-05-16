@@ -41,7 +41,7 @@ logging.basicConfig(
 
 
 class SectorsLoader(OptimalLoader):
-    table_name = "sectors"
+    table_name = "sector_performance"
     primary_key = ("sector_name", "metric_date")
     watermark_field = "metric_date"
 

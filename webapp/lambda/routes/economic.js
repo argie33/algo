@@ -19,7 +19,7 @@ router.get("/", async (req, res) => {
 // LEADING INDICATORS - Comprehensive overview
 // ============================================
 router.get("/leading-indicators", async (req, res) => {
-  logger.info("GET /api/economic/leading-indicators called");
+  console.log("GET /api/economic/leading-indicators called");
 
   try {
     // Get latest AND historical values for trend analysis

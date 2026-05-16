@@ -18,7 +18,7 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    logger.info(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
+    console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
 
     const validTables = {
       'annual': 'annual_balance_sheet',
@@ -36,7 +36,7 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
 
     // Fallback to quarterly if annual is empty
     if ((!result.rows || result.rows.length === 0) && period === 'annual') {
-      logger.info(`No annual data found, falling back to quarterly for ${upperSymbol}`);
+      console.log(`No annual data found, falling back to quarterly for ${upperSymbol}`);
       tableName = 'quarterly_balance_sheet';
       period = 'quarterly';
       result = await query(`
@@ -64,7 +64,7 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
       financialData: transformedData
     });
   } catch (error) {
-    logger.error("Balance sheet error:", error);
+    console.error("Balance sheet error:", error);
     return sendError(res, `Failed to fetch balance sheet: ${error.message}`, 500);
   }
 });
@@ -75,7 +75,7 @@ router.get("/:symbol/income-statement", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    logger.info(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
+    console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
     const validTables = {
       'annual': 'annual_income_statement',
       'quarterly': 'quarterly_income_statement'
@@ -105,7 +105,7 @@ router.get("/:symbol/income-statement", async (req, res) => {
       financialData: transformedData
     });
   } catch (error) {
-    logger.error("Income statement error:", error);
+    console.error("Income statement error:", error);
     return sendError(res, `Failed to fetch income statement: ${error.message}`, 500);
   }
 });
@@ -116,7 +116,7 @@ router.get("/:symbol/cash-flow", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    logger.info(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
+    console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
     const validTables = {
       'annual': 'annual_cash_flow',
       'quarterly': 'quarterly_cash_flow'
@@ -146,7 +146,7 @@ router.get("/:symbol/cash-flow", async (req, res) => {
       financialData: transformedData
     });
   } catch (error) {
-    logger.error("Cash flow error:", error);
+    console.error("Cash flow error:", error);
     return sendSuccess(res, {
       symbol: upperSymbol,
       period: period,
@@ -160,7 +160,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    logger.info(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
+    console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
     const result = await query(`
       SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
              cp.exchange, km.market_cap, km.held_percent_insiders, km.held_percent_institutions
@@ -206,7 +206,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
       metricsData: metricsData
     });
   } catch (error) {
-    logger.error("Key metrics error:", error);
+    console.error("Key metrics error:", error);
     return sendSuccess(res, {
       symbol: upperSymbol,
       metricsData: {}
@@ -238,7 +238,7 @@ router.get("/all", async (req, res) => {
       page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
-    logger.error("All financials error:", error);
+    console.error("All financials error:", error);
     return sendPaginated(res, [], { limit: 50, offset: 0, total: 0, page: 1 });
   }
 });
