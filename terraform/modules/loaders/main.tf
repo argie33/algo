@@ -8,7 +8,7 @@
  *
  * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
  * not by EventBridge cron rules. Task definitions remain here for Step Functions to use.
- * 6 tiny market-level loaders consolidated into market_data_batch.
+
  * Financial/earnings loaders run weekly (Sunday night) not daily.
  * Removed: market_overview, sector_performance, relative_performance, social_sentiment
  *   (no real data source; market_overview duplicated price_daily; others wrote zeros/wrong data).
@@ -286,7 +286,7 @@ locals {
 
     # NOTE: market_overview, sector_performance, relative_performance, social_sentiment,
     # loadmarket, loadsectors, loadsentiment deleted — no real data sources.
-    # NOTE: market_indices, econ_data, aaiidata, naaim_data, feargreed, calendar are run via market_data_batch.
+are scheduled separately via EventBridge.
     # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
     # NOTE: analyst_sentiment, analyst_upgrades deleted — no real data sources wired.
 
@@ -324,11 +324,7 @@ locals {
     "etf_prices_weekly"    = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
     "etf_prices_monthly"   = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
 
-    # Technical data (4:15am ET) — compute-heavy per symbol (indicators), 5000+ symbols
-    # parallelism=8 with 2 vCPU: CPU-bound work benefits from real cores
-    "technicals_daily"    = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8  }
-
-    # Trend template (4:30am ET) — compute-heavy scoring
+    # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8  }
 
     # Financial statements (10:00am ET) — I/O bound, rate-limited by yfinance/SEC
