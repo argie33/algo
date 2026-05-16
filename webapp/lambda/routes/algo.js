@@ -129,77 +129,75 @@ router.get('/evaluate', async (req, res) => {
   try {
     const pool = getPool();
 
-    // Get latest buy signals
-    const signalResult = await pool.query(`
-      SELECT symbol, date, signal, entry_price
-      FROM buy_sell_daily
-      WHERE signal = 'BUY'
-      ORDER BY date DESC, symbol
-      LIMIT 50
+    // OPTIMIZED: Single batch query instead of N+1 pattern
+    // Was: 150 round-trips (1 initial query + 3 queries × 50 signals)
+    // Now: 1 query with CTEs joining all scoring data
+    const result = await pool.query(`
+      WITH latest_signals AS (
+        SELECT symbol, date, signal, entry_price
+        FROM buy_sell_daily
+        WHERE signal = 'BUY'
+        ORDER BY date DESC, symbol
+        LIMIT 50
+      ),
+      latest_trend AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, minervini_trend_score,
+          percent_from_52w_low, percent_from_52w_high
+        FROM trend_template_data
+        ORDER BY symbol, date DESC
+      ),
+      latest_completeness AS (
+        SELECT symbol, composite_completeness_pct
+        FROM data_completeness_scores
+      ),
+      latest_sqs AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, composite_sqs
+        FROM signal_quality_scores
+        ORDER BY symbol, date DESC
+      )
+      SELECT
+        s.symbol, s.date, s.entry_price,
+        COALESCE(tt.minervini_trend_score, 0)::int as trend_score,
+        COALESCE(tt.percent_from_52w_low, 0)::numeric as pct_from_52w_low,
+        COALESCE(dc.composite_completeness_pct, 0)::numeric as completeness_pct,
+        COALESCE(sq.composite_sqs, 0)::int as sqs
+      FROM latest_signals s
+      LEFT JOIN latest_trend tt ON tt.symbol = s.symbol
+      LEFT JOIN latest_completeness dc ON dc.symbol = s.symbol
+      LEFT JOIN latest_sqs sq ON sq.symbol = s.symbol
+      ORDER BY s.date DESC, s.symbol
     `);
 
-    const signals = signalResult.rows;
+    // Transform into evaluation objects
+    const evaluated = result.rows.map(row => {
+      const tier1 = row.completeness_pct >= 70;
+      const tier3 = row.trend_score >= 8;
+      const tier4 = row.sqs >= 60;
 
-    // For each signal, get evaluation status
-    const evaluated = [];
-    for (const sig of signals) {
-      // Check trend template
-      const trendResult = await pool.query(`
-        SELECT minervini_trend_score, percent_from_52w_low, percent_from_52w_high
-        FROM trend_template_data
-        WHERE symbol = $1 AND date = $2
-        LIMIT 1
-      `, [sig.symbol, sig.date]);
-
-      // Check completeness
-      const completeResult = await pool.query(`
-        SELECT composite_completeness_pct
-        FROM data_completeness_scores
-        WHERE symbol = $1
-        LIMIT 1
-      `, [sig.symbol]);
-
-      // Check SQS
-      const sqsResult = await pool.query(`
-        SELECT composite_sqs
-        FROM signal_quality_scores
-        WHERE symbol = $1 AND date = $2
-        LIMIT 1
-      `, [sig.symbol, sig.date]);
-
-      const trend = trendResult.rows[0];
-      const completeness = completeResult.rows[0];
-      const sqs = sqsResult.rows[0];
-
-      // Determine if passes all tiers
-      const passes = {
-        tier1: completeness && completeness.composite_completeness_pct >= 70,
-        tier3: trend && trend.minervini_trend_score >= 8,
-        tier4: sqs && sqs.composite_sqs >= 60
+      return {
+        symbol: row.symbol,
+        date: row.date,
+        entry_price: row.entry_price,
+        trend_score: row.trend_score,
+        pct_from_52w_low: row.pct_from_52w_low,
+        completeness_pct: row.completeness_pct,
+        sqs: row.sqs,
+        tier1_pass: tier1,
+        tier3_pass: tier3,
+        tier4_pass: tier4,
+        all_tiers_pass: tier1 && tier3 && tier4
       };
+    });
 
-      evaluated.push({
-        symbol: sig.symbol,
-        date: sig.date,
-        entry_price: sig.entry_price,
-        trend_score: trend ? trend.minervini_trend_score : 0,
-        pct_from_52w_low: trend ? trend.percent_from_52w_low : 0,
-        completeness_pct: completeness ? completeness.composite_completeness_pct : 0,
-        sqs: sqs ? sqs.composite_sqs : 0,
-        tier1_pass: passes.tier1,
-        tier3_pass: passes.tier3,
-        tier4_pass: passes.tier4,
-        all_tiers_pass: passes.tier1 && passes.tier3 && passes.tier4
-      });
-    }
-
-    // Sort by SQS, select top 12
+    // Filter to qualified (pass all tiers) and sort by SQS, take top 12
     const qualified = evaluated.filter(e => e.all_tiers_pass).sort((a, b) => b.sqs - a.sqs).slice(0, 12);
 
     return res.json({
       success: true,
       data: {
-        total_buy_signals: signals.length,
+        total_buy_signals: evaluated.length,
         qualified_for_trading: qualified.length,
         signals: evaluated,
         top_qualified: qualified
@@ -1102,12 +1100,18 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
     let posSize = position_dollars ? parseFloat(position_dollars) : (totalValue * parseFloat(position_pct || 0) / 100);
     const posPercent = (posSize / totalValue) * 100;
 
-    // Get stock metrics
+    // Get stock sector/industry; current price from price_daily (not company_profile,
+    // which has no current_price column).
     const stockResult = await pool.query(`
-      SELECT symbol, sector, industry, current_price, market_cap,
-             risk_score, volatility, min_position_size
-      FROM company_profile
-      WHERE symbol = $1
+      SELECT cp.ticker AS symbol, cp.sector, cp.industry,
+             pd.close AS current_price
+      FROM company_profile cp
+      LEFT JOIN LATERAL (
+        SELECT close FROM price_daily
+        WHERE symbol = cp.ticker
+        ORDER BY date DESC LIMIT 1
+      ) pd ON true
+      WHERE cp.ticker = $1
     `, [symbol.toUpperCase()]);
 
     const stock = stockResult.rows[0];
@@ -1119,7 +1123,7 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
     const sectorResult = await pool.query(`
       SELECT SUM(position_value) as sector_invested, COUNT(*) as sector_count
       FROM algo_positions
-      WHERE status = 'active' AND sector = $1
+      WHERE status = 'open' AND sector = $1
     `, [stock.sector]);
 
     const sectorData = sectorResult.rows[0];
@@ -1127,14 +1131,12 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
 
     // Get current open positions
     const posResult = await pool.query(`
-      SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'active'
+      SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'
     `);
     const openCount = parseInt(posResult.rows[0]?.open_count || 0);
 
-    // Calculate max drawdown impact (worst case 15% pullback)
-    const riskOnTrade = parseFloat(stock.risk_score || 0.5);
-    const volatilityFactor = parseFloat(stock.volatility || 1.0);
-    const drawdownImpact = posPercent * riskOnTrade * volatilityFactor * 0.15 / 100;
+    // Worst-case drawdown impact: 15% adverse move on the full position size
+    const drawdownImpact = posPercent * 0.15 / 100;
 
     // Check constraints
     const constraints = {
@@ -1149,12 +1151,10 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
 
     return sendSuccess(res, {
       symbol: symbol.toUpperCase(),
-      entry_price: parseFloat(entry_price || stock.current_price),
+      entry_price: parseFloat(entry_price || stock.current_price || 0),
       position_size_dollars: posSize,
       position_size_percent: posPercent,
       sector: stock.sector,
-      risk_score: riskOnTrade,
-      volatility: volatilityFactor,
 
       portfolio_impact: {
         new_total_positions: openCount + 1,
