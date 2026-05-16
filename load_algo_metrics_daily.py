@@ -210,17 +210,22 @@ class AlgoMetricsLoader:
             vix_result = self.cur.fetchone()
             vix = float(vix_result[0]) if vix_result and vix_result[0] else 20.0
 
-            # Insert or update
+            vix_env = 'low' if vix < 15 else ('high' if vix > 25 else 'normal')
+            comment = f"Market in {trend} (stage {stage}), VIX {vix:.1f} ({vix_env})"
+
             query = """
                 INSERT INTO market_health_daily (
-                    date, market_trend, market_stage, vix_level, created_at
-                ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    date, market_trend, market_stage, vix_level,
+                    fed_rate_environment, market_comment, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (date) DO UPDATE SET
                     market_trend = EXCLUDED.market_trend,
                     market_stage = EXCLUDED.market_stage,
-                    vix_level = EXCLUDED.vix_level
+                    vix_level = EXCLUDED.vix_level,
+                    fed_rate_environment = EXCLUDED.fed_rate_environment,
+                    market_comment = EXCLUDED.market_comment
             """
-            if self.execute(query, (date_obj, trend, stage, vix)):
+            if self.execute(query, (date_obj, trend, stage, vix, vix_env, comment)):
                 self.stats['market_health'] = 1
                 return True
 
@@ -510,58 +515,57 @@ class AlgoMetricsLoader:
                     trend_score = sqs / 10  # Convert to 0-10 scale
                     stage = 2 if sqs > 60 else (4 if sqs < 40 else 1)
 
-                # Calculate composite SQS - enhanced multi-factor formula
-                # Uses: trend (35%), stage (15%), volume (20%), distance from high (15%), earnings proximity (15%)
-                sqs = 0
+                # Calculate composite SQS component scores then sum
+                trend_component = 0
+                stage_score = 0
+                volume_score = 0
+                distance_score = 0
+                earnings_score = 8  # no earnings data yet; neutral value
+
                 if trend_score is not None:
-                    # Base trend component (35% weight)
-                    sqs += trend_score * 3.5  # scale to 0-35
+                    trend_component = min(35, int(trend_score * 3.5))
 
-                    # Market stage bonus (15% weight)
-                    if stage == 2:  # Stage 2 = uptrend
-                        sqs += 15
-                    elif stage == 1:  # Stage 1 = neutral/base
-                        sqs += 7
-                    # Stage 3-4 get lower/negative contribution
+                    if stage == 2:
+                        stage_score = 15
+                    elif stage == 1:
+                        stage_score = 7
 
-                    # Volume confirmation from RSI (20% weight)
-                    # High RSI = strong momentum = higher volume weight
                     if rsi and rsi > 60:
-                        sqs += (rsi - 60) * 0.4  # up to 16 points
+                        volume_score = min(20, int((rsi - 60) * 0.4))
                     elif rsi and rsi < 40:
-                        sqs -= (40 - rsi) * 0.2  # down to -16 points
+                        volume_score = max(-16, int(-(40 - rsi) * 0.2))
                     else:
-                        sqs += 10  # baseline volume confirmation
+                        volume_score = 10
 
-                    # Distance from high (15% weight) - proximity to 52-week high
-                    # Price > 80% of recent range = better entry
                     if close > 0 and open_price > 0:
                         range_pct = (close - open_price) / max(close, open_price) * 100
-                        if range_pct > 2:  # Strong upside momentum
-                            sqs += 12
-                        elif range_pct < -2:  # Downside pressure
-                            sqs -= 8
+                        if range_pct > 2:
+                            distance_score = 12
+                        elif range_pct < -2:
+                            distance_score = -8
                         else:
-                            sqs += 5
+                            distance_score = 5
 
-                    # Earnings proximity penalty (15% weight) - avoid earnings dates
-                    # Currently no earnings data available, would reduce score near earnings
-                    # For now, assume no penalty
-                    sqs += 8
+                sqs = min(100, max(0, trend_component + stage_score + volume_score + distance_score + earnings_score))
 
-                # Cap at 100, floor at 0
-                sqs = min(100, max(0, sqs))
-
-                # Insert
                 query = """
                     INSERT INTO signal_quality_scores (
                         symbol, date, trend_template_score,
+                        market_stage_score, volume_confirmation_score,
+                        distance_from_high_score, earnings_proximity_score,
                         composite_sqs, created_at
-                    ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (symbol, date) DO UPDATE SET
+                        trend_template_score = EXCLUDED.trend_template_score,
+                        market_stage_score = EXCLUDED.market_stage_score,
+                        volume_confirmation_score = EXCLUDED.volume_confirmation_score,
+                        distance_from_high_score = EXCLUDED.distance_from_high_score,
+                        earnings_proximity_score = EXCLUDED.earnings_proximity_score,
                         composite_sqs = EXCLUDED.composite_sqs
                 """
-                self.execute(query, (symbol, date_obj, trend_score, sqs))
+                self.execute(query, (symbol, date_obj, trend_score,
+                                     stage_score, volume_score, distance_score,
+                                     earnings_score, sqs))
 
                 self.stats['sqs'] += 1
 
