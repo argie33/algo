@@ -398,10 +398,11 @@ function Stage2LeadersChart() {
   );
 
   if (isLoading) return <Empty title="Loading…" />;
-  if (!data || data.length === 0) {
+  const dataItems = Array.isArray(data) ? data : (data?.items || []);
+  if (!dataItems || dataItems.length === 0) {
     return <Empty title="No stage data" desc="Requires trend_template_data coverage." />;
   }
-  const sorted = [...data].sort((a, b) => b.pct_stage_2 - a.pct_stage_2);
+  const sorted = [...dataItems].sort((a, b) => b.pct_stage_2 - a.pct_stage_2);
 
   return (
     <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>

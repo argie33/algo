@@ -203,7 +203,8 @@ export default function Sentiment() {
   // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
   const changeLeaders = useMemo(() => {
     const byDate = {};
-    (divergenceQ.data || []).forEach((row) => {
+    const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || divergenceQ.data || []);
+    (divItems || []).forEach((row) => {
       if (!row.symbol || !row.date) return;
       const sym = row.symbol;
       if (!byDate[sym]) byDate[sym] = [];

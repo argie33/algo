@@ -118,10 +118,11 @@ class FilterPipeline:
 
             self.cur.execute(
                 """
-                SELECT symbol, date, signal
-                FROM buy_sell_daily
-                WHERE date = %s AND signal = 'BUY'
-                ORDER BY symbol
+                SELECT b.symbol, b.date, b.signal
+                FROM buy_sell_daily b
+                LEFT JOIN stock_scores s ON b.symbol = s.symbol
+                WHERE b.date = %s AND b.signal = 'BUY'
+                ORDER BY COALESCE(s.composite_score, 0) DESC, b.symbol
                 """,
                 (eval_date,),
             )

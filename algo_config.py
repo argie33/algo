@@ -140,7 +140,7 @@ class AlgoConfig:
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
         'min_percent_from_52w_low': ('25.0', 'float', 'Min % from 52w low'),
         'max_percent_from_52w_high': ('25.0', 'float', 'Max % from 52w high'),
-        'min_trend_template_score': ('8', 'int', 'Min Minervini score 0-10'),
+        'min_trend_template_score': ('6', 'int', 'Min Minervini score 0-8 (Minervini standard)'),
 
         # Entry Quality Gates (Sprint 2)
         'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),
@@ -283,8 +283,9 @@ class AlgoConfig:
 
         Raises ValueError if validation fails.
         """
-        # Percentage values: 0-100 (skip string types like pyramid_split_pct)
-        if 'pct' in key.lower() and dtype != 'string':
+        # Percentage values: 0-100 (skip string types like pyramid_split_pct, drawdown/halt thresholds)
+        is_drawdown_or_halt = 'drawdown' in key.lower() or 'halt' in key.lower()
+        if 'pct' in key.lower() and dtype != 'string' and not is_drawdown_or_halt:
             f_val = float(value) if isinstance(value, (int, float, str)) else value
             if f_val < 0 or f_val > 100:
                 raise ValueError(f'{key}: {f_val}% out of range [0-100]')

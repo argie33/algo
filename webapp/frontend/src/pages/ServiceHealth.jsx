@@ -46,7 +46,7 @@ export default function ServiceHealth() {
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };
   const sources = dataStatus?.sources || [];
   const ready = dataStatus?.ready_to_trade;
-  const findings = patrolLog?.items || patrolLog?.data?.items || [];
+  const findings = Array.isArray(patrolLog) ? patrolLog : (patrolLog?.items || []);
 
   return (
     <div className="main-content">

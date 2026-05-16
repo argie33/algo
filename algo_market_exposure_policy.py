@@ -34,6 +34,7 @@ except ImportError:
     credential_manager = None
 
 import os
+import math
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
@@ -149,7 +150,14 @@ EXPOSURE_TIERS = [
 
 
 def tier_for_exposure(exposure_pct):
-    """Return the active policy tier for a given exposure %."""
+    """Return the active policy tier for a given exposure %.
+
+    NaN or None exposure defaults to safest tier (CORRECTION) to fail-closed.
+    """
+    # Fail-closed on bad data: if exposure is None or NaN, use safest tier
+    if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
+        return EXPOSURE_TIERS[-1]  # CORRECTION tier (safest)
+
     for tier in EXPOSURE_TIERS:
         if tier['min_pct'] <= exposure_pct <= tier['max_pct']:
             return tier

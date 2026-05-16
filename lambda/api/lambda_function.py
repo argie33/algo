@@ -118,6 +118,26 @@ def error_response(status_code: int, error: str, message: str = '') -> Dict:
     return json_response(status_code, {'error': error, 'message': safe_message})
 
 
+def list_response(items: list, total: int = None, page: int = 1, limit: int = None, offset: int = 0) -> Dict:
+    """Consistent list response: {items, total, pagination}."""
+    n = total if total is not None else len(items)
+    lim = limit or len(items) or 1
+    total_pages = max(1, -(-n // lim))  # ceiling division
+    return json_response(200, {
+        'items': items,
+        'total': n,
+        'pagination': {
+            'limit': lim,
+            'offset': offset,
+            'total': n,
+            'page': page,
+            'totalPages': total_pages,
+            'hasNext': (offset + lim) < n,
+            'hasPrev': offset > 0,
+        }
+    })
+
+
 def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
     """Check if IP has exceeded rate limit. Returns True if request is allowed."""
     global _rate_limit_tracker, _rate_limit_check_count
@@ -1115,7 +1135,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             signals = self.cur.fetchall()
-            return json_response(200, [dict(s) for s in signals])
+            return list_response([dict(s) for s in signals])
         except Exception as e:
             logger.error(f"get_signals_stocks failed: {e}", exc_info=True)
             return error_response(500, 'signals_error', 'Failed to fetch signals')

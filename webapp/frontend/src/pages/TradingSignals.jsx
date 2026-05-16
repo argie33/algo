@@ -131,13 +131,13 @@ export default function TradingSignals() {
 
   const gateMap = useMemo(() => {
     const m = new Map();
-    const gatesArray = gatesData?.items || [];
+    const gatesArray = Array.isArray(gatesData) ? gatesData : (gatesData?.items || []);
     gatesArray.forEach(g => m.set(g.symbol, g));
     return m;
   }, [gatesData]);
 
   // Store rows before filtering for total count KPI
-  const rows = data?.items || [];
+  const rows = Array.isArray(data) ? data : (data?.items || []);
 
   // Enrich rows with gate / sqs info
   const enriched = useMemo(() => rows.map(r => {

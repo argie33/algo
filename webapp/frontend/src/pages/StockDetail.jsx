@@ -116,7 +116,7 @@ export default function StockDetail() {
     () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
     { enabled: !!symbol }
   );
-  const scoreRow = scoreData?.[0] || null;
+  const scoreRow = scoreData?.items?.[0] || null;
 
   // Key metrics (sector/industry + market cap + ownership %)
   const { data: keyMetricsData, error: keyMetricsError, refetch: refetchKeyMetrics } = useApiQuery(
@@ -137,7 +137,8 @@ export default function StockDetail() {
     ['stock-swing-score', symbol],
     async () => {
       const r = await api.get(`/api/algo/swing-scores?symbol=${symbol.toUpperCase()}&limit=1`);
-      const items = extractData(r);
+      const extracted = extractData(r);
+      const items = Array.isArray(extracted) ? extracted : (extracted?.items || []);
       return items && items.length > 0 ? items[0] : null;
     },
     { enabled: !!symbol, staleTime: 60_000 }
@@ -173,9 +174,10 @@ export default function StockDetail() {
 
   // ── Derived chart series ──
   const priceSeries = useMemo(() => {
-    if (!priceData?.length) return [];
+    const priceItems = Array.isArray(priceData) ? priceData : (priceData?.items || []);
+    if (!priceItems?.length) return [];
     // Backend returns DESC; reverse for ascending.
-    const rows = [...priceData].reverse().map(p => ({
+    const rows = [...priceItems].reverse().map(p => ({
       date: String(p.date).slice(0, 10),
       open: parseFloat(p.open),
       high: parseFloat(p.high),
@@ -191,7 +193,8 @@ export default function StockDetail() {
 
     // Map signal dates → marker on the chart
     const sigByDate = new Map();
-    (signalsData || []).forEach(s => {
+    const signalItems = Array.isArray(signalsData) ? signalsData : (signalsData?.items || signalsData || []);
+    (signalItems || []).forEach(s => {
       const d = String(s.signal_triggered_date || s.date).slice(0, 10);
       sigByDate.set(d, s.signal);
     });
@@ -719,9 +722,12 @@ function AlgoTab({ swing, scoreRow }) {
 
 // ─── Financials tab ────────────────────────────────────────────────────────
 function FinancialsTab({ income, balance, cashflow }) {
-  const inc = (income || []).slice(0, 8).reverse();
-  const bs  = (balance || []).slice(0, 8).reverse();
-  const cf  = (cashflow || []).slice(0, 8).reverse();
+  const incItems = Array.isArray(income) ? income : (income?.items || income || []);
+  const bsItems = Array.isArray(balance) ? balance : (balance?.items || balance || []);
+  const cfItems = Array.isArray(cashflow) ? cashflow : (cashflow?.items || cashflow || []);
+  const inc = (incItems || []).slice(0, 8).reverse();
+  const bs  = (bsItems || []).slice(0, 8).reverse();
+  const cf  = (cfItems || []).slice(0, 8).reverse();
 
   // Build joined quarterly series for charts
   const series = useMemo(() => {

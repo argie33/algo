@@ -1628,6 +1628,25 @@ CREATE TABLE IF NOT EXISTS loader_sla_status (
     UNIQUE(loader_name, table_name)
 );
 
+-- Data Loader Run Audit Trail - provenance tracking and replay capability
+CREATE TABLE IF NOT EXISTS data_loader_runs (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    loader_version VARCHAR(50),
+    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    status VARCHAR(20),
+    records_processed INTEGER,
+    records_inserted INTEGER,
+    records_updated INTEGER,
+    records_failed INTEGER,
+    error_message TEXT,
+    git_commit_hash VARCHAR(40),
+    config_snapshot JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, start_time)
+);
+
 -- Signal Trade Performance Attribution - Link trades to signals for win rate analysis
 CREATE TABLE IF NOT EXISTS signal_trade_performance (
     id SERIAL PRIMARY KEY,
@@ -1718,6 +1737,13 @@ CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, da
 
 CREATE INDEX IF NOT EXISTS idx_technical_daily_symbol ON technical_data_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_technical_daily_date ON technical_data_daily(date);
+CREATE INDEX IF NOT EXISTS idx_technical_daily_symbol_date ON technical_data_daily(symbol, date);
+
+-- Weekly and monthly indexes (missing in prior sessions)
+CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol_date ON price_weekly(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_price_monthly_symbol_date ON price_monthly(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_technical_weekly_symbol_date ON technical_data_weekly(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_technical_monthly_symbol_date ON technical_data_monthly(symbol, date);
 
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);

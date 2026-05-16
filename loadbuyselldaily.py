@@ -419,13 +419,12 @@ class BuySellDailyLoader(OptimalLoader):
             except Exception as e:
                 log.debug(f"Mansfield RS calc failed for {symbol} on {date_val}: {e}")
 
-        # RS rating: Mansfield RS if available, else RSI (0-100)
+        # RS rating: Mansfield RS (vs SPY) if available, else None
+        # (NOT RSI — incompatible semantics: Mansfield RS ~100 = inline with SPY,
+        # RSI 0-100 is overbought/oversold. Don't mix these signals.)
         rs_rating = None
         if mansfield_rs is not None:
             rs_rating = int(round(mansfield_rs))
-        else:
-            rsi_val = _f(rsi)
-            rs_rating = int(round(rsi_val)) if rsi_val is not None else None
 
         # Base type detection: flat base vs VCP vs pullback
         base_info = _detect_base_type(df, pd)
