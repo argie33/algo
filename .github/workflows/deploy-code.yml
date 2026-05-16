@@ -245,21 +245,29 @@ jobs:
 
       - name: Deploy DB Init Lambda
         run: |
-          aws lambda update-function-code \
-            --function-name algo-db-init-dev \
-            --zip-file fileb://db_init_lambda.zip \
-            --region $AWS_REGION || \
-          aws lambda create-function \
-            --function-name algo-db-init-dev \
-            --runtime python3.11 \
-            --role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/lambda-db-init-dev \
-            --handler lambda_function.lambda_handler \
-            --zip-file fileb://db_init_lambda.zip \
-            --region $AWS_REGION
-          aws lambda wait function-updated \
-            --function-name algo-db-init-dev \
-            --region $AWS_REGION
-          echo "✅ DB Init Lambda deployed"
+          FUNC_NAME="algo-db-init-dev"
+          ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-db-init-lambda-dev"
+
+          # Try to update existing function code
+          if aws lambda get-function --function-name "$FUNC_NAME" --region $AWS_REGION >/dev/null 2>&1; then
+            echo "Updating existing Lambda function: $FUNC_NAME"
+            aws lambda update-function-code \
+              --function-name "$FUNC_NAME" \
+              --zip-file fileb://db_init_lambda.zip \
+              --region $AWS_REGION
+          else
+            echo "Creating new Lambda function: $FUNC_NAME"
+            aws lambda create-function \
+              --function-name "$FUNC_NAME" \
+              --runtime python3.11 \
+              --role "$ROLE_ARN" \
+              --handler lambda_function.lambda_handler \
+              --zip-file fileb://db_init_lambda.zip \
+              --region $AWS_REGION
+          fi
+
+          aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
+          echo "✅ DB Init Lambda deployed: $FUNC_NAME"
 
   # ──────────────────────────────────────────────────────────────
   # Frontend
