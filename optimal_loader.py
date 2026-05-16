@@ -49,7 +49,7 @@ except ImportError:
     credential_manager = None
 
 log = logging.getLogger(__name__)
-_credential_manager = get_credential_manager()
+_credential_manager = credential_manager
 
 
 class OptimalLoader(ABC):

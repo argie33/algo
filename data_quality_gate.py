@@ -35,8 +35,6 @@ if env_file.exists():
 
 log = logging.getLogger(__name__)
 
-credential_manager = get_credential_manager()
-
 
 class DataQualityGate:
     """Unified validation gate used by ALL loaders."""

@@ -36,7 +36,7 @@ from data_provenance_tracker import DataProvenanceTracker
 from data_watermark_manager import WatermarkManager
 from monitoring_context import TimeBlock
 
-_credential_manager = get_credential_manager()
+_credential_manager = credential_manager
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath

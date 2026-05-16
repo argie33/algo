@@ -1410,7 +1410,7 @@ class APIHandler:
                 """)
                 events = self.cur.fetchall()
                 return json_response(200, [dict(e) for e in events] if events else [])
-            return error_response(500, 'database_error', str(e))
+            return error_response(404, 'not_found', f'No economic handler for {path}')
         except Exception as e:
             logger.error(f"Error in economic handler: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -1436,7 +1436,7 @@ class APIHandler:
                         'vix_level': float(row['vix_level']) if row['vix_level'] else None,
                         'date': str(row['date']),
                     })
-                return error_response(500, 'database_error', str(e))
+                return json_response(200, {})
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
                 limit = int(params.get('limit', [5000])[0]) if params else 5000
                 page = int(params.get('page', [1])[0]) if params else 1
@@ -1477,7 +1477,7 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return json_response(200, [dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
-                return error_response(500, 'database_error', str(e))
+                return json_response(200, [])
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)

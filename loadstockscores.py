@@ -33,8 +33,6 @@ from data_tick_validator import validate_score_tick
 from data_provenance_tracker import DataProvenanceTracker
 from data_watermark_manager import WatermarkManager
 
-credential_manager = get_credential_manager()
-
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath
 try:
