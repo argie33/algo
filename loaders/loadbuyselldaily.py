@@ -340,9 +340,9 @@ class BuySellDailyLoader(OptimalLoader):
             return None
 
         signal_str = None
-        if rsi < 30:
+        if rsi < 30 and macd > signal_line:
             signal_str = "BUY"
-        elif rsi > 70:
+        elif rsi > 70 and macd < signal_line:
             signal_str = "SELL"
 
         if not signal_str:
