@@ -2255,10 +2255,10 @@ class APIHandler:
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
                 self.cur.execute("""
-                    SELECT fg.date, fg.fear_greed_value, mh.put_call_ratio, mh.vix_level
-                    FROM fear_greed_index fg
-                    LEFT JOIN market_health_daily mh ON fg.date = mh.date
-                    ORDER BY fg.date DESC
+                    SELECT symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
+                           target_price, current_price, upside_downside_percent
+                    FROM analyst_sentiment_analysis
+                    ORDER BY date DESC, symbol ASC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 sentiment = self.cur.fetchall()
