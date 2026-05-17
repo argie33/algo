@@ -365,6 +365,25 @@ class Backtester:
         winning_trades = sum(1 for t in self.trades if t['pnl'] > 0)
         win_rate = (winning_trades / closed_trades * 100) if closed_trades > 0 else 0
 
+        # R-multiple and profit factor calculations
+        winning_pnl = sum(t['pnl'] for t in self.trades if t['pnl'] > 0)
+        losing_pnl = sum(t['pnl'] for t in self.trades if t['pnl'] < 0)
+        profit_factor = abs(winning_pnl / losing_pnl) if losing_pnl != 0 else 0
+
+        # Average R-multiple (estimate from return percentages)
+        winning_trades_list = [t for t in self.trades if t['pnl'] > 0]
+        losing_trades_list = [t for t in self.trades if t['pnl'] < 0]
+
+        avg_win_r = statistics.mean([t['return_pct'] for t in winning_trades_list]) / 100 if winning_trades_list else 0
+        avg_loss_r = statistics.mean([t['return_pct'] for t in losing_trades_list]) / 100 if losing_trades_list else 0
+
+        # Expectancy = (win% × avg_win) - (loss% × avg_loss)
+        win_pct = winning_trades / closed_trades if closed_trades > 0 else 0
+        loss_pct = 1 - win_pct
+        expectancy_r = (win_pct * avg_win_r) - (loss_pct * abs(avg_loss_r)) if closed_trades > 0 else 0
+
+        avg_r_per_trade = statistics.mean([t['return_pct'] / 100 for t in self.trades]) if self.trades else 0
+
         # Days in backtest
         days_in_test = (self.daily_values[-1]['date'] - self.daily_values[0]['date']).days
 
@@ -382,6 +401,11 @@ class Backtester:
             'closed_trades': closed_trades,
             'winning_trades': winning_trades,
             'win_rate_pct': round(win_rate, 1),
+            'avg_r_per_trade': round(avg_r_per_trade, 2),
+            'avg_win_r': round(avg_win_r, 2),
+            'avg_loss_r': round(avg_loss_r, 2),
+            'profit_factor': round(profit_factor, 2),
+            'expectancy_r': round(expectancy_r, 3),
             'max_positions': self.max_positions,
         }
 
