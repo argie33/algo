@@ -60,6 +60,7 @@ class ExitEngine:
         self.executor = TradeExecutor(config)
         self.conn = None
         self.cur = None
+        self.verbose = True
 
     def connect(self) -> None:
         self.conn = psycopg2.connect(**_get_db_config())
