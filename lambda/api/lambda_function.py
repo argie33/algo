@@ -653,7 +653,7 @@ class APIHandler:
                 LIMIT 1000
             """, (cutoff_date,))
             curve = self.cur.fetchall()
-            return json_response(200, [dict(c) for c in reversed(curve) if c])
+            return list_response([dict(c) for c in reversed(curve) if c])
         except Exception as e:
             logger.error(f"Error fetching equity curve: {e}", exc_info=True)
             return json_response(500, {'error': 'Failed to fetch equity curve'})
@@ -686,7 +686,7 @@ class APIHandler:
                 LIMIT 50
             """)
             notifs = self.cur.fetchall()
-            return json_response(200, [dict(n) for n in notifs])
+            return list_response([dict(n) for n in notifs])
         except Exception as e:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
             return json_response(500, {'error': 'Failed to fetch notifications'})
@@ -701,7 +701,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             findings = self.cur.fetchall()
-            return json_response(200, [dict(f) for f in findings])
+            return list_response([dict(f) for f in findings])
         except Exception as e:
             logger.error(f"Error fetching patrol log: {e}", exc_info=True)
             return json_response(500, {'error': 'Failed to fetch patrol log'})
@@ -717,7 +717,7 @@ class APIHandler:
                 ORDER BY date DESC, rank ASC
             """, (cutoff_date,))
             rotation = self.cur.fetchall()
-            return json_response(200, [dict(r) for r in rotation])
+            return list_response([dict(r) for r in rotation])
         except Exception as e:
             logger.error(f"Error fetching sector rotation: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -739,7 +739,7 @@ class APIHandler:
                 ORDER BY up_count DESC
             """)
             breadth = self.cur.fetchall()
-            return json_response(200, [dict(b) for b in breadth])
+            return list_response([dict(b) for b in breadth])
         except Exception as e:
             logger.error(f"Error fetching sector breadth: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -759,7 +759,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             scores = self.cur.fetchall()
-            return json_response(200, [dict(s) for s in scores])
+            return list_response([dict(s) for s in scores])
         except Exception as e:
             logger.error(f"get_swing_scores failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -778,7 +778,7 @@ class APIHandler:
                 ORDER BY date DESC
             """, (cutoff_date,))
             history = self.cur.fetchall()
-            return json_response(200, [dict(h) for h in history])
+            return list_response([dict(h) for h in history])
         except Exception as e:
             logger.error(f"get_swing_scores_history failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -801,7 +801,7 @@ class APIHandler:
                 ORDER BY count DESC
             """)
             funnel = self.cur.fetchall()
-            return json_response(200, [dict(f) for f in funnel])
+            return list_response([dict(f) for f in funnel])
         except Exception as e:
             logger.error(f"Error fetching rejection funnel: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -819,7 +819,7 @@ class APIHandler:
                 LIMIT 120
             """)
             markets = self.cur.fetchall()
-            return json_response(200, [dict(m) for m in markets])
+            return list_response([dict(m) for m in markets])
         except Exception as e:
             logger.error(f"Error fetching markets data: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -918,7 +918,7 @@ class APIHandler:
                 LIMIT 50
             """)
             rows = self.cur.fetchall()
-            return json_response(200, [dict(r) for r in rows])
+            return list_response([dict(r) for r in rows])
         except Exception as e:
             logger.error(f"get_sector_stage2 failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -928,7 +928,7 @@ class APIHandler:
         try:
             self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
             rows = self.cur.fetchall()
-            return json_response(200, [dict(r) for r in rows])
+            return list_response([dict(r) for r in rows])
         except Exception as e:
             logger.error(f"algo_config error: {e}")
             return error_response(500, 'database_error', str(e))
@@ -994,7 +994,7 @@ class APIHandler:
                         ORDER BY fiscal_year DESC LIMIT 5
                     """, (symbol,))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
 
             elif endpoint == 'balance-sheet':
                 if period == 'quarterly':
@@ -1012,7 +1012,7 @@ class APIHandler:
                         ORDER BY fiscal_year DESC LIMIT 5
                     """, (symbol,))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
 
             elif endpoint == 'cash-flow':
                 if period == 'quarterly':
@@ -1029,7 +1029,7 @@ class APIHandler:
                         ORDER BY fiscal_year DESC LIMIT 5
                     """, (symbol,))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
 
             elif endpoint == 'key-metrics':
                 self.cur.execute("""
@@ -1165,7 +1165,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             signals = self.cur.fetchall()
-            return json_response(200, [dict(s) for s in signals])
+            return list_response([dict(s) for s in signals])
         except Exception as e:
             logger.error(f"get_signals_etf failed: {e}")
             return error_response(500, 'internal_error', f'Signals ETF error: {str(e)}')
@@ -1192,7 +1192,7 @@ class APIHandler:
                 LIMIT %s
             """, (symbol.upper(), limit))
             prices = self.cur.fetchall()
-            return json_response(200, [dict(p) for p in reversed(prices)])
+            return list_response([dict(p) for p in reversed(prices)])
         except Exception as e:
             logger.error(f"get_price_history failed: {e}")
             return error_response(500, 'internal_error', f'Price history error: {str(e)}')
@@ -1225,7 +1225,7 @@ class APIHandler:
                 args.append(limit)
                 self.cur.execute(query, args)
                 stocks = self.cur.fetchall()
-                return json_response(200, [dict(s) for s in stocks])
+                return list_response([dict(s) for s in stocks])
             except Exception as e:
                 logger.error(f"stocks list error: {e}")
                 return error_response(500, 'database_error', str(e))
@@ -1291,7 +1291,7 @@ class APIHandler:
                 LIMIT %s
             """, (limit,))
             stocks = self.cur.fetchall()
-            return json_response(200, [dict(s) for s in stocks])
+            return list_response([dict(s) for s in stocks])
         except Exception as e:
             logger.error(f"get_deep_value_stocks failed: {e}")
             return error_response(500, 'database_error', str(e))
@@ -1337,7 +1337,7 @@ class APIHandler:
                     ORDER BY value DESC
                 """)
                 alloc = self.cur.fetchall()
-                return json_response(200, [dict(a) for a in alloc])
+                return list_response([dict(a) for a in alloc])
             return error_response(404, 'not_found', f'Unknown portfolio endpoint: {path}')
         except Exception as e:
             logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
@@ -1453,7 +1453,7 @@ class APIHandler:
                     ORDER BY date DESC
                 """, (sector_name, days))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
             return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
         except Exception as e:
             logger.error(f"Error in sectors handler: {e}", exc_info=True)
@@ -1475,7 +1475,7 @@ class APIHandler:
                     ORDER BY date DESC
                 """, (industry_name, days))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
             else:
                 limit = int(params.get('limit', [500])[0]) if params else 500
                 page = int(params.get('page', [1])[0]) if params else 1
@@ -1592,7 +1592,7 @@ class APIHandler:
                     ORDER BY date DESC
                 """)
                 breadth = self.cur.fetchall()
-                return json_response(200, [dict(b) for b in breadth])
+                return list_response([dict(b) for b in breadth])
             elif path == '/api/market/technicals':
                 self.cur.execute("""
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
@@ -1629,7 +1629,7 @@ class APIHandler:
                     LIMIT 20
                 """)
                 movers = self.cur.fetchall()
-                return json_response(200, [dict(m) for m in movers] if movers else [])
+                return list_response([dict(m) for m in movers] if movers else [])
             elif path == '/api/market/distribution-days':
                 self.cur.execute("""
                     SELECT symbol, date, distribution_count
@@ -1638,7 +1638,7 @@ class APIHandler:
                     LIMIT 50
                 """)
                 dist = self.cur.fetchall()
-                return json_response(200, [dict(d) for d in dist] if dist else [])
+                return list_response([dict(d) for d in dist] if dist else [])
             elif path == '/api/market/seasonality':
                 # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
                 self.cur.execute("""
@@ -1667,7 +1667,7 @@ class APIHandler:
                     ORDER BY date DESC
                 """, (range_days,))
                 sentiment = self.cur.fetchall()
-                return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
+                return list_response([dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/market/fear-greed':
                 range_days = self._parse_range_param(params) if params else 30
                 return self._get_fear_greed_history(range_days)
@@ -1690,7 +1690,7 @@ class APIHandler:
                     LIMIT 52
                 """)
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
+                return list_response([dict(r) for r in rows] if rows else [])
         except Exception as e:
             logger.error(f"market handler error: {e}")
             return error_response(500, 'database_error', str(e))
@@ -1706,7 +1706,7 @@ class APIHandler:
                 ORDER BY date DESC
             """, (cutoff_date,))
             history = self.cur.fetchall()
-            return json_response(200, [dict(h) for h in history] if history else [])
+            return list_response([dict(h) for h in history] if history else [])
         except Exception as e:
             logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
@@ -1728,7 +1728,7 @@ class APIHandler:
                     LIMIT 100
                 """)
                 events = self.cur.fetchall()
-                return json_response(200, [dict(e) for e in events] if events else [])
+                return list_response([dict(e) for e in events] if events else [])
             elif path == '/api/economic':
                 # Combine all economic data
                 return self._get_leading_indicators()
@@ -1949,7 +1949,7 @@ class APIHandler:
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 sentiment = self.cur.fetchall()
-                return json_response(200, [dict(s) for s in sentiment] if sentiment else [])
+                return list_response([dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/sentiment/divergence':
                 self.cur.execute("""
                     SELECT asa.symbol, asa.date,
@@ -1964,7 +1964,7 @@ class APIHandler:
                     LIMIT 100
                 """)
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
+                return list_response([dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/analyst/insights/'):
                 symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
                 self.cur.execute("""
@@ -1976,7 +1976,7 @@ class APIHandler:
                     LIMIT 12
                 """, (symbol,))
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows] if rows else [])
+                return list_response([dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
                 return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
@@ -2076,7 +2076,7 @@ class APIHandler:
             params_list.extend([limit, offset])
             self.cur.execute(query, params_list)
             scores = self.cur.fetchall()
-            return json_response(200, [dict(s) for s in scores])
+            return list_response([dict(s) for s in scores])
         except Exception as e:
             logger.error(f"get_stock_scores failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', f'Stock scores error: {str(e)}')
@@ -2096,7 +2096,7 @@ class APIHandler:
                     LIMIT %s
                 """, (limit,))
                 backtests = self.cur.fetchall()
-                return json_response(200, [dict(b) for b in backtests] if backtests else [])
+                return list_response([dict(b) for b in backtests] if backtests else [])
             return error_response(404, 'not_found', f'No research handler for {path}')
         except Exception as e:
             logger.error(f"get_backtests failed: {e}", exc_info=True)
@@ -2116,7 +2116,7 @@ class APIHandler:
                     LIMIT %s
                 """, (limit,))
                 audits = self.cur.fetchall()
-                return json_response(200, [dict(a) for a in audits] if audits else [])
+                return list_response([dict(a) for a in audits] if audits else [])
             return error_response(404, 'not_found', f'No audit handler for {path}')
         except Exception as e:
             logger.error(f"Error in audit handler: {e}", exc_info=True)
@@ -2183,7 +2183,7 @@ class APIHandler:
                     LIMIT 100
                 """)
                 rows = self.cur.fetchall()
-                return json_response(200, [dict(r) for r in rows])
+                return list_response([dict(r) for r in rows])
             elif path == '/api/contact' and method == 'POST':
                 data = body or {}
                 name = str(data.get('name', ''))[:200]

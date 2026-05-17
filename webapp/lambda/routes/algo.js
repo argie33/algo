@@ -1089,6 +1089,12 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
   const path = require('path');
   try {
     const date = req.body?.date || null;
+
+    // Validate date format (YYYY-MM-DD) to prevent command injection
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return sendError(res, 'Invalid date format. Expected YYYY-MM-DD', 400);
+    }
+
     const args = ['algo_orchestrator.py', '--dry-run'];
     if (date) args.push('--date', date);
 
