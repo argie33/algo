@@ -255,12 +255,32 @@ class TradeExecutor:
                 return {'success': False, 'trade_id': '', 'status': 'invalid',
                         'message': f'Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}'}
 
+        # Generate idempotency key before any DB operations
+        # This ensures that the same trade parameters will always produce the same key,
+        # even if called multiple times. The key is used to prevent duplicate execution.
+        import hashlib
+        key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"
+        idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
+
         self.connect()
         try:
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
-            # ---- Idempotency: skip if we already have an open position for this symbol
-            #     OR an entry trade for this symbol on this signal_date ----
+
+            # ---- CRITICAL IDEMPOTENCY CHECK: Check if this exact trade already exists ----
+            self.cur.execute(
+                "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
+                (idempotency_key,)
+            )
+            existing_idempotent = self.cur.fetchone()
+            if existing_idempotent:
+                logger.warning(f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {existing_idempotent[0]})")
+                return {
+                    'success': False, 'trade_id': existing_idempotent[0], 'status': 'duplicate', 'duplicate': True,
+                    'message': f'Trade already exists for {symbol} on {signal_date} (idempotent duplicate)'
+                }
+
+            # ---- Check if we already have an open position for this symbol ----
             self.cur.execute(
                 "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                 (symbol, PositionStatus.OPEN.value),
@@ -271,6 +291,7 @@ class TradeExecutor:
                     'message': f'Already have open position in {symbol}'
                 }
 
+            # ---- Check for open/pending trades on this signal_date ----
             self.cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
@@ -464,11 +485,11 @@ class TradeExecutor:
                 entry_reason_parts.append(f'exposure={exposure_tier_at_entry}')
             entry_reason = ' | '.join(entry_reason_parts)
 
-            # Insert with FULL reasoning
+            # Insert with FULL reasoning and idempotency key
             self.cur.execute(
                 """
                 INSERT INTO algo_trades (
-                    trade_id, symbol, signal_date, trade_date,
+                    trade_id, idempotency_key, symbol, signal_date, trade_date,
                     entry_time, entry_price, entry_quantity, entry_reason,
                     stop_loss_price, stop_loss_method,
                     target_1_price, target_1_r_multiple,
@@ -485,7 +506,7 @@ class TradeExecutor:
                     reentry_count, prior_trade_id,
                     created_at
                 ) VALUES (
-                    %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
+                    %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
@@ -500,7 +521,7 @@ class TradeExecutor:
                 )
                 """,
                 (
-                    trade_id, symbol, signal_date, entry_date,
+                    trade_id, idempotency_key, symbol, signal_date, entry_date,
                     executed_price, shares, entry_reason,
                     stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),

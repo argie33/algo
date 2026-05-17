@@ -1229,6 +1229,7 @@ CREATE TABLE IF NOT EXISTS algo_signals_evaluated (
 CREATE TABLE IF NOT EXISTS algo_trades (
     id SERIAL PRIMARY KEY,
     trade_id VARCHAR(100) UNIQUE NOT NULL,
+    idempotency_key VARCHAR(64) UNIQUE NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     signal_date DATE NOT NULL,
     trade_date DATE NOT NULL,
@@ -1285,6 +1286,8 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, signal_date, entry_price)
 );
+
+CREATE INDEX IF NOT EXISTS idx_algo_trades_idempotency ON algo_trades(idempotency_key);
 
 -- Active positions tracking
 CREATE TABLE IF NOT EXISTS algo_positions (
