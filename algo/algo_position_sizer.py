@@ -49,20 +49,28 @@ def _get_db_config():
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""
 
-    def __init__(self, config):
+    def __init__(self, config, conn=None, cur=None):
         self.config = config
-        self.conn = None
-        self.cur = None
+        self.conn = conn
+        self.cur = cur
+        self._owns_connection = conn is None  # Track if we opened the connection
+
+        # If connection not provided, open our own
+        if not conn or not cur:
+            self.connect()
 
     def connect(self):
-        self.conn = psycopg2.connect(**_get_db_config())
-        self.cur = self.conn.cursor()
+        if not self.conn:
+            self.conn = psycopg2.connect(**_get_db_config())
+            self.cur = self.conn.cursor()
 
     def disconnect(self):
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
+        # Only close if we opened the connection
+        if self._owns_connection:
+            if self.cur:
+                self.cur.close()
+            if self.conn:
+                self.conn.close()
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -79,13 +87,21 @@ class PositionSizer:
 
         try:
             self.cur.execute("""
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1
             """)
             result = self.cur.fetchone()
             if result and result[0]:
-                return float(result[0])
-        except Exception:
+                snapshot_value = float(result[0])
+                snapshot_date = result[1]
+                # Check snapshot age — warn if > 2 trading days old
+                from datetime import date as _date
+                age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
+                if age_days > 2:
+                    logger.warning(f"Portfolio snapshot is {age_days} days old (limit: 2 days). Using stale value.")
+                return snapshot_value
+        except Exception as e:
+            logger.debug(f"Error fetching portfolio snapshot: {e}")
             pass
 
         raise RuntimeError(

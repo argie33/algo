@@ -509,6 +509,37 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- API authentication keys for programmatic access
+CREATE TABLE IF NOT EXISTS api_keys (
+    id SERIAL PRIMARY KEY,
+    app_name VARCHAR(255) NOT NULL,
+    key_hash VARCHAR(64) NOT NULL UNIQUE,
+    permissions TEXT DEFAULT 'read',
+    rate_limit_per_hour INTEGER DEFAULT 3600,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_used_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- API request logs for auditing and rate limiting
+CREATE TABLE IF NOT EXISTS api_requests_log (
+    id SERIAL PRIMARY KEY,
+    api_key_id INTEGER REFERENCES api_keys(id) ON DELETE CASCADE,
+    endpoint VARCHAR(255),
+    method VARCHAR(10),
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    source_ip VARCHAR(45),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index on api_requests_log for rate limiting queries
+CREATE INDEX IF NOT EXISTS idx_api_requests_log_key_created
+    ON api_requests_log(api_key_id, created_at DESC);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMPANY & FUNDAMENTAL DATA
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1928,6 +1959,11 @@ def _run_migrations(conn, cur):
         "UPDATE economic_calendar SET forecast_value = forecast WHERE forecast_value IS NULL AND forecast IS NOT NULL",
         "UPDATE economic_calendar SET actual_value = actual WHERE actual_value IS NULL AND actual IS NOT NULL",
         "UPDATE economic_calendar SET previous_value = previous WHERE previous_value IS NULL AND previous IS NOT NULL",
+        # Cleanup: Drop old columns if data is fully migrated (optional, for schema cleanup)
+        "ALTER TABLE economic_calendar DROP COLUMN IF EXISTS date",
+        "ALTER TABLE economic_calendar DROP COLUMN IF EXISTS forecast",
+        "ALTER TABLE economic_calendar DROP COLUMN IF EXISTS actual",
+        "ALTER TABLE economic_calendar DROP COLUMN IF EXISTS previous",
     ]
 
     succeeded = 0
