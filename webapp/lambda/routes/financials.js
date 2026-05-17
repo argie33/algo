@@ -81,11 +81,12 @@ router.get("/:symbol/income-statement", async (req, res) => {
       'quarterly': 'quarterly_income_statement'
     };
     const tableName = validTables[period] || validTables['annual'];
+    const orderByClause = period === 'quarterly' ? 'ORDER BY fiscal_year DESC, fiscal_quarter DESC' : 'ORDER BY fiscal_year DESC';
     const result = await query(`
       SELECT *
       FROM ${tableName}
       WHERE symbol = $1
-      ORDER BY fiscal_year DESC
+      ${orderByClause}
       LIMIT 20
     `, [upperSymbol]);
 
@@ -122,11 +123,12 @@ router.get("/:symbol/cash-flow", async (req, res) => {
       'quarterly': 'quarterly_cash_flow'
     };
     const tableName = validTables[period] || validTables['annual'];
+    const orderByClause = period === 'quarterly' ? 'ORDER BY fiscal_year DESC, fiscal_quarter DESC' : 'ORDER BY fiscal_year DESC';
     const result = await query(`
       SELECT *
       FROM ${tableName}
       WHERE symbol = $1
-      ORDER BY fiscal_year DESC
+      ${orderByClause}
       LIMIT 20
     `, [upperSymbol]);
 
