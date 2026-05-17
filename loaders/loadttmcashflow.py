@@ -43,7 +43,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 
 class TtmCashFlowLoader(OptimalLoader):
     table_name = "ttm_cash_flow"
-    primary_key = ("symbol", "date")
+    primary_key = ("symbol", "date", "item_name")
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
