@@ -30,6 +30,10 @@ from datetime import datetime, timedelta, date, timezone
 from typing import Dict, Any, Optional, List, Tuple
 from pydantic import BaseModel, Field, field_validator, ValidationError
 from middleware.auth_middleware import APIKeyValidator
+from validation_schema import (
+    SymbolRequest, PaginationParams, DateRangeParams,
+    PriceData, TradeRequest, ScoreData
+)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
