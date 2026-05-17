@@ -2340,6 +2340,18 @@ class APIHandler:
 def lambda_handler(event, context):
     """AWS Lambda handler for HTTP API Gateway proxy integration."""
     try:
+        # Validate required configuration before processing requests
+        frontend_origin = os.environ.get('FRONTEND_ORIGIN')
+        if not frontend_origin:
+            environment = os.environ.get('ENVIRONMENT', 'production')
+            if environment == 'production':
+                # CRITICAL: CORS is disabled in production if FRONTEND_ORIGIN not set
+                logger.critical("FRONTEND_ORIGIN env var not set — API requests from browser will be blocked by CORS policy")
+                return error_response(503, 'misconfiguration', 'API not configured. Contact administrator.')
+            else:
+                # Dev/test: Allow localhost
+                logger.warning("FRONTEND_ORIGIN not set in development — allowing localhost")
+
         # Parse request
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
