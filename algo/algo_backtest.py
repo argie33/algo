@@ -524,14 +524,12 @@ def main():
         start_date = _date.fromisoformat(args.start)
         end_date = _date.fromisoformat(args.end)
     except ValueError:
-        print(f"Invalid date format. Use YYYY-MM-DD")
+        logger.error("Invalid date format. Use YYYY-MM-DD")
         return 1
 
     if args.walk_forward:
         # Walk-forward optimization
-        print(f"\n{'='*80}")
-        print(f"WALK-FORWARD OPTIMIZATION")
-        print(f"{'='*80}\n")
+        logger.info("WALK-FORWARD OPTIMIZATION")
 
         window_size = timedelta(days=args.window_size)
         windows = []
@@ -542,11 +540,11 @@ def main():
             windows.append((current_start, window_end))
             current_start = window_end + timedelta(days=1)
 
-        print(f"Testing {len(windows)} windows of {args.window_size} days each\n")
+        logger.info(f"Testing {len(windows)} windows of {args.window_size} days each")
 
         all_results = []
         for i, (win_start, win_end) in enumerate(windows):
-            print(f"Window {i+1}/{len(windows)}: {win_start} to {win_end}")
+            logger.info(f"Window {i+1}/{len(windows)}: {win_start} to {win_end}")
             bt = Backtester(
                 start_date=win_start,
                 end_date=win_end,
@@ -558,9 +556,9 @@ def main():
             all_results.append(result)
 
             if result['status'] == 'OK':
-                print(f"  Return: {result['total_return_pct']:+.2f}%, "
+                logger.info(f"Return: {result['total_return_pct']:+.2f}%, "
                       f"Sharpe: {result['sharpe_ratio']:.3f}, "
-                      f"DD: {result['max_drawdown_pct']:.2f}%\n")
+                      f"DD: {result['max_drawdown_pct']:.2f}%")
 
         # Calculate WFE
         sharpe_ratios = [r['sharpe_ratio'] for r in all_results if r['status'] == 'OK']
@@ -569,18 +567,15 @@ def main():
             avg_oos_sharpe = statistics.mean(sharpe_ratios[-1:])
             wfe = avg_oos_sharpe / avg_is_sharpe if avg_is_sharpe > 0 else 0
 
-            print(f"{'='*80}")
-            print(f"WALK-FORWARD EFFICIENCY")
-            print(f"{'='*80}")
-            print(f"In-Sample Average Sharpe: {avg_is_sharpe:.3f}")
-            print(f"Out-of-Sample Average Sharpe: {avg_oos_sharpe:.3f}")
-            print(f"WFE: {wfe:.3f}")
+            logger.info("WALK-FORWARD EFFICIENCY")
+            logger.info(f"In-Sample Average Sharpe: {avg_is_sharpe:.3f}")
+            logger.info(f"Out-of-Sample Average Sharpe: {avg_oos_sharpe:.3f}")
+            logger.info(f"WFE: {wfe:.3f}")
             if wfe < 0.5:
-                print(f"[WARN] WFE < 0.5: Possible curve-fitting detected")
+                logger.warning("WFE < 0.5: Possible curve-fitting detected")
             else:
-                print(f"[OK] WFE >= 0.5: Results appear robust")
+                logger.info("WFE >= 0.5: Results appear robust")
 
-        print(f"{'='*80}\n")
         return 0
     else:
         # Single backtest
@@ -602,11 +597,8 @@ def main():
 
         bt.disconnect()
 
-        print(f"\n{'='*80}")
-        print(f"BACKTEST RESULTS")
-        print(f"{'='*80}\n")
-        print(json.dumps(result, indent=2, default=str))
-        print(f"{'='*80}\n")
+        logger.info("BACKTEST RESULTS")
+        logger.info(json.dumps(result, indent=2, default=str))
 
         return 0 if result.get('status') == 'OK' else 1
 

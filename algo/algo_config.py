@@ -266,6 +266,8 @@ class AlgoConfig:
                         self._config[key] = self._parse_value(value, dtype)
                     except ValueError as e:
                         logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
+            # Validate R-multiple ordering after full config load
+            self._validate_r_multiple_ordering()
         except Exception as e:
             logger.warning(f"Warning: Could not load config from DB: {e}")
             logger.info("  Using defaults...")

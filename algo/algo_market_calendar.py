@@ -7,6 +7,9 @@ Uses standard US market holidays. Can be extended for other markets.
 """
 
 from datetime import datetime, date as _date, time
+from utils.structured_logger import get_logger
+
+logger = get_logger(__name__)
 # US market holidays (2025-2026)
 US_HOLIDAYS = {
     _date(2025, 1, 1): "New Year's Day",
@@ -169,28 +172,26 @@ class MarketCalendar:
 if __name__ == '__main__':
     from datetime import timedelta
 
-    print(f"\n{'='*70}")
-    print("MARKET CALENDAR")
-    print(f"{'='*70}\n")
+    logger.info("MARKET CALENDAR")
 
     today = _date.today()
 
     # Current status
     status = MarketCalendar.market_status()
-    print(f"Current status: {status['status']}")
-    print(f"  {status.get('reason', '')}")
+    logger.info(f"Current status: {status['status']}")
+    logger.info(f"  {status.get('reason', '')}")
 
     # Next 5 days
-    print(f"\nNext 5 days:")
+    logger.info("Next 5 days:")
     for i in range(5):
         check_date = today + timedelta(days=i)
         if MarketCalendar.is_trading_day(check_date):
             early = " (early close 3pm)" if check_date in EARLY_CLOSES else ""
-            print(f"  {check_date}: OPEN{early}")
+            logger.info(f"  {check_date}: OPEN{early}")
         elif check_date in US_HOLIDAYS:
-            print(f"  {check_date}: CLOSED - {US_HOLIDAYS[check_date]}")
+            logger.info(f"  {check_date}: CLOSED - {US_HOLIDAYS[check_date]}")
         else:
-            print(f"  {check_date}: CLOSED - Weekend")
+            logger.info(f"  {check_date}: CLOSED - Weekend")
 
     next_trading = MarketCalendar.get_next_trading_day(today)
-    print(f"\nNext trading day: {next_trading}")
+    logger.info(f"Next trading day: {next_trading}")

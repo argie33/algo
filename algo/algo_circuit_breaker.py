@@ -162,8 +162,6 @@ class CircuitBreaker:
         # Bootstrap path: if table is empty (first ever run), allow through
         if not row or not row[0] or not row[1]:
             return {'halted': False, 'reason': 'First run — no portfolio history yet'}
-        if not row[0] or not row[1]:
-            return {'halted': True, 'reason': 'Portfolio history missing — fail-closed'}
         peak = float(row[0])
         cur_val = float(row[1])
         if peak <= 0 or cur_val <= 0:
