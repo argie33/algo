@@ -180,9 +180,16 @@ If you catch yourself creating:
 **Single Source of Truth:**
 
 - **STATUS.md** = Current state (what's working, what's broken, next 3-5 items)
-  - Updated every session
+  - Updated every session, but KEEP LEAN (max ~300 lines)
   - ~500 tokens, read every time, essential
   - One file, always current
+  - **ANTI-SPRAWL RULE:** Never include old session summaries, audit histories, or completed work from past sessions. That goes to git log via commit messages. Keep only:
+    1. Current system state (1 paragraph)
+    2. What's working (bullet points)
+    3. What's pending (bullet points)
+    4. Next 3-5 immediate steps
+    5. Key metrics (table, optional)
+  - If STATUS.md exceeds 300 lines, archive old sections to git history (close it in a commit message)
 
 - **memory/** = Permanent learnings (principles, constraints, patterns)
   - Updated only when principle changes
