@@ -354,30 +354,60 @@ class Orchestrator:
 
     # ---------- Logging helpers ----------
 
-    def _acquire_run_lock(self):
+    def _acquire_run_lock(self, lock_timeout_seconds=3600):
         """Acquire exclusive lock to prevent concurrent orchestrator runs.
 
-        Uses file-based locking with PID checking. If another instance holds the lock
-        but its PID is dead, steal the lock and continue.
+        Uses file-based locking with PID checking and timestamp-based expiration.
+        If another instance holds the lock but:
+        - Its PID is dead, OR
+        - The lock timestamp is older than lock_timeout_seconds
+        Then steal the lock and continue.
+
+        Args:
+            lock_timeout_seconds: Maximum age of lock before forcing acquisition (default 1 hour)
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
+        import time
+        import json
+
         if self.lock_file.exists():
             try:
                 lock_content = self.lock_file.read_text().strip()
                 if lock_content:
-                    old_pid = int(lock_content)
-                    if self._pid_alive(old_pid):
-                        logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
-                        return False
-                    else:
-                        logger.info(f"Stale lock from PID {old_pid} — acquiring")
+                    # Lock format: JSON with pid and timestamp
+                    try:
+                        lock_data = json.loads(lock_content)
+                        old_pid = lock_data.get('pid')
+                        lock_timestamp = lock_data.get('timestamp', time.time())
+                        lock_age = time.time() - lock_timestamp
+
+                        if self._pid_alive(old_pid) and lock_age < lock_timeout_seconds:
+                            logger.error(f"ERROR: Orchestrator already running (PID {old_pid}, lock age {lock_age:.0f}s)")
+                            return False
+                        else:
+                            if not self._pid_alive(old_pid):
+                                logger.info(f"Stale lock from dead PID {old_pid} — acquiring")
+                            else:
+                                logger.warning(f"Lock timeout: PID {old_pid} lock age {lock_age:.0f}s > {lock_timeout_seconds}s limit — forcing acquisition")
+                    except (json.JSONDecodeError, ValueError):
+                        # Handle old lock format (just PID)
+                        old_pid = int(lock_content)
+                        if self._pid_alive(old_pid):
+                            logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
+                            return False
+                        else:
+                            logger.info(f"Stale lock from PID {old_pid} — acquiring")
             except Exception as e:
                 logger.warning(f"Warning: Could not read lock file: {e}")
 
-        # Acquire lock
+        # Acquire lock with timestamp
         try:
-            self.lock_file.write_text(str(os.getpid()))
+            lock_data = {
+                'pid': os.getpid(),
+                'timestamp': time.time()
+            }
+            self.lock_file.write_text(json.dumps(lock_data))
             self._lock_acquired = True
             if self.verbose:
                 logger.info(f"Lock acquired (PID {os.getpid()})")
