@@ -428,17 +428,30 @@ class CircuitBreaker:
             return 20.0
 
     def _check_market_stage(self, current_date: Any) -> Dict[str, Any]:
+        """H7 FIX: Market stage validation with data freshness check.
+
+        Ensures we don't use stale market stage data from days ago.
+        """
         self.cur.execute(
-            "SELECT market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = self.cur.fetchone()
         if not row:
             return {'halted': True, 'reason': 'Market health data missing — fail-closed'}
-        if row[0] is None:
+
+        # H7 FIX: Check data freshness (must be from today or yesterday)
+        data_date = row[0]
+        days_stale = (current_date - data_date).days
+        max_stale_days = 1  # Market stage must be from today or yesterday
+        if days_stale > max_stale_days:
+            return {'halted': True, 'reason': f'Market stage data stale ({days_stale}d old) — fail-closed'}
+
+        if row[1] is None:
             return {'halted': True, 'reason': 'Market stage NULL — fail-closed to prevent trading in unknown stage'}
-        stage = int(row[0])
-        trend = row[1] or 'unknown'
+
+        stage = int(row[1])
+        trend = row[2] or 'unknown'
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4
         return {
