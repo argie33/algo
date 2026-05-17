@@ -7,12 +7,13 @@
  *
  * Pipeline DAG:
  *   eod_bulk_refresh
- *     → technicals_daily
- *       → [parallel] trend_template_data + stock_scores
- *         → [parallel] signals_daily + signals_weekly + signals_monthly
- *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
- *           → algo_metrics_daily
- *             → Invoke algo orchestrator Lambda
+ *     → [parallel] trend_template_data + stock_scores + market enrichment + sentiment + economic
+ *       → [parallel] signals_daily + signals_weekly + signals_monthly
+ *                   + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
+ *         → algo_metrics_daily
+ *           → Invoke algo orchestrator Lambda
+ *
+ * Note: technicals_daily was removed from this pipeline (moved to async processing elsewhere)
  */
 
 locals {
@@ -164,34 +165,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
         }]
-        Next = "TechnicalsDaily"
-      }
-
-      # ── Step 2: Compute RSI / MACD / ATR / ADX from today's prices ───────
-      TechnicalsDaily = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync"
-        Parameters = {
-          Cluster        = var.ecs_cluster_arn
-          LaunchType     = "FARGATE"
-          TaskDefinition = var.loader_task_definition_arns["technicals_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 120
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
-        }]
         Next = "ParallelEnrichment"
       }
 
-      # ── Step 3: Parallel enrichment (all depend on technicals) ───────────
+      # ── Step 2: Parallel enrichment (market data, sentiment, economic) ────
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
