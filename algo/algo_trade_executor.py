@@ -686,14 +686,15 @@ class TradeExecutor:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
+        M7 FIX: Check if new stop is already at target level (idempotency for stop raises).
         Returns: (success: bool, message: str or None)
         """
         retry_config = RetryConfig(max_attempts=3, base_delay_ms=100)
 
         def do_update():
-            # Re-read current quantity (fresh for each retry)
+            # Re-read current quantity and stop (fresh for each retry)
             self.cur.execute(
-                "SELECT quantity FROM algo_positions WHERE position_id = %s",
+                "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,)
             )
             result = self.cur.fetchone()
@@ -701,6 +702,13 @@ class TradeExecutor:
                 raise ValueError(f"Position {position_id} not found")
 
             current_qty = result[0]
+            current_stop = float(result[1]) if result[1] else 0
+
+            # M7 FIX: Idempotency for stop raises - don't re-raise if already at target
+            effective_stop = new_stop_price
+            if new_stop_price and current_stop >= new_stop_price:
+                # Stop already at or above target - skip update (idempotency)
+                effective_stop = current_stop
 
             # Attempt update
             if full_exit or new_qty <= 0:
@@ -721,7 +729,7 @@ class TradeExecutor:
                            target_levels_hit = COALESCE(target_levels_hit, 0) + %s,
                            current_stop_price = %s
                        WHERE position_id = %s AND quantity = %s""",
-                    (new_qty, new_qty, increment_targets, new_stop_price, position_id, current_qty)
+                    (new_qty, new_qty, increment_targets, effective_stop, position_id, current_qty)
                 )
 
             return self.cur.rowcount > 0  # True if update succeeded
