@@ -131,9 +131,16 @@ class ExitEngine:
                 days_held = (current_date - trade_date).days
 
                 # CRITICAL FIX: Minimum 1-day hold to prevent same-day entry/exit
-                # All 39 closed trades currently at 0% P&L because they exit same day
+                # All 39 closed trades currently at 0% P&L because they exit same day (HISTORICAL)
+                # This fix ensures no position can exit on the same day it was entered
                 if days_held < 1:
-                    logger.info(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
+                    if self.verbose:
+                        logger.info(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
+                    continue
+
+                # Double-check: trade_date should never equal current_date (sanity check)
+                if trade_date == current_date:
+                    logger.critical(f"  {symbol}: BLOCKED - trade_date equals current_date (same-day entry/exit prevented)")
                     continue
 
                 exit_signal = self._evaluate_position(
