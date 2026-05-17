@@ -580,6 +580,17 @@ CREATE TABLE IF NOT EXISTS institutional_positioning (
 -- COMMODITY & MARKET DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- Commodity master table (definitions and metadata)
+CREATE TABLE IF NOT EXISTS commodities (
+    symbol VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(255),
+    category VARCHAR(100),
+    exchange VARCHAR(50),
+    currency VARCHAR(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Commodity prices and data (current snapshot)
 CREATE TABLE IF NOT EXISTS commodity_prices (
     id SERIAL PRIMARY KEY,
