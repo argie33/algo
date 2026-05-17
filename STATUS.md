@@ -1,8 +1,90 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session Continuation: Infrastructure Upgrade & Loader Enhancements)  
-**Status:** ✅ DATA PIPELINE RUNNING | ECS Fargate Orchestrator configured | Technical indicators watermarking ready  
-**Current Work:** TIER 2 (infrastructure) partial: ✓ Migrated orchestrator Lambda→ECS Fargate ✓ Enhanced technical indicators loader. Next: Frontend E2E testing (TIER 1.5) → Paper trading test (TIER 1.6)
+**Last Updated:** 2026-05-16 19:48 (Session Continuation: Connection Pool Optimization & Frontend Testing)  
+**Status:** ✅ DATA PIPELINE OPTIMIZED | 10,167 symbols cached | Frontend testing suite configured  
+**Current Work:** TIER 2 (frontend testing) in progress: ✓ Fixed loader timeouts ✓ Optimized price loader with batch pre-loading ✓ Created comprehensive frontend test suite. Next: Complete frontend validation → Paper trading test (TIER 1.6)
+
+## 🎯 SESSION CONTINUATION (2026-05-16 19:34-Present) — CONNECTION POOL OPTIMIZATION & FRONTEND TESTING
+
+### Work In Progress
+
+**1. TIER 1.1 (Completed): Data Pipeline Optimization**
+- **Fixed loadpricedaily.py timeout issue** (was 10+ minutes for 10K symbols)
+  - Added batch pre-loading of fallback prices (single DB connection instead of per-symbol)
+  - Pattern: Cache prices once before parallel execution (copied from loadstockscores.py success)
+  - Removed unnecessary connections in `_fallback_to_yesterday()`, `start_provenance_tracking()`, `get_active_symbols()`
+  
+- **Removed non-existent loader** from pipeline:
+  - load_trend_template_data.py doesn't exist; removed from tier_1c_technical
+  - Trend scoring already handled by loadstockscores.py swing_score calculation
+
+- **Increased loader timeouts** with intelligent selection:
+  - Heavy loaders (price, scores, financials): 30 minutes (1800s)
+  - Lighter loaders (others): 15 minutes (900s)
+  - Fix: run-all-loaders.py now has context-aware timeout logic
+
+- **Database Status:**
+  - ✓ 10,167 stock/ETF symbols loaded
+  - ✓ 1,528,512 daily prices (latest 2026-05-15)
+  - ✓ 1,528,150 technical indicators calculated
+  - ✓ 9,989 stock scores computed
+  - All critical tables fresh and ready for testing
+
+**2. TIER 2 (In Progress): Frontend E2E Testing Suite**
+- **Created test-frontend-pages.js**:
+  - Automated Playwright-based testing of all 21 frontend pages
+  - Tests: page load time, console errors, API response codes, performance metrics
+  - Generates detailed JSON report of results
+  - Currently installing Playwright browsers (chromium, firefox, webkit)
+
+- **Frontend Pages to Test (21 total):**
+  1. AlgoTradingDashboard (main dashboard)
+  2. TradeTracker (trade history)
+  3. PortfolioDashboard (portfolio)
+  4. PerformanceMetrics
+  5. TradingSignals
+  6. SwingCandidates
+  7. DeepValueStocks
+  8. ScoresDashboard
+  9. MetricsDashboard
+  10. SectorAnalysis
+  11. StockDetail (e.g., /stocks/AAPL)
+  12. EconomicDashboard
+  13. Sentiment
+  14. MarketsHealth
+  15. AuditViewer
+  16. PreTradeSimulator
+  17. BacktestResults
+  18. NotificationCenter
+  19. ServiceHealth
+  20. Settings
+  21. LoginPage
+
+- **Frontend Dev Server:**
+  - ✓ Running on http://localhost:5173 (Vite development server)
+  - ✓ Build completed in 1055ms
+  - ✓ Proxy configured for API calls to http://localhost:3001
+
+### Files Modified/Created
+- `loaders/loadpricedaily.py` — Added batch pre-loading optimization
+- `run-all-loaders.py` — Intelligent timeout selection based on loader type
+- `test-frontend-pages.js` — NEW: Comprehensive frontend test suite
+- `STATUS.md` — This session progress update
+
+### Commits Made
+- `cba15fb9a` — Connection pooling optimization for data loaders
+- `ab5a329ad` — Frontend testing framework and loader optimization
+
+### Next Steps
+1. ✅ Complete Playwright browser installation (in progress)
+2. Run frontend page test suite
+3. Fix any failing pages or API endpoints
+4. Verify all pages load <5 seconds
+5. Check for console errors and data display issues
+6. Run orchestrator paper trading test (TIER 1.6)
+7. 24-48 hour paper trading validation (TIER 3)
+
+---
 
 ## 🎯 SESSION CONTINUATION (2026-05-16) — INFRASTRUCTURE UPGRADE & LOADER ENHANCEMENTS
 
