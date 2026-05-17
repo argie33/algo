@@ -247,8 +247,8 @@ resource "aws_cloudwatch_composite_alarm" "data_freshness_unhealthy" {
     Severity = "CRITICAL"
   })
 
-  depends_on = concat(
-    [for alarm in aws_cloudwatch_metric_alarm.data_empty : alarm],
-    [for alarm in aws_cloudwatch_metric_alarm.data_stale_critical : alarm]
-  )
+  depends_on = [
+    aws_cloudwatch_metric_alarm.data_empty,
+    aws_cloudwatch_metric_alarm.data_stale_critical
+  ]
 }
