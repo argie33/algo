@@ -449,28 +449,69 @@ class StockScoresLoader(OptimalLoader):
             symbols = [r[0] for r in cur.fetchall()]
             logging.info(f"Computing RS percentiles for {len(symbols)} symbols...")
 
-            # Compute 12-month returns for each symbol
+            # Compute 12-month returns for each symbol (batch query, not N+1)
             returns_12m = {}
             end_date = date.today()
             start_date = end_date - timedelta(days=365)
 
-            for symbol in symbols:
-                try:
-                    # Get price data for past 12 months (oldest and newest)
-                    cur.execute("""
-                        SELECT close FROM price_daily
-                        WHERE symbol = %s AND date >= %s AND date <= %s
-                        ORDER BY date ASC
-                    """, (symbol, start_date, end_date))
-                    prices = [r[0] for r in cur.fetchall()]
+            try:
+                # Batch load: get first and last price for all symbols in one query
+                placeholders = ','.join(['%s'] * len(symbols))
+                cur.execute(f"""
+                    WITH ranked_prices AS (
+                        SELECT symbol, close,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) as rn_first,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn_last
+                        FROM price_daily
+                        WHERE symbol IN ({placeholders})
+                          AND date >= %s AND date <= %s
+                    )
+                    SELECT symbol, close, rn_first, rn_last FROM ranked_prices
+                    WHERE rn_first = 1 OR rn_last = 1
+                    ORDER BY symbol, rn_first DESC
+                """, tuple(symbols) + (start_date, end_date))
 
-                    if len(prices) >= 2:
-                        # Most recent price / 12-month-ago price - 1
-                        ret = (float(prices[-1]) / float(prices[0])) - 1.0
-                        returns_12m[symbol] = ret
-                except Exception as e:
-                    logging.debug(f"Could not compute 12m return for {symbol}: {e}")
-                    returns_12m[symbol] = None
+                price_data = {}
+                for symbol, close, rn_first, rn_last in cur.fetchall():
+                    if symbol not in price_data:
+                        price_data[symbol] = {}
+                    if rn_first == 1:
+                        price_data[symbol]['first'] = close
+                    if rn_last == 1:
+                        price_data[symbol]['last'] = close
+
+                # Calculate returns from batch data
+                for symbol in symbols:
+                    try:
+                        if symbol in price_data and 'first' in price_data[symbol] and 'last' in price_data[symbol]:
+                            first_price = float(price_data[symbol]['first'])
+                            last_price = float(price_data[symbol]['last'])
+                            if first_price > 0:
+                                ret = (last_price / first_price) - 1.0
+                                returns_12m[symbol] = ret
+                            else:
+                                returns_12m[symbol] = None
+                        else:
+                            returns_12m[symbol] = None
+                    except (ValueError, KeyError, ZeroDivisionError):
+                        returns_12m[symbol] = None
+            except Exception as e:
+                logging.debug(f"Batch RS percentile calculation failed: {e}")
+                # Fallback: compute individually (slower but safe)
+                for symbol in symbols:
+                    try:
+                        cur.execute("""
+                            SELECT close FROM price_daily
+                            WHERE symbol = %s AND date >= %s AND date <= %s
+                            ORDER BY date ASC
+                        """, (symbol, start_date, end_date))
+                        prices = [r[0] for r in cur.fetchall()]
+                        if len(prices) >= 2:
+                            ret = (float(prices[-1]) / float(prices[0])) - 1.0
+                            returns_12m[symbol] = ret
+                    except Exception as e2:
+                        logging.debug(f"Could not compute 12m return for {symbol}: {e2}")
+                    returns_12m[symbol] = returns_12m.get(symbol) or None
 
             # Rank returns cross-sectionally (only for symbols with valid returns)
             valid_symbols = {s: r for s, r in returns_12m.items() if r is not None}
