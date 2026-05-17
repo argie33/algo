@@ -17,14 +17,6 @@ import os
 import psycopg2
 import psycopg2.errors
 
-try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
-    DEFAULT_DB_HOST = "localhost"
-    DEFAULT_DB_PORT = 5432
-    DEFAULT_DB_USER = "postgres"
-    DEFAULT_DB_NAME = "stocks"
-
 from algo.algo_exit_engine import ExitEngine
 from utils.trade_status import TradeStatus, PositionStatus
 
@@ -33,15 +25,9 @@ class TestExitEngineStopLoss:
     """Test stop loss detection and execution."""
 
     @pytest.fixture
-    def config(self):
-        return {
-            'max_hold_days': 30,
-            'min_avg_daily_dollar_volume': 5_000_000,
-            'db_host': DEFAULT_DB_HOST,
-            'db_port': 5432,
-            'db_name': DEFAULT_DB_NAME,
-            'db_user': DEFAULT_DB_USER,
-        }
+    def config(self, test_config):
+        """Use centralized test_config fixture from conftest."""
+        return test_config
 
     @pytest.fixture
     def exit_engine(self, config):
