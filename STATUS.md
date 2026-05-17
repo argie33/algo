@@ -35,7 +35,7 @@
 | **Skipped** | 54 | ℹ️ Intentional |
 | **Total** | 352 | 81.5% pass rate |
 
-All failures are database auth-related (missing DB_PASSWORD env var) |
+All failures are database auth-related (credentials need to be configured) |
 
 ---
 
