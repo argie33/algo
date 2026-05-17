@@ -40,6 +40,7 @@ const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboa
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
 const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
+const NotFound = React.lazy(() => import("./pages/NotFound"));
 
 import { useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -121,6 +122,12 @@ const menuItems = [
     text: "Backtest",
     icon: <TrendingUpIcon />,
     path: "/app/backtests",
+    category: "analysis",
+  },
+  {
+    text: "Metrics",
+    icon: <TrendingUpIcon />,
+    path: "/app/metrics",
     category: "analysis",
   },
 
@@ -361,8 +368,8 @@ function App() {
           {/* Authentication */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Fallback for marketing - if route doesn't exist, redirect to home */}
-          <Route path="*" element={<Home />} />
+          {/* Fallback - page not found */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </ErrorBoundary>
     );

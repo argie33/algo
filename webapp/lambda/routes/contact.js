@@ -19,7 +19,7 @@ router.post("/", async (req, res) => {
 
     // Validate required fields
     if (!name || !email || !message) {
-      return sendError(res, 400, "Name, email, and message are required", "MISSING_FIELDS");
+      return sendError(res, "Name, email, and message are required", 400);
     }
 
     // Trim whitespace
@@ -30,28 +30,28 @@ router.post("/", async (req, res) => {
 
     // Validate field lengths
     if (name.length === 0 || name.length > MAX_NAME_LEN) {
-      return sendError(res, 400, `Name must be 1-${MAX_NAME_LEN} characters`, "INVALID_NAME");
+      return sendError(res, `Name must be 1-${MAX_NAME_LEN} characters`, 400);
     }
     if (email.length === 0 || email.length > MAX_EMAIL_LEN) {
-      return sendError(res, 400, `Email must be 1-${MAX_EMAIL_LEN} characters`, "INVALID_EMAIL");
+      return sendError(res, `Email must be 1-${MAX_EMAIL_LEN} characters`, 400);
     }
     if (message.length === 0 || message.length > MAX_MESSAGE_LEN) {
-      return sendError(res, 400, `Message must be 1-${MAX_MESSAGE_LEN} characters`, "INVALID_MESSAGE");
+      return sendError(res, `Message must be 1-${MAX_MESSAGE_LEN} characters`, 400);
     }
     if (subject && subject.length > MAX_SUBJECT_LEN) {
-      return sendError(res, 400, `Subject must be less than ${MAX_SUBJECT_LEN} characters`, "INVALID_SUBJECT");
+      return sendError(res, `Subject must be less than ${MAX_SUBJECT_LEN} characters`, 400);
     }
 
     // Email validation (RFC 5322 simplified)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return sendError(res, 400, "Invalid email format", "INVALID_EMAIL");
+      return sendError(res, "Invalid email format", 400);
     }
 
     // Prevent common injection patterns (additional layer)
     const injectionPatterns = [/<script|javascript:|onerror=/i, /-->/i];
     if (injectionPatterns.some(pattern => pattern.test(name) || pattern.test(message))) {
-      return sendError(res, 400, "Invalid characters in submission", "INVALID_CONTENT");
+      return sendError(res, "Invalid characters in submission", 400);
     }
 
     // Save to database (parameterized queries prevent SQL injection)
@@ -67,13 +67,15 @@ router.post("/", async (req, res) => {
 
     // Return success with submission ID
     return sendSuccess(res, {
+      success: true,
       submission_id: submissionId,
-      submitted_at: result.rows[0].created_at
-    }, "Thank you for your message! We'll get back to you soon.", 201);
+      submitted_at: result.rows[0].created_at,
+      message: "Thank you for your message! We'll get back to you soon."
+    }, 201);
 
   } catch (error) {
     console.error("Error processing contact form:", error);
-    return sendError(res, 500, "Failed to submit contact form. Please try again later.", "SUBMIT_ERROR");
+    return sendError(res, "Failed to submit contact form. Please try again later.", 500);
   }
 });
 
@@ -114,7 +116,7 @@ router.get("/submissions", requireAuth, requireAdmin, async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching submissions:", error);
-    return sendError(res, 500, "Failed to fetch submissions", "FETCH_ERROR");
+    return sendError(res, "Failed to fetch submissions", 500);
   }
 });
 
@@ -131,14 +133,14 @@ router.get("/submissions/:id", requireAuth, requireAdmin, async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 404, "Submission not found", "NOT_FOUND");
+      return sendError(res, "Submission not found", 404);
     }
 
     return sendSuccess(res, result.rows[0]);
 
   } catch (error) {
     console.error("Error fetching submission:", error);
-    return sendError(res, 500, "Failed to fetch submission", "FETCH_ERROR");
+    return sendError(res, "Failed to fetch submission", 500);
   }
 });
 
@@ -149,7 +151,7 @@ router.patch("/submissions/:id", requireAuth, requireAdmin, async (req, res) => 
     const { status } = req.body;
 
     if (!['new', 'reviewed', 'archived'].includes(status)) {
-      return sendError(res, 400, "Invalid status", "INVALID_STATUS");
+      return sendError(res, "Invalid status", 400);
     }
 
     const result = await query(
@@ -161,14 +163,14 @@ router.patch("/submissions/:id", requireAuth, requireAdmin, async (req, res) => 
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 404, "Submission not found", "NOT_FOUND");
+      return sendError(res, "Submission not found", 404);
     }
 
     return sendSuccess(res, result.rows[0]);
 
   } catch (error) {
     console.error("Error updating submission:", error);
-    return sendError(res, 500, "Failed to update submission", "UPDATE_ERROR");
+    return sendError(res, "Failed to update submission", 500);
   }
 });
 

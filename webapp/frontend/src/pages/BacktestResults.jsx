@@ -50,14 +50,26 @@ export default function BacktestResults() {
     }
   );
 
-  const { data: detail } = useApiQuery(
+  const { data: detail, loading: detailLoading } = useApiQuery(
     ['backtest-detail', selectedRun],
     () => api.get(`/api/research/backtests/${selectedRun}`),
     { enabled: !!selectedRun }
   );
 
-  if (selectedRun && detail) {
-    return <RunDetail detail={detail} onBack={() => setSelectedRun(null)} />;
+  if (selectedRun) {
+    if (detailLoading) {
+      return (
+        <div className="main-content">
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <RefreshCw size={24} className="animate-spin" style={{ marginBottom: '16px' }} />
+            <div className="muted">Loading backtest details…</div>
+          </div>
+        </div>
+      );
+    }
+    if (detail) {
+      return <RunDetail detail={detail} onBack={() => setSelectedRun(null)} />;
+    }
   }
 
   return (
