@@ -6,7 +6,12 @@
 # 1. CloudWatch Log Group
 # ============================================================
 
+data "aws_cloudwatch_log_group" "batch_existing" {
+  name = "/aws/batch/${var.project_name}"
+}
+
 resource "aws_cloudwatch_log_group" "batch" {
+  count             = try(data.aws_cloudwatch_log_group.batch_existing.name, null) != null ? 0 : 1
   name              = "/aws/batch/${var.project_name}"
   retention_in_days = var.cloudwatch_log_retention_days
 
@@ -201,7 +206,7 @@ resource "aws_iam_role_policy" "batch_job_policy" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "${aws_cloudwatch_log_group.batch.arn}:*"
+        Resource = length(aws_cloudwatch_log_group.batch) > 0 ? "${aws_cloudwatch_log_group.batch[0].arn}:*" : "${data.aws_cloudwatch_log_group.batch_existing.arn}:*"
       }
     ]
   })
@@ -389,7 +394,7 @@ resource "aws_batch_job_definition" "buyselldaily" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.batch.name
+        "awslogs-group"         = length(aws_cloudwatch_log_group.batch) > 0 ? aws_cloudwatch_log_group.batch[0].name : data.aws_cloudwatch_log_group.batch_existing.name
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "buyselldaily"
       }
