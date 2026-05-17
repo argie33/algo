@@ -39,6 +39,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
+const paginationConfig = require('../config/pagination');
 
 // Helper function to check database availability before making queries
 function checkDatabaseAvailable(res) {
@@ -59,8 +60,7 @@ router.get("/", async (req, res) => {
   if (dbError) return dbError;
 
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 25, 500);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'commodities');
 
     const [result, countResult] = await Promise.all([
       query(`

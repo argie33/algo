@@ -2,13 +2,13 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const logger = require("../utils/logger");
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // GET /api/prices - Root endpoint, redirect to /latest
 router.get("/", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'prices');
 
     const [result, countResult] = await Promise.all([
       query(
@@ -38,8 +38,7 @@ router.get("/", async (req, res) => {
 // GET /api/price/latest - Get latest prices for all symbols
 router.get("/latest", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'prices');
 
     // OPTIMIZATION: Parallelize materialized view queries
     const [result, countResult] = await Promise.all([
@@ -72,7 +71,7 @@ router.get("/history/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const timeframe = req.query.timeframe || "daily";
-    const limit = Math.min(parseInt(req.query.limit) || 250, 10000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'prices');
 
     let table = "price_daily";
     if (timeframe === "weekly") table = "price_weekly";
@@ -105,7 +104,7 @@ router.get("/:symbol/history", async (req, res) => {
   try {
     const { symbol } = req.params;
     const timeframe = req.query.timeframe || "daily";
-    const limit = Math.min(parseInt(req.query.limit) || 250, 10000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'prices');
 
     let table = "price_daily";
     if (timeframe === "weekly") table = "price_weekly";

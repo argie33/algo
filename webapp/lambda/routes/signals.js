@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // GET / - Get signals with optional filters
@@ -9,9 +10,7 @@ router.get("/", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const symbol = req.query.symbol?.toUpperCase();
     const signal = req.query.signal?.toUpperCase();
-    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
 
     // Validate timeframe
     const timeframeMap = {
@@ -98,8 +97,7 @@ router.get("/stocks", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
     const symbol = req.query.symbol?.toUpperCase();
-    const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
 
     // Validate timeframe
     const timeframeMap = {
@@ -174,8 +172,7 @@ router.get("/stocks", async (req, res) => {
 router.get("/etf", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
-    const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
 
     // Validate timeframe
     const timeframeMap = {

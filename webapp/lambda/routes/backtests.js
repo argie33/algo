@@ -3,6 +3,7 @@ const { query } = require('../utils/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const paginationConfig = require('../config/pagination');
 
 const router = express.Router();
 const requireAuth = authenticateToken;
@@ -83,8 +84,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:run_id', async (req, res, next) => {
   try {
     const { run_id } = req.params;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
 
     // Get run details
     const runQ = `

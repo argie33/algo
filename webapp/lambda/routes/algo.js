@@ -884,7 +884,7 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
 router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
     const minSeverity = req.query.min_severity || 'warn';
     const sevOrder = { info: 0, warn: 1, error: 2, critical: 3 };
     const minSev = sevOrder[minSeverity] || 1;
@@ -924,7 +924,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
     const kind = req.query.kind || null;
     const severity = req.query.severity || null;
     const unread = req.query.unread === 'true';
@@ -1333,7 +1333,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
 router.get('/equity-curve', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 180, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'portfolio');
     const result = await pool.query(`
       SELECT snapshot_date, total_portfolio_value, daily_return_pct,
              unrealized_pnl_pct, position_count
@@ -1363,7 +1363,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
 router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'audit');
     const actionFilter = req.query.action_type || null;
 
     let query_str = `
@@ -1666,7 +1666,7 @@ router.get('/sector-stage2', async (req, res) => {
 router.get('/sector-rotation', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 90, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'security');
 
     const result = await pool.query(
       `SELECT date, sector, signal, strength, rank, details

@@ -1,14 +1,13 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // GET / - Root endpoint (alias for /list)
 router.get("/", async (req, res) => {
   try {
-    const { limit = 50, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 50, 1000);
-    const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'stocks');
 
     const resultObj = await query(`
       SELECT
@@ -37,9 +36,7 @@ router.get("/", async (req, res) => {
 // GET /list - List stocks
 router.get("/list", async (req, res) => {
   try {
-    const { limit = 50, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 50, 1000);
-    const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'stocks');
 
     const resultObj = await query(`
       SELECT
@@ -68,8 +65,7 @@ router.get("/list", async (req, res) => {
 // GET /deep-value - Get deep value stock screener (MUST be before /:symbol to avoid route masking)
 router.get("/deep-value", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 600, 5000);
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'stocks');
 
     const resultObj = await query(`
       SELECT

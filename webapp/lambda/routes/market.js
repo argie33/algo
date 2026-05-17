@@ -12,6 +12,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest } = require('../utils/apiResponse');
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // Helper function to check if required tables exist
@@ -2694,7 +2695,7 @@ router.get("/sentiment", async (req, res) => {
 // GET /api/market/top-movers - Top gainers and losers
 router.get("/top-movers", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'market');
 
     const result = await query(`
       WITH latest_prices AS (

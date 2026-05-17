@@ -9,6 +9,7 @@ try {
 
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 router.get("/:symbol/balance-sheet", async (req, res) => {
@@ -209,8 +210,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
 
 router.get("/all", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'financials');
 
     // OPTIMIZED: Parallelize data and count queries
     const [result, countResult] = await Promise.all([
