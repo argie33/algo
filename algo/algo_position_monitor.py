@@ -143,7 +143,7 @@ class PositionMonitor:
             # Check sector concentration first
             conc = self.check_sector_concentration(current_date)
             if conc['status'] == 'HIGH_CONCENTRATION':
-                logger.info(f"  ⚠️  Portfolio concentration risk detected")
+                logger.info(f"  [WARNING]  Portfolio concentration risk detected")
 
             self.cur.execute(
                 """

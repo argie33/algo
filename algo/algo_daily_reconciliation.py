@@ -114,7 +114,7 @@ class DailyReconciliation:
                 logger.info(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
                 logger.info(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
                 if analytics['expectancy']['alert']:
-                    logger.info(f"   🔴 {analytics['expectancy']['alert']}")
+                    logger.info(f"   [FAIL] {analytics['expectancy']['alert']}")
 
             # 2. Get open positions from database
             self.cur.execute("""

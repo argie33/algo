@@ -587,7 +587,7 @@ class LivePerformance:
                     )
                 )
                 conn.commit()
-                logger.info(f"✓ Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
+                logger.info(f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
             except Exception as e:
                 logger.error(f"Failed to persist performance report: {e}", exc_info=True)
             finally:

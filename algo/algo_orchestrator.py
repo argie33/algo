@@ -2157,11 +2157,14 @@ if __name__ == "__main__":
     from config.env_loader import load_env
     load_env()
 
-    from algo.algo_logging import configure_root_logger
-    configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
+    import logging
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
 
     from utils.config_validator import validate_at_startup
-    validate_at_startup()  # Environment variables only, no .env files
+    validate_at_startup(env_file=Path(__file__).parent.parent / '.env.local')
 
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')

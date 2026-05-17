@@ -560,7 +560,7 @@ class PortfolioRisk:
                     )
                 )
                 conn.commit()
-                logger.info(f"✓ Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%")
+                logger.info(f"[OK] Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%")
             except Exception as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
             finally:
