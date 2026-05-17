@@ -323,10 +323,7 @@ const rateLimitByUser = (requestsPerMinute = 100) => {
 
     // Check rate limit
     if (requests.length >= requestsPerMinute) {
-      return res.status(429).json({
-        error: `Too many requests. Limit: ${requestsPerMinute} per minute`,
-        success: false
-      });
+      return sendError(res, `Too many requests. Limit: ${requestsPerMinute} per minute`, 429);
     }
 
     // Add current request
@@ -361,9 +358,7 @@ const rateLimitAuth = (attemptsPerWindow = 5, windowMinutes = 15) => {
 
     // Check if rate limit exceeded
     if (attempts.length >= attemptsPerWindow) {
-      return res.status(429).json({
-        success: false,
-        error: `Too many authentication attempts. Please try again in ${windowMinutes} minutes.`,
+      return sendError(res, `Too many authentication attempts. Please try again in ${windowMinutes} minutes.`, 429, {
         code: 'AUTH_RATE_LIMITED',
         retryAfter: windowMinutes * 60
       });

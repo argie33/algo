@@ -23,6 +23,7 @@ import logging
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
+import psycopg2.pool
 import re
 import time
 from datetime import datetime, timedelta, date, timezone
@@ -31,10 +32,10 @@ from typing import Dict, Any, Optional, List
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Module-level connection cache: Lambda containers are reused across warm invocations.
-# Reusing the connection avoids ~100ms connection overhead and prevents exhausting
-# the RDS connection limit under concurrent Lambda scaling.
-_db_conn: Optional[Any] = None
+# Module-level connection pool: Lambda containers are reused across warm invocations.
+# ThreadedConnectionPool allows multiple sequential connections within a single Lambda container.
+# minconn=2 (at least 2 idle connections), maxconn=10 (max 10 concurrent, plenty for 128MB Lambda)
+_db_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 _db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-call latency
 
 # Rate limiting: track requests per IP

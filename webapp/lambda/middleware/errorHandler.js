@@ -1,3 +1,5 @@
+const { sendError } = require('../utils/apiResponse');
+
 const errorHandler = (err, req, res, _next) => {
   // Enhanced logging for AWS CloudWatch
   const errorDetails = {
