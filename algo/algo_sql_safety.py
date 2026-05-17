@@ -15,7 +15,7 @@ from typing import List, Tuple, Optional
 # Known safe tables (whitelist for dynamic table names)
 SAFE_TABLES = {
     'price_daily', 'price_intraday', 'price_weekly',
-    'market_health_daily', 'market_events',
+    'market_health_daily', 'market_events', 'market_exposure_daily',
     'algo_trades', 'algo_positions', 'algo_signals', 'algo_portfolio_snapshots',
     'algo_audit_log', 'algo_notifications', 'algo_data_patrol',
     'stock_fundamentals', 'stock_ownership', 'stock_ratings',
@@ -25,6 +25,8 @@ SAFE_TABLES = {
     'signal_quality_scores', 'sector_ranking', 'industry_ranking',
     'insider_transactions', 'analyst_upgrade_downgrade', 'stock_scores',
     'aaii_sentiment', 'growth_metrics', 'earnings_history',
+    'buy_sell_weekly', 'buy_sell_monthly', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
+    'quality_metrics', 'value_metrics', 'growth_metrics',
 }
 
 # Known safe columns (whitelist for dynamic column names)
