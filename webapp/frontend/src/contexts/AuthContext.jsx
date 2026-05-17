@@ -533,6 +533,7 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
+        console.warn(
           "Cognito not configured - using development authentication"
         );
         try {
