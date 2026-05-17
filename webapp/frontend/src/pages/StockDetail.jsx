@@ -708,9 +708,9 @@ function AlgoTab({ swing, scoreRow }) {
 
 // ─── Financials tab ────────────────────────────────────────────────────────
 function FinancialsTab({ income, balance, cashflow }) {
-  const incItems = Array.isArray(income) ? income : (income?.items || income || []);
-  const bsItems = Array.isArray(balance) ? balance : (balance?.items || balance || []);
-  const cfItems = Array.isArray(cashflow) ? cashflow : (cashflow?.items || cashflow || []);
+  const incItems = Array.isArray(income) ? income : (income?.financialData || income?.items || []);
+  const bsItems = Array.isArray(balance) ? balance : (balance?.financialData || balance?.items || []);
+  const cfItems = Array.isArray(cashflow) ? cashflow : (cashflow?.financialData || cashflow?.items || []);
   const inc = (incItems || []).slice(0, 8).reverse();
   const bs  = (bsItems || []).slice(0, 8).reverse();
   const cf  = (cfItems || []).slice(0, 8).reverse();
