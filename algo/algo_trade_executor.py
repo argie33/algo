@@ -125,16 +125,15 @@ class TradeExecutor:
 
     # ---------- Entry ----------
 
-    def execute_trade(self, symbol, entry_price, shares, stop_loss_price,
-                      target_1_price=None, target_2_price=None, target_3_price=None,
-                      signal_date=None, entry_date=None, sqs=None, trend_score=None,
-                      # New reasoning metadata for transparency:
-                      swing_score=None, swing_grade=None,
-                      base_type=None, base_quality=None, stage_phase=None,
-                      sector=None, industry=None, rs_percentile=None,
-                      market_exposure_at_entry=None, exposure_tier_at_entry=None,
-                      stop_method=None, stop_reasoning=None,
-                      swing_components=None, advanced_components=None) -> Dict[str, Any]:
+    def execute_trade(self, symbol: str, entry_price: float, shares: float, stop_loss_price: float,
+                      target_1_price: Optional[float] = None, target_2_price: Optional[float] = None, target_3_price: Optional[float] = None,
+                      signal_date: Optional[Any] = None, entry_date: Optional[Any] = None, sqs: Optional[Any] = None, trend_score: Optional[float] = None,
+                      swing_score: Optional[float] = None, swing_grade: Optional[str] = None,
+                      base_type: Optional[str] = None, base_quality: Optional[str] = None, stage_phase: Optional[str] = None,
+                      sector: Optional[str] = None, industry: Optional[str] = None, rs_percentile: Optional[float] = None,
+                      market_exposure_at_entry: Optional[float] = None, exposure_tier_at_entry: Optional[str] = None,
+                      stop_method: Optional[str] = None, stop_reasoning: Optional[str] = None,
+                      swing_components: Optional[Dict] = None, advanced_components: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute a new entry trade.
 
         Returns: {
@@ -688,7 +687,7 @@ class TradeExecutor:
 
     # ---------- Exit (full or partial) ----------
 
-    def _update_position_with_retry(self, position_id, new_qty, new_stop_price=None, full_exit=False, target_levels_hit=0, exit_stage=None):
+    def _update_position_with_retry(self, position_id: int, new_qty: float, new_stop_price: Optional[float] = None, full_exit: bool = False, target_levels_hit: int = 0, exit_stage: Optional[str] = None) -> None:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
@@ -745,8 +744,8 @@ class TradeExecutor:
             self.conn.rollback()
             return False, "Position quantity changed before update (race condition, retries exhausted)"
 
-    def exit_trade(self, trade_id, exit_price, exit_reason, exit_fraction=1.0,
-                   exit_stage=None, new_stop_price=None):
+    def exit_trade(self, trade_id: int, exit_price: float, exit_reason: str, exit_fraction: float = 1.0,
+                   exit_stage: Optional[str] = None, new_stop_price: Optional[float] = None) -> Dict[str, Any]:
         """Exit all or part of a position.
 
         Args:
@@ -1014,7 +1013,7 @@ class TradeExecutor:
 
     # ---------- Helpers ----------
 
-    def _get_portfolio_value(self):
+    def _get_portfolio_value(self) -> Optional[float]:
         """Live Alpaca equity, fall back to latest snapshot, alert if using stale data."""
         if self.alpaca_key and self.alpaca_secret:
             try:
