@@ -1751,49 +1751,54 @@ CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_informa
 -- ════════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS backtest_runs (
-    run_id SERIAL PRIMARY KEY,
-    run_name VARCHAR(200),
-    run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    strategy_name VARCHAR(200),
-    start_date DATE,
-    end_date DATE,
-    initial_capital DECIMAL(15,2),
-    final_value DECIMAL(15,2),
-    total_return DECIMAL(8,4),
-    annual_return DECIMAL(8,4),
-    max_drawdown DECIMAL(8,4),
-    sharpe_ratio DECIMAL(8,4),
-    sortino_ratio DECIMAL(8,4),
-    win_rate DECIMAL(8,4),
-    profit_factor DECIMAL(8,4),
-    num_trades INTEGER,
-    num_winning_trades INTEGER,
-    num_losing_trades INTEGER,
-    avg_win DECIMAL(15,2),
-    avg_loss DECIMAL(15,2),
-    largest_win DECIMAL(15,2),
-    largest_loss DECIMAL(15,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(run_name, run_timestamp)
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100) UNIQUE NOT NULL,
+    run_name VARCHAR(255),
+    strategy_name VARCHAR(100),
+    date_start DATE,
+    date_end DATE,
+    total_signals INTEGER,
+    total_trades INTEGER,
+    winning_trades INTEGER,
+    losing_trades INTEGER,
+    win_rate NUMERIC(8, 4),
+    expectancy_per_trade NUMERIC(12, 2),
+    profit_factor NUMERIC(8, 4),
+    max_drawdown_pct NUMERIC(8, 4),
+    sharpe_annualized NUMERIC(8, 4),
+    sortino_annualized NUMERIC(8, 4),
+    calmar_ratio NUMERIC(8, 4),
+    total_return_pct NUMERIC(12, 4),
+    avg_win_pct NUMERIC(8, 4),
+    avg_loss_pct NUMERIC(8, 4),
+    avg_hold_days INTEGER,
+    notes TEXT,
+    run_timestamp TIMESTAMP DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(date_start DESC);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_strategy ON backtest_runs(strategy_name);
+
 CREATE TABLE IF NOT EXISTS backtest_trades (
-    trade_id SERIAL PRIMARY KEY,
-    run_id INTEGER REFERENCES backtest_runs(run_id),
-    symbol VARCHAR(20),
-    entry_date DATE,
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100) NOT NULL REFERENCES backtest_runs(run_id) ON DELETE CASCADE,
+    symbol VARCHAR(10) NOT NULL,
+    entry_date DATE NOT NULL,
     exit_date DATE,
-    entry_price DECIMAL(12,4),
-    exit_price DECIMAL(12,4),
-    quantity DECIMAL(12,2),
-    entry_value DECIMAL(15,2),
-    exit_value DECIMAL(15,2),
-    profit_loss DECIMAL(15,2),
-    profit_loss_percent DECIMAL(8,4),
-    trade_outcome VARCHAR(50),
+    entry_price DECIMAL(12, 4),
+    exit_price DECIMAL(12, 4),
+    quantity INTEGER,
+    profit_loss DECIMAL(12, 4),
+    profit_loss_pct DECIMAL(8, 4),
+    trade_outcome VARCHAR(10),
     holding_days INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    exit_reason VARCHAR(50),
+    created_at TIMESTAMP DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_id ON backtest_trades(run_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
 
 CREATE TABLE IF NOT EXISTS safeguard_audit_log (
     id SERIAL PRIMARY KEY,

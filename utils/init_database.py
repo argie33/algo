@@ -2029,6 +2029,65 @@ CREATE INDEX IF NOT EXISTS idx_data_errors_run_id ON data_provenance_errors(run_
 CREATE INDEX IF NOT EXISTS idx_sector_ranking_date_desc ON sector_ranking(date_recorded DESC);
 CREATE INDEX IF NOT EXISTS idx_algo_trades_status_exit ON algo_trades(status, exit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_created ON data_patrol_log(created_at DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- BACKTEST RESULTS & HISTORICAL ANALYSIS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Backtest results: historical performance data from strategy runs
+CREATE TABLE IF NOT EXISTS backtest_results (
+    id SERIAL PRIMARY KEY,
+    backtest_id UUID UNIQUE DEFAULT gen_random_uuid(),
+    strategy_name VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20),
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    initial_capital DECIMAL(15, 2),
+    final_capital DECIMAL(15, 2),
+    total_return_pct DECIMAL(8, 4),
+    annualized_return_pct DECIMAL(8, 4),
+    max_drawdown_pct DECIMAL(8, 4),
+    sharpe_ratio DECIMAL(8, 4),
+    sortino_ratio DECIMAL(8, 4),
+    win_rate_pct DECIMAL(8, 4),
+    profit_factor DECIMAL(8, 4),
+    total_trades INTEGER,
+    winning_trades INTEGER,
+    losing_trades INTEGER,
+    avg_trade_return_pct DECIMAL(8, 4),
+    best_trade_pct DECIMAL(8, 4),
+    worst_trade_pct DECIMAL(8, 4),
+    avg_holding_days DECIMAL(8, 2),
+    parameters JSONB,
+    equity_curve JSONB,
+    trade_log JSONB,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Backtest trade details
+CREATE TABLE IF NOT EXISTS backtest_trades (
+    id SERIAL PRIMARY KEY,
+    backtest_id UUID REFERENCES backtest_results(backtest_id) ON DELETE CASCADE,
+    symbol VARCHAR(20) NOT NULL,
+    trade_date DATE NOT NULL,
+    entry_price DECIMAL(12, 4) NOT NULL,
+    entry_quantity INTEGER NOT NULL,
+    exit_date DATE,
+    exit_price DECIMAL(12, 4),
+    profit_loss_dollars DECIMAL(15, 2),
+    profit_loss_pct DECIMAL(8, 4),
+    holding_days INTEGER,
+    exit_reason VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for backtest queries
+CREATE INDEX IF NOT EXISTS idx_backtest_results_strategy ON backtest_results(strategy_name);
+CREATE INDEX IF NOT EXISTS idx_backtest_results_date ON backtest_results(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
 """
 
 def _run_migrations(conn, cur):

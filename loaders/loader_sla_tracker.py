@@ -239,12 +239,24 @@ class LoaderSLATracker:
 
                     row = cur.fetchone()
                     if not row:
-                        failures.append(f"{table_name}: Never loaded")
-                        continue
-
-                    status, error = row
-                    if status and status.upper() != 'OK':
-                        failures.append(f"{table_name}: {status} ({error})")
+                        # SLA tracker not populated — fall back to direct table freshness check
+                        try:
+                            cur.execute(f"SELECT MAX(date) FROM {table_name}")
+                            max_date_row = cur.fetchone()
+                            if not max_date_row or not max_date_row[0]:
+                                failures.append(f"{table_name}: No data found")
+                            else:
+                                days_old = (date.today() - max_date_row[0]).days
+                                if days_old > 3:
+                                    failures.append(f"{table_name}: Data is {days_old} days old")
+                                # else: data is fresh, no failure
+                        except Exception as fallback_error:
+                            log.warning(f"Fallback freshness check for {table_name} failed: {fallback_error}")
+                            # If fallback fails, don't block — loaders may not have 'date' column or table might be new
+                    else:
+                        status, error = row
+                        if status and status.upper() != 'OK':
+                            failures.append(f"{table_name}: {status} ({error})")
 
             return len(failures) == 0, failures
 

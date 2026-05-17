@@ -123,11 +123,11 @@ class PositionMonitor:
 
         try:
             self.cur.execute("""
-                SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+                SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
-                JOIN company_profile cp ON ap.symbol = cp.ticker
+                LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
                 WHERE ap.status = 'open' AND ap.quantity > 0
-                GROUP BY cp.sector
+                GROUP BY COALESCE(cp.sector, 'Unknown')
                 HAVING COUNT(DISTINCT ap.symbol) > 3
                 ORDER BY position_count DESC
             """)
