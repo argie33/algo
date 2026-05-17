@@ -21,10 +21,10 @@ Run:
 import argparse
 import logging
 import os
-import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 from utils.logging_setup import get_logger
+from utils.db_connection import get_db_connection
 
 try:
     from config.credential_manager import get_credential_manager
@@ -44,18 +44,11 @@ class EarningsCalendarLoader:
     def __init__(self):
         self.conn = None
         self.cur = None
-        self.db_config = {
-            "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
-            "port": int(os.getenv("DB_PORT", 5432)),
-            "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
-            "password": get_db_password(),
-            "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
-        }
 
     def connect(self):
         """Connect to database."""
         try:
-            self.conn = psycopg2.connect(**self.db_config)
+            self.conn = get_db_connection()
             self.cur = self.conn.cursor()
             logger.info("Connected to database")
         except Exception as e:
