@@ -159,7 +159,7 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
 
-    @retry(max_attempts=3, base_delay=0.5, exceptions=(Exception,))  # Reduced: ALPACA_DATA_LIMITER handles rate limiting
+    @retry(max_attempts=5, base_delay=1.0, exceptions=(Exception,))
     def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
         api_key = os.getenv("APCA_API_KEY_ID")
         api_secret = os.getenv("APCA_API_SECRET_KEY")
@@ -169,41 +169,56 @@ class DataSourceRouter:
         import requests
         ALPACA_DATA_LIMITER.wait()
         url = "https://data.alpaca.markets/v2/stocks/bars"
-        resp = requests.get(
-            url,
-            params={
-                "symbols": symbol,
-                "timeframe": "1Day",
-                "start": start.isoformat(),
-                "end": end.isoformat(),
-                "limit": 10000,
-                "adjustment": "raw",
-            },
-            headers={
-                "APCA-API-KEY-ID": api_key,
-                "APCA-API-SECRET-KEY": api_secret,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        bars = data.get("bars", {}).get(symbol, [])
-        if not bars:
-            return None
-        return [
-            {
-                "symbol": symbol,
-                "date": bar["t"][:10],
-                "open": bar["o"],
-                "high": bar["h"],
-                "low": bar["l"],
-                "close": bar["c"],
-                "volume": int(bar["v"]),
-            }
-            for bar in bars
-        ]
+        try:
+            resp = requests.get(
+                url,
+                params={
+                    "symbols": symbol,
+                    "timeframe": "1Day",
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "limit": 10000,
+                    "adjustment": "raw",
+                },
+                headers={
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": api_secret,
+                },
+                timeout=15,
+            )
 
-    @retry(max_attempts=3, base_delay=1.0, exceptions=(Exception,))  # Reduced: rate limiters handle throttling
+            # Handle rate limit response (429) with Retry-After header
+            if resp.status_code == 429:
+                retry_after = resp.headers.get('Retry-After', '60')
+                wait_time = float(retry_after) if retry_after.replace('.', '', 1).isdigit() else 60.0
+                log.warning(f"Alpaca rate limited for {symbol}. Waiting {wait_time}s before retry.")
+                time.sleep(wait_time)
+                raise Exception(f"Rate limited (429): Retry-After {wait_time}s")
+
+            resp.raise_for_status()
+            data = resp.json()
+            bars = data.get("bars", {}).get(symbol, [])
+            if not bars:
+                return None
+            return [
+                {
+                    "symbol": symbol,
+                    "date": bar["t"][:10],
+                    "open": bar["o"],
+                    "high": bar["h"],
+                    "low": bar["l"],
+                    "close": bar["c"],
+                    "volume": int(bar["v"]),
+                }
+                for bar in bars
+            ]
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                # Rate limited — re-raise so @retry decorator can backoff exponentially
+                raise Exception(f"Alpaca rate limited: {e}")
+            raise
+
+    @retry(max_attempts=4, base_delay=0.5, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
         try:
             import yfinance as yf
@@ -212,21 +227,32 @@ class DataSourceRouter:
         YFINANCE_LIMITER.wait()
         # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-        hist = yf.Ticker(yf_symbol).history(start=start, end=end, auto_adjust=False, timeout=30)
-        if hist.empty:
-            return None
-        return [
-            {
-                "symbol": symbol,
-                "date": idx.date().isoformat(),
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "volume": int(row["Volume"]),
-            }
-            for idx, row in hist.iterrows()
-        ]
+        try:
+            hist = yf.Ticker(yf_symbol, timeout=30).history(
+                start=start,
+                end=end,
+                auto_adjust=False,
+            )
+            if hist is None or hist.empty:
+                return None
+            return [
+                {
+                    "symbol": symbol,
+                    "date": idx.date().isoformat(),
+                    "open": float(row["Open"]),
+                    "high": float(row["High"]),
+                    "low": float(row["Low"]),
+                    "close": float(row["Close"]),
+                    "volume": int(row["Volume"]),
+                }
+                for idx, row in hist.iterrows()
+            ]
+        except Exception as e:
+            # yfinance raises various exceptions on rate limiting or network errors
+            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout"]):
+                log.warning(f"yfinance rate limited or timeout for {symbol}: {e}")
+                raise Exception(f"yfinance rate limited or unavailable: {e}")
+            raise
 
     # ============== FUNDAMENTALS ==============
 
