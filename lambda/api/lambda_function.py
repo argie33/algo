@@ -96,9 +96,15 @@ def get_db_connection():
 
 def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict] = None) -> Dict:
     """Return properly formatted API Gateway response."""
+    # CORS: Require FRONTEND_ORIGIN to be explicitly set. Don't allow wildcard '*'
+    frontend_origin = os.environ.get('FRONTEND_ORIGIN', '')
+    if not frontend_origin:
+        # Fail-closed: If FRONTEND_ORIGIN not set, use empty string (no CORS allowed)
+        frontend_origin = ''
+
     default_headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': os.environ.get('FRONTEND_ORIGIN', '*'),
+        'Access-Control-Allow-Origin': frontend_origin,
     }
     if headers:
         default_headers.update(headers)
