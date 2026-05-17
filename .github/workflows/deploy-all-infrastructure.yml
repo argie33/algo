@@ -104,8 +104,8 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="bucket=stocks-terraform-state" \
-            -backend-config="key=stocks/terraform.tfstate" \
+            -backend-config="bucket=algo-terraform-state-dev" \
+            -backend-config="key=algo/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
 
