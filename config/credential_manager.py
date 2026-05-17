@@ -8,9 +8,11 @@ Single source of truth for all credentials:
 - SMTP/email credentials
 - Other third-party API keys
 
-Supports two sources:
-1. AWS Secrets Manager (production, AWS Lambda/ECS)
-2. Environment variables (local development, .env.local)
+Credential Sources (Priority Order):
+1. Environment variables (CI, local development)
+2. AWS Secrets Manager (production, AWS Lambda/ECS)
+
+IMPORTANT: Credentials are NEVER loaded from .env files - all must be set via environment variables.
 
 Does NOT support:
 - Hardcoded credentials
