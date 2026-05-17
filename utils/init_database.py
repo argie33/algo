@@ -805,17 +805,19 @@ CREATE TABLE IF NOT EXISTS earnings_estimate_trends (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Earnings estimate revisions
+-- Earnings estimate revisions (analyst up/down revision counts per period)
+-- period: '0q'=current quarter, '+1q'=next quarter, '0y'=current year, '+1y'=next year
 CREATE TABLE IF NOT EXISTS earnings_estimate_revisions (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    quarter DATE,
-    fiscal_year INTEGER,
-    revision_date DATE,
-    estimate_before DECIMAL(12, 4),
-    estimate_after DECIMAL(12, 4),
-    revision_type VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    period VARCHAR(10) NOT NULL,
+    snapshot_date DATE NOT NULL,
+    up_last_7d INTEGER DEFAULT 0,
+    up_last_30d INTEGER DEFAULT 0,
+    down_last_30d INTEGER DEFAULT 0,
+    down_last_90d INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, period, snapshot_date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════

@@ -376,11 +376,14 @@ class ExitEngine:
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
             max_dd = int(self.config.get('max_distribution_days', 4))
             if dist_days_today > max_dd:
-                return {
-                    'stage': 'distribution',
-                    'fraction': 1.0,
-                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd}',
-                }
+                # Only exit if position is losing or breakeven; don't exit profitable positions
+                pnl_pct = ((cur_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
+                if pnl_pct <= 0:  # Losing or breakeven only
+                    return {
+                        'stage': 'distribution',
+                        'fraction': 1.0,
+                        'reason': f'Market distribution: {dist_days_today} dist days > {max_dd} (losing position)',
+                    }
 
         return None
 

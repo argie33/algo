@@ -1,108 +1,69 @@
 /**
- * Centralized pagination and limit configuration
- * Single source of truth for all API limits and pagination settings
+ * Pagination Configuration
+ * Centralized limits to prevent DoS attacks and ensure consistency
  */
 
-const config = {
-  // Default pagination limit when not specified
+module.exports = {
+  // Default limit when not specified
   DEFAULT_LIMIT: 50,
 
-  // Maximum allowed limits by endpoint type
-  MAX_LIMIT_SMALL: 100,      // Used by: earnings, options, commodity
-  MAX_LIMIT_MEDIUM: 500,     // Used by: economic, price history
-  MAX_LIMIT_LARGE: 1000,     // Used by: stocks, signals
-  MAX_LIMIT_XLARGE: 5000,    // Used by: deep value stocks
+  // Maximum allowed limit (prevents resource exhaustion)
+  MAX_LIMIT: 5000,
 
-  // Specific endpoint limits
+  // Limits for specific endpoint types
   LIMITS: {
-    stocks: {
-      default: 50,
-      max: 1000
-    },
-    earnings: {
-      default: 50,
-      max: 100
-    },
-    financials: {
-      default: 20,
-      max: 100
-    },
-    technicals: {
-      default: 50,
-      max: 500
-    },
-    price: {
-      default: 50,
-      max: 500
-    },
-    signals: {
-      default: 50,
-      max: 1000
-    },
-    options: {
-      default: 50,
-      max: 200
-    },
-    commodities: {
-      default: 50,
-      max: 500
-    },
-    economic: {
-      default: 50,
-      max: 500
-    },
-    portfolio: {
-      default: 50,
-      max: 500
-    },
-    trades: {
-      default: 50,
-      max: 500
-    },
-    deepValue: {
-      default: 100,
-      max: 5000
-    },
-    sectors: {
-      default: 20,
-      max: 100
-    },
-    industries: {
-      default: 20,
-      max: 100
-    }
+    'default': { default: 50, max: 5000 },
+    'audit': { default: 100, max: 10000 },    // audit logs can be large
+    'trades': { default: 100, max: 5000 },
+    'signals': { default: 50, max: 1000 },
+    'prices': { default: 100, max: 5000 },
+    'performance': { default: 30, max: 1000 },
+    'equity_curve': { default: 100, max: 1000 },
+    'rejection_funnel': { default: 50, max: 10000 },  // can be very large
+    'market': { default: 50, max: 1000 },
+    'economic': { default: 50, max: 500 },
+    'commodities': { default: 25, max: 500 },
   },
 
-  // Helper function to get safe limit
-  getLimit: function(resource, requestedLimit) {
-    const resourceConfig = config.LIMITS[resource] || { default: config.DEFAULT_LIMIT, max: config.MAX_LIMIT_LARGE };
-    const limit = parseInt(requestedLimit) || resourceConfig.default;
-    return Math.min(limit, resourceConfig.max);
+  /**
+   * Sanitize and validate limit/offset parameters
+   * @param {string|number} limit - User-provided limit
+   * @param {string|number} offset - User-provided offset
+   * @param {string} type - Endpoint type (for type-specific limits)
+   * @returns {Object} {limit, offset} - Sanitized values
+   */
+  sanitize(limit, offset, type = 'default') {
+    const config = this.LIMITS[type] || this.LIMITS.default;
+
+    // Parse and validate limit
+    let limitNum = parseInt(limit) || config.default;
+    limitNum = Math.max(1, Math.min(limitNum, config.max));
+
+    // Parse and validate offset
+    let offsetNum = Math.max(0, parseInt(offset) || 0);
+
+    return { limit: limitNum, offset: offsetNum };
   },
 
-  // Helper function to get safe offset
-  getOffset: function(page, limit) {
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    return (pageNum - 1) * limit;
-  },
-
-  // Helper function to calculate pagination metadata
-  getPaginationMetadata: function(limit, offset, total) {
+  /**
+   * Calculate page info from limit/offset
+   * @param {number} total - Total number of records
+   * @param {number} limit - Records per page
+   * @param {number} offset - Offset
+   * @returns {Object} Pagination metadata
+   */
+  getPaginationInfo(total, limit, offset) {
     const page = Math.floor(offset / limit) + 1;
     const totalPages = Math.ceil(total / limit);
+
     return {
+      total,
       limit,
       offset,
-      total,
       page,
       totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0,
     };
-  }
+  },
 };
-
-module.exports = config;
-module.exports.getLimit = config.getLimit.bind(config);
-module.exports.getOffset = config.getOffset.bind(config);
-module.exports.getPaginationMetadata = config.getPaginationMetadata.bind(config);

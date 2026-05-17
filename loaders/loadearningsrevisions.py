@@ -59,30 +59,26 @@ class EarningsRevisionsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch estimate revisions for symbol from router."""
         try:
-            # Get revisions from router (fetches from yfinance/Polygon)
-            revisions = self.router.fetch_earnings_revisions(symbol)
+            df = self.router.fetch_eps_revisions(symbol)
 
-            if not revisions:
+            if df is None or (hasattr(df, 'empty') and df.empty):
                 return None
 
-            # Parse revisions into rows
             rows = []
             snapshot_date = date.today()
 
-            for period, data in revisions.items():
-                if not isinstance(data, dict):
-                    continue
-
-                row = {
+            # yfinance returns DataFrame: index=period ('0q','+1q','0y','+1y'),
+            # columns: upLast7days, upLast30days, downLast30days, downLast90days
+            for period, row_data in df.iterrows():
+                rows.append({
                     "symbol": symbol,
-                    "period": period,
+                    "period": str(period),
                     "snapshot_date": snapshot_date,
-                    "up_last_7d": int(data.get("up_last_7d", 0)),
-                    "up_last_30d": int(data.get("up_last_30d", 0)),
-                    "down_last_7d": int(data.get("down_last_7d", 0)),
-                    "down_last_30d": int(data.get("down_last_30d", 0)),
-                }
-                rows.append(row)
+                    "up_last_7d": int(row_data.get("upLast7days", 0) or 0),
+                    "up_last_30d": int(row_data.get("upLast30days", 0) or 0),
+                    "down_last_30d": int(row_data.get("downLast30days", 0) or 0),
+                    "down_last_90d": int(row_data.get("downLast90days", 0) or 0),
+                })
 
             return rows if rows else None
         except Exception as e:
@@ -93,14 +89,7 @@ class EarningsRevisionsLoader(OptimalLoader):
         """Validate earnings revisions row."""
         if not super()._validate_row(row):
             return False
-        try:
-            # All numeric fields must exist
-            return all(
-                isinstance(row.get(field), (int, float))
-                for field in ["up_last_7d", "up_last_30d", "down_last_7d", "down_last_30d"]
-            )
-        except (KeyError, TypeError):
-            return False
+        return bool(row.get("symbol") and row.get("period") and row.get("snapshot_date"))
 
 
 def get_active_symbols() -> List[str]:
