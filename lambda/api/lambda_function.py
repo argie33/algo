@@ -2851,6 +2851,12 @@ class APIHandler:
         try:
             if path == '/api/admin/loader-status':
                 return self._get_loader_status()
+            elif path == '/api/admin/system-health':
+                return self._get_system_health()
+            elif path == '/api/admin/database-stats':
+                return self._get_database_stats()
+            elif path == '/api/admin/data-quality':
+                return self._get_data_quality()
             return error_response(404, 'not_found', f'No admin handler for {path}')
         except Exception as e:
             logger.error(f"admin handler error: {e}")
@@ -2916,6 +2922,129 @@ class APIHandler:
         except Exception as e:
             logger.error(f"loader status query failed: {e}")
             return error_response(500, 'database_error', 'Failed to fetch loader status')
+
+    def _get_system_health(self) -> Dict:
+        """Get overall system health status."""
+        try:
+            health_data = {'status': 'healthy', 'components': {}}
+
+            # Check database connectivity
+            try:
+                self.cur.execute("SELECT 1")
+                health_data['components']['database'] = 'ok'
+            except Exception as e:
+                logger.error(f"Database health check failed: {e}")
+                health_data['components']['database'] = 'error'
+                health_data['status'] = 'degraded'
+
+            # Check data freshness
+            self.cur.execute("SELECT MAX(date) FROM price_daily")
+            last_price_date = self.cur.fetchone()[0]
+            if last_price_date:
+                age_days = (datetime.now(timezone.utc).date() - last_price_date).days
+                health_data['components']['data_freshness'] = 'ok' if age_days <= 3 else 'stale'
+                health_data['last_data_update'] = last_price_date.isoformat()
+                if age_days > 3:
+                    health_data['status'] = 'degraded'
+            else:
+                health_data['components']['data_freshness'] = 'no_data'
+                health_data['status'] = 'unhealthy'
+
+            # Check table counts
+            table_counts = {}
+            for table in ['stock_symbols', 'price_daily', 'algo_trades', 'algo_positions']:
+                try:
+                    self.cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    count = self.cur.fetchone()[0]
+                    table_counts[table] = count
+                except:
+                    table_counts[table] = 0
+
+            health_data['tables'] = table_counts
+            health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
+            return json_response(200, health_data)
+        except Exception as e:
+            logger.error(f"system health check failed: {e}")
+            return error_response(500, 'database_error', 'Failed to get system health')
+
+    def _get_database_stats(self) -> Dict:
+        """Get database statistics."""
+        try:
+            stats = {}
+
+            # Get table sizes
+            self.cur.execute("""
+                SELECT
+                    schemaname,
+                    tablename,
+                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
+                FROM pg_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+                LIMIT 20
+            """)
+
+            tables = []
+            for row in self.cur.fetchall():
+                tables.append({'name': row[1], 'size': row[2]})
+
+            stats['largest_tables'] = tables
+
+            # Get connection info
+            self.cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
+            stats['active_connections'] = self.cur.fetchone()[0]
+
+            # Get index usage
+            self.cur.execute("""
+                SELECT COUNT(*) FROM pg_stat_user_indexes WHERE idx_scan = 0
+            """)
+            stats['unused_indexes'] = self.cur.fetchone()[0]
+
+            stats['timestamp'] = datetime.now(timezone.utc).isoformat()
+            return json_response(200, stats)
+        except Exception as e:
+            logger.error(f"database stats query failed: {e}")
+            return error_response(500, 'database_error', 'Failed to get database stats')
+
+    def _get_data_quality(self) -> Dict:
+        """Get data quality metrics."""
+        try:
+            quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
+
+            # Check for null prices
+            self.cur.execute("""
+                SELECT COUNT(*) FROM price_daily
+                WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
+            """)
+            null_prices = self.cur.fetchone()[0]
+            quality['checks']['null_prices'] = {'count': null_prices, 'status': 'ok' if null_prices == 0 else 'warning'}
+
+            # Check for duplicate prices
+            self.cur.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT symbol, date, COUNT(*)
+                    FROM price_daily
+                    GROUP BY symbol, date HAVING COUNT(*) > 1
+                ) t
+            """)
+            duplicate_prices = self.cur.fetchone()[0]
+            quality['checks']['duplicate_prices'] = {'count': duplicate_prices, 'status': 'ok' if duplicate_prices == 0 else 'warning'}
+
+            # Check price logical consistency (high >= low >= close)
+            self.cur.execute("""
+                SELECT COUNT(*) FROM price_daily
+                WHERE high < low OR close > high OR close < low
+            """)
+            invalid_prices = self.cur.fetchone()[0]
+            quality['checks']['invalid_price_ranges'] = {'count': invalid_prices, 'status': 'ok' if invalid_prices == 0 else 'error'}
+
+            # Overall status
+            quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
+
+            return json_response(200, quality)
+        except Exception as e:
+            logger.error(f"data quality check failed: {e}")
+            return error_response(500, 'database_error', 'Failed to get data quality metrics')
 
     def _handle_notifications(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/notifications/* endpoints."""
