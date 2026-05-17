@@ -32,10 +32,8 @@ OUTPUTS:
 Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
-import sys
 import psycopg2
 import psycopg2.extensions
-from pathlib import Path
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
 load_env()
@@ -253,11 +251,11 @@ if __name__ == "__main__":
         # Connect to DB
         logging.info("Loading database configuration...")
         cfg = get_db_config()
-        logging.info(f"Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        logging.info(f"Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['database']}")
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"]
+            dbname=cfg["database"]
         )
         logging.info("Database connection established")
         conn.autocommit = False
