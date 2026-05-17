@@ -1,96 +1,80 @@
-# Local Development Credentials Setup
+# Local Development Credential Setup
 
-**RULE: NO .env.local files. Period.**
+This guide explains how to set up credentials for running the system locally (loaders, orchestrator, tests).
 
-Use AWS Secrets Manager locally — it's the same system production uses.
+## Prerequisites
 
----
+- PostgreSQL running on `localhost:5432`
+- Alpaca API account (for live trading features)
+- AWS account with Secrets Manager access (optional)
 
-## Why AWS Secrets Manager Locally?
+## Option 1: Environment Variables (Simplest)
 
-- ✅ Same as production (no surprises)
-- ✅ No files to accidentally commit
-- ✅ Credentials stored securely (not in git)
-- ✅ Set once, works forever (no per-session setup)
-- ✅ One command to add/update credentials
-
----
-
-## Setup (One-Time, 5 minutes)
-
-### Step 1: Store credentials in AWS Secrets Manager
+Set these in your terminal **before** running code:
 
 ```bash
-# Database credentials
-aws secretsmanager create-secret \
-  --name db/password \
-  --secret-string "your_postgres_password"
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=stocks
+export DB_NAME=stocks
+export DB_PASSWORD=your_postgres_password
 
-aws secretsmanager create-secret \
-  --name db/host \
-  --secret-string "localhost"
-
-aws secretsmanager create-secret \
-  --name db/port \
-  --secret-string "5432"
-
-aws secretsmanager create-secret \
-  --name db/user \
-  --secret-string "stocks"
-
-aws secretsmanager create-secret \
-  --name db/name \
-  --secret-string "stocks"
-
-# Alpaca credentials (if using live API)
-aws secretsmanager create-secret \
-  --name alpaca/api-key \
-  --secret-string "your_alpaca_api_key"
-
-aws secretsmanager create-secret \
-  --name alpaca/secret-key \
-  --secret-string "your_alpaca_secret_key"
+# Optional - for paper trading
+export ALPACA_API_KEY=your_alpaca_key
+export ALPACA_API_SECRET=your_alpaca_secret
+export ALPACA_BASE_URL=https://paper-api.alpaca.markets
 ```
 
-### Step 2: Verify credentials are stored
+Then run:
+```bash
+python3 init_database.py
+python3 run-all-loaders.py
+python3 algo/algo_orchestrator.py --mode paper --dry-run
+```
+
+## Option 2: AWS Secrets Manager (Recommended for Teams)
+
+### 1. Store credentials in AWS
 
 ```bash
-aws secretsmanager get-secret-value --secret-id db/password
+aws secretsmanager create-secret \
+  --name algo/db/postgres \
+  --secret-string '{"host":"localhost","port":5432,"user":"stocks","password":"your_password","database":"stocks"}'
 ```
 
----
-
-## How It Works
-
-When you run a loader or orchestrator:
-
-1. `credential_helper.py` calls `credential_manager.get_db_credentials()`
-2. `credential_manager` tries:
-   - AWS Secrets Manager (✅ finds your credentials here)
-   - Environment variables (fallback, not used locally)
-   - Raises error if not found
-3. Code runs with credentials from Secrets Manager
-
-**No environment variables. No .env files. Just works.**
-
----
-
-## For CI/GitHub Actions
-
-Use GitHub Secrets for environment variables — production uses AWS Secrets Manager (same code path).
-
----
-
-## If credentials leak
-
-You can rotate them in AWS Secrets Manager in seconds — no code changes needed.
-
----
-
-## Verify it works
+### 2. Configure AWS on your machine
 
 ```bash
-python3 -c "from config.credential_helper import get_db_config; print(get_db_config())"
+aws configure
+# Enter Access Key ID, Secret Access Key, region
 ```
 
-Should print your actual database config without asking for anything.
+### 3. Run code
+
+System automatically fetches from Secrets Manager:
+
+```bash
+python3 run-all-loaders.py
+```
+
+## Testing Credentials
+
+```bash
+# Test DB connection
+python3 -c "from utils.db_connection import get_db_connection; get_db_connection(); print('OK')"
+
+# Test one loader
+python3 loaders/loadstocksymbols.py
+```
+
+## Troubleshooting
+
+**"Database password not available":**
+- Set `DB_PASSWORD` environment variable
+- Or configure AWS Secrets Manager + `aws configure`
+
+**"Connection refused":**
+- Check PostgreSQL is running
+- Verify DB_HOST, DB_PORT, DB_USER
+
+See `troubleshooting-guide.md` for more help.
