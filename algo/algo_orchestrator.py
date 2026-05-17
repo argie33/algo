@@ -1846,7 +1846,7 @@ class Orchestrator:
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now(timezone.utc) - result[0]).total_seconds() / 3600
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
                 if age_hours > 24:
                     issues.append(f"Price data too stale: {age_hours:.1f} hours old")
                 elif age_hours > 1:
@@ -1887,7 +1887,7 @@ class Orchestrator:
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now(timezone.utc) - result[0]).total_seconds() / 3600
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
                 if age_hours > 12:
                     issues.append(f"Technical data stale: {age_hours:.1f} hours old")
             else:
