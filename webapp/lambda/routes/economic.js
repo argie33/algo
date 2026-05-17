@@ -15,6 +15,49 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /:indicator - Get specific economic indicator data
+router.get("/:indicator", async (req, res) => {
+  try {
+    const { indicator } = req.params;
+    const seriesId = indicator.toUpperCase();
+
+    if (!seriesId || seriesId.length === 0) {
+      return sendError(res, "Indicator name required", 400);
+    }
+
+    // Query specific indicator data (last 100 data points)
+    const result = await query(`
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE UPPER(series_id) = $1
+      ORDER BY date DESC
+      LIMIT 100
+    `, [seriesId]);
+
+    if (result.rows.length === 0) {
+      return sendError(res, `Indicator not found: ${indicator}`, 404);
+    }
+
+    const data = result.rows.reverse().map(row => ({
+      series_id: row.series_id,
+      date: row.date,
+      value: parseFloat(row.value)
+    }));
+
+    return sendSuccess(res, {
+      indicator: seriesId,
+      latest: data[data.length - 1],
+      data: data
+    });
+  } catch (error) {
+    console.error("Error fetching indicator:", error);
+    return sendError(res, `Failed to fetch indicator: ${error.message.substring(0, 100)}`, 500);
+  }
+});
+
 // ============================================
 // LEADING INDICATORS - Comprehensive overview
 // ============================================

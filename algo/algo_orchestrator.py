@@ -597,6 +597,7 @@ class Orchestrator:
 
     def phase_1_data_freshness(self) -> bool:
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
+        logger.debug(f"Phase 1: Starting data freshness check for run_date={self.run_date}")
         conn = None
         cur = None
         try:
@@ -608,6 +609,7 @@ class Orchestrator:
                 status = health.get_pipeline_status()
                 health.log_health_check(status)
                 health.disconnect()
+                logger.debug(f"Phase 1: Pipeline health check complete - {status.healthy_count}/{status.total_count} healthy")
 
                 if self.verbose:
                     logger.info(f"  [HEALTH] Pipeline: {status.healthy_count}/{status.total_count} tables healthy "
@@ -629,9 +631,11 @@ class Orchestrator:
 
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
+            logger.debug("Phase 1: Database connection established")
 
             # In DEV mode, skip strict SLA/loader health checks
             if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
+                logger.debug("Phase 1: Running in DEV mode - skipping strict SLA checks")
                 logger.info("  [DEV MODE] Skipping SLA and loader health checks")
             else:
                 # Check critical loader SLA status first — fail-closed if data didn't load

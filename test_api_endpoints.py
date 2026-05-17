@@ -69,7 +69,7 @@ ENDPOINTS = [
     ('/api/trades', 'GET', 200, 'Get trade history'),
 
     # Contact endpoint
-    ('/api/contact', 'POST', 200, 'Contact form submission'),
+    ('/api/contact', 'POST', 201, 'Contact form submission'),
 
     # Signals
     ('/api/signals/stocks', 'GET', 200, 'Get stock trading signals'),
