@@ -18,7 +18,6 @@ const colors = {
 };
 
 function log(message, color = "reset") {
-  console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000";

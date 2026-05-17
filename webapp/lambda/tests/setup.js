@@ -17,7 +17,6 @@ process.env.DB_PORT = '5432';
 process.env.DB_SSL = 'false';
 
 // Simplified test setup - no complex database operations
-console.log('✅ Test environment configured');
 
 // Optional: Test basic connectivity in individual tests if needed
 module.exports = {

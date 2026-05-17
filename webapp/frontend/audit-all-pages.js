@@ -51,9 +51,6 @@ const pageNames = [
 
   await browser.close();
 
-  console.log('\n📋 COMPLETE PAGE AUDIT\n');
-  console.log('Page'.padEnd(30) + 'Status'.padEnd(12) + 'Errors'.padEnd(10) + 'Network');
-  console.log('='.repeat(70));
   
   let allGood = true;
   results.forEach(r => {
@@ -64,5 +61,4 @@ const pageNames = [
     console.log(r.name.padEnd(30) + status.padEnd(12) + errors.padEnd(10) + network);
   });
   
-  console.log('\n' + (allGood ? '✅ ALL PAGES CLEAN' : '⚠️  ISSUES FOUND'));
 })();

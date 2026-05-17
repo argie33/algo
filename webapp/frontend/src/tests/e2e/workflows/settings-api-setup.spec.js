@@ -19,19 +19,15 @@ test.describe("Settings API Setup Workflow", () => {
   });
 
   test("should complete API key setup workflow", async ({ page }) => {
-    console.log("⚙️ Starting API key setup workflow test...");
 
     // Step 1: Navigate to Settings
-    console.log("📝 Step 1: Navigating to settings...");
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
     const pageTitle = await page.title();
-    console.log(`📋 Settings page loaded: ${pageTitle}`);
 
     // Step 2: Look for API key configuration section
-    console.log("🔑 Step 2: Looking for API key configuration...");
 
     const apiSections = [
       '[data-testid*="api"]',
@@ -46,7 +42,6 @@ test.describe("Settings API Setup Workflow", () => {
     for (const selector of apiSections) {
       const section = page.locator(selector).first();
       if (await section.count() > 0) {
-        console.log(`✅ API configuration section found: ${selector}`);
         apiSectionFound = true;
         break;
       }
@@ -54,7 +49,6 @@ test.describe("Settings API Setup Workflow", () => {
 
     // Step 3: Test navigation to other pages after API setup
     if (apiSectionFound) {
-      console.log("🔄 Step 3: Testing navigation after API setup...");
 
       // Navigate to portfolio to verify API keys work
       await page.goto("/portfolio");
@@ -70,10 +64,8 @@ test.describe("Settings API Setup Workflow", () => {
       const marketLoaded = await page.locator("#root").count();
       expect(marketLoaded).toBeGreaterThan(0);
 
-      console.log("✅ API-dependent pages accessible after setup");
     }
 
-    console.log("🎯 API setup workflow test completed");
   });
 
   test("should handle API key validation workflow", async ({ page }) => {
@@ -97,7 +89,6 @@ test.describe("Settings API Setup Workflow", () => {
       const count = await elements.count();
       if (count > 0) {
         _hasValidation = true;
-        console.log(`✅ API validation UI found: ${selector}`);
         break;
       }
     }

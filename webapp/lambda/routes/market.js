@@ -122,7 +122,6 @@ async function getFullSeasonalityData() {
       }
     }
   } catch (e) {
-    console.log("Could not fetch SPY data:", e.message);
   }
 
   // 1. PRESIDENTIAL CYCLE
@@ -166,7 +165,6 @@ async function getFullSeasonalityData() {
       });
     }
   } catch (e) {
-    console.log("Could not fetch presidential cycle returns:", e.message);
   }
 
   const presidentialCycle = {
@@ -217,7 +215,6 @@ async function getFullSeasonalityData() {
       });
     }
   } catch (e) {
-    console.log("Note: Monthly seasonality data not available:", e.message);
   }
 
   // Also load monthly performance for the response
@@ -312,7 +309,6 @@ async function getFullSeasonalityData() {
       });
     }
   } catch (e) {
-    console.log("Note: Day of week effects not available:", e.message);
   }
 
   if (!dayOfWeekEffects || dayOfWeekEffects.length === 0) {
@@ -337,7 +333,6 @@ async function getFullSeasonalityData() {
       ];
     }
   } catch (e) {
-    console.log("Note: Sector data not available:", e.message);
     sectorSeasonality = [
       { note: "Sector seasonality data requires company profile and sector ETF data" },
     ];
@@ -511,7 +506,6 @@ function getMarketStatus() {
 
 // Get market breadth indicators - CONSOLIDATED INTO /data
 router.get("/breadth", async (req, res) => {
-  console.log("Market breadth endpoint called");
 
   try {
     // Get latest market date from cache (5 min TTL)
@@ -584,7 +578,6 @@ router.get("/breadth", async (req, res) => {
 
 // McClellan Oscillator endpoint - Advanced breadth momentum indicator
 router.get("/mcclellan-oscillator", async (req, res) => {
-  console.log("📈 McClellan Oscillator endpoint called");
 
   try {
     // Check if price_daily table exists
@@ -690,7 +683,6 @@ router.get("/mcclellan-oscillator", async (req, res) => {
 
 // Distribution Days endpoint - IBD methodology
 router.get("/distribution-days", async (req, res) => {
-  console.log("📊 Distribution Days endpoint called");
 
   try {
     // Check if distribution_days table exists
@@ -830,7 +822,6 @@ router.get("/volatility", async (req, res) => {
 
 // Get market indicators
 router.get("/indicators", async (req, res) => {
-  console.log("📊 Market indicators endpoint called");
 
   try {
     // Get market indicators data from individual stocks
@@ -920,7 +911,6 @@ router.get("/indicators", async (req, res) => {
 
 // Market seasonality endpoint
 router.get("/seasonality", async (req, res) => {
-  console.log("📅 Market seasonality endpoint called");
 
   try {
     const currentDate = new Date();
@@ -963,7 +953,6 @@ router.get("/seasonality", async (req, res) => {
         }
       }
     } catch (e) {
-      console.log("Could not fetch SPY data:", e.message);
     }
 
     // 1. PRESIDENTIAL CYCLE (4-Year Pattern)
@@ -1012,7 +1001,6 @@ router.get("/seasonality", async (req, res) => {
         });
       }
     } catch (e) {
-      console.log("Could not fetch presidential cycle returns from database:", e.message);
       // If database query fails, leave avgReturn as null - do not use fake data
     }
 
@@ -1064,10 +1052,8 @@ router.get("/seasonality", async (req, res) => {
           };
         });
 
-        console.log("✅ Monthly seasonality data loaded:", monthlySeasonality.slice(0, 3));
       }
     } catch (e) {
-      console.log("Note: Monthly seasonality data not available:", e.message);
     }
 
     // Also load monthly performance for the response
@@ -1163,10 +1149,8 @@ router.get("/seasonality", async (req, res) => {
           };
         });
 
-        console.log("✅ Day of week effects loaded:", dowEffects.slice(0, 2));
       }
     } catch (e) {
-      console.log("Note: Day of week effects not available:", e.message);
     }
 
     // Return only real data - no placeholder fake data
@@ -1197,7 +1181,6 @@ router.get("/seasonality", async (req, res) => {
         ];
       }
     } catch (e) {
-      console.log("Note: Sector data not available:", e.message);
       sectorSeasonality = [
         { note: "Sector seasonality data requires company profile and sector ETF data" },
       ];
@@ -1493,7 +1476,6 @@ router.get("/correlation", async (req, res) => {
   try {
     const { symbols, period = "1M", limit: _limit = 50 } = req.query;
 
-    console.log(
       `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
     );
 
@@ -1642,7 +1624,6 @@ router.get("/correlation", async (req, res) => {
                   // Calculate Pearson correlation of returns
                   if (returns1.length >= 2) {
                     correlation = calculatePearsonCorrelation(returns1, returns2);
-                    console.log(`✅ Correlation ${symbol1}-${symbol2}: ${correlation?.toFixed(3)} (${returns1.length} overlapping days)`);
                   }
                 }
               }
@@ -1774,7 +1755,6 @@ router.get("/correlation", async (req, res) => {
 router.get("/indices", async (req, res) => {
   try {
     const now = new Date().toISOString();
-    console.log(`📊 [${now}] Market indices requested`);
 
     // Load real index data from price_daily table
     const indicesQuery = `
@@ -1827,7 +1807,6 @@ router.get("/indices", async (req, res) => {
 
 // Advanced Market Internals - Comprehensive breadth, MA analysis, and positioning
 router.get("/internals", async (req, res) => {
-  console.log("Market internals endpoint called");
 
   try {
     if (!query) {
@@ -2224,7 +2203,6 @@ async function getMarketDataHandler(req, res) {
       return sendError(res, "Database connection not available", 500);
     }
 
-    console.log("📊 /api/market/data - Fetching all market data...");
     const startTime = Date.now();
 
     // Get latest market date from cache once (5 min TTL) - used by multiple queries
@@ -2426,7 +2404,6 @@ router.get("/data", getMarketDataHandler);
 // BACKWARD COMPATIBILITY: /overview is an alias for /data
 // Added for frontend compatibility - frontend was calling /overview which was consolidated into /data
 router.get("/overview", async (req, res) => {
-  console.log("📊 /api/market/overview - Called (BACKWARD COMPATIBLE - using /data endpoint)");
   return getMarketDataHandler(req, res);
 });
 
@@ -2438,7 +2415,6 @@ router.get("/overview", async (req, res) => {
 router.get("/technicals", async (req, res) => {
   const startTime = Date.now();
   try {
-    console.log("📊 [Market API] Fetching technicals...");
 
     // Get latest market and technical dates from cache (5 min TTL)
     const latestPriceDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
@@ -2625,7 +2601,6 @@ router.get("/sentiment", async (req, res) => {
   }
 
   try {
-    console.log(`😊 [Market API] Fetching sentiment (range: ${range}, days: ${days})...`);
 
     const [aaiiData, fearGreedData, naaimData] = await Promise.allSettled([
       // 1. AAII
@@ -2815,7 +2790,6 @@ router.get("/comprehensive-fresh", async (req, res) => {
 // Market Technicals Fresh Data - Query database directly for real McClellan, Breadth, Distribution Days, etc
 router.get("/technicals-fresh", async (req, res) => {
   try {
-    console.log("📊 [Market API] Fetching technicals fresh from database...");
 
     // Get latest market date from cache (5 min TTL)
     const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');

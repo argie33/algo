@@ -31,12 +31,6 @@ async function checkState() {
       FROM buy_sell_daily
     `);
 
-    console.log('\n=== PRICE_DAILY ===');
-    console.log(priceResult.rows[0]);
-    console.log('\n=== TECHNICAL_DATA_DAILY ===');
-    console.log(technicalResult.rows[0]);
-    console.log('\n=== BUY_SELL_DAILY SIGNALS ===');
-    console.log(signalResult.rows[0]);
 
     process.exit(0);
   } catch (err) {

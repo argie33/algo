@@ -175,7 +175,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
   test("Should load ScoresDashboard and display all factor score boxes", async ({
     page,
   }) => {
-    console.log("🧪 Testing ScoresDashboard data display...");
 
     // Navigate to Scores Dashboard
     await page.goto("/scores", {
@@ -189,30 +188,25 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     const pageTitle = page.getByRole("heading", { name: /Bullseye.*Screener/i });
     await expect(pageTitle).toBeVisible({ timeout: 10000 });
 
-    console.log("✅ ScoresDashboard page loaded");
 
     // Wait for data to load
     await page.waitForTimeout(3000);
 
     // Verify factor score boxes are displayed with correct values
-    console.log("🔍 Verifying factor score boxes...");
 
     // Look for Quality score
     const qualityScore = page.locator("text=/79.6|Quality/i");
     if (await qualityScore.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("✅ Quality score box found (79.6)");
     }
 
     // Look for Growth score
     const growthScore = page.locator("text=/Growth/i");
     if (await growthScore.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("✅ Growth score box found");
     }
 
     // Look for Value score
     const valueScore = page.locator("text=/Value/i");
     if (await valueScore.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("✅ Value score box found");
     }
 
     // Look for Momentum score
@@ -220,7 +214,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     if (
       await momentumScore.isVisible({ timeout: 5000 }).catch(() => false)
     ) {
-      console.log("✅ Momentum score box found");
     }
 
     // Look for Sentiment score
@@ -228,7 +221,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     if (
       await sentimentScore.isVisible({ timeout: 5000 }).catch(() => false)
     ) {
-      console.log("✅ Sentiment score box found");
     }
 
     // Look for Positioning score
@@ -238,13 +230,11 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
         .isVisible({ timeout: 5000 })
         .catch(() => false)
     ) {
-      console.log("✅ Positioning score box found");
     }
 
     // Look for Stability score
     const stabilityScore = page.locator("text=/Stability/i");
     if (await stabilityScore.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("✅ Stability score box found");
     }
   });
 
@@ -258,7 +248,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
 
     await page.waitForTimeout(3000);
 
-    console.log("🔍 Searching for AAPL stock data...");
 
     // Look for AAPL in the list
     const aaplOption = page.locator("text=AAPL");
@@ -267,21 +256,17 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     );
 
     if (!aaplVisible) {
-      console.log("⚠️ AAPL not visible in summary, checking accordion/expandable sections...");
       // Try to find any stock data display
       const stockData = page.locator("text=/Apple|AAPL/i");
       if (await stockData.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log("✅ Found AAPL data on page");
       }
     } else {
-      console.log("✅ AAPL found in summary");
 
       // Click on AAPL to expand details (if expandable)
       try {
         await aaplOption.click();
         await page.waitForTimeout(1000);
       } catch (e) {
-        console.log("Note: AAPL element not clickable, checking for other display methods");
       }
     }
 
@@ -294,7 +279,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       .catch(() => false);
 
     if (hasQualityMetrics) {
-      console.log("✅ Quality & Fundamentals metrics found");
 
       // Check for specific values
       const roeValue = page.locator("text=/96|ROE/i");
@@ -302,10 +286,8 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
         () => false
       );
       if (hasROE) {
-        console.log("✅ ROE value displayed (96%)");
       }
     } else {
-      console.log("⚠️ Quality metrics not immediately visible (may be in accordion)");
     }
 
     // Check for Growth metrics
@@ -317,7 +299,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       .catch(() => false);
 
     if (hasGrowthMetrics) {
-      console.log("✅ Growth metrics found");
     }
 
     // Check for comparison charts
@@ -329,14 +310,12 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     );
 
     if (hasChart) {
-      console.log("✅ Score comparison chart found");
     }
   });
 
   test("Should verify all required factor breakdown data fields exist", async ({
     page,
   }) => {
-    console.log("✅ E2E test setup complete - API mocked with full factor data");
 
     // This test verifies that the test data includes all required schema fields
     const requiredFields = {
@@ -376,23 +355,18 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       ],
     };
 
-    console.log("📋 Verifying test data schema:");
     for (const [category, fields] of Object.entries(requiredFields)) {
-      console.log(`  ${category}:`);
       fields.forEach((field) => {
-        console.log(`    ✅ ${field}`);
       });
     }
 
     expect(Object.keys(requiredFields).length).toBeGreaterThan(0);
-    console.log("✅ All required test data fields verified");
   });
 
   test("Should verify API endpoint returns correct data structure", async ({
     page,
     context,
   }) => {
-    console.log("🔍 Verifying API response structure...");
 
     // Mock and verify the endpoint
     let apiCallMade = false;
@@ -456,11 +430,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       expect(stock.growth_score).toBeDefined();
       expect(stock.quality_inputs).toBeDefined();
 
-      console.log("✅ API response structure verified:");
-      console.log(`  - success: ${apiResponse.success}`);
-      console.log(`  - data count: ${apiResponse.data.length}`);
-      console.log(`  - Stock symbol: ${stock.symbol}`);
-      console.log(`  - Quality Score: ${stock.quality_score}`);
     }
   });
 });

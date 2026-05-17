@@ -49,7 +49,6 @@ describe('Real Data Flow Verification', () => {
       const { summary, positions, daily_returns, metadata } = response.data;
 
       // Verify summary contains real values or null (no fake defaults)
-      console.log('📊 Portfolio Summary:', {
         portfolio_value: summary.portfolio_value,
         total_pnl: summary.total_pnl,
         holdings_count: summary.holdings_count,
@@ -78,7 +77,6 @@ describe('Real Data Flow Verification', () => {
       // If positions exist, verify they have real data
       if (positions.length > 0) {
         const firstPosition = positions[0];
-        console.log('📈 First Position:', firstPosition);
 
         expect(firstPosition.symbol).toBeDefined();
         expect(typeof firstPosition.quantity).toBe('number');
@@ -100,7 +98,6 @@ describe('Real Data Flow Verification', () => {
       const response = await apiCall('/api/portfolio/metrics');
       const { positions, metadata } = response.data;
 
-      console.log('📡 Data source metadata:', metadata);
 
       // If we have positions, verify they're recent (Alpaca updates in real-time)
       if (positions.length > 0) {
@@ -110,7 +107,6 @@ describe('Real Data Flow Verification', () => {
         const ageMinutes = (now - lastUpdate) / (1000 * 60);
 
         // Data should be recent (within last 10 minutes for Alpaca, or could be older for database)
-        console.log(`⏰ Data age: ${ageMinutes.toFixed(2)} minutes`);
       }
     }, 30000);
   });
@@ -125,8 +121,6 @@ describe('Real Data Flow Verification', () => {
 
       const { trades, summary } = response.data;
 
-      console.log(`📋 Total trades fetched: ${trades.length}`);
-      console.log('📊 Summary:', summary);
 
       expect(Array.isArray(trades)).toBe(true);
 
@@ -135,12 +129,9 @@ describe('Real Data Flow Verification', () => {
         const alpacaTrades = trades.filter(t => t.source === 'alpaca');
         const manualTrades = trades.filter(t => t.source === 'manual');
 
-        console.log(`🔗 Alpaca trades: ${alpacaTrades.length}`);
-        console.log(`📝 Manual trades: ${manualTrades.length}`);
 
         // Check first trade structure
         const firstTrade = trades[0];
-        console.log('📄 First trade:', firstTrade);
 
         expect(firstTrade.symbol).toBeDefined();
         expect(firstTrade.type).toBeDefined(); // buy or sell
@@ -162,7 +153,6 @@ describe('Real Data Flow Verification', () => {
       expect(response.data).toBeDefined();
 
       const { summary } = response.data;
-      console.log('📊 Trade Summary:', summary);
 
       // Summary should have real values or null (no fake defaults)
       if (summary.win_rate !== null) {
@@ -190,12 +180,10 @@ describe('Real Data Flow Verification', () => {
       const response = await apiCall('/api/trades/fifo-analysis');
 
       if (!response.success) {
-        console.log('⚠️ FIFO analysis not available (expected if no trades)');
         return;
       }
 
       const { analysis } = response.data;
-      console.log('🔍 FIFO Analysis:', {
         totalTrades: analysis.totalTrades,
         matchedPairs: analysis.matchedPairs,
         realizedPnl: analysis.realizedPnl,
@@ -244,7 +232,6 @@ describe('Real Data Flow Verification', () => {
       expect(parseFloat(response.data.price)).toBeCloseTo(150.50, 2);
 
       testTradeId = response.data.id;
-      console.log(`✅ Created test trade ID: ${testTradeId}`);
     }, 30000);
 
     test('Fetch manual trades', async () => {
@@ -261,7 +248,6 @@ describe('Real Data Flow Verification', () => {
 
     test('Update manual trade', async () => {
       if (!testTradeId) {
-        console.log('⚠️ Skipping update test - no test trade created');
         return;
       }
 
@@ -276,12 +262,10 @@ describe('Real Data Flow Verification', () => {
       expect(response.data.quantity).toBe(15);
       expect(parseFloat(response.data.price)).toBeCloseTo(155.75, 2);
 
-      console.log(`✅ Updated test trade ID: ${testTradeId}`);
     }, 30000);
 
     test('Delete manual trade', async () => {
       if (!testTradeId) {
-        console.log('⚠️ Skipping delete test - no test trade created');
         return;
       }
 
@@ -289,7 +273,6 @@ describe('Real Data Flow Verification', () => {
 
       expect(response.success).toBe(true);
 
-      console.log(`✅ Deleted test trade ID: ${testTradeId}`);
     }, 30000);
   });
 
@@ -301,7 +284,6 @@ describe('Real Data Flow Verification', () => {
       expect(response.data).toBeDefined();
 
       const { analysis } = response.data;
-      console.log('🎯 Optimization Analysis:', {
         currentMetrics: analysis.portfolioMetrics?.current,
         recommendations: analysis.recommendations?.length || 0
       });
@@ -324,7 +306,6 @@ describe('Real Data Flow Verification', () => {
       // Verify recommendations are based on real portfolio
       if (analysis.recommendations && analysis.recommendations.length > 0) {
         const firstRec = analysis.recommendations[0];
-        console.log('💡 First recommendation:', firstRec);
 
         expect(firstRec.symbol).toBeDefined();
         expect(firstRec.action).toBeDefined(); // BUY, SELL, HOLD, etc.
@@ -358,7 +339,6 @@ describe('Real Data Flow Verification', () => {
           // (We can't just check for number 50, because it could be a real price or quantity)
           // Instead, check specific metric names that shouldn't have these defaults
 
-          console.log(`🔍 Checking ${endpoint} for fake defaults...`);
 
           // Pattern: sentiment scores should not default to 50 (neutral)
           if (jsonStr.includes('"sentimentScore":50') || jsonStr.includes('"sentiment_score":50')) {
@@ -392,12 +372,10 @@ describe('Real Data Flow Verification', () => {
       // Check that when data is unavailable, we return null (not calculated estimates)
       // Example: beta requires SPY correlation - should be null if not calculated
       if (summary.beta === null) {
-        console.log('✅ Beta correctly null (requires SPY correlation)');
       }
 
       // Example: period returns require historical data - should be null if unavailable
       if (!summary.return_1m && !summary.return_3m && !summary.return_6m && !summary.return_1y) {
-        console.log('✅ Period returns correctly null (requires historical data)');
       }
     }, 30000);
   });
@@ -405,13 +383,11 @@ describe('Real Data Flow Verification', () => {
 
 // Run tests if executed directly
 if (require.main === module) {
-  console.log('🧪 Starting Real Data Flow Verification Tests...\n');
 
   // Simple test runner (since we don't have jest in this context)
   const runTests = async () => {
     try {
       // Add your test execution logic here
-      console.log('✅ All tests would run here');
     } catch (error) {
       console.error('❌ Test failed:', error);
       process.exit(1);

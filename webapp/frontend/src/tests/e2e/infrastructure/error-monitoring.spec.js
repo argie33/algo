@@ -278,7 +278,6 @@ test.describe("Console Error Detection", () => {
         }
       } catch (interactionError) {
         // Interactions are secondary to console error detection
-        console.log(
           `Note: Could not interact with ${pageInfo.name}: ${interactionError.message}`
         );
       }
@@ -290,20 +289,13 @@ test.describe("Console Error Detection", () => {
       const report = detector.generateReport();
 
       // Log detailed results for debugging
-      console.log(`\n📊 Console Error Report for ${pageInfo.name}:`);
-      console.log(`   Total Issues: ${report.summary.totalIssues}`);
-      console.log(
         `   Errors: ${report.summary.totalErrors} (${report.summary.criticalErrors} critical)`
       );
-      console.log(`   Warnings: ${report.summary.totalWarnings}`);
-      console.log(`   Network Errors: ${report.summary.totalNetworkErrors}`);
 
       if (report.errors.length > 0) {
-        console.log("\n❌ Console Errors:");
         report.errors.forEach((error, i) => {
           console.log(`   ${i + 1}. [${error.severity}] ${error.message}`);
           if (Object.keys(error.classification).length > 0) {
-            console.log(
               `      Types: ${Object.keys(error.classification).join(", ")}`
             );
           }
@@ -311,16 +303,13 @@ test.describe("Console Error Detection", () => {
       }
 
       if (report.warnings.length > 0 && report.warnings.length <= 5) {
-        console.log("\n⚠️ Console Warnings:");
         report.warnings.forEach((warning, i) => {
           console.log(`   ${i + 1}. ${warning.message.substring(0, 100)}...`);
         });
       }
 
       if (report.recommendations.length > 0) {
-        console.log("\n💡 Recommendations:");
         report.recommendations.forEach((rec, i) => {
-          console.log(`   ${i + 1}. [${rec.priority}] ${rec.message}`);
         });
       }
 
@@ -356,7 +345,6 @@ test.describe("Console Error Detection", () => {
       "/settings",
     ];
 
-    console.log("\n🚀 Starting comprehensive user journey test...");
 
     for (const pagePath of journeyPages) {
       await page.goto(pagePath, {
@@ -368,14 +356,8 @@ test.describe("Console Error Detection", () => {
 
     const finalReport = detector.generateReport();
 
-    console.log("\n📊 Complete User Journey Report:");
-    console.log(`   Pages Visited: ${journeyPages.length}`);
-    console.log(
       `   Total Test Duration: ${finalReport.summary.testDurationMs}ms`
     );
-    console.log(`   Total Issues: ${finalReport.summary.totalIssues}`);
-    console.log(`   Critical Errors: ${finalReport.summary.criticalErrors}`);
-    console.log(`   High-Severity Errors: ${finalReport.summary.highErrors}`);
 
     // Stricter requirements for full journey
     expect(finalReport.summary.criticalErrors).toBe(0);

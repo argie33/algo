@@ -23,7 +23,6 @@ try {
   
   console.log(`Found unused items in ${Object.keys(warnings).length} files:`);
   Object.entries(warnings).slice(0, 10).forEach(([file, items]) => {
-    console.log(`\n${file}:`);
     items.slice(0, 5).forEach(item => console.log(`  - ${item}`));
     if (items.length > 5) console.log(`  ... and ${items.length - 5} more`);
   });

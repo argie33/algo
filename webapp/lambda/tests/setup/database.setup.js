@@ -14,9 +14,6 @@ process.env.DB_NAME = "stocks";
 process.env.DB_PORT = "5432";
 process.env.DB_SSL = "false";
 
-console.log('🔧 Setting up webapp-specific database tables...');
-console.log('Using database config from environment variables');
-console.log(`Database config loaded from environment: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
 
 // Database setup for individual test files
 const { query, initializeDatabase } = require('../../utils/database');
@@ -45,7 +42,6 @@ async function getTestData(tableName, limit = 10) {
 // Helper to create all tables using the main setup_database.sql file
 async function ensureTestData() {
   try {
-    console.log('🔧 Setting up webapp-specific tables from setup_database.sql...');
 
     // Use the webapp-specific database setup SQL file
     const fs = require('fs');
@@ -71,7 +67,6 @@ async function ensureTestData() {
         }
       }
 
-      console.log('✅ Database schema loaded from setup_database.sql');
     } catch (error) {
       console.warn('⚠️  Could not load setup_database.sql, using fallback:', error.message);
 
@@ -148,7 +143,6 @@ async function ensureTestData() {
       ON CONFLICT DO NOTHING
     `);
 
-    console.log('✅ Database webapp-only tables created successfully');
     }
 
   } catch (error) {
@@ -163,7 +157,6 @@ async function createLoaderTables() {
     // Tables are now created by setup_test_database.sql with proper schemas
     // Just create any additional tables not in that file
 
-    console.log('✅ Using table schemas from setup_test_database.sql');
 
     // Check and fix stock_scores table schema - add all missing columns
     try {
@@ -190,12 +183,10 @@ async function createLoaderTables() {
           // Column probably already exists
         }
       }
-      console.log('✅ Ensured stock_scores has all required columns');
     } catch (error) {
       console.warn('Could not add stock_scores columns:', error.message);
     }
 
-    console.log('✅ Python loader tables created for testing');
   } catch (error) {
     console.error('❌ Error creating Python loader tables:', error);
     throw error;
@@ -269,7 +260,6 @@ async function populateLoaderTestData() {
       ON CONFLICT (series_id, date) DO NOTHING
     `);
 
-    console.log('✅ Economic test data populated for testing');
 
     // Insert stock symbols (for JOIN operations)
     await query(`
@@ -401,7 +391,6 @@ async function populateLoaderTestData() {
       ON CONFLICT (symbol, timeframe, date) DO NOTHING
     `);
 
-    console.log('✅ Test data populated for existing Python loader tables');
   } catch (error) {
     console.warn('⚠️  Could not populate test data for loader tables:', error.message);
     // Non-fatal error - tests can still run
@@ -413,7 +402,6 @@ async function setupTestDatabase() {
   try {
     // Initialize database connection
     await initializeDatabase();
-    console.log('✅ Database connection pool initialized successfully');
 
     // Create webapp-only tables
     await ensureTestData();
@@ -424,7 +412,6 @@ async function setupTestDatabase() {
     // Try to populate test data for Python loader tables if they exist
     await populateLoaderTestData();
 
-    console.log('✅ Database tables created matching Python loader structure');
   } catch (error) {
     console.error('❌ Failed to setup test database:', error);
     throw error;
@@ -451,10 +438,8 @@ if (typeof expect !== 'undefined') {
       }
     },
   });
-  console.log('✅ Custom Jest matchers loaded globally');
 }
 */
-console.log('✅ Database setup complete - custom matchers disabled for now');
 
 module.exports = {
   isDatabaseAvailable,

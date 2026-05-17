@@ -27,7 +27,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       }
     });
 
-    console.log("🧪 Testing Bullseye Stock Screener at /scores...");
 
     // Navigate to Scores Dashboard page
     try {
@@ -49,7 +48,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
           error.includes("Error")
       );
 
-      console.log(
         `📊 Bullseye Stock Screener: ${consoleErrors.length} total console messages, ${criticalErrors.length} critical errors`
       );
 

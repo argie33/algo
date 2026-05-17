@@ -233,15 +233,12 @@ describe("Authentication Security Tests", () => {
           apiSecret: mockApiKey.secret,
         });
 
-      console.log("Security test response status:", response.status);
-      console.log(
         "Security test response body:",
         JSON.stringify(response.body, null, 2)
       );
 
       // If we got an error, the route might not exist or auth failed
       if (response.status >= 400) {
-        console.log("API key endpoint failed - checking if route exists");
       }
 
       // Verify that the API key service was called

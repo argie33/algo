@@ -6,7 +6,6 @@ import EconomicModeling from "../../pages/EconomicModeling";
 
 describe("EconomicModeling Real Functionality Tests", () => {
   beforeEach(async () => {
-    console.log("📈 Starting real Economic Modeling test");
   });
 
   describe("Component Loading and Real API Integration", () => {
@@ -229,7 +228,6 @@ describe("EconomicModeling Real Functionality Tests", () => {
       );
 
       const loadTime = performance.now() - startTime;
-      console.log(`📈 Real Economic Modeling load time: ${loadTime}ms`);
 
       // Real performance test - should load reasonably fast
       expect(loadTime).toBeLessThan(10000); // 10 second max for real API calls

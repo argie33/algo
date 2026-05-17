@@ -87,12 +87,9 @@ function testEndpoint(endpoint) {
  * Run all tests
  */
 async function runTests() {
-  console.log('🔍 Frontend Page API Endpoint Test');
-  console.log('==================================\n');
 
   for (const [page, endpoints] of Object.entries(PAGES_AND_ENDPOINTS)) {
     if (endpoints.length === 0) {
-      console.log(`⏭️  ${page.padEnd(30)} [STATIC PAGE - no API calls]`);
       skipped++;
       continue;
     }
@@ -109,24 +106,17 @@ async function runTests() {
     }
 
     if (allPassed) {
-      console.log(`✅ ${page.padEnd(30)} [${endpoints.join(', ')}]`);
       passed++;
     } else {
       const failures = results.filter(r => !r.ok).map(r => `${r.endpoint}(${r.error})`).join(', ');
-      console.log(`❌ ${page.padEnd(30)} [${failures}]`);
       failed++;
     }
   }
 
-  console.log('\n==================================');
-  console.log(`📊 Results: ${passed} passed, ${failed} failed, ${skipped} skipped`);
-  console.log(`✅ Pages with working APIs: ${passed}/${Object.keys(PAGES_AND_ENDPOINTS).length - skipped}`);
 
   if (failed === 0) {
-    console.log('🎉 ALL API ENDPOINTS WORKING!');
     process.exit(0);
   } else {
-    console.log(`⚠️  ${failed} pages have broken API endpoints`);
     process.exit(1);
   }
 }

@@ -18,7 +18,6 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
 
     const validTables = {
       'annual': 'annual_balance_sheet',
@@ -74,7 +73,6 @@ router.get("/:symbol/income-statement", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
     const validTables = {
       'annual': 'annual_income_statement',
       'quarterly': 'quarterly_income_statement'
@@ -116,7 +114,6 @@ router.get("/:symbol/cash-flow", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
     const validTables = {
       'annual': 'annual_cash_flow',
       'quarterly': 'quarterly_cash_flow'

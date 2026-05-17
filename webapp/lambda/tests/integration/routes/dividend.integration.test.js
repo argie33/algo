@@ -16,13 +16,11 @@ describe("Dividend Routes - Real Data Validation", () => {
 
   describe("GET /api/dividend/:symbol (Stock Dividend Data)", () => {
     test("should return dividend data for dividend-paying stocks", async () => {
-      console.log('Starting dividend test with app:', typeof app);
       const response = await request(app)
         .get('/api/dividend/AAPL')
         .set('Authorization', 'Bearer dev-bypass-token')
         .timeout(5000);
 
-      console.log(`Response status: ${response.status}`);
 
       expect([200, 404]).toContain(response.status);
 

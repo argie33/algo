@@ -22,11 +22,9 @@ test.describe("Check AAII Data", () => {
     const aaiiHistoryLogs = consoleLogs.filter((log) =>
       log.includes("aaiiHistory")
     );
-    console.log("AAII History Logs:", aaiiHistoryLogs);
 
     const sentimentChartDataLogs = consoleLogs.filter((log) =>
       log.includes("sentimentChartData")
     );
-    console.log("Sentiment Chart Data Logs:", sentimentChartDataLogs);
   });
 });

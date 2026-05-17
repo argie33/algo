@@ -78,7 +78,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Dashboard should handle rapid navigation load", async ({ page }) => {
-    console.log("🚀 Testing rapid navigation load...");
 
     const navigationTimes = [];
     const routes = [
@@ -99,7 +98,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const loadTime = Date.now() - startTime;
       navigationTimes.push(loadTime);
 
-      console.log(`📊 Navigation ${i + 1} to ${route}: ${loadTime}ms`);
 
       // Quick navigation without waiting
       await page.waitForTimeout(100);
@@ -111,7 +109,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const maxTime = Math.max(...navigationTimes);
     const minTime = Math.min(...navigationTimes);
 
-    console.log(
       `📈 Load Test Results - Avg: ${Math.round(avgTime)}ms, Max: ${maxTime}ms, Min: ${minTime}ms`
     );
 
@@ -123,7 +120,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("Portfolio page should handle data-heavy scenarios", async ({
     page,
   }) => {
-    console.log("💼 Testing portfolio data load performance...");
 
     // Navigate to portfolio with heavy data load
     const startTime = Date.now();
@@ -131,7 +127,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     await page.waitForLoadState("networkidle");
 
     const initialLoadTime = Date.now() - startTime;
-    console.log(`📊 Initial portfolio load: ${initialLoadTime}ms`);
 
     // Test multiple data refresh scenarios
     const refreshTimes = [];
@@ -145,13 +140,11 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const refreshTime = Date.now() - refreshStart;
       refreshTimes.push(refreshTime);
 
-      console.log(`🔄 Refresh ${i + 1}: ${refreshTime}ms`);
       await page.waitForTimeout(200);
     }
 
     const avgRefreshTime =
       refreshTimes.reduce((a, b) => a + b) / refreshTimes.length;
-    console.log(`📈 Average refresh time: ${Math.round(avgRefreshTime)}ms`);
 
     // Performance validation
     expect(
@@ -165,7 +158,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Market data should handle frequent updates", async ({ page }) => {
-    console.log("📈 Testing market data update performance...");
 
     await page.goto("/market");
     await page.waitForSelector("#root", { state: "attached" });
@@ -188,7 +180,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       updateTimes.push(updateTime);
 
       if (i % 5 === 0) {
-        console.log(
           `⚡ Update batch ${Math.floor(i / 5) + 1} average: ${Math.round(updateTimes.slice(-5).reduce((a, b) => a + b) / 5)}ms`
         );
       }
@@ -196,7 +187,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
 
     const avgUpdateTime =
       updateTimes.reduce((a, b) => a + b) / updateTimes.length;
-    console.log(
       `📊 Overall average update time: ${Math.round(avgUpdateTime)}ms`
     );
 
@@ -209,7 +199,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("Concurrent API requests should be handled efficiently", async ({
     page,
   }) => {
-    console.log("🌐 Testing concurrent API request handling...");
 
     let apiRequestCount = 0;
     let apiResponseCount = 0;
@@ -252,7 +241,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     // Wait for all responses
     await page.waitForTimeout(3000);
 
-    console.log(
       `📊 API Requests: ${apiRequestCount}, Responses: ${apiResponseCount}`
     );
 
@@ -260,7 +248,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const avgApiTime = apiTimes.reduce((a, b) => a + b) / apiTimes.length;
       const maxApiTime = Math.max(...apiTimes);
 
-      console.log(
         `⚡ API Performance - Avg: ${Math.round(avgApiTime)}ms, Max: ${maxApiTime}ms`
       );
 
@@ -276,7 +263,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Memory usage should remain stable under load", async ({ page }) => {
-    console.log("🧠 Testing memory stability under load...");
 
     const memoryReadings = [];
 
@@ -301,7 +287,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
 
     if (initialMemory) {
       memoryReadings.push(initialMemory);
-      console.log(`📊 Initial memory: ${initialMemory.used}MB`);
 
       // Load test with memory monitoring
       const routes = [
@@ -320,7 +305,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
           const memory = await getMemoryMetrics();
           if (memory) {
             memoryReadings.push(memory);
-            console.log(
               `🧠 Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
             );
           }
@@ -331,8 +315,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const finalMemory = memoryReadings[memoryReadings.length - 1];
       const memoryIncrease = finalMemory.used - initialMemory.used;
 
-      console.log(`📈 Memory increase over test: ${memoryIncrease}MB`);
-      console.log(
         `📊 Final memory usage: ${finalMemory.used}MB / ${finalMemory.total}MB`
       );
 
@@ -346,7 +328,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         `Final memory usage: ${finalMemory.used}MB`
       ).toBeLessThan(200);
     } else {
-      console.log("ℹ️ Memory monitoring not available in this browser");
       expect(true).toBe(true); // Pass test if memory monitoring unavailable
     }
   });
@@ -354,7 +335,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("UI should remain responsive under heavy interaction load", async ({
     page,
   }) => {
-    console.log("🖱️ Testing UI responsiveness under heavy load...");
 
     await page.goto("/stocks");
     await page.waitForSelector("#root", { state: "attached" });
@@ -414,12 +394,10 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         if (i % 5 === 0) {
           const recentAvg =
             interactionTimes.slice(-5).reduce((a, b) => a + b) / 5;
-          console.log(
             `⚡ Interaction batch ${Math.floor(i / 5) + 1} avg: ${Math.round(recentAvg)}ms`
           );
         }
       } catch (error) {
-        console.log(
           `⚠️ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
         );
         interactionTimes.push(1000); // Penalty for failed interaction
@@ -432,7 +410,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       interactionTimes.reduce((a, b) => a + b) / interactionTimes.length;
     const maxInteractionTime = Math.max(...interactionTimes);
 
-    console.log(
       `📊 Interaction Performance - Avg: ${Math.round(avgInteractionTime)}ms, Max: ${maxInteractionTime}ms`
     );
 
@@ -450,7 +427,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("System should handle network congestion gracefully", async ({
     page,
   }) => {
-    console.log("🌐 Testing network congestion handling...");
 
     // Simulate network congestion with delays
     await page.route("**/api/**", async (route) => {
@@ -484,7 +460,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const routes = ["/portfolio", "/market", "/stocks"];
 
     for (const route of routes) {
-      console.log(`🌐 Testing ${route} under network congestion...`);
       const startTime = Date.now();
 
       try {
@@ -494,12 +469,10 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         const loadTime = Date.now() - startTime;
         loadResults.push({ route, success: true, time: loadTime });
 
-        console.log(`✅ ${route}: ${loadTime}ms`);
       } catch (error) {
         const loadTime = Date.now() - startTime;
         loadResults.push({ route, success: false, time: loadTime });
 
-        console.log(
           `❌ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
         );
       }
@@ -509,14 +482,12 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const successful = loadResults.filter((r) => r.success);
     const failed = loadResults.filter((r) => !r.success);
 
-    console.log(
       `📊 Network congestion results: ${successful.length} successful, ${failed.length} failed`
     );
 
     if (successful.length > 0) {
       const avgTime =
         successful.reduce((sum, r) => sum + r.time, 0) / successful.length;
-      console.log(`⚡ Average successful load time: ${Math.round(avgTime)}ms`);
 
       // Under network congestion, allow higher thresholds
       expect(

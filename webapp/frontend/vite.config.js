@@ -18,7 +18,6 @@ export default defineConfig(({ mode }) => {
   // Vite proxy always needs the target URL for development
   const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
 
-  console.log("Vite Config:", {
     mode,
     isDevelopment,
     isProduction,
@@ -63,7 +62,6 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               timeout: 45000, // Longer timeout for Lambda cold starts in development
               configure: (proxy, options) => {
-                console.log("Proxy configured for:", options.target);
               },
             },
           }

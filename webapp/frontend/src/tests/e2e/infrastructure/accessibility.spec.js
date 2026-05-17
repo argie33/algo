@@ -74,11 +74,9 @@ test.describe("Financial Platform - Accessibility", () => {
 
         if (title && title.length > 0 && title !== "Vite + React") {
           properTitles++;
-          console.log(`✅ ${name}: "${title}"`);
           expect(title.length).toBeGreaterThan(5);
           expect(title.length).toBeLessThan(60); // SEO best practice
         } else {
-          console.log(`⚠️ ${name}: Missing or generic title`);
         }
       } catch (error) {
         console.log(`❌ ${name}: ${error.message.slice(0, 50)}`);
@@ -86,7 +84,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(
       `📊 Pages with proper titles: ${properTitles}/${criticalPages.length}`
     );
     expect(properTitles).toBeGreaterThan(2);
@@ -132,7 +129,6 @@ test.describe("Financial Platform - Accessibility", () => {
           JSON.stringify(focused) !== JSON.stringify(currentElement)
         ) {
           focusableElements++;
-          console.log(
             `✅ Tab ${i + 1}: ${focused.tagName}${focused.type ? `[${focused.type}]` : ""} - "${focused.text || focused.ariaLabel || "unlabeled"}"`
           );
           currentElement = focused;
@@ -143,7 +139,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(`⌨️ Keyboard accessible elements: ${focusableElements}`);
     expect(focusableElements).toBeGreaterThan(browserName === "webkit" ? 2 : 3);
   });
 
@@ -171,11 +166,9 @@ test.describe("Financial Platform - Accessibility", () => {
         const newUrl = page.url();
         if (newUrl !== initialUrl) {
           workingShortcuts++;
-          console.log(
             `✅ ${description}: URL changed from ${initialUrl} to ${newUrl}`
           );
         } else {
-          console.log(
             `ℹ️ ${description}: No navigation (may not be implemented)`
           );
         }
@@ -184,7 +177,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(
       `⌨️ Working keyboard shortcuts: ${workingShortcuts}/${shortcuts.length}`
     );
     expect(workingShortcuts).toBeGreaterThanOrEqual(0); // Just log results
@@ -224,12 +216,10 @@ test.describe("Financial Platform - Accessibility", () => {
           const firstElement = page.locator(selector).first();
           const attrValue = await firstElement.getAttribute(attribute);
 
-          console.log(
             `✅ Found ${elements} elements with ${attribute}: "${attrValue}"`
           );
 
           if (expected && attrValue !== expected) {
-            console.log(
               `⚠️ Expected ${attribute}="${expected}", found "${attrValue}"`
             );
           }
@@ -239,7 +229,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(`♿ ARIA attributes found: ${ariaElementsFound} types`);
     expect(ariaElementsFound).toBeGreaterThanOrEqual(0);
   });
 
@@ -286,24 +275,19 @@ test.describe("Financial Platform - Accessibility", () => {
             const count = await page.locator(selector).count();
             if (count > 0) {
               pageAccessibilityScore++;
-              console.log(`✅ ${pagePath}: ${count} ${description}`);
             }
           } catch (checkError) {
-            console.log(`⚠️ ${pagePath}: ${description} check failed`);
           }
         }
 
         if (pageAccessibilityScore > 2) {
           accessibleForms++;
-          console.log(
             `✅ ${pagePath}: Good form accessibility (${pageAccessibilityScore}/6)`
           );
         } else if (pageAccessibilityScore > 0) {
-          console.log(
             `⚠️ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
           );
         } else {
-          console.log(
             `ℹ️ ${pagePath}: No forms detected or limited accessibility`
           );
         }
@@ -313,7 +297,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(
       `📊 Pages with accessible forms: ${accessibleForms}/${pagesWithForms.length}`
     );
     // Safari may have different accessibility patterns, so be more lenient
@@ -369,7 +352,6 @@ test.describe("Financial Platform - Accessibility", () => {
               };
             });
 
-          console.log(
             `✅ ${description}: color=${styles.color}, bg=${styles.backgroundColor}`
           );
 
@@ -382,7 +364,6 @@ test.describe("Financial Platform - Accessibility", () => {
 
           if (!hasGoodContrast) {
             contrastIssues++;
-            console.log(`⚠️ ${description}: Potential contrast issue`);
           }
         }
       } catch (error) {
@@ -390,7 +371,6 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(
       `🎨 Color contrast: ${elementsChecked - contrastIssues}/${elementsChecked} elements appear accessible`
     );
     expect(elementsChecked).toBeGreaterThan(0);
@@ -421,7 +401,6 @@ test.describe("Financial Platform - Accessibility", () => {
         const count = await page.locator(selector).count();
         if (count > 0) {
           screenReaderFeatures++;
-          console.log(`✅ ${description}: ${count} elements`);
 
           // Check heading hierarchy for first few headings
           if (selector.includes("h1")) {
@@ -436,17 +415,14 @@ test.describe("Financial Platform - Accessibility", () => {
               headingLevels.push(`${tagName}: "${text?.slice(0, 30)}"`);
             }
 
-            console.log(`   Heading structure: ${headingLevels.join(" → ")}`);
           }
         }
       } catch (error) {
-        console.log(
           `⚠️ Screen reader check failed: ${error.message.slice(0, 30)}`
         );
       }
     }
 
-    console.log(
       `👁️ Screen reader features: ${screenReaderFeatures}/${screenReaderChecks.length}`
     );
     expect(screenReaderFeatures).toBeGreaterThanOrEqual(1);

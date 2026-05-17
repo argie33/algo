@@ -72,7 +72,6 @@ export function configureAmplify() {
     const config = getAmplifyConfig();
     const runtimeConfig = getRuntimeConfig();
 
-    console.log("🔧 [AMPLIFY CONFIG] Configuration details:", {
       userPoolId: config.Auth.Cognito.userPoolId,
       clientId: config.Auth.Cognito.userPoolClientId,
       domain: config.Auth.Cognito.loginWith.oauth.domain,
@@ -84,15 +83,9 @@ export function configureAmplify() {
       console.warn(
         "⚠️  Cognito not configured - using dummy values for development"
       );
-      console.log("Environment variables needed:");
-      console.log("- VITE_COGNITO_USER_POOL_ID");
-      console.log("- VITE_COGNITO_CLIENT_ID");
-      console.log("- VITE_COGNITO_DOMAIN");
-      console.log("Or set runtime config in window.__CONFIG__");
     }
 
     Amplify.configure(config);
-    console.log("✅ Amplify configured successfully");
   } catch (error) {
     console.error("❌ Failed to configure Amplify:", error);
   }

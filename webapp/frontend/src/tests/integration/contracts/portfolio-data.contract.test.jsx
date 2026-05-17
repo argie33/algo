@@ -38,7 +38,6 @@ describe("Portfolio Data Contract Tests", () => {
     expect(apiResponse.data).toHaveProperty("summary");
     expect(Array.isArray(apiResponse.data.holdings)).toBe(true);
 
-    console.log("Portfolio holdings response structure:", {
       success: apiResponse.success,
       hasData: "data" in apiResponse,
       hasHoldings: apiResponse.data && "holdings" in apiResponse.data,
@@ -68,7 +67,6 @@ describe("Portfolio Data Contract Tests", () => {
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
 
-    console.log("Portfolio analytics response structure:", apiResponse);
   });
 
   it("should validate market overview endpoint contract", async () => {
@@ -92,6 +90,5 @@ describe("Portfolio Data Contract Tests", () => {
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
 
-    console.log("Market overview response structure:", apiResponse);
   });
 });

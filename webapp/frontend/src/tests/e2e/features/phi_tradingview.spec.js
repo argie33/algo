@@ -9,5 +9,4 @@ test('Screenshot PHI on TradingView', async ({ page }) => {
   
   // Take screenshot
   await page.screenshot({ path: '/tmp/phi_tradingview.png', fullPage: true });
-  console.log('Screenshot saved to /tmp/phi_tradingview.png');
 });

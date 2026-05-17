@@ -47,7 +47,6 @@ async function retryWithBackoff(operation, operationType = "api_call", context =
 
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
-      console.log(`⏳ Attempt ${attempt}/${config.maxRetries}${context.description ? ` - ${context.description}` : ""}`);
       return await operation();
     } catch (error) {
       lastError = error;
@@ -225,7 +224,6 @@ class CircuitBreaker {
   async execute(operation) {
     if (this.state === "OPEN") {
       if (Date.now() - this.lastFailureTime > this.resetTimeout) {
-        console.log(`🔄 Circuit breaker ${this.name}: Transitioning to HALF_OPEN`);
         this.state = "HALF_OPEN";
         this.successCount = 0;
       } else {
@@ -239,7 +237,6 @@ class CircuitBreaker {
       if (this.state === "HALF_OPEN") {
         this.successCount++;
         if (this.successCount >= this.successThreshold) {
-          console.log(`✅ Circuit breaker ${this.name}: Transitioning to CLOSED`);
           this.state = "CLOSED";
           this.failureCount = 0;
         }
@@ -259,7 +256,6 @@ class CircuitBreaker {
     this.lastFailureTime = Date.now();
 
     if (this.failureCount >= this.failureThreshold) {
-      console.log(`🔴 Circuit breaker ${this.name}: Transitioning to OPEN after ${this.failureCount} failures`);
       this.state = "OPEN";
     }
   }

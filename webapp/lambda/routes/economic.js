@@ -640,7 +640,6 @@ router.get("/yield-curve-full", async (req, res) => {
 router.get("/calendar", async (req, res) => {
   try {
     const { start_date, end_date, importance, country } = req.query;
-    console.log(
       `📅 Economic calendar requested - start: ${start_date}, end: ${end_date}, importance: ${importance}, country: ${country}`
     );
 

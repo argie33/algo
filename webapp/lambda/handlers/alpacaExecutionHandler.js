@@ -18,7 +18,6 @@ const { query } = require("../utils/database");
  */
 async function executeOptimizationTrades(userId, optimizationId, trades, isPaper = true) {
   try {
-    console.log(`🚀 [Alpaca] Starting execution for ${trades.length} trades (${isPaper ? "PAPER" : "LIVE"} mode)`);
 
     const alpacaTrader = initializeAlpacaTrader(isPaper);
 
@@ -52,7 +51,6 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
       };
     }
 
-    console.log(`💰 Account Status: $${buyingPowerResult.buying_power.toFixed(2)} buying power available`);
 
     // Separate trades by action type
     const buyTrades = trades.filter((t) => t.action === "BUY");
@@ -65,7 +63,6 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     // Execute sells first
     for (const trade of sellTrades) {
       try {
-        console.log(`📉 Executing ${trade.action}: ${trade.symbol} x${trade.quantity}`);
 
         const validateResult = await alpacaTrader.validateTrade(
           trade.symbol,
@@ -135,14 +132,12 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
       const updatedResult = await alpacaTrader.getBuyingPower();
       if (updatedResult.success) {
         updatedBuyingPower = updatedResult.buying_power;
-        console.log(`💰 Updated buying power: $${updatedBuyingPower.toFixed(2)}`);
       }
     }
 
     // Execute buys
     for (const trade of buyTrades) {
       try {
-        console.log(`📈 Executing BUY: ${trade.symbol} x${trade.quantity}`);
 
         // Check if we have enough buying power
         const estimatedCost = trade.quantity * (trade.current_price || 150); // Fallback to $150 estimate
@@ -218,7 +213,6 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     }
 
     // Summary
-    console.log(
       `✅ Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`
     );
 

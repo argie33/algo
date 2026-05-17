@@ -46,13 +46,11 @@ export const getLogger = (name) => {
   return {
     debug: (message, data) => {
       if (shouldLog('DEBUG')) {
-        console.log(formatMessage(LogLevels.DEBUG, message, data));
       }
     },
 
     info: (message, data) => {
       if (shouldLog('INFO')) {
-        console.log(formatMessage(LogLevels.INFO, message, data));
       }
     },
 

@@ -18,7 +18,6 @@ test.describe("Trading Signals Navigation", () => {
   });
 
   test("should navigate to signals page via stocks menu", async ({ page }) => {
-    console.log("📊 Testing signals page navigation...");
 
     // Navigate to home page
     await page.goto("/");
@@ -34,7 +33,6 @@ test.describe("Trading Signals Navigation", () => {
       await stocksSection.click();
       await page.waitForTimeout(500);
     } catch (e) {
-      console.log("Stocks section might already be expanded");
     }
 
     // Look for Trading Signals menu item
@@ -65,11 +63,9 @@ test.describe("Trading Signals Navigation", () => {
     // Check for timeframe filter
     await expect(page.locator('text="Timeframe"').first()).toBeVisible();
 
-    console.log("✅ Trading Signals page navigation test completed successfully");
   });
 
   test("should load signals data and display table", async ({ page }) => {
-    console.log("📊 Testing signals data loading...");
 
     // Navigate directly to signals page
     await page.goto("/trading-signals");
@@ -85,11 +81,9 @@ test.describe("Trading Signals Navigation", () => {
     await expect(page.locator('text="Signal"').first()).toBeVisible();
     await expect(page.locator('text="Current Price"').first()).toBeVisible();
 
-    console.log("✅ Trading Signals data loading test completed successfully");
   });
 
   test("should allow filtering signals", async ({ page }) => {
-    console.log("📊 Testing signals filtering...");
 
     // Navigate to signals page
     await page.goto("/trading-signals");
@@ -108,7 +102,6 @@ test.describe("Trading Signals Navigation", () => {
       if (await weeklyOption.isVisible()) {
         await weeklyOption.click();
         await page.waitForTimeout(1000);
-        console.log("✅ Timeframe filter test completed");
       }
     }
 
@@ -124,10 +117,8 @@ test.describe("Trading Signals Navigation", () => {
       if (await buyOption.isVisible()) {
         await buyOption.click();
         await page.waitForTimeout(1000);
-        console.log("✅ Signal type filter test completed");
       }
     }
 
-    console.log("✅ Trading Signals filtering test completed successfully");
   });
 });

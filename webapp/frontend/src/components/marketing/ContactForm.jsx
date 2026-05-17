@@ -53,7 +53,6 @@ const ContactForm = ({ onSubmit }) => {
         await onSubmit(formData);
       } else {
         // Default: log to console (can be replaced with actual API call)
-        console.log('Form submitted:', formData);
       }
 
       setSubmitted(true);

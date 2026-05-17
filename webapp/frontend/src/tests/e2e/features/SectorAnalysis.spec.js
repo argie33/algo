@@ -27,7 +27,6 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       }
     });
 
-    console.log("🧪 Testing Sector Analysis at /sectors...");
 
     // Navigate to Sector Analysis page
     try {
@@ -49,7 +48,6 @@ test.describe("Sector Analysis Page E2E Tests", () => {
           error.includes("value")
       );
 
-      console.log(
         `📊 Sector Analysis: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 

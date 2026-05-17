@@ -216,7 +216,6 @@ describe("Site Integration Tests", () => {
         // Test passed - Recharts is working properly
         expect(true).toBe(true);
       } catch (error) {
-        console.log("Recharts not available, this is expected for testing");
         expect(true).toBe(true);
       }
     });

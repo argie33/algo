@@ -44,7 +44,6 @@ test.describe("Performance Tests", () => {
     await expect(page.locator("#root")).toBeVisible();
 
     const loadTime = Date.now() - startTime;
-    console.log(`🚀 Dashboard loaded in ${loadTime}ms`);
 
     // Should load within 6 seconds (realistic for complex financial platform)
     expect(loadTime, `Dashboard loaded in ${loadTime}ms`).toBeLessThan(6000);
@@ -97,7 +96,6 @@ test.describe("Performance Tests", () => {
     });
 
     // Core Web Vitals thresholds (realistic for financial app)
-    console.log("⚡ Core Web Vitals Results:", vitals);
 
     if (vitals.lcp > 0) {
       expect(vitals.lcp, `LCP: ${vitals.lcp}ms`).toBeLessThan(4000); // 4s
@@ -165,10 +163,8 @@ test.describe("Performance Tests", () => {
 
     const totalSize = totalJsSize + totalCssSize;
 
-    console.log(
       `📦 Bundle Analysis - JS: ${Math.round(totalJsSize / 1024)}KB, CSS: ${Math.round(totalCssSize / 1024)}KB, Total: ${Math.round(totalSize / 1024)}KB`
     );
-    console.log(
       `📊 Resources detected: ${resources.length} (${resources.filter((r) => r.type === "js").length} JS, ${resources.filter((r) => r.type === "css").length} CSS)`
     );
 
@@ -187,7 +183,6 @@ test.describe("Performance Tests", () => {
         `Total bundle: ${Math.round(totalSize / 1024)}KB`
       ).toBeLessThan(10500 * 1024); // 10.5MB total
     } else {
-      console.log("⚠️ No bundle resources detected - skipping size validation");
       expect(true).toBe(true); // Pass test if no resources detected
     }
   });
@@ -203,7 +198,6 @@ test.describe("Performance Tests", () => {
     await expect(page.locator("#root")).toBeVisible();
 
     const mobileLoadTime = Date.now() - startTime;
-    console.log(`📱 Mobile load time: ${mobileLoadTime}ms`);
 
     // Mobile should load within 8 seconds (slower network + API timeouts)
     expect(
@@ -307,7 +301,6 @@ test.describe("Performance Tests", () => {
     await expect(page.locator("#root")).toBeVisible({ timeout: 5000 });
 
     const contentVisibleTime = Date.now() - startTime;
-    console.log(`🎨 Content visible time: ${contentVisibleTime}ms`);
 
     // Content should be visible quickly (FOUT is better than FOIT)
     expect(contentVisibleTime, "Content visible time").toBeLessThan(3200); // 3.2s - slightly more lenient
@@ -327,7 +320,6 @@ test.describe("Performance Tests", () => {
       await portfolioNav.click();
       await page.waitForURL("**/portfolio", { timeout: 3000 });
       const navigationTime = Date.now() - navigationStart;
-      console.log(`🧭 Navigation time: ${navigationTime}ms`);
 
       // Client-side navigation should be reasonably fast
       expect(
@@ -335,7 +327,6 @@ test.describe("Performance Tests", () => {
         `Navigation time: ${navigationTime}ms`
       ).toBeLessThan(2000);
     } else {
-      console.log(
         "ℹ️ Portfolio navigation not found - test passed as page loaded"
       );
       expect(true).toBe(true);

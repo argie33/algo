@@ -399,7 +399,6 @@ const logApiAccess = async (req, res, next) => {
   // Log request with sanitized data
   if (process.env.NODE_ENV !== 'test') {
     const { hashedId, sanitizedPath } = sanitizeForLogging(req.user?.sub, req.path);
-    console.log(
       `${req.method} ${sanitizedPath} - User: ${hashedId} - IP: ${req.ip}`
     );
   }
@@ -410,7 +409,6 @@ const logApiAccess = async (req, res, next) => {
     const duration = Date.now() - startTime;
     if (process.env.NODE_ENV !== 'test') {
       const { sanitizedPath } = sanitizeForLogging(null, req.path);
-      console.log(
         `${req.method} ${sanitizedPath} - ${res.statusCode} - ${duration}ms`
       );
     }

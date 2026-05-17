@@ -10,5 +10,4 @@ test('Screenshot PHI Aug 27 on TradingView', async ({ page }) => {
   // Try to navigate to Aug 27 by scrolling or using keyboard
   // First, let's just take a screenshot of the current view
   await page.screenshot({ path: '/tmp/phi_full_chart.png', fullPage: true });
-  console.log('Full chart screenshot saved');
 });

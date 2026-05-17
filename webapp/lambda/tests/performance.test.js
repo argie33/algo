@@ -24,7 +24,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.FAST);
-      console.log(`Health check: ${elapsed}ms`);
     });
 
     it('stocks list should respond acceptably (< 1000ms)', async () => {
@@ -34,7 +33,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Stocks list (10): ${elapsed}ms`);
     });
 
     it('stock detail should respond quickly (< 200ms)', async () => {
@@ -44,7 +42,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.FAST);
-      console.log(`Stock detail (GOOGL): ${elapsed}ms`);
     });
 
     it('metrics endpoint should respond acceptably (< 1000ms)', async () => {
@@ -54,7 +51,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Metrics (GOOGL): ${elapsed}ms`);
     });
 
     it('signals endpoint should avoid timeout (< 25000ms)', async () => {
@@ -64,7 +60,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.TIMEOUT);
-      console.log(`Signals daily (10): ${elapsed}ms`);
     });
 
     it('market overview should respond within timeout (< 25000ms)', async () => {
@@ -74,7 +69,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.TIMEOUT);
-      console.log(`Market overview (parallel queries): ${elapsed}ms`);
     });
 
     it('market sectors should respond acceptably (< 1000ms)', async () => {
@@ -84,7 +78,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Market sectors: ${elapsed}ms`);
     });
 
     it('market indices should respond acceptably (< 1000ms)', async () => {
@@ -94,7 +87,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Market indices: ${elapsed}ms`);
     });
 
     it('technical daily should respond within timeout (< 25000ms)', async () => {
@@ -104,7 +96,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.TIMEOUT);
-      console.log(`Technical daily (10): ${elapsed}ms`);
     });
 
     it('economic indicators should respond acceptably (< 1000ms)', async () => {
@@ -114,7 +105,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Economic indicators: ${elapsed}ms`);
     });
   });
 
@@ -130,7 +120,6 @@ describe('API Performance Tests', () => {
 
       expect(responses.every(r => r.status === 200)).toBe(true);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`10 concurrent health checks: ${elapsed}ms (${Math.round(1000 / (elapsed / 10))} req/sec)`);
     });
 
     it('should handle 5 concurrent stock queries', async () => {
@@ -146,7 +135,6 @@ describe('API Performance Tests', () => {
 
       expect(responses.every(r => r.status === 200)).toBe(true);
       expect(elapsed).toBeLessThan(THRESHOLDS.SLOW);
-      console.log(`5 concurrent stock queries: ${elapsed}ms (${Math.round(1000 / (elapsed / 5))} req/sec)`);
     });
   });
 
@@ -160,7 +148,6 @@ describe('API Performance Tests', () => {
       expect(response.data.data).toBeDefined();
       expect(response.data.data.length).toBeGreaterThan(0);
       expect(elapsed).toBeLessThan(THRESHOLDS.SLOW);
-      console.log(`Stocks list (50): ${elapsed}ms, ${response.data.data.length} stocks`);
     });
 
     it('should handle signals query with 50 results within timeout', async () => {
@@ -170,7 +157,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.TIMEOUT);
-      console.log(`Signals daily (50): ${elapsed}ms`);
     });
   });
 
@@ -182,7 +168,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.FAST);
-      console.log(`Non-existent stock: ${elapsed}ms`);
     });
 
     it('should handle empty search gracefully', async () => {
@@ -192,7 +177,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Empty search: ${elapsed}ms`);
     });
   });
 
@@ -204,7 +188,6 @@ describe('API Performance Tests', () => {
 
       expect(response.status).toBe(200);
       expect(elapsed).toBeLessThan(THRESHOLDS.TIMEOUT);
-      console.log(`Signals performance calculation: ${elapsed}ms`);
     });
 
     it('market overview aggregation should be efficient', async () => {
@@ -215,7 +198,6 @@ describe('API Performance Tests', () => {
       expect(response.status).toBe(200);
       expect(response.data.data).toBeDefined();
       expect(elapsed).toBeLessThan(THRESHOLDS.ACCEPTABLE);
-      console.log(`Market overview aggregation: ${elapsed}ms`);
     });
   });
 });

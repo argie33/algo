@@ -55,10 +55,8 @@ class Logger {
 
   output(logEntry) {
     if (this.environment === 'production') {
-      console.log(JSON.stringify(logEntry));
     } else {
       const { timestamp, level, message, service } = logEntry;
-      console.log(
         `[${timestamp}] [${level}] [${service}] ${message}`
       );
       // Log additional context if present
@@ -70,7 +68,6 @@ class Logger {
         contextKeys.forEach((k) => {
           context[k] = logEntry[k];
         });
-        console.log(JSON.stringify(context, null, 2));
       }
     }
   }

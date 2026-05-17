@@ -9,5 +9,4 @@ test('Capture PHI on TradingView', async ({ page }) => {
   await page.waitForTimeout(8000);
   
   await page.screenshot({ path: '/tmp/tradingview_phi.png' });
-  console.log('✅ Screenshot saved');
 });

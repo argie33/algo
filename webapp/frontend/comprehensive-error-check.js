@@ -51,7 +51,6 @@ async function comprehensiveCheck() {
 
   for (const route of pages) {
     try {
-      console.log(`\n📄 Testing page: ${route}`);
       await page.goto(`http://localhost:5173${route}`, {
         waitUntil: 'networkidle',
         timeout: 15000
@@ -66,7 +65,6 @@ async function comprehensiveCheck() {
       try {
         const buttons = await page.$$('button');
         if (buttons.length > 0) {
-          console.log(`  Found ${buttons.length} buttons`);
         }
       } catch (e) {
         // Ignore interaction errors
@@ -78,32 +76,20 @@ async function comprehensiveCheck() {
 
   await browser.close();
 
-  console.log('\n\n╔════════════════════════════════════════╗');
-  console.log('║       COMPREHENSIVE ERROR REPORT       ║');
-  console.log('╚════════════════════════════════════════╝');
-  console.log(`\n📊 Statistics:`);
-  console.log(`  • Total Errors: ${allErrors.length}`);
-  console.log(`  • Total Warnings: ${allWarnings.length}`);
-  console.log(`  • Network Errors: ${networkErrors.length}`);
-  console.log(`  • Page Errors: ${pageErrors}`);
 
   if (allErrors.length > 0) {
-    console.log(`\n❌ ERRORS FOUND:`);
     allErrors.forEach((e, i) => console.log(`  ${i + 1}. ${e}`));
   }
 
   if (allWarnings.length > 0) {
-    console.log(`\n⚠️  WARNINGS FOUND:`);
     allWarnings.forEach((w, i) => console.log(`  ${i + 1}. ${w}`));
   }
 
   if (networkErrors.length > 0) {
-    console.log(`\n🔴 NETWORK ERRORS:`);
     networkErrors.forEach((ne, i) => console.log(`  ${i + 1}. ${ne}`));
   }
 
   const hasIssues = allErrors.length > 0 || allWarnings.length > 0 || networkErrors.length > 0;
-  console.log(`\n${hasIssues ? '⛔ ISSUES FOUND - FIX NEEDED' : '✅ NO ISSUES FOUND'}\n`);
 
   process.exit(allErrors.length > 0 ? 1 : 0);
 }

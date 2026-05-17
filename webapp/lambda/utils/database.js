@@ -45,7 +45,6 @@ async function getDbConfig() {
     // If we have a secret ARN, use Secrets Manager
     if (secretArn) {
       try {
-        console.log("Getting DB credentials from Secrets Manager...");
         const command = new GetSecretValueCommand({ SecretId: secretArn });
         const client = getSecretsManagerClient();
         const result = await client.send(command);
@@ -110,7 +109,6 @@ async function getDbConfig() {
                 },
         };
 
-        console.log(
           `Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
         );
         return dbConfig;
@@ -124,7 +122,6 @@ async function getDbConfig() {
 
     // Fallback to environment variables if available
     if (process.env.DB_HOST || process.env.DB_ENDPOINT) {
-      console.log("Using database config from environment variables");
 
       const host = process.env.DB_HOST || process.env.DB_ENDPOINT;
       const user = process.env.DB_USER || process.env.DB_USERNAME || "postgres";
@@ -164,7 +161,6 @@ async function getDbConfig() {
               },
       };
 
-      console.log(
         `Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
       );
       return dbConfig;
@@ -204,7 +200,6 @@ async function initializeDatabase() {
     let config = null;
     try {
       if (process.env.NODE_ENV !== "test") {
-        console.log("Initializing database connection pool...");
       }
       config = await getDbConfig();
 
@@ -225,7 +220,6 @@ async function initializeDatabase() {
       await client.query("SELECT NOW()");
       client.release();
       dbInitialized = true;
-      console.log("✅ Database connection pool initialized successfully");
 
       // Create indexes asynchronously in background (don't block initialization)
       setImmediate(async () => {
@@ -239,20 +233,17 @@ async function initializeDatabase() {
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))",
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"
           ];
-          console.log("Starting background index creation...");
           for (const indexQuery of indexQueries) {
             try {
               await indexClient.query(indexQuery);
             } catch (err) {
               if (err.message?.includes("already exists")) {
-                console.log("Index already exists, skipping");
               } else {
                 console.warn("Index creation warning:", err.message);
               }
             }
           }
           indexClient.release();
-          console.log("✅ All indexes created/verified");
         } catch (err) {
           console.warn("Warning: Background index creation failed:", err.message);
         }
@@ -305,7 +296,6 @@ async function initializeMaterializedViews() {
       return false;
     }
 
-    console.log("Creating materialized views for optimized queries...");
 
     const client = await pool.connect();
     try {
@@ -330,7 +320,6 @@ async function initializeMaterializedViews() {
       // Create index on symbol for fast lookups
       await client.query("CREATE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);");
 
-      console.log("OK: mv_latest_prices created with index");
 
       // Drop and recreate stock scores view
       await client.query("DROP MATERIALIZED VIEW IF EXISTS mv_stock_scores_full CASCADE;");
@@ -356,9 +345,7 @@ async function initializeMaterializedViews() {
       // Create index on symbol
       await client.query("CREATE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);");
 
-      console.log("OK: mv_stock_scores_full created with index");
 
-      console.log("OK: Materialized views initialized successfully");
       return true;
 
     } finally {
@@ -378,7 +365,6 @@ async function initializeMaterializedViews() {
  */
 async function initializeSchema() {
   try {
-    console.log("Initializing database schema...");
 
     // Create materialized views for performance
     await initializeMaterializedViews();
@@ -391,7 +377,6 @@ async function initializeSchema() {
       console.warn("Webapp table initialization skipped (not critical):", err.message);
     }
 
-    console.log("OK: Database schema initialization completed");
     return true;
   } catch (error) {
     console.error("Schema initialization error:", error);
@@ -405,7 +390,6 @@ async function initializeSchema() {
  * Initial data is handled by webapp-db-init.js and loader scripts
  */
 async function insertInitialData() {
-  console.log("📊 Initial data insertion handled by webapp-db-init.js");
   return true;
 }
 
@@ -429,7 +413,6 @@ async function query(text, params = []) {
     // Ensure database is initialized
     if (!dbInitialized || !pool) {
       if (process.env.NODE_ENV !== "test") {
-        console.log("Database not initialized, attempting initialization...");
       }
       const result = await initializeDatabase();
       if (!result || !pool) {
@@ -465,7 +448,6 @@ async function query(text, params = []) {
 
     // Log query details for debugging BEFORE execution
     if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
-      console.log(`[QUERY STARTING] Query:`, {
         query: typeof text === 'string' ? text.slice(0, 200) + (text.length > 200 ? "..." : "") : "NON_STRING",
         param_count: params ? params.length : 0,
         params_sample: params ? params.slice(0, 3) : []
@@ -481,7 +463,6 @@ async function query(text, params = []) {
 
     // Log result details for debugging
     if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
-      console.log(`[QUERY RESULT] After ${queryDuration}ms:`, {
         rows_returned: result && result.rows ? result.rows.length : 0,
         has_rows_property: result && 'rows' in result,
         result_type: result ? typeof result : 'null',
@@ -503,7 +484,6 @@ async function query(text, params = []) {
         duration: `${queryDuration}ms`,
       });
     } else if (process.env.NODE_ENV === "development" && queryDuration > 500) {
-      console.log(`📊 Query performance (${queryDuration}ms):`, {
         query: text.slice(0, 80) + (text.length > 80 ? "..." : ""),
         rows: result.rowCount,
       });

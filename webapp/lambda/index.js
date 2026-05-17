@@ -4,9 +4,7 @@ const path = require("path");
 const fs = require("fs");
 
 const envPath = path.resolve(__dirname, "../../.env.local");
-console.log(`ðŸ”§ Loading environment from: ${envPath}`);
 const envResult = require("dotenv").config({ path: envPath });
-console.log(`ðŸ”§ Environment load result:`, {
   path: envPath,
   fileExists: require("fs").existsSync(envPath),
   loaded: envResult.parsed ? Object.keys(envResult.parsed).length : 0,
@@ -367,7 +365,6 @@ let __dbAvailable = false;
 // Initialize database connection with shorter timeout
 const ensureDatabase = async () => {
   if (!dbInitPromise) {
-    console.log("Initializing database connection...");
     dbInitPromise = Promise.race([
       initializeDatabase().catch((err) => {
         console.error("Database initialization error details:", {
@@ -394,7 +391,6 @@ const ensureDatabase = async () => {
       .then(async (pool) => {
         __dbAvailable = true;
         if (process.env.NODE_ENV !== 'test') {
-          console.log("Database connection established successfully");
         }
         // Initialize schema (materialized views, etc) after connection is established
         try {
@@ -424,14 +420,12 @@ const ensureDatabase = async () => {
 // Middleware to check database requirement based on endpoint
 app.use(async (req, res, next) => {
   if (process.env.NODE_ENV !== 'test') {
-    console.log(`Processing request: ${req.method} ${req.path}`);
   }
 
   // Endpoints that don't require database
   const nonDbEndpoints = ["/", "/api/health"];
 
   if (nonDbEndpoints.includes(req.path)) {
-    console.log("Endpoint does not require database connection");
     return next();
   }
 
@@ -445,7 +439,6 @@ app.use(async (req, res, next) => {
       )
     ]);
     if (process.env.NODE_ENV !== 'test') {
-      console.log("Database connection verified for database-dependent endpoint");
     }
     next();
   } catch (error) {
@@ -894,14 +887,8 @@ const isLambdaEnvironment = !!process.env.LAMBDA_TASK_ROOT || !!process.env.AWS_
 if (!isLambdaEnvironment) {
   // Local development or EC2 - start HTTP server
   server.listen(PORT, '::', () => {
-    console.log(
       `âœ… Financial Dashboard API running on port ${PORT}`
     );
-    console.log(`ðŸŒ Health check: http://localhost:${PORT}/api/health`);
-    console.log(`ðŸŒ Health check: http://127.0.0.1:${PORT}/api/health`);
-    console.log(`ðŸ“ˆ Sectors: http://localhost:${PORT}/api/sectors`);
-    console.log(`ðŸ’¼ Scores (Stock Data): http://localhost:${PORT}/api/scores/stockscores`);
-    console.log(`âš¡ All endpoints available at http://localhost:${PORT}/api/*`);
 
     // Initialize Alpaca portfolio sync scheduler
     // Syncs every 10 minutes automatically
@@ -909,23 +896,18 @@ if (!isLambdaEnvironment) {
   });
 } else {
   // AWS Lambda environment - serverless-http wrapper handles HTTP request routing
-  console.log('ðŸ”· Running in AWS Lambda environment - using serverless-http handler');
 }
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
   server.close(() => {
-    console.log('Server closed');
     // eslint-disable-next-line no-process-exit
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
   server.close(() => {
-    console.log('Server closed');
     // eslint-disable-next-line no-process-exit
     process.exit(0);
   });

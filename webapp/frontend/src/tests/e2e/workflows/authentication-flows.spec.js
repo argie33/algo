@@ -11,7 +11,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-    console.log("🔐 Testing authentication flow...");
 
     // Look for sign in button or authentication prompt
     const signInButton = page
@@ -21,7 +20,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
       .first();
 
     if (await signInButton.isVisible()) {
-      console.log("✅ Sign in button found");
       await signInButton.click({ force: true });
       await page.waitForTimeout(1000);
 
@@ -32,12 +30,9 @@ test.describe("Financial Platform - Authentication Flows", () => {
       const isVisible = await authForm.isVisible().catch(() => false);
 
       if (isVisible) {
-        console.log("✅ Authentication form displayed");
       } else {
-        console.log("ℹ️ Authentication may use external provider");
       }
     } else {
-      console.log(
         "ℹ️ No authentication UI found - may be already authenticated"
       );
     }
@@ -46,7 +41,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     const hasAuthState = await page
       .locator('[data-testid*="user"], .user-menu, .profile')
       .count();
-    console.log(`🔍 Authentication indicators found: ${hasAuthState}`);
 
     expect(true).toBe(true); // Test passes if page loads
   });
@@ -56,7 +50,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-    console.log("🔑 Testing API key setup...");
 
     // Look for and click API Keys tab - with multiple approaches
     const apiKeysSelectors = [
@@ -72,7 +65,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     for (const selector of apiKeysSelectors) {
       const tab = page.locator(selector).first();
       if (await tab.isVisible({ timeout: 1000 })) {
-        console.log(`🔍 Clicking API Keys tab with selector: ${selector}`);
         await tab.click();
         await page.waitForTimeout(1000);
         tabFound = true;
@@ -81,7 +73,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     }
 
     if (!tabFound) {
-      console.log("ℹ️ No API Keys tab found - might be on API page already");
     }
 
     // Look for API key related elements using actual test IDs from Settings page
@@ -91,7 +82,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-    console.log(`🔍 API key input elements found: ${apiKeyElements}`);
 
     // Look for provider setup (Alpaca, Polygon, etc.)
     const providerElements = await page
@@ -100,7 +90,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-    console.log(`🏢 Provider elements found: ${providerElements}`);
 
     // Check for setup wizard or configuration options
     const setupElements = await page
@@ -109,18 +98,14 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-    console.log(`⚙️ Setup elements found: ${setupElements}`);
 
     // Should find at least some API-related elements after clicking the tab
     const totalElements = apiKeyElements + providerElements + setupElements;
-    console.log(`🔍 Total API-related elements found: ${totalElements}`);
 
     if (totalElements === 0) {
-      console.log("⚠️ No API elements found - checking if we're on settings page");
       // At minimum, we should be on settings page with some content
       const pageTitle = await page.title();
       const hasSettingsContent = await page.locator('h1, h2, h3, h4, h5, h6').count();
-      console.log(`📄 Page title: "${pageTitle}", Headings found: ${hasSettingsContent}`);
       expect(hasSettingsContent).toBeGreaterThan(0);
     } else {
       expect(totalElements).toBeGreaterThan(0);
@@ -129,7 +114,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
 
   test("should handle protected routes", async ({ page }) => {
     // Test without authentication
-    console.log("🛡️ Testing protected routes...");
 
     const protectedRoutes = [
       "/app/portfolio",
@@ -162,10 +146,8 @@ test.describe("Financial Platform - Authentication Flows", () => {
           hasAuthPrompt > 0 ||
           textBasedAuth > 0
         ) {
-          console.log(`🔒 ${route}: Protected (redirected or shows auth)`);
           redirectedRoutes++;
         } else {
-          console.log(`✅ ${route}: Accessible`);
           accessibleRoutes++;
         }
       } catch (error) {
@@ -173,14 +155,12 @@ test.describe("Financial Platform - Authentication Flows", () => {
       }
     }
 
-    console.log(
       `📊 Route accessibility: ${accessibleRoutes} accessible, ${redirectedRoutes} protected`
     );
 
     // Should have tested at least one route successfully
     const totalTested = accessibleRoutes + redirectedRoutes;
     if (totalTested === 0) {
-      console.log("⚠️ No routes could be tested - might be network/server issue");
       // Make test more lenient - just ensure we can navigate to some basic routes
       await page.goto("/");
       await page.waitForLoadState("networkidle");
@@ -208,18 +188,15 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-    console.log("🔑 Testing authenticated state with API keys...");
 
     // Check if page content loads successfully
     const pageTitle = await page.title();
-    console.log(`📄 Page title: "${pageTitle}"`);
 
     // Check for any interactive elements (buttons, links, inputs)
     const interactiveElements = await page
       .locator('button, a[href], input, [role="button"], [role="link"]')
       .count();
 
-    console.log(`🔍 Interactive elements found: ${interactiveElements}`);
 
     // Check for general portfolio or data elements
     const contentElements = await page
@@ -228,13 +205,11 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-    console.log(`📊 Content elements found: ${contentElements}`);
 
     // Verify page has meaningful content
     const pageContent = await page.locator("#root").textContent();
     const hasContent = pageContent && pageContent.length > 500;
 
-    console.log(
       `📄 Page content loaded: ${hasContent ? "Yes" : "No"} (${pageContent?.length || 0} chars)`
     );
 
@@ -252,7 +227,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-    console.log("🚪 Testing logout flow...");
 
     // Look for logout button/menu
     const logoutElements = await page
@@ -261,21 +235,16 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-    console.log(`🔍 Logout elements found: ${logoutElements}`);
 
     // Look for user menu/profile that might contain logout
     const userMenu = await page
       .locator('.user-menu, .profile, .avatar, [data-testid*="user"]')
       .count();
 
-    console.log(`👤 User menu elements found: ${userMenu}`);
 
     if (logoutElements > 0) {
-      console.log("✅ Logout functionality available");
     } else if (userMenu > 0) {
-      console.log("✅ User menu available (logout likely inside)");
     } else {
-      console.log("ℹ️ No explicit logout UI found");
     }
 
     expect(true).toBe(true); // Test passes if page loads

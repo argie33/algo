@@ -8,9 +8,7 @@ const initEmailService = () => {
     if (process.env.AWS_REGION) {
       sesClient = new SESClient({ region: process.env.AWS_REGION });
       emailConfigured = true;
-      console.log('✅ AWS SES email service initialized (AWS SDK v3)');
     } else {
-      console.log('⚠️  AWS_REGION not configured - email sending disabled');
     }
   } catch (error) {
     console.warn('⚠️  Failed to initialize email service:', error.message);
@@ -26,7 +24,6 @@ const getEmailConfig = async () => {
 
 const sendEmail = async ({ to, subject, html, text }) => {
   if (!emailConfigured || !sesClient) {
-    console.log('📧 Email service not configured - skipping email send');
     return { success: true, skipped: true };
   }
 
@@ -45,7 +42,6 @@ const sendEmail = async ({ to, subject, html, text }) => {
     });
 
     const result = await sesClient.send(command);
-    console.log(`📧 Email sent successfully - MessageId: ${result.MessageId}`);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
     console.error('❌ Failed to send email:', error.message);

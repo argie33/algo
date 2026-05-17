@@ -14,7 +14,6 @@ module.exports = async () => {
   try {
     const { query } = require('../../utils/database');
 
-    console.log('🔧 Global Setup: Creating tables from setup_test_database.sql...');
 
     const fs = require('fs');
     const path = require('path');
@@ -27,7 +26,6 @@ module.exports = async () => {
       await query(setupSql);
     } catch (error) {
       // If batch fails, try individual statements with proper dollar-quoted string handling
-      console.log('Batch SQL failed, trying individual statements...');
 
       // Simpler approach: Split on semicolons but rejoin dollar-quoted blocks
       let statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
@@ -82,12 +80,9 @@ module.exports = async () => {
       }
     }
 
-    console.log('✅ Real database schema loaded successfully');
 
     // Now populate test data
-    console.log('📊 Populating test data...');
     await populateLoaderTestData();
-    console.log('✅ Test data populated successfully');
 
   } catch (error) {
     console.error('❌ Global setup failed:', error);

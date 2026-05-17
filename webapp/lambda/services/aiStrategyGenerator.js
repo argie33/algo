@@ -4156,7 +4156,6 @@ if __name__ == "__main__":
   // Public methods for test compatibility
   async generateStrategy(description, preferences = {}) {
     try {
-      console.log("🤖 AI Strategy generation requested:", description);
 
       // Simple mock strategy generation for testing
       const strategy = {
@@ -4215,7 +4214,6 @@ When RSI rises above 70, it generates a sell signal indicating the asset is over
 
   async optimizeStrategy(strategy, options = {}) {
     try {
-      console.log("⚡ Strategy optimization requested");
 
       // ❌ Strategy optimization requires real backtesting - cannot use mock improvements
       console.error("❌ Strategy optimization not available - requires real backtesting engine with historical data");

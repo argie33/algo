@@ -231,7 +231,6 @@ describe("Portfolio Routes Unit Tests", () => {
         // Allow database schema errors (missing columns) as this is a known issue
         expect(response.body).toHaveProperty("success", false);
         expect(response.body.error || response.body.success).toBeDefined();
-        console.log("Expected database schema issue:", response.body.details);
       } else {
         throw new Error(`Unexpected status code: ${response.status}`);
       }

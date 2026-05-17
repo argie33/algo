@@ -7,7 +7,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-console.log("🚀 Setting up production environment...");
 
 // Get parameters from command line - NO HARDCODED DEFAULTS
 const apiUrl = process.argv[2];
@@ -46,7 +45,6 @@ window.__CONFIG__ = ${JSON.stringify(prodConfig, null, 2)};
 `;
 
 fs.writeFileSync(configPath, configContent);
-console.log("✅ Updated public/config.js for", environment);
 
 // Create .env file for Vite
 const envPath = path.join(__dirname, "..", ".env");
@@ -76,24 +74,8 @@ VITE_ENABLE_MOCK_DATA=false
 `;
 
 fs.writeFileSync(envPath, envContent);
-console.log("✅ Created .env file for", environment);
 
-console.log("");
-console.log(
   `🎉 ${environment.charAt(0).toUpperCase() + environment.slice(1)} environment configured!`
 );
-console.log("");
-console.log("📋 Configuration:");
-console.log(`   API URL: ${prodConfig.API_URL}`);
-console.log(`   Environment: ${prodConfig.ENVIRONMENT}`);
-console.log(`   Version: ${prodConfig.VERSION}`);
-console.log("");
-console.log("🚀 Next steps:");
-console.log("   1. Run: npm run build");
-console.log("   2. Deploy the dist/ folder to your hosting provider");
-console.log("");
-console.log("💡 To reset to development config, run: npm run setup-dev");
-console.log("");
-console.log(
   "⚠️  Make sure your API Gateway URL and environment are correct before deploying!"
 );

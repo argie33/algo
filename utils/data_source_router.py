@@ -228,7 +228,7 @@ class DataSourceRouter:
         # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
-            hist = yf.Ticker(yf_symbol, timeout=30).history(
+            hist = yf.Ticker(yf_symbol).history(
                 start=start,
                 end=end,
                 auto_adjust=False,

@@ -48,7 +48,6 @@ describe('Professional Metrics Calculations', () => {
     });
     const totalReturn = cumReturn - 100;
     assert.ok(totalReturn > 0, 'Total return should be positive for this dataset');
-    console.log(`✓ Total Return: ${totalReturn.toFixed(2)}%`);
   });
 
   it('should calculate annualized volatility', () => {
@@ -56,7 +55,6 @@ describe('Professional Metrics Calculations', () => {
     const annualizedVol = stdDev * Math.sqrt(252) * 100;
     assert.ok(annualizedVol > 0, 'Volatility should be positive');
     assert.ok(annualizedVol < 100, 'Volatility should be reasonable');
-    console.log(`✓ Annualized Volatility: ${annualizedVol.toFixed(2)}%`);
   });
 
   it('should calculate Sharpe Ratio', () => {
@@ -65,7 +63,6 @@ describe('Professional Metrics Calculations', () => {
     const riskFreeRate = 2 / 100 / 252;
     const sharpeRatio = ((mean - riskFreeRate) * 252) / (stdDev * Math.sqrt(252));
     assert.ok(typeof sharpeRatio === 'number', 'Sharpe Ratio should be a number');
-    console.log(`✓ Sharpe Ratio: ${sharpeRatio.toFixed(2)}`);
   });
 
   it('should calculate Sortino Ratio', () => {
@@ -76,7 +73,6 @@ describe('Professional Metrics Calculations', () => {
     const downsideDev = downstdDev * Math.sqrt(252);
     const sortinoRatio = ((mean * 252 * 100) - 2) / downsideDev;
     assert.ok(typeof sortinoRatio === 'number', 'Sortino Ratio should be a number');
-    console.log(`✓ Sortino Ratio: ${sortinoRatio.toFixed(2)}`);
   });
 
   it('should calculate Max Drawdown', () => {
@@ -90,7 +86,6 @@ describe('Professional Metrics Calculations', () => {
     });
     assert.ok(maxDD >= 0, 'Max Drawdown should be non-negative');
     assert.ok(maxDD <= 100, 'Max Drawdown should not exceed 100%');
-    console.log(`✓ Max Drawdown: ${maxDD.toFixed(2)}%`);
   });
 
   it('should calculate Skewness', () => {
@@ -98,7 +93,6 @@ describe('Professional Metrics Calculations', () => {
     const stdDev = calculateStdDev(mockReturns);
     const skewness = mockReturns.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 3), 0) / mockReturns.length;
     assert.ok(typeof skewness === 'number', 'Skewness should be a number');
-    console.log(`✓ Skewness: ${skewness.toFixed(3)}`);
   });
 
   it('should calculate Kurtosis', () => {
@@ -106,7 +100,6 @@ describe('Professional Metrics Calculations', () => {
     const stdDev = calculateStdDev(mockReturns);
     const kurtosis = mockReturns.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 4), 0) / mockReturns.length - 3;
     assert.ok(typeof kurtosis === 'number', 'Kurtosis should be a number');
-    console.log(`✓ Kurtosis: ${kurtosis.toFixed(3)}`);
   });
 
   it('should calculate Value at Risk (VaR)', () => {
@@ -114,7 +107,6 @@ describe('Professional Metrics Calculations', () => {
     const var95Index = Math.floor(sortedReturns.length * 0.05);
     const var95 = sortedReturns[var95Index];
     assert.ok(var95 < 0, 'VaR should typically be negative');
-    console.log(`✓ VaR 95%: ${var95.toFixed(2)}%`);
   });
 
   it('should calculate Conditional Value at Risk (CVaR)', () => {
@@ -122,7 +114,6 @@ describe('Professional Metrics Calculations', () => {
     const var95Index = Math.floor(sortedReturns.length * 0.05);
     const cvar95 = sortedReturns.slice(0, var95Index + 1).reduce((a, b) => a + b, 0) / (var95Index + 1);
     assert.ok(cvar95 <= sortedReturns[var95Index], 'CVaR should be <= VaR');
-    console.log(`✓ CVaR 95%: ${cvar95.toFixed(2)}%`);
   });
 
   it('should calculate concentration metrics', () => {
@@ -137,10 +128,6 @@ describe('Professional Metrics Calculations', () => {
     assert.ok(herfindahl > 0 && herfindahl <= 1, 'Herfindahl should be between 0-1');
     assert.ok(effectiveN > 0, 'Effective N should be positive');
 
-    console.log(`✓ Top 1 Weight: ${top1.toFixed(2)}%`);
-    console.log(`✓ Top 5 Weight: ${top5.toFixed(2)}%`);
-    console.log(`✓ Herfindahl Index: ${herfindahl.toFixed(4)}`);
-    console.log(`✓ Effective N: ${effectiveN.toFixed(2)}`);
   });
 
   it('should calculate rolling returns', () => {
@@ -159,8 +146,6 @@ describe('Professional Metrics Calculations', () => {
     assert.ok(typeof rolling1m === 'number', '1M return should be a number');
     assert.ok(typeof rolling3m === 'number', '3M return should be a number');
 
-    console.log(`✓ 1M Return: ${rolling1m.toFixed(2)}%`);
-    console.log(`✓ 3M Return: ${rolling3m.toFixed(2)}%`);
   });
 
   it('should calculate return attribution', () => {
@@ -173,9 +158,6 @@ describe('Professional Metrics Calculations', () => {
     assert.ok(worstDay < 0, 'Worst day should be negative');
     assert.ok(winRate >= 0 && winRate <= 100, 'Win rate should be 0-100%');
 
-    console.log(`✓ Best Day: ${bestDay.toFixed(2)}%`);
-    console.log(`✓ Worst Day: ${worstDay.toFixed(2)}%`);
-    console.log(`✓ Win Rate: ${winRate.toFixed(1)}%`);
   });
 
   it('should pass all metric boundary checks', () => {
@@ -194,12 +176,10 @@ describe('Professional Metrics Calculations', () => {
     assert.ok(metrics.winRate > 0 && metrics.winRate <= 100, 'Win Rate should be 0-100%');
     assert.ok(metrics.concentration > 0 && metrics.concentration <= 1, 'Concentration should be 0-1');
 
-    console.log('✓ All metrics pass boundary checks');
   });
 });
 
 // Run tests
-console.log('\n======== PROFESSIONAL METRICS CALCULATION TESTS ========\n');
 describe('Professional Metrics Calculations', () => {
   // Tests will run here
 });

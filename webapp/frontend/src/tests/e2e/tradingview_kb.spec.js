@@ -9,5 +9,4 @@ test('Capture KB Financial Group on TradingView', async ({ page }) => {
   await page.waitForTimeout(8000);
   
   await page.screenshot({ path: '/tmp/tradingview_kb_full.png' });
-  console.log('✅ KB screenshot saved');
 });

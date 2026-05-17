@@ -67,24 +67,18 @@ export const logApiError = (component, operation, error, context = {}) => {
   // Log structured error information (using console.log to avoid recursion)
   if (import.meta.env && import.meta.env.DEV) {
     console.group(`❌ ${component} - ${operation} failed`);
-    console.log(`🕒 Timestamp: ${timestamp}`);
-    console.log(`📍 Component: ${component}`);
-    console.log(`🔄 Operation: ${operation}`);
     console.log(`💥 Error: ${errorMessage}`);
 
     // Log additional context if provided (with safe stringification)
     if (context.url) console.log(`🌐 URL: ${context.url}`);
     if (context.params)
-      console.log(`📋 Params:`, safeStringify(context.params));
     if (context.response)
-      console.log(`📡 Response:`, safeStringify(context.response));
     if (context.status) console.log(`🚦 Status: ${context.status}`);
 
     // Log full error details safely (avoid circular references)
     try {
       console.log(`📄 Full Error Details:`, safeStringify(error));
     } catch (stringifyError) {
-      console.log(`📄 Full Error (safe fallback):`, {
         name: error?.name,
         message: error?.message,
         code: error?.code,
@@ -107,7 +101,6 @@ export const logApiError = (component, operation, error, context = {}) => {
       responseData: error.response?.data,
     };
     if (import.meta.env && import.meta.env.DEV) {
-      console.log(`🌐 Axios Error Details:`, safeStringify(axiosDetails));
     }
   }
 
@@ -120,7 +113,6 @@ export const logApiError = (component, operation, error, context = {}) => {
       context: safeStringify(context),
       timestamp,
     };
-    console.log(
       `❌ ${component} - ${operation} failed:`,
       safeStringify(simplifiedLog)
     );
@@ -168,7 +160,6 @@ export const logApiSuccess = (
     context,
   };
   if (import.meta.env && import.meta.env.DEV) {
-    console.log(
       `✅ ${component} - ${operation} succeeded`,
       safeStringify(successLog)
     );
@@ -190,7 +181,6 @@ export const createComponentLogger = (component) => ({
   info: (message, context) =>
     import.meta.env &&
     import.meta.env.DEV &&
-    console.log(`ℹ️ [${component}] ${message}`, context),
 });
 
 export default {

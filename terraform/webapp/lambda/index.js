@@ -1,5 +1,4 @@
 exports.handler = async (event) => {
-  console.log('API Lambda invoked:', JSON.stringify(event, null, 2));
   
   const method = event.requestContext?.http?.method || event.httpMethod || 'GET';
   const path = event.rawPath || event.path || '/';

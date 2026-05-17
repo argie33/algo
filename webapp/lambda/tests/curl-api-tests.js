@@ -16,7 +16,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     const responseBody = stdout.slice(0, -3);
 
     const success = statusCode === expectedStatus;
-    console.log(`${success ? "✅" : "❌"} ${name}: ${statusCode}`);
 
     if (!success || statusCode >= 400) {
       try {
@@ -25,7 +24,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
           console.log(`   Error: ${parsed.error}`);
         }
       } catch (e) {
-        console.log(`   Response: ${responseBody.substring(0, 100)}...`);
       }
     }
 
@@ -37,7 +35,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
 }
 
 async function runApiTests() {
-  console.log("🧪 Running API Tests with Real Database\n");
 
   const tests = [
     ["Health Check", "/health"],
@@ -59,7 +56,6 @@ async function runApiTests() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  console.log(`\n📊 Basic Tests: ${passed}/${tests.length} passed`);
 
   // Test some data endpoints with small limits
   const dataTests = [
@@ -68,7 +64,6 @@ async function runApiTests() {
   ];
 
   let dataPassed = 0;
-  console.log("\n📊 Data Endpoint Tests:\n");
 
   for (const [name, endpoint] of dataTests) {
     if (await testEndpoint(name, endpoint)) {
@@ -77,12 +72,10 @@ async function runApiTests() {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
 
-  console.log(`\n📊 Data Tests: ${dataPassed}/${dataTests.length} passed`);
 
   const totalPassed = passed + dataPassed;
   const totalTests = tests.length + dataTests.length;
 
-  console.log(
     `\n🎯 Overall: ${totalPassed}/${totalTests} tests passed (${Math.round((totalPassed / totalTests) * 100)}%)`
   );
   return totalPassed >= Math.ceil(totalTests * 0.8); // 80% pass rate
@@ -90,7 +83,6 @@ async function runApiTests() {
 
 runApiTests()
   .then((success) => {
-    console.log(`\n${success ? "🎉 TESTS PASSED" : "💥 TESTS FAILED"}`);
     if (!success) throw new Error("Tests failed");
   })
   .catch((error) => {

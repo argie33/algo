@@ -17,7 +17,6 @@ export function useLivePrice(symbols = []) {
     const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
-      console.log('[LivePrice] Connected');
       setConnected(true);
 
       // Subscribe to symbols
@@ -51,7 +50,6 @@ export function useLivePrice(symbols = []) {
     };
 
     websocket.onclose = () => {
-      console.log('[LivePrice] Disconnected');
       setConnected(false);
     };
 

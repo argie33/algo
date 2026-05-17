@@ -211,7 +211,6 @@ const MarketStatusBar = () => {
               onClick={() =>
                 import.meta.env &&
                 import.meta.env.DEV &&
-                console.log("Cache Stats:", dataCache.getStats())
               }
             >
               Cache: {dataCache.cache.size} items

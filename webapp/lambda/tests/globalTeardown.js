@@ -8,7 +8,6 @@ module.exports = async () => {
     const db = require("../utils/database");
     if (db.closeDatabase) {
       await db.closeDatabase();
-      console.log("🔌 Database connections closed in global teardown");
     }
 
     // Give time for connections to fully close
@@ -22,5 +21,4 @@ module.exports = async () => {
     global.gc();
   }
 
-  console.log("🧹 Global test teardown completed");
 };

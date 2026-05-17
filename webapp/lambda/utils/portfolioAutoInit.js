@@ -13,7 +13,6 @@ class PortfolioAutoInit {
    */
   static async ensurePortfolioData(userId) {
     try {
-      console.log(`🔄 Auto-initializing portfolio data for ${userId}`);
 
       // Check what data we have
       const holdings = await query(
@@ -31,27 +30,22 @@ class PortfolioAutoInit {
         [userId]
       ).then(r => r.rows[0]?.count || 0);
 
-      console.log(`   Holdings: ${holdings}, Performance: ${perfRecords}, Sectors: ${withSectors}`);
 
       // Step 1: If we have holdings but no performance history, generate it
       if (holdings > 0 && perfRecords < 252) {
-        console.log(`   ➜ Generating 252 trading days of history...`);
         await this.generatePortfolioHistory(userId);
       }
 
       // Step 2: If holdings missing sectors, populate them
       if (holdings > 0 && withSectors < holdings) {
-        console.log(`   ➜ Populating sector data...`);
         await this.populateSectors(userId);
       }
 
       // Step 3: If holdings exist, ensure all P&L is calculated
       if (holdings > 0) {
-        console.log(`   ➜ Recalculating P&L metrics...`);
         await this.recalculateAllMetrics(userId);
       }
 
-      console.log(`✅ Portfolio auto-init complete for ${userId}`);
       return true;
 
     } catch (error) {
@@ -76,7 +70,6 @@ class PortfolioAutoInit {
       );
 
       const recordCount = parseInt(result.rows[0]?.count || 0);
-      console.log(`📊 Portfolio performance records: ${recordCount}`);
 
       if (recordCount === 0) {
         console.warn(`⚠️ No real historical performance data - metrics requiring history will return NULL`);
@@ -134,7 +127,6 @@ class PortfolioAutoInit {
         console.warn(`   ⚠️ ${updateErrors.length} sector update errors`);
       }
 
-      console.log(`✅ Updated ${updated} holdings with sector data`);
       return true;
 
     } catch (error) {
@@ -218,7 +210,6 @@ class PortfolioAutoInit {
         }
       }
 
-      console.log(`✅ Recalculated metrics for ${calculatedCount} holdings`);
       return true;
 
     } catch (error) {

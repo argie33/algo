@@ -183,8 +183,6 @@ describe("Dashboard Page", () => {
       await waitFor(() => {
         // Debug: Log all text content to see what's actually rendered
         const allText = document.body.textContent;
-        console.log('DEBUG - All rendered text:', allText);
-        console.log('DEBUG - Looking for: 1,250,000 or $1,250,000 or 1250000 (actual mock data)');
         
         // Portfolio summary should be visible - check for the mock portfolio value (1,250,000)
         const portfolioValues = screen.getAllByText((content, element) => {

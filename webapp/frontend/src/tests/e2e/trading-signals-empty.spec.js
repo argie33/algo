@@ -39,14 +39,11 @@ test.describe("Trading Signals - Empty State", () => {
       pageText.includes("0 signals") ||
       pageText.includes("No data");
 
-    console.log("Page content (first 500 chars):", pageText.substring(0, 500));
-    console.log("Console messages:", messages);
 
     expect(pageText).not.toContain("AAPL");
     expect(pageText).not.toContain("MSFT");
     expect(pageText).not.toContain("TSLA");
 
-    console.log("✅ Empty state confirmed - no fake/old data displayed");
   });
 
   test("should refresh and show 0 when database is empty", async ({ page }) => {
@@ -70,6 +67,5 @@ test.describe("Trading Signals - Empty State", () => {
     // Should not have any trading signal symbols
     expect(pageText).not.toMatch(/[A-Z]{1,4}\s+(BUY|SELL)/);
 
-    console.log("✅ Post-refresh: No old signals displayed");
   });
 });

@@ -53,7 +53,6 @@ const requestLogger = (req, res, next) => {
 
   // Log the incoming request
   if (process.env.NODE_ENV !== 'test') {
-    console.log(`📨 [${requestId}] ${req.method} ${req.path}`);
   }
 
   next();

@@ -13,7 +13,6 @@ const fs = require('fs');
 const path = require('path');
 
 function patchPageWithErrorHandling(filePath) {
-  console.log(`Patching ${filePath}...`);
   let content = fs.readFileSync(filePath, 'utf-8');
   const originalLength = content.length;
 
@@ -34,10 +33,8 @@ function patchPageWithErrorHandling(filePath) {
 
   if (content.length > originalLength) {
     fs.writeFileSync(filePath, content, 'utf-8');
-    console.log(`✓ Patched successfully`);
     return true;
   } else {
-    console.log(`⚠ No changes made`);
     return false;
   }
 }
@@ -54,8 +51,6 @@ pagesToPatch.forEach(pagePath => {
   if (fs.existsSync(fullPath)) {
     patchPageWithErrorHandling(fullPath);
   } else {
-    console.log(`✗ File not found: ${fullPath}`);
   }
 });
 
-console.log('\nDone!');

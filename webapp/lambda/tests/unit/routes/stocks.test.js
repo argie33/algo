@@ -421,8 +421,6 @@ describe("Stocks Routes Unit Tests", () => {
       const response = await request(app)
         .get("/stocks/compare?symbols=AAPL,MSFT,GOOGL");
       // Debug: Log the actual response to understand what's happening
-      console.log('Response status:', response.status);
-      console.log('Response body:', JSON.stringify(response.body, null, 2));
       // Now check if we get data (200) or proper error (404)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

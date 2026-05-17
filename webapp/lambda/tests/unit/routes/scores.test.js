@@ -183,7 +183,6 @@ describe("Scores Routes Unit Tests", () => {
         .get("/scores")
         .set("Authorization", "Bearer test-token");
       if (response.status !== 200) {
-        console.log("Error response:", response.status, response.body);
       }
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);

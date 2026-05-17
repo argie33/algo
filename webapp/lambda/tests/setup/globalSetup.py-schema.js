@@ -13,7 +13,6 @@ module.exports = async () => {
   try {
     const { query } = require('../../utils/database');
 
-    console.log('🔧 Setting up database tables to match Python loader schemas EXACTLY...');
 
     // Create stock_symbols table exactly matching Python setup_database_with_real_data.py
     await query(`DROP TABLE IF EXISTS stock_symbols CASCADE`);
@@ -267,7 +266,6 @@ module.exports = async () => {
       ON CONFLICT (user_id, symbol) DO NOTHING
     `);
 
-    console.log('✅ Database tables created matching Python loader structure');
     return true;
 
   } catch (error) {

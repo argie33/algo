@@ -14,7 +14,6 @@ vi.mock("../../services/api", () => ({
 
 describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
   beforeEach(async () => {
-    console.log("🏭 Starting Sector Analysis comprehensive test");
     vi.clearAllMocks();
   });
 
@@ -430,7 +429,6 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
       );
 
       const loadTime = performance.now() - startTime;
-      console.log(`🏭 Real Sector Analysis load time: ${loadTime}ms`);
 
       // Real performance test - should load reasonably fast
       expect(loadTime).toBeLessThan(10000); // 10 second max for real API calls

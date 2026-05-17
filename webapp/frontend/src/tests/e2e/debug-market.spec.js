@@ -7,11 +7,9 @@ test('debug market overview elements', async ({ page }) => {
     consoleMessages.push(`${msg.type()}: ${msg.text()}`);
   });
 
-  console.log('📍 Navigating to /market...');
   await page.goto('/market', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
 
-  console.log('🔍 Console messages:', consoleMessages.slice(-10)); // Last 10 messages
 
   const elements = await page.evaluate(() => {
     return {
@@ -29,7 +27,6 @@ test('debug market overview elements', async ({ page }) => {
     };
   });
 
-  console.log('🔍 Elements found:', elements);
 
   // Check for any error messages
   const errorText = await page.evaluate(() => {
@@ -48,17 +45,10 @@ test('debug market overview elements', async ({ page }) => {
 
   // Try to get page source
   const content = await page.content();
-  console.log('📄 Page source length:', content.length);
-  console.log('📄 Contains MuiCard:', content.includes('MuiCard'));
-  console.log('📄 Contains market-overview-page:', content.includes('market-overview-page'));
-  console.log('📄 Contains MarketOverview:', content.includes('MarketOverview'));
-  console.log('📄 Contains TabPanel:', content.includes('TabPanel'));
-  console.log('📄 Contains data-testid:', content.includes('data-testid'));
 
   // Check what's actually in the root
   const rootHTML = await page.evaluate(() => {
     const root = document.getElementById('root');
     return root ? root.innerHTML.slice(0, 500) : 'No root found';
   });
-  console.log('📄 Root content (first 500 chars):', rootHTML);
 });

@@ -13,7 +13,6 @@ async function initializeWebappTables() {
 
     // Check if migrations directory exists
     if (!fs.existsSync(migrationsDir)) {
-      console.log('No migrations directory found, skipping migrations');
       return true;
     }
 
@@ -23,11 +22,9 @@ async function initializeWebappTables() {
       .sort();
 
     if (migrationFiles.length === 0) {
-      console.log('No migration files found');
       return true;
     }
 
-    console.log(`Found ${migrationFiles.length} migration files to execute`);
 
     // Execute each migration
     for (const migrationFile of migrationFiles) {
@@ -35,11 +32,9 @@ async function initializeWebappTables() {
       const sql = fs.readFileSync(filePath, 'utf8');
 
       try {
-        console.log(`Executing migration: ${migrationFile}`);
         const client = await pool.connect();
         try {
           await client.query(sql);
-          console.log(`✅ Migration completed: ${migrationFile}`);
         } finally {
           client.release();
         }
@@ -55,7 +50,6 @@ async function initializeWebappTables() {
       }
     }
 
-    console.log('✅ Webapp tables initialization completed');
     return true;
   } catch (error) {
     console.error('Webapp table initialization error:', error.message);

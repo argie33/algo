@@ -94,7 +94,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile dashboard should load and display key metrics", async ({
     page,
   }) => {
-    console.log("📱 Testing mobile dashboard...");
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
@@ -111,7 +110,6 @@ test.describe("Mobile-Specific Testing", () => {
     const mobileMenus = await page
       .locator('button[aria-label*="menu"], .mobile-menu, .hamburger')
       .count();
-    console.log(`📱 Mobile menu elements found: ${mobileMenus}`);
 
     // Test touch-friendly elements
     const touchTargets = await page
@@ -127,14 +125,12 @@ test.describe("Mobile-Specific Testing", () => {
       }
     }
 
-    console.log(
       `📱 Touch-friendly targets: ${touchFriendlyCount}/${Math.min(touchTargets.length, 10)}`
     );
     expect(touchFriendlyCount).toBeGreaterThan(0);
   });
 
   test("Mobile portfolio page should be touch-optimized", async ({ page }) => {
-    console.log("📱 Testing mobile portfolio interactions...");
 
     await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
@@ -147,7 +143,6 @@ test.describe("Mobile-Specific Testing", () => {
     const scrolledY = await page.evaluate(() => window.scrollY);
 
     expect(scrolledY).toBeGreaterThan(initialScrollY);
-    console.log(`📱 Mobile scroll test: ${initialScrollY} → ${scrolledY}`);
 
     // Test mobile-specific interactions
     const tapTargets = await page
@@ -158,22 +153,18 @@ test.describe("Mobile-Specific Testing", () => {
         // Test tap gesture
         await tapTargets[0].tap();
         await page.waitForTimeout(500);
-        console.log("📱 Mobile tap gesture successful");
       } catch (e) {
-        console.log(`📱 Tap gesture failed: ${e.message.slice(0, 50)}`);
       }
     }
 
     // Verify mobile viewport usage
     const viewport = page.viewportSize();
     expect(viewport.width).toBeLessThanOrEqual(768); // Mobile breakpoint
-    console.log(`📱 Mobile viewport: ${viewport.width}x${viewport.height}`);
   });
 
   test("Mobile market data should be readable and accessible", async ({
     page,
   }) => {
-    console.log("📱 Testing mobile market data readability...");
 
     await page.goto("/market", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
@@ -204,7 +195,6 @@ test.describe("Mobile-Specific Testing", () => {
       }
     }
 
-    console.log(
       `📱 Readable text elements: ${readableTextCount}/${Math.min(textElements.length, 20)}`
     );
     expect(readableTextCount).toBeGreaterThan(5);
@@ -212,7 +202,6 @@ test.describe("Mobile-Specific Testing", () => {
     // Test mobile data table responsiveness
     const tables = await page.locator("table, .data-table, .grid").count();
     if (tables > 0) {
-      console.log(`📱 Data tables found: ${tables}`);
 
       // Check for horizontal scroll on tables
       const tableOverflow = await page
@@ -221,14 +210,12 @@ test.describe("Mobile-Specific Testing", () => {
         .evaluate((el) => {
           return el.scrollWidth > el.clientWidth;
         });
-      console.log(`📱 Table horizontal scroll available: ${tableOverflow}`);
     }
   });
 
   test("Mobile navigation should work with touch gestures", async ({
     page,
   }) => {
-    console.log("📱 Testing mobile navigation gestures...");
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
@@ -239,7 +226,6 @@ test.describe("Mobile-Specific Testing", () => {
 
     for (const route of mobileRoutes) {
       try {
-        console.log(`📱 Testing mobile navigation to ${route}...`);
 
         await page.goto(route, {
           waitUntil: "domcontentloaded",
@@ -253,23 +239,19 @@ test.describe("Mobile-Specific Testing", () => {
 
         if (page.url().includes(route)) {
           successfulMobileNavigation++;
-          console.log(`✅ Mobile navigation to ${route} successful`);
         }
       } catch (e) {
-        console.log(
           `❌ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
         );
       }
     }
 
     expect(successfulMobileNavigation).toBeGreaterThanOrEqual(2);
-    console.log(
       `📱 Mobile navigation success: ${successfulMobileNavigation}/${mobileRoutes.length}`
     );
   });
 
   test("Mobile performance should meet Core Web Vitals", async ({ page }) => {
-    console.log("📱 Testing mobile performance metrics...");
 
     const performanceMetrics = [];
 
@@ -304,11 +286,9 @@ test.describe("Mobile-Specific Testing", () => {
           ...metrics,
         });
 
-        console.log(
           `📱 ${pagePath}: ${loadTime}ms load, ${metrics.domContentLoaded}ms DOM ready`
         );
       } catch (e) {
-        console.log(
           `📱 Performance test failed for ${pagePath}: ${e.message.slice(0, 50)}`
         );
       }
@@ -318,7 +298,6 @@ test.describe("Mobile-Specific Testing", () => {
     const avgLoadTime =
       performanceMetrics.reduce((sum, m) => sum + m.loadTime, 0) /
       performanceMetrics.length;
-    console.log(`📱 Average mobile load time: ${Math.round(avgLoadTime)}ms`);
 
     expect(avgLoadTime).toBeLessThan(8000); // 8 seconds for mobile
     expect(performanceMetrics.length).toBeGreaterThan(0);
@@ -327,7 +306,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile accessibility should support assistive technologies", async ({
     page,
   }) => {
-    console.log("📱 Testing mobile accessibility...");
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
@@ -337,7 +315,6 @@ test.describe("Mobile-Specific Testing", () => {
     const ariaLabels = await page
       .locator("[aria-label], [aria-labelledby], [aria-describedby]")
       .count();
-    console.log(`📱 ARIA labels found: ${ariaLabels}`);
     expect(ariaLabels).toBeGreaterThan(3);
 
     // Test mobile focus management
@@ -346,7 +323,6 @@ test.describe("Mobile-Specific Testing", () => {
         'button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
       .count();
-    console.log(`📱 Focusable elements: ${focusableElements}`);
     expect(focusableElements).toBeGreaterThan(5);
 
     // Test mobile keyboard navigation (for external keyboards)
@@ -355,16 +331,13 @@ test.describe("Mobile-Specific Testing", () => {
       await page.waitForTimeout(200);
       await page.keyboard.press("Tab");
       await page.waitForTimeout(200);
-      console.log("📱 Mobile keyboard navigation working");
     } catch (e) {
-      console.log(
         `📱 Mobile keyboard navigation issue: ${e.message.slice(0, 50)}`
       );
     }
 
     // Test mobile heading hierarchy
     const headings = await page.locator("h1, h2, h3, h4, h5, h6").count();
-    console.log(`📱 Heading elements: ${headings}`);
     expect(headings).toBeGreaterThan(1);
   });
 });

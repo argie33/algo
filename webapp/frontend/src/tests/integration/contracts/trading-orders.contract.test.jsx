@@ -40,13 +40,9 @@ describe("Trading Orders Contract Tests", () => {
     expect(Array.isArray(apiResponse.data.orders)).toBe(true);
     expect(apiResponse).toHaveProperty("trading_mode");
 
-    console.log(
       "🚨 CONTRACT MISMATCH: Orders API structure needs standardization"
     );
-    console.log("Backend returns:", Object.keys(apiResponse));
-    console.log("Frontend expects: success, data (array)");
 
-    console.log("Orders endpoint structure:", {
       success: apiResponse.success,
       dataType: typeof apiResponse.data,
       dataLength: apiResponse.data?.length || 0,
@@ -85,7 +81,6 @@ describe("Trading Orders Contract Tests", () => {
     // Validate creation response contract
     expect(createResponse).toHaveProperty("success");
 
-    console.log("Order creation response structure:", {
       success: createResponse.success,
       hasData: "data" in createResponse,
       hasOrderId: createResponse.data?.id ? true : false,
@@ -107,7 +102,6 @@ describe("Trading Orders Contract Tests", () => {
     // Validate cancellation response contract - should have consistent structure
     expect(cancelResponse).toHaveProperty("success");
 
-    console.log("Order cancellation response structure:", cancelResponse);
   });
 
   // Note: WebSocket streaming tests are covered in realtime-data.contract.test.jsx
@@ -163,6 +157,5 @@ describe("Trading Orders Contract Tests", () => {
     const cancelData = await cancelResponse.json();
     expect(cancelData).toHaveProperty("success");
 
-    console.log("✅ Order lifecycle API contract supports trading workflow");
   });
 });

@@ -21,7 +21,6 @@ const cacheMiddleware = (duration = 5 * 60 * 1000) => {
 
     // Return cached response if available and not expired
     if (cached && Date.now() - cached.timestamp < duration) {
-      console.log(`📦 Cache HIT: ${key}`);
       res.set('X-Cache', 'HIT');
       return res.status(cached.status).json(cached.data);
     }
@@ -38,7 +37,6 @@ const cacheMiddleware = (duration = 5 * 60 * 1000) => {
           status: res.statusCode,
           timestamp: Date.now()
         });
-        console.log(`📦 Cache SET: ${key}`);
       }
 
       res.set('X-Cache', 'MISS');
@@ -58,14 +56,12 @@ const clearCache = (pattern) => {
       cleared++;
     }
   }
-  console.log(`🧹 Cleared ${cleared} cache entries for pattern: ${pattern}`);
   return cleared;
 };
 
 // Clear all cache
 const clearAllCache = () => {
   cache.clear();
-  console.log('🧹 Cleared all cache');
 };
 
 module.exports = {

@@ -89,21 +89,17 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
     error: null,
     // These will call REAL authentication functions
     login: async (credentials) => {
-      console.log("🔐 Real login attempt:", credentials);
       // Let real auth handle this
       return { success: true };
     },
     logout: async () => {
-      console.log("🔐 Real logout");
       // Let real auth handle this
     },
     register: async (userData) => {
-      console.log("🔐 Real registration:", userData);
       // Let real auth handle this
       return { success: true };
     },
     refreshSession: async () => {
-      console.log("🔐 Real session refresh");
       // Let real auth handle this
       return { success: true };
     },
@@ -111,7 +107,6 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
       console.log("🔐 Real error clear");
     },
     updateTokens: (tokens) => {
-      console.log("🔐 Real token update:", tokens);
     },
   };
 

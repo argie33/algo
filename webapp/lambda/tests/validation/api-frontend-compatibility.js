@@ -80,39 +80,28 @@ class ValidationResult {
 
   pass(message) {
     this.passed++;
-    console.log(`✅ ${message}`);
   }
 
   fail(message) {
     this.failed++;
     this.errors.push(message);
-    console.log(`❌ ${message}`);
   }
 
   warn(message) {
     this.warnings.push(message);
-    console.log(`⚠️  ${message}`);
   }
 
   summary() {
-    console.log('\n' + '='.repeat(70));
-    console.log(`VALIDATION SUMMARY`);
-    console.log('='.repeat(70));
-    console.log(`✅ Passed: ${this.passed}`);
-    console.log(`❌ Failed: ${this.failed}`);
     console.log(`⚠️  Warnings: ${this.warnings.length}`);
 
     if (this.errors.length > 0) {
-      console.log('\nErrors:');
       this.errors.forEach(e => console.log(`  - ${e}`));
     }
 
     if (this.warnings.length > 0) {
-      console.log('\nWarnings:');
       this.warnings.forEach(w => console.log(`  - ${w}`));
     }
 
-    console.log('='.repeat(70));
     return this.failed === 0;
   }
 }
@@ -123,7 +112,6 @@ class ValidationResult {
 function validateApiResponse(response) {
   const result = new ValidationResult();
 
-  console.log('\n📋 VALIDATING API RESPONSE STRUCTURE\n');
 
   // Check top-level fields
   if (typeof response.success === 'boolean') {
@@ -350,7 +338,6 @@ function validateApiResponse(response) {
 function validateFrontendIntegration(response) {
   const result = new ValidationResult();
 
-  console.log('\n📱 VALIDATING FRONTEND INTEGRATION POINTS\n');
 
   if (!response.data) {
     result.fail('Cannot validate frontend integration without data');
@@ -360,7 +347,6 @@ function validateFrontendIntegration(response) {
   const data = response.data;
 
   // Portfolio Summary Cards (lines 228-300 in PortfolioOptimization.jsx)
-  console.log('Portfolio Summary Cards:');
   if (data.portfolio_state) {
     result.pass('portfolio_state available for summary cards');
 
@@ -386,7 +372,6 @@ function validateFrontendIntegration(response) {
   }
 
   // Top Holdings Section (lines 304-356)
-  console.log('\nTop Holdings Display:');
   if (Array.isArray(data.portfolio_state?.top_holdings)) {
     const topHoldings = data.portfolio_state.top_holdings;
     result.pass(`Can render top ${topHoldings.length} holdings`);
@@ -400,7 +385,6 @@ function validateFrontendIntegration(response) {
   }
 
   // Sector Allocation Table (lines 359-437)
-  console.log('\nSector Allocation Table:');
   if (Array.isArray(data.sector_allocation)) {
     const sectors = data.sector_allocation;
     result.pass(`Can render ${sectors.length} sector rows`);
@@ -416,7 +400,6 @@ function validateFrontendIntegration(response) {
   }
 
   // Recommendations Table (lines 440-530)
-  console.log('\nRecommendations Table:');
   if (Array.isArray(data.recommended_trades)) {
     const trades = data.recommended_trades;
     result.pass(`Can render ${trades.length} recommendation rows`);
@@ -435,7 +418,6 @@ function validateFrontendIntegration(response) {
   }
 
   // Data Quality Footer
-  console.log('\nData Quality Display:');
   if (data.data_quality && data.optimization_id) {
     result.pass('Can display optimization_id and data_quality in footer');
   }
@@ -447,9 +429,6 @@ function validateFrontendIntegration(response) {
  * Main Validation
  */
 function validateAllChecks(apiResponse) {
-  console.log('\n' + '='.repeat(70));
-  console.log('API-FRONTEND COMPATIBILITY VALIDATION');
-  console.log('='.repeat(70));
 
   const structureResult = validateApiResponse(apiResponse);
   const integrationResult = validateFrontendIntegration(apiResponse);
@@ -459,19 +438,10 @@ function validateAllChecks(apiResponse) {
   const totalFailed = structureResult.failed + integrationResult.failed;
   const totalWarnings = structureResult.warnings.length + integrationResult.warnings.length;
 
-  console.log('\n' + '='.repeat(70));
-  console.log('FINAL VALIDATION RESULT');
-  console.log('='.repeat(70));
-  console.log(`✅ Total Passed: ${totalPassed}`);
-  console.log(`❌ Total Failed: ${totalFailed}`);
-  console.log(`⚠️  Total Warnings: ${totalWarnings}`);
 
   if (totalFailed === 0) {
-    console.log('\n🎉 VALIDATION PASSED - Frontend and backend are compatible!');
   } else {
-    console.log('\n❌ VALIDATION FAILED - Issues must be fixed before production use');
   }
-  console.log('='.repeat(70) + '\n');
 
   return totalFailed === 0;
 }

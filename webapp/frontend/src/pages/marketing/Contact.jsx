@@ -231,7 +231,6 @@ const Contact = () => {
                         throw new Error(result.error || 'Failed to submit form');
                       }
 
-                      console.log('✅ Form submitted successfully:', result.data);
                       return result;
                     } catch (error) {
                       console.error('❌ Form submission error:', error);

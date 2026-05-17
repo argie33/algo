@@ -56,15 +56,12 @@ for (const file of filesWithErrors) {
     if (content !== originalContent) {
       fs.writeFileSync(fullPath, content, 'utf8');
       fixedCount++;
-      console.log(`✓ Fixed: ${path.basename(fullPath)}`);
     }
   } catch (err) {
     // Silently skip files that can't be processed
   }
 }
 
-console.log(`\nFixed ${fixedCount} files`);
-console.log('Running lint again...\n');
 
 try {
   execSync('npm run lint 2>&1', { encoding: 'utf8', stdio: 'inherit' });

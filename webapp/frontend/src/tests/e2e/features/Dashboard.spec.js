@@ -81,7 +81,6 @@ test.describe("Dashboard and Homepage E2E Tests", () => {
 
       // If no navigation found, that's still okay for some layouts
       if (!navFound) {
-        console.log("No traditional navigation found, checking for any interactive elements");
         const interactiveCount = await page.locator("button, a, [role='button']").count();
         expect(interactiveCount).toBeGreaterThan(0);
       }

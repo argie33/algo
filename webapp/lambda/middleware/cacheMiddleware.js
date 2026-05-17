@@ -56,7 +56,6 @@ class CacheManager {
         }
       }
       if (cleaned > 0) {
-        console.log(`[Cache] Cleaned ${cleaned} expired entries`);
       }
     }, intervalSeconds * 1000);
   }

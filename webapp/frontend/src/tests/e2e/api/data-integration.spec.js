@@ -51,7 +51,6 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(3000); // Allow data to load
 
-    console.log("📊 Testing market data integration...");
 
     // Look for market data indicators
     const marketData = await page
@@ -60,14 +59,12 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`📈 Market data elements found: ${marketData}`);
 
     // Look for charts and graphs
     const charts = await page
       .locator('svg, canvas, .chart, .graph, .recharts, [data-testid*="chart"]')
       .count();
 
-    console.log(`📊 Chart elements found: ${charts}`);
 
     // Look for real-time indicators
     const realTimeIndicators = await page
@@ -76,13 +73,11 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`🔴 Real-time indicators: ${realTimeIndicators}`);
 
     expect(marketData + charts).toBeGreaterThan(0);
   });
 
   test("should handle API requests and responses", async ({ page }) => {
-    console.log("🌐 Testing API integration...");
 
     let apiRequests = 0;
     let apiResponses = 0;
@@ -93,7 +88,6 @@ test.describe("Financial Platform - Data Integration", () => {
     page.on("request", (request) => {
       if (request.url().includes("/api/")) {
         apiRequests++;
-        console.log(
           `📤 API Request: ${request.method()} ${request.url().split("/api/")[1]}`
         );
       }
@@ -107,7 +101,6 @@ test.describe("Financial Platform - Data Integration", () => {
         } else if (response.status() >= 400) {
           errorResponses++;
         }
-        console.log(
           `📥 API Response: ${response.status()} ${response.url().split("/api/")[1]}`
         );
       }
@@ -117,7 +110,6 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(5000); // Wait for API calls
 
-    console.log(
       `📊 API Stats: ${apiRequests} requests, ${apiResponses} responses, ${successfulRequests} successful, ${errorResponses} errors`
     );
 
@@ -127,7 +119,6 @@ test.describe("Financial Platform - Data Integration", () => {
     const pageLoaded = await page.locator("#root").isVisible();
     const hasPortfolioContent = await page.getByText("Portfolio").first().isVisible();
 
-    console.log(`📄 Page loaded: ${pageLoaded}, Portfolio content: ${hasPortfolioContent}`);
 
     // The test passes if the page loads (showing frontend resilience)
     // API requests are optional since backend may be unavailable
@@ -139,7 +130,6 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(3000);
 
-    console.log("💰 Testing financial data consistency...");
 
     // Look for numerical data (prices, percentages, currency)
     const textNumbers = await page
@@ -153,7 +143,6 @@ test.describe("Financial Platform - Data Integration", () => {
 
     const numbers = textNumbers + numberElements;
 
-    console.log(`🔢 Numerical data elements: ${numbers}`);
 
     // Look for portfolio-specific data
     const portfolioTextData = await page
@@ -168,13 +157,11 @@ test.describe("Financial Platform - Data Integration", () => {
 
     const portfolioData = portfolioTextData + portfolioClassData;
 
-    console.log(`💼 Portfolio data elements: ${portfolioData}`);
 
     // Check for data tables
     const tables = await page
       .locator('table, .table, [role="table"], .grid')
       .count();
-    console.log(`📋 Data tables found: ${tables}`);
 
     expect(numbers + portfolioData + tables).toBeGreaterThan(0);
   });
@@ -185,7 +172,6 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(3000);
 
-    console.log("⚡ Testing real-time data updates...");
 
     // Look for any data elements that could show real-time updates
     const dataElements = await page
@@ -194,14 +180,12 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`📊 Data elements found: ${dataElements}`);
 
     // Look for any update indicators
     const updateIndicators = await page
       .locator("time, .timestamp, .updated, .last-updated, .refresh, .live")
       .count();
 
-    console.log(`⏰ Update indicators: ${updateIndicators}`);
 
     // Check that page loaded with financial content
     const pageTitle = await page.title();
@@ -209,7 +193,6 @@ test.describe("Financial Platform - Data Integration", () => {
       pageTitle.toLowerCase().includes("portfolio") ||
       pageTitle.toLowerCase().includes("financial");
 
-    console.log(`📋 Page has financial content: ${hasFinancialContent}`);
 
     // More realistic test - just verify page loaded with some data
     expect(
@@ -223,7 +206,6 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(3000);
 
-    console.log("📈 Testing stock data display...");
 
     // Look for any financial data elements (more flexible)
     const financialElements = await page
@@ -232,7 +214,6 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`📊 Financial elements found: ${financialElements}`);
 
     // Look for any numeric data (prices, values, percentages)
     const numericClassData = await page
@@ -246,7 +227,6 @@ test.describe("Financial Platform - Data Integration", () => {
 
     const numericData = numericClassData + numericTextData;
 
-    console.log(`💲 Numeric data elements: ${numericData}`);
 
     // Check page loaded with appropriate title
     const pageTitle = await page.title();
@@ -254,7 +234,6 @@ test.describe("Financial Platform - Data Integration", () => {
       pageTitle.toLowerCase().includes("market") ||
       pageTitle.toLowerCase().includes("financial");
 
-    console.log(`📋 Page has market content: ${hasMarketContent}`);
 
     // More realistic expectation - page loaded with some financial content
     expect(
@@ -321,7 +300,6 @@ test.describe("Financial Platform - Data Integration", () => {
 
     // Log critical errors specifically
     if (criticalErrors.length > 0) {
-      console.log(
         `🚨 CRITICAL console errors that will fail the test:`,
         criticalErrors
       );

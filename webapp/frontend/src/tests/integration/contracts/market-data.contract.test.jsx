@@ -40,7 +40,6 @@ describe("Market Data Contract Tests", () => {
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
 
-    console.log("Market overview structure:", {
       success: apiResponse.success,
       dataType: typeof apiResponse.data,
       dataKeys: Object.keys(apiResponse.data || {}),
@@ -79,7 +78,6 @@ describe("Market Data Contract Tests", () => {
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
 
-    console.log("Sectors analysis structure:", {
       success: apiResponse.success,
       dataType: typeof apiResponse.data,
       dataKeys: Object.keys(apiResponse.data || {}),
@@ -114,7 +112,6 @@ describe("Market Data Contract Tests", () => {
     // Should not return 404 when symbols are provided
     expect(response.status).not.toBe(404);
 
-    console.log("WebSocket market streaming status:", response.status);
 
     // Test handling of empty symbols parameter
     const emptyResponse = await fetch(
@@ -124,7 +121,6 @@ describe("Market Data Contract Tests", () => {
       }
     );
 
-    console.log("WebSocket empty symbols response:", emptyResponse.status);
   });
 
   it("should validate market data API contract supports trading dashboard", async () => {
@@ -158,7 +154,6 @@ describe("Market Data Contract Tests", () => {
       }
     }
 
-    console.log("✅ Market data contract supports trading dashboard");
   });
 
   it("should validate sector data API contract supports portfolio analysis", async () => {
@@ -195,7 +190,6 @@ describe("Market Data Contract Tests", () => {
       }
     }
 
-    console.log("✅ Sector data contract supports portfolio analysis");
   });
 
   it("should render MarketOverview component with real backend data and handle UI interactions", async () => {
@@ -243,7 +237,6 @@ describe("Market Data Contract Tests", () => {
       { timeout: 15000 } // Allow time for charts and complex components
     );
 
-    console.log(
       "✅ MarketOverview component successfully integrates with backend API"
     );
   });
@@ -295,7 +288,6 @@ describe("Market Data Contract Tests", () => {
       { timeout: 12000 }
     );
 
-    console.log(
       "✅ SectorAnalysis component successfully displays backend sector data"
     );
   });

@@ -1,7 +1,5 @@
 // Minimal diagnostic handler for testing Lambda execution
 exports.handler = async (event) => {
-  console.log('Event:', JSON.stringify(event, null, 2));
-  console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
     DB_ENDPOINT: process.env.DB_ENDPOINT,
     DB_NAME: process.env.DB_NAME,

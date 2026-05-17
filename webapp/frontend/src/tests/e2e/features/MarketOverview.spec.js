@@ -27,7 +27,6 @@ test.describe("Market Overview Page E2E Tests", () => {
       }
     });
 
-    console.log("🧪 Testing Market Overview at /market...");
 
     // Navigate to Market Overview page
     try {
@@ -49,7 +48,6 @@ test.describe("Market Overview Page E2E Tests", () => {
           error.includes("value")
       );
 
-      console.log(
         `📊 Market Overview: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 

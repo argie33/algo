@@ -56,7 +56,6 @@ async function clearDatabase() {
       // Re-enable foreign key checks
       await client.query('SET session_replication_role = DEFAULT');
 
-      console.log(`✅ Cleared ${tables.length} tables from test database`);
     } finally {
       client.release();
     }
@@ -123,7 +122,6 @@ async function insertTestData() {
         ON CONFLICT DO NOTHING
       `);
 
-      console.log('✅ Test data inserted');
     } finally {
       client.release();
     }

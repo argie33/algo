@@ -6,7 +6,6 @@
 import { chromium } from "@playwright/test";
 
 async function globalSetup() {
-  console.log("🚀 Starting global E2E test setup...");
 
   try {
     const browser = await chromium.launch({
@@ -29,14 +28,12 @@ async function globalSetup() {
 
     try {
       // Wait for dev server to be ready
-      console.log("📡 Waiting for dev server...");
       let retries = 30; // 2.5 minutes
       while (retries > 0) {
         try {
           await page.goto("http://localhost:5173", { timeout: 10000 });
           // Check if page loads with React content
           await page.waitForSelector('#root', { timeout: 5000 });
-          console.log("✅ React app loaded successfully");
           break;
         } catch (error) {
           retries--;
@@ -48,7 +45,6 @@ async function globalSetup() {
         }
       }
 
-      console.log("✅ Dev server ready");
 
       // Set up test authentication
       await page.goto("http://localhost:5173");
@@ -81,10 +77,8 @@ async function globalSetup() {
         );
       });
 
-      console.log("🔧 Test environment configured");
 
       await browser.close();
-      console.log("✅ Global setup completed successfully");
     } catch (setupError) {
       console.error("❌ Test setup failed:", setupError);
       if (browser) {
@@ -94,8 +88,6 @@ async function globalSetup() {
     }
   } catch (browserError) {
     console.error("❌ Browser launch failed:", browserError);
-    console.log("💡 This may be due to missing system dependencies.");
-    console.log("💡 To fix: sudo npx playwright install-deps");
     throw browserError;
   }
 }

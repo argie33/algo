@@ -215,7 +215,6 @@ export function AuthProvider({ children }) {
       !(typeof window !== 'undefined' && window.playwright);
 
       if (isUnitTestEnv) {
-        console.log("Unit test environment detected - skipping auth check");
         dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
         return;
@@ -228,7 +227,6 @@ export function AuthProvider({ children }) {
 
       // Use Cognito in production or when properly configured (unless dev auth is forced)
       if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
-        console.log("🚀 PRODUCTION MODE - Using AWS Cognito authentication");
 
         try {
           // Get current authenticated user
@@ -261,7 +259,6 @@ export function AuthProvider({ children }) {
                 tokens,
               },
             });
-            console.log("✅ User authenticated with Cognito");
             return;
           }
         } catch (error) {
@@ -272,7 +269,6 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured OR dev auth is forced OR in DEV mode
       // Use dev auth if Cognito isn't configured OR in DEV mode OR dev auth is forced
       if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV) {
-        console.log(
           forceDevAuth
             ? "🔧 DEVELOPMENT MODE - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
             : !cognitoConfigured
@@ -295,7 +291,6 @@ export function AuthProvider({ children }) {
                 tokens: session.tokens,
               },
             });
-            console.log("✅ Development user authenticated");
             return;
           }
         } catch (error) {
@@ -333,7 +328,6 @@ export function AuthProvider({ children }) {
         // Set session manager callbacks
         sessionManager.setCallbacks({
           onTokenRefresh: (_result) => {
-            console.log("🔄 Tokens refreshed automatically");
           },
           onSessionWarning: (warningData) => {
             setSessionWarning({
@@ -342,7 +336,6 @@ export function AuthProvider({ children }) {
             });
           },
           onSessionExpired: async () => {
-            console.log("❌ Session expired, logging out");
             await logout();
           },
           onRefreshError: (error, attempts) => {
@@ -402,7 +395,6 @@ export function AuthProvider({ children }) {
       // Try Cognito in production or when properly configured (unless dev auth is forced)
       if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
         try {
-          console.log("🚀 PRODUCTION LOGIN - Attempting AWS Cognito");
 
           const { isSignedIn, nextStep } = await signIn({
             username,
@@ -438,7 +430,6 @@ export function AuthProvider({ children }) {
               },
             });
 
-            console.log("✅ Production login successful");
             return { success: true };
           } else {
             // Handle additional steps (MFA, password change, etc.)
@@ -463,7 +454,6 @@ export function AuthProvider({ children }) {
                                import.meta.env.DEV;
 
       if (shouldUseDevAuth) {
-        console.log(
           forceDevAuth
             ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
             : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
@@ -492,7 +482,6 @@ export function AuthProvider({ children }) {
             },
           });
 
-          console.log("✅ Development login successful");
           return { success: true };
         } catch (error) {
           console.error("Dev auth login error:", error);
@@ -515,7 +504,6 @@ export function AuthProvider({ children }) {
 
       // Force use dev auth as last resort if we're in development
       if (import.meta.env.DEV) {
-        console.log("🔧 FALLBACK: Forcing dev auth as last resort");
         try {
           const result = await devAuth.signIn(username, password);
           if (result && result.success && result.tokens) {
@@ -551,7 +539,6 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
-        console.log(
           "Cognito not configured - using development authentication"
         );
         try {
@@ -618,7 +605,6 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
-        console.log(
           "Cognito not configured - using development authentication"
         );
         try {
@@ -669,7 +655,6 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
-        console.log(
           "Cognito not configured - using development authentication"
         );
         try {
@@ -714,7 +699,6 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
-        console.log(
           "Cognito not configured - using development authentication"
         );
         try {
@@ -763,7 +747,6 @@ export function AuthProvider({ children }) {
 
       // If Cognito is not configured, use dev auth
       if (!isCognitoConfigured()) {
-        console.log(
           "Cognito not configured - using development authentication"
         );
         try {

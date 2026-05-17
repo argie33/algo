@@ -69,20 +69,16 @@ router.get('/', async (req, res) => {
     let allTrades = [];
 
     // 1. Try to fetch REAL Alpaca trades if enabled
-    console.log('🔍 Trade fetch check - sources:', sources, 'AlpacaService available:', !!AlpacaService);
     if (sources.includes('alpaca') && AlpacaService) {
       try {
         const apiKey = process.env.APCA_API_KEY_ID;
         const secretKey = process.env.APCA_API_SECRET_KEY;
         const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
 
-        console.log('📋 Alpaca credentials check - key:', apiKey ? 'YES' : 'NO', 'secret:', secretKey ? 'YES' : 'NO', 'paper:', isPaper);
 
         if (apiKey && secretKey) {
-          console.log('🔗 Fetching REAL Alpaca trades from API...');
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
           const orders = await alpaca.getOrders({ status: 'closed', limit: 500 }) || [];
-          console.log(`📊 Alpaca returned ${orders?.length || 0} orders`);
 
           if (orders && Array.isArray(orders)) {
             orders.forEach(order => {
@@ -111,7 +107,6 @@ router.get('/', async (req, res) => {
                 });
               }
             });
-            console.log(`✅ Fetched ${allTrades.length} real Alpaca trades`);
           }
         } else {
           console.warn('⚠️ Alpaca credentials missing');
@@ -231,7 +226,6 @@ router.get('/summary', async (req, res) => {
         const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
 
         if (apiKey && secretKey) {
-          console.log('🔗 Fetching REAL Alpaca trades for summary...');
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
           const orders = await alpaca.getOrders({ status: 'closed', limit: 500 }) || [];
 
@@ -254,7 +248,6 @@ router.get('/summary', async (req, res) => {
                 });
               }
             });
-            console.log(`✅ Including ${allTrades.length} real Alpaca trades in summary`);
           }
         }
       } catch (err) {
@@ -270,7 +263,6 @@ router.get('/summary', async (req, res) => {
         FROM trades
         ORDER BY execution_date DESC
       `);
-      console.log(`📊 Summary: Found ${result.rowCount} database trades for summary`);
 
       result.rows.forEach(row => {
         allTrades.push({

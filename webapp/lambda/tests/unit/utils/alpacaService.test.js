@@ -16,7 +16,6 @@ const mockAlpacaMethods = {
 // Mock the Alpaca SDK - must be at top level before any requires
 jest.mock("@alpacahq/alpaca-trade-api", () => {
   const mockConstructor = jest.fn().mockImplementation(() => {
-    console.log("Mock Alpaca constructor called");
     return mockAlpacaMethods;
   });
   mockConstructor.mockAlpacaMethods = mockAlpacaMethods; // Expose for debugging

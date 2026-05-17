@@ -14,7 +14,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Dashboard - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10); // 10px tolerance
 
     // Check if text is readable (not too small)
@@ -38,7 +37,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Stock Detail - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -71,7 +69,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Market - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -82,7 +79,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Explorer - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -93,7 +89,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Watchlist - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -104,7 +99,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Portfolio - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -115,7 +109,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Signals - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -126,7 +119,6 @@ test.describe('Mobile Responsiveness - iPhone 12', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Screener - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -164,7 +156,6 @@ test.describe('Tablet Responsiveness - iPad', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Tablet Dashboard - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -175,7 +166,6 @@ test.describe('Tablet Responsiveness - iPad', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`Tablet Stock Detail - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 });
@@ -189,7 +179,6 @@ test.describe('Responsive Breakpoint Tests', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`375px breakpoint - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -201,7 +190,6 @@ test.describe('Responsive Breakpoint Tests', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`768px breakpoint - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 
@@ -213,7 +201,6 @@ test.describe('Responsive Breakpoint Tests', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-    console.log(`1920px breakpoint - Scroll width: ${scrollWidth}, Client width: ${clientWidth}`);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
   });
 });

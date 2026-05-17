@@ -10,7 +10,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     const response = await axios.get(`${API_BASE}${endpoint}`, { timeout });
     const success = response.status === expectedStatus;
 
-    console.log(
       `${success ? "✅" : "❌"} ${name}: ${response.status} (${response.statusText})`
     );
     if (response.data && response.data.error) {
@@ -24,7 +23,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
 }
 
 async function runApiTests() {
-  console.log("🧪 Running API Endpoint Tests with Real Database\n");
 
   const tests = [
     ["Health Check", "/health"],
@@ -48,7 +46,6 @@ async function runApiTests() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  console.log(
     `\n📊 Results: ${passed}/${total} tests passed (${Math.round((passed / total) * 100)}%)`
   );
   return passed === total;
@@ -56,7 +53,6 @@ async function runApiTests() {
 
 // Error handling tests with bad data
 async function testErrorHandling() {
-  console.log("\n🔥 Testing Error Handling\n");
 
   const errorTests = [
     ["Invalid Symbol", "/api/stocks/INVALID@SYMBOL", 400],
@@ -71,7 +67,6 @@ async function testErrorHandling() {
     }
   }
 
-  console.log(
     `\n🔥 Error Handling: ${passed}/${errorTests.length} tests passed`
   );
   return passed === errorTests.length;
@@ -79,14 +74,12 @@ async function testErrorHandling() {
 
 async function main() {
   try {
-    console.log("⏰ Waiting for server to be ready...");
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const apiSuccess = await runApiTests();
     const errorSuccess = await testErrorHandling();
 
     const overallSuccess = apiSuccess && errorSuccess;
-    console.log(
       `\n${overallSuccess ? "🎉" : "💥"} Overall Result: ${overallSuccess ? "SUCCESS" : "FAILED"}`
     );
 

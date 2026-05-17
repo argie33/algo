@@ -199,7 +199,6 @@ class AlpacaService {
         page_size: pageSize,
       };
 
-      console.log(`📊 Fetching activities from Alpaca: ${JSON.stringify(queryParams)}`);
 
       const activities = await this.client.sendRequest(
         `/v2/account/activities`,
@@ -208,7 +207,6 @@ class AlpacaService {
         "GET"
       );
 
-      console.log(`✅ Received ${activities?.length || 0} activities from Alpaca`);
 
       return (activities || []).map((activity) => ({
         id: activity.id,
@@ -478,7 +476,6 @@ class AlpacaService {
     try {
       this.checkRateLimit();
 
-      console.log(`📊 Fetching latest quote for ${symbol} from Alpaca`);
       const quote = await this.client.getLatestQuote(symbol);
 
       if (!quote) {
@@ -486,7 +483,6 @@ class AlpacaService {
         return null;
       }
 
-      console.log(
         `✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`
       );
 
@@ -519,7 +515,6 @@ class AlpacaService {
     try {
       this.checkRateLimit();
 
-      console.log(`📊 Fetching latest trade for ${symbol} from Alpaca`);
       const trade = await this.client.getLatestTrade(symbol);
 
       if (!trade) {
@@ -527,7 +522,6 @@ class AlpacaService {
         return null;
       }
 
-      console.log(
         `✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`
       );
 
@@ -565,7 +559,6 @@ class AlpacaService {
         limit = 100,
       } = options;
 
-      console.log(`📊 Fetching bars for ${symbol} from Alpaca`, {
         timeframe,
         start: start.split("T")[0],
         limit,
@@ -586,7 +579,6 @@ class AlpacaService {
         return [];
       }
 
-      console.log(`✅ Bars fetched for ${symbol}: ${bars.bars.length} bars`);
 
       return bars.bars.map((bar) => ({
         symbol: symbol,
@@ -619,10 +611,8 @@ class AlpacaService {
     try {
       this.checkRateLimit();
 
-      console.log("📊 Fetching market clock from Alpaca");
       const clock = await this.client.getClock();
 
-      console.log(
         `✅ Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`
       );
 
@@ -786,7 +776,6 @@ class AlpacaService {
   async getOrders(options = {}) {
     try {
       this.checkRateLimit();
-      console.log("Fetching orders from Alpaca");
 
       // Build query parameters
       const queryParams = {};
@@ -794,20 +783,16 @@ class AlpacaService {
       if (options.limit) queryParams.limit = options.limit;
       if (options.nested) queryParams.nested = options.nested;
 
-      console.log(`📊 Fetching orders with params: ${JSON.stringify(queryParams)}`);
 
       // Try to use the SDK method first if available
       let orders = [];
       try {
         if (this.client.getOrders && typeof this.client.getOrders === 'function') {
-          console.log('Using SDK getOrders method...');
           orders = await this.client.getOrders(options);
-          console.log(`✅ SDK method returned ${orders?.length || 0} orders`);
         } else {
           throw new Error('getOrders not available on SDK');
         }
       } catch (sdkError) {
-        console.log(`SDK method not available: ${sdkError.message}, trying REST API...`);
         // Fallback to REST API call for orders
         orders = await this.client.sendRequest(
           `/v2/orders`,
@@ -815,7 +800,6 @@ class AlpacaService {
           null,
           "GET"
         );
-        console.log(`✅ REST API returned ${orders?.length || 0} orders`);
       }
 
       return (orders || []).map((order) => ({
@@ -846,7 +830,6 @@ class AlpacaService {
   async cancelOrder(orderId) {
     try {
       this.checkRateLimit();
-      console.log(`Canceling order ${orderId} on Alpaca`);
       const result = await this.client.cancelOrder(orderId);
       return {
         orderId: orderId,

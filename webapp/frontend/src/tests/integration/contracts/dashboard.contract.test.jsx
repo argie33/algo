@@ -33,7 +33,6 @@ describe("Dashboard Critical Contract Tests", () => {
     expect(data).toHaveProperty("data");
 
     // Test critical dashboard contract
-    console.log("Dashboard summary structure:", data);
   });
 
   it("validates market overview data for dashboard", async () => {
@@ -45,7 +44,6 @@ describe("Dashboard Critical Contract Tests", () => {
 
     const data = await response.json();
     expect(data).toHaveProperty("success", true);
-    console.log("Market overview structure:", Object.keys(data));
   });
 
   it("validates portfolio value for dashboard widget", async () => {
@@ -57,6 +55,5 @@ describe("Dashboard Critical Contract Tests", () => {
 
     const data = await response.json();
     expect(data).toHaveProperty("success", true);
-    console.log("Portfolio value structure:", Object.keys(data));
   });
 });

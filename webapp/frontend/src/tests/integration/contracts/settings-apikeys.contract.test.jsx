@@ -41,7 +41,6 @@ describe("Settings API Keys Contract Tests", () => {
     expect(apiResponse).toHaveProperty("data");
     expect(Array.isArray(apiResponse.data)).toBe(true);
 
-    console.log("Real backend response structure:", {
       success: apiResponse.success,
       hasDataProperty: "data" in apiResponse,
       dataType: typeof apiResponse.data,
@@ -160,7 +159,6 @@ describe("Settings API Keys Contract Tests", () => {
         );
       } catch (cleanupError) {
         // Cleanup failures are acceptable for contract tests
-        console.log("Cleanup failed (acceptable):", cleanupError.message);
       }
     } catch (error) {
       // For contract tests, we just want to verify the endpoint structure exists
@@ -198,7 +196,6 @@ describe("Settings API Keys Contract Tests", () => {
         expect(typeof errorResponse.success).toBe("boolean");
         // Error responses should have predictable structure for frontend handling
       } else {
-        console.log("Response does not have valid json method, testing endpoint availability only");
         // For contract testing, we just verify the endpoint responds
       }
     } catch (error) {

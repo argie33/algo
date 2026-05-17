@@ -63,7 +63,6 @@ router.post("/", async (req, res) => {
     );
 
     const submissionId = result.rows[0].id;
-    console.log(`✅ Contact form received from ${email} (${name}) - ID: ${submissionId}`);
 
     // Return success with submission ID
     return sendSuccess(res, {

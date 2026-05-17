@@ -100,7 +100,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     });
     const success = response.status === expectedStatus;
 
-    console.log(
       `${success ? "✅" : "❌"} ${name.padEnd(20)}: ${response.status}`
     );
 
@@ -115,7 +114,6 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     const symbol = isExpectedError ? "⚠️" : "❌";
     const status = error.response?.status || "TIMEOUT";
 
-    console.log(
       `${symbol} ${name.padEnd(20)}: ${status} (${error.response?.statusText || error.message})`
     );
 
@@ -129,13 +127,10 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
 }
 
 async function runComprehensiveTests() {
-  console.log("🧪 COMPREHENSIVE API TESTING - All 42+ Route Modules\n");
-  console.log(
     "Legend: ✅ = Working, ❌ = Error, ⚠️ = Not Implemented (404/501/503)\n"
   );
 
   // Test all route endpoints
-  console.log("📋 ROUTE MODULE TESTS:\n");
   let routePassed = 0;
 
   for (const [name, endpoint] of ROUTE_TESTS) {
@@ -145,12 +140,10 @@ async function runComprehensiveTests() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  console.log(
     `\n📊 Route Tests: ${routePassed}/${ROUTE_TESTS.length} working (${Math.round((routePassed / ROUTE_TESTS.length) * 100)}%)\n`
   );
 
   // Test data endpoints
-  console.log("📊 DATA ENDPOINT TESTS:\n");
   let dataPassed = 0;
 
   for (const [name, endpoint] of DATA_TESTS) {
@@ -160,7 +153,6 @@ async function runComprehensiveTests() {
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
-  console.log(
     `\n📊 Data Tests: ${dataPassed}/${DATA_TESTS.length} working (${Math.round((dataPassed / DATA_TESTS.length) * 100)}%)\n`
   );
 
@@ -169,29 +161,21 @@ async function runComprehensiveTests() {
   const totalTests = ROUTE_TESTS.length + DATA_TESTS.length;
   const successRate = Math.round((totalPassed / totalTests) * 100);
 
-  console.log("=".repeat(60));
-  console.log(
     `🎯 FINAL RESULTS: ${totalPassed}/${totalTests} endpoints working (${successRate}%)`
   );
-  console.log("=".repeat(60));
 
   if (successRate >= 80) {
-    console.log("🎉 EXCELLENT! Most endpoints are working");
   } else if (successRate >= 60) {
-    console.log("⚠️  MODERATE: Many endpoints need attention");
   } else {
-    console.log("🚨 CRITICAL: Major API issues detected");
   }
 
   return successRate >= 70; // 70% pass rate
 }
 
 // Wait for server to be ready
-console.log("⏰ Waiting for server to be ready...");
 setTimeout(() => {
   runComprehensiveTests()
     .then((success) => {
-      console.log(
         `\n${success ? "🎉 COMPREHENSIVE TEST PASSED" : "💥 COMPREHENSIVE TEST FAILED"}`
       );
       process.exit(success ? 0 : 1);

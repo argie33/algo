@@ -187,7 +187,6 @@ test.describe('Contact Form API Verification', () => {
     expect(data.data.submission_id).toBeDefined();
 
     // Log submission ID for manual verification
-    console.log('✅ Form submission successful - ID:', data.data.submission_id);
   });
 
   test('should reject invalid email format via API', async ({ request }) => {

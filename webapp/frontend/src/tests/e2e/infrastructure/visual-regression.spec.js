@@ -68,9 +68,7 @@ test.describe("Financial Platform - Visual Regression", () => {
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
 
-        console.log(`✅ Screenshots captured for ${name}`);
       } catch (error) {
-        console.log(
           `⚠️ Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
         );
       }
@@ -109,9 +107,7 @@ test.describe("Financial Platform - Visual Regression", () => {
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
 
-        console.log(`✅ Screenshots captured for ${name}`);
       } catch (error) {
-        console.log(
           `⚠️ Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
         );
       }
@@ -137,9 +133,7 @@ test.describe("Financial Platform - Visual Regression", () => {
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
 
-        console.log(`✅ Screenshots captured for ${name}`);
       } catch (error) {
-        console.log(
           `⚠️ Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
         );
       }
@@ -174,9 +168,7 @@ test.describe("Financial Platform - Visual Regression", () => {
             clip: { x: 0, y: 0, width: 1280, height: 720 },
           });
 
-          console.log(`✅ ${viewport.name} screenshot for ${pageName}`);
         } catch (error) {
-          console.log(
             `⚠️ Responsive test failed: ${error.message.slice(0, 30)}`
           );
         }
@@ -210,9 +202,7 @@ test.describe("Financial Platform - Visual Regression", () => {
             clip: { x: 0, y: 0, width: 375, height: 667 },
           });
 
-          console.log(`✅ ${viewport.name} screenshot for ${pageName}`);
         } catch (error) {
-          console.log(
             `⚠️ Responsive test failed: ${error.message.slice(0, 30)}`
           );
         }
@@ -258,7 +248,6 @@ test.describe("Financial Platform - Visual Regression", () => {
             clip: { x: 0, y: 0, width: 1280, height: 720 },
           });
 
-          console.log("✅ Dark mode screenshot captured");
           darkModeToggled = true;
           break;
         }
@@ -268,7 +257,6 @@ test.describe("Financial Platform - Visual Regression", () => {
     }
 
     if (!darkModeToggled) {
-      console.log("ℹ️ No dark mode toggle found - single theme application");
     }
 
     expect(true).toBe(true);
@@ -313,7 +301,6 @@ test.describe("Financial Platform - Visual Regression", () => {
                 path: `src/tests/screenshots/modals/settings-modal-${Date.now()}.png`,
               });
 
-              console.log("✅ Modal screenshot captured");
 
               // Close modal
               await page.keyboard.press("Escape");
@@ -382,7 +369,6 @@ test.describe("Financial Platform - Visual Regression", () => {
               },
             });
 
-            console.log(
               `✅ Hover state captured for element ${hoverTestCount}`
             );
             hoverTestCount++;
@@ -395,7 +381,6 @@ test.describe("Financial Platform - Visual Regression", () => {
       }
     }
 
-    console.log(`📊 Captured ${hoverTestCount} hover state screenshots`);
     expect(hoverTestCount).toBeGreaterThanOrEqual(0);
   });
 });

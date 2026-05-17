@@ -464,7 +464,6 @@ async function runContractTest(endpoint, baseURL) {
   const url = `${baseURL}${path}`;
 
   try {
-    console.log(`🔍 Testing ${endpoint}...`);
 
     const response = await axios({
       method: method.toLowerCase(),
@@ -476,7 +475,6 @@ async function runContractTest(endpoint, baseURL) {
     const contractErrors = validateContract(endpoint, response);
 
     if (contractErrors.length === 0) {
-      console.log(`✅ ${endpoint} - Contract valid`);
       testResults.passed++;
       testResults.contracts[endpoint] = {
         status: "PASS",
@@ -484,7 +482,6 @@ async function runContractTest(endpoint, baseURL) {
       };
       return true;
     } else {
-      console.log(`❌ ${endpoint} - Contract violations:`);
       contractErrors.forEach((error) => console.log(`   • ${error}`));
       testResults.failed++;
       testResults.contracts[endpoint] = {
@@ -519,7 +516,6 @@ async function runContractTest(endpoint, baseURL) {
 
 // Site functionality tests
 async function runSiteFunctionalityTests(baseURL) {
-  console.log("\n🌐 Running site functionality tests...\n");
 
   // Test critical user workflows
   const workflows = [
@@ -545,7 +541,6 @@ async function runSiteFunctionalityTests(baseURL) {
   ];
 
   for (const workflow of workflows) {
-    console.log(`\n📋 Testing workflow: ${workflow.name}`);
     let workflowPassed = true;
 
     for (const test of workflow.tests) {
@@ -557,16 +552,13 @@ async function runSiteFunctionalityTests(baseURL) {
     }
 
     if (workflowPassed) {
-      console.log(`✅ Workflow '${workflow.name}' completed successfully`);
     } else {
-      console.log(`❌ Workflow '${workflow.name}' has failures`);
     }
   }
 }
 
 // Small batch tests for verification
 async function runSmallBatchTests(baseURL) {
-  console.log("\n🔬 Running small batch verification tests...\n");
 
   const criticalEndpoints = [
     "GET /api/health",
@@ -575,7 +567,6 @@ async function runSmallBatchTests(baseURL) {
     "GET /api/diagnostics/database-connectivity",
   ];
 
-  console.log("Testing critical endpoints for quick verification:");
 
   for (const endpoint of criticalEndpoints) {
     await runContractTest(endpoint, baseURL);
@@ -585,7 +576,6 @@ async function runSmallBatchTests(baseURL) {
 
 // Full contract test suite
 async function runFullContractTests(baseURL) {
-  console.log("\n📝 Running full API contract tests...\n");
 
   for (const endpoint of Object.keys(API_CONTRACTS)) {
     await runContractTest(endpoint, baseURL);
@@ -610,15 +600,8 @@ function generateReport() {
     timestamp: new Date().toISOString(),
   };
 
-  console.log("\n📊 CONTRACT TEST REPORT");
-  console.log("=".repeat(50));
-  console.log(`Total Tests: ${report.summary.total}`);
-  console.log(`Passed: ${report.summary.passed}`);
-  console.log(`Failed: ${report.summary.failed}`);
-  console.log(`Success Rate: ${report.summary.successRate}`);
 
   if (testResults.errors.length > 0) {
-    console.log("\n❌ FAILURES:");
     testResults.errors.forEach((error, index) => {
       console.log(`${index + 1}. ${error.endpoint}`);
       if (error.errors) {
@@ -632,15 +615,12 @@ function generateReport() {
   // Save report to file
   const reportPath = path.join(__dirname, "contract-test-report.json");
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
-  console.log(`\n📄 Detailed report saved to: ${reportPath}`);
 
   return report;
 }
 
 // Main execution
 async function main() {
-  console.log("🚀 Starting Contract Test Runner");
-  console.log("=".repeat(50));
 
   const args = process.argv.slice(2);
   const envFlag = args.find((arg) => arg.startsWith("--env"));
@@ -655,7 +635,6 @@ async function main() {
 
   for (const env of environments) {
     const baseURL = CONFIG.environments[env] || CONFIG.baseURL;
-    console.log(`\n🌍 Testing environment: ${env} (${baseURL})`);
 
     // Reset results for each environment
     testResults = {
@@ -680,7 +659,6 @@ async function main() {
           testedEndpoints.add(ep)
         );
 
-        console.log("\n📋 Running remaining contract tests...\n");
         for (const endpoint of Object.keys(API_CONTRACTS)) {
           if (!testedEndpoints.has(endpoint)) {
             await runContractTest(endpoint, baseURL);
@@ -703,7 +681,6 @@ async function main() {
     }
   }
 
-  console.log("\n✅ Contract testing completed");
 }
 
 // Handle unhandled rejections
