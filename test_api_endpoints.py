@@ -33,7 +33,7 @@ ENDPOINTS = [
     # Sector APIs
     ('/api/sectors', 'GET', 200, 'Get all sectors'),
     ('/api/sectors/Technology', 'GET', 200, 'Get sector by name'),
-    ('/api/sectors/performance', 'GET', 200, 'Get sector performance'),
+    ('/api/sectors/trends-batch?sectors=Technology', 'GET', 200, 'Get sector trends'),
 
     # Industry APIs
     ('/api/industries', 'GET', 200, 'Get all industries'),
