@@ -35,9 +35,30 @@
 **Attempt 2 (58a164cb2)**: VPC count fixes reapplied explicitly
 - Result: Failed with new error: "Invalid index" on technicals_daily loader that was removed
 
-**Attempt 3 (f160478e1)**: Removed technicals_daily step from EOD pipeline (loader no longer exists)
-- Updated state machine to skip TechnicalsDaily and go directly to ParallelEnrichment
-- Status: Deployment in progress... (polling for completion)
+**Attempt 3-6 Summary**: Fixed 6 Terraform issues progressively
+1. ✅ VPC count arguments (58a164cb2) 
+2. ✅ Technicals_daily removal (f160478e1)
+3. ✅ CloudWatch log group (3ff8803ab)
+4. ✅ Batch module outputs (1dd7a043c)
+
+**Blocker: Terraform State Synchronization**
+- IAM roles exist in AWS but not in Terraform state: algo-batch-service-role, algo-batch-ecs-instance-role, algo-batch-job-role, algo-batch-spot-fleet-role
+- S3 bucket stocks-terraform-state exists but not in state
+- Root cause: Infrastructure created in previous deployments, state not synced
+
+**Required Next Step**:
+Before retrying Terraform apply, must sync state with AWS:
+```bash
+# Option 1: Import existing resources
+terraform import aws_iam_role.batch_service_role algo-batch-service-role
+terraform import aws_iam_role.batch_ecs_instance_role algo-batch-ecs-instance-role
+terraform import aws_iam_role.batch_job_role algo-batch-job-role
+terraform import aws_iam_role.batch_spot_fleet_role algo-batch-spot-fleet-role
+terraform import aws_s3_bucket.terraform_state stocks-terraform-state
+
+# Option 2: Clean local state and refresh from AWS
+terraform refresh
+```
 
 ### AWS Infrastructure Issues Found
 
