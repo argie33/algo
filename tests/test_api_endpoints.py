@@ -145,10 +145,10 @@ def main():
     print(f"Failed: {failed}")
 
     if failed == 0:
-        print("\nRESULT: ALL TESTS PASSED ✓")
+        print("\nRESULT: ALL TESTS PASSED")
         return 0
     else:
-        print(f"\nRESULT: {failed} TESTS FAILED ✗")
+        print(f"\nRESULT: {failed} TESTS FAILED")
         print("\nFailed endpoints:")
         for r in results:
             if not r['success']:
