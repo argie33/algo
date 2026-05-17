@@ -136,10 +136,10 @@ class PipelineHealth:
         'stock_symbols': {'date_column': 'created_at', 'sla_days': 30},
         'price_daily': {'date_column': 'date', 'sla_days': 2},
         'buy_sell_daily': {'date_column': 'date', 'sla_days': 2},
-        'stock_scores': {'date_column': 'date', 'sla_days': 2},
+        'stock_scores': {'date_column': 'updated_at', 'sla_days': 2},
         'economic_data': {'date_column': 'date', 'sla_days': 7},
         'market_health_daily': {'date_column': 'date', 'sla_days': 2},
-        'company_profile': {'date_column': 'updated_at', 'sla_days': 30},
+        'analyst_sentiment_analysis': {'date_column': 'updated_at', 'sla_days': 7},
         'earnings_calendar': {'date_column': 'created_at', 'sla_days': 30},
     }
 
