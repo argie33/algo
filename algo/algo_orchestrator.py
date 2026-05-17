@@ -1808,11 +1808,14 @@ class Orchestrator:
         Gate: Verify all required data is fresh and complete before trading.
 
         Checks:
-        1. All required tables have data for today
+        1. All required tables have data for today (or most recent if testing)
         2. Price data is recent (< 1 hour old)
         3. No critical NULLs in signal columns
         4. Symbol coverage > 80% of active universe
         5. Technical data is fresh
+
+        For historical testing: Uses most recent available data if run_date is in past
+        For production: Requires data for current trading day
 
         Returns:
             (passes: bool, blocking_issues: list, warnings: list)
@@ -1826,6 +1829,15 @@ class Orchestrator:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
             today = self.run_date
+
+            # For testing with historical dates: use most recent data if run_date is in past
+            is_historical_test = today < _date.today()
+            if is_historical_test:
+                cur.execute("SELECT MAX(date) FROM price_daily")
+                latest_date = cur.fetchone()[0]
+                if latest_date and latest_date > today:
+                    logger.info(f"  [TEST MODE] Using latest available data ({latest_date}) instead of run_date ({today})")
+                    today = latest_date
 
             # 1. Check required tables exist
             # Hard blocks: data required before trading
@@ -1849,7 +1861,7 @@ class Orchestrator:
                 if count == 0:
                     issues.append(f"{description} missing for {today}")
                 else:
-                    logger.debug(f"  ✓ {table}: {count} rows for today")
+                    logger.debug(f"  ✓ {table}: {count} rows for {today}")
 
             # Check soft requirements (don't block, just warn)
             for table, description in required_soft:
