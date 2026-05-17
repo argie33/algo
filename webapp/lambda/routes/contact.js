@@ -2,57 +2,22 @@ const express = require("express");
 
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { createInputValidationMiddleware, inputSchemas } = require('../middleware/dataValidationMiddleware');
 const router = express.Router();
 const { query } = require("../utils/database");
 const requireAuth = authenticateToken;
 
 // POST /api/contact - Submit contact form
-router.post("/", async (req, res) => {
+// Validate input using middleware
+router.post("/", createInputValidationMiddleware(inputSchemas.contact), async (req, res) => {
   try {
     let { name, email, subject, message } = req.body;
 
-    // FIXED: Enhanced input validation with length limits and sanitization
-    const MAX_NAME_LEN = 100;
-    const MAX_EMAIL_LEN = 254;
-    const MAX_SUBJECT_LEN = 200;
-    const MAX_MESSAGE_LEN = 5000;
-
-    // Validate required fields
-    if (!name || !email || !message) {
-      return sendError(res, "Name, email, and message are required", 400);
-    }
-
-    // Trim whitespace
+    // Trim and normalize input after validation
     name = (name || '').trim();
     email = (email || '').trim();
     subject = (subject || '').trim();
     message = (message || '').trim();
-
-    // Validate field lengths
-    if (name.length === 0 || name.length > MAX_NAME_LEN) {
-      return sendError(res, `Name must be 1-${MAX_NAME_LEN} characters`, 400);
-    }
-    if (email.length === 0 || email.length > MAX_EMAIL_LEN) {
-      return sendError(res, `Email must be 1-${MAX_EMAIL_LEN} characters`, 400);
-    }
-    if (message.length === 0 || message.length > MAX_MESSAGE_LEN) {
-      return sendError(res, `Message must be 1-${MAX_MESSAGE_LEN} characters`, 400);
-    }
-    if (subject && subject.length > MAX_SUBJECT_LEN) {
-      return sendError(res, `Subject must be less than ${MAX_SUBJECT_LEN} characters`, 400);
-    }
-
-    // Email validation (RFC 5322 simplified)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return sendError(res, "Invalid email format", 400);
-    }
-
-    // Prevent common injection patterns (additional layer)
-    const injectionPatterns = [/<script|javascript:|onerror=/i, /-->/i];
-    if (injectionPatterns.some(pattern => pattern.test(name) || pattern.test(message))) {
-      return sendError(res, "Invalid characters in submission", 400);
-    }
 
     // Save to database (parameterized queries prevent SQL injection)
     const result = await query(

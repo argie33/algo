@@ -5,6 +5,7 @@ const express = require('express');
 const { query: dbQuery } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { createInputValidationMiddleware, inputSchemas } = require('../middleware/dataValidationMiddleware');
 const logger = require('../utils/logger');
 const router = express.Router();
 
@@ -64,43 +65,16 @@ router.get('/:id', async (req, res) => {
  * POST /manual-trades - Create a new manual trade
  * Body: { symbol, trade_type (buy|sell), quantity, price, execution_date, commission? }
  */
-router.post('/', async (req, res) => {
+router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), async (req, res) => {
   try {
     const { symbol, trade_type, quantity, price, execution_date, commission } = req.body;
 
-    // Validate required fields
-    if (!symbol || !trade_type || quantity === undefined || price === undefined || !execution_date) {
-      return sendError(res, 'Missing required fields: symbol, trade_type, quantity, price, execution_date', 400);
-    }
-
-    // Validate trade_type (must be 3 chars for DB: BUY/SEL)
-    const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : trade_type.toLowerCase() === 'sell' ? 'SELL' : null;
-    if (!tradeType) {
-      return sendError(res, 'trade_type must be "buy" or "sell"', 400);
-    }
-
-    // Validate numbers
+    // Normalize trade type (middleware already validated)
+    const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL';
     const qty = parseFloat(quantity);
     const prc = parseFloat(price);
     const comm = commission !== undefined && commission !== null ? parseFloat(commission) : null;
-
-    // Validate commission if provided
-    if (comm !== null && isNaN(comm)) {
-      return sendError(res, 'commission must be a valid number', 400);
-    }
-
-    if (isNaN(qty) || qty <= 0 || isNaN(prc) || prc <= 0) {
-      return sendError(res, 'quantity and price must be positive numbers', 400);
-    }
-
-    // Validate date
     const tradeDate = new Date(execution_date);
-    if (isNaN(tradeDate.getTime())) {
-      return sendError(res, 'Invalid execution_date format', 400);
-    }
-    if (tradeDate > new Date()) {
-      return sendError(res, 'execution_date cannot be in the future', 400);
-    }
 
     const orderValue = qty * prc;
 
