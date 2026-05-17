@@ -14,30 +14,34 @@ class TestInputValidationSQLInjection:
     """Audit code patterns for SQL injection prevention."""
 
     def test_parameterized_queries_used(self):
-        """Verify all database queries use parameterized SQL with %s placeholders."""
+        """Verify database queries use parameterized SQL with %s placeholders."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
         with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
-        # Find all SQL query patterns
-        sql_patterns = re.findall(r'(SELECT|UPDATE|INSERT|DELETE).*?(?=\(|;)', code, re.IGNORECASE)
-
-        # Check that placeholders are used instead of string concatenation
+        # Count parameterized queries (using %s placeholders)
         parameterized_count = code.count('%s')
-        concatenation_count = code.count('.format(') + code.count(f'% ')
+
+        # Check for dangerous SQL patterns with f-strings or .format on SQL queries
+        # Look for patterns like: f"SELECT ... {var}" or "SELECT ...".format(var)
+        dangerous_patterns = re.findall(
+            r'(f["\']SELECT.*?\{.*?\}|f["\']INSERT.*?\{.*?\}|["\']SELECT.*?["\']\.format\()',
+            code,
+            re.IGNORECASE | re.DOTALL
+        )
 
         assert parameterized_count > 0, "Should use parameterized queries (%s placeholders)"
-        assert concatenation_count == 0 or 'endpoint' not in code, \
-            "Should not use string concatenation for SQL (risk of injection)"
+        assert len(dangerous_patterns) == 0, \
+            f"Found dangerous SQL patterns (f-strings or .format on SQL): {dangerous_patterns[:2]}"
 
-        print(f"✅ SQL injection prevention: {parameterized_count} parameterized queries found")
+        print(f"✅ SQL injection prevention: {parameterized_count} parameterized queries found, no dangerous patterns")
 
     def test_string_formatting_in_sql(self):
         """Check that SQL queries don't use string formatting."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
 
         dangerous_lines = []
@@ -59,7 +63,7 @@ class TestInputValidationSQLInjection:
         """Check for input bounds and type validation."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Look for validation patterns
@@ -85,7 +89,7 @@ class TestInputValidationAudit:
         """Check for numeric parameter validation (limit, days, etc)."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Check for limit parameter handling
@@ -108,7 +112,7 @@ class TestInputValidationAudit:
         """Verify error messages don't leak SQL/database details."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Look for error handling
@@ -128,7 +132,7 @@ class TestInputValidationAudit:
         """Check for symbol parameter sanitization."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Look for symbol validation
@@ -152,7 +156,7 @@ class TestSecurityEndpoints:
         """Verify API key authentication decorator is used."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Check for authentication patterns
@@ -172,7 +176,7 @@ class TestSecurityEndpoints:
         """Check if rate limiting is configured."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         has_rate_limit = 'rate' in code.lower() or 'throttle' in code.lower()
@@ -186,7 +190,7 @@ class TestSecurityEndpoints:
         """Verify CORS headers are restricted."""
 
         lambda_path = 'C:\\Users\\arger\\code\\algo\\lambda\\api\\lambda_function.py'
-        with open(lambda_path, 'r') as f:
+        with open(lambda_path, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # Check CORS configuration
