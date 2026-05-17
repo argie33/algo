@@ -71,9 +71,6 @@ class PriceDailyLoader(OptimalLoader):
         if rows:
             return rows
 
-        # If fetch failed (rate limited, API down, etc), return None and skip the symbol.
-        # DO NOT inject yesterday's prices as today's (violates no-mock-data principle).
-        # Better to miss one day of data than corrupt backtests with stale prices.
         return None
 
     def _try_fetch(self, symbol: str, start: date, end: date):
@@ -162,11 +159,11 @@ class PriceDailyLoader(OptimalLoader):
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
         db_conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
+            host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
+            port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+            user=os.getenv("DB_USER", DEFAULT_DB_NAME),
             password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
+            database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
         )
         self.tracker = DataProvenanceTracker(
             loader_name="loadpricedaily",
@@ -204,9 +201,6 @@ def main():
 
     loader = PriceDailyLoader()
     try:
-        # PHASE 1: Initialize data integrity tracking (disabled for local testing)
-        # logger.info("[Phase 1] Initializing data integrity components...")
-        # loader.start_provenance_tracking()
 
         # Run the loader with validation + provenance tracking
         with TimeBlock("loadpricedaily"):

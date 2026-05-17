@@ -153,9 +153,6 @@ class StockScoresLoader(OptimalLoader):
         _vs = self._compute_value_score(value_metrics)
         value_score = _vs  # None if no value_metrics — will exclude from weights
 
-        # Composite: weighted average with dynamic renormalization
-        # Only include components with real data; renormalize weights to sum to 1.0
-        # Original weights (must sum to 1.0):
         weights = {
             'momentum': (momentum_score, 0.20),
             'growth': (growth_score, 0.19),

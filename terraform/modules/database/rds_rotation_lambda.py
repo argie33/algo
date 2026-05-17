@@ -61,7 +61,7 @@ def update_rds_password(host: str, port: int, username: str, current_password: s
             port=port,
             user=username,
             password=current_password,
-            database="postgres"
+            database=DEFAULT_DB_USER
         )
         cur = conn.cursor()
 
@@ -176,7 +176,7 @@ def handler(event, context):
                     port=int(pending_secret.get('port', 5432)),
                     user=pending_secret['username'],
                     password=pending_secret['password'],
-                    database="postgres"
+                    database=DEFAULT_DB_USER
                 )
                 conn.close()
                 logger.info("Verified new credentials work on RDS")

@@ -47,11 +47,11 @@ class EarningsCalendarLoader:
         self.conn = None
         self.cur = None
         self.db_config = {
-            "host": os.getenv("DB_HOST", "localhost"),
+            "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
             "port": int(os.getenv("DB_PORT", 5432)),
-            "user": os.getenv("DB_USER", "stocks"),
+            "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
             "password": get_db_password(),
-            "database": os.getenv("DB_NAME", "stocks"),
+            "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
         }
 
     def connect(self):

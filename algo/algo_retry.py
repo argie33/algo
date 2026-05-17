@@ -107,9 +107,6 @@ ALPACA_DATA_LIMITER = RateLimiter(calls_per_minute=180)   # 10% headroom
 # Alpha Vantage free tier: 5 req/min, 500/day
 ALPHA_VANTAGE_LIMITER = RateLimiter(calls_per_minute=4)   # 20% headroom
 
-# Yahoo Finance: ~2000/hr sustained, but burst limits apply
-# Increased to 60/min for production bulk loads (still conservative)
-# Will fall back to Alpaca if yfinance rate limits
 YFINANCE_LIMITER = RateLimiter(calls_per_minute=60)
 
 # Generic conservative fallback

@@ -57,20 +57,17 @@ logger = logging.getLogger(__name__)
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
 
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
 
-    # Component weights (sum = 100) - loaded from config table, fallback to defaults
-    # These weights determine the relative importance of each factor in the composite swing score
-    # Weights are configurable via algo_config table (swing_weight_* keys) for hot-reload tuning
 
     W_SETUP = 25        # Chart setup quality (breakout levels, support/resistance) - highest priority
     W_TREND = 20        # Trend direction and strength (moving average relationships, slope)
@@ -525,10 +522,6 @@ class SwingTraderScore:
         r1 = self._signals._period_return(symbol, eval_date, 21) or 0
         r3 = self._signals._period_return(symbol, eval_date, 63) or 0
         r6 = self._signals._period_return(symbol, eval_date, 126) or 0
-        # Each up to 8 pts max combined: weight 3/3/2
-        # Thresholds calibrated for Stage-2 swing setups, which often consolidate
-        # mid-rally rather than running straight up — original 30%/15%/5% bands
-        # excluded most candidates with 6-12 month uptrends in their resting phase.
         blend_pts = 0.0
         for ret, weight in [(r1, 3), (r3, 3), (r6, 2)]:
             if ret > 0.20:
@@ -830,10 +823,6 @@ class SwingTraderScore:
                 if r[1] is not None:
                     sec_accel_4w = int(r[1]) - sec_rank
 
-        # RS ACCELERATION BONUS (max 3 pts)
-        # Strong acceleration in BOTH industry and sector = 3 pts
-        # Just one improving = 1.5 pts
-        # Both decelerating despite high rank = -1 pt (penalty)
         if ind_accel_4w >= 5 and sec_accel_4w >= 1:
             accel_pts = 3.0  # both accelerating sharply
         elif ind_accel_4w >= 3 or sec_accel_4w >= 1:
@@ -841,9 +830,6 @@ class SwingTraderScore:
         elif ind_accel_4w < -3 and sec_accel_4w < -1:
             accel_pts = -1.0  # decelerating despite high rank = warning
 
-        # SECTOR ROTATION STATUS (bonus/penalty, max ±2 pts)
-        # Leading = +3 pts institutional rotation IN
-        # Weakening/Lagging = -5 pts institutional rotation OUT
         rotation_status = None
         rotation_pts = 0.0
         if sector:

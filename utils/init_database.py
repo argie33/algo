@@ -33,14 +33,14 @@ if not db_password:
         credential_manager = get_credential_manager()
         db_password = get_db_password()
     except Exception:
-        db_password = "postgres"  # Default for local dev
+        db_password = DEFAULT_DB_USER  # Default for local dev
 
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": db_password,
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
 }
 
 SCHEMA = """

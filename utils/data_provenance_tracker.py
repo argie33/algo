@@ -281,9 +281,6 @@ class DataProvenanceTracker:
                 "errors": errors,
             }
 
-    # ========================================================================
-    # PRIVATE: Database Operations
-    # ========================================================================
 
     def _insert_loader_run(
         self,

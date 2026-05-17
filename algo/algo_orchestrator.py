@@ -1624,9 +1624,6 @@ class Orchestrator:
             finally:
                 self.log_phase_result(7, 'performance', perf_status, perf_summary)
 
-            # Compute and log portfolio risk metrics (Phase 8)
-            # IMPORTANT: Each module handles its own DB connection/transaction
-            # Do NOT assume previous module's transaction is clean
             risk_status = 'warn'
             risk_summary = 'N/A'
             try:
@@ -1692,9 +1689,6 @@ class Orchestrator:
             return {'success': False, 'error': 'Lock acquisition failed'}
 
         try:
-            # Run data patrol first (before DB check, but will silently fail if DB down)
-            # Note: Use quick=True for the 5 critical checks only (staleness, universe, zeros, corp actions, DB constraints)
-            # Full patrol (16 checks) is run separately on a slower schedule
             logger.info("\nRunning critical data patrol checks...")
             try:
                 from algo.algo_data_patrol import DataPatrol
@@ -1703,9 +1697,6 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"  [WARN] Data patrol failed: {e}")
 
-            # NOTE: Stock scores are loaded by the Step Functions EOD pipeline BEFORE the orchestrator is invoked.
-            # Do NOT reload them here—it's redundant and adds multi-minute latency before trading begins.
-            # Phase 1 will verify freshness; if scores are stale, the gate will fail-closed.
 
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():

@@ -39,10 +39,6 @@ class TestPositionSizerBasics:
 
             assert result['status'] == 'ok'
             assert result['shares'] > 0
-            # base_risk = 0.75% of 100k = 750
-            # risk_per_share = 50 - 47.5 = 2.5
-            # shares = 750 / 2.5 = 300 (but capped at max_position_size_pct)
-            # max_position = 100k × 8% = 8000 → 8000 / 50 = 160 shares
             assert result['shares'] == 160
             assert result['risk_dollars'] == pytest.approx(400.0, rel=1)
 
@@ -63,10 +59,6 @@ class TestPositionSizerBasics:
             result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
-            # base_risk = 750 × 0.75 = 562.5
-            # risk_per_share = 50 - 47.5 = 2.5
-            # shares = 562.5 / 2.5 = 225 (but capped at max_position)
-            # max_position = 100k × 8% = 8000 → 8000 / 50 = 160 shares
             assert result['shares'] == 160
             assert result['risk_dollars'] == pytest.approx(400.0, rel=1)
 
@@ -111,9 +103,6 @@ class TestPositionSizerMultipliers:
             result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
-            # base_risk × exposure = 750 × 0.5 = 375
-            # risk_per_share = 50 - 47.5 = 2.5
-            # shares = 375 / 2.5 = 150
             assert result['shares'] == 150
 
     def test_vix_caution_multiplier(self, test_config):
@@ -133,10 +122,6 @@ class TestPositionSizerMultipliers:
             result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
-            # base_risk × vix = 750 × 0.75 = 562.5
-            # risk_per_share = 50 - 47.5 = 2.5
-            # shares = 562.5 / 2.5 = 225 (capped at max_position_size_pct)
-            # max_position = 8000 / 50 = 160 shares
             assert result['shares'] == 160
 
     def test_combined_multipliers(self, test_config):
@@ -156,10 +141,6 @@ class TestPositionSizerMultipliers:
             result = sizer.calculate_position_size('AAPL', 50.0, 47.5)
 
             assert result['status'] == 'ok'
-            # 750 × 0.75 × 0.75 = 421.875
-            # risk_per_share = 50 - 47.5 = 2.5
-            # shares = 421.875 / 2.5 = 168.75 (capped at max_position)
-            # max_position = 8000 / 50 = 160 shares
             assert result['shares'] == 160
 
 

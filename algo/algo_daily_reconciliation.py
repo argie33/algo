@@ -32,11 +32,11 @@ logger = logging.getLogger(__name__)
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
 class DailyReconciliation:
@@ -363,10 +363,6 @@ class DailyReconciliation:
                     target_2 = avg_entry * (1.0 + target_2_pct / 100.0)
                     target_3 = avg_entry * (1.0 + target_3_pct / 100.0)
 
-                # Insert a trade record for the imported position
-                # P3 FIX: For imported positions, set signal_date = trade_date to avoid timing violations
-                # (signal should always be <= entry date). Since we don't know when this position was
-                # opened externally, we use today's date for both, but they will be equal.
                 self.cur.execute("""
                     INSERT INTO algo_trades (
                         trade_id, symbol, signal_date, trade_date,

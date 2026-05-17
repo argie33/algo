@@ -54,11 +54,11 @@ class QualityMetricsLoader(OptimalLoader):
 
         try:
             conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
+                host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
                 port=int(os.getenv("DB_PORT", 5432)),
-                user=os.getenv("DB_USER", "stocks"),
+                user=os.getenv("DB_USER", DEFAULT_DB_NAME),
                 password=get_db_password(),
-                database=os.getenv("DB_NAME", "stocks"),
+                database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
             )
             cur = conn.cursor()
 
@@ -72,9 +72,6 @@ class QualityMetricsLoader(OptimalLoader):
             """, (symbol,))
             income_row = cur.fetchone()
 
-            # Get latest balance sheet
-            # Note: current_liabilities does not exist in annual_balance_sheet schema
-            # Use total_liabilities as proxy for current obligations
             cur.execute("""
                 SELECT total_assets, stockholders_equity, current_assets, total_liabilities
                 FROM annual_balance_sheet
@@ -156,10 +153,6 @@ class QualityMetricsLoader(OptimalLoader):
         else:
             metrics['quick_ratio'] = None
 
-        # Interest Coverage: EBIT / Interest Expense
-        # Note: Interest_expense is not available in the current SEC EDGAR data source.
-        # To implement interest coverage, add interest_expense column to annual_income_statement
-        # and update load_income_statement.py loader to fetch it from EDGAR.
         metrics['interest_coverage'] = None
 
         # Quality Score: Composite (0-100) based on profitability and financial health

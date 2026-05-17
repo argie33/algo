@@ -57,9 +57,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-# -------------------------------
-# Script metadata & logging setup 
-# -------------------------------
 SCRIPT_NAME = "loadfeargreed.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -67,9 +64,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     if resource is None:
         return 0  # Windows doesn't support resource module
@@ -82,16 +76,10 @@ def log_mem(stage: str):
     if resource:
         logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_RETRIES = 5
 RETRY_DELAY = 5.0  # seconds between browser retries
 BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
-# -------------------------------
-# Fear & Greed columns
-# -------------------------------
 FEAR_GREED_COLUMNS = ["date", "fear_greed_value", "fear_greed_label"]
 COL_LIST = ", ".join(FEAR_GREED_COLUMNS)
 
@@ -103,23 +91,14 @@ def _value_to_label(v):
     if v <= 75: return "Greed"
     return "Extreme Greed"
 
-# -------------------------------
-# CNN Fear & Greed API URL
-# -------------------------------
 FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 
 def timestamptodatestr(ts):
     """Convert UNIX timestamp (milliseconds) to 'YYYY-MM-DD' date string."""
     d = datetime.fromtimestamp(ts / 1000)
     return d.strftime("%Y-%m-%d")
 
-# -------------------------------
-# Fetch Fear & Greed data via HTTP
-# -------------------------------
 async def get_fear_greed_data():
     """
     Fetches the CNN Fear & Greed index data via HTTP.
@@ -178,9 +157,6 @@ async def get_fear_greed_data():
                 logging.error(f"❌ Final error: {e}")
                 raise Exception(f"Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts: {e}")
 
-# -------------------------------
-# Main loader with batched inserts
-# -------------------------------
 async def load_fear_greed_data(cur, conn):
     logging.info("Loading Fear & Greed data")
     
@@ -235,9 +211,6 @@ async def load_fear_greed_data(cur, conn):
         logging.error(f"Error loading Fear & Greed data: {e}")
         return 0, 0, [str(e)]
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
 async def main():
     load_env()
     logging.info(f"Starting {SCRIPT_NAME} execution")

@@ -47,24 +47,14 @@ logger = logging.getLogger(__name__)
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
 
-# Each policy tier defines:
-#   risk_multiplier:        Multiplier on base_risk_pct (× drawdown × phase)
-#   max_new_positions_today: Cap on new entries per day
-#   min_swing_score:        Required score for a new entry
-#   min_swing_grade:        Required letter grade
-#   tighten_winners_at_r:   Tighten stop when position > this R-multiple
-#   force_partial_at_r:     Force partial exit when position > this R
-#   halt_new_entries:       Block all new positions
-#   force_exit_negative_r:  Cut losers (negative R) instead of waiting for stop
-#   max_concentration_pct:  Override max single-position concentration
 EXPOSURE_TIERS = [
     {
         'name': 'confirmed_uptrend',

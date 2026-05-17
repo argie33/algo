@@ -54,11 +54,11 @@ logger = logging.getLogger(__name__)
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
 
@@ -188,10 +188,6 @@ class PyramidEngine:
         # Compute add size in shares
         add_qty = max(1, int(init_qty * add_fraction))
 
-        # B16: CRITICAL — total open risk must NEVER exceed original 1R
-        # New-add risk = (cur_price - cur_stop) × add_qty
-        # Existing-position risk = (cur_price - cur_stop) × cur_qty
-        # Total must be <= original_risk = (entry_price - init_stop) × init_qty
         new_risk = (cur_price - cur_stop) * add_qty if cur_price > cur_stop else 0
         existing_risk = (cur_price - cur_stop) * cur_qty if cur_price > cur_stop else 0
         original_risk = risk_per_share * init_qty

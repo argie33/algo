@@ -56,9 +56,6 @@ from bs4 import BeautifulSoup
 
 load_env()
 
-# -------------------------------
-# Script metadata & logging setup 
-# -------------------------------
 SCRIPT_NAME = "loadnaaim.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -66,9 +63,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -78,27 +72,15 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_DOWNLOAD_RETRIES = 5
 RETRY_DELAY = 3.0  # seconds between download retries  
 BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
-# -------------------------------
-# NAAIM columns
-# -------------------------------
 NAAIM_COLUMNS = ["date", "naaim_number_mean", "bullish", "bearish"]
 COL_LIST = ", ".join(NAAIM_COLUMNS)
 
-# -------------------------------
-# NAAIM Exposure Index URL
-# -------------------------------
 NAAIM_URL = "https://www.naaim.org/programs/naaim-exposure-index/"
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 
 def get_naaim_data():
     """
@@ -249,9 +231,6 @@ def get_naaim_data():
                 logging.error(f"❌ Final error: {e}")
                 raise Exception(f"Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
-# -------------------------------
-# Main loader with batched inserts
-# -------------------------------
 def load_naaim_data(cur, conn):
     logging.info("Loading NAAIM data")
     
@@ -295,9 +274,6 @@ def load_naaim_data(cur, conn):
         logging.error(f"Error loading NAAIM data: {e}")
         return 0, 0, [str(e)]
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
 def main():
     load_env()
     """Main synchronous function to run NAAIM data loading."""

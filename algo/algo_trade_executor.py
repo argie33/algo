@@ -81,14 +81,6 @@ class TradeExecutor:
         from utils.order_execution_tracker import OrderExecutionTracker
         self.order_tracker = OrderExecutionTracker(config)
 
-        # Hard live-trading safety guard. Prevents accidental real-money trading
-        # from a single env-var typo. Live mode requires THREE explicit confirmations:
-        #   1) ALGO_LIVE_TRADING=I_UNDERSTAND_REAL_MONEY (env, manual ack)
-        #   2) APCA_API_BASE_URL must NOT contain 'paper'
-        #   3) ALPACA_PAPER_TRADING != 'true'
-        # Otherwise, force-pin the Alpaca URL to paper endpoint regardless of what
-        # else is configured. Belt + suspenders: even if config says auto, even if
-        # someone fat-fingered the URL, real orders cannot leave this process.
         execution_mode = config.get('execution_mode', 'paper').lower() if isinstance(config, dict) else 'paper'
         live_ack = os.getenv('ALGO_LIVE_TRADING', '').strip()
         paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'true').strip().lower()
@@ -249,9 +241,6 @@ class TradeExecutor:
                 return {'success': False, 'trade_id': '', 'status': 'invalid',
                         'message': f'Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}'}
 
-        # Generate idempotency key before any DB operations
-        # This ensures that the same trade parameters will always produce the same key,
-        # even if called multiple times. The key is used to prevent duplicate execution.
         import hashlib
         key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
@@ -537,9 +526,6 @@ class TradeExecutor:
                 ),
             )
 
-            # Insert / open position record — ONLY if order actually filled
-            # Never create position for pending/rejected orders
-            # B6: Re-verify order status immediately before creating position
             if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
                 # In auto mode, re-query order status to catch race where it was cancelled
                 if execution_mode == 'auto' and alpaca_order_id:

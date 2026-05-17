@@ -1,4 +1,12 @@
-from config.credential_helper import get_db_password, get_db_config
+try:
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "postgres"
+    DEFAULT_DB_NAME = "stocks"
+
+config.credential_helper import get_db_password, get_db_config
 """
 Optimal loader - the synthesis of every Tier 1 + Tier 2 optimization.
 
@@ -163,11 +171,11 @@ class OptimalLoader(ABC):
             return conn
         from utils.db_connection import get_db_connection
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
+            host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
+            port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+            user=os.getenv("DB_USER", DEFAULT_DB_NAME),
             password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
+            database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
         )
         self._tls.conn = conn
         # Track for close() �� keep most recent for the main thread fallback.

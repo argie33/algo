@@ -29,10 +29,10 @@ class TestExitEngineStopLoss:
         return {
             'max_hold_days': 30,
             'min_avg_daily_dollar_volume': 5_000_000,
-            'db_host': 'localhost',
+            'db_host': DEFAULT_DB_HOST,
             'db_port': 5432,
-            'db_name': 'stocks',
-            'db_user': 'postgres',
+            'db_name': DEFAULT_DB_NAME,
+            'db_user': DEFAULT_DB_USER,
         }
 
     @pytest.fixture

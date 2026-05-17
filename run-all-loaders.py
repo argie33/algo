@@ -29,11 +29,6 @@ tier_1c_technical = [
     'load_technical_indicators.py',  # RSI, MACD, SMA, EMA, ATR — reads from price_daily, no API calls
 ]
 
-# Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
-# Note: Both annual and quarterly financial data. TTM aggregates quarterly into rolling 12-month.
-#   Design: Quarterly loaders fetch raw data from SEC EDGAR (periods are actual quarters).
-#   TTM loaders sum 4 most recent quarters for trailing twelve months metric.
-#   This provides both period-specific data AND rolling metrics needed for signal quality.
 tier_2_reference = [
     # Annual financials
     ('load_income_statement.py', ['--period', 'annual']),

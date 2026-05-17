@@ -44,11 +44,11 @@ class LoaderHealthTracker:
         """Connect to PostgreSQL database."""
         try:
             self.conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', 'localhost'),
+                host=os.getenv('DB_HOST', DEFAULT_DB_HOST),
                 port=int(os.getenv('DB_PORT', 5432)),
-                user=os.getenv('DB_USER', 'stocks'),
+                user=os.getenv('DB_USER', DEFAULT_DB_NAME),
                 password=os.getenv('DB_PASSWORD', ''),
-                database=os.getenv('DB_NAME', 'stocks'),
+                database=os.getenv('DB_NAME', DEFAULT_DB_NAME),
             )
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             logger.info("✓ Connected to database")

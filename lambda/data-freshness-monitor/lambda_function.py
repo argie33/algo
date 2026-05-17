@@ -23,10 +23,10 @@ cloudwatch = boto3.client('cloudwatch')
 rds_client = boto3.client('rds')
 
 # Database configuration
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_USER = os.getenv('DB_USER', 'postgres')
+DB_HOST = os.getenv('DB_HOST', DEFAULT_DB_HOST)
+DB_USER = os.getenv('DB_USER', DEFAULT_DB_USER)
 DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = os.getenv('DB_NAME', 'stocks')
+DB_NAME = os.getenv('DB_NAME', DEFAULT_DB_NAME)
 DB_PORT = int(os.getenv('DB_PORT', 5432))
 
 # Critical tables to monitor

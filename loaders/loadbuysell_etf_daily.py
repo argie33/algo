@@ -164,11 +164,11 @@ def get_active_etf_symbols() -> List[str]:
     conn = None
     try:
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
+            host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
+            port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+            user=os.getenv("DB_USER", DEFAULT_DB_NAME),
             password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
+            database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
         )
         with conn.cursor() as cur:
             cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol")

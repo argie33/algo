@@ -38,11 +38,11 @@ class MarketEventHandler:
         self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
         self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
 
-        self.db_host = os.getenv('DB_HOST', 'localhost')
+        self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', 'stocks')
+        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
         self.db_password = get_db_password()
-        self.db_name = os.getenv('DB_NAME', 'stocks')
+        self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
 
         self.conn = None
         self.cur = None

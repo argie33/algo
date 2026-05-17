@@ -191,9 +191,6 @@ class MarketExposure:
 
             score = max(0.0, min(100.0, score))
 
-            # --- SECTOR ROTATION OVERLAY ---
-            # If defensive sectors are leading cyclicals, reduce score
-            # (Mansfield rotation research: this precedes broad-market tops)
             try:
                 from algo.algo_sector_rotation import SectorRotationDetector
                 detector = SectorRotationDetector()
@@ -222,10 +219,6 @@ class MarketExposure:
             except Exception as e:
                 factors['sector_rotation'] = {'error': str(e)[:60]}
 
-            # --- ECONOMIC REGIME OVERLAY ---
-            # Macro stress penalty from yield curve, credit trend, and jobless claims.
-            # This is separate from the factor weights — it's a post-score adjustment
-            # based on the macro cycle, per Yardeni/Slok/Goldman methodology.
             try:
                 eco = self._economic_regime_overlay(eval_date)
                 eco_penalty = eco.get('penalty', 0)

@@ -29,11 +29,11 @@ def get_database_credentials():
         response = secrets.get_secret_value(SecretId=secret_arn)
         creds = json.loads(response['SecretString'])
 
-        os.environ['DB_HOST'] = creds.get('host', 'localhost')
+        os.environ['DB_HOST'] = creds.get('host', DEFAULT_DB_HOST)
         os.environ['DB_PORT'] = str(creds.get('port', 5432))
-        os.environ['DB_USER'] = creds.get('username', 'stocks')
+        os.environ['DB_USER'] = creds.get('username', DEFAULT_DB_NAME)
         os.environ['DB_PASSWORD'] = creds.get('password', '')
-        os.environ['DB_NAME'] = creds.get('dbname', 'stocks')
+        os.environ['DB_NAME'] = creds.get('dbname', DEFAULT_DB_NAME)
 
         logger.info("Database credentials loaded from Secrets Manager")
     except Exception as e:

@@ -21,11 +21,11 @@ class ConfigValidator:
     # Required environment variables and their validation rules
     REQUIRED_CONFIG = {
         # Database
-        'DB_HOST': {'type': str, 'default': 'localhost'},
+        'DB_HOST': {'type': str, 'default': DEFAULT_DB_HOST},
         'DB_PORT': {'type': int, 'default': 5432, 'min': 1, 'max': 65535},
         'DB_USER': {'type': str},  # Required
         'DB_PASSWORD': {'type': str},  # Required (from env or AWS Secrets Manager)
-        'DB_NAME': {'type': str, 'default': 'stocks'},
+        'DB_NAME': {'type': str, 'default': DEFAULT_DB_NAME},
 
         # Alpaca Trading
         'ALPACA_API_KEY': {'type': str},  # Required for trading
@@ -184,8 +184,3 @@ def validate_at_startup(env_file: Optional[str] = None) -> Dict[str, Any]:
     return validator.config
 
 
-# Example usage in application startup:
-#
-# if __name__ == '__main__':
-#     # Now safe to use config values
-#     app.run(host=config.get('API_HOST'), port=config.get('API_PORT'))

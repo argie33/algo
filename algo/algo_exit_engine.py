@@ -131,9 +131,6 @@ class ExitEngine:
 
                 days_held = (current_date - trade_date).days
 
-                # CRITICAL FIX: Minimum 1-day hold to prevent same-day entry/exit
-                # All 39 closed trades currently at 0% P&L because they exit same day (HISTORICAL)
-                # This fix ensures no position can exit on the same day it was entered
                 if days_held < 1:
                     if self.verbose:
                         logger.info(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
@@ -329,9 +326,6 @@ class ExitEngine:
                     'new_stop': chand_stop,
                 }
 
-        # 8. TD SEQUENTIAL / COMBO EXHAUSTION (DeMark)
-        # 9-count: partial exit (50%) at exhaustion top
-        # 13-count COMBO: full exit (much stronger signal)
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
             if r_mult >= 0.5:
                 td_state = self._get_td_state(symbol, current_date)

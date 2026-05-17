@@ -234,9 +234,6 @@ class GreeksCalculator:
 # Example usage
 if __name__ == "__main__":
     
-    # Example: AAPL call option
-    # Stock: $175, Strike: $180, 30 days to expiration
-    # Risk-free rate: 4.5%, Implied Volatility: 20%
     greeks = GreeksCalculator.calculate_greeks(
         S=175.00,        # Current stock price
         K=180.00,        # Strike price

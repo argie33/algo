@@ -70,16 +70,10 @@ class ContactRequest(BaseModel):
         return v.lower()
 
 
-# Module-level connection pool: Lambda containers are reused across warm invocations.
-# ThreadedConnectionPool allows multiple sequential connections within a single Lambda container.
-# minconn=2 (at least 2 idle connections), maxconn=10 (max 10 concurrent, plenty for 128MB Lambda)
 _db_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 _db_conn: Optional[psycopg2.extensions.connection] = None
 _db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-call latency
 
-# Rate limiting: track requests per IP
-# Format: {ip: [timestamp1, timestamp2, ...]}
-# Rate limit tracking with automatic cleanup
 _rate_limit_tracker: Dict[str, list] = {}
 _rate_limit_last_cleanup = time.time()
 _RATE_LIMIT_CLEANUP_INTERVAL = 60  # seconds between aggressive cleanups
@@ -103,11 +97,11 @@ def _load_creds() -> Dict:
             raise RuntimeError("Unable to load database credentials")
     else:
         _db_creds = {
-            'host': os.getenv('DB_HOST', 'localhost'),
+            'host': os.getenv('DB_HOST', DEFAULT_DB_HOST),
             'port': int(os.getenv('DB_PORT', 5432)),
-            'username': os.getenv('DB_USER', 'stocks'),
+            'username': os.getenv('DB_USER', DEFAULT_DB_NAME),
             'password': os.getenv('DB_PASSWORD', ''),
-            'dbname': os.getenv('DB_NAME', 'stocks'),
+            'dbname': os.getenv('DB_NAME', DEFAULT_DB_NAME),
         }
     return _db_creds
 
@@ -4182,9 +4176,6 @@ def lambda_handler(event, context):
             logger.warning(f"Rate limit exceeded for {client_ip} on {path} ({RateLimitConfig.categorize_endpoint(path)} endpoint, {limit_desc})")
             return error_response(429, 'rate_limited', limit_desc)
 
-        # API GW v2 HTTP API passes query params as plain strings, but all handlers
-        # do params.get('key', [default])[0]. Normalize each value to a single-item list
-        # so [0] indexing works uniformly regardless of whether a param was sent.
         raw_params = event.get('queryStringParameters') or {}
         query_params = {k: [v] if not isinstance(v, list) else v for k, v in raw_params.items()}
 

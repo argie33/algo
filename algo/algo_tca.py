@@ -1,4 +1,12 @@
-from config.env_loader import load_env
+try:
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "postgres"
+    DEFAULT_DB_NAME = "stocks"
+
+config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Transaction Cost Analysis (TCA) — Execution quality measurement.
@@ -40,11 +48,11 @@ class TCAEngine:
         self.conn = None
         self.cur = None
 
-        self.db_host = os.getenv('DB_HOST', 'localhost')
+        self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', 'stocks')
+        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
         self.db_password = get_db_password()
-        self.db_name = os.getenv('DB_NAME', 'stocks')
+        self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
 
     def connect(self):
         """Connect to database."""

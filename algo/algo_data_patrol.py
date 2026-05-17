@@ -172,9 +172,6 @@ class DataPatrol:
 
                 logger.error(f"Unhandled exception: {rb_e}")
 
-    # ============================================================
-    # CHECKS
-    # ============================================================
 
     def check_staleness(self):
         """P1. Latest data within expected window."""
@@ -276,9 +273,6 @@ class DataPatrol:
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
 
-            # Decision logic:
-            # If >30 NEW symbols with zero volume = loader failure
-            # If same symbols as yesterday = normal (penny stocks)
             if len(new_zeros) > 30:
                 self.log('zero_data', ERROR, 'price_daily',
                          f'{len(new_zeros)} NEW symbols with zero OHLC/volume (loader regression)',
@@ -1149,9 +1143,6 @@ class DataPatrol:
         except Exception as e:
             self.log('fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
 
-    # ============================================================
-    # ENTRYPOINT
-    # ============================================================
 
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"

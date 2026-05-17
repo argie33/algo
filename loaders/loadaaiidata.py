@@ -57,9 +57,6 @@ import requests
 from io import BytesIO
 
 
-# -------------------------------
-# Script metadata & logging setup   
-# -------------------------------
 SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -67,9 +64,6 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
 def get_rss_mb():
     if resource is None:
         return 0  # Windows doesn't support resource module
@@ -82,27 +76,15 @@ def log_mem(stage: str):
     if resource:
         logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-# -------------------------------
-# Retry settings
-# -------------------------------
 MAX_DOWNLOAD_RETRIES = 5  
 RETRY_DELAY = 3.0  # seconds between download retries
 BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
-# -------------------------------
-# AAII Sentiment columns
-# -------------------------------
 SENTIMENT_COLUMNS = ["date", "bullish", "neutral", "bearish"]
 COL_LIST = ", ".join(SENTIMENT_COLUMNS)
 
-# -------------------------------
-# Direct URL to the AAII sentiment survey Excel file
-# -------------------------------
 AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 
 def get_aaii_sentiment_data():
     """
@@ -196,9 +178,6 @@ def get_aaii_sentiment_data():
                 logging.error(f"Final error: {e}")
                 raise Exception(f"Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
-# -------------------------------
-# Main loader with batched inserts
-# -------------------------------
 def load_sentiment_data(cur, conn):
     logging.info("Loading AAII sentiment data")
     
@@ -238,9 +217,6 @@ def load_sentiment_data(cur, conn):
         logging.error(f"Error loading sentiment data: {e}")
         return 0, 0, [str(e)]
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
 if __name__ == "__main__":
     try:
         logging.info(f"Starting {SCRIPT_NAME} execution")

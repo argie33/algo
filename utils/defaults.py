@@ -23,9 +23,6 @@ ENABLE_CIRCUIT_BREAKER = True
 ENABLE_POSITION_SIZING = True
 ENABLE_EARNINGS_BLACKOUT = True
 
-# Risk Management Defaults
-# DEFAULT_POSITION_SIZE_PCT: Conservative 2% per position to keep individual stock risk manageable
-# Rationale: Kelly Criterion conservative approach for paper trading; reduces volatility
 DEFAULT_POSITION_SIZE_PCT = 2.0
 
 # MAX_POSITION_SIZE_PCT: 8% ceiling prevents concentration risk in single stock
@@ -40,9 +37,6 @@ BASE_RISK_PCT = 0.75
 # Rationale: Keeps 70% in cash for opportunities and shock absorption
 MAX_EXPOSURE_PCT = 30.0
 
-# Signal Quality Defaults
-# MIN_SIGNAL_STRENGTH: 0.6 = 60% confidence threshold for trade entry signals
-# Rationale: Filters out weak signals; ~60% is industry standard for technical indicators
 MIN_SIGNAL_STRENGTH = 0.6
 
 # MIN_TREND_CONFIDENCE: 0.55 = 55% confidence that trend direction is established
@@ -53,12 +47,6 @@ MIN_TREND_CONFIDENCE = 0.55
 # Rationale: High threshold to reduce false positives from pattern-matching algorithms
 MIN_PATTERN_MATCH = 0.7
 
-# Market Exposure Tier Defaults
-# These multipliers adjust position sizing based on market health:
-# NORMAL (1.0x): Green light, take full position size
-# CAUTION (0.75x): Yellow light, reduce position size by 25%
-# PRESSURE (0.5x): Red light, trade only strongest signals at half size
-# HALT (0x): Circuit breaker triggered, no new positions
 TIER_NORMAL_MULTIPLIER = 1.0
 TIER_CAUTION_MULTIPLIER = 0.75
 TIER_PRESSURE_MULTIPLIER = 0.5

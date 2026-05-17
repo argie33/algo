@@ -55,11 +55,11 @@ logger = logging.getLogger(__name__)
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
+    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
+    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
 
@@ -245,9 +245,6 @@ class AdvancedFilters:
             components['price_trend_pts'] = round(trend_pts, 1)
             subscores['momentum'] += trend_pts
 
-            # SETUP QUALITY (5 pts within momentum bucket): base breakout / VCP
-            # Bassal, Darvas, Minervini all emphasize entering on breakout from
-            # tight consolidation (vs chasing extended trends).
             setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
             components['setup_quality'] = setup_breakdown
             subscores['momentum'] += setup_pts
@@ -311,10 +308,6 @@ class AdvancedFilters:
         if rs_percentile is None:
             return 0.0, None
 
-        # Map percentile (0-100) to points (0-W_MOMENTUM_RS)
-        # Top 10% (90+ percentile) = max points
-        # Bottom 20% (20- percentile) = 0 points
-        # Linear scaling: points = (percentile / 100) * W_MOMENTUM_RS
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
         return pts, round(rs_percentile, 1)
 

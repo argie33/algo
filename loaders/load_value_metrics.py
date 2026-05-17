@@ -34,11 +34,11 @@ log = logging.getLogger(__name__)
 
 def get_db_conn():
     return psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
+        host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
         port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "stocks"),
+        user=os.getenv("DB_USER", DEFAULT_DB_NAME),
         password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
+        database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
     )
 
 
@@ -167,9 +167,6 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
         if not consensus_eps or consensus_eps <= 0:
             return None
 
-        # Forward P/E = Market Cap / (Shares Outstanding * Consensus EPS)
-        # We approximate by: forward P/E = Market Cap / (Consensus EPS * shares_approx)
-        # Simpler: just use market cap / total_earnings_estimate
         forward_pe = round(mkt_cap / (consensus_eps * 1_000_000), 2) if consensus_eps > 0 else None
 
         return {

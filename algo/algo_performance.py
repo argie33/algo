@@ -1,4 +1,12 @@
-from config.env_loader import load_env
+try:
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "postgres"
+    DEFAULT_DB_NAME = "stocks"
+
+config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
@@ -40,11 +48,11 @@ class LivePerformance:
         self.conn = None
         self.cur = None
 
-        self.db_host = os.getenv('DB_HOST', 'localhost')
+        self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', 'stocks')
+        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
         self.db_password = get_db_password()
-        self.db_name = os.getenv('DB_NAME', 'stocks')
+        self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
 
     def connect(self):
         """Connect to database."""
@@ -162,10 +170,6 @@ class LivePerformance:
             )
             cur = conn.cursor()
 
-            # Real R-multiple = PnL / initial_risk_dollars where
-            # initial_risk = (entry_price - stop_loss_price) * entry_quantity.
-            # Use the stored exit_r_multiple when available; fall back to
-            # computing from first principles when it's NULL.
             cur.execute(
                 """
                 SELECT

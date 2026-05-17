@@ -13,7 +13,7 @@ import logging
 try:
     from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 except ImportError:
-    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_HOST = DEFAULT_DB_HOST
     DEFAULT_DB_PORT = 5432
     DEFAULT_DB_USER = "stocks"
     DEFAULT_DB_NAME = "stocks"
@@ -269,12 +269,12 @@ class AlgoConfig:
             if cur:
                 try:
                     cur.close()
-                except Exception:
+                except Exception as e:
                     pass
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
                     pass
 
     def _parse_value(self, value, dtype):
@@ -397,12 +397,12 @@ class AlgoConfig:
             if cur:
                 try:
                     cur.close()
-                except Exception:
+                except Exception as e:
                     pass
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
                     pass
 
     def initialize_defaults(self):
@@ -430,12 +430,12 @@ class AlgoConfig:
             if cur:
                 try:
                     cur.close()
-                except Exception:
+                except Exception as e:
                     pass
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
                     pass
 
     def reload(self):

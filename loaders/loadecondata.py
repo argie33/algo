@@ -50,9 +50,6 @@ from utils.optimal_loader import OptimalLoader
 
 
 
-# FRED series to load — series_id is used as the "symbol" in OptimalLoader
-#
-# Group 1: Critical for algo_market_exposure.py circuit breakers
 FRED_SERIES_ALGO = [
     "BAMLH0A0HYM2",   # HY OAS — credit spread circuit breaker
     "BAMLC0A0CM",     # IG OAS — investment-grade complement
@@ -63,10 +60,6 @@ FRED_SERIES_ALGO = [
     "DCOILWTICO",     # WTI crude oil price
 ]
 
-# Group 2: Required by economic.js /api/economic/leading-indicators
-# economic.js fails hard (HTTP 500) when any of these 15 are missing:
-# UNRATE, PAYEMS, CPIAUCSL, GDPC1, DGS10, DGS2, T10Y2Y, SP500, VIXCLS,
-# FEDFUNDS, INDPRO, HOUST, MICH, ICSA, BUSLOANS
 FRED_SERIES_DASHBOARD = [
     # Labor market
     "PAYEMS",         # Nonfarm Payrolls (monthly)

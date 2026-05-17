@@ -254,9 +254,6 @@ class TestOrchestratorPhaseFlow:
                 assert result is not None
                 assert isinstance(result, dict)
 
-                # When circuit breaker is active, no entry trades should be sent
-                # (Phase 6 should be skipped or produce zero entries)
-                # This is implicit in the result - entries wouldn't run if breaker fired
 
         finally:
             if lock_path.exists():

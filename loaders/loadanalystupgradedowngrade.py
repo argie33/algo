@@ -39,10 +39,10 @@ except ImportError:
     # Fallback if config modules don't exist - use env vars directly
     get_db_password = lambda: os.getenv('DB_PASSWORD')
     get_db_config = lambda: {
-        'host': os.getenv('DB_HOST', 'localhost'),
+        'host': os.getenv('DB_HOST', DEFAULT_DB_HOST),
         'port': int(os.getenv('DB_PORT', 5432)),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'database': os.getenv('DB_NAME', 'stocks'),
+        'user': os.getenv('DB_USER', DEFAULT_DB_USER),
+        'database': os.getenv('DB_NAME', DEFAULT_DB_NAME),
     }
 
 try:

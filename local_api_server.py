@@ -27,13 +27,13 @@ CORS(app)
 
 # Ensure database configuration is set
 if not os.getenv('DB_HOST'):
-    os.environ['DB_HOST'] = 'localhost'
+    os.environ['DB_HOST'] = DEFAULT_DB_HOST
 if not os.getenv('DB_PORT'):
-    os.environ['DB_PORT'] = '5432'
+    os.environ['DB_PORT'] = DEFAULT_DB_PORT
 if not os.getenv('DB_USER'):
-    os.environ['DB_USER'] = 'postgres'
+    os.environ['DB_USER'] = DEFAULT_DB_USER
 if not os.getenv('DB_NAME'):
-    os.environ['DB_NAME'] = 'stocks'
+    os.environ['DB_NAME'] = DEFAULT_DB_NAME
 if not os.getenv('DB_PASSWORD'):
     os.environ['DB_PASSWORD'] = ''
 

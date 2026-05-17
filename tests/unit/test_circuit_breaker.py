@@ -156,9 +156,6 @@ class TestTotalRiskCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # Query 1: total open risk = 2000
-            # Query 2: portfolio value = 100000
-            # Risk pct = 2000 / 100000 * 100 = 2%
             mock_cur.fetchone.side_effect = [(2000.0,), (100000.0,)]
 
             result = cb._check_total_risk(date.today())
@@ -176,9 +173,6 @@ class TestTotalRiskCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # Query 1: total open risk = 5000
-            # Query 2: portfolio value = 100000
-            # Risk pct = 5000 / 100000 * 100 = 5%
             mock_cur.fetchone.side_effect = [(5000.0,), (100000.0,)]
 
             result = cb._check_total_risk(date.today())
@@ -443,9 +437,6 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # Sector TECH has 2+ positions and -15% 5-day return
-            # First fetchall: get positions with sectors (symbol, sector)
-            # Second fetchall: get sector performance data (return_pct, date)
             mock_cur.fetchall.side_effect = [
                 [('AAPL', 'TECH'), ('MSFT', 'TECH')],  # Positions query: 2 columns
                 [(-15.0, '2026-05-10'), (-0.5, '2026-05-09')],  # Sector perf query: 2 columns

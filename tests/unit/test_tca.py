@@ -29,9 +29,6 @@ class TestSlippageCalculation:
 
     def test_buy_favorable_slippage(self, tca_engine):
         """BUY with favorable slippage (fill below signal price)."""
-        # Signal price: $100, Fill price: $99 (favorable)
-        # Slippage = (99 - 100) / 100 * 10000 = -100 bps
-        # Should be favorable (negative), no alert
         tca_engine.cur.execute.return_value = None
         tca_engine.cur.fetchone.return_value = (1,)  # Last inserted ID
 

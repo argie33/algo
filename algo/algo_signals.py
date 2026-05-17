@@ -106,9 +106,6 @@ class SignalComputer:
         """Clear price cache to prevent stale data."""
         self._price_cache = {}
 
-    # ============================================================
-    # MINERVINI 8-POINT TREND TEMPLATE
-    # ============================================================
 
     def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -365,9 +362,6 @@ class SignalComputer:
         self._rs_percentile_cache[cache_key] = cache
         return cache.get(symbol)
 
-    # ============================================================
-    # WEINSTEIN 4-STAGE ANALYSIS
-    # ============================================================
 
     def weinstein_stage(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -464,9 +458,6 @@ class SignalComputer:
             # Distance from recent 30-wk high
             recent_high_above_ma = ((recent_high - sma_150_now) / sma_150_now * 100.0) if sma_150_now > 0 else 0.0
 
-            # Stage classification
-            # Thresholds: slope > +1% over month = rising, < -1% = falling, else flat
-            # Price-vs-MA: > +3% = above, < -3% = below, else near
             FLAT_SLOPE = 1.0    # %
             NEAR_MA = 3.0       # %
 
@@ -497,9 +488,6 @@ class SignalComputer:
         finally:
             self.disconnect()
 
-    # ============================================================
-    # BASE / CONSOLIDATION DETECTION
-    # ============================================================
 
     def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -565,9 +553,6 @@ class SignalComputer:
             if len(rows) < 20:
                 return {'in_base': False, 'reason': 'Insufficient history'}
 
-            # Walk back from most recent to find the start of the current base
-            # A base ends at present (or last new high) and started when price
-            # topped out (within 5% of the highest high in the lookback).
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
             closes = [float(r[3]) for r in rows]
@@ -623,9 +608,6 @@ class SignalComputer:
         finally:
             self.disconnect()
 
-    # ============================================================
-    # TD SEQUENTIAL (DeMark)
-    # ============================================================
 
     def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -731,13 +713,6 @@ class SignalComputer:
                     perfected = (bar_8_low < bar_6_low and bar_8_low < bar_7_low) or \
                                 (bar_9_low < bar_6_low and bar_9_low < bar_7_low)
 
-            # ---- TD COMBO 13-count (stronger exhaustion signal) ----
-            # After a setup completes 9, the COUNTDOWN starts:
-            # - Bar must close > high 2 bars earlier (sell countdown) OR
-            #   close < low 2 bars earlier (buy countdown)
-            # - Need 13 such bars to confirm exhaustion
-            # We use a simplified approximation: count bars since 9 fired where
-            # close[i] > high[i-2] (sell) or close[i] < low[i-2] (buy)
             combo_13_complete = False
             combo_count = 0
             if completed_9_today or last_9_date:
@@ -780,9 +755,6 @@ class SignalComputer:
                 'combo_13_complete': combo_13_complete,
             }
 
-        # ============================================================
-        # VCP (VOLATILITY CONTRACTION PATTERN) - Minervini
-        # ============================================================
 
         finally:
             try:
@@ -855,9 +827,6 @@ class SignalComputer:
                 'tight_pattern': tight_pattern,
             }
 
-        # ============================================================
-        # STAGE-2 PHASE DETECTION (Early / Mid / Late)
-        # ============================================================
 
         finally:
             try:
@@ -998,9 +967,6 @@ class SignalComputer:
         finally:
             self.disconnect()
 
-    # ============================================================
-    # BASE TYPE CLASSIFICATION
-    # ============================================================
 
     def classify_base_type(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -1173,9 +1139,6 @@ class SignalComputer:
                 **characteristics,
             }
 
-        # ============================================================
-        # BASE-TYPE-SPECIFIC STOP PLACEMENT
-        # ============================================================
 
         finally:
             try:
@@ -1352,9 +1315,6 @@ class SignalComputer:
                 'risk_pct': round((entry_price - candidate) / entry_price * 100, 2),
             }
 
-        # ============================================================
-        # IBD CONTINUATION PATTERNS — research-backed setups
-        # ============================================================
 
         finally:
             try:
@@ -1538,9 +1498,6 @@ class SignalComputer:
                 }
             return {'is_htf': False}
 
-        # ============================================================
-        # POWER TREND (Minervini)
-        # ============================================================
 
         finally:
             try:
@@ -1560,9 +1517,6 @@ class SignalComputer:
                 'return_21d': round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        # ============================================================
-        # DISTRIBUTION DAYS
-        # ============================================================
 
         finally:
             try:
@@ -1599,9 +1553,6 @@ class SignalComputer:
             row = self.cur.fetchone()
             return int(row[0]) if row and row[0] else 0
 
-        # ============================================================
-        # MANSFIELD RELATIVE STRENGTH
-        # ============================================================
 
         finally:
             try:
@@ -1646,9 +1597,6 @@ class SignalComputer:
             except Exception:
                 pass
 
-        # ============================================================
-        # PIVOT BREAKOUT (Livermore)
-        # ============================================================
 
     def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -1814,9 +1762,6 @@ class SignalComputer:
         return (recent - oldest) / oldest
 
 
-# ============================================================
-# DEMO / TEST
-# ============================================================
 
 if __name__ == "__main__":
     s = SignalComputer()

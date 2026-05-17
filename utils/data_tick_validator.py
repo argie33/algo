@@ -165,9 +165,6 @@ class TickValidator:
         close: float,
     ):
         """Check prices are in reasonable range for the symbol."""
-        # Very cheap stocks (penny stocks) can trade at fractions of cents
-        # Blue chips typically trade $50-$500
-        # This is lenient to catch only obvious errors
 
         prices = [open_price, high, low, close]
 
@@ -290,33 +287,6 @@ def validate_price_tick(
     return (len(errors) == 0, errors)
 
 
-# ============================================================================
-# INTEGRATION POINTS
-# ============================================================================
-# Use in loaders like this:
-#
-#   from data_tick_validator import validate_price_tick
-#
-#   rows = fetch_from_api(symbol, start, end)
-#   valid_rows = []
-#   for row in rows:
-#       is_valid, errors = validate_price_tick(
-#           symbol=symbol,
-#           open_price=row['open'],
-#           high=row['high'],
-#           low=row['low'],
-#           close=row['close'],
-#           volume=row['volume'],
-#           prior_close=prior_price,
-#       )
-#       if not is_valid:
-#           logger.warning(f"[{symbol}] Skipping invalid tick: {', '.join(errors)}")
-#           continue
-#       valid_rows.append(row)
-#       prior_price = row['close']
-#
-#   # Now insert only validated rows
-#   insert_rows(valid_rows)
 
 
 def validate_score_tick(
