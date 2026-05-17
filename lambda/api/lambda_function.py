@@ -19,6 +19,7 @@ Endpoints:
 
 import os
 import json
+from config.credential_helper import get_db_config
 import logging
 from utils.db_connection import get_db_connection
 import psycopg2.extras
@@ -97,11 +98,11 @@ def _load_creds() -> Dict:
             raise RuntimeError("Unable to load database credentials")
     else:
         _db_creds = {
-            'host': os.getenv('DB_HOST', DEFAULT_DB_HOST),
+            'host': get_db_config()['host'],
             'port': int(os.getenv('DB_PORT', 5432)),
-            'username': os.getenv('DB_USER', DEFAULT_DB_NAME),
+            'username': get_db_config()['user'],
             'password': os.getenv('DB_PASSWORD', ''),
-            'dbname': os.getenv('DB_NAME', DEFAULT_DB_NAME),
+            'dbname': get_db_config()['database'],
         }
     return _db_creds
 

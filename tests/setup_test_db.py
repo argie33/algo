@@ -9,6 +9,7 @@ Or import and call setup_test_db() from pytest fixtures.
 """
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 import os
 from pathlib import Path
 from datetime import date, timedelta, datetime
@@ -30,9 +31,9 @@ if not db_password:
 
 # Test DB config (stocks_test, not stocks)
 TEST_DB_CONFIG = {
-    "host": os.getenv("TEST_DB_HOST") or os.getenv("DB_HOST", DEFAULT_DB_HOST),
+    "host": os.getenv("TEST_DB_HOST") or get_db_config()['host'],
     "port": int(os.getenv("TEST_DB_PORT") or os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("TEST_DB_USER") or os.getenv("DB_USER", DEFAULT_DB_NAME),
+    "user": os.getenv("TEST_DB_USER") or get_db_config()['user'],
     "password": db_password,
     "database": "stocks_test",
 }

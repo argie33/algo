@@ -10,6 +10,7 @@ Provides:
 
 import os
 import sys
+from config.credential_helper import get_db_config
 import pytest
 import psycopg2.extras
 from pathlib import Path
@@ -28,16 +29,16 @@ DEFAULT_DB_USER = 'stocks'
 os.environ.setdefault('APCA_API_KEY_ID', 'test-key-id')
 os.environ.setdefault('APCA_API_SECRET_KEY', 'test-secret-key')
 os.environ.setdefault('DB_USER', DEFAULT_DB_USER)
-os.environ.setdefault('DB_PASSWORD', 'test-password')  # Test DB password
+# Note: DB_PASSWORD should be set by user for integration tests, not hardcoded
 
 # Add root directory to path so tests can import algo modules
 
 # Load test env vars (no .env.local — credentials via environment variables only)
 # Test database config — use test-specific DB if available, fallback to main DB
-TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', DEFAULT_DB_HOST)
+TEST_DB_HOST = os.getenv('TEST_DB_HOST') or get_db_config()['host']
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
 TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_USER)
+TEST_DB_USER = os.getenv('TEST_DB_USER') or get_db_config()['user']
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
 
 
@@ -84,16 +85,24 @@ def test_db():
 
     Yields a psycopg2 connection to the test database.
     Caller responsible for committing/rolling back.
+
+    Skips test if DB_PASSWORD not available.
     """
-    conn = psycopg2.connect(
-        host=TEST_DB_HOST,
-        port=TEST_DB_PORT,
-        database=TEST_DB_NAME,
-        user=TEST_DB_USER,
-        password=TEST_DB_PASSWORD,
-    )
-    yield conn
-    conn.close()
+    if not TEST_DB_PASSWORD:
+        pytest.skip("DB_PASSWORD not set - skipping database tests. See LOCAL_CRED_SETUP.md")
+
+    try:
+        conn = psycopg2.connect(
+            host=TEST_DB_HOST,
+            port=TEST_DB_PORT,
+            database=TEST_DB_NAME,
+            user=TEST_DB_USER,
+            password=TEST_DB_PASSWORD,
+        )
+        yield conn
+        conn.close()
+    except psycopg2.OperationalError as e:
+        pytest.skip(f"Database connection failed: {e}. See LOCAL_CRED_SETUP.md")
 
 
 @pytest.fixture(scope="session")

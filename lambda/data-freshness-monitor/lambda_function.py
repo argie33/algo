@@ -10,6 +10,7 @@ Triggered by EventBridge on schedule (every 6 hours or on-demand).
 """
 
 import json
+from config.credential_helper import get_db_config
 import boto3
 import os
 from datetime import datetime
@@ -23,10 +24,10 @@ cloudwatch = boto3.client('cloudwatch')
 rds_client = boto3.client('rds')
 
 # Database configuration
-DB_HOST = os.getenv('DB_HOST', DEFAULT_DB_HOST)
-DB_USER = os.getenv('DB_USER', DEFAULT_DB_USER)
+DB_HOST = get_db_config()['host']
+DB_USER = get_db_config()['user']
 DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = os.getenv('DB_NAME', DEFAULT_DB_NAME)
+DB_NAME = get_db_config()['database']
 DB_PORT = int(os.getenv('DB_PORT', 5432))
 
 # Critical tables to monitor

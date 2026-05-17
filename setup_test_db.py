@@ -8,6 +8,7 @@ with complete schema and realistic test data for integration tests.
 
 import os
 import psycopg2
+from config.credential_helper import get_db_config
 from pathlib import Path
 from datetime import date, datetime, timedelta
 import logging
@@ -22,10 +23,10 @@ from config.credential_helper import (
 logger = logging.getLogger(__name__)
 
 # Test database config — read from environment, fallback to defaults
-TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', DEFAULT_DB_HOST)
-TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', DEFAULT_DB_PORT))
+TEST_DB_HOST = os.getenv('TEST_DB_HOST') or get_db_config()['host']
+TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or int(get_db_config()['port']))
 TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_USER)
+TEST_DB_USER = os.getenv('TEST_DB_USER') or get_db_config()['user']
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
 MAIN_DB_NAME = DEFAULT_DB_NAME
 

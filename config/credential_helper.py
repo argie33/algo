@@ -13,13 +13,6 @@ import os
 import logging
 from typing import Dict, Optional
 
-try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
-    DEFAULT_DB_HOST = "localhost"
-    DEFAULT_DB_PORT = 5432
-    DEFAULT_DB_USER = "stocks"
-    DEFAULT_DB_NAME = "stocks"
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +71,11 @@ def get_db_config() -> Dict[str, any]:
         return _CACHED_CREDS
 
     config = {
-        "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
-        "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-        "user": os.getenv("DB_USER", DEFAULT_DB_USER),
+        "host": get_db_config()['host'],
+        "port": int(int(get_db_config()['port'])),
+        "user": get_db_config()['user'],
         "password": get_db_password(),
-        "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
+        "database": get_db_config()['database'],
     }
 
     _CACHED_CREDS = config

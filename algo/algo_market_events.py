@@ -17,6 +17,7 @@ except ImportError:
     credential_manager = None
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 import os
 from config.credential_helper import get_db_password, get_db_config
@@ -39,11 +40,11 @@ class MarketEventHandler:
         self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
         self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
 
-        self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
+        self.db_host = get_db_config()['host']
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
+        self.db_user = get_db_config()['user']
         self.db_password = get_db_password()
-        self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
+        self.db_name = get_db_config()['database']
 
         self.conn = None
         self.cur = None

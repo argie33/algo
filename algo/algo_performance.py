@@ -1,12 +1,6 @@
-try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
-    DEFAULT_DB_HOST = "localhost"
-    DEFAULT_DB_PORT = 5432
-    DEFAULT_DB_USER = "postgres"
-    DEFAULT_DB_NAME = "stocks"
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 from config.credential_helper import get_db_password, get_db_config
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
@@ -48,11 +42,11 @@ class LivePerformance:
         self.conn = None
         self.cur = None
 
-        self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
+        self.db_host = get_db_config()['host']
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
+        self.db_user = get_db_config()['user']
         self.db_password = get_db_password()
-        self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
+        self.db_name = get_db_config()['database']
 
     def connect(self):
         """Connect to database."""

@@ -10,6 +10,7 @@ Validates:
 """
 
 import pytest
+from config.credential_helper import get_db_config
 from unittest.mock import MagicMock, patch, call
 import os
 import psycopg2

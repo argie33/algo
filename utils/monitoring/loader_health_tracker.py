@@ -6,6 +6,7 @@ Provides visibility into which loaders are working and data freshness.
 
 import os
 import psycopg2.extras
+from config.credential_helper import get_db_config
 from datetime import datetime, timezone, timedelta
 import logging
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
@@ -44,11 +45,11 @@ class LoaderHealthTracker:
         """Connect to PostgreSQL database."""
         try:
             self.conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', DEFAULT_DB_HOST),
+                host=get_db_config()['host'],
                 port=int(os.getenv('DB_PORT', 5432)),
-                user=os.getenv('DB_USER', DEFAULT_DB_NAME),
+                user=get_db_config()['user'],
                 password=os.getenv('DB_PASSWORD', ''),
-                database=os.getenv('DB_NAME', DEFAULT_DB_NAME),
+                database=get_db_config()['database'],
             )
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             logger.info("✓ Connected to database")

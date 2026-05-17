@@ -12,6 +12,7 @@ Status: ✅ AUTHORITATIVE
 """
 
 import sys
+from config.credential_helper import get_db_config
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

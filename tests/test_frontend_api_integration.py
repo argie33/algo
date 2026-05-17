@@ -10,6 +10,7 @@ USAGE:
 """
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 import pytest
 from psycopg2 import sql
 import os
@@ -52,10 +53,10 @@ class TestFrontendPages:
         """Connect to database for endpoint validation."""
         try:
             conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', DEFAULT_DB_HOST),
-                port=int(os.getenv('DB_PORT', DEFAULT_DB_PORT)),
-                database=os.getenv('DB_NAME', DEFAULT_DB_NAME),
-                user=os.getenv('DB_USER', DEFAULT_DB_USER),
+                host=get_db_config()['host'],
+                port=int(int(get_db_config()['port'])),
+                database=get_db_config()['database'],
+                user=get_db_config()['user'],
                 password=os.getenv('DB_PASSWORD', '')
             )
             conn.autocommit = True
