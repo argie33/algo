@@ -10,37 +10,22 @@ const { sendError } = require("../utils/apiResponse");
  */
 
 const authenticateToken = (req, res, next) => {
-  // FIXED: Development mode auth bypass removed from production code
-  // For local testing, use explicit JWT tokens or test credentials
-  // Development mode should NOT automatically bypass authentication
+  // H5 SECURITY FIX: Removed hardcoded dev admin bypass
+  // All environments now require explicit authentication (JWT or test token)
+  // This prevents accidental credential exposure through environment variables
+  //
+  // For local development:
+  //   - Use NODE_ENV=test with Bearer token 'admin-token' (see handleTestAuth)
+  //   - Or set up real JWT tokens with JWT_SECRET
+  // Never rely on implicit dev mode bypass for authentication
 
-  // Path 1: Explicit dev bypass only if ALLOW_DEV_BYPASS=true AND NODE_ENV=development
-  // This prevents accidental auth bypass if NODE_ENV is misconfigured in production
-  if (
-    process.env.NODE_ENV === 'development' &&
-    process.env.ALLOW_DEV_BYPASS === 'true' &&
-    process.env.LOCAL_DEV_MODE === 'true'
-  ) {
-    // Only in explicit local development mode
-    req.user = {
-      sub: 'dev-admin-001',
-      username: 'dev-admin',
-      email: 'admin@dev.local',
-      role: 'admin',
-      groups: ['admin'],
-      sessionId: 'dev-session',
-      tokenExpirationTime: Math.floor(Date.now() / 1000) + 86400,
-      tokenIssueTime: Math.floor(Date.now() / 1000),
-    };
-    return next();
-  }
-
-  // Path 2: Test environment
+  // Path 1: Test environment (explicit test tokens)
   if (process.env.NODE_ENV === 'test') {
     return handleTestAuth(req, res, next);
   }
 
-  // Path 3: Production (async validation with real Cognito JWT)
+  // Path 2: Production (async validation with real Cognito JWT)
+  // This is the default for all other environments (development, staging, prod)
   return authenticateTokenAsync(req, res, next);
 };
 
