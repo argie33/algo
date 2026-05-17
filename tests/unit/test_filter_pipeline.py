@@ -174,7 +174,6 @@ class TestTier5PortfolioHealth:
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(reason="_apply_tier_multiplier method not yet implemented")
 class TestExposureTierMultipliers:
     """Test position sizing with exposure tier multipliers."""
 
