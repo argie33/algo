@@ -453,7 +453,9 @@ class APIHandler:
         elif path == '/api/algo/patrol-log':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=200, default=50)
-            return self._get_patrol_log(limit)
+            offset_str = params.get('offset', [None])[0] if params else None
+            offset = _safe_offset(offset_str)
+            return self._get_patrol_log(limit, offset)
         elif path == '/api/algo/sector-rotation':
             days = int(params.get('limit', [180])[0]) if params else 180
             return self._get_sector_rotation(days)
@@ -486,8 +488,10 @@ class APIHandler:
         elif path == '/api/algo/audit-log':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=200, default=100)
+            offset_str = params.get('offset', [None])[0] if params else None
+            offset = _safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
-            return self._get_algo_audit_log(limit, action_type)
+            return self._get_algo_audit_log(limit, offset, action_type)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
@@ -823,17 +827,21 @@ class APIHandler:
             logger.error(f"Error triggering data patrol: {e}", exc_info=True)
             return error_response(500, 'server_error', 'Failed to trigger data patrol')
 
-    def _get_patrol_log(self, limit: int = 50) -> Dict:
-        """Get data patrol findings."""
+    def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
+        """Get data patrol findings with pagination."""
         try:
+            # Get total count for pagination metadata
+            self.cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
+            total = self.cur.fetchone()['total']
+
             self.cur.execute("""
                 SELECT created_at, check_name, severity, target_table, message, patrol_run_id
                 FROM data_patrol_log
                 ORDER BY created_at DESC
-                LIMIT %s
-            """, (limit,))
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
             findings = self.cur.fetchall()
-            return list_response([dict(f) for f in findings])
+            return list_response([dict(f) for f in findings], total=total, limit=limit, offset=offset)
         except Exception as e:
             logger.error(f"Error fetching patrol log: {e}", exc_info=True)
             return error_response(500, 'database_error', 'Failed to fetch patrol log')
@@ -1075,26 +1083,34 @@ class APIHandler:
             logger.error(f"algo_config_key error: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch config key')
 
-    def _get_algo_audit_log(self, limit: int = 100, action_type: str = None) -> Dict:
-        """Return algo audit log entries."""
+    def _get_algo_audit_log(self, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
+        """Return algo audit log entries with pagination."""
         try:
+            # Get total count
+            if action_type:
+                self.cur.execute("SELECT COUNT(*) as total FROM algo_audit_log WHERE action_type = %s", (action_type,))
+            else:
+                self.cur.execute("SELECT COUNT(*) as total FROM algo_audit_log")
+            total = self.cur.fetchone()['total']
+
+            # Get paginated results
             if action_type:
                 self.cur.execute("""
                     SELECT id, action_type, symbol, action_date, details, actor, status, error_message
                     FROM algo_audit_log
                     WHERE action_type = %s
                     ORDER BY action_date DESC
-                    LIMIT %s
-                """, (action_type, limit))
+                    LIMIT %s OFFSET %s
+                """, (action_type, limit, offset))
             else:
                 self.cur.execute("""
                     SELECT id, action_type, symbol, action_date, details, actor, status, error_message
                     FROM algo_audit_log
                     ORDER BY action_date DESC
-                    LIMIT %s
-                """, (limit,))
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
             rows = self.cur.fetchall()
-            return json_response(200, {'data': [dict(r) for r in rows], 'total': len(rows)})
+            return json_response(200, {'data': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
         except Exception as e:
             logger.error(f"algo_audit_log error: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch audit log')
