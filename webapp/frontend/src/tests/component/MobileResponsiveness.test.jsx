@@ -632,9 +632,8 @@ describe("Mobile Responsiveness Tests", () => {
     });
 
     test.skip("should sync preferences across devices", () => {
-      // localStorage test isolation issue - skipped for now
-      // The main functionality works, but test environment has localStorage pollution
-      // TODO: Fix test isolation for localStorage-based tests
+      // localStorage test isolation issue - fix by 2026-08-17
+      // Test environment has cross-test localStorage pollution preventing proper isolation
     });
   });
 });
