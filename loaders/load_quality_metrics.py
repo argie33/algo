@@ -21,10 +21,8 @@ from utils.logging_setup import get_logger
 
 import argparse
 import logging
-logger = get_logger(__name__)
 import os
 from datetime import date
-from pathlib import Path
 from typing import List, Optional
 
 from config.credential_helper import get_db_password
@@ -39,8 +37,7 @@ except ImportError:
 
 from utils.optimal_loader import OptimalLoader
 
-
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class QualityMetricsLoader(OptimalLoader):
@@ -100,7 +97,7 @@ class QualityMetricsLoader(OptimalLoader):
             return None
 
         except Exception as e:
-            log.debug(f"Error computing quality metrics for {symbol}: {e}")
+            logger.debug(f"Error computing quality metrics for {symbol}: {e}")
             return None
 
     @staticmethod

@@ -82,7 +82,7 @@ class GrowthMetricsLoader(OptimalLoader):
             return None
 
         except Exception as e:
-            log.debug(f"Error computing growth metrics for {symbol}: {e}")
+            logger.debug(f"Error computing growth metrics for {symbol}: {e}")
             return None
 
     @staticmethod
