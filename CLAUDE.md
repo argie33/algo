@@ -187,8 +187,95 @@ If you catch yourself creating:
 - Unused Python packages (polars = 80MB)
 - Dead test code (20 skipped tests)
 - Orphan frontend pages (5-10K lines potentially unused)
+- One-time backfill scripts clogging repo (7 files deleted 2026-05-17)
 
-**Solution:** Mechanical code-level rules [[code-governance-rules]]
+**Solution:** Mechanical code-level rules enforced BEFORE code lands [[code-governance-rules]]
+
+---
+
+## 🔒 HARD ENFORCEMENT RULES (I Will Block These)
+
+### 1. ONE-TIME SCRIPTS ARE DELETED IMMEDIATELY
+
+**What I will refuse:**
+- Backfill scripts (unless they're permanent orchestrated jobs)
+- Diagnostic/verification scripts (`verify*.py`, `check*.py`)
+- One-time migration scripts (`backfill_*.py`, `setup_*.py`)
+- Temporary test helpers
+- Utility functions that only run once
+
+**What I allow:**
+- ✅ Production loaders (in `run-all-loaders.py`)
+- ✅ Core orchestrators (`algo_orchestrator.py`)
+- ✅ Integration tests (`tests/integration/`)
+- ✅ Terraform/Lambda deployment code
+
+**Rule:** If you add a script that's not integrated into main orchestration → I **DELETE it immediately**.
+
+### 2. UNINTEGRATED CODE IS DELETED
+
+**You can't commit:**
+- ❌ A loader that's not in `run-all-loaders.py` (with data actually flowing)
+- ❌ An API endpoint that doesn't have a route
+- ❌ A frontend page that doesn't have a navigation link
+- ❌ A function that's never called
+- ❌ A class that's never instantiated
+
+**Integration requirement:**
+```python
+# GOOD: Loader in run-all-loaders.py
+tier_2_reference = [
+    'loadcompanyprofile.py',  # ← Integrated
+]
+
+# BAD: Loader sitting in loaders/ but not in run-all-loaders.py
+# → DELETE IT OR WIRE IT IN, no exceptions
+```
+
+### 3. DEPENDENCIES MUST BE USED
+
+**Before adding any package (npm/pip):**
+1. Show me WHERE it's imported (exact files)
+2. Show me WHY (specific functionality)
+3. Show me the ALTERNATIVE (why not use stdlib/existing code?)
+
+**If I don't see active usage → NOT APPROVED**
+
+**Rule:** If audit shows unused packages → **DELETED IMMEDIATELY**
+
+### 4. TESTS: MUST HAVE EXPIRATION DATES
+
+**Bad:**
+```python
+@pytest.mark.skip(reason="tested elsewhere")  # ← Wrong, delete this test
+def test_something():
+    pass
+
+@pytest.mark.xfail  # ← No reason, no date
+def test_other():
+    pass
+```
+
+**Good:**
+```python
+@pytest.mark.skip(reason="waiting for async auth service (2026-06-15)")
+def test_something():
+    pass
+```
+
+**If expiration date has passed → I DELETE IT**
+**If reason is "tested elsewhere" → I DELETE IT (redundant)**
+
+### 5. NO MOCK DATA ENDPOINTS
+
+**You can't commit:**
+- ❌ `/api/earnings/` that returns hardcoded data
+- ❌ `/api/portfolio-optimizer` with fake weights
+- ❌ Pages that display `{"message": "TODO"}` responses
+
+**Rule:** Either implement the REAL data flow OR DELETE the endpoint/page completely. No placeholders.
+
+---
 
 ### Dependencies: Before Adding Anything
 
