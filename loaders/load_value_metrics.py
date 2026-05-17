@@ -24,7 +24,6 @@ import psycopg2
 import yfinance as yf
 
 try:
-    from dotenv import load_dotenv
     _env = Path(__file__).parent / '.env.local'
     if not _env.exists():
         _env = Path(__file__).parent.parent / '.env.local'

@@ -22,7 +22,6 @@ from pathlib import Path
 from config.env_loader import load_env
 from typing import List, Optional
 
-from dotenv import load_dotenv
 
 
 from utils.optimal_loader import OptimalLoader
@@ -80,6 +79,7 @@ class MarketIndicesLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Market indices loader")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()

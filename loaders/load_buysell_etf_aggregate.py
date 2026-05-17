@@ -158,6 +158,7 @@ class BuySellEtfAggregateLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="ETF buy/sell aggregate loader (weekly/monthly)")
     parser.add_argument("--timeframe", choices=["weekly", "monthly"],
                         help="Signal timeframe (defaults to LOADER_TYPE env var)")

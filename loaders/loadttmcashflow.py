@@ -96,6 +96,7 @@ class TtmCashFlowLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Optimal ttm_cash_flow loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

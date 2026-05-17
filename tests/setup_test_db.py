@@ -8,22 +8,17 @@ Run this once to prepare the test environment:
 Or import and call setup_test_db() from pytest fixtures.
 """
 
+from config.env_loader import load_env
 import os
 import psycopg2
 from pathlib import Path
 from datetime import date, timedelta, datetime
 from decimal import Decimal
-from dotenv import load_dotenv
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Load .env.local or .env.test
-env_file = Path(__file__).parent.parent / '.env.local'
-if not env_file.exists():
-    env_file = Path(__file__).parent.parent / '.env.test'
-if env_file.exists():
-    load_dotenv(env_file)
 
 # Get DB password from environment first, fall back to credential manager if needed
 db_password = os.getenv("TEST_DB_PASSWORD") or os.getenv("DB_PASSWORD")

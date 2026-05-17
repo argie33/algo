@@ -11,20 +11,19 @@ Generated: 2026-04-25
 Status: ✅ AUTHORITATIVE
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config.env_loader import load_env
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 # Get DB password from environment first, fall back to credential manager if needed
 db_password = os.getenv("DB_PASSWORD")

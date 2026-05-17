@@ -104,6 +104,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

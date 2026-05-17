@@ -13,6 +13,7 @@ Enables:
 - Fill quality analysis (avg slippage %, fill rate)
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -23,17 +24,11 @@ except ImportError:
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Optional
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",

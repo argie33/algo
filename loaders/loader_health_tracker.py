@@ -8,7 +8,6 @@ import os
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, timezone, timedelta
-from dotenv import load_dotenv
 import logging
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 

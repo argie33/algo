@@ -100,6 +100,7 @@ class PriceAggregateLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Price aggregate loader (weekly/monthly)")
     parser.add_argument("--timeframe", choices=["weekly", "monthly"],
                         help="Aggregation timeframe (defaults to LOADER_TYPE env var)")

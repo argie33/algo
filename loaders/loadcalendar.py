@@ -37,10 +37,6 @@ from config.env_loader import load_env
 
 # dotenv-autoload
 try:
-    from dotenv import load_dotenv
-    env_file = Path(__file__).resolve().parent / '.env.local'
-    if env_file.exists():
-        load_dotenv(env_file)
 except ImportError:
     pass
 
@@ -283,6 +279,7 @@ class EconomicCalendarLoader:
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(
         description="Load economic calendar events for market awareness"
     )

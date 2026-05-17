@@ -195,6 +195,7 @@ class QualityMetricsLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Quality metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     parser.add_argument("--parallelism", type=int, default=8)

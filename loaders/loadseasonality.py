@@ -172,6 +172,7 @@ def _upsert_dow(conn, stats):
 
 
 def main():
+    load_env()
     conn = _connect()
     try:
         rows = _fetch_spy_prices(conn)

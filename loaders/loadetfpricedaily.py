@@ -99,6 +99,7 @@ def get_active_etf_symbols() -> List[str]:
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Optimal etf_price_daily loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all ETFs from database.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

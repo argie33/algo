@@ -9,18 +9,15 @@ USAGE:
   python -m pytest tests/test_frontend_api_integration.py::test_all_pages_have_endpoints -v
 """
 
+from config.env_loader import load_env
 import pytest
 import psycopg2
 from psycopg2 import sql
 import os
 from pathlib import Path
 from datetime import date as _date
-from dotenv import load_dotenv
 
 # Load environment variables from .env.local
-env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class TestFrontendPages:

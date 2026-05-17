@@ -12,21 +12,18 @@ Metrics:
 - Average R-Multiple: Average return in risk units
 """
 
+from config.env_loader import load_env
 import os
 import sys
 import psycopg2
 import numpy as np
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class PerformanceMetricsCalculator:

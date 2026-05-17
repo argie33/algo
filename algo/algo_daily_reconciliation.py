@@ -25,6 +25,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from utils.trade_status import TradeStatus, PositionStatus
+from algo.algo_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -347,14 +348,20 @@ class DailyReconciliation:
                     logging.debug(f"Failed to calculate stop/targets for imported {sym}: {e}")
                     # Fall through to defaults below
 
-                # If risk calculation failed, use conservative defaults
+                # If risk calculation failed, use configured defaults
                 if stop_loss_price is None:
-                    stop_loss_price = avg_entry * 0.95  # 5% stop (conservative, not 8%)
+                    config = get_config()
+                    stop_loss_pct = config.get('imported_position_default_stop_loss_pct', 5.0)
+                    stop_loss_price = avg_entry * (1.0 - stop_loss_pct / 100.0)
                     stop_loss_method = 'imported_conservative_default'
                 if target_1 is None:
-                    target_1 = avg_entry * 1.05
-                    target_2 = avg_entry * 1.10
-                    target_3 = avg_entry * 1.15
+                    config = get_config()
+                    target_1_pct = config.get('imported_position_default_target_1_pct', 5.0)
+                    target_2_pct = config.get('imported_position_default_target_2_pct', 10.0)
+                    target_3_pct = config.get('imported_position_default_target_3_pct', 15.0)
+                    target_1 = avg_entry * (1.0 + target_1_pct / 100.0)
+                    target_2 = avg_entry * (1.0 + target_2_pct / 100.0)
+                    target_3 = avg_entry * (1.0 + target_3_pct / 100.0)
 
                 # Insert a trade record for the imported position
                 # P3 FIX: For imported positions, set signal_date = trade_date to avoid timing violations

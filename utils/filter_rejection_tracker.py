@@ -17,21 +17,16 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 from config.credential_helper import get_db_password, get_db_config
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date
 import logging
 logger = logging.getLogger(__name__)
 from typing import Dict, List, Optional
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",

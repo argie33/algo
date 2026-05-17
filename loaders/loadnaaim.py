@@ -293,6 +293,7 @@ def load_naaim_data(cur, conn):
 # Entrypoint
 # -------------------------------
 def main():
+    load_env()
     """Main synchronous function to run NAAIM data loading."""
     logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
     log_mem("startup")

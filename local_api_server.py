@@ -10,7 +10,6 @@ import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Set up logging FIRST (before any logger calls)
 logging.basicConfig(level=logging.INFO)

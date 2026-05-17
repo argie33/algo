@@ -18,7 +18,6 @@ except ImportError:
 
 import psycopg2
 import requests
-from dotenv import load_dotenv
 from psycopg2.extras import execute_values
 
 # Load environment variables from .env.local if it exists

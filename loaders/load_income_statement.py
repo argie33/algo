@@ -170,6 +170,7 @@ class IncomeStatementLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Income statement loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_TYPE env var)")

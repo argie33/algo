@@ -28,7 +28,6 @@ from datetime import date, timedelta
 from typing import Optional
 from pathlib import Path
 from config.env_loader import load_env
-from dotenv import load_dotenv
 
 from utils.optimal_loader import OptimalLoader
 

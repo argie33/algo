@@ -164,6 +164,7 @@ class BalanceSheetLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Balance sheet loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_TYPE env var)")

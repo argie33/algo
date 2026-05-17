@@ -169,6 +169,7 @@ class CashFlowLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Cash flow loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_TYPE env var)")

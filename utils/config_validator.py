@@ -65,7 +65,6 @@ class ConfigValidator:
     def _load_env_file(self, env_file: str):
         """Load environment from .env file."""
         try:
-            from dotenv import load_dotenv
             load_dotenv(env_file)
             logger.debug(f"Loaded environment from {env_file}")
         except Exception as e:

@@ -32,7 +32,6 @@ import psycopg2
 from datetime import datetime, timedelta
 from pathlib import Path
 from config.env_loader import load_env
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 

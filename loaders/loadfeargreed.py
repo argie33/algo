@@ -237,6 +237,7 @@ async def load_fear_greed_data(cur, conn):
 # Entrypoint
 # -------------------------------
 async def main():
+    load_env()
     logging.info(f"Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 

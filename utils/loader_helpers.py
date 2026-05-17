@@ -5,16 +5,13 @@ Shared loader utilities - consolidates duplicated functions across loaders.
 Functions that were defined identically in 19+ loader files, now centralized here.
 """
 
+from config.env_loader import load_env
 import os
 import psycopg2
 from typing import List
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Load .env for local development
-env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 def get_active_symbols() -> List[str]:

@@ -23,6 +23,7 @@ USAGE:
   python3 backfill_historical_scores.py --days 30 --symbols AAPL,NVDA  # subset for testing
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -34,12 +35,8 @@ import os
 import argparse
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 from algo.algo_signals import SignalComputer
 import logging

@@ -14,7 +14,6 @@ import boto3
 import psycopg2
 import os
 from datetime import datetime
-from dotenv import load_dotenv
 import logging
 
 logger = logging.getLogger(__name__)

@@ -150,6 +150,12 @@ class AlgoConfig:
         't1_target_r_multiple': ('1.5', 'float', 'Tier 1 profit target R-mult'),
         't2_target_r_multiple': ('3.0', 'float', 'Tier 2 profit target R-mult'),
         't3_target_r_multiple': ('4.0', 'float', 'Tier 3 profit target R-mult'),
+
+        # Imported Position Defaults (when ATR calculation fails)
+        'imported_position_default_stop_loss_pct': ('5.0', 'float', 'Default stop loss % for imported positions'),
+        'imported_position_default_target_1_pct': ('5.0', 'float', 'Default target 1 % for imported positions'),
+        'imported_position_default_target_2_pct': ('10.0', 'float', 'Default target 2 % for imported positions'),
+        'imported_position_default_target_3_pct': ('15.0', 'float', 'Default target 3 % for imported positions'),
         'min_hold_days': ('1', 'int', 'Minimum days to hold'),
         'max_hold_days': ('20', 'int', 'Max days to hold position'),
         'exit_on_distribution_day': ('true', 'bool', 'Exit on market distribution'),

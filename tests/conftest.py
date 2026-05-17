@@ -14,11 +14,11 @@ import pytest
 import psycopg2
 import psycopg2.extras
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 import logging
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 

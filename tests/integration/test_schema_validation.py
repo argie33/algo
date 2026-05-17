@@ -16,19 +16,16 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 import sys
 from config.credential_helper import get_db_password, get_db_config
 import logging
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logging.basicConfig(
     level=logging.INFO,

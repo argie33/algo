@@ -4,18 +4,15 @@ Backfill Signal Quality Scores for all historical trading dates.
 Uses technical data (RSI, momentum) since trend_template is not fully backfilled.
 """
 
+from config.env_loader import load_env
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 import os
 import sys
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 def backfill_sqs_sql():

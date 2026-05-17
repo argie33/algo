@@ -97,6 +97,7 @@ def preview(symbol: str, entry_price: float, stop_loss: float) -> dict:
 
 
 def main():
+    load_env()
     if len(sys.argv) != 4:
         logger.info(json.dumps({"error": "Usage: algo_preview.py SYMBOL ENTRY_PRICE STOP_LOSS"}))
         sys.exit(1)

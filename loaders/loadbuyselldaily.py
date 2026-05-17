@@ -37,7 +37,6 @@ from pathlib import Path
 from config.env_loader import load_env
 from typing import List, Optional
 
-from dotenv import load_dotenv
 
 
 from utils.optimal_loader import OptimalLoader
@@ -336,6 +335,7 @@ class BuySellDailyLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Optimal buy_sell_daily loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stock_symbols table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers (compute-intensive)")

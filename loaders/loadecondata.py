@@ -213,6 +213,7 @@ class EconDataLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Economic data loader (FRED)")
     parser.add_argument("--series", help="Comma-separated FRED series IDs. Default: all configured.")
     parser.add_argument("--parallelism", type=int, default=4)

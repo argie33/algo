@@ -84,6 +84,7 @@ class EarningsRevisionsLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description="Load earnings estimate revisions")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     parser.add_argument("--parallelism", type=int, default=4, help="Concurrent workers")

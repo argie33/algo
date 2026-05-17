@@ -12,6 +12,7 @@ critical market health and trend template data for historical periods.
 Run once, or schedule daily for incremental updates.
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -24,14 +25,10 @@ import sys
 import psycopg2
 from datetime import datetime, timedelta, date as _date
 from pathlib import Path
-from dotenv import load_dotenv
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""

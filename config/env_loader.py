@@ -47,5 +47,3 @@ def load_env():
     _env_loaded = True
 
 
-# Load on import
-load_env()

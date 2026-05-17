@@ -15,6 +15,7 @@ Flags stored in database (easy to toggle without deploy):
 - Queryable in real-time
 """
 
+from config.env_loader import load_env
 import logging
 import os
 import psycopg2
@@ -23,17 +24,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from pathlib import Path
-from dotenv import load_dotenv
 
 from utils.structured_logger import get_logger
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logger = get_logger(__name__)
 

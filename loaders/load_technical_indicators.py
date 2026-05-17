@@ -16,7 +16,6 @@ from pathlib import Path
 from config.env_loader import load_env
 from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
 import numpy as np

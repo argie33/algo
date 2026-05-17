@@ -33,7 +33,6 @@ from typing import Dict, List, Optional
 
 import psycopg2
 import requests
-from dotenv import load_dotenv
 
 
 logging.basicConfig(
