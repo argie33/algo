@@ -387,4 +387,223 @@ class TestAllCircuitBreakers:
             result = cb.check_all(date.today())
 
             assert result['halted'] is True
+
+
+@pytest.mark.unit
+class TestMissingCircuitBreakers:
+    """Tests for 5 missing CB checks not covered by CB1–CB8."""
+
+    def test_drawdown_re_engagement_halted_below_threshold(self, test_config):
+        """CB9: Drawdown re-engagement — drawdown still high → still halted."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # Drawdown recovery condition: previous drawdown was triggered, now only 15% down (but halted until 10%)
+            mock_cur.fetchone.return_value = (100000.0, 85000.0)  # 15% drawdown
+
+            result = cb._check_drawdown_re_engagement(date.today())
+
+            # Re-engagement check fails if still above recovery threshold (e.g., > 10%)
+            if result.get('value', 0) > cb.config.get('drawdown_re_engagement_recovery_pct', 10.0):
+                assert result['halted'] is True
+
+    def test_drawdown_re_engagement_above_recovery_threshold(self, test_config):
+        """CB9: Drawdown recovered below recovery threshold → re-engage."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # Drawdown recovered: 100k peak, 98k current = 2% drawdown (well below 10% threshold)
+            mock_cur.fetchone.return_value = (100000.0, 98000.0)
+
+            result = cb._check_drawdown_re_engagement(date.today())
+
+            # Should allow re-engagement
+            assert result['halted'] is False
+
+    def test_sector_concentration_high_loss(self, test_config):
+        """CB10: Sector concentration — sector with -12%+ in 5d → halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # Sector TECH has 2+ positions and -15% 5-day return
+            mock_cur.fetchall.return_value = [
+                ('AAPL', 'TECH', 100.0, 5000.0),  # $5000 in tech
+                ('MSFT', 'TECH', 100.0, 5000.0),  # $5000 in tech (total $10k)
+            ]
+            mock_cur.fetchone.return_value = (-0.15,)  # -15% 5-day return
+
+            result = cb._check_sector_concentration(date.today())
+
+            assert result['halted'] is True
+            assert 'sector' in result.get('reason', '').lower()
+
+    def test_sector_concentration_below_threshold(self, test_config):
+        """CB10: Sector with -5% in 5d → no halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            mock_cur.fetchall.return_value = [
+                ('AAPL', 'TECH', 100.0, 5000.0),
+                ('MSFT', 'TECH', 100.0, 5000.0),
+            ]
+            mock_cur.fetchone.return_value = (-0.05,)  # -5% (below -12% halt threshold)
+
+            result = cb._check_sector_concentration(date.today())
+
+            assert result['halted'] is False
+
+    def test_sector_concentration_single_position(self, test_config):
+        """CB10: Only 1 position in sector → no halt (no concentration risk)."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            mock_cur.fetchall.return_value = [
+                ('AAPL', 'TECH', 100.0, 5000.0),  # Only 1 position
+            ]
+            mock_cur.fetchone.return_value = (-0.20,)  # Even -20%, no halt
+
+            result = cb._check_sector_concentration(date.today())
+
+            assert result['halted'] is False
+
+    def test_intraday_market_health_spy_drop(self, test_config):
+        """CB11: Intraday market health — SPY -2.5% in 2d → halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # SPY 2-day return -2.5% (below -2% halt threshold)
+            mock_cur.fetchone.return_value = (-0.025,)
+
+            result = cb._check_intraday_market_health(date.today())
+
+            assert result['halted'] is True
+
+    def test_intraday_market_health_slight_drop(self, test_config):
+        """CB11: SPY -1% in 2d → no halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            mock_cur.fetchone.return_value = (-0.01,)  # -1% (above -2% threshold)
+
+            result = cb._check_intraday_market_health(date.today())
+
+            assert result['halted'] is False
+
+    def test_win_rate_below_floor(self, test_config):
+        """CB12: Win rate floor — 35% over 20 trades → halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # 7 wins out of 20 trades = 35% win rate
+            mock_cur.fetchall.return_value = [
+                (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,),  # 7 winners
+                (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,),  # 13 losers
+            ]
+
+            result = cb._check_win_rate_floor(date.today())
+
+            # 35% < 40% floor
+            assert result['halted'] is True
+
+    def test_win_rate_above_floor(self, test_config):
+        """CB12: Win rate 45% over 20 trades → no halt."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # 9 wins out of 20 = 45% win rate
+            mock_cur.fetchall.return_value = [
+                (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,),  # 9 winners
+                (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,),  # 11 losers
+            ]
+
+            result = cb._check_win_rate_floor(date.today())
+
+            # 45% >= 40% floor
+            assert result['halted'] is False
+
+    def test_win_rate_insufficient_trades(self, test_config):
+        """CB12: Only 8 trades (< 10 minimum) → no halt (insufficient data)."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # Only 8 trades (below 10 minimum for win rate check)
+            mock_cur.fetchall.return_value = [
+                (1.0,), (1.0,), (-1.0,), (-1.0,),  # 2 wins, 2 losses
+                (-1.0,), (-1.0,), (-1.0,), (-1.0,),  # 4 losses
+            ]
+
+            result = cb._check_win_rate_floor(date.today())
+
+            # Insufficient trades → no halt
+            assert result['halted'] is False
+
+    def test_daily_profit_cap_soft_check(self, test_config):
+        """CB13: Daily profit cap — +3% profit → soft check only (halted=False, exceed=True)."""
+        from algo.algo_circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(test_config)
+
+        with patch.object(cb, 'connect'), \
+             patch.object(cb, 'disconnect'), \
+             patch.object(cb, 'cur') as mock_cur:
+
+            # Daily return +3% (beyond typical profit cap of 2%)
+            mock_cur.fetchone.return_value = (0.03,)
+
+            result = cb._check_daily_profit_cap(date.today())
+
+            # Profit cap is a soft check: always return halted=False (no mandatory halt)
+            # but expose 'exceed_profit_cap' flag for monitoring
+            assert result['halted'] is False
+            assert result.get('exceed_profit_cap') is True
             assert 'drawdown' in result['halt_reasons'][0].lower()

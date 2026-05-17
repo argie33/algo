@@ -113,8 +113,13 @@ class ConfigValidator:
             if 'max' in rules and value > rules['max']:
                 self.errors.append(f"{key} must be <= {rules['max']}, got {value}")
 
-            if 'allowed' in rules and str(value).lower() not in rules['allowed']:
-                self.errors.append(f"{key} must be one of {rules['allowed']}, got {value}")
+            if 'allowed' in rules:
+                # For LOG_LEVEL and similar uppercase enums, compare case-insensitively
+                # For true/false booleans, compare as-is (lowercase)
+                check_value = str(value).upper() if key in ['LOG_LEVEL'] else str(value).lower()
+                allowed_values = [v.upper() if key in ['LOG_LEVEL'] else v.lower() for v in rules['allowed']]
+                if check_value not in allowed_values:
+                    self.errors.append(f"{key} must be one of {rules['allowed']}, got {value}")
 
             self.config[key] = value
 
