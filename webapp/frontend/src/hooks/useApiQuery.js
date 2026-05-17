@@ -39,6 +39,7 @@ export const useApiQuery = (
       if (status === 401 || status === 403 || status === 404) return false;
       return failureCount < retry;
     },
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
     enabled,
     ...restOptions,
   });
@@ -88,6 +89,7 @@ export const useApiPaginatedQuery = (
       if (status === 401 || status === 403 || status === 404) return false;
       return failureCount < retry;
     },
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
     enabled,
     ...restOptions,
   });
