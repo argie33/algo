@@ -18,8 +18,9 @@ except ImportError:
     boto3 = None
 
 from utils.db_connection import get_db_connection
-import requests
+import psycopg2
 from psycopg2.extras import execute_values
+import requests
 
 # Load environment variables from .env.local if it exists
 env_path = Path(__file__).parent / '.env.local'

@@ -15,6 +15,8 @@ Bad sizing = wrong P&L, over-concentrated positions, account blowup.
 import pytest
 from unittest.mock import Mock, patch
 from datetime import date
+import psycopg2
+import psycopg2.errors
 from algo.algo_position_sizer import PositionSizer
 
 
