@@ -307,14 +307,21 @@ class AdvancedFilters:
     # ============= MOMENTUM =============
 
     def _mansfield_rs_score(self, symbol, signal_date):
-        stock = self._period_return(symbol, signal_date, 60)
-        spy = self._period_return('SPY', signal_date, 60)
-        if stock is None or spy is None:
+        # Use proper percentile ranking instead of linear excess return
+        if self._signals is None:
+            self._signals = SignalComputer(cur=self.cur)
+
+        # Get percentile ranking of stock vs SPY (0-100 scale)
+        rs_percentile = self._signals._rs_percentile_vs_spy(symbol, signal_date, lookback=60)
+        if rs_percentile is None:
             return 0.0, None
-        excess = stock - spy
-        # +30% excess → max; -10% excess → 0
-        pts = max(0.0, min(self.W_MOMENTUM_RS, (excess + 0.10) * (self.W_MOMENTUM_RS / 0.40)))
-        return pts, round(excess, 4)
+
+        # Map percentile (0-100) to points (0-W_MOMENTUM_RS)
+        # Top 10% (90+ percentile) = max points
+        # Bottom 20% (20- percentile) = 0 points
+        # Linear scaling: points = (percentile / 100) * W_MOMENTUM_RS
+        pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
+        return pts, round(rs_percentile, 1)
 
     def _sector_momentum_score(self, sector):
         if not sector or not self._strong_sectors:
