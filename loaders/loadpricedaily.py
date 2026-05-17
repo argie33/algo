@@ -19,6 +19,7 @@ Run:
 
 import argparse
 from config.credential_helper import get_db_password, get_db_config
+from utils.loader_helpers import get_active_symbols
 import logging
 import os
 import sys
@@ -259,29 +260,6 @@ class PriceDailyLoader(OptimalLoader):
             self.tracker.end_run(success=success)
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
-
-def get_active_symbols() -> List[str]:
-    """Pull active symbols from the canonical universe table."""
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
-    try:
-        with conn.cursor() as cur:
-            # Canonical universe lives in stock_symbols; prefer that. Fall back
-            # to company_profile.ticker if stock_symbols is missing.
-            cur.execute("""SELECT EXISTS (SELECT 1 FROM information_schema.tables
-                           WHERE table_schema='public' AND table_name='stock_symbols')""")
-            if cur.fetchone()[0]:
-                cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            else:
-                cur.execute("SELECT DISTINCT ticker FROM company_profile ORDER BY ticker")
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 def main():

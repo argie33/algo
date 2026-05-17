@@ -20,6 +20,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config
+from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
 
@@ -169,22 +170,6 @@ class CashFlowLoader(OptimalLoader):
 
         return True
 
-
-def get_active_symbols() -> List[str]:
-    import psycopg2
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 def main():

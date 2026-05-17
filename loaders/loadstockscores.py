@@ -20,6 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 from config.credential_helper import get_db_password, get_db_config
+from utils.loader_helpers import get_active_symbols
 import sys
 import psycopg2
 from datetime import date, timedelta
@@ -565,29 +566,6 @@ class StockScoresLoader(OptimalLoader):
             if conn:
                 conn.close()
 
-
-def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
-    import psycopg2
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
-    try:
-        with conn.cursor() as cur:
-            # Only score symbols with recent price data (within last 7 days)
-            cur.execute("""
-                SELECT DISTINCT symbol
-                FROM price_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-                ORDER BY symbol
-            """)
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 def main():

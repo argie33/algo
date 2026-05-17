@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from config.credential_helper import get_db_password
+from utils.loader_helpers import get_active_symbols
 
 try:
     from config.credential_manager import get_credential_manager
@@ -87,22 +88,6 @@ class CompanyProfileLoader(OptimalLoader):
     def transform(self, rows):
         return rows
 
-
-def get_active_symbols() -> List[str]:
-    import psycopg2
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 def main():
