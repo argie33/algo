@@ -267,7 +267,7 @@ class AlertManager:
                 }]
             }
             requests.post(self.webhook_url, json=payload, timeout=5)
-            print(f"[ALERT] Webhook sent: {title}")
+            logger.info(f"Webhook sent: {title}")
         except Exception as e:
             logger.error(f"Webhook failed: {e}")
 
@@ -283,9 +283,9 @@ class AlertManager:
                     from_=self.twilio_from,
                     to=phone
                 )
-                print(f"[ALERT] SMS sent to {phone}")
+                logger.info(f"SMS sent to {phone}")
             except Exception as e:
-                print(f"[ALERT] SMS to {phone} failed: {e}")
+                logger.error(f"SMS to {phone} failed: {e}")
 
 
 if __name__ == '__main__':

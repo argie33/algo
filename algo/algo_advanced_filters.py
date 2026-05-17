@@ -714,8 +714,7 @@ if __name__ == "__main__":
     from algo.algo_config import get_config
     f = AdvancedFilters(get_config())
     ctx = f.load_market_context(_date(2026, 4, 24))
-    print("Strong sectors:", ctx['strong_sectors'])
-    print()
+    logger.info("Strong sectors: %s", ctx['strong_sectors'])
     for sym, sec, ind in [
         ('LRCX', 'Technology', 'Semiconductor Equipment & Materials'),
         ('AROC', 'Energy', 'Oil & Gas Equipment & Services'),
@@ -732,10 +731,6 @@ if __name__ == "__main__":
             continue
         entry_price = float(row[0])
         result = f.evaluate_candidate(sym, _date(2026, 4, 24), entry_price, sec, ind)
-        print(f"\n{sym} ({sec}/{ind}):")
-        print(f"  pass: {result['pass']} — {result['reason']}")
-        print(f"  composite: {result['composite_score']:.1f}")
-        print(f"  subscores: {result['subscores']}")
-        print(f"  components: {result['components']}")
+        logger.info(f"{sym} ({sec}/{ind}): pass={result['pass']} — {result['reason']}, composite={result['composite_score']:.1f}, subscores={result['subscores']}, components={result['components']}")
     f.disconnect()
 

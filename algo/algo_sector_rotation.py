@@ -287,7 +287,7 @@ class SectorRotationDetector:
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
-            print(f"  [ERROR] persist sector_rotation failed for {eval_date}: {e}")
+            logger.error(f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

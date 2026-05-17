@@ -1033,16 +1033,14 @@ class SwingTraderScore:
             if self._owned:
                 self._owned.commit()
         except Exception as e:
-            print(f"  [ERROR] persist swing_score failed for {symbol}: {e}")
+            logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
     s = SwingTraderScore()
     s.connect()
     eval_date = _date(2026, 4, 24)
-    print(f"\n{'='*80}")
-    print(f"SWING TRADER SCORES — {eval_date}")
-    print(f"{'='*80}\n")
+    logger.info(f"SWING TRADER SCORES — {eval_date}")
 
     # Get sector/industry from company_profile
     candidates = ('AROC', 'CASS', 'CVV', 'EW', 'FSTR', 'LRCX', 'NATR', 'NBHC', 'NGS', 'SMTC', 'SRCE', 'CTS')
@@ -1054,7 +1052,7 @@ if __name__ == "__main__":
         result = s.compute(sym, eval_date, sector=sector, industry=industry)
         if result['pass']:
             comp = result['components']
-            print(f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
+            logger.info(f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
                   f"setup {comp['setup_quality']['pts']:4.1f} | "
                   f"trend {comp['trend_quality']['pts']:4.1f} | "
                   f"mom {comp['momentum_rs']['pts']:4.1f} | "
@@ -1063,6 +1061,6 @@ if __name__ == "__main__":
                   f"sec {comp['sector_industry']['pts']:4.1f} | "
                   f"mtf {comp['multi_timeframe']['pts']:4.1f}")
         else:
-            print(f"{sym:6s} BLOCKED: {result['reason']}")
+            logger.warning(f"{sym:6s} BLOCKED: {result['reason']}")
     s.disconnect()
 
