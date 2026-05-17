@@ -109,9 +109,10 @@ class Orchestrator:
         self.alerts = AlertManager()
 
         # Initialize connection pool for better performance
+        # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
         try:
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
-                minconn=2, maxconn=10, **_get_db_config()
+                minconn=5, maxconn=25, **_get_db_config()
             )
         except Exception as e:
             logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
@@ -121,13 +122,24 @@ class Orchestrator:
             self._ensure_schema_initialized()
             self._initialize_feature_flags()
 
-    def _get_conn(self) -> psycopg2.extensions.connection:
-        """Get a database connection from the pool or create a fallback."""
+    def _get_conn(self, max_retries: int = 3) -> psycopg2.extensions.connection:
+        """Get database connection from pool with exponential backoff retry.
+
+        Retries with exponential backoff (100ms, 200ms, 400ms) if pool is exhausted.
+        Falls back to direct connection after retries exhausted.
+        """
+        import time
         if self.db_pool:
-            try:
-                return self.db_pool.getconn()
-            except Exception as e:
-                logger.debug(f"Pool exhausted, using fallback: {e}")
+            for attempt in range(max_retries):
+                try:
+                    return self.db_pool.getconn()
+                except psycopg2_pool.PoolError as e:
+                    if attempt < max_retries - 1:
+                        wait_ms = 100 * (2 ** attempt)  # 100ms, 200ms, 400ms
+                        logger.debug(f"Pool exhausted (attempt {attempt + 1}/{max_retries}), retrying in {wait_ms}ms")
+                        time.sleep(wait_ms / 1000.0)
+                    else:
+                        logger.warning(f"Pool exhausted after {max_retries} retries, using direct connection")
         return psycopg2.connect(**_get_db_config())
 
     def _put_conn(self, conn: Optional[psycopg2.extensions.connection]) -> None:
