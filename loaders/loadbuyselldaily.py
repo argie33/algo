@@ -48,80 +48,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def _detect_base_type(df, pd):
-    """Detect base type: flat base, VCP (volatility contraction), or pullback.
-
-    Returns dict with type, length_days, quality, pivot_price, zone_start, zone_end.
-    """
-    try:
-        if len(df) < 20:
-            return {'type': 'Unknown', 'quality': 'B'}
-
-        # Look at last 30 days of data
-        recent = df.tail(30)
-        if len(recent) < 10:
-            return {'type': 'Unknown', 'quality': 'B'}
-
-        high_max = recent['high'].max()
-        low_min = recent['low'].min()
-        close_curr = recent['close'].iloc[-1]
-
-        # Consolidation range as percentage
-        if high_max > 0:
-            consol_pct = ((high_max - low_min) / low_min) * 100.0
-        else:
-            return {'type': 'Unknown', 'quality': 'B'}
-
-        # Detect base type
-        if consol_pct < 3.0:
-            # Tight base = Flat base (good setup)
-            return {
-                'type': 'Flat Base',
-                'length_days': len(recent),
-                'quality': 'A',  # Tight consolidation is higher quality
-                'pivot_price': low_min,
-                'zone_start': low_min,
-                'zone_end': high_max,
-            }
-        elif 3.0 <= consol_pct < 8.0:
-            # Moderate consolidation - could be VCP or normal consolidation
-            # Check if ranges have been contracting (VCP signature)
-            widths = [(recent['high'].iloc[i] - recent['low'].iloc[i]) for i in range(len(recent))]
-            if len(widths) > 10:
-                avg_early = sum(widths[-20:-10]) / 10.0
-                avg_recent = sum(widths[-10:]) / 10.0
-                if avg_recent < avg_early * 0.8:  # Ranges contracting
-                    return {
-                        'type': 'VCP',
-                        'length_days': len(recent),
-                        'quality': 'A',
-                        'pivot_price': low_min,
-                        'zone_start': low_min,
-                        'zone_end': high_max,
-                    }
-            return {
-                'type': 'Consolidation',
-                'length_days': len(recent),
-                'quality': 'B',
-                'pivot_price': low_min,
-                'zone_start': low_min,
-                'zone_end': high_max,
-            }
-        else:
-            # Wide consolidation - likely pullback/retest setup
-            return {
-                'type': 'Pullback',
-                'length_days': len(recent),
-                'quality': 'B',
-                'pivot_price': low_min,
-                'zone_start': low_min,
-                'zone_end': high_max,
-            }
-    except Exception as e:
-        log.debug(f"Base detection failed: {e}")
-        return {'type': 'Unknown', 'quality': 'B'}
-
-
 class BuySellDailyLoader(OptimalLoader):
     table_name = "buy_sell_daily"
     primary_key = ("symbol", "date")
@@ -146,15 +72,11 @@ class BuySellDailyLoader(OptimalLoader):
         if not rows:
             return []
 
-        # Fetch SPY data for Mansfield RS calculation
-        spy_rows = self._fetch_price_daily('SPY', start, end)
-
         # Fetch trend template data for stage/trend info
         trend_data = self._fetch_trend_data(symbol, start, end)
 
-        signals = self._compute_signals(symbol, rows, trend_data, spy_rows)
+        signals = self._compute_signals(symbol, rows, trend_data)
         if not signals:
-            # No signals computed at all (e.g., insufficient data)
             return []
 
         # Only emit signals strictly newer than the watermark
@@ -223,8 +145,8 @@ class BuySellDailyLoader(OptimalLoader):
         except Exception:
             return {}
 
-    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None, spy_rows: List[dict] = None) -> Optional[List[dict]]:
-        """Compute buy/sell signals from price data using technical indicators."""
+    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None) -> Optional[List[dict]]:
+        """Compute Minervini breakout buy/sell signals from price data."""
         if len(price_rows) < 50:
             return []
 
@@ -242,28 +164,19 @@ class BuySellDailyLoader(OptimalLoader):
         if not all(c in df.columns for c in ["close", "high", "low"]):
             return []
 
-        df["close"] = pd.to_numeric(df["close"], errors="coerce")
-        df["high"] = pd.to_numeric(df["high"], errors="coerce")
-        df["low"] = pd.to_numeric(df["low"], errors="coerce")
+        for col in ["close", "high", "low", "open"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce")
         df = df.dropna(subset=["close"]).reset_index(drop=True)
 
         if len(df) < 50:
             return []
 
-        # Prepare SPY data for Mansfield RS calculation
-        spy_df = None
-        if spy_rows:
-            spy_df = pd.DataFrame(spy_rows)
-            spy_df["close"] = pd.to_numeric(spy_df["close"], errors="coerce")
-            spy_df["date"] = pd.to_datetime(spy_df["date"])
-            spy_df = spy_df.dropna(subset=["close"]).set_index("date")
-
         df["rsi"] = self._compute_rsi(df["close"], 14)
         macd, signal_line = self._compute_macd(df["close"])
         df["macd"] = macd
         df["signal_line"] = signal_line
-        df["atr"] = self._compute_atr(df["high"], df["low"], df["close"], 14)
-        df["adx"] = self._compute_adx(df["high"], df["low"], df["close"], 14)
         df["sma_50"] = df["close"].rolling(50).mean()
         df["sma_200"] = df["close"].rolling(200).mean()
         df["ema_21"] = df["close"].ewm(span=21).mean()
@@ -271,8 +184,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         signals = []
         for i in range(len(df)):
-            row = df.iloc[i]
-            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df, df, row_idx=i)
+            sig = self._generate_signal_row(df, i, symbol, trend_data)
             if sig:
                 signals.append(sig)
 
@@ -285,7 +197,7 @@ class BuySellDailyLoader(OptimalLoader):
         deltas = closes.diff()
         gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
         losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses.replace(0, np.nan)  # Avoid division by zero
+        rs = gains / losses.replace(0, np.nan)
         rsi = 100 - (100 / (1 + rs))
         return rsi
 
@@ -298,177 +210,119 @@ class BuySellDailyLoader(OptimalLoader):
         signal_line = macd.ewm(span=signal).mean()
         return macd, signal_line
 
-    @staticmethod
-    def _compute_atr(highs, lows, closes, period=14):
-        """Compute Average True Range."""
-        import pandas as pd
-        tr1 = highs - lows
-        tr2 = (highs - closes.shift()).abs()
-        tr3 = (lows - closes.shift()).abs()
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr = tr.rolling(window=period).mean()
-        return atr
+    def _generate_signal_row(self, df, row_idx: int, symbol: str, trend_data: dict) -> Optional[dict]:
+        """Generate Minervini-style breakout buy/sell signal for one price row.
 
-    @staticmethod
-    def _compute_adx(highs, lows, closes, period=14):
-        """Compute Average Directional Index (simplified)."""
-        import pandas as pd
-        import numpy as np
-        plus_dm = highs.diff()
-        minus_dm = lows.diff().abs()
-        plus_dm[plus_dm < 0] = 0
-        minus_dm[minus_dm < 0] = 0
-        tr1 = highs - lows
-        tr2 = (highs - closes.shift()).abs()
-        tr3 = (lows - closes.shift()).abs()
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr = tr.rolling(window=period).mean()
-        atr = atr.replace(0, np.nan)  # Avoid division by zero
-        plus_di = 100 * (plus_dm.rolling(period).mean() / atr)
-        minus_di = 100 * (minus_dm.rolling(period).mean() / atr)
-        denom = (plus_di + minus_di).replace(0, np.nan)  # Avoid division by zero
-        dx = 100 * (plus_di - minus_di).abs() / denom
-        adx = dx.rolling(period).mean()
-        return adx
+        BUY: price breaks above the prior 25-bar consolidation high on elevated volume,
+             with healthy RSI momentum and MACD bullish — aligns with the breakout
+             methodology used throughout the filter pipeline and swing scorer.
 
-    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None, spy_df=None, df=None):
-        """Generate buy/sell signal from indicators for one row."""
-        if trend_data is None:
-            trend_data = {}
+        SELL: price closes below 21-EMA or 50-SMA on elevated volume with MACD bearish.
 
-        rsi = row.get("rsi")
-        macd = row.get("macd")
-        signal_line = row.get("signal_line")
-        date_val = row.get("date")
+        This replaces the prior mean-reversion (RSI<30 oversold) approach that produced
+        near-zero signals in Stage 2 uptrending stocks — a philosophical mismatch with
+        the Minervini breakout strategy used by the rest of the algo.
+        """
+        row = df.iloc[row_idx]
 
-        if pd.isna(rsi) or pd.isna(macd) or pd.isna(signal_line):
+        def _f(col):
+            v = row.get(col) if hasattr(row, 'get') else row[col] if col in row.index else None
+            try:
+                import math
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    return None
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        close = _f("close")
+        high = _f("high")
+        low = _f("low")
+        volume = _f("volume")
+        date_val = row["date"] if "date" in row.index else None
+        date_str = date_val if isinstance(date_val, str) else str(date_val) if date_val is not None else None
+
+        if close is None or close <= 0 or date_str is None:
             return None
 
+        rsi = _f("rsi")
+        macd = _f("macd")
+        signal_line = _f("signal_line")
+        sma_50 = _f("sma_50")
+        ema_21 = _f("ema_21")
+        avg_volume_50d = _f("avg_volume_50d")
+
+        if any(v is None for v in [rsi, macd, signal_line, sma_50, ema_21, avg_volume_50d]):
+            return None
+
+        # Suppress definitive Stage 4 downtrend; filter pipeline gates Stage 2
+        trend_info = trend_data.get(date_str, {})
+        if trend_info.get("stage_number") == 4:
+            return None
+
+        # Volume ratio vs 50-day average
+        vol_ratio = (volume / avg_volume_50d) if (avg_volume_50d > 0 and volume is not None) else 0.0
+
+        # Pivot: highest high of the prior 25 bars (consolidation base ceiling)
+        # Look back without lookahead bias using row_idx
+        pivot = None
+        if row_idx >= 10:
+            lookback = df.iloc[max(0, row_idx - 25):row_idx]
+            if len(lookback) >= 10:
+                pivot = float(lookback["high"].max())
+
+        # Close quality: fraction of day's range above the low
+        day_range = (high - low) if (high is not None and low is not None) else 0
+        close_quality = ((close - low) / day_range) if day_range > 0 else 0.5
+
         signal_str = None
-        if rsi < 30 and macd > signal_line:
+        reason_parts = []
+
+        # BUY: Minervini breakout above base high on volume with healthy momentum
+        if (
+            pivot is not None and
+            close > pivot and           # breakout above consolidation high
+            vol_ratio >= 1.5 and        # institutional volume surge
+            45 <= rsi <= 75 and         # healthy momentum zone
+            macd > signal_line and      # MACD bullish
+            close > sma_50 and          # above medium-term trend
+            close > ema_21 and          # above short-term trend
+            close_quality >= 0.60       # strong close in upper 40% of range
+        ):
             signal_str = "BUY"
-        elif rsi > 70 and macd < signal_line:
+            breakout_pct = ((close - pivot) / pivot * 100) if pivot > 0 else 0
+            reason_parts.append(f"Breakout +{breakout_pct:.1f}% above base")
+            reason_parts.append(f"Vol {vol_ratio:.1f}x avg")
+            if close_quality >= 0.85:
+                reason_parts.append("Strong close")
+
+        # SELL: Trend breakdown below key MAs on volume with weakening momentum
+        elif (
+            (close < ema_21 or close < sma_50) and
+            vol_ratio >= 1.25 and
+            rsi < 50 and
+            macd < signal_line
+        ):
             signal_str = "SELL"
+            reason_parts.append("Below EMA21" if close < ema_21 else "Below SMA50")
+            reason_parts.append(f"Vol {vol_ratio:.1f}x on breakdown")
 
         if not signal_str:
             return None
 
-        def _f(v):
-            return float(v) if v is not None and not pd.isna(v) else None
-
-        # Fetch trend data for this date if available
-        date_str = date_val if isinstance(date_val, str) else str(date_val)
-        trend_info = trend_data.get(date_str, {})
-        stage_number = trend_info.get("stage_number")
-        trend_direction = trend_info.get("trend_direction")
-
-        # CRITICAL FILTER: Only generate signals for Weinstein Stage 2 (established uptrend)
-        # Stage 1 (early), Stage 3 (late), Stage 4 (distribution) are excluded
-        # This aligns with FilterPipeline expectations and focuses on optimal entry points
-        if stage_number != 2:
-            return None
-
-        # Compute entry price, stop level, and buy level
-        close_price = _f(row.get("close"))
-        high_price = _f(row.get("high"))
-        low_price = _f(row.get("low"))
-        atr = _f(row.get("atr"))
-
-        # Entry price is the close (for BUY signals, this is the signal trigger price)
-        entry_price = close_price
-
-        # CRITICAL FIX: Validate entry_price exists (239 signals currently NULL)
-        if entry_price is None or entry_price <= 0:
-            return None  # Skip signals with invalid entry prices
-
-        # Stop level: 2x ATR below the low of the signal day (for BUY signals)
-        # This provides a reasonable stop loss
-        if atr and low_price and signal_str == "BUY":
-            stop_level = low_price - (atr * 2.0)
-        elif atr and high_price and signal_str == "SELL":
-            stop_level = high_price + (atr * 2.0)
+        # Strength: volume surge + momentum quality (0-100 scale)
+        if signal_str == "BUY":
+            strength = min(100.0, (vol_ratio - 1.0) * 30.0 + max(0.0, rsi - 45) * 0.5)
         else:
-            stop_level = None
+            strength = min(100.0, (vol_ratio - 1.0) * 30.0 + max(0.0, 50 - rsi) * 0.5)
+        strength = max(0.0, strength)
 
-        # Buy level is the same as entry price (we're trading the close)
-        buy_level = entry_price
-
-        # Derive market_stage from trend_direction (real data only)
-        market_stage = trend_direction if trend_direction else None
-
-        # Compute Mansfield RS (relative strength vs SPY) if SPY data available
-        mansfield_rs = None
-        if spy_df is not None:
-            try:
-                # Get 60-day returns for both stock and SPY
-                date_pd = pd.to_datetime(date_val)
-                stock_60d_ago = date_pd - pd.Timedelta(days=60)
-
-                # Find closes around date and 60d ago
-                stock_recent = row.get("close")
-                if stock_recent and date_pd in spy_df.index:
-                    spy_recent = spy_df.loc[date_pd, "close"]
-                    stock_old = None
-                    spy_old = None
-
-                    # Search for closes ~60 days prior in both stock and SPY data
-                    for i in range(50, 80):
-                        check_date = date_pd - pd.Timedelta(days=i)
-                        # Get spy_old from SPY dataframe
-                        if check_date in spy_df.index:
-                            spy_old = spy_df.loc[check_date, "close"]
-                        # Get stock_old from stock dataframe
-                        if df is not None and check_date in df.index:
-                            stock_old = df.loc[check_date, "close"]
-                        if spy_old and stock_old:
-                            break
-
-                    if stock_old and spy_old and spy_recent and spy_old > 0:
-                        stock_return = (stock_recent - stock_old) / stock_old if stock_old > 0 else 0
-                        spy_return = (spy_recent - spy_old) / spy_old
-                        # Relative strength: 100 = tied, >100 = stock outperforming, <100 = underperforming
-                        if spy_return != -1:
-                            mansfield_rs = 100 * (1 + stock_return) / (1 + spy_return)
-            except Exception as e:
-                log.debug(f"Mansfield RS calc failed for {symbol} on {date_val}: {e}")
-
-        # RS rating: Mansfield RS (vs SPY) if available, else None
-        # (NOT RSI — incompatible semantics: Mansfield RS ~100 = inline with SPY,
-        # RSI 0-100 is overbought/oversold. Don't mix these signals.)
-        rs_rating = None
-        if mansfield_rs is not None:
-            rs_rating = int(round(mansfield_rs))
-
-        # Base type detection: flat base vs VCP vs pullback
-        base_info = _detect_base_type(df, pd)
-        base_type = base_info.get('type', 'Unknown')
-        base_length_days = base_info.get('length_days')
-        breakout_quality = base_info.get('quality', 'B')
-        pivot_price = base_info.get('pivot_price', close_price)
-        buy_zone_start = base_info.get('zone_start', entry_price)
-        buy_zone_end = base_info.get('zone_end', entry_price)
-
-        # Compute signal strength (RSI deviation from midpoint, 0-100 scale)
-        strength = abs(rsi - 50) if not pd.isna(rsi) else 50.0
-
-        # Build reason explaining the signal
-        reason_parts = []
-        if signal_str == "BUY" and rsi < 30:
-            reason_parts.append(f"RSI oversold ({rsi:.1f})")
-        elif signal_str == "SELL" and rsi > 70:
-            reason_parts.append(f"RSI overbought ({rsi:.1f})")
-        if base_type and base_type != "Unknown":
-            reason_parts.append(f"{base_type}")
-        reason = "; ".join(reason_parts) if reason_parts else f"{signal_str} signal"
-
-        # Return only columns that exist in buy_sell_daily table:
-        # symbol, date, signal, strength, reason
         return {
             "symbol": symbol,
             "date": date_str,
             "signal": signal_str,
-            "strength": strength,
-            "reason": reason,
+            "strength": round(strength, 4),
+            "reason": "; ".join(reason_parts)[:255] if reason_parts else f"{signal_str} signal",
         }
 
     def transform(self, rows):
@@ -515,10 +369,8 @@ def main():
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
 
-        # Record loader SLA status for orchestrator Phase 1 freshness check
         try:
             from loaders.loader_sla_tracker import get_tracker
-            from datetime import date
             tracker = get_tracker()
             latest_date = date.today() if stats["rows_inserted"] > 0 else None
             tracker.update_sla_status(
@@ -539,4 +391,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

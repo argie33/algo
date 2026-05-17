@@ -200,15 +200,36 @@ def process_symbol(symbol, watermark, conn_params):
         for i, d in enumerate(dates):
             if watermark and d <= watermark:
                 continue
+
+            # Validate indicators for NaN/Inf and replace with sensible defaults
+            def safe_float(val, default=0.0):
+                try:
+                    f = float(val)
+                    return f if np.isfinite(f) else default
+                except (ValueError, TypeError):
+                    return default
+
             rows_to_insert.append((
                 symbol, d,
-                float(rsi_vals[i]), float(macd[i]), float(macd_sig[i]), float(macd_hist[i]),
-                float(mom[i]),
-                float(roc10[i]), float(roc10[i]), float(roc20[i]),
-                float(roc60[i]), float(roc120[i]), float(roc252[i]),
-                float(sma20[i]), float(sma50[i]), float(sma200[i]),
-                float(ema12[i]), float(ema26[i]), float(atr_vals[i]),
-                0.0, 0.0, 0.0, float(mansfield_rs[i]),  # adx, plus_di, minus_di, mansfield_rs
+                safe_float(rsi_vals[i], 50.0),  # RSI defaults to neutral 50
+                safe_float(macd[i], 0.0),
+                safe_float(macd_sig[i], 0.0),
+                safe_float(macd_hist[i], 0.0),
+                safe_float(mom[i], 0.0),
+                safe_float(roc10[i], 0.0),
+                safe_float(roc10[i], 0.0),
+                safe_float(roc20[i], 0.0),
+                safe_float(roc60[i], 0.0),
+                safe_float(roc120[i], 0.0),
+                safe_float(roc252[i], 0.0),
+                safe_float(sma20[i], closes[i]),  # Use close price if SMA unavailable
+                safe_float(sma50[i], closes[i]),
+                safe_float(sma200[i], closes[i]),
+                safe_float(ema12[i], closes[i]),
+                safe_float(ema26[i], closes[i]),
+                safe_float(atr_vals[i], 0.0),
+                0.0, 0.0, 0.0,
+                safe_float(mansfield_rs[i], 100.0),  # Mansfield RS defaults to neutral 100
             ))
 
         if rows_to_insert:
