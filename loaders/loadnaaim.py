@@ -30,6 +30,8 @@ Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
 FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
 import sys
+import psycopg2
+import psycopg2.extensions
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

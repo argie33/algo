@@ -5,6 +5,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
 from config.env_loader import load_env
+from utils.logging_setup import get_logger
 from utils.db_connection import get_db_connection
 from datetime import datetime, timedelta
 from pathlib import Path

@@ -21,6 +21,7 @@ Walk-Forward Optimization (WFO):
 """
 
 from config.env_loader import load_env
+from utils.logging_setup import get_logger
 from config.credential_helper import get_db_password, get_db_config
 
 import os

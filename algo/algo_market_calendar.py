@@ -7,6 +7,7 @@ Uses standard US market holidays. Can be extended for other markets.
 """
 
 from datetime import datetime, date as _date, time
+from utils.logging_setup import get_logger
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)

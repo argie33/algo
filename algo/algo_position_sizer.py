@@ -12,6 +12,7 @@ Rules:
 """
 
 from config.env_loader import load_env
+from utils.logging_setup import get_logger
 import os
 from utils.db_connection import get_db_connection
 from pathlib import Path

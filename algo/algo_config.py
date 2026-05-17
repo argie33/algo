@@ -7,6 +7,8 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 from config.env_loader import load_env
+import psycopg2
+import psycopg2.extensions
 import os
 import logging
 

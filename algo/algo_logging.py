@@ -4,6 +4,7 @@ Structured JSON logging for the algo platform.
 
 Usage:
     from algo.algo_logging import get_logger
+from utils.logging_setup import get_logger
     logger = get_logger(__name__)
     logger.info("trade.executed", symbol="AAPL", qty=100, price=195.50)
 

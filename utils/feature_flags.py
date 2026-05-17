@@ -16,6 +16,7 @@ Flags stored in database (easy to toggle without deploy):
 """
 
 from config.env_loader import load_env
+from utils.logging_setup import get_logger
 import logging
 import os
 from utils.db_connection import get_db_connection

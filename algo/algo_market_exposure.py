@@ -471,7 +471,7 @@ class MarketExposure:
             r2 = self.cur.fetchone()
             if not r2 or r2[0] is None:
                 # M2 FIX: Fail-closed on missing data (0.1 instead of 0.7)
-            return {'score_factor': 0.1, 'value': None}
+                return {'score_factor': 0.1, 'value': None}
             vix = float(r2[0])
             return self._vix_score(vix, rising=False)
         vix = float(row[0])

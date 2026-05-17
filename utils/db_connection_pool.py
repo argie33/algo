@@ -25,7 +25,7 @@ except ImportError:
     credential_manager = None
 
 import os
-from utils.db_connection import get_db_connection.pool
+from utils.db_connection import get_db_connection
 from pathlib import Path
 
 

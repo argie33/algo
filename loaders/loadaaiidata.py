@@ -29,6 +29,8 @@ Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
 import sys
+import psycopg2
+import psycopg2.extensions
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
