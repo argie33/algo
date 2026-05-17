@@ -136,9 +136,9 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
         return (loader_name, False, False, "not found")
 
     try:
-        # Set PYTHONPATH to include root directory so loaders can import config modules
+        # Set PYTHONPATH to include root directory so loaders can import utils, config, and other modules
         env = os.environ.copy()
-        env['PYTHONPATH'] = os.getcwd() + os.pathsep + os.path.join(os.getcwd(), 'config')
+        env['PYTHONPATH'] = os.getcwd()
         # Increase timeout for data-heavy loaders (loadpricedaily needs ~15-20 min for 10k symbols)
         # price/scores/income/balance/cashflow loaders are heavy; others are lighter
         loader_timeout = 1800 if any(x in loader.lower() for x in ['price', 'scores', 'income', 'balance', 'cashflow', 'financial']) else 900

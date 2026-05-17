@@ -43,10 +43,12 @@ class PositionReconciler:
         self.conn = None
         self.cur = None
         try:
-            from alpaca.trading.client import TradingClient
-            self.trading_client = TradingClient(
-                api_key=credential_manager.get_alpaca_credentials()["key"],
-                secret_key=credential_manager.get_alpaca_credentials()["secret"],
+            from alpaca_trade_api import REST
+            creds = credential_manager.get_alpaca_credentials()
+            self.trading_client = REST(
+                api_key=creds["key"],
+                secret_key=creds["secret"],
+                base_url='https://paper-api.alpaca.markets'
             )
         except Exception as e:
             logger.error(f"  [WARN] Alpaca client init failed: {e}")

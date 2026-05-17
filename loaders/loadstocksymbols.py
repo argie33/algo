@@ -22,8 +22,8 @@ import psycopg2
 from psycopg2.extras import execute_values
 import requests
 
-# Load environment variables from .env.local if it exists
-env_path = Path(__file__).parent / '.env.local'
+# Load environment variables from .env.local if it exists (look in project root)
+env_path = Path(__file__).parent.parent / '.env.local'
 if env_path.exists():
     load_dotenv(env_path)
 
