@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import time
+
 import psycopg2
 import yfinance as yf
 
@@ -58,32 +60,42 @@ def get_symbols() -> List[str]:
         conn.close()
 
 
-def _fetch_yfinance(symbol: str) -> Optional[Dict]:
-    """Fetch value ratios from yfinance. Returns None if no usable data."""
-    try:
-        info = yf.Ticker(symbol).info
-        mkt_cap = info.get('marketCap')
-        pe = info.get('trailingPE')
-        pb = info.get('priceToBook')
-        ps = info.get('priceToSalesTrailing12Months')
-        peg = info.get('trailingPegRatio')
-        div = info.get('dividendYield')
+def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
+    """Fetch value ratios from yfinance. Retries on rate limit. Returns None if no usable data."""
+    for attempt in range(retries + 1):
+        try:
+            info = yf.Ticker(symbol).info
+            mkt_cap = info.get('marketCap')
+            pe = info.get('trailingPE')
+            pb = info.get('priceToBook')
+            ps = info.get('priceToSalesTrailing12Months')
+            peg = info.get('trailingPegRatio')
+            div = info.get('dividendYield')
 
-        if not any([mkt_cap, pe, pb, ps]):
+            if not any([mkt_cap, pe, pb, ps]):
+                return None
+
+            return {
+                'symbol': symbol,
+                'market_cap': float(mkt_cap) if mkt_cap else None,
+                'pe_ratio': float(pe) if pe and pe > 0 else None,
+                'pb_ratio': float(pb) if pb and pb > 0 else None,
+                'ps_ratio': float(ps) if ps and ps > 0 else None,
+                'peg_ratio': float(peg) if peg and peg > 0 else None,
+                'dividend_yield': float(div) if div else None,
+            }
+        except Exception as e:
+            err = str(e)
+            if 'RateLimit' in err or 'Too Many Requests' in err or '429' in err:
+                if attempt < retries:
+                    wait = (attempt + 1) * 30
+                    log.warning(f"Rate limited on {symbol}, waiting {wait}s (attempt {attempt+1}/{retries})")
+                    time.sleep(wait)
+                    continue
+                log.warning(f"Rate limit exceeded for {symbol} after {retries} retries")
+            else:
+                log.debug(f"yfinance failed for {symbol}: {e}")
             return None
-
-        return {
-            'symbol': symbol,
-            'market_cap': float(mkt_cap) if mkt_cap else None,
-            'pe_ratio': float(pe) if pe and pe > 0 else None,
-            'pb_ratio': float(pb) if pb and pb > 0 else None,
-            'ps_ratio': float(ps) if ps and ps > 0 else None,
-            'peg_ratio': float(peg) if peg and peg > 0 else None,
-            'dividend_yield': float(div) if div else None,
-        }
-    except Exception as e:
-        log.debug(f"yfinance failed for {symbol}: {e}")
-        return None
 
 
 def _fetch_from_financials(symbol: str) -> Optional[Dict]:
@@ -188,7 +200,7 @@ def persist(metrics_list: List[Dict]) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Load value metrics from yfinance")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all with prices.")
-    parser.add_argument("--parallelism", type=int, default=8)
+    parser.add_argument("--parallelism", type=int, default=4)
     args = parser.parse_args()
 
     symbols = (
