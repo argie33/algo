@@ -205,7 +205,7 @@ resource "aws_iam_role_policy" "batch_job_policy" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = length(aws_cloudwatch_log_group.batch) > 0 ? "${aws_cloudwatch_log_group.batch[0].arn}:*" : "${data.aws_cloudwatch_log_group.batch_existing.arn}:*"
+        Resource = "${aws_cloudwatch_log_group.batch.arn}:*"
       }
     ]
   })
@@ -393,7 +393,7 @@ resource "aws_batch_job_definition" "buyselldaily" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = length(aws_cloudwatch_log_group.batch) > 0 ? aws_cloudwatch_log_group.batch[0].name : data.aws_cloudwatch_log_group.batch_existing.name
+        "awslogs-group"         = aws_cloudwatch_log_group.batch.name
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "buyselldaily"
       }
