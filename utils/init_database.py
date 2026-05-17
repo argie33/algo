@@ -1946,6 +1946,11 @@ CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_dat
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
 
+-- Additional indexes for query performance (added for production readiness)
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_date ON buy_sell_daily(date DESC);
+CREATE INDEX IF NOT EXISTS idx_sector_rotation_date_sector ON sector_rotation_signal(date DESC, sector);
+CREATE INDEX IF NOT EXISTS idx_patrol_log_created_at ON data_patrol_log(created_at DESC);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- DATA PROVENANCE TRACKING - Audit trail for all loader runs
 -- ════════════════════════════════════════════════════════════════════════════
