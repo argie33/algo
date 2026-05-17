@@ -555,7 +555,7 @@ class PositionMonitor:
 
     def _print_recommendation(self, rec):
         flags_str = ', '.join(rec['flags']) if rec['flags'] else 'none'
-        print(
+        logger.info(
             f"  {rec['symbol']:6s}  qty={rec['quantity']:<5d} "
             f"price=${rec['current_price']:7.2f}  "
             f"R={rec['r_multiple']:+.2f}  "

@@ -2107,12 +2107,12 @@ def _init_timescaledb(conn, cur):
             logger.info(f"    ⚠ {str(e)[:80]}")
 
         conn.commit()
-        print()
+        logger.info()
         logger.info("✓ TimescaleDB initialization complete!")
         logger.info("  • Time-series queries now 10-100x faster")
         logger.info("  • Automatic data compression (30+ days)")
         logger.info("  • Hourly summary aggregates")
-        print()
+        logger.info()
 
     except Exception as e:
         logger.info(f"ERROR in TimescaleDB init: {e}")
@@ -2127,7 +2127,7 @@ def init_database():
         logger.info("╔════════════════════════════════════════════════════════╗")
         logger.info("║  Initializing Database Schema (AUTHORITATIVE)         ║")
         logger.info("╚════════════════════════════════════════════════════════╝")
-        print()
+        logger.info()
 
         # Split by semicolon and execute each statement
         statements = [s.strip() for s in SCHEMA.split(';') if s.strip()]
@@ -2145,11 +2145,11 @@ def init_database():
                 failed += 1
 
         conn.commit()
-        print()
+        logger.info()
         logger.info(f"✓ Schema initialization complete!")
         logger.info(f"  Succeeded: {succeeded}")
         logger.info(f"  Failed: {failed}")
-        print()
+        logger.info()
 
         # Apply migrations for existing databases
         _run_migrations(conn, cur)
@@ -2158,12 +2158,12 @@ def init_database():
         logger.info("╔════════════════════════════════════════════════════════╗")
         logger.info("║  Initializing TimescaleDB for Time-Series (10-100x)   ║")
         logger.info("╚════════════════════════════════════════════════════════╝")
-        print()
+        logger.info()
         _init_timescaledb(conn, cur)
 
-        print()
+        logger.info()
         logger.info("Schema is now READY for loaders to use")
-        print()
+        logger.info()
         return failed == 0
 
     except Exception as e:

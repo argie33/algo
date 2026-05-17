@@ -14,14 +14,14 @@ import json
 logger.info("=" * 80)
 logger.info("LOADER PARALLELIZATION ANALYSIS")
 logger.info("=" * 80)
-print()
+logger.info()
 
 # Find all loaders
 loader_dir = Path("data_loaders")
 loaders = list(loader_dir.glob("load*.py"))
 
 logger.info(f"Found {len(loaders)} loaders:")
-print()
+logger.info()
 
 # Analyze loader dependencies
 LOADER_DEPENDENCIES = {
@@ -53,11 +53,11 @@ for loader, info in LOADER_DEPENDENCIES.items():
     else:
         logger.info(f"  {loader:30} -> independent (source: {source})")
 
-print()
+logger.info()
 logger.info("=" * 80)
 logger.info("PARALLELIZATION STRATEGY")
 logger.info("=" * 80)
-print()
+logger.info()
 
 # Group loaders by parallelization waves
 PARALLEL_GROUPS = {
@@ -92,7 +92,7 @@ for wave, group in PARALLEL_GROUPS.items():
     wave_time = len(group) * avg_loader_time
     logger.info(f"  Sequential time: {wave_time} min")
     logger.info(f"  Parallel time: {avg_loader_time} min (all run simultaneously)")
-    print()
+    logger.info()
 
     total_loaders += len(group)
     estimated_serial_time += wave_time
@@ -101,17 +101,17 @@ for wave, group in PARALLEL_GROUPS.items():
 logger.info("=" * 80)
 logger.info("PERFORMANCE PROJECTION")
 logger.info("=" * 80)
-print()
+logger.info()
 logger.info(f"Total loaders: {total_loaders}")
 logger.info(f"Sequential (current): ~{estimated_serial_time} minutes")
 logger.info(f"Parallel (optimized): ~{estimated_parallel_time} minutes")
 logger.info(f"Speedup: {estimated_serial_time / estimated_parallel_time:.1f}x")
-print()
+logger.info()
 
 logger.info("=" * 80)
 logger.info("IMPLEMENTATION GUIDE")
 logger.info("=" * 80)
-print()
+logger.info()
 
 logger.info("""
 Option 1: concurrent.futures (Simple, recommended)
@@ -187,11 +187,11 @@ Success Metrics:
 [OK] Graceful error handling if one loader fails
 """)
 
-print()
+logger.info()
 logger.info("To implement:")
 logger.info("1. Edit run-all-loaders.py")
 logger.info("2. Add ThreadPoolExecutor with wave-based execution")
 logger.info("3. Test locally: python3 run-all-loaders.py")
 logger.info("4. Monitor AWS Lambda: Check execution time in CloudWatch")
-print()
+logger.info()
 

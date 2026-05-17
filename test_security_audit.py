@@ -20,7 +20,7 @@ API_BASE_AWS = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
 logger.info("=" * 80)
 logger.info("SECURITY AUDIT - Phase 4")
 logger.info("=" * 80)
-print()
+logger.info()
 
 # ============================================================================
 # ISSUE 3.1: API AUTHENTICATION
@@ -49,7 +49,7 @@ for endpoint in auth_endpoints:
     except Exception as e:
         logger.info(f"  [WARN]  {endpoint:30} -> Connection error: {str(e)}")
 
-print()
+logger.info()
 logger.info("Test 2: Verify health endpoint is public")
 try:
     response = requests.get(f"{API_BASE_AWS}/api/health", timeout=5)
@@ -60,7 +60,7 @@ try:
 except Exception as e:
     logger.info(f"  [WARN]  /api/health -> Connection error: {str(e)}")
 
-print()
+logger.info()
 
 # ============================================================================
 # ISSUE 3.2: INPUT VALIDATION - SQL INJECTION TESTS
@@ -106,7 +106,7 @@ for payload in sql_injection_payloads:
     except Exception as e:
         logger.info(f"  [WARN]  Error testing {payload[:30]}: {str(e)[:50]}")
 
-print()
+logger.info()
 logger.info("Test 2: Input validation on numeric parameters (limit, offset)")
 limit_payloads = [
     ("?limit=1000000", "large number"),
@@ -128,7 +128,7 @@ for param, desc in limit_payloads:
     except Exception as e:
         logger.info(f"  [WARN]  Error: {param} -> {str(e)[:40]}")
 
-print()
+logger.info()
 
 # ============================================================================
 # ISSUE 3.3: HTTPS ENFORCEMENT
@@ -153,7 +153,7 @@ try:
 except Exception as e:
     logger.info(f"  [WARN]  Cannot test HTTP redirect: {str(e)[:50]}")
 
-print()
+logger.info()
 logger.info("Test 2: Verify HTTPS works")
 try:
     response = requests.get(
@@ -173,7 +173,7 @@ try:
 except Exception as e:
     logger.info(f"  [WARN]  Cannot test HTTPS: {str(e)[:50]}")
 
-print()
+logger.info()
 
 # ============================================================================
 # SUMMARY
@@ -181,15 +181,15 @@ print()
 logger.info("=" * 80)
 logger.info("SECURITY AUDIT SUMMARY")
 logger.info("=" * 80)
-print()
+logger.info()
 logger.info("Guidelines for Interpreting Results:")
 logger.info("  [OK] = PASS (security control working)")
 logger.info("  [WARN]  = WARNING (may need review or network issue)")
 logger.info("  [FAIL] = FAIL (security issue found)")
-print()
+logger.info()
 logger.info("Next Steps:")
 logger.info("  1. Review any [FAIL] failures and fix")
 logger.info("  2. Verify HSTS header is present")
 logger.info("  3. Test with actual API key (if configured)")
 logger.info("  4. Run in production environment if available")
-print()
+logger.info()

@@ -30,13 +30,13 @@ try:
     logger.info("=" * 70)
     logger.info("DATA COMPLETENESS AUDIT")
     logger.info("=" * 70)
-    print()
+    logger.info()
 
     # Check total symbols
     cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_active = TRUE")
     total_symbols = cur.fetchone()[0]
     logger.info(f"OK Total active symbols: {total_symbols}")
-    print()
+    logger.info()
 
     # Check critical data tables
     critical_tables = [
@@ -86,7 +86,7 @@ try:
         else:
             logger.info(f"OK {table.ljust(30)} {count:>12,} rows")
 
-    print()
+    logger.info()
     logger.info("=" * 70)
     logger.info("CRITICAL GAPS TO ADDRESS:")
     logger.info("-" * 70)
@@ -113,7 +113,7 @@ try:
     for gap in gaps:
         logger.info(gap)
 
-    print()
+    logger.info()
     logger.info("=" * 70)
     logger.info("RECOMMENDED ACTIONS:")
     logger.info("-" * 70)

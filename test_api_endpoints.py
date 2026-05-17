@@ -120,7 +120,7 @@ def main():
     logger.info("=" * 80)
     logger.info("API ENDPOINT VERIFICATION TEST SUITE")
     logger.info("=" * 80)
-    print()
+    logger.info()
 
     # Test local dev server first
     logger.info("Testing Local Development Server (React + Express)")
@@ -136,12 +136,12 @@ def main():
     local_passed = sum(1 for _, _, success, _, _ in local_results if success)
     local_total = len(local_results)
 
-    print()
+    logger.info()
     logger.info("=" * 80)
     logger.info("LOCAL DEV SERVER SUMMARY")
     logger.info("=" * 80)
     logger.info(f"Passed: {local_passed}/{local_total}")
-    print()
+    logger.info()
 
     # Test AWS endpoint (health check only)
     if "--aws" in sys.argv:
@@ -151,13 +151,13 @@ def main():
 
         success, msg, status = test_endpoint(API_HEALTH, "/api/health", "GET", 200)
         logger.info(f"{'[PASS]' if success else '[FAIL]'} GET /api/health {msg} [{status}]")
-        print()
+        logger.info()
 
     logger.info("NOTES:")
     logger.info("- Local tests require: npm run dev (React dev server on port 3001)")
     logger.info("- Auth endpoints should return 401 without API key")
     logger.info("- Use --aws flag to test AWS API Gateway endpoint")
-    print()
+    logger.info()
 
     # Return exit code based on results
     return 0 if local_passed == local_total else 1

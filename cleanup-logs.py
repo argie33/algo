@@ -48,7 +48,7 @@ def main():
                 if 'node_modules' not in filepath and '.git' not in filepath:
                     files_to_process.append(filepath)
 
-    print(f'Found {len(files_to_process)} JS files\n')
+    logger.info(f'Found {len(files_to_process)} JS files\n')
 
     for filepath in sorted(files_to_process):
         try:
@@ -61,12 +61,12 @@ def main():
         except Exception as e:
             logger.info(f"  [SKIP] {filepath}: {e}")
 
-    print(f'\n{"=" * 60}')
-    print(f'[CLEANUP] COMPLETE')
-    print(f'{"=" * 60}')
-    print(f'Files: {stats["files_processed"]} processed, {stats["files_modified"]} modified')
-    print(f'Logs removed: {stats["logs_removed"]}')
-    print(f'{"=" * 60}\n')
+    logger.info(f'\n{"=" * 60}')
+    logger.info(f'[CLEANUP] COMPLETE')
+    logger.info(f'{"=" * 60}')
+    logger.info(f'Files: {stats["files_processed"]} processed, {stats["files_modified"]} modified')
+    logger.info(f'Logs removed: {stats["logs_removed"]}')
+    logger.info(f'{"=" * 60}\n')
 
 if __name__ == '__main__':
     main()

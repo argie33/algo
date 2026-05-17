@@ -107,7 +107,7 @@ def preview(symbol: str, entry_price: float, stop_loss: float) -> dict:
 
 def main():
     if len(sys.argv) != 4:
-        print(json.dumps({"error": "Usage: algo_preview.py SYMBOL ENTRY_PRICE STOP_LOSS"}))
+        logger.info(json.dumps({"error": "Usage: algo_preview.py SYMBOL ENTRY_PRICE STOP_LOSS"}))
         sys.exit(1)
 
     symbol = sys.argv[1].upper()
@@ -115,18 +115,18 @@ def main():
         entry_price = float(sys.argv[2])
         stop_loss   = float(sys.argv[3])
     except ValueError:
-        print(json.dumps({"error": "entry_price and stop_loss must be numbers"}))
+        logger.info(json.dumps({"error": "entry_price and stop_loss must be numbers"}))
         sys.exit(1)
 
     if stop_loss >= entry_price:
-        print(json.dumps({"error": "stop_loss must be less than entry_price"}))
+        logger.info(json.dumps({"error": "stop_loss must be less than entry_price"}))
         sys.exit(1)
 
     try:
         result = preview(symbol, entry_price, stop_loss)
-        print(json.dumps(result))
+        logger.info(json.dumps(result))
     except Exception as e:
-        print(json.dumps({"error": str(e)}))
+        logger.info(json.dumps({"error": str(e)}))
         sys.exit(1)
 
 

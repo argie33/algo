@@ -21,7 +21,7 @@ API_BASE = "http://localhost:3001"
 logger.info("=" * 80)
 logger.info("ERROR MESSAGE SANITIZATION TEST")
 logger.info("=" * 80)
-print()
+logger.info()
 
 # Test cases that should trigger errors
 test_cases = [
@@ -50,7 +50,7 @@ BAD_PATTERNS = [
 ]
 
 logger.info("Testing error message sanitization...")
-print()
+logger.info()
 
 failed_tests = []
 
@@ -92,13 +92,13 @@ for url, description, should_error in test_cases:
     except Exception as e:
         logger.info(f"  [WARN]  Error: {str(e)[:50]}")
 
-    print()
+    logger.info()
 
 # Summary
 logger.info("=" * 80)
 logger.info("SANITIZATION TEST SUMMARY")
 logger.info("=" * 80)
-print()
+logger.info()
 
 if failed_tests:
     logger.info(f"[FAIL] {len(failed_tests)} error(s) have leakage:")
@@ -109,10 +109,10 @@ if failed_tests:
 else:
     logger.info("[OK] All error messages properly sanitized!")
 
-print()
+logger.info()
 logger.info("Guidelines:")
 logger.info("  [OK] = Safe error messages (generic, no details)")
 logger.info("  [FAIL] = Leaking implementation details (fix required)")
-print()
+logger.info()
 logger.info("For local development: Errors may be more verbose. Production should sanitize.")
-print()
+logger.info()

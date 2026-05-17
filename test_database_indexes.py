@@ -21,7 +21,7 @@ load_dotenv('.env.local')
 logger.info("=" * 80)
 logger.info("DATABASE INDEX VALIDATION")
 logger.info("=" * 80)
-print()
+logger.info()
 
 # High-volume tables and their critical query columns
 CRITICAL_INDEXES = {
@@ -62,7 +62,7 @@ def get_db_connection():
         logger.info(f"[FAIL] Cannot connect to database: {e}")
         logger.info(f"   Host: {os.getenv('DB_HOST', 'localhost')}")
         logger.info(f"   Port: {os.getenv('DB_PORT', 5432)}")
-        print()
+        logger.info()
         logger.info("To run locally:")
         logger.info("  1. Ensure PostgreSQL is running")
         logger.info("  2. Set DB_PASSWORD in .env.local")
@@ -120,30 +120,30 @@ def check_indexes():
                     else:
                         logger.info(f"   [FAIL] MISSING INDEX: {col_spec:25} - {query_pattern}")
 
-            print()
+            logger.info()
 
         # Summary
         logger.info("=" * 80)
         logger.info("INDEX RECOMMENDATIONS")
         logger.info("=" * 80)
-        print()
+        logger.info()
 
         logger.info("If indexes are missing, add them with:")
-        print()
+        logger.info()
         logger.info("# Add indexes to high-volume tables")
         logger.info("CREATE INDEX idx_price_daily_symbol ON price_daily(symbol);")
         logger.info("CREATE INDEX idx_price_daily_date ON price_daily(date);")
         logger.info("CREATE INDEX idx_price_daily_composite ON price_daily(symbol, date);")
-        print()
+        logger.info()
         logger.info("CREATE INDEX idx_algo_trades_date ON algo_trades(entry_date DESC);")
         logger.info("CREATE INDEX idx_algo_trades_composite ON algo_trades(symbol, entry_date);")
-        print()
+        logger.info()
         logger.info("# Test index effectiveness")
         logger.info("EXPLAIN ANALYZE")
         logger.info("  SELECT * FROM price_daily WHERE symbol = 'AAPL' AND date >= '2026-05-01';")
-        print()
+        logger.info()
         logger.info("If EXPLAIN shows 'Seq Scan' instead of 'Index Scan', indexes aren't being used.")
-        print()
+        logger.info()
 
     finally:
         cur.close()

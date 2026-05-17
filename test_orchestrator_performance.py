@@ -24,7 +24,7 @@ def profile_orchestrator():
     logger.info("ORCHESTRATOR PERFORMANCE PROFILE")
     logger.info("=" * 80)
     logger.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
+    logger.info()
 
     try:
         from algo_orchestrator import StockAlgoOrchestrator
@@ -40,7 +40,7 @@ def profile_orchestrator():
 
         init_time = time.time() - start
         logger.info(f"[OK] Initialization: {init_time:.2f}s")
-        print()
+        logger.info()
 
         # Run orchestrator and capture phase timings
         logger.info("Running orchestrator phases...")
@@ -67,7 +67,7 @@ def profile_orchestrator():
         # Note: These are placeholder times. Actual profiling requires
         # instrumentation of algo_orchestrator.py
 
-        print()
+        logger.info()
         logger.info("PHASE EXECUTION TIMES (Estimated - requires instrumentation)")
         logger.info("-" * 80)
 
@@ -77,7 +77,7 @@ def profile_orchestrator():
             total_time = time.time() - phase_start
 
             logger.info(f"[OK] Orchestrator completed in {total_time:.2f}s")
-            print()
+            logger.info()
             logger.info("RESULTS:")
             logger.info(f"  Trades generated: {len(result.get('trades', []))}")
             logger.info(f"  Positions held: {len(result.get('positions', []))}")
@@ -88,11 +88,11 @@ def profile_orchestrator():
             total_time = time.time() - phase_start
             logger.info(f"  Failed after {total_time:.2f}s")
 
-        print()
+        logger.info()
         logger.info("=" * 80)
         logger.info("PERFORMANCE ANALYSIS")
         logger.info("=" * 80)
-        print()
+        logger.info()
 
         # Benchmark analysis
         TARGET_TIME = 300  # 5 minutes
@@ -101,7 +101,7 @@ def profile_orchestrator():
         logger.info(f"Target execution time: {TARGET_TIME}s (5 min)")
         logger.info(f"Actual execution time: {total_time:.2f}s")
         logger.info(f"Budget per phase: {PHASE_BUDGET:.1f}s")
-        print()
+        logger.info()
 
         if total_time < TARGET_TIME:
             margin = TARGET_TIME - total_time
@@ -111,10 +111,10 @@ def profile_orchestrator():
             logger.info(f"[FAIL] FAIL: Exceeds target by {excess:.1f}s")
             logger.info(f"   Need to optimize by ~{excess:.1f}s")
 
-        print()
+        logger.info()
         logger.info("OPTIMIZATION RECOMMENDATIONS:")
         logger.info("-" * 80)
-        print()
+        logger.info()
         logger.info("1. Add phase-by-phase timing instrumentation to algo_orchestrator.py:")
         logger.info("   ```python")
         logger.info("   phase_times = {}")
@@ -123,24 +123,24 @@ def profile_orchestrator():
         logger.info("       result = phase.run()")
         logger.info("       phase_times[phase.name] = time.time() - start")
         logger.info("   ```")
-        print()
+        logger.info()
         logger.info("2. Likely bottlenecks (in order of probability):")
         logger.info("   - Phase 3: Signal calculation (many indicators)")
         logger.info("   - Phase 2: Data filtering (large table scans)")
         logger.info("   - Phase 4: Filter application (if unindexed)")
-        print()
+        logger.info()
         logger.info("3. Quick wins:")
         logger.info("   - Add database indexes on frequently-queried columns")
         logger.info("   - Parallelize independent filter tiers")
         logger.info("   - Cache expensive calculations (RSI, MACD)")
         logger.info("   - Batch database queries")
-        print()
+        logger.info()
 
         return 0 if total_time < TARGET_TIME else 1
 
     except ImportError as e:
         logger.info(f"[FAIL] Cannot import algo_orchestrator: {e}")
-        print()
+        logger.info()
         logger.info("This is expected in local dev (uses AWS Lambda imports)")
         logger.info("To test in Lambda, deploy and monitor CloudWatch Logs")
         return 1

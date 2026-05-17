@@ -98,4 +98,4 @@ def lambda_handler(event, context):
 if __name__ == '__main__':
     # For local testing
     result = lambda_handler({}, None)
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))

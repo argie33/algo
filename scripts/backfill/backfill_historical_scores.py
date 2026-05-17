@@ -162,7 +162,7 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
             total_processed += day_processed
             elapsed = (datetime.now() - start_time).total_seconds()
             rate = total_processed / elapsed if elapsed > 0 else 0
-            print(
+            logger.info(
                 f"  Day {day_idx + 1}/{len(trading_days)} {eval_date}: "
                 f"{day_processed} symbols  |  total {total_processed}  "
                 f"rate {rate:.0f} sym/s  elapsed {int(elapsed)}s"

@@ -294,7 +294,7 @@ def main():
             db_instance_id=args.db_instance_id,
             generate_new=(args.password is None)
         )
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     elif args.command == "rotate-alpaca-keys":
         result = manager.rotate_alpaca_keys(
@@ -302,7 +302,7 @@ def main():
             new_key_id=args.key_id,
             new_secret_key=args.secret_key
         )
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     elif args.command == "test-connection":
         success = manager.test_rds_connection(

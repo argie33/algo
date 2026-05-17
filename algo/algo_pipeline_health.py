@@ -15,7 +15,7 @@ and by API for dashboard health indicators.
 USAGE:
   health = PipelineHealth()
   status = health.get_pipeline_status()
-  print(status.is_healthy)  # True if all critical data fresh
+  logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
 from config.credential_helper import get_db_password, get_db_config
@@ -331,8 +331,9 @@ class PipelineHealth:
 
 if __name__ == '__main__':
     import json
+    logger = logging.getLogger(__name__)
     health = PipelineHealth()
     health.connect()
     status = health.get_pipeline_status()
-    print(json.dumps(status.to_dict(), indent=2, default=str))
+    logger.info(json.dumps(status.to_dict(), indent=2, default=str))
     health.disconnect()
