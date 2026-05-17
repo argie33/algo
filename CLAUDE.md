@@ -152,6 +152,75 @@ If you catch yourself creating:
 
 ---
 
+## 🛡️ CODE-LEVEL GOVERNANCE (Prevent Bloat Before It Accumulates)
+
+**Problem:** Documentation rules work, but code bloat rules didn't. Session 2026-05-17 audit found:
+- Unused npm packages (moment, redis = 270KB)
+- Unused Python packages (polars = 80MB)
+- Dead test code (20 skipped tests)
+- Orphan frontend pages (5-10K lines potentially unused)
+
+**Solution:** Mechanical code-level rules [[code-governance-rules]]
+
+### Dependencies: Before Adding Anything
+
+**Checklist (MUST answer before adding):**
+1. Why is this package needed? (specific code/use case)
+2. Where will it be imported? (which files?)
+3. Lighter alternatives? (always check)
+4. What's minimum viable version?
+5. Will it be loaded every session?
+
+**If you can't answer all → DO NOT ADD**
+
+**Rule:** Quarterly audit → if in package.json/requirements.txt but ZERO imports in code → DELETE
+
+### Tests: No Dead Code
+
+**Skipped/xfail tests MUST have:**
+- Expiration date (e.g., `@pytest.mark.skip(reason="... (2026-06-15)")`)
+- Real reason (NOT "tested elsewhere" → delete instead)
+
+**If expiration date passes → DELETE THE TEST**
+
+### Code: No Unused Imports
+
+**Pre-commit:** Remove all unused imports before committing
+- Example bad: `from datetime import datetime, date as _date, timezone` (unused timezone)
+- Example good: Only import what's used
+
+### Frontend: Routed Pages Only
+
+**New page = must be:**
+1. In `pages/`
+2. Imported in `App.jsx`
+3. Has route with `path: "/app/..."`
+4. In navigation menu
+
+**If any missing → DELETE the page file (unfinished)**
+
+### Commit Messages for Removals
+
+**Bad:** `git commit -m "cleanup: remove unused code"`
+**Good:**
+```
+cleanup: remove redis dependency (never imported)
+
+Audit found redis in package.json but zero usage.
+No caching architecture implemented, so this is bloat.
+```
+
+### Quarterly Code Audits
+
+- **Dependencies:** Are all npm/pip packages actually imported?
+- **Tests:** Do all skipped tests have unexpired reasons?
+- **Frontend:** Do all pages in pages/ have routes?
+- **Code:** Any dead functions (defined but never called)?
+
+**See:** [[code-governance-rules]] for detailed scanning commands
+
+---
+
 ## 🔄 CLAUDE BEST PRACTICES (Critical for Effective Collaboration)
 
 ### 1. DOCUMENTATION DISCIPLINE
