@@ -79,11 +79,7 @@ export const logApiError = (component, operation, error, context = {}) => {
     try {
       console.log(`📄 Full Error Details:`, safeStringify(error));
     } catch (stringifyError) {
-        name: error?.name,
-        message: error?.message,
-        code: error?.code,
-        isAxiosError: error?.isAxiosError,
-      });
+      console.log("Failed to stringify error:", stringifyError);
     }
 
     console.log(`📚 Stack Trace:`, errorStack);

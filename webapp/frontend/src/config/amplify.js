@@ -72,13 +72,6 @@ export function configureAmplify() {
     const config = getAmplifyConfig();
     const runtimeConfig = getRuntimeConfig();
 
-      userPoolId: config.Auth.Cognito.userPoolId,
-      clientId: config.Auth.Cognito.userPoolClientId,
-      domain: config.Auth.Cognito.loginWith.oauth.domain,
-      runtimeConfigAvailable: !!Object.keys(runtimeConfig).length,
-      isCognitoConfigured: isCognitoConfigured(),
-    });
-
     if (!isCognitoConfigured()) {
       console.warn(
         "⚠️  Cognito not configured - using dummy values for development"

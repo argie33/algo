@@ -5,12 +5,6 @@ const fs = require("fs");
 
 const envPath = path.resolve(__dirname, "../../.env.local");
 const envResult = require("dotenv").config({ path: envPath });
-  path: envPath,
-  fileExists: require("fs").existsSync(envPath),
-  loaded: envResult.parsed ? Object.keys(envResult.parsed).length : 0,
-  keys: envResult.error ? `ERROR: ${envResult.error.message}` : "OK",
-  hasAlpacaKey: !!process.env.ALPACA_API_KEY
-});
 
 // Financial Dashboard API - Lambda Function
 // Updated: 2026-05-09 - Fixed CORS configuration + auth flow

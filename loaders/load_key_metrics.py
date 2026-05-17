@@ -37,8 +37,9 @@ if not env_file.exists():  # fallback: root when running from subdirectory
 if env_file.exists():
     load_dotenv(env_file)
 
-s [%(levelname)s] %(message)s",
-)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 

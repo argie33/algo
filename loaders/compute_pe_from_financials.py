@@ -22,7 +22,7 @@ if env_file.exists():
 import psycopg2
 from config.credential_helper import get_db_password
 
-s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 def get_db_conn():
