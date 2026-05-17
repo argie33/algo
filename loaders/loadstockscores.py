@@ -456,17 +456,17 @@ class StockScoresLoader(OptimalLoader):
 
             for symbol in symbols:
                 try:
-                    # Get price data for past 12 months
+                    # Get price data for past 12 months (oldest and newest)
                     cur.execute("""
                         SELECT close FROM price_daily
-                        WHERE symbol = %s AND trade_date >= %s AND trade_date <= %s
-                        ORDER BY trade_date DESC LIMIT 2
+                        WHERE symbol = %s AND date >= %s AND date <= %s
+                        ORDER BY date ASC
                     """, (symbol, start_date, end_date))
                     prices = [r[0] for r in cur.fetchall()]
 
                     if len(prices) >= 2:
                         # Most recent price / 12-month-ago price - 1
-                        ret = (float(prices[0]) / float(prices[-1])) - 1.0
+                        ret = (float(prices[-1]) / float(prices[0])) - 1.0
                         returns_12m[symbol] = ret
                 except Exception as e:
                     logging.debug(f"Could not compute 12m return for {symbol}: {e}")

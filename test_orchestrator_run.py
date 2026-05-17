@@ -27,8 +27,8 @@ try:
     print("[OK] Orchestrator imported successfully")
 
     # Create orchestrator instance with weekday test date
-    orch = Orchestrator(dry_run=True, verbose=True, init_db=True)
-    orch.run_date = "2026-05-15"  # Thursday - weekday for testing
+    test_date = date(2026, 5, 15)  # Thursday - weekday for testing
+    orch = Orchestrator(run_date=test_date, dry_run=True, verbose=True, init_db=True)
     print("[OK] Orchestrator initialized")
     print(f"  Run ID: {orch.run_id}")
     print(f"  Dry run mode: {orch.dry_run}")
