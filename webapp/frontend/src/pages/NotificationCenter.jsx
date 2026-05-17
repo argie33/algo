@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Alert as MuiAlert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api, getApiConfig } from '../services/api';
 import {
@@ -19,7 +20,7 @@ const NotificationCenter = () => {
   });
   const [unreadOnly, setUnreadOnly] = useState(false);
 
-  const { data: notifs, loading, refetch } = useApiQuery(
+  const { data: notifs, loading, error: notifError, refetch } = useApiQuery(
     ['notifications', filters, unreadOnly],
     async () => {
       const params = new URLSearchParams();
@@ -33,6 +34,10 @@ const NotificationCenter = () => {
     },
     { refetchInterval: 15000 }
   );
+
+  if (notifError) {
+    return <MuiAlert severity="error" style={{ margin: '20px' }}>{notifError}</MuiAlert>;
+  }
 
   const items = notifs?.items || [];
   const unreadCount = items.filter(n => !n.seen).length;
