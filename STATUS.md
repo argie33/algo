@@ -6,6 +6,103 @@
 
 ---
 
+## ⚠️ CREDENTIAL SECURITY AUDIT COMPLETE (Session 89)
+
+### Status: ✅ CODE FIXED | ⏳ MANUAL ROTATION REQUIRED
+
+**What was fixed (automated):**
+- ✅ Removed hardcoded password `bed0elAn` from check_db_schema.py, test_api.mjs, scripts/README.md
+- ✅ Removed hardcoded AWS Account ID from create-missing-log-groups.sh
+- ✅ Updated .gitignore with comprehensive env file patterns (prevents future commits)
+- ✅ All code now uses environment variables for credentials (no fallbacks)
+- ✅ `.env.local` and `loaders/.env.local` remain gitignored (local dev safe)
+
+**Credentials that WERE exposed in git history** (and MUST be rotated):
+These appear in deleted git commits from past sessions. Even though deleted, they're still accessible in git history via `git log -p`.
+
+| Credential | Where Exposed | Severity | Status |
+|------------|---------------|----------|--------|
+| Alpaca API Key & Secret | PRODUCTION_DEPLOYMENT.md (commit cf175ba87) | **HIGH** | ⏳ **ROTATE IMMEDIATELY** |
+| FRED API Key | PRODUCTION_DEPLOYMENT.md (commit cf175ba87) | **MEDIUM** | ⏳ **ROTATE TODAY** |
+| AWS Access Key (algo-developer) | .env.local (early commits) | **HIGH** | ⏳ **ROTATE TODAY** |
+| PostgreSQL Password | .env.local (early commits) | **MEDIUM** | ⏳ **ROTATE TODAY** |
+
+**To see what was exposed, run:** `git log --all -p | grep -E "APCA_API|FRED_API|AWS_ACCESS_KEY|DB_PASSWORD" | head -20`
+
+### Required Actions (User must perform these)
+
+**1. Rotate Alpaca Credentials** ⏳ CRITICAL
+```
+1. Go to: https://app.alpaca.markets/settings/api
+2. Click "Generate New Keys" (delete old pair)
+3. Copy new API Key ID and Secret Key
+4. Update locally: .env.local and loaders/.env.local
+5. Update GitHub Secrets: ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY
+```
+
+**2. Rotate FRED API Key** ⏳ TODAY
+```
+1. Go to: https://fred.stlouisfed.org/userprofile/apikeys
+2. Delete old key: 4f87c213...
+3. Create new API key
+4. Update locally: .env.local (FRED_API_KEY)
+5. Update GitHub Secrets: FRED_API_KEY
+```
+
+**3. Rotate AWS IAM Access Key** ⏳ TODAY
+```
+1. Go to: AWS IAM Console → Users → algo-developer
+2. Delete the old access key pair
+3. Create new access key pair
+4. Update locally: .env.local with new credentials
+5. Update GitHub Secrets with new key pair
+6. Also update loaders/.env.local with same values
+```
+
+**4. Rotate PostgreSQL Password** ⏳ TODAY
+```
+1. In PostgreSQL, run: ALTER USER postgres WITH PASSWORD 'NewPassword123!';
+2. Update locally: .env.local (DB_PASSWORD=NewPassword123!)
+3. Update loaders/.env.local (DB_PASSWORD=NewPassword123!)
+4. Update GitHub Secrets: RDS_PASSWORD (Terraform will use this for RDS)
+5. After Terraform deploy, manually update RDS password to match
+```
+
+**5. Verify GitHub Secrets are set** ⏳ CHECK TODAY
+```
+GitHub Settings → Secrets and variables → Actions
+
+After rotating credentials above, verify these 8 required secrets are updated:
+  1. RDS_PASSWORD (PostgreSQL)
+  2. JWT_SECRET (authentication)
+  3. FRED_API_KEY (economic data)
+  4. ALPACA_API_KEY_ID (trading)
+  5. ALPACA_API_SECRET_KEY (trading)
+  6. AWS credentials (IAM)
+  7. AWS_ACCOUNT_ID (infrastructure)
+  8. AWS region setting
+
+Optional/Post-deploy:
+  ? SLACK_WEBHOOK (referenced in workflows, may be missing)
+  ? API_GATEWAY_URL (populated by GitHub Actions post-deploy)
+```
+
+### Why This Matters
+- **Hardcoded in source code** → Fixed ✅ (commits 3caaeab7a, ce601dbbe)
+- **In git history** → Requires rotation (accessible via `git log -p`)
+- **In GitHub Secrets** → Still valid, still used for CI/CD
+- **In .env.local** → Still needed for local dev, but needs to be rotated
+
+### Next: Round 1 Hardening Tasks
+After rotating credentials, proceed with hardening tasks:
+- H3: Wire dataValidationMiddleware (2h)
+- H4: Orchestrator phase flow tests (2h)
+- H5: Pretrade checks unit tests (2h)
+- C5: AdvancedFilters unit tests (3h)
+- C4: ExitEngine tests rewrite (4h)
+
+---
+
 ## ✅ SESSION 88: FINAL PRODUCTION READINESS & AWS DEPLOYMENT
 
 ### Summary
