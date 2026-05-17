@@ -1037,16 +1037,6 @@ class FilterPipeline:
                 except Exception as e:
                     logger.warning(f'Liquidity check error for {symbol}: {e}')
 
-                # Check earnings blackout
-                try:
-                    from algo.algo_earnings_blackout import EarningsBlackout
-                    eb = EarningsBlackout(self.config)
-                    eb_result = eb.run(symbol, signal_date)
-                    if not eb_result.get('pass', True):
-                        return {'pass': False, 'reason': f'Earnings: {eb_result.get("reason", "blackout")}', 'shares': 0}
-                except Exception as e:
-                    logger.warning(f'Earnings check error for {symbol}: {e}')
-
             state = self._load_portfolio_state()
             existing_symbols = state['symbols']
 
