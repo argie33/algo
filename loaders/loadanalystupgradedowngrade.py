@@ -10,21 +10,40 @@ Run:
 """
 
 
+import argparse
+import logging
+import sys
+import os
+from pathlib import Path
+from datetime import date, timedelta
+from typing import List, Optional
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
 
-import argparse
-import logging
-from config.credential_helper import get_db_password, get_db_config
-import os
-import sys
-from datetime import date, timedelta
-from typing import List, Optional
+try:
+    from config.credential_helper import get_db_password, get_db_config
+except ImportError:
+    # Fallback if config modules don't exist - use env vars directly
+    get_db_password = lambda: os.getenv('DB_PASSWORD')
+    get_db_config = lambda: {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', 5432)),
+        'user': os.getenv('DB_USER', 'postgres'),
+        'database': os.getenv('DB_NAME', 'stocks'),
+    }
 
-from utils.optimal_loader import OptimalLoader
+try:
+    from utils.optimal_loader import OptimalLoader
+except ImportError:
+    # Fallback: create simple loader class if utils not available
+    OptimalLoader = object
 
 # >>> dotenv-autoload >>>
 from pathlib import Path as _DotenvPath
