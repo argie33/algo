@@ -49,9 +49,34 @@ class AnalystRatingsLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        # No real analyst ratings API wired yet; return [] to update watermark
-        # without writing placeholder data (STATUS.md 2026-05-10 cleanup)
-        return []
+        """Fetch analyst upgrades/downgrades from yfinance."""
+        try:
+            import yfinance as yf
+        except ImportError:
+            return None
+
+        try:
+            ticker = yf.Ticker(symbol)
+            upgrades_downgrades = ticker.upgrades_downgrades
+
+            if upgrades_downgrades is None or upgrades_downgrades.empty:
+                return None
+
+            results = []
+            for idx, row in upgrades_downgrades.iterrows():
+                ud_date = idx.date() if hasattr(idx, 'date') else idx
+                results.append({
+                    'symbol': symbol,
+                    'date': ud_date,
+                    'firm': row.get('Firm', ''),
+                    'to_grade': row.get('To Grade', ''),
+                    'from_grade': row.get('From Grade'),
+                    'action': row.get('Action', '')
+                })
+
+            return results if results else None
+        except Exception as e:
+            return None
 
     def transform(self, rows):
         return rows

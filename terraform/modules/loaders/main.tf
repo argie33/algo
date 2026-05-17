@@ -155,6 +155,12 @@ locals {
     "naaim_data"                 = "loadnaaim.py"
     "feargreed"                  = "loadfeargreed.py"
     "calendar"                   = "loadcalendar.py"
+    "earnings_calendar"          = "load_earnings_calendar.py"
+    "company_profile"            = "loadcompanyprofile.py"
+    "analyst_sentiment"          = "loadanalystsentiment.py"
+    "analyst_upgrades_downgrades" = "loadanalystupgradedowngrade.py"
+    "sectors"                    = "loadsectors.py"
+    "industry_ranking"           = "loadindustryranking.py"
     "trend_template_data"        = "load_trend_template_data.py"
     "stock_scores"               = "loadstockscores.py"
     "signals_daily"              = "loadbuyselldaily.py"
@@ -287,11 +293,35 @@ locals {
       description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
-    # NOTE: market_overview, sector_performance, relative_performance, social_sentiment,
-    # loadmarket, loadsectors, loadsentiment deleted — no real data sources.
+    # Company and analyst data (11:30am ET) — yfinance API calls, run weekly Sunday
+    "company_profile" = {
+      schedule    = "cron(30 4 ? * MON *)"
+      description = "Company profile (sector, industry, name) - Sunday 11:30pm ET"
+    }
+    "analyst_sentiment" = {
+      schedule    = "cron(40 4 ? * MON *)"
+      description = "Analyst recommendations - Sunday 11:40pm ET"
+    }
+    "analyst_upgrades_downgrades" = {
+      schedule    = "cron(50 4 ? * MON *)"
+      description = "Analyst upgrades/downgrades - Sunday 11:50pm ET"
+    }
+    "sectors" = {
+      schedule    = "cron(0 6 ? * MON *)"
+      description = "Sector performance metrics - Monday 12am ET (uses price_daily)"
+    }
+    "industry_ranking" = {
+      schedule    = "cron(10 6 ? * MON *)"
+      description = "Industry rankings - Monday 12:10am ET"
+    }
+    "earnings_calendar" = {
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings calendar (next 180 days) - Sunday 11pm ET"
+    }
+
+    # NOTE: market_overview, relative_performance, social_sentiment deleted — no real data sources.
     # NOTE: Some loaders are scheduled separately via EventBridge.
     # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
-    # NOTE: analyst_sentiment, analyst_upgrades deleted — no real data sources wired.
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
     # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
@@ -353,6 +383,14 @@ locals {
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
     "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+
+    # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
+    "company_profile"              = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_sentiment"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_upgrades_downgrades"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "sectors"                      = { cpu = 512, memory = 1024, timeout = 600,  parallelism = 4 }
+    "industry_ranking"             = { cpu = 512, memory = 1024, timeout = 600,  parallelism = 4 }
 
     # Market & economic data — small datasets, single-threaded fine
     "market_indices"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
