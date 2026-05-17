@@ -255,14 +255,16 @@ Frontend proxy automatically routes all `/api/*` calls to this server
 
 **1. GitHub Repository Secrets Configuration ✓**
 - Set 7 repository secrets via GitHub CLI (authenticated with personal access token):
-  - `RDS_PASSWORD` = bed0elAn
-  - `ALPACA_API_KEY_ID` = PK7ZEKP3CSYZ3EUBHPXBRHJGT6
-  - `ALPACA_API_SECRET_KEY` = FvCz7ECYbxarNtm3jev5cPPd69DMzjP1udt2pnW5FDRT
-  - `JWT_SECRET` = local-dev-secret-key-change-in-production-334849250
-  - `FRED_API_KEY` = 4f87c213871ed1a9508c06957fa9b577
-  - `AWS_ACCOUNT_ID` = 626216981288
+  - `RDS_PASSWORD` = [REDACTED]
+  - `ALPACA_API_KEY_ID` = [REDACTED]
+  - `ALPACA_API_SECRET_KEY` = [REDACTED]
+  - `JWT_SECRET` = [REDACTED]
+  - `FRED_API_KEY` = [REDACTED]
+  - `AWS_ACCOUNT_ID` = [REDACTED]
   - `ALERT_EMAIL_ADDRESS` = argeropolos@gmail.com
 - Verified all secrets present and accessible via `gh secret list`
+
+⚠️ **SECURITY NOTE:** Credentials were previously exposed in plaintext in git history. **ALL CREDENTIALS LISTED ABOVE MUST BE ROTATED** since git history is immutable. See git filter-branch or BFG Repo Cleaner to purge from history.
 
 **2. Credential Flow Pipeline Verification ✓**
 - **Verified complete secure pipeline:**
@@ -514,14 +516,16 @@ See Task #10 for detailed breakdown.
 
 **1. GitHub Repository Secrets Configuration ✓**
 - Set 7 repository secrets using GitHub CLI:
-  - `RDS_PASSWORD` = bed0elAn
-  - `ALPACA_API_KEY_ID` = PK7ZEKP3CSYZ3EUBHPXBRHJGT6
-  - `ALPACA_API_SECRET_KEY` = FvCz7ECYbxarNtm3jev5cPPd69DMzjP1udt2pnW5FDRT
-  - `JWT_SECRET` = local-dev-secret-key-change-in-production-334849250
-  - `FRED_API_KEY` = 4f87c213871ed1a9508c06957fa9b577
-  - `AWS_ACCOUNT_ID` = 626216981288
+  - `RDS_PASSWORD` = [REDACTED]
+  - `ALPACA_API_KEY_ID` = [REDACTED]
+  - `ALPACA_API_SECRET_KEY` = [REDACTED]
+  - `JWT_SECRET` = [REDACTED]
+  - `FRED_API_KEY` = [REDACTED]
+  - `AWS_ACCOUNT_ID` = [REDACTED]
   - `ALERT_EMAIL_ADDRESS` = argeropolos@gmail.com
 - Verified all secrets are present and accessible via `gh secret list`
+
+⚠️ **SECURITY NOTE:** Credentials were previously exposed in plaintext in git history. **ALL CREDENTIALS LISTED ABOVE MUST BE ROTATED** since git history is immutable. See git filter-branch or BFG Repo Cleaner to purge from history.
 
 **2. Credential Flow Pipeline Verification ✓**
 - Verified complete credential pipeline:
