@@ -117,8 +117,21 @@ def get_db_connection():
         try:
             _db_conn.isolation_level  # lightweight liveness probe
             return _db_conn
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'load creds'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'load creds'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'load creds'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.warning(f"Cached connection dead, reconnecting: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch data')
     try:
         creds = _load_creds()
         # Handle both 'username' and 'user' keys (Secrets Manager vs env vars)
@@ -134,7 +147,21 @@ def get_db_connection():
             options='-c statement_timeout=25000',  # 25s query timeout
         )
         return _db_conn
+    except psycopg2.errors.UndefinedTable as e:
+        logger.error(f'Required table not found: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Data pipeline loading')
+    except psycopg2.errors.UndefinedColumn as e:
+        logger.error(f'Column not found: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Data schema mismatch')
+    except psycopg2.OperationalError as e:
+        logger.error(f'Database connection error: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Database unavailable')
+    except psycopg2.DatabaseError as e:
+        logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Database query failed')
     except Exception as e:
+        logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Failed to fetch data')
         logger.error(f"Database connection failed: {e}")
         raise
 
@@ -295,10 +322,21 @@ def validate_request(model_class: type, data: Dict[str, Any]) -> Tuple[bool, Any
         msg = first_error.get('msg', 'Validation error')
         error_message = f"Invalid {field}: {msg}"
         return False, None, error_message
+    except psycopg2.errors.UndefinedTable as e:
+        logger.error(f'Required table not found: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Data pipeline loading')
+    except psycopg2.errors.UndefinedColumn as e:
+        logger.error(f'Column not found: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Data schema mismatch')
+    except psycopg2.OperationalError as e:
+        logger.error(f'Database connection error: {e}', extra={'operation': 'load creds'})
+        return error_response(503, 'service_unavailable', 'Database unavailable')
+    except psycopg2.DatabaseError as e:
+        logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Database query failed')
     except Exception as e:
-        return False, None, f"Validation failed: {str(e)}"
-
-
+        logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Failed to fetch data')
 def _safe_limit(limit_str: Any, min_val: int = 1, max_val: int = 500, default: int = 100) -> int:
     """Safely extract and clamp limit parameter to prevent DoS attacks via large result sets."""
     try:
@@ -370,8 +408,21 @@ class APIHandler:
             # Roll back any uncommitted transaction so next request starts clean
             if self.conn:
                 self.conn.rollback()
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': ' init  '})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': ' init  '})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': ' init  '})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': ' init  ', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.debug(f"Error during disconnect: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': ' init  ', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch data')
         # Do NOT close self.conn â€” it's the module-level cached connection for reuse
 
     def _safe_limit(self, limit_val, default=200, max_limit=10000) -> int:
@@ -428,7 +479,21 @@ class APIHandler:
             self.cur.execute("SELECT 1 as connectivity_check")
             self.cur.fetchone()
             db_status = 'ok'
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database connection failed')
             logger.error(f"Health check: database unavailable - {e}")
             db_status = 'error'
             return error_response(503, 'service_unavailable', 'Database connection failed')
@@ -535,10 +600,21 @@ class APIHandler:
 
             return error_response(404, 'not_found', f'No handler for {path}')
 
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'health check'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Request failed: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Internal server error')
-
     def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/algo/* endpoints."""
         # Handle PATCH /api/algo/notifications/{id}/read
@@ -555,8 +631,20 @@ class APIHandler:
                 )
                 self.conn.commit()
                 return json_response(200, {'status': 'updated'})
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.error(f"notification mark-read error: {e}")
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to update notification')
         # Handle DELETE /api/algo/notifications/{id}
         if method == 'DELETE' and '/notifications/' in path:
@@ -565,8 +653,20 @@ class APIHandler:
                 self.cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
                 self.conn.commit()
                 return json_response(200, {'status': 'deleted'})
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'handle algo'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.error(f"notification delete error: {e}")
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to delete notification')
         # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
@@ -801,9 +901,21 @@ class APIHandler:
                         cumulative = np.cumprod(1 + portfolio_returns)
                         running_max = np.maximum.accumulate(cumulative)
                         max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'get algo performance'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'get algo performance'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'get algo performance'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'get algo performance', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.debug(f"Could not compute Sharpe/Sortino from snapshots: {e}")
-
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo performance', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Failed to fetch data')
             # Fallback max_dd from cumulative trade returns if snapshots unavailable
             if max_dd == 0.0 and len(pnls_pcts) > 0:
                 daily_returns = np.array(pnls_pcts) / 100.0
@@ -1152,10 +1264,21 @@ class APIHandler:
                     'cash_ok': cash_ok
                 }
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'analyze pre trade impact'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'analyze pre trade impact'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'analyze pre trade impact'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in pre-trade analysis: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to analyze trade impact')
-
     def _trigger_data_patrol(self) -> Dict:
         """Trigger async data patrol ECS task."""
         try:
@@ -1209,10 +1332,21 @@ class APIHandler:
             else:
                 logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
                 return error_response(503, 'service_unavailable', 'Unable to trigger patrol service')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'trigger data patrol'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'trigger data patrol'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'trigger data patrol'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error triggering data patrol: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to trigger data patrol')
-
     def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
         try:
@@ -1228,10 +1362,21 @@ class APIHandler:
             """, (limit, offset))
             findings = self.cur.fetchall()
             return list_response([dict(f) for f in findings], total=total, limit=limit, offset=offset)
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get patrol log'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get patrol log'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get patrol log'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching patrol log: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch patrol log')
-
     def _get_sector_rotation(self, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
         try:
@@ -1290,10 +1435,21 @@ class APIHandler:
             """, (cutoff_date, days, cutoff_date))
             rotation = self.cur.fetchall()
             return list_response([dict(r) for r in rotation])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector rotation'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get sector rotation'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector rotation'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching sector rotation: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
-
     def _get_sector_breadth(self) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
         try:
@@ -1333,10 +1489,21 @@ class APIHandler:
             """)
             breadth = self.cur.fetchall()
             return list_response([dict(b) for b in breadth])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching sector breadth: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
-
     def _get_swing_scores(self, limit: int = 100) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
@@ -1353,10 +1520,21 @@ class APIHandler:
             """, (limit,))
             scores = self.cur.fetchall()
             return list_response([dict(s) for s in scores])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get swing scores'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get swing scores'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_swing_scores failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores')
-
     def _get_swing_scores_history(self, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
@@ -1372,10 +1550,21 @@ class APIHandler:
             """, (cutoff_date,))
             history = self.cur.fetchall()
             return list_response([dict(h) for h in history])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get swing scores history'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get swing scores history'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores history'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_swing_scores_history failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
-
     def _get_rejection_funnel(self) -> Dict:
         """Get signal rejection funnel."""
         try:
@@ -1395,10 +1584,21 @@ class APIHandler:
             """)
             funnel = self.cur.fetchall()
             return list_response([dict(f) for f in funnel])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get rejection funnel'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get rejection funnel'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get rejection funnel'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching rejection funnel: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
-
     def _get_markets(self) -> Dict:
         """Get current market regime data."""
         try:
@@ -1413,10 +1613,21 @@ class APIHandler:
             """)
             markets = self.cur.fetchall()
             return list_response([dict(m) for m in markets])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get markets'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get markets'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get markets'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching markets data: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch markets data')
-
     def _get_algo_evaluate(self) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
         try:
@@ -1439,10 +1650,21 @@ class APIHandler:
                 'top_score': float(row['top_score'] or 0),
                 'avg_score': float(row['avg_score'] or 0),
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo evaluate'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get algo evaluate'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo evaluate'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_algo_evaluate failed: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
-
     def _get_data_quality(self) -> Dict:
         """Get data quality summary from latest data_patrol_log run."""
         try:
@@ -1469,10 +1691,21 @@ class APIHandler:
                 'warn_count': warn_count,
                 'last_check': row['last_check'].isoformat() if row['last_check'] else None,
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_data_quality failed: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to check data quality')
-
     def _get_exposure_policy(self) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
@@ -1494,10 +1727,21 @@ class APIHandler:
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get exposure policy'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get exposure policy'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get exposure policy'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_exposure_policy failed: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
-
     def _get_sector_stage2(self) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""
         try:
@@ -1526,30 +1770,63 @@ class APIHandler:
             """)
             rows = self.cur.fetchall()
             return list_response([dict(r) for r in rows])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector stage2'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get sector stage2'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector stage2'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_sector_stage2 failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector stage 2')
-
     def _get_algo_config(self) -> Dict:
         """Return all algo configuration rows."""
         try:
             self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
             rows = self.cur.fetchall()
             return list_response([dict(r) for r in rows])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo config'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get algo config'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"algo_config error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch algo config')
-
     def _get_algo_config_key(self, key: str) -> Dict:
         """Return a single algo config key."""
         try:
             self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
             row = self.cur.fetchone()
             return json_response(200, dict(row) if row else {})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo config key'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get algo config key'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config key'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"algo_config_key error: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch config key')
-
     def _get_algo_audit_log(self, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
         try:
@@ -1578,10 +1855,21 @@ class APIHandler:
                 """, (limit, offset))
             rows = self.cur.fetchall()
             return json_response(200, {'data': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo audit log'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get algo audit log'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo audit log'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"algo_audit_log error: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit log')
-
     def _handle_financials(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/financials/{symbol}/* endpoints."""
         try:
@@ -1731,10 +2019,21 @@ class APIHandler:
             self.cur.execute(sql, params_tuple)
             rows = self.cur.fetchall()
             return list_response([dict(r) for r in rows], total=len(rows))
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle earnings'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle earnings'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle earnings'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle earnings', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"earnings handler error: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle earnings', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Earnings handler error')
-
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
         if path == '/api/signals/stocks':
@@ -1923,8 +2222,20 @@ class APIHandler:
                 self.cur.execute(query, args)
                 stocks = self.cur.fetchall()
                 return list_response([dict(s) for s in stocks])
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.error(f"stocks list error: {e}")
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch stocks')
         elif path.startswith('/api/stocks/'):
             symbol = path.split('/api/stocks/')[-1]
@@ -1942,8 +2253,20 @@ class APIHandler:
                 """, (symbol.upper(),))
                 row = self.cur.fetchone()
                 return json_response(200, dict(row) if row else {})
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'handle stocks'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.error(f"stock detail error: {e}")
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch stock details')
         else:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
@@ -1992,10 +2315,21 @@ class APIHandler:
             """, (limit,))
             stocks = self.cur.fetchall()
             return list_response([dict(s) for s in stocks])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get deep value stocks'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get deep value stocks'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get deep value stocks'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get deep value stocks', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_deep_value_stocks failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get deep value stocks', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch value stocks')
-
     def _handle_portfolio(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/portfolio/* endpoints."""
         try:
@@ -2039,10 +2373,21 @@ class APIHandler:
                 alloc = self.cur.fetchall()
                 return list_response([dict(a) for a in alloc])
             return error_response(404, 'not_found', f'Unknown portfolio endpoint: {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle portfolio'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle portfolio'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle portfolio'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle portfolio', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle portfolio', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch portfolio allocation')
-
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
@@ -2235,10 +2580,21 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return list_response([dict(r) for r in rows])
             return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle sectors'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle sectors'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle sectors'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle sectors', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in sectors handler: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle sectors', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sectors')
-
     def _handle_industries(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/industries and /api/industries/{name} - return ranking data."""
         try:
@@ -2356,10 +2712,21 @@ class APIHandler:
                     'page': page,
                     'limit': limit,
                 })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle industries'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle industries'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle industries'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle industries', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in industries handler: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle industries', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch industries')
-
     def _handle_market(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/market/* endpoints."""
         try:
@@ -2487,10 +2854,21 @@ class APIHandler:
             elif path == '/api/market/correlation':
                 return json_response(501, {'status': 'not_implemented', 'message': 'Correlation matrix requires additional computation'})
             return error_response(404, 'not_found', f'No market handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle market'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle market'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle market'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"market handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market data')
-
     def _get_fear_greed_history(self, days: int = 30) -> Dict:
         """Get fear/greed index history."""
         try:
@@ -2503,10 +2881,21 @@ class APIHandler:
             """, (cutoff_date,))
             history = self.cur.fetchall()
             return list_response([dict(h) for h in history] if history else [])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get fear greed history'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get fear greed history'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get fear greed history'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sentiment history')
-
     def _get_market_latest(self) -> Dict:
         """Get latest market data including indices, breadth, and sentiment."""
         try:
@@ -2546,10 +2935,21 @@ class APIHandler:
                 result['prices'] = [dict(p) for p in recent_prices]
 
             return json_response(200, result if result else {})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get market latest'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get market latest'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get market latest'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching market latest: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market latest')
-
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
@@ -2585,10 +2985,21 @@ class APIHandler:
                 # Combine all economic data
                 return self._get_leading_indicators()
             return error_response(404, 'not_found', f'No economic handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle economic'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle economic'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle economic'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in economic handler: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch economic data')
-
     def _get_leading_indicators(self) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
@@ -2699,10 +3110,21 @@ class APIHandler:
 
             return json_response(200, {'indicators': indicators})
 
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get leading indicators'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get leading indicators'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get leading indicators'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_leading_indicators error: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch leading indicators')
-
     def _get_yield_curve_full(self) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
@@ -2791,10 +3213,21 @@ class APIHandler:
                 'history': history
             })
 
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get yield curve full'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get yield curve full'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get yield curve full'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"get_yield_curve_full error: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch yield curve')
-
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
         try:
@@ -2864,7 +3297,21 @@ class APIHandler:
             elif path == '/api/sentiment/vix':
                 return self._get_vix_data()
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle sentiment'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle sentiment'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle sentiment'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle sentiment', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle sentiment', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch sentiment data')
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch sentiment data')
 
@@ -2892,8 +3339,20 @@ class APIHandler:
                 'history': history,
                 'signal': 'fear' if latest and latest.get('vix_level', 0) > 25 else 'neutral' if latest and latest.get('vix_level', 0) > 15 else 'greed'
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get vix data'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get vix data'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get vix data'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get vix data', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error fetching VIX data: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get vix data', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch VIX data')
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
@@ -2992,7 +3451,21 @@ class APIHandler:
             self.cur.execute(query, params_list)
             scores = self.cur.fetchall()
             return list_response([dict(s) for s in scores])
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get stock scores'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get stock scores'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get stock scores'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get stock scores', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get stock scores', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch stock scores')
             logger.error(f"get_stock_scores failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch stock scores')
 
@@ -3062,7 +3535,21 @@ class APIHandler:
                     'trade_pagination': {'total': total_trades_count}
                 })
             return error_response(404, 'not_found', f'No research handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle research'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle research'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle research'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle research', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle research', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch backtest results')
             logger.error(f"get_backtests failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch backtest results')
 
@@ -3152,10 +3639,21 @@ class APIHandler:
                 })
 
             return error_response(404, 'not_found', f'No audit handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle audit'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle audit'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle audit'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle audit', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"Error in audit handler: {e}", exc_info=True)
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle audit', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit data')
-
     def _handle_trades(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/trades and /api/trades/* endpoints."""
         try:
@@ -3203,7 +3701,21 @@ class APIHandler:
                 summary = self.cur.fetchone()
                 return json_response(200, dict(summary) if summary else {})
             return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle trades'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle trades'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle trades'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle trades', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle trades', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to fetch trades')
             logger.error(f"Error in trades handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch trades')
 
@@ -3235,10 +3747,21 @@ class APIHandler:
                 self.conn.commit()
                 return json_response(200, {'status': 'submitted', 'message': 'Contact form submission received'})
             return error_response(404, 'not_found', f'No handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle contact'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle contact'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle contact'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle contact', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"contact handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle contact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Contact handler error')
-
     def _handle_admin(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
@@ -3251,10 +3774,21 @@ class APIHandler:
             elif path == '/api/admin/data-quality':
                 return self._get_data_quality()
             return error_response(404, 'not_found', f'No admin handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle admin'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle admin'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle admin'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"admin handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Admin handler error')
-
     def _get_loader_status(self) -> Dict:
         """Get status of all data loaders from data_loader_runs table."""
         try:
@@ -3313,10 +3847,21 @@ class APIHandler:
                     'failed': len([l for l in loaders if l['status'] == 'failed']),
                 }
             })
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get loader status'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get loader status'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get loader status'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"loader status query failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch loader status')
-
     def _get_system_health(self) -> Dict:
         """Get overall system health status."""
         try:
@@ -3326,7 +3871,21 @@ class APIHandler:
             try:
                 self.cur.execute("SELECT 1")
                 health_data['components']['database'] = 'ok'
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'get system health'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'get system health'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'get system health'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Failed to fetch data')
                 logger.error(f"Database health check failed: {e}")
                 health_data['components']['database'] = 'error'
                 health_data['status'] = 'degraded'
@@ -3360,10 +3919,21 @@ class APIHandler:
             health_data['tables'] = table_counts
             health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, health_data)
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get system health'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get system health'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get system health'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"system health check failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get system health')
-
     def _get_database_stats(self) -> Dict:
         """Get database statistics."""
         try:
@@ -3399,10 +3969,21 @@ class APIHandler:
 
             stats['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, stats)
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get database stats'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get database stats'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get database stats'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"database stats query failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get database stats')
-
     def _get_data_quality(self) -> Dict:
         """Get data quality metrics."""
         try:
@@ -3439,44 +4020,99 @@ class APIHandler:
             quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
 
             return json_response(200, quality)
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"data quality check failed: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get data quality metrics')
-
     def _handle_notifications(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/notifications/* endpoints."""
         try:
             if path == '/api/notifications' or path == '/api/notifications/':
                 return json_response(200, {'items': [], 'status': 'no_notifications'})
             return error_response(404, 'not_found', f'No notifications handler for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle notifications'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle notifications'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle notifications'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle notifications', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"notifications handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Notifications handler error')
-
     def _handle_metrics(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/metrics/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Metrics feature requires additional setup'})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle metrics'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle metrics'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle metrics'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle metrics', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"metrics handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle metrics', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Metrics handler error')
-
     def _handle_articles(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/articles/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Articles feature requires additional setup'})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle articles'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle articles'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle articles'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle articles', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"articles handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle articles', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Articles handler error')
-
     def _handle_simulator(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/simulator/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Simulator feature requires additional setup'})
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle simulator'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle simulator'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle simulator'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle simulator', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f"simulator handler error: {e}")
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle simulator', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Simulator handler error')
-
     def _handle_settings(self, path: str, method: str, params: Dict, body: Dict) -> Dict:
         """Handle /api/settings endpoints for user preferences."""
         try:
@@ -3485,7 +4121,21 @@ class APIHandler:
             elif method == 'POST':
                 return json_response(200, {'status': 'ok', 'message': 'Settings saved'})
             return error_response(405, 'method_not_allowed', f'Method {method} not allowed for {path}')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}', extra={'operation': 'handle settings'})
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.error(f'Column not found: {e}', extra={'operation': 'handle settings'})
+            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'handle settings'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Settings handler error')
             logger.error(f"settings handler error: {e}")
             return error_response(500, 'internal_error', 'Settings handler error')
 
@@ -3581,10 +4231,21 @@ def lambda_handler(event, context):
                     return error_response(401, 'unauthorized', error_msg)
 
                 api_key_info = app_info
+            except psycopg2.errors.UndefinedTable as e:
+                logger.error(f'Required table not found: {e}', extra={'operation': 'handle settings'})
+                return error_response(503, 'service_unavailable', 'Data pipeline loading')
+            except psycopg2.errors.UndefinedColumn as e:
+                logger.error(f'Column not found: {e}', extra={'operation': 'handle settings'})
+                return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            except psycopg2.OperationalError as e:
+                logger.error(f'Database connection error: {e}', extra={'operation': 'handle settings'})
+                return error_response(503, 'service_unavailable', 'Database unavailable')
+            except psycopg2.DatabaseError as e:
+                logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Database query failed')
             except Exception as e:
-                logger.error(f"API key validation error: {e}")
-                return error_response(500, 'unauthorized', 'Authentication check failed')
-
+                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+                return error_response(500, 'internal_error', 'Authentication check failed')
         # Route to handler
         handler = APIHandler()
         handler.connect()
@@ -3595,7 +4256,21 @@ def lambda_handler(event, context):
 
         return response
 
+    except psycopg2.errors.UndefinedTable as e:
+        logger.error(f'Required table not found: {e}', extra={'operation': 'handle settings'})
+        return error_response(503, 'service_unavailable', 'Data pipeline loading')
+    except psycopg2.errors.UndefinedColumn as e:
+        logger.error(f'Column not found: {e}', extra={'operation': 'handle settings'})
+        return error_response(503, 'service_unavailable', 'Data schema mismatch')
+    except psycopg2.OperationalError as e:
+        logger.error(f'Database connection error: {e}', extra={'operation': 'handle settings'})
+        return error_response(503, 'service_unavailable', 'Database unavailable')
+    except psycopg2.DatabaseError as e:
+        logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Database query failed')
     except Exception as e:
+        logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
+        return error_response(500, 'internal_error', 'Internal server error')
         logger.error(f"Lambda handler error: {e}", exc_info=True)
         return error_response(500, 'internal_error', 'Internal server error')
 
