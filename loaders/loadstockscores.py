@@ -143,34 +143,50 @@ class StockScoresLoader(OptimalLoader):
         positioning_score = 50 + ((ret_5 + ret_10 + ret_20) / 3)
         positioning_score = max(0, min(100, positioning_score))
 
-        # Growth score: volatility-adjusted momentum (higher momentum with lower volatility = higher growth score)
-        growth_score = 50 + (momentum_pct * 0.8 - (volatility * 0.2))
-        growth_score = max(0, min(100, growth_score))
+        # Growth score: volatility-adjusted momentum (NOT fundamental growth rate)
+        # Equation: 50 + (momentum% * 0.8 - volatility * 0.2)
+        momentum_composite = 50 + (momentum_pct * 0.8 - (volatility * 0.2))
+        growth_score = max(0, min(100, momentum_composite))
 
-        # Quality score: from fundamental metrics if available, otherwise stability
+        # Quality score: from fundamental metrics if available, otherwise None (exclude from composite)
         _qs = self._compute_quality_score(quality_metrics)
-        quality_score = _qs if _qs is not None else stability_score
+        quality_score = _qs  # None if no quality_metrics — will exclude from weights
 
         # Value score: from P/E and P/B ratios if available, otherwise None (exclude from composite)
         _vs = self._compute_value_score(value_metrics)
-        value_score = _vs if _vs is not None else 50.0  # Default neutral if no value metrics
+        value_score = _vs  # None if no value_metrics — will exclude from weights
 
-        # Composite: weighted average — 6 factors combining technical + fundamental metrics
-        composite_score = (
-            momentum_score * 0.20 +      # 20% momentum (63-day momentum)
-            growth_score * 0.19 +        # 19% growth (momentum + vol-adjusted)
-            stability_score * 0.19 +     # 19% stability (inverse volatility)
-            value_score * 0.12 +         # 12% value (P/E and P/B valuation metrics)
-            positioning_score * 0.15 +   # 15% positioning (recent returns, trend strength)
-            quality_score * 0.15         # 15% quality (fundamental: margins, ROE, leverage, liquidity)
-        )
+        # Composite: weighted average with dynamic renormalization
+        # Only include components with real data; renormalize weights to sum to 1.0
+        # Original weights (must sum to 1.0):
+        weights = {
+            'momentum': (momentum_score, 0.20),
+            'growth': (growth_score, 0.19),
+            'stability': (stability_score, 0.19),
+            'value': (value_score, 0.12),
+            'positioning': (positioning_score, 0.15),
+            'quality': (quality_score, 0.15),
+        }
+
+        # Filter to only include components with non-None values
+        available = [(v, w) for v, w in weights.values() if v is not None]
+
+        if available:
+            total_weight = sum(w for _, w in available)
+            composite_score = sum(v * w for v, w in available) / total_weight if total_weight > 0 else 50.0
+            data_completeness = total_weight  # 1.0 = all 6 present, 0.85 = 5 of 6, etc.
+        else:
+            composite_score = 50.0  # Fallback: all data missing
+            data_completeness = 0.0
 
         def _safe(v, default=50.0):
             try:
+                if v is None:
+                    return None
                 f = float(v)
-                return f if pd.notna(f) else default
+                return f if pd.notna(f) else None
             except (TypeError, ValueError):
-                return default
+                return None
 
         score_row = {
             "symbol": symbol,
@@ -181,6 +197,7 @@ class StockScoresLoader(OptimalLoader):
             "quality_score": _safe(quality_score),
             "positioning_score": _safe(positioning_score),
             "composite_score": _safe(composite_score),
+            "data_completeness": round(data_completeness, 2),  # 0.0-1.0 indicating data coverage
             "updated_at": str(date.today()),
         }
         return [score_row]  # Return single-item list as before

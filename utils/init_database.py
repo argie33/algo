@@ -396,11 +396,12 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     symbol VARCHAR(20) NOT NULL UNIQUE,
     composite_score DECIMAL(8, 2),
     quality_score DECIMAL(8, 2),
-    growth_score DECIMAL(8, 2),
+    growth_score DECIMAL(8, 2),  -- Note: volatility-adjusted momentum, not fundamental growth
     stability_score DECIMAL(8, 2),
     value_score DECIMAL(8, 2),
     momentum_score DECIMAL(8, 2),
     positioning_score DECIMAL(8, 2),
+    data_completeness DECIMAL(3, 2),  -- 0.0-1.0: fraction of score components with real data (1.0 = all 6 present)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
