@@ -47,6 +47,12 @@ tier_2_reference = [
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
+    # Company and sentiment data
+    'loadcompanyprofile.py', 'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
+    # Calendar and economic data
+    'loadcalendar.py', 'load_earnings_calendar.py',
+    # Sector and industry data
+    'loadsectors.py', 'loadindustryranking.py', 'loadnaaim.py',
 ]
 
 # Tier 2c: TTM aggregates (depends on quarterly financials from tier 2)

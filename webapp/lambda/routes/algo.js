@@ -104,11 +104,7 @@ router.get('/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /algo/status:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date()
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -241,8 +237,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
 
     const sf = (v) => v == null ? null : parseFloat(v);
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(row => {
         const entry = sf(row.avg_entry_price);
         const current = sf(row.current_price);
@@ -313,16 +308,11 @@ router.get('/positions', authenticateToken, async (req, res) => {
       pagination: {
         total: result.rows.length,
         count: result.rows.length
-      },
-      timestamp: new Date()
+      }
     });
   } catch (error) {
     console.error('Error in /algo/positions:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date()
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -360,8 +350,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
       pool.query('SELECT COUNT(*) as total FROM algo_trades')
     ]);
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(row => ({
         ...row,
         entry_price: parseFloat(row.entry_price),
@@ -374,16 +363,11 @@ router.get('/trades', authenticateToken, async (req, res) => {
         offset,
         page: Math.floor(offset / limit) + 1,
         totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
-      },
-      timestamp: new Date()
+      }
     });
   } catch (error) {
     console.error('Error in /algo/trades:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date()
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -418,18 +402,10 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
       };
     });
 
-    return res.json({
-      success: true,
-      data: config,
-      timestamp: new Date()
-    });
+    return sendSuccess(res, { data: config });
   } catch (error) {
     console.error('Error in /algo/config:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date()
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -498,8 +474,7 @@ router.get('/markets', async (req, res) => {
       policy = tiers.find(t => exposurePct >= t.min && exposurePct <= t.max) || tiers[0];
     }
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         current: latest ? {
           date: latest.date,
@@ -531,16 +506,11 @@ router.get('/markets', async (req, res) => {
           bearish: parseFloat(r.bearish || 0),
           neutral: parseFloat(r.neutral || 0),
         })),
-      },
-      timestamp: new Date(),
+      }
     });
   } catch (error) {
     console.error('Error in /algo/markets:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -579,8 +549,7 @@ router.get('/swing-scores', async (req, res) => {
       params
     );
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => {
         const score = parseFloat(r.score);
         let grade = 'C';
@@ -602,16 +571,11 @@ router.get('/swing-scores', async (req, res) => {
           sector: r.sector,
           industry: r.industry,
         };
-      }),
-      timestamp: new Date().toISOString(),
+      })
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -637,8 +601,7 @@ router.get('/swing-scores-history', async (req, res) => {
       [days]
     );
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         eval_date: r.eval_date,
         date: r.eval_date,
@@ -650,8 +613,7 @@ router.get('/swing-scores-history', async (req, res) => {
         high_scores: parseInt(r.score_high),
         medium_scores: parseInt(r.score_medium),
         avg_score: parseFloat(r.avg_score),
-      })),
-      timestamp: new Date().toISOString(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/swing-scores-history:', error);
@@ -721,8 +683,7 @@ router.get('/data-status', async (req, res) => {
     // Only mark ready_to_trade true if we actually have data rows to check
     const ready_to_trade = result.rows.length > 0 && criticalStale.length === 0;
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         summary: counts,
         critical_stale: criticalStale.map(r => r.table_name),
@@ -738,16 +699,11 @@ router.get('/data-status', async (req, res) => {
           last_audit: null,
           error: null,
         })),
-      },
-      timestamp: new Date(),
+      }
     });
   } catch (error) {
     console.error('Error in /algo/data-status:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -798,22 +754,16 @@ router.get('/exposure-policy', async (req, res) => {
       ? tiers.find(t => exp >= t.min_pct && exp <= t.max_pct)
       : null;
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         current_exposure_pct: exp,
         active_tier: active,
         all_tiers: tiers,
-      },
-      timestamp: new Date(),
+      }
     });
   } catch (error) {
     console.error('Error in /algo/exposure-policy:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -868,23 +818,17 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
       });
     });
 
-    return res.json({
-      success: result.exitCode === 0,
+    return sendSuccess(res, {
       run_id: runId,
       dry_run: dryRun,
       date: date || 'auto',
       exit_code: result.exitCode,
       timeout: result.timeout || false,
-      output: result.output.join(''),
-      timestamp: new Date(),
+      output: result.output.join('')
     });
   } catch (error) {
     console.error('Error in /algo/run:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -923,20 +867,14 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
       });
     });
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       ready_to_trade: result.exitCode === 0,
       exit_code: result.exitCode,
-      output: result.output.join(''),
-      timestamp: new Date(),
+      output: result.output.join('')
     });
   } catch (error) {
     console.error('Error in /algo/patrol:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -962,8 +900,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
       [allowedSevs, limit]
     );
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         id: r.id,
         run_id: r.patrol_run_id,
@@ -973,16 +910,11 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
         message: r.message,
         details: r.details,
         created_at: r.created_at,
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/patrol-log:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 

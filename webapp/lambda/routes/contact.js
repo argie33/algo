@@ -58,7 +58,7 @@ router.post("/", async (req, res) => {
     const result = await query(
       `INSERT INTO contact_submissions (name, email, subject, message, submitted_at, status)
        VALUES ($1, $2, $3, $4, NOW(), 'new')
-       RETURNING id, created_at`,
+       RETURNING id, submitted_at`,
       [name, email, subject || null, message]
     );
 
@@ -69,7 +69,7 @@ router.post("/", async (req, res) => {
     return sendSuccess(res, {
       success: true,
       submission_id: submissionId,
-      submitted_at: result.rows[0].created_at,
+      submitted_at: result.rows[0].submitted_at,
       message: "Thank you for your message! We'll get back to you soon."
     }, 201);
 

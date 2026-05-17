@@ -23,11 +23,7 @@ router.get('/', async (req, res, next) => {
 
     // Validate dataType
     if (!['stocks', 'etf'].includes(dataType)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid dataType. Must be 'stocks' or 'etf'",
-        timestamp: new Date().toISOString()
-      });
+      return sendError(res, "Invalid dataType. Must be 'stocks' or 'etf'", 400);
     }
 
     // Map dataType to table name
@@ -70,8 +66,7 @@ router.get('/', async (req, res, next) => {
 
     const result = await query(q, [...params, parseInt(limit), parseInt(offset)]);
 
-    res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows,
       pagination: {
         limit: parseInt(limit),
@@ -81,8 +76,7 @@ router.get('/', async (req, res, next) => {
         totalPages: Math.ceil(total / parseInt(limit)),
         hasNext: parseInt(offset) + parseInt(limit) < total,
         hasPrev: parseInt(offset) > 0
-      },
-      timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     next(error);
@@ -112,11 +106,7 @@ router.get('/:symbol', async (req, res, next) => {
 
     const result = await query(q, [symbol.toUpperCase(), parseInt(limit), parseInt(offset)]);
 
-    res.json({
-      success: true,
-      items: result.rows,
-      timestamp: new Date().toISOString()
-    });
+    return sendSuccess(res, { items: result.rows });
   } catch (error) {
     next(error);
   }

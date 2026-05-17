@@ -209,10 +209,7 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching trades:', error.message || error);
-    res.status(500).json({
-      error: 'Failed to fetch trades',
-      success: false
-    });
+    return sendError(res, 'Failed to fetch trades', 500);
   }
 });
 
@@ -327,10 +324,7 @@ router.get('/summary', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching trade summary:', error);
-    res.status(500).json({
-      error: 'Failed to fetch trade summary',
-      success: false
-    });
+    return sendError(res, 'Failed to fetch trade summary', 500);
   }
 });
 
