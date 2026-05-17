@@ -46,8 +46,8 @@ class TestFilterPipeline(unittest.TestCase):
         mock_get_db_connection.return_value = mock_conn
 
         # Pipeline should handle empty input gracefully
-        result = self.pipeline.get_signals_for_date(date.today())
-        self.assertIsInstance(result, (list, dict))
+        result = self.pipeline.evaluate_signals(eval_date=date.today())
+        self.assertIsInstance(result, list)
 
     def test_signal_sorting_by_score(self):
         """Test that signals are sorted by composite_score descending."""

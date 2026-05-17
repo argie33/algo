@@ -46,7 +46,7 @@ import os
 import logging
 from utils.db_connection import get_db_connection
 from pathlib import Path
-from datetime import datetime, timedelta, date as _date
+from datetime import date as _date
 from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)

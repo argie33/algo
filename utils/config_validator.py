@@ -8,16 +8,15 @@ Provides clear error messages for missing/invalid values.
 
 import os
 import sys
-from pathlib import Path
+import os
 from typing import Dict, List, Any, Optional
 import logging
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigValidator:
-    """Validate application configuration."""
+    """Validate application configuration (environment variables only)."""
 
     # Required environment variables and their validation rules
     REQUIRED_CONFIG = {
@@ -25,7 +24,7 @@ class ConfigValidator:
         'DB_HOST': {'type': str, 'default': 'localhost'},
         'DB_PORT': {'type': int, 'default': 5432, 'min': 1, 'max': 65535},
         'DB_USER': {'type': str},  # Required
-        'DB_PASSWORD': {'type': str},  # Required (can be empty for local dev)
+        'DB_PASSWORD': {'type': str},  # Required (from env or AWS Secrets Manager)
         'DB_NAME': {'type': str, 'default': 'stocks'},
 
         # Alpaca Trading
@@ -54,22 +53,14 @@ class ConfigValidator:
         """Initialize validator.
 
         Args:
-            env_file: Path to .env file to load (optional)
+            env_file: Deprecated, ignored. All credentials come from environment variables.
         """
         self.errors: List[str] = []
         self.warnings: List[str] = []
         self.config: Dict[str, Any] = {}
 
-        if env_file and Path(env_file).exists():
-            self._load_env_file(env_file)
-
-    def _load_env_file(self, env_file):
-        """Load environment from .env file."""
-        try:
-            load_dotenv(str(env_file), override=True)
-            logger.debug(f"Loaded environment from {env_file}")
-        except Exception as e:
-            self.warnings.append(f"Could not load {env_file}: {e}")
+        if env_file:
+            logger.warning("env_file parameter is deprecated and ignored. Use environment variables only.")
 
     def validate(self) -> bool:
         """Validate all configuration.

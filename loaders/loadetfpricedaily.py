@@ -78,15 +78,10 @@ class ETFPriceDailyLoader(OptimalLoader):
 def get_active_etf_symbols() -> List[str]:
     """Pull active ETF symbols from database or use defaults."""
     from utils.db_connection import get_db_connection
+    import psycopg2
     conn = None
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
-            password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
-        )
+        conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]
