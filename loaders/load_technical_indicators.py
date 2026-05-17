@@ -364,8 +364,8 @@ def process_symbol(symbol, watermark, conn_params):
                       sma_20=EXCLUDED.sma_20, sma_50=EXCLUDED.sma_50, sma_200=EXCLUDED.sma_200,
                       ema_12=EXCLUDED.ema_12, ema_26=EXCLUDED.ema_26, atr=EXCLUDED.atr
                 """, validated_tuples,
-                    template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())")
-                    conn.commit()
+                template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())")
+                conn.commit()
 
         conn.close()
         return symbol, len(validated_tuples) if 'validated_tuples' in locals() else 0, None

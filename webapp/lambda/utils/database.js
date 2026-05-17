@@ -61,8 +61,7 @@ async function getDbConfig() {
             secret = JSON.parse(result.SecretString);
           } catch (parseError) {
             throw new Error(
-              `Secret parsing failed: ${parseError.message}`
-            );
+              console.log(`Secret parsing failed: ${parseError.message}`);
           }
         } else if (result.SecretString === undefined && result.SecretBinary) {
           try {
@@ -72,13 +71,11 @@ async function getDbConfig() {
             secret = JSON.parse(decoded);
           } catch (decodeError) {
             throw new Error(
-              `Secret binary decoding failed: ${decodeError.message}`
-            );
+              console.log(`Secret binary decoding failed: ${decodeError.message}`);
           }
         } else {
           throw new Error(
-            `Unexpected SecretString type: ${typeof result.SecretString}`
-          );
+            console.log(`Unexpected SecretString type: ${typeof result.SecretString}`);
         }
 
         dbConfig = {
@@ -110,8 +107,7 @@ async function getDbConfig() {
         };
 
         console.log(
-          `Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
-        );
+          console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
         return dbConfig;
       } catch (secretError) {
         console.warn(
@@ -163,8 +159,7 @@ async function getDbConfig() {
       };
 
       console.log(
-        `Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
-      );
+        console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
       return dbConfig;
     }
 

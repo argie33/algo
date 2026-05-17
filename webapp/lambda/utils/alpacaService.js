@@ -483,8 +483,7 @@ class AlpacaService {
         return null;
       }
 
-        `✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`
-      );
+        console.log(`✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
 
       return {
         symbol: symbol,
@@ -522,8 +521,7 @@ class AlpacaService {
         return null;
       }
 
-        `✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`
-      );
+        console.log(`✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
 
       return {
         symbol: symbol,
@@ -613,8 +611,7 @@ class AlpacaService {
 
       const clock = await this.client.getClock();
 
-        `✅ Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`
-      );
+        console.log(`✅ Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
 
       return {
         timestamp: clock.timestamp,
@@ -876,8 +873,7 @@ class AlpacaService {
     } catch (error) {
       console.error("Error fetching position:", error.message);
       throw new Error(
-        `Failed to fetch position for ${symbol}: ${error.message}`
-      );
+        console.log(`Failed to fetch position for ${symbol}: ${error.message}`);
     }
   }
 
@@ -929,8 +925,7 @@ class AlpacaService {
     } catch (error) {
       console.error("Error fetching last trade:", error.message);
       throw new Error(
-        `Failed to fetch last trade for ${symbol}: ${error.message}`
-      );
+        console.log(`Failed to fetch last trade for ${symbol}: ${error.message}`);
     }
   }
 

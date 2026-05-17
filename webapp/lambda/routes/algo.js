@@ -747,8 +747,7 @@ router.get('/exposure-policy', async (req, res) => {
 
     // Find active tier from latest exposure
     const latest = await pool.query(
-      `SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1`
-    );
+      console.log(`SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1`);
     const exp = latest.rows[0] ? parseFloat(latest.rows[0].exposure_pct) : null;
     const active = exp !== null
       ? tiers.find(t => exp >= t.min_pct && exp <= t.max_pct)

@@ -51,12 +51,11 @@ router.get("/submissions", requireAuth, requireAdmin, async (req, res) => {
 
     // Check if contact_submissions table exists
     const tableExists = await query(
-      `SELECT EXISTS (
+      console.log(`SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
         AND table_name = 'contact_submissions'
-      )`
-    );
+      )`);
 
     if (!tableExists.rows[0]?.exists) {
       // Table doesn't exist - return empty result
@@ -67,11 +66,10 @@ router.get("/submissions", requireAuth, requireAdmin, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT id, name, email, subject, message, status, submitted_at, reviewed_at
+      console.log(`SELECT id, name, email, subject, message, status, submitted_at, reviewed_at
        FROM contact_submissions
        ORDER BY submitted_at DESC
-       LIMIT 100`
-    );
+       LIMIT 100`);
 
     return sendSuccess(res, {
       submissions: result.rows || [],

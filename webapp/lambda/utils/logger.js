@@ -57,8 +57,7 @@ class Logger {
     if (this.environment === 'production') {
     } else {
       const { timestamp, level, message, service } = logEntry;
-        `[${timestamp}] [${level}] [${service}] ${message}`
-      );
+        console.log(`[${timestamp}] [${level}] [${service}] ${message}`);
       // Log additional context if present
       const contextKeys = Object.keys(logEntry).filter(
         (k) => !['timestamp', 'level', 'message', 'service', 'version', 'environment', 'correlationId'].includes(k)

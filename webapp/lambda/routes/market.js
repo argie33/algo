@@ -319,8 +319,7 @@ async function getFullSeasonalityData() {
   let sectorSeasonality = [];
   try {
     const sectorResult = await query(
-      `SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`
-    );
+      console.log(`SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`);
     if (sectorResult && sectorResult.rows && sectorResult.rows.length > 0) {
       sectorSeasonality = sectorResult.rows.map((r) => ({
         sector: r.sector
@@ -1167,8 +1166,7 @@ router.get("/seasonality", async (req, res) => {
     let sectorSeasonality = [];
     try {
       const sectorResult = await query(
-        `SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`
-      );
+        console.log(`SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`);
       if (sectorResult && sectorResult.rows && sectorResult.rows.length > 0) {
         sectorSeasonality = sectorResult.rows.map((r) => ({
           sector: r.sector
@@ -1476,8 +1474,7 @@ router.get("/correlation", async (req, res) => {
   try {
     const { symbols, period = "1M", limit: _limit = 50 } = req.query;
 
-      `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
-    );
+      console.log(`📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`);
 
     // Generate correlation matrix from market_data table (faster)
     const generateCorrelationMatrix = async (targetSymbols, period) => {
@@ -1629,8 +1626,7 @@ router.get("/correlation", async (req, res) => {
               }
             } catch (e) {
               console.warn(
-                `⚠️  Error calculating correlation for ${symbol1}-${symbol2}: ${e.message}`
-              );
+                console.log(`⚠️  Error calculating correlation for ${symbol1}-${symbol2}: ${e.message}`);
               correlation = null;
             }
 

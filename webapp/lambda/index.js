@@ -882,8 +882,7 @@ if (!isLambdaEnvironment) {
   // Local development or EC2 - start HTTP server
   server.listen(PORT, '::', () => {
     console.log(
-      `✅ Financial Dashboard API running on port ${PORT}`
-    );
+      console.log(`✅ Financial Dashboard API running on port ${PORT}`);
 
     // Initialize Alpaca portfolio sync scheduler
     // Syncs every 10 minutes automatically

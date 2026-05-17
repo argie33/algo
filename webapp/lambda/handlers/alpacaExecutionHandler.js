@@ -213,8 +213,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     }
 
     // Summary
-      `✅ Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`
-    );
+      console.log(`✅ Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`);
 
     return {
       success: executedTrades.length > 0,

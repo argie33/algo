@@ -285,8 +285,7 @@ router.get("/aaii", async (req, res) => {
 
     try {
       const aaiiResult = await query(
-        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
-      );
+        console.log(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`);
       aaii = aaiiResult.rows[0] || null;
     } catch (e) {
       console.warn("aaii_sentiment table not available:", e.message);

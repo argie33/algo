@@ -54,8 +54,7 @@ async function performAlpacaSync() {
 
       // Rate limit: don't sync more frequently than MIN_SYNC_INTERVAL
       if (lastSyncTime && now - lastSyncTime < MIN_SYNC_INTERVAL) {
-          `⏳ Skipping sync (too recent, last: ${Math.round((now - lastSyncTime) / 1000)}s ago)`
-        );
+          console.log(`⏳ Skipping sync (too recent, last: ${Math.round((now - lastSyncTime) / 1000)}s ago)`);
         return { status: "skipped", reason: "rate_limit" };
       }
 
@@ -84,8 +83,7 @@ async function performAlpacaSync() {
         return { status: "error", reason: "fetch_failed" };
       }
 
-        `✅ [CRON] Retrieved ${positions.length} positions from Alpaca`
-      );
+        console.log(`✅ [CRON] Retrieved ${positions.length} positions from Alpaca`);
 
       // Batch database operations for better performance
       try {
@@ -148,8 +146,7 @@ async function performAlpacaSync() {
 
         lastSyncTime = now;
 
-          `✅ [CRON] Portfolio sync complete: $${portfolioValue?.toFixed(2)} portfolio value`
-        );
+          console.log(`✅ [CRON] Portfolio sync complete: $${portfolioValue?.toFixed(2)} portfolio value`);
 
         return {
           status: "success",

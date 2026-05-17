@@ -465,8 +465,7 @@ class AIStrategyGenerator {
     // If no matches found, require symbol data service configuration
     if (filtered.length === 0) {
       throw new Error(
-        `No symbols match intent criteria for assets: ${intent.assets.join(", ")}. Symbol data service needs configuration for proper asset type filtering.`
-      );
+        console.log(`No symbols match intent criteria for assets: ${intent.assets.join(", ")}. Symbol data service needs configuration for proper asset type filtering.`);
     }
 
     return filtered.slice(0, 10); // Limit to 10 symbols
@@ -846,8 +845,7 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
 
     return code.replace(
       /position_size = parameters\.get\('position_size', [0-9.]+\)/,
-      `position_size = parameters.get('position_size', ${positionSize})`
-    );
+      console.log(`position_size = parameters.get('position_size', ${positionSize})`);
   }
 
   /**
@@ -1793,36 +1791,30 @@ and incorporates sophisticated quantitative finance techniques.
     const reasons = [];
 
     reasons.push(
-      `Selected ${strategy.strategyType} strategy based on your requirements`
-    );
+      console.log(`Selected ${strategy.strategyType} strategy based on your requirements`);
 
     if (intent.indicators.length > 0) {
       reasons.push(
-        `Incorporated ${intent.indicators.join(", ")} indicators as specified`
-      );
+        console.log(`Incorporated ${intent.indicators.join(", ")} indicators as specified`);
     }
 
     if (intent.assets.length > 0) {
       reasons.push(
-        `Focused on ${intent.assets.join(", ")} assets per your preference`
-      );
+        console.log(`Focused on ${intent.assets.join(", ")} assets per your preference`);
     }
 
     if (intent.strategyStyle !== "balanced") {
       reasons.push(
-        `Designed with ${intent.strategyStyle} approach to match risk tolerance`
-      );
+        console.log(`Designed with ${intent.strategyStyle} approach to match risk tolerance`);
     }
 
     if (intent.complexityScore > 3) {
       reasons.push(
-        `Implemented advanced features due to high complexity requirements`
-      );
+        console.log(`Implemented advanced features due to high complexity requirements`);
     }
 
     reasons.push(
-      `Optimized parameters based on AI analysis of market conditions`
-    );
+      console.log(`Optimized parameters based on AI analysis of market conditions`);
 
     return reasons.join(". ") + ".";
   }
