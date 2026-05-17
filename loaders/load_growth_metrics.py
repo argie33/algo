@@ -39,18 +39,7 @@ class GrowthMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute multi-year growth metrics from annual income statement."""
         try:
-            from utils.db_connection import get_db_connection
-        except ImportError:
-            return None
-
-        try:
-            conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-                port=int(os.getenv("DB_PORT", 5432)),
-                user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-                password=get_db_password(),
-                database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-            )
+            conn = self._connect()
             cur = conn.cursor()
 
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
@@ -64,7 +53,6 @@ class GrowthMetricsLoader(OptimalLoader):
 
             rows = cur.fetchall()
             cur.close()
-            conn.close()
 
             if not rows or len(rows) < 1:
                 return None

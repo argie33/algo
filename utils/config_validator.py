@@ -10,6 +10,7 @@ import os
 import sys
 from typing import Dict, List, Any, Optional
 import logging
+from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 
 logger = logging.getLogger(__name__)
 

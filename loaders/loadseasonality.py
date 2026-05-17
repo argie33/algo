@@ -19,8 +19,8 @@ import psycopg2
 from collections import defaultdict
 from datetime import date as dtdate
 
-from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
+from utils.db_connection import get_db_connection
 from utils.logging_setup import get_logger
 
 try:
@@ -41,13 +41,7 @@ DOW_NAMES = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Frida
 
 
 def _connect():
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "stocks"),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
+    return get_db_connection()
 
 
 def _fetch_spy_prices(conn):

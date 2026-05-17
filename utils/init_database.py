@@ -22,24 +22,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
-# Get DB password from environment first, fall back to credential manager if needed
-db_password = os.getenv("DB_PASSWORD")
-if not db_password:
-    try:
-        from config.credential_manager import get_credential_manager
-        credential_manager = get_credential_manager()
-        db_password = get_db_password()
-    except Exception:
-        db_password = DEFAULT_DB_USER  # Default for local dev
-
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", DEFAULT_DB_NAME),
-    "password": db_password,
-    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
-}
+# Use centralized DB config from credential_helper (handles all fallbacks)
+DB_CONFIG = get_db_config()
 
 SCHEMA = """
 -- ════════════════════════════════════════════════════════════════════════════

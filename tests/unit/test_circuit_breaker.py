@@ -24,8 +24,6 @@ class TestDrawdownCircuitBreaker:
 
     def test_no_halt_under_threshold(self, test_config):
         """Drawdown 15% should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
-
         cb = CircuitBreaker(test_config)
 
         with patch.object(cb, 'connect'), \
