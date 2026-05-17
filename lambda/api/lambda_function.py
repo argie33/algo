@@ -343,7 +343,7 @@ class APIHandler:
                 return json_response(200, {'ok': True})
             except Exception as e:
                 logger.error(f"notification mark-read error: {e}")
-                return json_response(500, {'ok': False, 'error': 'Failed to update notification'})
+                return error_response(500, 'notification_error', 'Failed to update notification')
         # Handle DELETE /api/algo/notifications/{id}
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
@@ -353,7 +353,7 @@ class APIHandler:
                 return json_response(200, {'ok': True})
             except Exception as e:
                 logger.error(f"notification delete error: {e}")
-                return json_response(500, {'ok': False, 'error': 'Failed to delete notification'})
+                return error_response(500, 'notification_error', 'Failed to delete notification')
         # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
@@ -654,7 +654,7 @@ class APIHandler:
             return list_response([dict(c) for c in reversed(curve) if c])
         except Exception as e:
             logger.error(f"Error fetching equity curve: {e}", exc_info=True)
-            return json_response(500, {'error': 'Failed to fetch equity curve'})
+            return error_response(500, 'database_error', 'Failed to fetch equity curve')
 
     def _get_data_status(self) -> Dict:
         """Get data freshness status."""
@@ -687,7 +687,7 @@ class APIHandler:
             return list_response([dict(n) for n in notifs])
         except Exception as e:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
-            return json_response(500, {'error': 'Failed to fetch notifications'})
+            return error_response(500, 'database_error', 'Failed to fetch notifications')
 
     def _trigger_data_patrol(self) -> Dict:
         """Trigger async data patrol ECS task."""
@@ -703,7 +703,7 @@ class APIHandler:
 
             if not cluster_arn or not task_def_arn:
                 logger.warning("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
-                return json_response(503, {'ok': False, 'error': 'Patrol task not available'})
+                return error_response(503, 'unavailable', 'Patrol task not available')
 
             response = ecs.run_task(
                 cluster=cluster_arn,
@@ -729,10 +729,10 @@ class APIHandler:
                 })
             else:
                 logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
-                return json_response(500, {'ok': False, 'error': 'Failed to trigger patrol task'})
+                return error_response(500, 'server_error', 'Failed to trigger patrol task')
         except Exception as e:
             logger.error(f"Error triggering data patrol: {e}", exc_info=True)
-            return json_response(500, {'ok': False, 'error': f'Failed to trigger patrol: {str(e)}'})
+            return error_response(500, 'server_error', str(e))
 
     def _get_patrol_log(self, limit: int = 50) -> Dict:
         """Get data patrol findings."""
@@ -747,7 +747,7 @@ class APIHandler:
             return list_response([dict(f) for f in findings])
         except Exception as e:
             logger.error(f"Error fetching patrol log: {e}", exc_info=True)
-            return json_response(500, {'error': 'Failed to fetch patrol log'})
+            return error_response(500, 'database_error', 'Failed to fetch patrol log')
 
     def _get_sector_rotation(self, days: int = 180) -> Dict:
         """Get sector rotation data."""
