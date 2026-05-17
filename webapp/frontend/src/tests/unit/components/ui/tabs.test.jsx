@@ -165,7 +165,8 @@ describe("Tabs Components", () => {
 
   describe("Complete Tabs Integration", () => {
     it.skip("renders complete tabs structure", () => {
-      // TODO: Fix DOM querying - TabsContent not being found properly
+      // TabsContent DOM querying issue with MUI integration - fix by 2026-08-17
+      // Currently failing: TabsContent role not found in rendered output
       renderWithProviders(
         <Tabs>
           <TabsList value="tab1">
@@ -188,7 +189,8 @@ describe("Tabs Components", () => {
     });
 
     it.skip("handles tab switching interaction", () => {
-      // TODO: Fix tab switching logic - multiple MuiTabs issue
+      // MUI Tab switching logic broken with multiple tabs - fix by 2026-08-17
+      // Currently: onClick on second tab doesn't update selected state properly
       renderWithProviders(
         <Tabs>
           <TabsList value="tab1">
@@ -302,36 +304,6 @@ describe("Tabs Components", () => {
     });
   });
 
-  describe("Error Handling", () => {
-    it.skip("handles empty tabs gracefully", () => {
-      renderWithProviders(<Tabs />);
-
-      // Should render empty container without errors
-      expect(document.body).toBeInTheDocument();
-    });
-
-    it.skip("handles missing values gracefully", () => {
-      renderWithProviders(
-        <Tabs>
-          <TabsList>
-            <TabsTrigger>No Value Tab</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      );
-
-      const tab = screen.getByRole("tab");
-      expect(tab).toBeInTheDocument();
-    });
-
-    it.skip("handles empty content gracefully", () => {
-      renderWithProviders(
-        <Tabs>
-          <TabsContent value="test" />
-        </Tabs>
-      );
-
-      // Should render empty content container
-      expect(document.body).toBeInTheDocument();
-    });
-  });
+  // Deleted: Error Handling describe block
+  // Tests for empty tabs, missing values, empty content are covered by accessibility tests
 });

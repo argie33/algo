@@ -70,12 +70,10 @@ async function getDbConfig() {
             );
             secret = JSON.parse(decoded);
           } catch (decodeError) {
-            throw new Error(
-              console.log(`Secret binary decoding failed: ${decodeError.message}`);
+            throw new Error(`Secret binary decoding failed: ${decodeError.message}`);
           }
         } else {
-          throw new Error(
-            console.log(`Unexpected SecretString type: ${typeof result.SecretString}`);
+          throw new Error(`Unexpected SecretString type: ${typeof result.SecretString}`);
         }
 
         dbConfig = {
