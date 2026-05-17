@@ -392,6 +392,22 @@ class APIHandler:
             if path.startswith('/api/admin/'):
                 return self._handle_admin(path, method, query_params)
 
+            # Notifications endpoints
+            if path == '/api/notifications' or path.startswith('/api/notifications/'):
+                return self._handle_notifications(path, method, query_params)
+
+            # Metrics endpoints
+            if path == '/api/metrics' or path.startswith('/api/metrics/'):
+                return self._handle_metrics(path, method, query_params)
+
+            # Articles endpoints
+            if path == '/api/articles' or path.startswith('/api/articles/'):
+                return self._handle_articles(path, method, query_params)
+
+            # Simulator endpoints
+            if path == '/api/simulator' or path.startswith('/api/simulator/'):
+                return self._handle_simulator(path, method, query_params)
+
             return error_response(404, 'not_found', f'No handler for {path}')
 
         except Exception as e:

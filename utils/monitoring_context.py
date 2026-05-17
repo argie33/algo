@@ -67,9 +67,9 @@ class TimeBlock:
 
         # Log result
         status = "SLOW" if is_slow else "OK"
-        log_fn = logger.warning if is_slow else logger.log
-        log_fn(
-            self.log_level if not is_slow else logging.WARNING,
+        log_level = logging.WARNING if is_slow else self.log_level
+        logger.log(
+            log_level,
             f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms"
         )
 
