@@ -22,26 +22,9 @@ logger = get_logger(__name__)
 
 
 def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    # Get DB password from environment first, fall back to credential manager if needed
-    db_password = os.getenv("DB_PASSWORD")
-    if not db_password:
-        try:
-            from config.credential_manager import get_credential_manager
-            credential_manager = get_credential_manager()
-            db_password = get_db_password()
-        except Exception as e:
-            logger.critical(f"CRITICAL: Database password could not be retrieved. Credential manager failed: {e}")
-            raise RuntimeError("Database password is required and credential manager is unavailable. Halting.") from e
-
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": db_password,
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
-
+    """Database configuration (uses centralized credential_helper)."""
+    from config.credential_helper import get_db_config
+    return get_db_config()
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""
 

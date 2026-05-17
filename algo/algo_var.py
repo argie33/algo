@@ -35,22 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    db_password = os.getenv("DB_PASSWORD", "")
-    if credential_manager:
-        try:
-            db_password = get_db_password()
-        except Exception:
-            pass  # Fall back to env var
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": db_password,
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
-
-
+    """Database configuration (uses centralized credential_helper)."""
+    from config.credential_helper import get_db_config
+    return get_db_config()
 class PortfolioRisk:
     """Portfolio risk metrics and concentration analysis."""
 
