@@ -112,7 +112,8 @@ class StockScoresLoader(OptimalLoader):
         # Volatility/Stability score (lower volatility = higher stability)
         returns = df["close"].pct_change()
         _vol_raw = returns.rolling(20).std().iloc[-1]
-        volatility = float(_vol_raw) * 100 if pd.notna(_vol_raw) else 15.0  # default 15% annualized
+        # volatility is in decimal form (0.01 = 1%), converted to percent here
+        volatility = float(_vol_raw) * 100 if pd.notna(_vol_raw) else 1.5  # default 1.5% daily std (typical market)
         stability_score = 100 - min(100, max(0, volatility * 10))  # 0-100 scale
 
         # Find most recent valid index

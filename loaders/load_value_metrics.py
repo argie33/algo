@@ -147,26 +147,22 @@ class ValueMetricsLoader(OptimalLoader):
         else:
             metrics['ps_ratio'] = None
 
-        # PEG Ratio: P/E / EPS Growth Rate (estimate ~15% growth if no data)
-        if metrics['pe_ratio'] and metrics['pe_ratio'] > 0:
-            eps_growth_rate = 15.0  # Assume 15% EPS growth as baseline
-            metrics['peg_ratio'] = float(round(metrics['pe_ratio'] / eps_growth_rate, 2))
-        else:
-            metrics['peg_ratio'] = None
+        # PEG Ratio: P/E / EPS Growth Rate
+        # Note: PEG calculation requires eps_growth_1y from growth_metrics
+        # For now, use only if we have both PE and growth data available
+        # This is populated via separate growth_metrics loader
+        metrics['peg_ratio'] = None  # Will be computed from growth_metrics join if available
 
-        # Dividend Yield: Annual Dividend / Stock Price (estimate 2% if no specific data)
-        if price and price > 0:
-            metrics['dividend_yield'] = 2.0  # Placeholder: 2% assumed average
-        else:
-            metrics['dividend_yield'] = None
+        # Dividend Yield: Annual Dividend / Stock Price
+        # Note: Dividend data sourced from annual_income_statement or company_profile
+        # For now, use NULL; dividend_yield should be populated from actual dividend data
+        metrics['dividend_yield'] = None
 
-        # FCF Yield: Free Cash Flow / Market Cap (estimate as ~5% of revenue if available)
-        if revenue and market_cap and market_cap > 0:
-            fcf_estimate = revenue * 0.05
-            fcf_yield = (fcf_estimate / market_cap) * 100
-            metrics['fcf_yield'] = float(round(fcf_yield, 2))
-        else:
-            metrics['fcf_yield'] = None
+        # FCF Yield: Free Cash Flow / Market Cap
+        # Note: Requires free_cash_flow from annual_cash_flow table
+        # This is computed via separate cash flow analysis
+        # Using revenue-based estimate is misleading; conservatively use NULL
+        metrics['fcf_yield'] = None
 
         return metrics
 

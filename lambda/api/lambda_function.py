@@ -1136,15 +1136,61 @@ class APIHandler:
             return error_response(500, 'internal_error', 'Failed to fetch patrol log')
 
     def _get_sector_rotation(self, days: int = 180) -> Dict:
-        """Get sector rotation data."""
+        """Get sector rotation data: defensive vs cyclical relative strength."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
-                SELECT date, sector, strength AS performance_pct, signal, rank
-                FROM sector_rotation_signal
-                WHERE date >= %s
-                ORDER BY date DESC, rank ASC
-            """, (cutoff_date,))
+                WITH sector_dates AS (
+                    SELECT DISTINCT date FROM sector_performance WHERE date >= %s ORDER BY date DESC LIMIT %s
+                ),
+                defensive_sectors AS (
+                    SELECT 'Consumer Staples' AS sector UNION ALL
+                    SELECT 'Utilities' UNION ALL
+                    SELECT 'Healthcare' UNION ALL
+                    SELECT 'Real Estate'
+                ),
+                cyclical_sectors AS (
+                    SELECT 'Consumer Discretionary' AS sector UNION ALL
+                    SELECT 'Industrials' UNION ALL
+                    SELECT 'Materials' UNION ALL
+                    SELECT 'Information Technology'
+                ),
+                sector_perf AS (
+                    SELECT
+                        date,
+                        sector,
+                        COALESCE(return_pct, 0) AS return_pct,
+                        COALESCE(relative_strength, 0) AS relative_strength
+                    FROM sector_performance
+                    WHERE date >= %s
+                ),
+                rotation_stats AS (
+                    SELECT
+                        sp.date,
+                        AVG(CASE WHEN d.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS defensive_return,
+                        AVG(CASE WHEN c.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS cyclical_return,
+                        AVG(CASE WHEN d.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS defensive_strength,
+                        AVG(CASE WHEN c.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS cyclical_strength
+                    FROM sector_perf sp
+                    LEFT JOIN defensive_sectors d ON sp.sector = d.sector
+                    LEFT JOIN cyclical_sectors c ON sp.sector = c.sector
+                    WHERE d.sector IS NOT NULL OR c.sector IS NOT NULL
+                    GROUP BY sp.date
+                )
+                SELECT
+                    date,
+                    ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
+                    ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
+                    ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
+                    CASE
+                        WHEN COALESCE(defensive_strength, 0) > COALESCE(cyclical_strength, 0) THEN 'DEFENSIVE'
+                        WHEN COALESCE(cyclical_strength, 0) > COALESCE(defensive_strength, 0) THEN 'CYCLICAL'
+                        ELSE 'NEUTRAL'
+                    END AS signal,
+                    1 AS weeks_persistent
+                FROM rotation_stats
+                ORDER BY date DESC
+            """, (cutoff_date, days, cutoff_date))
             rotation = self.cur.fetchall()
             return list_response([dict(r) for r in rotation])
         except Exception as e:
@@ -1152,20 +1198,41 @@ class APIHandler:
             return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
 
     def _get_sector_breadth(self) -> Dict:
-        """Get sector breadth indicators (derived from price_daily by sector)."""
+        """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
         try:
             self.cur.execute("""
+                WITH latest_date AS (
+                    SELECT MAX(date) AS date FROM price_daily
+                ),
+                ma_data AS (
+                    SELECT
+                        pd.symbol,
+                        pd.date,
+                        pd.close,
+                        AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) AS ma_50,
+                        AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW) AS ma_200
+                    FROM price_daily pd
+                    WHERE pd.date >= (SELECT date FROM latest_date) - INTERVAL '200 days'
+                ),
+                sector_ma AS (
+                    SELECT
+                        cp.sector,
+                        COUNT(ma.symbol) FILTER (WHERE ma.ma_50 IS NOT NULL AND ma.close > ma.ma_50) * 100.0 /
+                            NULLIF(COUNT(ma.symbol) FILTER (WHERE ma.ma_50 IS NOT NULL), 0) AS pct_above_50d,
+                        COUNT(ma.symbol) FILTER (WHERE ma.ma_200 IS NOT NULL AND ma.close > ma.ma_200) * 100.0 /
+                            NULLIF(COUNT(ma.symbol) FILTER (WHERE ma.ma_200 IS NOT NULL), 0) AS pct_above_200d
+                    FROM ma_data ma
+                    JOIN company_profile cp ON ma.symbol = cp.ticker
+                    WHERE ma.date = (SELECT date FROM latest_date)
+                      AND cp.sector IS NOT NULL
+                    GROUP BY cp.sector
+                )
                 SELECT
-                    cp.sector,
-                    COUNT(CASE WHEN pd.close > pd.open THEN 1 END) AS up_count,
-                    COUNT(CASE WHEN pd.close < pd.open THEN 1 END) AS down_count,
-                    COUNT(CASE WHEN pd.close = pd.open THEN 1 END) AS unchanged_count
-                FROM price_daily pd
-                JOIN company_profile cp ON pd.symbol = cp.ticker
-                WHERE pd.date = (SELECT MAX(date) FROM price_daily)
-                  AND cp.sector IS NOT NULL
-                GROUP BY cp.sector
-                ORDER BY up_count DESC
+                    sector,
+                    ROUND(COALESCE(pct_above_50d, 0)::NUMERIC, 2) AS pct_above_50d,
+                    ROUND(COALESCE(pct_above_200d, 0)::NUMERIC, 2) AS pct_above_200d
+                FROM sector_ma
+                ORDER BY pct_above_50d DESC
             """)
             breadth = self.cur.fetchall()
             return list_response([dict(b) for b in breadth])
@@ -1335,16 +1402,30 @@ class APIHandler:
             return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
 
     def _get_sector_stage2(self) -> Dict:
-        """Get Stage 2 stocks by sector from trend_template_data."""
+        """Get percentage of stocks in Stage 2 by sector."""
         try:
             self.cur.execute("""
-                SELECT t.symbol, t.minervini_trend_score AS strength, cp.sector
-                FROM trend_template_data t
-                LEFT JOIN company_profile cp ON t.symbol = cp.ticker
-                WHERE t.date = (SELECT MAX(date) FROM trend_template_data)
-                  AND t.weinstein_stage = 2
-                ORDER BY t.minervini_trend_score DESC
-                LIMIT 50
+                WITH latest_date AS (
+                    SELECT MAX(date) AS date FROM trend_template_data
+                ),
+                stage2_counts AS (
+                    SELECT
+                        cp.sector,
+                        COUNT(CASE WHEN t.weinstein_stage = 2 THEN 1 END) AS stage_2,
+                        COUNT(t.symbol) AS total
+                    FROM trend_template_data t
+                    JOIN company_profile cp ON t.symbol = cp.ticker
+                    WHERE t.date = (SELECT date FROM latest_date)
+                      AND cp.sector IS NOT NULL
+                    GROUP BY cp.sector
+                )
+                SELECT
+                    sector,
+                    stage_2,
+                    total,
+                    ROUND((stage_2::FLOAT / NULLIF(total, 0) * 100)::NUMERIC, 2) AS pct_stage_2
+                FROM stage2_counts
+                ORDER BY pct_stage_2 DESC
             """)
             rows = self.cur.fetchall()
             return list_response([dict(r) for r in rows])
@@ -1471,15 +1552,37 @@ class APIHandler:
             elif endpoint == 'key-metrics':
                 self.cur.execute("""
                     SELECT km.market_cap, km.held_percent_insiders, km.held_percent_institutions,
-                           cp.sector, cp.industry
+                           cp.sector, cp.industry, cp.company_name
                     FROM key_metrics km
                     LEFT JOIN company_profile cp ON cp.ticker = km.ticker
                     WHERE km.ticker = %s
                 """, (symbol,))
                 row = self.cur.fetchone()
                 if not row:
-                    return json_response(200, {})
-                return json_response(200, dict(row))
+                    return json_response(200, {'metricsData': {}})
+                r = dict(row)
+                # Transform flat response into nested structure expected by frontend
+                metrics_data = {
+                    'Company Info': {
+                        'metrics': {
+                            'Name': r.get('company_name'),
+                            'Sector': r.get('sector'),
+                            'Industry': r.get('industry'),
+                        }
+                    },
+                    'Valuation': {
+                        'metrics': {
+                            'Market Cap': r.get('market_cap'),
+                        }
+                    },
+                    'Ownership': {
+                        'metrics': {
+                            'Insider Ownership %': r.get('held_percent_insiders'),
+                            'Institutional Ownership %': r.get('held_percent_institutions'),
+                        }
+                    }
+                }
+                return json_response(200, {'metricsData': metrics_data})
 
             return error_response(400, 'bad_request', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
         except psycopg2.errors.UndefinedTable as e:
@@ -1541,7 +1644,8 @@ class APIHandler:
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=500, default=200)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
-            return self._get_signals_stocks(limit, timeframe)
+            symbol_filter = params.get('symbol', [None])[0] if params else None
+            return self._get_signals_stocks(limit, timeframe, symbol_filter)
         elif path == '/api/signals/etf':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=500, default=200)
@@ -1549,10 +1653,17 @@ class APIHandler:
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')
 
-    def _get_signals_stocks(self, limit: int = 500, timeframe: str = 'daily') -> Dict:
+    def _get_signals_stocks(self, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with technical enrichment from normalized tables."""
         try:
-            self.cur.execute("""
+            where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND bsd.signal IN ('BUY', 'SELL')"
+            params = [limit]
+
+            if symbol_filter:
+                where_clause += " AND bsd.symbol = %s"
+                params.insert(0, symbol_filter.upper())  # Insert at beginning for parameter order
+
+            self.cur.execute(f"""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     bsd.strength, bsd.reason,
@@ -1578,13 +1689,12 @@ class APIHandler:
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
                 LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
                     AND swg.date >= CURRENT_DATE - INTERVAL '1 day'
-                WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
-                  AND bsd.signal IN ('BUY', 'SELL')
+                {where_clause}
                 ORDER BY bsd.date DESC, bsd.symbol ASC
                 LIMIT %s
-            """, (limit,))
+            """, tuple(params))
             signals = self.cur.fetchall()
-            return list_response([dict(s) for s in signals])
+            return json_response(200, {'items': [dict(s) for s in signals]})
         except Exception as e:
             logger.error(f"get_signals_stocks failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch signals')
@@ -1821,7 +1931,7 @@ class APIHandler:
                     self.cur.execute("""
                         SELECT date, AVG(close) AS avgPrice
                         FROM price_daily pd
-                        JOIN company_profile cp ON pd.symbol = cp.symbol
+                        JOIN company_profile cp ON pd.symbol = cp.ticker
                         WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                         GROUP BY pd.date
                         ORDER BY pd.date ASC
@@ -1836,17 +1946,50 @@ class APIHandler:
             sector_name = parts[3] if len(parts) > 3 else None
 
             if sector_name and sector_name not in ('performance', 'trends-batch'):
-                # Return data for specific sector
-                days_str = params.get('days', [None])[0] if params else None
-                days = _safe_days(days_str, max_val=365, default=90)
-                self.cur.execute("""
-                    SELECT date, sector, return_pct
-                    FROM sector_performance
-                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                    ORDER BY date DESC
-                """, (sector_name, days))
-                rows = self.cur.fetchall()
-                return list_response([dict(r) for r in rows])
+                # Return trend data for specific sector with technical indicators
+                if path.endswith('/trend') or path.endswith('/trend/'):
+                    days_str = params.get('days', [None])[0] if params else None
+                    days = _safe_days(days_str, max_val=365, default=90)
+                    self.cur.execute("""
+                        WITH sector_prices AS (
+                            SELECT
+                                pd.date,
+                                AVG(pd.close) AS avgPrice,
+                                AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma_10,
+                                AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma_20,
+                                LAG(AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)) OVER (ORDER BY pd.date) AS prev_ma_10
+                            FROM price_daily pd
+                            JOIN company_profile cp ON pd.symbol = cp.ticker
+                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                            GROUP BY pd.date
+                        )
+                        SELECT
+                            date,
+                            avgPrice,
+                            ROUND((avgPrice / NULLIF(ma_10, 0) - 1) * 100, 2) AS dailyStrengthScore,
+                            ROUND(PERCENT_RANK() OVER (ORDER BY avgPrice), 2) * 100 AS rank,
+                            ROUND((COALESCE(ma_10, 0) - COALESCE(ma_20, 0)) / NULLIF(ma_20, 0) * 100, 2) AS momentumScore,
+                            'momentum' AS momentum,
+                            ROUND(COALESCE(ma_10, 0), 2) AS ma_10,
+                            ROUND(COALESCE(ma_20, 0), 2) AS ma_20
+                        FROM sector_prices
+                        ORDER BY date DESC
+                    """, (sector_name, days))
+                    rows = self.cur.fetchall()
+                    trend_data = [dict(r) for r in rows] if rows else []
+                    return json_response(200, {'trendData': trend_data})
+                else:
+                    # Return sector performance data
+                    days_str = params.get('days', [None])[0] if params else None
+                    days = _safe_days(days_str, max_val=365, default=90)
+                    self.cur.execute("""
+                        SELECT date, sector, return_pct
+                        FROM sector_performance
+                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        ORDER BY date DESC
+                    """, (sector_name, days))
+                    rows = self.cur.fetchall()
+                    return list_response([dict(r) for r in rows])
             elif path in ('/api/sectors', '/api/sectors/performance'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=100, default=20)
@@ -2198,7 +2341,12 @@ class APIHandler:
                     LIMIT 52
                 """)
                 rows = self.cur.fetchall()
-                return list_response([dict(r) for r in rows] if rows else [])
+                if rows:
+                    current = rows[0][1]  # naaim_number_mean from most recent row
+                    history = [{'date': dict(r)['date'], 'naaim_number_mean': dict(r)['naaim_number_mean']} for r in rows]
+                    return json_response(200, {'current': current, 'history': history})
+                else:
+                    return json_response(200, {'current': None, 'history': []})
             elif path == '/api/market/latest':
                 return self._get_market_latest()
             elif path == '/api/market/cap-distribution':
@@ -2425,13 +2573,13 @@ class APIHandler:
     def _get_yield_curve_full(self) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
-            # Get latest yield curve data
+            # Get latest yield curve data (full curve by maturity)
             self.cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
                            ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
                     FROM economic_data
-                    WHERE series_id IN ('DGS2', 'DGS5', 'DGS10', 'DGS30', 'T10Y3M', 'T10Y2Y',
+                    WHERE series_id IN ('DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7', 'DGS10', 'DGS20', 'DGS30', 'T10Y3M', 'T10Y2Y',
                                        'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
                 )
                 SELECT series_id, date, value
@@ -2440,33 +2588,56 @@ class APIHandler:
             """)
             latest_rows = self.cur.fetchall()
 
-            # Get history for spreads and VIX
+            # Get history for spreads and T10Y2Y
             self.cur.execute("""
                 SELECT series_id, date, value
                 FROM economic_data
                 WHERE date >= CURRENT_DATE - INTERVAL '12 months'
-                AND series_id IN ('BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
+                AND series_id IN ('T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
                 ORDER BY series_id, date
             """)
             history_rows = self.cur.fetchall()
 
             # Build response
+            current_curve = {}
             spreads = {}
-            credit = {'history': {}}
+            is_inverted = False
+            history = {}
 
+            # Process latest data
             for row in latest_rows:
                 sid = row['series_id']
                 val = float(row['value']) if row['value'] else None
 
-                if sid == 'T10Y3M':
-                    spreads['T10Y3M'] = val / 100 if val else None  # Convert to decimal
+                # Build current yield curve
+                if sid == 'DGS3MO':
+                    current_curve['3M'] = val
+                elif sid == 'DGS6MO':
+                    current_curve['6M'] = val
+                elif sid == 'DGS1':
+                    current_curve['1Y'] = val
+                elif sid == 'DGS2':
+                    current_curve['2Y'] = val
+                elif sid == 'DGS3':
+                    current_curve['3Y'] = val
+                elif sid == 'DGS5':
+                    current_curve['5Y'] = val
+                elif sid == 'DGS7':
+                    current_curve['7Y'] = val
+                elif sid == 'DGS10':
+                    current_curve['10Y'] = val
+                elif sid == 'DGS20':
+                    current_curve['20Y'] = val
+                elif sid == 'DGS30':
+                    current_curve['30Y'] = val
+                elif sid == 'T10Y3M':
+                    spreads['T10Y3M'] = val / 100 if val else None
                 elif sid == 'T10Y2Y':
                     spreads['T10Y2Y'] = val / 100 if val else None
-                elif sid in ('BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS'):
-                    if sid not in credit['history']:
-                        credit['history'][sid] = []
+                    # Check if inverted (10Y-2Y spread < 0)
+                    is_inverted = (val < 0) if val else False
 
-            # Add history for credit series
+            # Add history for spreads
             history_by_series = {}
             for row in history_rows:
                 sid = row['series_id']
@@ -2478,9 +2649,14 @@ class APIHandler:
                 })
 
             for sid, hist in history_by_series.items():
-                credit['history'][sid] = sorted(hist, key=lambda x: x['date'])
+                history[sid] = sorted(hist, key=lambda x: x['date'])
 
-            return json_response(200, {'spreads': spreads, 'credit': credit})
+            return json_response(200, {
+                'currentCurve': current_curve,
+                'spreads': spreads,
+                'isInverted': is_inverted,
+                'history': history
+            })
 
         except Exception as e:
             logger.error(f"get_yield_curve_full error: {e}", exc_info=True)
@@ -2696,8 +2872,8 @@ class APIHandler:
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=200, default=50)
                 self.cur.execute("""
-                    SELECT run_id AS id, strategy_name, date_start AS start_date, date_end AS end_date, total_return_pct AS total_return,
-                           sharpe_annualized AS sharpe_ratio, max_drawdown_pct AS max_drawdown, win_rate, total_trades
+                    SELECT run_id, strategy_name, date_start, date_end, total_return_pct,
+                           sharpe_annualized AS sharpe, max_drawdown_pct, win_rate, total_trades
                     FROM backtest_runs
                     ORDER BY created_at DESC
                     LIMIT %s

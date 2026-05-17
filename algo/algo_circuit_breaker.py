@@ -115,7 +115,8 @@ class CircuitBreaker:
                 try:
                     state = fn(current_date)
                 except Exception as e:
-                    state = {'halted': False, 'reason': f'check error: {e}'}
+                    # FAIL-CLOSED: If a check fails to complete, default to halting (safety-first for risk management)
+                    state = {'halted': True, 'reason': f'check error (fail-safe): {e}'}
                 results['checks'][name] = state
                 if state.get('halted'):
                     results['halted'] = True
@@ -494,7 +495,8 @@ class CircuitBreaker:
             }
         except Exception as e:
             logger.debug(f'Intraday check failed: {e}')
-            return {'halted': False, 'reason': 'Intraday check error'}
+            # FAIL-CLOSED: If market health check fails, default to halting (safety-first)
+            return {'halted': True, 'reason': f'Intraday check error (fail-safe): {e}'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
         """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
