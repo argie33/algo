@@ -5,12 +5,12 @@
 module "iam" {
   source = "./modules/iam"
 
-  project_name    = var.project_name
-  environment     = var.environment
-  aws_region      = var.aws_region
-  aws_account_id  = data.aws_caller_identity.current.account_id
-  github_org      = local.github_org
-  github_repo     = local.github_repo
+  project_name     = var.project_name
+  environment      = var.environment
+  aws_region       = var.aws_region
+  aws_account_id   = data.aws_caller_identity.current.account_id
+  github_org       = local.github_org
+  github_repo      = local.github_repo
   bastion_enabled  = var.bastion_enabled
   data_bucket_name = module.storage.data_loading_bucket_name
   common_tags      = local.common_tags
@@ -62,7 +62,7 @@ module "database" {
   db_master_username              = var.rds_username
   db_master_password              = var.rds_password
   rds_db_name                     = var.rds_db_name
-  db_multi_az                     = false  # Single-AZ for cost (paper trading); enable when going live
+  db_multi_az                     = false # Single-AZ for cost (paper trading); enable when going live
   enable_rds_kms_encryption       = var.environment == "prod"
   rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
   enable_rds_alarms               = var.enable_rds_alarms
@@ -239,20 +239,20 @@ module "services" {
 module "pipeline" {
   source = "./modules/pipeline"
 
-  project_name                         = var.project_name
-  environment                          = var.environment
-  aws_region                           = var.aws_region
-  aws_account_id                       = data.aws_caller_identity.current.account_id
-  ecs_cluster_arn                      = module.compute.ecs_cluster_arn
-  private_subnet_ids                   = module.vpc.private_subnet_ids
-  ecs_tasks_sg_id                      = module.vpc.ecs_tasks_security_group_id
-  task_execution_role_arn              = module.iam.ecs_task_execution_role_arn
-  task_role_arn                        = module.iam.ecs_task_role_arn
-  loader_task_definition_arns          = module.loaders.loader_task_definition_arns
+  project_name                          = var.project_name
+  environment                           = var.environment
+  aws_region                            = var.aws_region
+  aws_account_id                        = data.aws_caller_identity.current.account_id
+  ecs_cluster_arn                       = module.compute.ecs_cluster_arn
+  private_subnet_ids                    = module.vpc.private_subnet_ids
+  ecs_tasks_sg_id                       = module.vpc.ecs_tasks_security_group_id
+  task_execution_role_arn               = module.iam.ecs_task_execution_role_arn
+  task_role_arn                         = module.iam.ecs_task_role_arn
+  loader_task_definition_arns           = module.loaders.loader_task_definition_arns
   algo_orchestrator_task_definition_arn = module.loaders.algo_orchestrator_task_definition_arn
-  algo_orchestrator_container_name     = "${var.project_name}-algo-orchestrator"
-  sns_alert_topic_arn                  = coalesce(module.services.sns_alerts_topic_arn, "")
-  common_tags                          = local.common_tags
+  algo_orchestrator_container_name      = "${var.project_name}-algo-orchestrator"
+  sns_alert_topic_arn                   = coalesce(module.services.sns_alerts_topic_arn, "")
+  common_tags                           = local.common_tags
 }
 
 module "monitoring" {

@@ -21,9 +21,9 @@
 module "bootstrap" {
   source = "./modules/bootstrap"
 
-  aws_region                      = var.aws_region
-  terraform_state_bucket_name     = "stocks-terraform-state"
-  terraform_lock_table_name       = "stocks-terraform-locks"
+  aws_region                  = var.aws_region
+  terraform_state_bucket_name = "stocks-terraform-state"
+  terraform_lock_table_name   = "stocks-terraform-locks"
 }
 
 output "bootstrap" {
