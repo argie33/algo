@@ -393,8 +393,9 @@ class FilterPipeline:
 
             try:
                 self.conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"WARNING: Failed to commit evaluated signals: {e}")
+                # Continue anyway - data loss is worse than incomplete commit log
 
             return final_trades
 

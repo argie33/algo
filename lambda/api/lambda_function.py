@@ -452,9 +452,7 @@ class APIHandler:
                        entry_quantity, entry_reason, exit_price, exit_date, exit_time,
                        exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
                        status, swing_score, swing_grade, base_type, stage_phase,
-                       mfe_pct, mae_pct,
-                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date)::INTEGER as trade_duration_days,
-                       created_at
+                       trade_duration_days, mfe_pct, mae_pct, created_at
                 FROM algo_trades
                 ORDER BY trade_date DESC, trade_id DESC
                 LIMIT %s
@@ -1117,7 +1115,7 @@ class APIHandler:
                     COALESCE(td.ema_26, 0) as ema_26,
                     COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
                     COALESCE(tt.trend_direction, 'unknown') as trend,
-                    ss.security_name, cp.sector, cp.industry,
+                    ss.name, cp.sector, cp.industry,
                     COALESCE(swg.score, 0) AS swing_score,
                     swg.components->>'grade' AS grade
                 FROM buy_sell_daily bsd
@@ -1208,7 +1206,7 @@ class APIHandler:
             industry_filter = params.get('industry', [None])[0] if params else None
             try:
                 query = """
-                    SELECT ss.symbol, ss.security_name as company_name,
+                    SELECT ss.symbol, ss.name as company_name,
                            cp.sector, cp.industry, ss.is_sp500
                     FROM stock_symbols ss
                     LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
@@ -1233,7 +1231,7 @@ class APIHandler:
             symbol = path.split('/api/stocks/')[-1]
             try:
                 self.cur.execute("""
-                    SELECT ss.symbol, ss.security_name as company_name,
+                    SELECT ss.symbol, ss.name as company_name,
                            cp.sector, cp.industry, cp.website, cp.employees,
                            km.market_cap
                     FROM stock_symbols ss
@@ -1255,7 +1253,7 @@ class APIHandler:
             self.cur.execute("""
                 SELECT
                     sc.symbol,
-                    ss.security_name AS company_name,
+                    ss.name AS company_name,
                     cp.sector, cp.industry,
                     pd_latest.close AS current_price,
                     vm.pe_ratio AS trailing_pe,
@@ -1619,7 +1617,7 @@ class APIHandler:
                             WHERE date < (SELECT MAX(date) FROM price_daily)
                         )
                     )
-                    SELECT t.symbol, ss.security_name,
+                    SELECT t.symbol, ss.name,
                            ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
                     FROM today t
                     JOIN yesterday y ON t.symbol = y.symbol
@@ -2032,7 +2030,7 @@ class APIHandler:
             query = f"""
                 SELECT
                     sc.symbol,
-                    ss.security_name AS company_name,
+                    ss.name AS company_name,
                     cp.sector, cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
