@@ -25,6 +25,9 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+from utils.structured_logger import get_logger
+
+logger = get_logger(__name__)
 
 try:
     from twilio.rest import Client as TwilioClient
@@ -62,7 +65,7 @@ class AlertManager:
                 )
                 self.twilio_from = os.getenv('TWILIO_PHONE_NUMBER', '')
             except Exception as e:
-                print(f"[ALERT] Twilio init failed: {e}")
+                logger.warning(f"Twilio init failed: {e}")
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
         """Send alert when patrol finds issues.
@@ -220,9 +223,9 @@ class AlertManager:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
-            print(f"[ALERT] Email sent: {subject}")
+            logger.info(f"Email sent: {subject}")
         except Exception as e:
-            print(f"[ALERT] Email failed: {e}")
+            logger.error(f"Email failed: {e}")
 
     def _send_webhook(self, subject, critical, error, warn, findings):
         """Send Slack-compatible webhook."""
@@ -247,9 +250,9 @@ class AlertManager:
                 }]
             }
             requests.post(self.webhook_url, json=payload, timeout=5)
-            print(f"[ALERT] Webhook sent: {subject}")
+            logger.info(f"Webhook sent: {subject}")
         except Exception as e:
-            print(f"[ALERT] Webhook failed: {e}")
+            logger.error(f"Webhook failed: {e}")
 
     def _send_webhook_simple(self, title, message, alert_type):
         """Send simple Slack webhook for position alerts."""
@@ -266,7 +269,7 @@ class AlertManager:
             requests.post(self.webhook_url, json=payload, timeout=5)
             print(f"[ALERT] Webhook sent: {title}")
         except Exception as e:
-            print(f"[ALERT] Webhook failed: {e}")
+            logger.error(f"Webhook failed: {e}")
 
     def _send_sms(self, message):
         """Send SMS via Twilio to all configured numbers."""
