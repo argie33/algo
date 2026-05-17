@@ -1,8 +1,64 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 84: Comprehensive System Hardening)
-**Status:** 🚀 **PRODUCTION-HARDENED** | Query Optimization | Caching Optimized | RDS Proxy Enabled | Load Tests Added | Ready for Deployment
+**Last Updated:** 2026-05-17 (Session 85: Production Hardening - Round 1)
+**Status:** 🚀 **PRODUCTION-HARDENING IN PROGRESS** | 8 Critical Fixes Applied | Frontend Error Handling | SQL Injection Prevention | Password Security | Ready for Round 2
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS + RDS Proxy | EventBridge | Alpaca paper trading | 36 frontend pages | 29 API endpoints
+
+---
+
+## 🔧 SESSION 85: PRODUCTION HARDENING - ROUND 1 (Comprehensive Audit Findings)
+
+### Summary
+Executing comprehensive hardening plan from audit findings. Round 1 CRITICAL fixes applied: 8 issues fixed across backend security, frontend reliability, and data validation. Total estimated work: 30+ fixes across 3 rounds (120+ hours). User approval: **"Do them all — execute Round 1 now, then 2 and 3 sequentially."**
+
+### Work Completed (Round 1: CRITICAL)
+
+**Quick Wins — 15 mins each** ✅
+1. **C6: stocks.js limitNum bug** — Fixed undefined variable causing PostgreSQL type error on every `/api/stocks` call
+2. **C7: vite.config.js sourcemap disclosure** — Disabled source maps in production (prevents TypeScript/JSX source exposure)
+3. **M4: vite.config.js config cleanup** — Removed broken code block, reduced chunk size warnings from 1MB to 500KB
+4. **H8: metrics.js missing validation** — Added switch default case for invalid period parameter (was silently returning all-time data)
+
+**Backend Security — 2h** ✅
+5. **C3: Hardcoded password fallbacks** — Replaced fail-open behavior with fail-closed in 3 modules:
+   - `algo_circuit_breaker.py` — Raise RuntimeError with critical logging
+   - `algo_position_sizer.py` — Raise RuntimeError with critical logging
+   - `algo_backtest.py` — Log critical error, defer to connection time (module-level code)
+
+6. **C2: SQL Injection — 8 instances** — Add table/column validation to dynamic f-string queries:
+   - `algo_orchestrator.py` — 6 instances: import and validate using `assert_safe_table()` from existing `algo_sql_safety.py` module
+   - `loader_sla_tracker.py:251` — Replace inline validation with `assert_safe_table()`
+   - `loader_health_tracker.py` — Add validation to information_schema check + COUNT queries
+
+**Frontend Reliability — 3h** ✅
+7. **H2: Per-route ErrorBoundary isolation** — Prevent single page crash from tearing down entire app:
+   - Removed 2 outer ErrorBoundaries wrapping all routes
+   - Added per-route ErrorBoundary wrapping around each of 23 Route elements
+   - Result: Page-level errors now show isolated error UI; nav/layout remain functional
+
+8. **H1: Error display for 6 silent-fail pages** — Add MUI Alert error guards to:
+   - `TradingSignals.jsx` — Was destructuring error but never displaying
+   - `ScoresDashboard.jsx` — Error only logged, not shown to user
+   - `TradeTracker.jsx` — 3 subcomponents (Trades, Activity, Notifications) with missing error display
+   - `Sentiment.jsx` — Error destructured but not checked/displayed
+   - `ServiceHealth.jsx` — 3 data queries with no error handling
+   - `NotificationCenter.jsx` — No error destructuring at all
+   - Pattern: `if (error) return <Alert severity="error">{error}</Alert>;` before rendering
+
+### Commits
+```
+dcfdc0743 fix: Critical production hardening - SECURITY: Replace hardcoded password fallbacks
+96cdb6660 fix: C2 SQL Injection - Add table/column validation to 8 unvalidated f-string queries
+0565a3a19 fix: H2 Per-route ErrorBoundary isolation - Prevents single page crash from tearing down entire app
+554693cdc fix: H1 Frontend error display - Add error alerts to 6 pages with silent failures
+```
+
+### Remaining Round 1 Items (5 more, ~15h)
+- **H3: Wire dataValidationMiddleware** — Middleware exists but wired to 0 routes; wire to contact, manual-trades, trades (2h)
+- **H4: Orchestrator phase flow tests** — Verify circuit breaker halt skips Phase 6 entries while Phase 4 exits run (2h)
+- **H5: Pretrade checks unit tests** — Create tests for position size, buying power, market hours, blocklist (2h)
+- **C5: AdvancedFilters unit tests** — Test H1/H2/H4 hard-fail gates (earnings, over-extension, liquidity, sector) (3h)
+- **C4: ExitEngine real method tests** — Rewrite to call actual ExitEngine methods, not just arithmetic (4h)
 
 ---
 
