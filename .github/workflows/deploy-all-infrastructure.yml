@@ -124,57 +124,59 @@ jobs:
 
       - name: Import Existing AWS Resources (state sync)
         run: |
-          # Import existing resources that exist in AWS but not in Terraform state.
-          # Idempotent: terraform import exits 0 if already imported, errors only if AWS resource missing.
+          # Dynamic import of resources that exist in AWS but not in Terraform state.
+          # Queries AWS to find actual resource names/IDs instead of hardcoding.
+
+          # Extract project name and bucket name from Terraform config
+          PROJECT_NAME=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          STATE_BUCKET=$(grep 'terraform_state_bucket_name' terraform/bootstrap.tf | grep -oP '"[^"]*"' | head -1 | tr -d '"')
+
+          echo "Project: $PROJECT_NAME"
+          echo "State Bucket: $STATE_BUCKET"
+
           import_if_missing() {
             local resource=$1
             local id=$2
             if terraform state list | grep -qF "$resource"; then
-              echo "SKIP: $resource already in state"
+              echo "✓ SKIP: $resource already in state"
             else
-              echo "IMPORT: $resource"
-              terraform import -var-file=terraform.tfvars "$resource" "$id" || true
+              echo "→ IMPORT: $resource as $id"
+              terraform import -var-file=terraform.tfvars "$resource" "$id" 2>&1 | grep -E "Import|Error" || true
             fi
           }
 
-          # Import RDS Security Group Rules
-          import_if_missing \
-            module.vpc.aws_security_group_rule.rds_from_ecs_tasks \
-            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0ddae70a1a80b54bd
+          # Import Batch IAM Roles dynamically (derived from project_name)
+          import_if_missing module.batch.aws_iam_role.batch_service_role "${PROJECT_NAME}-batch-service-role"
+          import_if_missing module.batch.aws_iam_role.batch_ecs_instance_role "${PROJECT_NAME}-batch-ecs-instance-role"
+          import_if_missing module.batch.aws_iam_role.batch_job_role "${PROJECT_NAME}-batch-job-role"
+          import_if_missing module.batch.aws_iam_role.batch_spot_fleet_role "${PROJECT_NAME}-batch-spot-fleet-role"
 
-          import_if_missing \
-            module.vpc.aws_security_group_rule.rds_from_api_lambda \
-            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-05fd64fd31b834259
+          # Import S3 backend bucket dynamically
+          import_if_missing module.bootstrap.aws_s3_bucket.terraform_state "$STATE_BUCKET"
 
-          import_if_missing \
-            module.vpc.aws_security_group_rule.rds_from_algo_lambda \
-            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-083c14c5d85cab92e
+          # Import RDS Security Group Rules (query from AWS)
+          echo ""
+          echo "Querying AWS for RDS security group and related SG rules..."
+          RDS_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=${PROJECT_NAME}-rds" \
+            --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
 
-          import_if_missing \
-            module.vpc.aws_security_group_rule.rds_self_postgres \
-            sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0efd52dc5e807f2e0
+          if [ -n "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
+            echo "Found RDS SG: $RDS_SG"
 
-          # Import Batch IAM Roles (if they exist in AWS from prior deployments)
-          import_if_missing \
-            module.batch.aws_iam_role.batch_service_role \
-            algo-batch-service-role
-
-          import_if_missing \
-            module.batch.aws_iam_role.batch_ecs_instance_role \
-            algo-batch-ecs-instance-role
-
-          import_if_missing \
-            module.batch.aws_iam_role.batch_job_role \
-            algo-batch-job-role
-
-          import_if_missing \
-            module.batch.aws_iam_role.batch_spot_fleet_role \
-            algo-batch-spot-fleet-role
-
-          # Import S3 backend bucket (if it exists in AWS)
-          import_if_missing \
-            module.bootstrap.aws_s3_bucket.terraform_state \
-            stocks-terraform-state
+            # Query existing ingress rules from this SG
+            aws ec2 describe-security-group-rules \
+              --filters "Name=group-id,Values=$RDS_SG" "Name=is-egress,Values=false" \
+              --query 'SecurityGroupRules[*].[SecurityGroupRuleId,GroupId,IpProtocol,FromPort]' \
+              --output text --region $AWS_REGION 2>/dev/null | while read -r rule_id rule_sg proto port; do
+              if [ -n "$rule_id" ] && [ "$rule_id" != "None" ]; then
+                # Import rule (using simplified approach - let terraform handle the rest)
+                import_if_missing "module.vpc.aws_security_group_rule.rds_${rule_id}" "$rule_id"
+              fi
+            done || echo "⚠️  Could not query RDS SG rules (SG may not exist yet)"
+          else
+            echo "⚠️  RDS security group not found (will be created by Terraform)"
+          fi
 
       - name: Fix API Gateway Route (AWS + Terraform State)
         run: |
