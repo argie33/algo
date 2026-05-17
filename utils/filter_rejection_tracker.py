@@ -20,7 +20,6 @@ except ImportError:
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
 import os
-from config.credential_helper import get_db_password, get_db_config
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date
@@ -33,16 +32,6 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger(__name__)
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 
 class RejectionTracker:

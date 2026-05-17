@@ -55,11 +55,6 @@ def _redact_for_logs(message: str) -> str:
     return message
 
 
-def _get_db_config() -> Dict[str, Any]:
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
-
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
 

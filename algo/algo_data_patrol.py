@@ -53,10 +53,6 @@ from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
 # Severity levels
 INFO, WARN, ERROR, CRIT = 'info', 'warn', 'error', 'critical'
 

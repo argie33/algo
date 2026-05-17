@@ -8,7 +8,7 @@ Support line = two recent lows with an uptrend angle.
 HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 """
 
-from config.credential_helper import get_db_config, get_db_password
+from config.credential_helper import get_db_config
 import os
 from utils.db_connection import get_db_connection
 from pathlib import Path
@@ -19,16 +19,6 @@ import logging
 import statistics
 
 logger = logging.getLogger(__name__)
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 class TrendlineSupport:
     """Detect and validate 2-point support trendlines."""

@@ -62,11 +62,6 @@ from datetime import date as _date
 logger = logging.getLogger(__name__)
 
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
-
 class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 

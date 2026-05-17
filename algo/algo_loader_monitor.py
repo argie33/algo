@@ -18,7 +18,7 @@ USAGE:
 
 from utils.logging_setup import get_logger
 
-from config.credential_helper import get_db_config, get_db_password
+from config.credential_helper import get_db_config
 import os
 from utils.db_connection import get_db_connection
 import argparse
@@ -28,16 +28,6 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 class LoaderMonitor:
     """Monitor data loader health and freshness."""

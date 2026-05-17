@@ -31,10 +31,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
 class FilterPipeline:
     """5-tier filtering and signal evaluation."""
 

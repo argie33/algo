@@ -37,10 +37,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def _get_db_config():
-    """Database configuration (uses centralized credential_helper)."""
-    
-    return get_db_config()
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
 

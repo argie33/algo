@@ -27,10 +27,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-def _get_db_config():
-    """Database configuration (uses centralized credential_helper)."""
-    
-    return get_db_config()
 class PortfolioRisk:
     """Portfolio risk metrics and concentration analysis."""
 

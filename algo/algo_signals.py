@@ -68,11 +68,6 @@ except ImportError:
         pass
 
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
-
 class SignalComputer:
     """Best-of-canon signal computations for swing trading."""
 

@@ -49,11 +49,6 @@ from typing import Dict, List, Any, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-def _get_db_config():
-    """Get DB config (lazy-loaded to support testing without credentials)."""
-    return get_db_config()
-
-
 class ExitEngine:
     """Monitor and execute position exits."""
 

@@ -34,10 +34,6 @@ logger = logging.getLogger(__name__)
 
 logger = get_logger(__name__)
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
 
 class FeatureFlagType(Enum):
     """Types of feature flags."""

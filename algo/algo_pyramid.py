@@ -32,16 +32,7 @@ Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
 
-from config.credential_helper import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_HOST,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
-
+from config.credential_helper import get_db_config
 
 import os
 from utils.db_connection import get_db_connection
@@ -51,17 +42,6 @@ from algo.algo_pretrade_checks import PreTradeChecks
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 
 class PyramidEngine:

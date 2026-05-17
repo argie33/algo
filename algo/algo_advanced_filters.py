@@ -26,14 +26,7 @@ Design notes:
     - Failures gracefully default to neutral when data is missing.
 """
 
-from config.credential_helper import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_HOST,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
+from config.credential_helper import get_db_config
 import os
 import logging
 from utils.db_connection import get_db_connection
@@ -42,17 +35,6 @@ from datetime import date as _date
 from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
-
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 
 class AdvancedFilters:

@@ -37,10 +37,6 @@ from pathlib import Path
 from datetime import datetime, date as _date
 
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
 # Sector classifications (Mansfield/IBD)
 DEFENSIVE_SECTORS = ['Utilities', 'Consumer Defensive', 'Healthcare']
 CYCLICAL_SECTORS  = ['Technology', 'Consumer Cyclical', 'Communication Services',

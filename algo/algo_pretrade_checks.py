@@ -10,17 +10,11 @@ Validates:
 - Order size limits
 """
 
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_HOST,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-from config.credential_helper import , get_db_password
+from config.credential_helper import get_db_config
 import logging
 from typing import Dict, Any, Tuple, Optional
 import os
+import psycopg2
 
 from pathlib import Path
 
@@ -38,21 +32,11 @@ class PreTradeChecks:
         self.alpaca_secret = alpaca_secret
         self.conn = None
 
-    def _get_db_config(self) -> Dict[str, Any]:
-        """Get database configuration."""
-        return {
-            "host": get_db_config()['host'],
-            "port": int(os.getenv("DB_PORT", 5432)),
-            "user": get_db_config()['user'],
-            "password": get_db_password(),
-            "database": get_db_config()['database'],
-        }
-
     def connect(self):
         """Connect to database if not already connected."""
         if not self.conn:
             try:
-                self.conn = psycopg2.connect(**self._get_db_config())
+                self.conn = psycopg2.connect(**get_db_config())
             except Exception as e:
                 logger.error(f"Failed to connect to database: {e}")
                 self.conn = None

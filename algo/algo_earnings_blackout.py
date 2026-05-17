@@ -21,10 +21,6 @@ except ImportError:
     class AlertManager:
         def critical(self, *args, **kwargs): pass
 
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
 

@@ -83,11 +83,6 @@ from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metri
 logger = logging.getLogger(__name__)
 
 
-def _get_db_config() -> Dict[str, Any]:
-    """Get DB config (lazy-loaded, uses centralized credential_helper)."""
-    return get_db_config()
-
-
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
@@ -111,7 +106,7 @@ class Orchestrator:
         # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
         try:
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
-                minconn=5, maxconn=25, **_get_db_config()
+                minconn=5, maxconn=25, **get_db_config()
             )
         except Exception as e:
             logger.warning(f"Failed to create connection pool: {e}. Using fallback.")

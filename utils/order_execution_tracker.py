@@ -15,7 +15,6 @@ Enables:
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
-from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
@@ -35,16 +34,6 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger(__name__)
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 
 class OrderExecutionTracker:

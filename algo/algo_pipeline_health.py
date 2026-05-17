@@ -18,19 +18,11 @@ USAGE:
   logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
-from config.credential_helper import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_HOST,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
-
+from config.credential_helper import get_db_config
 
 import os
 import logging
+import psycopg2
 from pathlib import Path
 from datetime import date as _date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
@@ -147,7 +139,7 @@ class PipelineHealth:
     def connect(self):
         """Establish database connection."""
         try:
-            self.conn = psycopg2.connect(**self._get_db_config())
+            self.conn = psycopg2.connect(**get_db_config())
             self.cur = self.conn.cursor()
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
@@ -165,16 +157,6 @@ class PipelineHealth:
                 self.conn.close()
             except Exception:
                 pass
-
-    @staticmethod
-    def _get_db_config():
-        return {
-            "host": get_db_config()['host'],
-            "port": int(os.getenv("DB_PORT", 5432)),
-            "user": get_db_config()['user'],
-            "password": get_db_password(),
-            "database": get_db_config()['database'],
-        }
 
     def check_table_health(self, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""

@@ -18,7 +18,6 @@ Usage:
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
-from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
@@ -30,16 +29,6 @@ import psycopg2
 import psycopg2.pool
 from pathlib import Path
 
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 # Global pool instance
 _pool = None
@@ -56,7 +45,7 @@ def get_db_pool(minconn=2, maxconn=10):
     """
     global _pool
     if _pool is None:
-        db_config = _get_db_config()
+        db_config = get_db_config()
         _pool = psycopg2.pool.SimpleConnectionPool(
             minconn, maxconn,
             host=db_config["host"],
