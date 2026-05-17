@@ -1058,8 +1058,8 @@ class TradeExecutor:
             logger.warning(f"Could not fetch portfolio snapshot: {e}")
         return None
 
-    def _send_alpaca_order(self, symbol, shares, entry_price, stop_loss_price=None,
-                           take_profit_price=None, order_class='bracket'):
+    def _send_alpaca_order(self, symbol: str, shares: float, entry_price: float, stop_loss_price: Optional[float] = None,
+                           take_profit_price: Optional[float] = None, order_class: str = 'bracket') -> Optional[Dict[str, Any]]:
         """Send a BRACKET order to Alpaca — entry + stop loss + take profit.
 
         This is the institutional best practice: even if our system goes down,
@@ -1156,7 +1156,7 @@ class TradeExecutor:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request")
             return {'success': False, 'message': f'Request failed: {e}'}
 
-    def _cancel_bracket_orders(self, alpaca_order_id):
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> bool:
         """Cancel bracket order and its children (stop loss + take profit).
 
         Returns: { success: bool, message: str }
@@ -1181,7 +1181,7 @@ class TradeExecutor:
         except Exception as e:
             return {'success': False, 'message': f'Error cancelling order: {str(e)}'}
 
-    def _get_order_fill_price(self, alpaca_order_id):
+    def _get_order_fill_price(self, alpaca_order_id: str) -> Optional[float]:
         """Query Alpaca for actual fill price of an order.
 
         Returns: float or None if not filled yet
@@ -1217,7 +1217,7 @@ class TradeExecutor:
             logger.warning(f"[GET_ORDER_PRICE] {alpaca_order_id}: Request failed: {e}")
         return None
 
-    def _get_order_filled_quantity(self, alpaca_order_id):
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float:
         """Query Alpaca for actual filled quantity of an order.
 
         Includes retry logic (B11) with exponential backoff for transient failures.
@@ -1257,7 +1257,7 @@ class TradeExecutor:
                     logger.warning(f"Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
-    def _verify_order_status(self, alpaca_order_id):
+    def _verify_order_status(self, alpaca_order_id: str) -> Dict[str, Any]:
         """Re-query order status from Alpaca (B6: race condition protection).
 
         Includes retry logic (B5) with exponential backoff for transient failures.
@@ -1298,7 +1298,7 @@ class TradeExecutor:
                     logger.error(f"Failed to verify order status for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
-    def _send_alpaca_exit(self, symbol, shares):
+    def _send_alpaca_exit(self, symbol: str, shares: float) -> Optional[Dict[str, Any]]:
         """Send a sell order to Alpaca. Returns { success, order_id, filled_price }.
 
         For auto mode: sends market order and waits briefly for fill.

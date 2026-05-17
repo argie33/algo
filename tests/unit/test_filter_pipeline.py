@@ -324,21 +324,6 @@ class TestExposureTierMultiplier:
             assert result['shares'] == 100
             assert result['risk_dollars'] == 750.0
 
-    @pytest.mark.skip(reason="Multiplier application is tested in integration tests")
-    def test_caution_tier_0_75x_multiplier(self, test_config):
-        """CAUTION tier (risk_mult=0.75) — reduce to 75%."""
-        pass
-
-    @pytest.mark.skip(reason="Multiplier application is tested in integration tests")
-    def test_pressure_tier_0_5x_multiplier(self, test_config):
-        """PRESSURE tier (risk_mult=0.5) — reduce to 50%."""
-        pass
-
-    @pytest.mark.skip(reason="Multiplier application is tested in integration tests")
-    def test_halt_tier_0x_multiplier(self, test_config):
-        """HALT tier (risk_mult=0.0) — no new entries."""
-        pass
-
 
 @pytest.mark.unit
 class TestFullPipelineFlow:
