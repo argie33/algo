@@ -6,7 +6,58 @@
 
 ---
 
-## 🎯 SESSION 65 (2026-05-17) — COMPREHENSIVE AUDIT & FIXES ✅
+## 🎯 SESSION 65 (2026-05-17) — LOADER RECOVERY & OIDC FIX ✅
+
+### CRITICAL FIXES COMPLETED
+
+**1. ✅ Restored 5 Deleted Loaders from Git History**
+- Restored: `loadanalystsentiment.py`, `loadanalystupgradedowngrade.py`, `loadcompanyprofile.py`, `loadsectors.py`, `loadindustryranking.py`
+- These were deleted in session 62 but have real data sources and support key pages
+- Loaders still exist in run-all-loaders.py but terraform wasn't configured for them
+
+**2. ✅ Wired Analyst Data with yfinance API**
+- Fixed loadanalystsentiment.py to fetch from yfinance.Ticker.recommendations
+- Fixed loadanalystupgradedowngrade.py to fetch from yfinance.Ticker.upgrades_downgrades
+- Both now pull real data instead of returning empty arrays
+
+**3. ✅ Added All 6 Loaders to Terraform**
+- Added to loader_file_map: earnings_calendar, company_profile, analyst_sentiment, analyst_upgrades_downgrades, sectors, industry_ranking
+- Added to scheduled_loaders with proper schedules (Sun 11pm-Mon 12am ET)
+- Added to all_loaders with proper resource allocation (512MB-2048MB, 4-8 parallelism, 600-1800s timeout)
+- Commit: 3baf301ff
+
+**4. ✅ Documented OIDC Fix with Clear Steps**
+- Root cause: OIDC provider + IAM role haven't been bootstrapped/applied in AWS
+- IAM module code is correct, just needs Terraform apply with AWS credentials
+- Documented step-by-step fix in STATUS.md with environment variables needed
+
+### Current Data Pipeline Status
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Stock Symbols | ✅ | Loaded daily |
+| Prices (daily/weekly/monthly) | ✅ | Loaded daily via Alpaca |
+| Technical Indicators | ✅ | RSI, MACD, SMA, EMA, ATR |
+| Financials (annual/quarterly/TTM) | ✅ | Loaded weekly Sunday via SEC EDGAR |
+| Key Metrics | ✅ | Market cap, insider holdings |
+| Growth/Quality/Value Metrics | ✅ | Computed from financials |
+| Stock Scores | ✅ | Composite, momentum, quality, value |
+| Trading Signals | ✅ | Buy/Sell daily + aggregates |
+| Algo Metrics | ✅ | Performance snapshots |
+| **Company Profile** | ✅ RESTORED | Sector, industry, name (yfinance) |
+| **Analyst Sentiment** | ✅ RESTORED | Recommendations (yfinance) |
+| **Analyst Upgrades/Downgrades** | ✅ RESTORED | Historical changes (yfinance) |
+| **Sectors Performance** | ✅ RESTORED | Computed from prices + company_profile |
+| **Industry Rankings** | ✅ RESTORED | Slow-changing reference data |
+| **Earnings Calendar** | ✅ | Next 180 days, blackout enforcement (yfinance) |
+
+### Next Actions
+1. **BLOCKED:** AWS credentials needed for OIDC setup (see instructions in "Blocking Issue" section below)
+2. Once OIDC is fixed: `git push origin main` auto-deploys
+3. Verify all loaders run in production (Sunday night schedule)
+
+---
+
+## 🎯 SESSION 65 DETAILED WORK (2026-05-17) — COMPREHENSIVE AUDIT & FIXES ✅
 
 ### Session Accomplishments (3 hours work)
 
@@ -111,13 +162,58 @@
 | **AWS Deployment** | ⚠️ BLOCKED | OIDC role configuration issue |
 
 ### Blocking Issue: AWS GitHub Actions OIDC Role
-**Problem:** GitHub Actions cannot assume IAM role `stocks-svc-github-actions-dev`
+**Problem:** GitHub Actions cannot assume IAM role `algo-svc-github-actions-dev`
 **Error:** "Could not assume role with OIDC: Request ARN is invalid"
-**Resolution Required:**
-1. Verify IAM role exists in AWS account
-2. Check OIDC trust relationship configuration
-3. Verify GitHub OIDC provider is configured
-4. Update role ARN in GitHub Actions workflow if needed
+
+**ROOT CAUSE:** The OIDC provider and IAM role haven't been created yet in AWS. This requires:
+1. Bootstrapping the GitHub OIDC provider in AWS
+2. Applying Terraform to create the `algo-svc-github-actions-dev` role with proper trust relationship
+
+**HOW TO FIX (requires AWS console access with credentials):**
+
+**Step 1: Bootstrap GitHub OIDC Provider (one-time only)**
+```bash
+gh workflow run bootstrap-oidc.yml --repo argie33/algo \
+  --field AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+  --field AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+# OR manually in AWS Console:
+# - Create OIDC provider: token.actions.githubusercontent.com
+# - Thumbprints: 6938fd4d98bab03faadb97b34396831e3780aea1, 1b511abead59c6ce207077c0bf4113469e1f0b03
+# - Client ID: sts.amazonaws.com
+```
+
+**Step 2: Apply Terraform to Create IAM Role**
+```bash
+# With local AWS credentials configured:
+cd terraform
+terraform init  # Initialize S3 backend
+terraform plan
+terraform apply
+# This creates: algo-svc-github-actions-dev role with GitHub OIDC trust
+```
+
+**Step 3: Verify and Deploy**
+```bash
+# AWS CLI check:
+aws iam get-role --role-name algo-svc-github-actions-dev
+
+# Once verified, deployment auto-triggers:
+git push origin main
+# GitHub Actions will now successfully assume the role and deploy
+```
+
+**ENVIRONMENT VARIABLES REQUIRED FOR TERRAFORM:**
+```bash
+export TF_VAR_rds_password="<secure-password>"
+export TF_VAR_alpaca_api_key_id="<alpaca-key>"
+export TF_VAR_alpaca_api_secret_key="<alpaca-secret>"
+export TF_VAR_fred_api_key="<fred-key>"
+export TF_VAR_jwt_secret="<jwt-secret>"
+export TF_VAR_notification_email="<alert-email>"
+export AWS_ACCOUNT_ID="<your-account-id>"
+export AWS_ACCESS_KEY_ID="<aws-key>"
+export AWS_SECRET_ACCESS_KEY="<aws-secret>"
+```
 
 **Once fixed:** Can deploy by running `git push origin main`
 

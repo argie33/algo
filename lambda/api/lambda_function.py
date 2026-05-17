@@ -2202,6 +2202,14 @@ class APIHandler:
             sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
             sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'
             symbol = params.get('symbol', [None])[0] if params else None
+
+            allowed_sorts = ['composite_score', 'momentum_score', 'quality_score', 'value_score',
+                           'growth_score', 'positioning_score', 'stability_score', 'symbol']
+            if sort_by not in allowed_sorts:
+                return error_response(400, 'invalid_sort', f'Sort must be one of: {", ".join(allowed_sorts)}')
+            if sort_order not in ['asc', 'desc']:
+                return error_response(400, 'invalid_sort_order', 'Sort order must be "asc" or "desc"')
+
             return self._get_stock_scores(limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
         else:
             return error_response(404, 'not_found', f'No scores handler for {path}')

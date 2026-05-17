@@ -89,21 +89,13 @@ const handleTestAuth = (req, res, next) => {
     const jwtSecret = process.env.JWT_SECRET;
 
     if (!jwtSecret) {
-      return res.status(500).json({
-        success: false,
-        error: 'Authentication service misconfigured',
-        code: 'MISSING_JWT_SECRET',
-      });
+      return sendError(res, 'Authentication service misconfigured', 500, { code: 'MISSING_JWT_SECRET' });
     }
 
     const decoded = jwt.verify(token, jwtSecret);
 
     if (!decoded.sub && !decoded.id) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid token - missing required claims',
-        code: 'MISSING_CLAIMS',
-      });
+      return sendError(res, 'Invalid token - missing required claims', 401, { code: 'MISSING_CLAIMS' });
     }
 
     req.user = decoded;
@@ -111,18 +103,10 @@ const handleTestAuth = (req, res, next) => {
     return next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        error: 'Token expired',
-        code: 'TOKEN_EXPIRED',
-      });
+      return sendError(res, 'Token expired', 401, { code: 'TOKEN_EXPIRED' });
     }
 
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid token',
-      code: 'INVALID_TOKEN',
-    });
+    return sendError(res, 'Invalid token', 401, { code: 'INVALID_TOKEN' });
   }
 };
 
@@ -132,21 +116,13 @@ const authenticateTokenAsync = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
 
     if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        code: 'MISSING_AUTHORIZATION',
-      });
+      return sendError(res, 'Authentication required', 401, { code: 'MISSING_AUTHORIZATION' });
     }
 
     const token = (authHeader.split(' ')[1] || '').trim();
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authorization missing from request headers',
-        code: 'MISSING_AUTHORIZATION',
-      });
+      return sendError(res, 'Authorization missing from request headers', 401, { code: 'MISSING_AUTHORIZATION' });
     }
 
     // Validate JWT token using apiKeyService (now with real Cognito verification)
@@ -158,11 +134,7 @@ const authenticateTokenAsync = async (req, res, next) => {
         path: req.path,
         ip: req.ip || req.connection.remoteAddress,
       });
-      return res.status(401).json({
-        success: false,
-        error: result.error || 'Authentication credentials are invalid',
-        code: 'INVALID_CREDENTIALS',
-      });
+      return sendError(res, result.error || 'Authentication credentials are invalid', 401, { code: 'INVALID_CREDENTIALS' });
     }
 
     const user = result.user;
@@ -185,11 +157,7 @@ const authenticateTokenAsync = async (req, res, next) => {
   } catch (error) {
     console.error('Authentication error:', error);
 
-    return res.status(401).json({
-      success: false,
-      error: 'Could not verify authentication',
-      code: 'AUTH_FAILED',
-    });
+    return sendError(res, 'Could not verify authentication', 401, { code: 'AUTH_FAILED' });
   }
 };
 
@@ -197,11 +165,7 @@ const authenticateTokenAsync = async (req, res, next) => {
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'User must be authenticated to access this resource',
-        code: 'AUTH_REQUIRED',
-      });
+      return sendError(res, 'User must be authenticated to access this resource', 401, { code: 'AUTH_REQUIRED' });
     }
 
     const userRole = req.user.role;
@@ -219,9 +183,7 @@ const requireRole = (roles) => {
         path: req.path,
         ip: req.ip || req.connection.remoteAddress,
       });
-      return res.status(403).json({
-        success: false,
-        error: `Access denied. Required roles: ${roles.join(', ')}`,
+      return sendError(res, `Access denied. Required roles: ${roles.join(', ')}`, 403, {
         code: 'INSUFFICIENT_PERMISSIONS',
         userRole,
         userGroups,
@@ -288,10 +250,7 @@ const requireApiKey = (provider) => {
       const apiKey = await getApiKey(req.token, provider);
 
       if (!apiKey) {
-        return res.status(400).json({
-          error: `${provider} API configuration is required for this operation`,
-          success: false
-        });
+        return sendError(res, `${provider} API configuration is required for this operation`, 400);
       }
 
       // Add API key to request for use in route handlers
@@ -303,11 +262,7 @@ const requireApiKey = (provider) => {
       if (process.env.NODE_ENV !== 'test') {
         console.error("API key requirement error:", error);
       }
-      return res.status(500).json({
-        error: "Could not validate API configuration",
-        success: false,
-        code: "API_CONFIG_VALIDATION_FAILED"
-      });
+      return sendError(res, "Could not validate API configuration", 500, { code: "API_CONFIG_VALIDATION_FAILED" });
     }
   };
 };
