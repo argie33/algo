@@ -1442,6 +1442,8 @@ class Orchestrator:
 
     def phase_7_reconcile(self) -> Dict[str, Any]:
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
+        if self._check_halt_flag():
+            return False
         try:
             from algo.algo_daily_reconciliation import DailyReconciliation
             recon = DailyReconciliation(self.config)
@@ -1633,7 +1635,10 @@ class Orchestrator:
 
             # Phase 4: Exit Execution
             try:
-                self.phase_4_exit_execution()
+                result = self.phase_4_exit_execution()
+                if result is False:
+                    logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
+                    return self._final_report()
                 logger.info("✓ Phase 4 (Exit Execution) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
@@ -1650,7 +1655,10 @@ class Orchestrator:
             # Phase 5: Signal Generation
             try:
                 with TimeBlock("phase_5_signal_generation"):
-                    self.phase_5_signal_generation()
+                    result = self.phase_5_signal_generation()
+                    if result is False:
+                        logger.critical("HALT: Phase 5 (Signal Generation) returned False — stopping pipeline")
+                        return self._final_report()
                 logger.info("✓ Phase 5 (Signal Generation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
@@ -1659,15 +1667,20 @@ class Orchestrator:
             # Phase 6: Entry Execution
             try:
                 with TimeBlock("phase_6_entry_execution"):
-                    self.phase_6_entry_execution()
+                    result = self.phase_6_entry_execution()
+                    if result is False:
+                        logger.critical("HALT: Phase 6 (Entry Execution) returned False — stopping pipeline")
+                        return self._final_report()
                 logger.info("✓ Phase 6 (Entry Execution) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(6, 'entry_execution', 'error', str(e))
 
-            # Phase 7: Reconciliation
+            # Phase 7: Reconciliation (fail-open — doesn't execute trades, just records state)
             try:
-                self.phase_7_reconcile()
+                result = self.phase_7_reconcile()
+                # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
+                # (positions may already be executed, so we must sync state)
                 logger.info("✓ Phase 7 (Reconciliation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
