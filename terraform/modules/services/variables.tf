@@ -517,3 +517,37 @@ variable "data_patrol_timeout_ms" {
   type        = number
   default     = 30000
 }
+
+# ============================================================
+# ECS Patrol Task Configuration
+# ============================================================
+
+variable "ecs_cluster_arn" {
+  description = "ARN of the ECS cluster for patrol task execution"
+  type        = string
+  default     = ""
+}
+
+variable "patrol_task_definition_arn" {
+  description = "ARN of the data patrol ECS task definition"
+  type        = string
+  default     = ""
+}
+
+variable "patrol_task_container_name" {
+  description = "Container name in the patrol task definition"
+  type        = string
+  default     = ""
+}
+
+variable "private_subnet_ids_for_patrol" {
+  description = "Private subnet IDs for patrol task networking"
+  type        = list(string)
+  default     = []
+}
+
+variable "ecs_tasks_sg_id" {
+  description = "Security group ID for ECS tasks (patrol)"
+  type        = string
+  default     = ""
+}
