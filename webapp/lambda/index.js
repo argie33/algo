@@ -589,7 +589,7 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
     } else if (type === 'mean-reversion') {
       tableName = `mean_reversion_signals_daily${etfSuffix}`;
     } else {
-      return res.status(400).json({ success: false, error: 'Invalid type' });
+      return sendError(res, 'Invalid type', 400);
     }
 
     // Build WHERE clause with ALL filters
@@ -737,8 +737,7 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
       total = offset + items.length + (hasMore ? Math.max(100, safeLimit * 10) : 0);
     }
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items,
       pagination: {
         limit: safeLimit,
@@ -748,12 +747,11 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
         totalPages: Math.ceil(total / safeLimit),
         hasNext: hasMore,
         hasPrev: safePage > 1
-      },
-      timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error('Signals search error:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res, error.message, 500);
   }
 });
 // Cache signals endpoint: 15 second TTL (short cache for data freshness)
@@ -862,12 +860,7 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     // Don't let /api/* requests fall through to static files
     // If we reach here, the route wasn't handled, so return 404
-    return res.status(404).json({
-      error: "Not Found",
-      message: `API endpoint ${req.path} does not exist`,
-      success: false,
-      timestamp: new Date().toISOString()
-    });
+    return sendError(res, `API endpoint ${req.path} does not exist`, 404);
   }
   next();
 });
@@ -883,12 +876,7 @@ app.use(express.static(mainBuildPath, {
 app.get(/.*/, (req, res) => {
   // CRITICAL: Do NOT serve SPA for /api/* paths - these should 404 via the handler above
   if (req.path.startsWith('/api')) {
-    return res.status(404).json({
-      error: "Not Found",
-      message: `API endpoint ${req.path} does not exist`,
-      success: false,
-      timestamp: new Date().toISOString()
-    });
+    return sendError(res, `API endpoint ${req.path} does not exist`, 404);
   }
 
   const indexPath = path.join(mainBuildPath, 'index.html');
