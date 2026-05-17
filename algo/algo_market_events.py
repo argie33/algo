@@ -17,6 +17,7 @@ except ImportError:
     credential_manager = None
 
 from config.env_loader import load_env
+from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 import os
 from config.credential_helper import get_db_password, get_db_config
 import requests
