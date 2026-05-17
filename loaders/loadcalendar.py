@@ -1,41 +1,35 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Economic Calendar Loader - Fetches scheduled economic event dates.
 
 Populates calendar_events table with FRED release dates for major
 economic indicators (NFP, CPI, GDP, Fed decisions, etc).
 
-Sources:
-- FRED API (St. Louis Fed) for release dates
-- https://api.stlouisfed.org/fred/releases/dates
-
 Run:
     python3 loadcalendar.py [--days-ahead 90]
 """
-from utils.logging_setup import get_logger
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 import argparse
 import logging
 import os
-import sys
-from utils.db_connection import get_db_connection
+import psycopg2
 from datetime import date, timedelta
 from typing import Optional, List, Dict, Any
-from pathlib import Path
+
+from config.credential_helper import get_db_password
+from config.env_loader import load_env
+from utils.logging_setup import get_logger
+from utils.db_connection import get_db_connection
 
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-
-from config.credential_helper import get_db_password
-from config.env_loader import load_env
 
 load_env()
 

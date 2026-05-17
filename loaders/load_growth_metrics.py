@@ -3,6 +3,7 @@
 Growth Metrics Loader - Optimal Pattern (Refactored)
 
 import sys
+import psycopg2
 from pathlib import Path
 
 Computes multi-year growth metrics from annual financials:

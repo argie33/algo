@@ -12,6 +12,7 @@ Computes fundamental quality metrics from annual financials:
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
+import psycopg2
 from utils.logging_setup import get_logger
 
 import sys

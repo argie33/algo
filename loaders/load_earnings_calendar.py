@@ -14,6 +14,7 @@ Sources:
 Run:
     python3 load_earnings_calendar.py [--symbols AAPL,MSFT] [--days-ahead 180]
 """
+import psycopg2
 from utils.logging_setup import get_logger
 
 import sys

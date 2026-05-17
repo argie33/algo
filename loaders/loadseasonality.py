@@ -2,6 +2,7 @@
 """
 Seasonality Loader — computes S&P 500 (SPY) monthly and day-of-week return
 import sys
+import psycopg2
 from pathlib import Path
 
 statistics from the price_daily table and writes them into
