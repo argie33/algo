@@ -22,6 +22,13 @@
 
 **Constraints:** No experimental loaders, **Terraform IaC only (CloudFormation eliminated)**, paper trading, all blockers fixed.
 
+**IMPORTANT — Credential Management:**
+- ✅ `.env.local` = Your dev credentials (LOCAL ONLY, gitignored, KEEP THIS)
+- ❌ NEVER delete `.env.local` — it breaks local development
+- ❌ NEVER commit `.env.local` — it's in .gitignore and can't be committed
+- 🔒 Production credentials use AWS Secrets Manager (not .env files)
+- See: CREDENTIAL_SETUP.md for full explanation
+
 Algo: 165 modules, 7-phase orchestrator, Alpaca paper trading, PostgreSQL, AWS Lambda/ECS, EventBridge 5:30pm ET.
 
 **Infrastructure:** 
