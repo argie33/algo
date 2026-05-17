@@ -36,6 +36,7 @@ from utils.data_tick_validator import validate_price_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager
 from utils.monitoring_context import TimeBlock
+from loaders.loader_validation import validate_price_row, count_validation_errors
 
 _credential_manager = credential_manager
 
@@ -160,15 +161,30 @@ class PriceDailyLoader(OptimalLoader):
             raise  # Re-raise other errors
 
     def transform(self, rows):
-        """Validate and filter rows. Phase 1: Reject invalid ticks."""
+        """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
         if not rows:
             return []
 
-        validated = []
+        # TIER 2: Use loader_validation framework for comprehensive validation
+        validated, validation_errors = count_validation_errors(
+            rows,
+            validate_price_row,
+            logger_name="loadpricedaily"
+        )
+
+        if validation_errors > 0 and self.tracker:
+            self.tracker.record_error(
+                symbol='[batch]',
+                error_type='VALIDATION_FAILED',
+                error_message=f'{validation_errors} rows failed validation',
+                resolution='filtered',
+            )
+
+        # PHASE 1: Secondary validation via existing tick validator for provenance tracking
+        final_validated = []
         prior_close = None
 
-        for row in rows:
-            # PHASE 1: Validate every tick before accepting
+        for row in validated:
             is_valid, errors = validate_price_tick(
                 symbol=row.get('symbol'),
                 open_price=row.get('open'),
@@ -180,7 +196,6 @@ class PriceDailyLoader(OptimalLoader):
             )
 
             if not is_valid:
-                # Record validation failure but don't block the whole load
                 if self.tracker:
                     self.tracker.record_error(
                         symbol=row.get('symbol'),
@@ -200,10 +215,10 @@ class PriceDailyLoader(OptimalLoader):
                     source_api='yfinance',  # Could detect from router later
                 )
 
-            validated.append(row)
+            final_validated.append(row)
             prior_close = row.get('close')
 
-        return validated
+        return final_validated
 
     def _validate_row(self, row: dict) -> bool:
         """Add price-range sanity check on top of default PK check."""

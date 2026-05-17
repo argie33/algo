@@ -19,6 +19,7 @@ import psycopg2
 import psycopg2.extras
 import numpy as np
 import pandas as pd
+from loaders.loader_validation import validate_technical_row, count_validation_errors
 
 logging.basicConfig(
     level=logging.INFO,
@@ -303,26 +304,75 @@ def process_symbol(symbol, watermark, conn_params):
             ))
 
         if rows_to_insert:
-            psycopg2.extras.execute_values(cur, """
-                INSERT INTO technical_data_daily
-                (symbol, date, rsi, macd, macd_signal, macd_hist, mom,
-                 roc, roc_10d, roc_20d, roc_60d, roc_120d, roc_252d,
-                 sma_20, sma_50, sma_200, ema_12, ema_26, atr,
-                 adx, plus_di, minus_di, mansfield_rs, created_at)
-                VALUES %s
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                  rsi=EXCLUDED.rsi, macd=EXCLUDED.macd, macd_signal=EXCLUDED.macd_signal,
-                  macd_hist=EXCLUDED.macd_hist, mom=EXCLUDED.mom,
-                  roc=EXCLUDED.roc, roc_10d=EXCLUDED.roc_10d, roc_20d=EXCLUDED.roc_20d,
-                  roc_60d=EXCLUDED.roc_60d, roc_120d=EXCLUDED.roc_120d, roc_252d=EXCLUDED.roc_252d,
-                  sma_20=EXCLUDED.sma_20, sma_50=EXCLUDED.sma_50, sma_200=EXCLUDED.sma_200,
-                  ema_12=EXCLUDED.ema_12, ema_26=EXCLUDED.ema_26, atr=EXCLUDED.atr
-            """, rows_to_insert,
-                template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())")
-            conn.commit()
+            # Convert tuples to dicts for validation framework
+            rows_as_dicts = []
+            for row_tuple in rows_to_insert:
+                rows_as_dicts.append({
+                    'symbol': row_tuple[0],
+                    'date': row_tuple[1],
+                    'rsi': row_tuple[2],
+                    'macd': row_tuple[3],
+                    'macd_signal': row_tuple[4],
+                    'macd_hist': row_tuple[5],
+                    'mom': row_tuple[6],
+                    'roc': row_tuple[7],
+                    'roc_10': row_tuple[8],
+                    'roc_20': row_tuple[9],
+                    'roc_60': row_tuple[10],
+                    'roc_120': row_tuple[11],
+                    'roc_252': row_tuple[12],
+                    'sma_20': row_tuple[13],
+                    'sma_50': row_tuple[14],
+                    'sma_200': row_tuple[15],
+                    'ema_12': row_tuple[16],
+                    'ema_26': row_tuple[17],
+                    'atr': row_tuple[18],
+                    'adx': row_tuple[19],
+                    'plus_di': row_tuple[20],
+                    'minus_di': row_tuple[21],
+                    'mansfield_rs': row_tuple[22],
+                })
+
+            # TIER 2: Validate technical indicators before insert
+            valid_rows, validation_errors = count_validation_errors(
+                rows_as_dicts,
+                validate_technical_row,
+                logger_name="load_technical_indicators"
+            )
+
+            # Convert back to tuples for execute_values
+            validated_tuples = []
+            for row in valid_rows:
+                validated_tuples.append((
+                    row['symbol'], row['date'],
+                    row['rsi'], row['macd'], row['macd_signal'], row['macd_hist'], row['mom'],
+                    row['roc'], row['roc_10'], row['roc_20'], row['roc_60'], row['roc_120'], row['roc_252'],
+                    row['sma_20'], row['sma_50'], row['sma_200'],
+                    row['ema_12'], row['ema_26'], row['atr'],
+                    row['adx'], row['plus_di'], row['minus_di'], row['mansfield_rs'],
+                ))
+
+            if validated_tuples:
+                psycopg2.extras.execute_values(cur, """
+                    INSERT INTO technical_data_daily
+                    (symbol, date, rsi, macd, macd_signal, macd_hist, mom,
+                     roc, roc_10d, roc_20d, roc_60d, roc_120d, roc_252d,
+                     sma_20, sma_50, sma_200, ema_12, ema_26, atr,
+                     adx, plus_di, minus_di, mansfield_rs, created_at)
+                    VALUES %s
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                      rsi=EXCLUDED.rsi, macd=EXCLUDED.macd, macd_signal=EXCLUDED.macd_signal,
+                      macd_hist=EXCLUDED.macd_hist, mom=EXCLUDED.mom,
+                      roc=EXCLUDED.roc, roc_10d=EXCLUDED.roc_10d, roc_20d=EXCLUDED.roc_20d,
+                      roc_60d=EXCLUDED.roc_60d, roc_120d=EXCLUDED.roc_120d, roc_252d=EXCLUDED.roc_252d,
+                      sma_20=EXCLUDED.sma_20, sma_50=EXCLUDED.sma_50, sma_200=EXCLUDED.sma_200,
+                      ema_12=EXCLUDED.ema_12, ema_26=EXCLUDED.ema_26, atr=EXCLUDED.atr
+                """, validated_tuples,
+                    template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())")
+                    conn.commit()
 
         conn.close()
-        return symbol, len(rows_to_insert), None
+        return symbol, len(validated_tuples) if 'validated_tuples' in locals() else 0, None
 
     except Exception as e:
         try:
