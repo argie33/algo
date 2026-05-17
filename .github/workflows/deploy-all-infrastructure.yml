@@ -184,8 +184,13 @@ jobs:
           # Solution: Delete the route from AWS, remove from state, let Terraform recreate it.
           # MUST run before terraform plan so the plan includes route creation.
 
+          # Extract API Gateway name dynamically from Terraform config
+          PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          API_NAME="${PROJECT}-api-${ENV}"
+
           API_ID=$(aws apigatewayv2 get-apis \
-            --query "Items[?Name=='algo-api-${ENV:-dev}'].ApiId" \
+            --query "Items[?Name=='${API_NAME}'].ApiId" \
             --output text \
             --region $AWS_REGION 2>/dev/null || echo "")
 
@@ -241,13 +246,32 @@ jobs:
 
       - name: Delete orphaned API Gateways
         run: |
-          # These 3 API Gateways are not in Terraform state (orphaned from earlier experiments).
-          # The active one (2iqq1qhltj) is managed by Terraform and will never match these IDs.
-          for id in 0rtigbknv7 kx4kprv8ph op4dn7xw6j; do
-            aws apigatewayv2 delete-api --api-id $id --region $AWS_REGION 2>/dev/null \
-              && echo "Deleted orphaned API Gateway: $id" \
-              || echo "Already gone or skipped: $id"
-          done
+          # Clean up API Gateways that are NOT the current active one.
+          # Terraform manages the active API Gateway (derived from project + environment).
+          # This removes any leftover gateways from old experiments or failed deployments.
+
+          PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          ACTIVE_NAME="${PROJECT}-api-${ENV}"
+
+          # Find active API Gateway ID
+          ACTIVE_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${ACTIVE_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+
+          echo "Active API Gateway: ${ACTIVE_NAME} (ID: ${ACTIVE_ID:-not-found})"
+
+          # Find and delete all OTHER API Gateways (orphaned from old experiments)
+          aws apigatewayv2 get-apis \
+            --query "Items[?Name != '${ACTIVE_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null | tr '\t' '\n' | while read -r id; do
+            if [ -n "$id" ] && [ "$id" != "$ACTIVE_ID" ]; then
+              echo "Deleting orphaned API Gateway: $id"
+              aws apigatewayv2 delete-api --api-id "$id" --region $AWS_REGION 2>/dev/null \
+                && echo "✅ Deleted: $id" \
+                || echo "⚠️  Failed to delete: $id"
+            fi
+          done || echo "No orphaned API Gateways found"
 
       - name: Collect Outputs
         id: outputs
