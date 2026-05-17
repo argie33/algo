@@ -847,12 +847,7 @@ app.use(errorHandler);
 
 // 404 handler for API routes (use regex instead of /api/*)
 app.all(/^\/api\/.*/, (req, res) => {
-  res.status(404).json({
-    error: "Not Found",
-    message: `API endpoint ${req.originalUrl} does not exist`,
-    success: false,
-    timestamp: new Date().toISOString()
-  });
+  return sendError(res, `API endpoint ${req.originalUrl} does not exist`, 404);
 });
 
 // CRITICAL: Block /api/* from reaching static file middleware
@@ -883,11 +878,7 @@ app.get(/.*/, (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(404).json({
-      error: "Not Found",
-      message: "Frontend not built. Run 'npm run build' in frontend directory.",
-      success: false
-    });
+    return sendError(res, "Frontend not built. Run 'npm run build' in frontend directory.", 404);
   }
 });
 
