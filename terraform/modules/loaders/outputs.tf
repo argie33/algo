@@ -56,3 +56,22 @@ output "scheduled_loader_count" {
   description = "Total number of scheduled loaders"
   value       = length(local.scheduled_loaders)
 }
+
+# ============================================================
+# Algo Orchestrator Task Outputs (for Step Functions integration)
+# ============================================================
+
+output "algo_orchestrator_task_definition_arn" {
+  description = "ARN of the algo orchestrator ECS task definition (invoked by Step Functions)"
+  value       = aws_ecs_task_definition.algo_orchestrator.arn
+}
+
+output "algo_orchestrator_task_definition_family" {
+  description = "Family name of the algo orchestrator ECS task definition"
+  value       = aws_ecs_task_definition.algo_orchestrator.family
+}
+
+output "algo_orchestrator_log_group_name" {
+  description = "CloudWatch log group for algo orchestrator"
+  value       = "/ecs/${var.project_name}-algo-orchestrator"
+}

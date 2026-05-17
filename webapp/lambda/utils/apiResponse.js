@@ -1,10 +1,22 @@
 // UNIFIED API Response Format - Used by ALL endpoints
-// Format: { success, data?, items?, pagination?, error?, timestamp }
+// CRITICAL: All responses must be consistent for frontend. NO exceptions.
+// - Single object: { success: true, data: {...} }
+// - Array/paginated: { success: true, items: [...], pagination: {...} }
+// - Never wrap in extra "data" key. Never use raw res.json().
 
 module.exports = {
-  // Standard success response - auto-detect list responses
+  // Single object response (NOT wrapped in "data" - direct at root)
+  sendData: (res, data, statusCode = 200) => {
+    return res.status(statusCode).json({
+      success: true,
+      ...data,  // Spread data directly into response (no "data" key)
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  // Legacy: Maps to sendData for backward compatibility (fixes the "data" wrapping bug)
   sendSuccess: (res, data, statusCode = 200) => {
-    // If data is an array, return as paginated response for frontend compatibility
+    // If data is an array, return as paginated response
     if (Array.isArray(data)) {
       return res.status(statusCode).json({
         success: true,
@@ -22,10 +34,10 @@ module.exports = {
       });
     }
 
-    // For objects, return as single object response
+    // For objects, DON'T wrap under "data" - spread directly (FIX for the critical bug)
     return res.status(statusCode).json({
       success: true,
-      data: data || null,
+      ...data,  // Changed from "data: data" to spreading directly
       timestamp: new Date().toISOString()
     });
   },
@@ -78,6 +90,16 @@ module.exports = {
         hasNext: (pagination?.offset || 0) + (pagination?.limit || 0) < (pagination?.total || 0),
         hasPrev: (pagination?.offset || 0) > 0
       },
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  // Simple list response (no pagination, just items)
+  // Returns: { success, items: [], timestamp }
+  sendList: (res, items, statusCode = 200) => {
+    return res.status(statusCode).json({
+      success: true,
+      items: items || [],
       timestamp: new Date().toISOString()
     });
   },

@@ -52,7 +52,7 @@ const MetricsDashboard = () => {
     () => api.get("/api/scores/stockscores?limit=10000")
   );
 
-  const allStocks = scoresData?.items || [];
+  const allStocks = Array.isArray(scoresData) ? scoresData : (scoresData?.items || []);
 
   const stocks = useMemo(() => {
     let filtered = Array.isArray(allStocks) ? allStocks : [];

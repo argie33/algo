@@ -58,13 +58,6 @@ async function getPerformanceMetrics(req, res) {
       ${dateFilter}
     `;
 
-    const result = await query(metricsQuery);
-    const metrics = result.rows[0] || {};
-
-    const gross_profit = parseFloat(metrics.gross_profit) || 0;
-    const gross_loss = parseFloat(metrics.gross_loss) || 0;
-    const profit_factor = gross_loss > 0 ? (gross_profit / gross_loss).toFixed(2) : '0.00';
-
     const sharpeQuery = `
       SELECT
         ROUND(
@@ -76,26 +69,39 @@ async function getPerformanceMetrics(req, res) {
       ${dateFilter}
     `;
 
-    const sharpeResult = await query(sharpeQuery);
-    const sharpe_ratio = sharpeResult.rows[0]?.sharpe_ratio || 0;
-
+    // Use window function to get running cumulative PnL for each trade (needed for correct drawdown)
     const ddQuery = `
       SELECT
-        SUM(profit_loss_dollars) as cumulative_pnl
+        SUM(profit_loss_dollars) OVER (
+          ORDER BY exit_date ASC
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) as cumulative_pnl
       FROM algo_trades
       WHERE status = 'closed' AND exit_date IS NOT NULL
       ${dateFilter}
       ORDER BY exit_date ASC
     `;
 
-    const ddResult = await query(ddQuery);
+    // Parallelize 3 unrelated queries on same table for 2-3x speedup
+    const [result, sharpeResult, ddResult] = await Promise.all([
+      query(metricsQuery),
+      query(sharpeQuery),
+      query(ddQuery)
+    ]);
+
+    const metrics = result.rows[0] || {};
+
+    const gross_profit = parseFloat(metrics.gross_profit) || 0;
+    const gross_loss = parseFloat(metrics.gross_loss) || 0;
+    const profit_factor = gross_loss > 0 ? (gross_profit / gross_loss).toFixed(2) : '0.00';
+
+    const sharpe_ratio = sharpeResult.rows[0]?.sharpe_ratio || 0;
     let max_drawdown = 0;
     let peak = 0;
-    let cumulative = 0;
 
     if (ddResult.rows.length > 0) {
       ddResult.rows.forEach(row => {
-        cumulative += row.cumulative_pnl || 0;
+        const cumulative = row.cumulative_pnl || 0;
         if (cumulative > peak) peak = cumulative;
         const dd = peak - cumulative;
         if (dd > max_drawdown) max_drawdown = dd;

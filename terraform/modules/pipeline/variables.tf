@@ -48,9 +48,15 @@ variable "loader_task_definition_arns" {
   type        = map(string)
 }
 
-variable "algo_lambda_arn" {
-  description = "ARN of the algo orchestrator Lambda function"
+variable "algo_orchestrator_task_definition_arn" {
+  description = "ARN of the algo orchestrator ECS task definition (from loaders module output)"
   type        = string
+}
+
+variable "algo_orchestrator_container_name" {
+  description = "Container name within the algo orchestrator task definition"
+  type        = string
+  default     = "algo-orchestrator"  # Will be: project_name-algo-orchestrator
 }
 
 variable "sns_alert_topic_arn" {

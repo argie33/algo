@@ -83,10 +83,10 @@ resource "aws_iam_role_policy" "sfn_pipeline" {
         Resource = "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/StepFunctionsGetEventsForECSTaskRule"
       },
       {
-        Sid      = "InvokeOrchestratorLambda"
+        Sid      = "InvokeOrchestratorECS"
         Effect   = "Allow"
-        Action   = "lambda:InvokeFunction"
-        Resource = var.algo_lambda_arn
+        Action   = "ecs:RunTask"
+        Resource = var.algo_orchestrator_task_definition_arn
       },
       {
         Sid      = "PublishFailureAlert"
@@ -417,21 +417,35 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "TriggerOrchestrator"
       }
 
-      # ── Step 6: Fire the trading orchestrator ─────────────────────────────
+      # ── Step 6: Fire the trading orchestrator (ECS Fargate) ──────────────
       TriggerOrchestrator = {
         Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
-          FunctionName = var.algo_lambda_arn
-          Payload = {
-            source   = "step-functions-eod-pipeline"
-            run_date = "now"
+          Cluster        = var.ecs_cluster_arn
+          LaunchType     = "FARGATE"
+          TaskDefinition = var.algo_orchestrator_task_definition_arn
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = var.algo_orchestrator_container_name
+              Environment = [
+                {
+                  Name  = "ORCHESTRATOR_EXECUTION_MODE"
+                  Value = "auto"
+                },
+                {
+                  Name  = "ORCHESTRATOR_DRY_RUN"
+                  Value = "false"
+                }
+              ]
+            }]
           }
         }
         Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"]
-          IntervalSeconds = 30
-          MaxAttempts     = 2
+          ErrorEquals     = ["States.TaskFailed"]
+          IntervalSeconds = 120
+          MaxAttempts     = 1
           BackoffRate     = 2.0
         }]
         Catch = [{
