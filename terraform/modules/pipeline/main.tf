@@ -517,10 +517,50 @@ resource "aws_iam_role_policy" "eventbridge_sfn" {
   })
 }
 
+# IAM Role for EventBridge to invoke Lambda
+resource "aws_iam_role" "eventbridge_lambda" {
+  name = "${var.project_name}-eventbridge-lambda-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "events.amazonaws.com" }
+    }]
+  })
+
+  tags = var.common_tags
+}
+
+resource "aws_iam_role_policy" "eventbridge_lambda" {
+  name = "${var.project_name}-eventbridge-lambda-policy"
+  role = aws_iam_role.eventbridge_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "lambda:InvokeFunction"
+      Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-orchestrator-${var.environment}"
+    }]
+  })
+}
+
 resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
   name                = "${var.project_name}-eod-pipeline-${var.environment}"
-  description         = "EOD pipeline: prices → technicals → signals → orchestrator (4:05pm ET)"
+  description         = "EOD pipeline: prices → technicals → signals (4:05pm ET)"
   schedule_expression = "cron(5 20 ? * MON-FRI *)"
+  state               = "ENABLED"
+  tags                = var.common_tags
+}
+
+# Orchestrator daily trigger at 5:30pm ET (21:30 UTC)
+# Runs AFTER data pipeline completes, ensures fresh signals available
+resource "aws_cloudwatch_event_rule" "algo_orchestrator_daily" {
+  name                = "${var.project_name}-orchestrator-daily-${var.environment}"
+  description         = "Daily algorithmic orchestrator: positions, exits, entries (5:30pm ET)"
+  schedule_expression = "cron(30 21 ? * MON-FRI *)"  # 5:30pm ET = 21:30 UTC
   state               = "ENABLED"
   tags                = var.common_tags
 }
@@ -529,6 +569,20 @@ resource "aws_cloudwatch_event_target" "eod_pipeline" {
   rule     = aws_cloudwatch_event_rule.eod_pipeline_trigger.name
   arn      = aws_sfn_state_machine.eod_pipeline.arn
   role_arn = aws_iam_role.eventbridge_sfn.arn
+}
+
+# Target for orchestrator daily trigger
+resource "aws_cloudwatch_event_target" "algo_orchestrator" {
+  rule      = aws_cloudwatch_event_rule.algo_orchestrator_daily.name
+  target_id = "AlgoOrchestratorLambda"
+  arn       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-orchestrator-${var.environment}"
+  role_arn  = aws_iam_role.eventbridge_lambda.arn
+
+  input = jsonencode({
+    mode      = "paper"
+    dry_run   = false
+    run_date  = null  # Use current date
+  })
 }
 
 # ============================================================

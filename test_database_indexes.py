@@ -90,7 +90,7 @@ def check_indexes():
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             row_count = cur.fetchone()[0]
 
-            print(f"📊 {table:25} ({row_count:,} rows)")
+            print(f"[TABLE] {table:25} ({row_count:,} rows)")
 
             # Check each index
             for col_spec, query_pattern in columns:

@@ -208,6 +208,9 @@ def parse_nasdaq(text: str):
         # skip ETFs here
         if r.get("ETF", "").upper() == "Y" or should_exclude(name):
             continue
+        # Skip class shares (.A, .B, .C) — often missing from yfinance
+        if re.match(r'^[A-Z]+\.[A-Z]$', sym):
+            continue
         # Skip test issues and deficient financial status
         if r.get("Test Issue", "").upper() == "Y":
             continue
@@ -282,6 +285,9 @@ def parse_other(text: str):
         name = r.get("Security Name", "").strip()
         # skip ETFs here
         if r.get("ETF", "").upper() == "Y" or should_exclude(name):
+            continue
+        # Skip class shares (.A, .B, .C) — often missing from yfinance
+        if re.match(r'^[A-Z]+\.[A-Z]$', sym):
             continue
         # Skip test issues and deficient financial status
         if r.get("Test Issue", "").upper() == "Y":

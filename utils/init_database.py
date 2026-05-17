@@ -1660,8 +1660,8 @@ CREATE TABLE IF NOT EXISTS swing_trader_scores (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    score DECIMAL(8, 4),
-    components JSONB,
+    score DECIMAL(8, 4) DEFAULT 0.0,
+    components JSONB DEFAULT '{"setup_quality": {"pts": 0, "max": 25}, "trend_quality": {"pts": 0, "max": 20}, "momentum_rs": {"pts": 0, "max": 20}, "volume": {"pts": 0, "max": 12}, "fundamentals": {"pts": 0, "max": 10}, "sector_industry": {"pts": 0, "max": 8}, "multi_timeframe": {"pts": 0, "max": 5}, "pass": false, "grade": "F"}'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );

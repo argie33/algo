@@ -230,10 +230,12 @@ export const getMarketTechnicals = async () => {
 export const getMarketSentimentData = async (range = "1d") => {
   try {
     const response = await api.get(`/api/market/sentiment?range=${range}`);
+    if (response.data?.success !== false) {
+      dataCache.set("market_sentiment", response.data, { ttl: 10 * 60 * 1000 });
+    }
     return response.data;
   } catch (error) {
-    console.error("Error fetching market sentiment:", error);
-    return { success: false, data: { sentiment: 0.5 }, error: error.message };
+    return handleApiError(error, "market_sentiment", { sentiment: 0.5 }, "fetch market sentiment");
   }
 };
 
@@ -307,10 +309,18 @@ export const getStocks = async (params = {}) => {
         short_name: item.security_name || item.name, // Use security_name from API or fallback to name
       })),
     };
+    // Cache successful response
+    if (transformedData.success !== false && transformedData.data?.length > 0) {
+      dataCache.set("stocks", transformedData, { ttl: 5 * 60 * 1000 });
+    }
     return transformedData;
   } catch (error) {
-    console.error("Error fetching stocks:", error);
-    return { success: false, data: [], error: error.message };
+    const cached = await dataCache.get("stocks");
+    if (cached) {
+      console.debug("[API] Using cached stocks data due to error");
+      return { success: true, data: cached.data || [], fromCache: true, error: error.message };
+    }
+    return handleApiError(error, null, [], "fetch stocks");
   }
 };
 

@@ -27,10 +27,82 @@ import psycopg2.pool
 import re
 import time
 from datetime import datetime, timedelta, date, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from pydantic import BaseModel, Field, validator, ValidationError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+# ============================================================================
+# REQUEST VALIDATION SCHEMAS (Pydantic models for input validation)
+# ============================================================================
+
+class PaginationParams(BaseModel):
+    """Standard pagination parameters."""
+    limit: Optional[int] = Field(default=200, ge=1, le=10000, description="Items per page")
+    offset: Optional[int] = Field(default=0, ge=0, le=1000000, description="Page offset")
+
+    @validator('limit')
+    def validate_limit(cls, v):
+        if v is None:
+            return 200
+        return v
+
+    @validator('offset')
+    def validate_offset(cls, v):
+        if v is None:
+            return 0
+        return v
+
+
+class DateRangeParams(BaseModel):
+    """Date range query parameters."""
+    range: Optional[str] = Field(default='30d', pattern=r'^\d+d$', description="Time range (e.g. '30d', '1y')")
+
+    @validator('range')
+    def validate_range(cls, v):
+        if v is None:
+            return '30d'
+        # Extract days from format like '30d'
+        if not v.endswith('d'):
+            raise ValueError('Range must end with "d" (e.g., "30d")')
+        try:
+            days = int(v[:-1])
+            if days < 1 or days > 365:
+                raise ValueError('Days must be between 1 and 365')
+        except ValueError:
+            raise ValueError('Range must be numeric followed by "d" (e.g., "30d")')
+        return v
+
+
+class ContactRequest(BaseModel):
+    """Contact form submission."""
+    name: str = Field(..., min_length=1, max_length=255)
+    email: str = Field(..., max_length=255)
+    subject: str = Field(..., min_length=1, max_length=255)
+    message: str = Field(..., min_length=10, max_length=5000)
+
+    @validator('email')
+    def validate_email(cls, v):
+        # Simple email validation
+        if '@' not in v or '.' not in v.split('@')[-1]:
+            raise ValueError('Invalid email format')
+        return v.lower()
+
+
+class TradeRequest(BaseModel):
+    """Trade execution request."""
+    symbol: str = Field(..., regex=r'^[A-Z0-9.\-]{1,20}$')
+    quantity: int = Field(..., ge=1, le=1000000)
+    price: Optional[float] = Field(default=None, ge=0.01)
+
+    @validator('symbol')
+    def validate_symbol(cls, v):
+        if not v or not re.match(r'^[A-Z0-9.\-]{1,20}$', v):
+            raise ValueError('Invalid stock symbol')
+        return v.upper()
+
 
 # Module-level connection pool: Lambda containers are reused across warm invocations.
 # ThreadedConnectionPool allows multiple sequential connections within a single Lambda container.
@@ -102,17 +174,37 @@ def get_db_connection():
 
 
 def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict] = None) -> Dict:
-    """Return properly formatted API Gateway response."""
+    """Return properly formatted API Gateway response with security headers."""
     # CORS: Require FRONTEND_ORIGIN to be explicitly set. Don't allow wildcard '*'
     frontend_origin = os.environ.get('FRONTEND_ORIGIN', '')
     if not frontend_origin:
         # Fail-closed: If FRONTEND_ORIGIN not set, use empty string (no CORS allowed)
         frontend_origin = ''
 
+    # Security headers: Defense-in-depth against XSS, clickjacking, MIME sniffing
     default_headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': frontend_origin,
+        'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400',
+        # Prevent clickjacking attacks
+        'X-Frame-Options': 'DENY',
+        # Prevent MIME type sniffing
+        'X-Content-Type-Options': 'nosniff',
+        # Browser XSS protection (legacy, but defense-in-depth)
+        'X-XSS-Protection': '1; mode=block',
+        # Referrer policy: Don't leak referer to external sites
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        # Content Security Policy: Strict, inline scripts disabled
+        'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+        # Enforce HTTPS for all future requests (if in production)
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' if os.environ.get('ENVIRONMENT') == 'production' else '',
     }
+    # Remove empty HSTS header in non-production
+    if not default_headers['Strict-Transport-Security']:
+        del default_headers['Strict-Transport-Security']
+
     if headers:
         default_headers.update(headers)
 
@@ -186,6 +278,22 @@ def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60)
     # Record this request
     _rate_limit_tracker[ip].append(current_time)
     return True
+
+
+def validate_request(model_class: type, data: Dict[str, Any]) -> Tuple[bool, Any, Optional[str]]:
+    """Validate request data against Pydantic model. Returns (valid, data_or_error, error_message)."""
+    try:
+        validated = model_class(**data)
+        return True, validated, None
+    except ValidationError as e:
+        # Extract first error for clarity
+        first_error = e.errors()[0]
+        field = first_error.get('loc', ['unknown'])[0]
+        msg = first_error.get('msg', 'Validation error')
+        error_message = f"Invalid {field}: {msg}"
+        return False, None, error_message
+    except Exception as e:
+        return False, None, f"Validation failed: {str(e)}"
 
 
 def _safe_limit(limit_str: Any, min_val: int = 1, max_val: int = 500, default: int = 100) -> int:
@@ -2578,10 +2686,23 @@ def lambda_handler(event, context):
         # Get client IP for rate limiting
         client_ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', 'unknown')
 
-        # Rate limiting: max 100 requests per minute per IP
-        if not check_rate_limit(client_ip, max_requests=100, window_seconds=60):
-            logger.warning(f"Rate limit exceeded for {client_ip}")
-            return error_response(429, 'rate_limit_exceeded', 'Too many requests. Max 100 per minute.')
+        # Rate limiting: Apply stricter limits to trading/action endpoints, standard to others
+        # Trading endpoints (prevent accidental rapid-fire trades): 5 req/min
+        if path.startswith('/api/trades') or path == '/api/algo/patrol':
+            max_requests, window_seconds = 5, 60
+            limit_desc = 'Max 5 requests per minute for trading endpoints'
+        # Admin/sensitive endpoints: 10 req/min
+        elif path.startswith('/api/admin') or path.startswith('/api/audit'):
+            max_requests, window_seconds = 10, 60
+            limit_desc = 'Max 10 requests per minute for admin endpoints'
+        # Standard endpoints: 100 req/min
+        else:
+            max_requests, window_seconds = 100, 60
+            limit_desc = 'Max 100 requests per minute'
+
+        if not check_rate_limit(client_ip, max_requests=max_requests, window_seconds=window_seconds):
+            logger.warning(f"Rate limit exceeded for {client_ip} on {path} (limit: {limit_desc})")
+            return error_response(429, 'rate_limit_exceeded', limit_desc)
 
         # API GW v2 HTTP API passes query params as plain strings, but all handlers
         # do params.get('key', [default])[0]. Normalize each value to a single-item list

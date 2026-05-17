@@ -11,7 +11,10 @@ Tests all 25+ API endpoints for:
 import requests
 import json
 import sys
+import io
 from typing import Dict, List, Tuple
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # API endpoint base - adjust if running on different port
 API_BASE = "http://localhost:3001"  # React dev server default

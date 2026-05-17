@@ -89,7 +89,11 @@ class MetricsPublisher:
             cw.put_metric_data(Namespace=NAMESPACE, MetricData=self._batch)
             log.debug("metrics.flushed count=%d", len(self._batch))
         except Exception as e:
-            log.error("metrics.flush_failed error=%s count=%d", e, len(self._batch))
+            # Log error but don't fail—metrics are non-critical
+            if "not authorized" in str(e) or "AccessDenied" in str(e):
+                log.debug("metrics.skipped (no CloudWatch permission) count=%d", len(self._batch))
+            else:
+                log.warning("metrics.flush_failed error=%s count=%d", e, len(self._batch))
         finally:
             self._batch.clear()
 
