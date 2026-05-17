@@ -34,8 +34,8 @@ export default defineConfig(({ mode }) => {
     ],
     build: {
       outDir: "dist",
-      sourcemap: true,
-      chunkSizeWarningLimit: 1000,
+      sourcemap: isDevelopment,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         external: (id) => {
           // Don't externalize any dependencies - bundle everything for compatibility

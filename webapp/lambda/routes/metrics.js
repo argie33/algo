@@ -35,6 +35,8 @@ router.get('/', authenticateToken, async (req, res) => {
       case 'month':
         dateFilter = "AND exit_date >= CURRENT_DATE - INTERVAL '30 days'";
         break;
+      default:
+        return sendError(res, "Invalid period. Use: day, week, month, or all", 400);
     }
 
     metricsQuery += dateFilter;

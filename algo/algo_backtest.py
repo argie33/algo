@@ -50,8 +50,9 @@ if not db_password:
         from config.credential_manager import get_credential_manager
         credential_manager = get_credential_manager()
         db_password = get_db_password()
-    except Exception:
-        db_password = "postgres"  # Default for local dev
+    except Exception as e:
+        logger.critical(f"Database password unavailable. Credential manager failed: {e}")
+        db_password = None  # Will be caught at connection time
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),

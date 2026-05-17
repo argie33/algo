@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
       WHERE ss.symbol IS NOT NULL
       ORDER BY ss.composite_score DESC NULLS LAST
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]);
+    `, [limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
     return sendSuccess(res, result, 200);
@@ -53,7 +53,7 @@ router.get("/list", async (req, res) => {
       WHERE ss.symbol IS NOT NULL
       ORDER BY ss.composite_score DESC NULLS LAST
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]);
+    `, [limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
     return sendSuccess(res, result, 200);
