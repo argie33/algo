@@ -1880,6 +1880,29 @@ CREATE INDEX IF NOT EXISTS idx_sector_ranking_date_desc ON sector_ranking(date_r
 CREATE INDEX IF NOT EXISTS idx_algo_trades_status_exit ON algo_trades(status, exit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_created ON data_patrol_log(created_at DESC);
 
+-- Additional critical indexes for query performance (Phase 5 optimization)
+-- Algo trades: optimize for time-series queries (entry/exit dates)
+CREATE INDEX IF NOT EXISTS idx_algo_trades_entry_date_desc ON algo_trades(entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_signal_date ON algo_trades(signal_date);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_signal_status ON algo_trades(signal_date, status);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol_status ON algo_trades(symbol, status);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_exit_date ON algo_trades(exit_date);
+
+-- Positions: optimize common WHERE symbol = ? AND status = ? queries
+CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol_status ON algo_positions(symbol, status);
+
+-- Stock scores: optimize date-range queries
+CREATE INDEX IF NOT EXISTS idx_stock_scores_date ON stock_scores(date);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol_date ON stock_scores(symbol, date);
+
+-- Buy/Sell daily: optimize date queries
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_date ON buy_sell_daily(date);
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
+
+-- Notifications: optimize by symbol queries
+CREATE INDEX IF NOT EXISTS idx_algo_notifications_symbol ON algo_notifications(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_notifications_created_at ON algo_notifications(created_at DESC);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- BACKTEST RESULTS & HISTORICAL ANALYSIS
 -- ════════════════════════════════════════════════════════════════════════════
