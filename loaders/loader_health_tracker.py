@@ -110,7 +110,7 @@ class LoaderHealthTracker:
                     if latest_date:
                         date_col_used = date_col
                         break
-                except:
+                except (psycopg2.Error, ValueError, TypeError):
                     continue
 
             self.cur.execute(f"SELECT COUNT(*) FROM {table_name}")

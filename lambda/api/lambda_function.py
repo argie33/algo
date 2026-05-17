@@ -3897,7 +3897,8 @@ class APIHandler:
                     self.cur.execute(query)
                     count = self.cur.fetchone()[0]
                     table_counts[table] = count
-                except:
+                except (psycopg2.Error, TypeError, AttributeError) as e:
+                    logger.warning(f"Failed to count rows in table {table}: {e}")
                     table_counts[table] = 0
 
             health_data['tables'] = table_counts

@@ -13,6 +13,10 @@ from flask_cors import CORS
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Set up logging FIRST (before any logger calls)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Load environment variables from .env.local
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
@@ -26,10 +30,6 @@ sys.path.insert(0, str(Path(__file__).parent / 'lambda' / 'api'))
 
 # Import the Lambda handler
 from lambda_function import APIHandler
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -80,8 +80,9 @@ def handle_api(path):
     elif request.data:
         try:
             body = json.loads(request.data.decode('utf-8'))
-        except:
-            pass
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.debug("Failed to parse request body as JSON, treating as empty")
+            body = {}
 
     logger.info(f"{method} {path}")
 
@@ -102,7 +103,8 @@ def handle_api(path):
             if isinstance(body_str, str):
                 try:
                     body_obj = json.loads(body_str)
-                except:
+                except json.JSONDecodeError:
+                    logger.debug("Response body was not valid JSON, returning as raw string")
                     body_obj = {'raw': body_str}
             else:
                 body_obj = body_str

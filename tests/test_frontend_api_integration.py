@@ -128,7 +128,7 @@ class TestFrontendPages:
         try:
             cur.execute("SELECT COUNT(*) FROM feature_flags")
             assert True, "Feature flags table exists"
-        except:
+        except psycopg2.Error:
             pytest.skip("Feature flags table not required for auth")
 
     def test_no_hardcoded_credentials_in_frontend(self):

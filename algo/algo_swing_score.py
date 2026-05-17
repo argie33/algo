@@ -73,14 +73,17 @@ def _get_db_config():
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
 
-    # Component weights (sum = 100) - loaded from config, fallback to defaults
-    W_SETUP = 25
-    W_TREND = 20
-    W_MOMENTUM = 20
-    W_VOLUME = 12
-    W_FUNDAMENTALS = 10
-    W_SECTOR = 8
-    W_MULTI_TF = 5
+    # Component weights (sum = 100) - loaded from config table, fallback to defaults
+    # These weights determine the relative importance of each factor in the composite swing score
+    # Weights are configurable via algo_config table (swing_weight_* keys) for hot-reload tuning
+
+    W_SETUP = 25        # Chart setup quality (breakout levels, support/resistance) - highest priority
+    W_TREND = 20        # Trend direction and strength (moving average relationships, slope)
+    W_MOMENTUM = 20     # Momentum indicators (RSI, MACD, rate of change) - co-equal with trend
+    W_VOLUME = 12       # Volume confirmation (above/below average, on-balance volume)
+    W_FUNDAMENTALS = 10 # Company fundamentals (earnings, growth, valuation)
+    W_SECTOR = 8        # Sector rotation and performance relative to market
+    W_MULTI_TF = 5      # Multi-timeframe alignment (1h/4h/daily confirmation)
 
     def __init__(self, cur=None):
         self.cur = cur
