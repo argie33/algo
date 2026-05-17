@@ -31,7 +31,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple, Optional
 from utils.trade_status import TradeStatus, PositionStatus
 import logging
 
@@ -67,16 +67,16 @@ def _get_db_config():
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.conn = None
-        self.cur = None
+        self.conn: Optional[psycopg2.extensions.connection] = None
+        self.cur: Optional[psycopg2.extensions.cursor] = None
 
-    def connect(self):
+    def connect(self) -> None:
         self.conn = psycopg2.connect(**_get_db_config())
         self.cur = self.conn.cursor()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.cur:
             self.cur.close()
         if self.conn:

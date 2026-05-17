@@ -873,7 +873,7 @@ class APIHandler:
         """Get data freshness status."""
         try:
             self.cur.execute("""
-                SELECT symbol, latest_date
+                SELECT table_name, latest_date
                 FROM data_loader_status
                 ORDER BY latest_date DESC
                 LIMIT 10
@@ -2157,7 +2157,7 @@ class APIHandler:
                 self.cur.execute("""
                     SELECT date, fear_greed_value as value
                     FROM fear_greed_index
-                    WHERE date >= CURRENT_DATE - INTERVAL '%s days'
+                    WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                     ORDER BY date DESC
                 """, (range_days,))
                 sentiment = self.cur.fetchall()
@@ -2963,18 +2963,18 @@ class APIHandler:
 
             loaders = []
             for row in rows:
-                run_date = row[1]
+                run_date = row['run_date']
                 age_hours = (datetime.now(timezone.utc) - run_date.replace(tzinfo=timezone.utc)).total_seconds() / 3600
                 health = 'stale' if age_hours > 24 else 'fresh'
 
                 loaders.append({
-                    'name': row[0],
+                    'name': row['loader_name'],
                     'last_run': run_date.isoformat() if run_date else None,
-                    'rows_processed': row[2],
-                    'duration_seconds': row[3],
-                    'status': row[4],
-                    'error': row[5],
-                    'checksum': row[6],
+                    'rows_processed': row['rows_processed'],
+                    'duration_seconds': row['duration_seconds'],
+                    'status': row['status'],
+                    'error': row['error_message'],
+                    'checksum': row['checksum'],
                     'age_hours': round(age_hours, 1),
                     'health': health,
                 })
