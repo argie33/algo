@@ -146,25 +146,22 @@ router.get("/trends-batch", async (req, res) => {
       return sendSuccess(res, {});
     }
 
-    // Query daily average price per sector from price_daily + company_profile
+    // Query daily returns per sector from sector_performance table
     const placeholders = sectors.map((_, i) => `$${i + 1}`).join(',');
     const resultObj = await query(`
       SELECT
-        cp.sector,
-        pd.date,
-        AVG(pd.close) AS avgPrice
-      FROM price_daily pd
-      JOIN company_profile cp ON cp.ticker = pd.symbol
-      WHERE cp.sector IN (${placeholders})
-        AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-        AND pd.close > 0
-      GROUP BY cp.sector, pd.date
-      ORDER BY cp.sector, pd.date ASC
+        sector,
+        date,
+        return_pct
+      FROM sector_performance
+      WHERE sector IN (${placeholders})
+        AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY sector, date ASC
     `, sectors);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
-    // Group by sector
+    // Group by sector and compute cumulative index
     const grouped = {};
     result.forEach(row => {
       if (!grouped[row.sector]) {
@@ -172,14 +169,26 @@ router.get("/trends-batch", async (req, res) => {
       }
       grouped[row.sector].push({
         date: row.date,
-        avgPrice: parseFloat(row.avgprice),  // Note: pg returns lowercase column names
+        return_pct: parseFloat(row.return_pct),
       });
     });
 
-    sendSuccess(res, grouped, 200);
+    // Compute price index (100 at start, then compound daily returns)
+    Object.keys(grouped).forEach(sector => {
+      let index = 100;
+      grouped[sector] = grouped[sector].map(point => {
+        index = index * (1 + (point.return_pct || 0) / 100);
+        return {
+          date: point.date,
+          avgPrice: parseFloat(index.toFixed(2)),
+        };
+      });
+    });
+
+    return sendSuccess(res, grouped, 200);
   } catch (error) {
     console.error("Error fetching sector trends batch:", error);
-    sendError(res, "Failed to fetch sector trends: " + error.message, 500);
+    return sendError(res, "Failed to fetch sector trends: " + error.message, 500);
   }
 });
 
