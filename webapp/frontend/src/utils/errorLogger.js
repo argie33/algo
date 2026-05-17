@@ -160,9 +160,6 @@ export const logApiSuccess = (
     context,
   };
   if (import.meta.env && import.meta.env.DEV) {
-      `✅ ${component} - ${operation} succeeded`,
-      safeStringify(successLog)
-    );
   }
 };
 

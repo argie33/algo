@@ -269,12 +269,6 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured OR dev auth is forced OR in DEV mode
       // Use dev auth if Cognito isn't configured OR in DEV mode OR dev auth is forced
       if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV) {
-          forceDevAuth
-            ? "🔧 DEVELOPMENT MODE - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
-            : !cognitoConfigured
-              ? "🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback"
-              : "🔧 DEVELOPMENT MODE - Using dev auth in DEV environment"
-        );
 
         try {
           const user = await devAuth.getCurrentUser();
