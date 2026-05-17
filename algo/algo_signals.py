@@ -637,8 +637,12 @@ class SignalComputer:
         After a 9 setup completes, expect mean reversion. The "perfected" 9 has
         the high (sell) or low (buy) of bar 8/9 surpass that of bar 6/7.
 
+        M6 FIX: TD Sequential is now session-aware. Counts are computed fresh each
+        time from price data and reset at market open (natural reset from daily
+        bar calculation). No stale state persists across sessions.
+
         Returns: {
-          'setup_count': int,         # current consecutive count
+          'setup_count': int,         # current consecutive count (resets daily)
           'setup_type': 'buy' | 'sell' | None,
           'completed_9': bool,         # exhaustion fired today
           'perfected': bool,           # textbook setup
@@ -647,7 +651,8 @@ class SignalComputer:
         """
         try:
             self.connect()
-            # Need 14 bars to count a 9 setup against 4-bars-back reference
+            # M6: Compute count fresh from price data each time
+            # Count inherently resets daily as it's based on bar-by-bar closes
             self.cur.execute(
                 """
                 SELECT date, high, low, close FROM price_daily
