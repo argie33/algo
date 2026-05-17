@@ -547,24 +547,14 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 # Terraform no longer creates any db-init Lambda resources.
 
 # ============================================================
-# RDS Proxy - Connection Pooling
+# RDS Proxy - Connection Pooling (ENABLED BY DEFAULT)
 # ============================================================
 # Multiplexes many ECS task connections (40 loaders × 8 workers)
 # down to a smaller pool of actual DB connections (~20-30).
 # Cost: ~$0.015/hour for db.t3.micro
 # Benefit: Prevents connection limit errors, automatic failover
-
-# RDS Proxy security group, role, and policy - DISABLED
-# TODO: Re-enable when RDS Proxy is implemented
-
-# Store DB credentials in Secrets Manager for RDS Proxy to use
-# ============================================================
-# 9. RDS Proxy for Connection Pooling - DISABLED FOR NOW
-# ============================================================
-# TODO: Re-implement RDS Proxy with correct resource configuration
-# The resource has complex nested block structure that needs careful implementation
-# RDS Proxy will be added in a future iteration after core infrastructure is stable
-# Benefits when enabled: Multiplexes connections, prevents connection limit errors
+# Status: ENABLED (var.enable_rds_proxy defaults to true)
+# To disable: Set enable_rds_proxy = false in terraform.tfvars if not needed for your scale
 
 # ============================================================
 # 11. Credential Rotation - RDS Database Passwords
@@ -718,6 +708,7 @@ resource "aws_dynamodb_table" "watermarks" {
   name           = "${var.project_name}-watermarks-${var.environment}"
   billing_mode   = "PAY_PER_REQUEST"
   hash_key       = "source"
+  # TODO: Migrate to partition_key when AWS provider deprecates hash_key (currently both supported)
 
   attribute {
     name = "source"

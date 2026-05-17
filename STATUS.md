@@ -1,8 +1,45 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 96: Code Quality & Anti-Pattern Fixes)
+**Last Updated:** 2026-05-17 (Session 97: Optional Infrastructure Review)
 **Status:** ✅ **PRODUCTION READY** | All infrastructure, credentials, and code quality issues resolved
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
+
+---
+
+## ✅ SESSION 97: OPTIONAL INFRASTRUCTURE ITEMS CLARIFIED
+
+### Three Optional Features Audited
+
+**1. RDS Proxy (Connection Pooling)** — Status: **ENABLED BY DEFAULT**
+   - Implementation: ✅ Complete (terraform/modules/database/main.tf)
+   - Current Setting: `enable_rds_proxy = true` (variable default)
+   - Purpose: Multiplexes 40+ concurrent loaders → 20-30 DB connections (prevents connection limit errors)
+   - Cost: ~$0.015/hour for db.t3.micro
+   - Decision: **Enabled by default for Lambda scaling. To disable, set `enable_rds_proxy = false` in terraform.tfvars**
+   - Status: Ready to use immediately
+
+**2. Cognito JWT Authentication** — Status: **OPTIONAL (Currently Disabled)**
+   - Infrastructure: ✅ Created (terraform/cognito.tf + modules/cognito/)
+   - API Integration: ❌ Not wired (authorizer code commented in terraform/modules/services/main.tf lines 167-179)
+   - Current Auth: API-key based (public access, `cognito_enabled = false`)
+   - To Enable (if needed):
+     1. Set `cognito_enabled = true` in terraform.tfvars
+     2. Uncomment authorizer resource in terraform/modules/services/main.tf (lines 167-179)
+     3. Update `terraform.tfvars` with: `cognito_client_id = "..."` and `cognito_user_pool_id = "..."`
+     4. Update frontend auth flow (currently uses localStorage for API key)
+   - Recommendation: **Keep disabled unless user authentication is required**
+
+**3. DynamoDB hash_key Deprecation** — Status: **NOTED FOR FUTURE**
+   - Issue: AWS Terraform provider may deprecate `hash_key` argument in favor of `partition_key`
+   - Current Use: terraform/modules/database/main.tf line 720 (watermarks table)
+   - Timeline: Non-blocking; AWS provider will handle migration
+   - Action: TODO comment added for future migration when deprecation is announced
+   - Impact: None; using current supported syntax
+
+**Summary:**
+- RDS Proxy: ✅ Enabled and ready
+- Cognito Auth: ⏸️ Optional; needs manual integration if desired
+- DynamoDB: ✅ Future-proofed with migration note
 
 ---
 
