@@ -256,12 +256,39 @@ router.get("/leading-indicators", async (req, res) => {
             name: "GDP Growth",
             category: "LEI", // Official Leading Economic Indicator
             value: indicators["GDPC1"] ? (indicators["GDPC1"].value / 1000).toFixed(1) + "T" : null,
-            rawValue: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
-            unit: "Billions",
+            // rawValue: Calculate quarter-over-quarter GDP growth rate (not absolute level)
+            // Positive rate = expansion, negative rate = contraction
+            rawValue: (() => {
+              const hist = historicalData["GDPC1"];
+              if (!hist || hist.length < 2) return null;
+              const latest = hist[hist.length - 1]?.value;
+              const previous = hist[hist.length - 2]?.value;
+              if (!latest || !previous || previous === 0) return null;
+              return ((latest - previous) / previous) * 100;  // QoQ growth rate as percentage
+            })(),
+            unit: "% QoQ",
             ...calculateTrend("GDPC1"),
-            signal: indicators["GDPC1"] ? (indicators["GDPC1"].value > 20000 ? "Positive" : indicators["GDPC1"].value < 18000 ? "Negative" : null) : null,
-            description: "Real Gross Domestic Product",
-            strength: indicators["GDPC1"] ? Math.min(100, Math.max(0, (indicators["GDPC1"].value - 18000) / 50)) : null,
+            signal: (() => {
+              const gdpGrowth = ((latest, previous) => {
+                const hist = historicalData["GDPC1"];
+                if (!hist || hist.length < 2) return null;
+                const l = hist[hist.length - 1]?.value;
+                const p = hist[hist.length - 2]?.value;
+                if (!l || !p) return null;
+                return ((l - p) / p) * 100;
+              })();
+              return gdpGrowth !== null ? (gdpGrowth > 0 ? "Positive" : gdpGrowth < 0 ? "Negative" : null) : null;
+            })(),
+            description: "Real Gross Domestic Product - Quarter-over-quarter growth rate",
+            strength: (() => {
+              const hist = historicalData["GDPC1"];
+              if (!hist || hist.length < 2) return null;
+              const latest = hist[hist.length - 1]?.value;
+              const previous = hist[hist.length - 2]?.value;
+              if (!latest || !previous) return null;
+              const gdpGrowth = ((latest - previous) / previous) * 100;
+              return Math.min(100, Math.max(0, gdpGrowth * 10 + 50));  // Convert growth rate to 0-100 scale
+            })(),
             importance: "high",
             date: indicators["GDPC1"] ? indicators["GDPC1"].date : null,
             history: historicalData["GDPC1"] ? historicalData["GDPC1"].reverse() : [],
