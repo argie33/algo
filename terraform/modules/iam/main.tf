@@ -13,12 +13,6 @@ data "aws_iam_openid_connect_provider" "github" {
   arn = "arn:aws:iam::${var.aws_account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
-# GitHub Actions deployment role - Reference existing role (created manually or via bootstrap)
-# The role is assumed to exist and have proper trust policy already configured
-data "aws_iam_role" "github_actions" {
-  name = "${var.project_name}-svc-github-actions-${var.environment}"
-}
-
 # Trust policy: ONLY this repository, ONLY GitHub Actions
 data "aws_iam_policy_document" "github_actions_assume" {
   statement {
@@ -41,10 +35,18 @@ data "aws_iam_policy_document" "github_actions_assume" {
   }
 }
 
+# GitHub Actions deployment role - Create the role with OIDC trust
+resource "aws_iam_role" "github_actions" {
+  name              = "${var.project_name}-svc-github-actions-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
+
+  tags = var.common_tags
+}
+
 # GitHub Actions policy - Terraform state management only
 resource "aws_iam_role_policy" "github_actions" {
   name   = "${var.project_name}-github-actions-policy"
-  role   = data.aws_iam_role.github_actions.id
+  role   = aws_iam_role.github_actions.id
   policy = data.aws_iam_policy_document.github_actions.json
 }
 

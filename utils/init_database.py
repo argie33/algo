@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.env_loader import load_env
+load_env()
 import os
 import psycopg2
 from pathlib import Path

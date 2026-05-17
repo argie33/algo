@@ -15,6 +15,11 @@ Run:
     python3 loadseasonality.py
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

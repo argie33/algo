@@ -9,6 +9,9 @@ Run:
     python3 loadanalystupgradedowngrade.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 from utils.logging_setup import get_logger
@@ -21,7 +24,7 @@ from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
-# Add parent directory to path for imports
+load_env()
 
 try:
     from config.credential_manager import get_credential_manager
@@ -31,7 +34,7 @@ except ImportError:
 
 try:
     from config.credential_helper import get_db_password, get_db_config
-from utils.loader_helpers import get_active_symbols
+    from utils.loader_helpers import get_active_symbols
 except ImportError:
     # Fallback if config modules don't exist - use env vars directly
     get_db_password = lambda: os.getenv('DB_PASSWORD')

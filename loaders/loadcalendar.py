@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-import sys
-from utils.logging_setup import get_logger
-from pathlib import Path
-
 """
 Economic Calendar Loader - Fetches scheduled economic event dates.
 
@@ -16,6 +12,12 @@ Sources:
 Run:
     python3 loadcalendar.py [--days-ahead 90]
 """
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.logging_setup import get_logger
 
 import argparse
 import logging
@@ -35,10 +37,7 @@ except ImportError:
 from config.credential_helper import get_db_password
 from config.env_loader import load_env
 
-# dotenv-autoload
-try:
-except ImportError:
-    pass
+load_env()
 
 logger = get_logger(__name__)
 

@@ -30,13 +30,19 @@ Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
 FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from config.env_loader import load_env
 import time
 import logging
 import json
 import os
 import gc
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import math
 
 import psycopg2
@@ -49,6 +55,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # Load .env.local if it exists
+load_env()
 
 # -------------------------------
 # Script metadata & logging setup 

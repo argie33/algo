@@ -44,10 +44,10 @@ output "batch_ecs_instance_role_arn" {
 
 output "cloudwatch_log_group_name" {
   description = "CloudWatch log group name for Batch jobs"
-  value       = length(aws_cloudwatch_log_group.batch) > 0 ? aws_cloudwatch_log_group.batch[0].name : data.aws_cloudwatch_log_group.batch_existing.name
+  value       = aws_cloudwatch_log_group.batch.name
 }
 
 output "cloudwatch_log_group_arn" {
   description = "CloudWatch log group ARN for Batch jobs"
-  value       = length(aws_cloudwatch_log_group.batch) > 0 ? aws_cloudwatch_log_group.batch[0].arn : data.aws_cloudwatch_log_group.batch_existing.arn
+  value       = aws_cloudwatch_log_group.batch.arn
 }

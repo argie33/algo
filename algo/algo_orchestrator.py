@@ -51,7 +51,12 @@ After every phase, results are written to algo_audit_log so the dashboard
 can show exactly what happened and when.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from config.env_loader import load_env
+load_env()
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager

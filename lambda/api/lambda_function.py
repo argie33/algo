@@ -79,9 +79,11 @@ _db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-
 
 # Rate limiting: track requests per IP
 # Format: {ip: [timestamp1, timestamp2, ...]}
-# Clean up old entries every 100 requests to prevent unbounded growth
+# Rate limit tracking with automatic cleanup
 _rate_limit_tracker: Dict[str, list] = {}
-_rate_limit_check_count = 0
+_rate_limit_last_cleanup = time.time()
+_RATE_LIMIT_CLEANUP_INTERVAL = 60  # seconds between aggressive cleanups
+_RATE_LIMIT_MAX_IPS = 1000  # hard cap on number of tracked IPs
 
 
 def _load_creds() -> Dict:
@@ -275,14 +277,17 @@ def list_response(items: list, total: int = None, page: int = 1, limit: int = No
 
 
 def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
-    """Check if IP has exceeded rate limit. Returns True if request is allowed."""
-    global _rate_limit_tracker, _rate_limit_check_count
+    """Check if IP has exceeded rate limit. Returns True if request is allowed.
+
+    Automatically cleans up stale entries to prevent unbounded memory growth.
+    Enforces hard cap on number of tracked IPs.
+    """
+    global _rate_limit_tracker, _rate_limit_last_cleanup
 
     current_time = time.time()
 
-    # Clean up old entries periodically
-    _rate_limit_check_count += 1
-    if _rate_limit_check_count % 100 == 0:
+    # Time-based cleanup: periodically clean up ALL old entries
+    if current_time - _rate_limit_last_cleanup > _RATE_LIMIT_CLEANUP_INTERVAL:
         for tracked_ip in list(_rate_limit_tracker.keys()):
             _rate_limit_tracker[tracked_ip] = [
                 t for t in _rate_limit_tracker[tracked_ip]
@@ -291,11 +296,19 @@ def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60)
             if not _rate_limit_tracker[tracked_ip]:
                 del _rate_limit_tracker[tracked_ip]
 
+        # If tracker exceeds hard limit, remove oldest IPs
+        if len(_rate_limit_tracker) > _RATE_LIMIT_MAX_IPS:
+            ips_to_remove = len(_rate_limit_tracker) - _RATE_LIMIT_MAX_IPS
+            for ip_to_remove in list(_rate_limit_tracker.keys())[:ips_to_remove]:
+                del _rate_limit_tracker[ip_to_remove]
+
+        _rate_limit_last_cleanup = current_time
+
     # Check current IP
     if ip not in _rate_limit_tracker:
         _rate_limit_tracker[ip] = []
 
-    # Remove old requests outside the window
+    # Remove old requests outside the window for this IP
     _rate_limit_tracker[ip] = [
         t for t in _rate_limit_tracker[ip]
         if current_time - t < window_seconds

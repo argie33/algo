@@ -6,18 +6,17 @@
 # 1. CloudWatch Log Group
 # ============================================================
 
-data "aws_cloudwatch_log_group" "batch_existing" {
-  name = "/aws/batch/${var.project_name}"
-}
-
 resource "aws_cloudwatch_log_group" "batch" {
-  count             = try(data.aws_cloudwatch_log_group.batch_existing.name, null) != null ? 0 : 1
   name              = "/aws/batch/${var.project_name}"
   retention_in_days = var.cloudwatch_log_retention_days
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-batch-logs"
   })
+
+  lifecycle {
+    ignore_changes = [retention_in_days]
+  }
 }
 
 # ============================================================

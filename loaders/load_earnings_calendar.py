@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-import sys
-from utils.logging_setup import get_logger
-from pathlib import Path
-
 """
 Earnings Calendar Loader - Fetches upcoming earnings dates for blackout enforcement.
 
@@ -18,6 +14,12 @@ Sources:
 Run:
     python3 load_earnings_calendar.py [--symbols AAPL,MSFT] [--days-ahead 180]
 """
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.logging_setup import get_logger
 
 import argparse
 import logging
@@ -37,10 +39,7 @@ except ImportError:
 from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
 
-# dotenv-autoload
-try:
-except ImportError:
-    pass
+load_env()
 
 logger = get_logger(__name__)
 
