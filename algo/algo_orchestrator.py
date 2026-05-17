@@ -2164,7 +2164,8 @@ if __name__ == "__main__":
     )
 
     from utils.config_validator import validate_at_startup
-    validate_at_startup(env_file=Path(__file__).parent.parent / '.env.local')
+    # Validate environment (no .env.local - credentials come from env vars or AWS Secrets Manager)
+    validate_at_startup()
 
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
