@@ -1,14 +1,13 @@
 import React from "react";
-import { Box, Typography, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 export default function NotFound() {
   const navigate = useNavigate();
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 2 }}>
-      <Typography variant="h3" color="text.secondary">404</Typography>
-      <Typography variant="h6" color="text.secondary">Page not found</Typography>
-      <Button variant="contained" onClick={() => navigate("/app")}>Go to Dashboard</Button>
-    </Box>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: "1rem" }}>
+      <h1 style={{ margin: 0, fontSize: "3rem", color: "var(--text)" }}>404</h1>
+      <h2 style={{ margin: 0, fontSize: "1.5rem", color: "var(--text-muted)" }}>Page not found</h2>
+      <button className="btn btn-primary" onClick={() => navigate("/app")}>Go to Dashboard</button>
+    </div>
   );
 }

@@ -423,9 +423,9 @@ const DeepValueStocks = () => {
           </Box>
           <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
             <Table size="small">
-              <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700, position: "sticky", left: 0, zIndex: 2, backgroundColor: "#f5f5f5" }}>Symbol</TableCell>
+                  <TableCell sx={{ fontWeight: 700, position: "sticky", left: 0, zIndex: 2 }}>Symbol</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>Company</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 90 }}>Sector</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 70 }}>Quality</TableCell>

@@ -1,51 +1,14 @@
 import { useState, useMemo } from "react";
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Container,
-  FormControl,
-  Grid,
-  IconButton,
-  InputLabel,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Select,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import {
-  TrendingUp,
-  Info,
-  Assessment,
-  AttachMoney,
-  AccountBalance,
-} from "@mui/icons-material";
+import { TrendingUp, Info, BarChart3, DollarSign, Wallet } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
-import api from "../services/api";
+import { api } from "../services/api";
 
 const MetricsDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSector, setSelectedSector] = useState("");
-  const [minMetric, setMinMetric] = useState(0);
-  const [maxMetric, setMaxMetric] = useState(1);
   const [sortBy, setSortBy] = useState("composite_metric");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [page, setPage] = useState(1);
 
   const { data: scoresData, loading, error } = useApiQuery(
     ['stockscores'],
@@ -76,8 +39,6 @@ const MetricsDashboard = () => {
 
     return filtered;
   }, [allStocks, searchTerm, selectedSector, sortBy, sortOrder]);
-
-  const totalPages = useMemo(() => Math.ceil(stocks.length / 50), [stocks]);
 
   const sectors = useMemo(() => {
     const sectorData = {};
@@ -110,436 +71,338 @@ const MetricsDashboard = () => {
   }, [allStocks]);
 
   const getMetricColor = (metric) => {
-    if (metric >= 0.8) return "#4caf50"; // Green
-    if (metric >= 0.7) return "#8bc34a"; // Light green
-    if (metric >= 0.6) return "#ffeb3b"; // Yellow
-    if (metric >= 0.5) return "#ff9800"; // Orange
-    return "#f44336"; // Red
+    if (metric >= 0.8) return "#4caf50";
+    if (metric >= 0.7) return "#8bc34a";
+    if (metric >= 0.6) return "#ffeb3b";
+    if (metric >= 0.5) return "#ff9800";
+    return "#f44336";
   };
 
-  const getMetricChip = (metric, label) => (
-    <Chip
-      label={`${label}: ${metric.toFixed(3)}`}
-      size="small"
-      style={{
-        backgroundColor: getMetricColor(metric),
-        color: metric >= 0.6 ? "#000" : "#fff",
-        fontWeight: "bold",
-        margin: "2px",
-      }}
-    />
-  );
-
-  const MetricProgressBar = ({ metric, label, icon }) => (
-    <Box sx={{ mb: 2 }}>
-      <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-        {icon}
-        <Typography variant="body2" sx={{ ml: 1, flex: 1 }}>
-          {label}
-        </Typography>
-        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-          {metric.toFixed(3)}
-        </Typography>
-      </Box>
-      <LinearProgress
-        variant="determinate"
-        value={metric * 100}
-        sx={{
-          height: 8,
-          borderRadius: 4,
-          "& .MuiLinearProgress-bar": {
-            backgroundColor: getMetricColor(metric),
-            borderRadius: 4,
-          },
-        }}
-      />
-    </Box>
-  );
-
-  const MainMetricsTable = () => (
-    <TableContainer component={Paper} sx={{ mt: 3 }}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>
-              <strong>Symbol</strong>
-            </TableCell>
-            <TableCell>
-              <strong>Company</strong>
-            </TableCell>
-            <TableCell>
-              <strong>Sector</strong>
-            </TableCell>
-            <TableCell align="center">
-              <strong>Composite Metric</strong>
-            </TableCell>
-            <TableCell align="center">
-              <strong>Quality</strong>
-            </TableCell>
-            <TableCell align="center">
-              <strong>Value</strong>
-            </TableCell>
-            <TableCell align="center">
-              <strong>Growth</strong>
-            </TableCell>
-            <TableCell>
-              <strong>Price</strong>
-            </TableCell>
-            <TableCell>
-              <strong>Market Cap</strong>
-            </TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(stocks || []).map((stock, _index) => (
-            <TableRow key={stock.symbol} hover>
-              <TableCell>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontWeight: "bold", color: "#1976d2" }}
-                >
-                  {stock.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {stock.company_name?.substring(0, 30)}
-                  {stock.company_name?.length > 30 ? "..." : ""}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Chip label={stock.sector} size="small" variant="outlined" />
-              </TableCell>
-              <TableCell align="center">
-                <Typography
-                  variant="h6"
-                  sx={{
-                    color: getMetricColor(stock.composite_score || 0),
-                    fontWeight: "bold",
-                  }}
-                >
-                  {(stock.composite_score || 0).toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                <Typography
-                  sx={{ color: getMetricColor(stock.quality_score || 0) }}
-                >
-                  {(stock.quality_score || 0).toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                <Typography sx={{ color: getMetricColor(stock.value_score || 0) }}>
-                  {(stock.value_score || 0).toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                <Typography
-                  sx={{ color: getMetricColor(stock.growth_score || 0) }}
-                >
-                  {(stock.growth_score || 0).toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell>${stock.current_price?.toFixed(2) || "N/A"}</TableCell>
-              <TableCell>
-                {stock.market_cap
-                  ? `$${(stock.market_cap / 1e9).toFixed(1)}B`
-                  : "N/A"}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-  const SectorAnalysis = () => (
-    <Grid container spacing={3} sx={{ mt: 2 }}>
-      {(sectors || []).map((sector) => (
-        <Grid item xs={12} md={6} lg={4} key={sector.name}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {sector.name}
-              </Typography>
-              <Typography variant="body2" color="textSecondary" gutterBottom>
-                {sector.count} stocks
-              </Typography>
-
-              <MetricProgressBar
-                metric={parseFloat(sector.avgComposite) || 0}
-                label="Composite"
-                icon={<Assessment />}
-              />
-
-              <Box
-                sx={{ mt: 2, display: "flex", justifyContent: "center" }}
-              >
-                <Typography variant="caption" color="text.secondary">
-                  Average metric score
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      ))}
-    </Grid>
-  );
-
-  const TopStocks = () => (
-    <Grid container spacing={3} sx={{ mt: 2 }}>
-      {Object.entries(topStocksData).map(([category, data]) => {
-        const stocks = data?.items || [];
-        const total = data?.total || 0;
-        return (
-        <Grid item xs={12} md={6} key={category}>
-          <Card>
-            <CardContent>
-              <Typography
-                variant="h6"
-                gutterBottom
-                sx={{ textTransform: "capitalize" }}
-              >
-                Top {category === "composite" ? "Overall" : category} Stocks
-                {total > 10 && <span style={{ fontSize: '0.75em', marginLeft: 8, color: '#999' }}>({stocks.length} of {total})</span>}
-              </Typography>
-              <Box sx={{ maxHeight: 400, overflow: "auto" }}>
-                {(stocks || []).map((stock, index) => {
-                  const scoreKey = category === "composite" ? "composite_score" : category === "quality" ? "quality_score" : "value_score";
-                  const scoreValue = stock[scoreKey] || 0;
-                  return (
-                    <Box
-                      key={stock.symbol}
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        py: 1,
-                        borderBottom: index < 9 ? "1px solid #eee" : "none",
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                          {index + 1}. {stock.symbol}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          {stock.company_name?.substring(0, 25)}
-                          {stock.company_name?.length > 25 ? "..." : ""}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: "right" }}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: getMetricColor(scoreValue),
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {scoreValue.toFixed(3)}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          {stock.sector}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      );
-      })}
-    </Grid>
-  );
+  const getMetricClass = (metric) => {
+    if (metric >= 0.8) return 'up';
+    if (metric >= 0.7) return 'up';
+    if (metric >= 0.6) return 'flat';
+    if (metric >= 0.5) return 'down';
+    return 'down';
+  };
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error">Error loading metrics: {error}</Alert>
-      </Container>
+      <div className="page-container">
+        <div className="alert alert-danger">Error loading metrics: {error}</div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
+    <div className="page-container">
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          Institutional-Grade Stock Metrics
-        </Typography>
-        <Typography variant="subtitle1" color="textSecondary">
-          Advanced multi-factor analysis based on academic research and
-          institutional methodology
-        </Typography>
-      </Box>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ marginBottom: '0.5rem', fontWeight: 700 }}>Institutional-Grade Stock Metrics</h1>
+        <p className="text-secondary">Advanced multi-factor analysis based on academic research and institutional methodology</p>
+      </div>
 
-      {/* Navigation Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
+      {/* Tabs */}
+      <div style={{ borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', display: 'flex', gap: '2rem' }}>
+        <button
+          onClick={() => setActiveTab(0)}
+          style={{
+            padding: '0.75rem 1rem',
+            borderBottom: activeTab === 0 ? '2px solid var(--brand)' : '2px solid transparent',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === 0 ? 600 : 400,
+            color: activeTab === 0 ? 'var(--text-1)' : 'var(--text-2)',
+          }}
         >
-          <Tab value={0} label="Stock Metrics" />
-          <Tab value={1} label="Sector Analysis" />
-          <Tab value={2} label="Top Performers" />
-        </Tabs>
-      </Box>
+          Stock Metrics
+        </button>
+        <button
+          onClick={() => setActiveTab(1)}
+          style={{
+            padding: '0.75rem 1rem',
+            borderBottom: activeTab === 1 ? '2px solid var(--brand)' : '2px solid transparent',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === 1 ? 600 : 400,
+            color: activeTab === 1 ? 'var(--text-1)' : 'var(--text-2)',
+          }}
+        >
+          Sector Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab(2)}
+          style={{
+            padding: '0.75rem 1rem',
+            borderBottom: activeTab === 2 ? '2px solid var(--brand)' : '2px solid transparent',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === 2 ? 600 : 400,
+            color: activeTab === 2 ? 'var(--text-1)' : 'var(--text-2)',
+          }}
+        >
+          Top Performers
+        </button>
+      </div>
 
-      {/* Filters for Stock Metrics Tab */}
+      {/* Filters */}
       {activeTab === 0 && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={3}>
-              <TextField
-                fullWidth
-                label="Search Symbol/Company"
+        <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+            <div>
+              <label className="text-secondary" style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>Search Symbol/Company</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                size="small"
               />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sector</InputLabel>
-                <Select
-                  value={selectedSector}
-                  label="Sector"
-                  onChange={(e) => setSelectedSector(e.target.value)}
-                >
-                  <MenuItem value="">All Sectors</MenuItem>
-                  <MenuItem value="Technology">Technology</MenuItem>
-                  <MenuItem value="Healthcare">Healthcare</MenuItem>
-                  <MenuItem value="Financial Services">
-                    Financial Services
-                  </MenuItem>
-                  <MenuItem value="Consumer Cyclical">
-                    Consumer Cyclical
-                  </MenuItem>
-                  <MenuItem value="Industrials">Industrials</MenuItem>
-                  <MenuItem value="Communication Services">
-                    Communication Services
-                  </MenuItem>
-                  <MenuItem value="Consumer Defensive">
-                    Consumer Defensive
-                  </MenuItem>
-                  <MenuItem value="Energy">Energy</MenuItem>
-                  <MenuItem value="Utilities">Utilities</MenuItem>
-                  <MenuItem value="Real Estate">Real Estate</MenuItem>
-                  <MenuItem value="Basic Materials">Basic Materials</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <TextField
-                fullWidth
-                label="Min Metric"
-                type="number"
-                value={minMetric}
-                onChange={(e) => setMinMetric(Number(e.target.value))}
-                size="small"
-                inputProps={{ min: 0, max: 1, step: 0.01 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <TextField
-                fullWidth
-                label="Max Metric"
-                type="number"
-                value={maxMetric}
-                onChange={(e) => setMaxMetric(Number(e.target.value))}
-                size="small"
-                inputProps={{ min: 0, max: 1, step: 0.01 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sort By</InputLabel>
-                <Select
-                  value={sortBy}
-                  label="Sort By"
-                  onChange={(e) => setSortBy(e.target.value)}
-                >
-                  <MenuItem value="composite_metric">Composite Metric</MenuItem>
-                  <MenuItem value="quality_metric">Quality Metric</MenuItem>
-                  <MenuItem value="value_metric">Value Metric</MenuItem>
-                  <MenuItem value="market_cap">Market Cap</MenuItem>
-                  <MenuItem value="symbol">Symbol</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-        </Paper>
+            </div>
+            <div>
+              <label className="text-secondary" style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>Sector</label>
+              <select
+                className="form-control"
+                value={selectedSector}
+                onChange={(e) => setSelectedSector(e.target.value)}
+              >
+                <option value="">All Sectors</option>
+                <option value="Technology">Technology</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Financial Services">Financial Services</option>
+                <option value="Consumer Cyclical">Consumer Cyclical</option>
+                <option value="Industrials">Industrials</option>
+                <option value="Communication Services">Communication Services</option>
+                <option value="Consumer Defensive">Consumer Defensive</option>
+                <option value="Energy">Energy</option>
+                <option value="Utilities">Utilities</option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Basic Materials">Basic Materials</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-secondary" style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>Sort By</label>
+              <select
+                className="form-control"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="composite_metric">Composite Metric</option>
+                <option value="quality_metric">Quality Metric</option>
+                <option value="value_metric">Value Metric</option>
+                <option value="market_cap">Market Cap</option>
+                <option value="symbol">Symbol</option>
+              </select>
+            </div>
+            <div>
+              <select
+                className="form-control"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+              >
+                <option value="desc">High → Low</option>
+                <option value="asc">Low → High</option>
+              </select>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Content based on active tab */}
+      {/* Content */}
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-          <CircularProgress />
-        </Box>
+        <div style={{ textAlign: 'center', padding: '3rem' }}>Loading metrics...</div>
       ) : (
         <>
-          {activeTab === 0 && <MainMetricsTable />}
-          {activeTab === 1 && <SectorAnalysis />}
-          {activeTab === 2 && <TopStocks />}
+          {/* Stock Metrics Table */}
+          {activeTab === 0 && (
+            <div className="card" style={{ marginTop: '1.5rem', overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Symbol</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Company</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Sector</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Composite</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Quality</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Value</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Growth</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-muted)' }}>Price</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-muted)' }}>Market Cap</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stocks || []).map((stock, idx) => (
+                    <tr key={stock.symbol} style={{ borderTop: '1px solid var(--border)', backgroundColor: idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)' }}>
+                      <td style={{ padding: '0.75rem', fontWeight: 600, color: 'var(--brand)' }}>{stock.symbol}</td>
+                      <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>{stock.company_name?.substring(0, 30)}</td>
+                      <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
+                        <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--surface-2)', fontSize: '0.8rem' }}>
+                          {stock.sector}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: getMetricColor(stock.composite_score || 0) }}>
+                        {(stock.composite_score || 0).toFixed(3)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', color: getMetricColor(stock.quality_score || 0) }}>
+                        {(stock.quality_score || 0).toFixed(3)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', color: getMetricColor(stock.value_score || 0) }}>
+                        {(stock.value_score || 0).toFixed(3)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', color: getMetricColor(stock.growth_score || 0) }}>
+                        {(stock.growth_score || 0).toFixed(3)}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>${stock.current_price?.toFixed(2) || 'N/A'}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        {stock.market_cap ? `$${(stock.market_cap / 1e9).toFixed(1)}B` : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Sector Analysis */}
+          {activeTab === 1 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {(sectors || []).map((sector) => (
+                <div key={sector.name} className="card" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>{sector.name}</h3>
+                  <p className="text-secondary" style={{ margin: '0 0 1rem 0', fontSize: '0.9rem' }}>{sector.count} stocks</p>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                      <span>Composite</span>
+                      <span style={{ fontWeight: 600 }}>{parseFloat(sector.avgComposite || 0).toFixed(3)}</span>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      backgroundColor: 'var(--border)',
+                      borderRadius: '4px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        width: `${Math.min(100, parseFloat(sector.avgComposite || 0) * 100)}%`,
+                        height: '100%',
+                        backgroundColor: getMetricColor(parseFloat(sector.avgComposite || 0)),
+                        borderRadius: '4px'
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Top Stocks */}
+          {activeTab === 2 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {Object.entries(topStocksData).map(([category, data]) => {
+                const stocks = data?.items || [];
+                const total = data?.total || 0;
+                const scoreKey = category === "composite" ? "composite_score" : category === "quality" ? "quality_score" : "value_score";
+                return (
+                  <div key={category} className="card" style={{ padding: '1.5rem' }}>
+                    <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: 600, textTransform: 'capitalize' }}>
+                      Top {category === "composite" ? "Overall" : category} Stocks
+                      {total > 10 && <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem', color: 'var(--text-3)' }}>({stocks.length} of {total})</span>}
+                    </h3>
+                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                      {(stocks || []).map((stock, index) => (
+                        <div
+                          key={stock.symbol}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '0.75rem 0',
+                            borderBottom: index < 9 ? '1px solid var(--border)' : 'none'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                              {index + 1}. {stock.symbol}
+                            </div>
+                            <div className="text-secondary" style={{ fontSize: '0.8rem' }}>
+                              {stock.company_name?.substring(0, 25)}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 600, color: getMetricColor(stock[scoreKey] || 0), fontSize: '0.95rem' }}>
+                              {(stock[scoreKey] || 0).toFixed(3)}
+                            </div>
+                            <div className="text-secondary" style={{ fontSize: '0.8rem' }}>
+                              {stock.sector}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      {/* Pagination for Stock Metrics */}
-      {activeTab === 0 && totalPages > 1 && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Page {page} of {totalPages}
-          </Typography>
-          {/* Add pagination controls here if needed */}
-        </Box>
-      )}
-
       {/* Legend */}
-      <Paper sx={{ p: 2, mt: 4, backgroundColor: "#f5f5f5" }}>
-        <Typography variant="h6" gutterBottom>
-          Metrics Methodology
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={6}>
-            <Typography variant="subtitle2">Quality Metric</Typography>
-            <Typography variant="caption">
-              Financial statement quality, balance sheet strength,
-              profitability, management effectiveness using Piotroski F-Score,
-              Altman Z-Score analysis
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6} md={6}>
-            <Typography variant="subtitle2">Value Metric</Typography>
-            <Typography variant="caption">
-              Traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value,
-              dividend discount model, and peer comparison analysis
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6} md={6}>
-            <Typography variant="subtitle2">Growth Metric</Typography>
-            <Typography variant="caption">
-              Revenue growth analysis, earnings growth quality, fundamental
-              growth drivers, and market expansion potential based on academic
-              research
-            </Typography>
-          </Grid>
-        </Grid>
+      <div className="card" style={{ padding: '1.5rem', marginTop: '2rem', backgroundColor: 'var(--surface-2)' }}>
+        <h3 style={{ margin: '0 0 1rem 0', fontWeight: 600 }}>Metrics Methodology</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Quality Metric</div>
+            <p className="text-secondary" style={{ fontSize: '0.9rem', margin: 0 }}>
+              Financial statement quality, balance sheet strength, profitability, management effectiveness using Piotroski F-Score, Altman Z-Score analysis
+            </p>
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Value Metric</div>
+            <p className="text-secondary" style={{ fontSize: '0.9rem', margin: 0 }}>
+              Traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value, dividend discount model, and peer comparison analysis
+            </p>
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Growth Metric</div>
+            <p className="text-secondary" style={{ fontSize: '0.9rem', margin: 0 }}>
+              Revenue growth analysis, earnings growth quality, fundamental growth drivers, and market expansion potential
+            </p>
+          </div>
+        </div>
 
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Metric Ranges (0-1 Scale):
-          </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {getMetricChip(0.9, "Excellent (0.8-1.0)")}
-            {getMetricChip(0.75, "Good (0.7-0.79)")}
-            {getMetricChip(0.65, "Fair (0.6-0.69)")}
-            {getMetricChip(0.55, "Below Average (0.5-0.59)")}
-            {getMetricChip(0.4, "Poor (0.0-0.49)")}
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Metric Ranges (0-1 Scale):</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+            {[
+              { v: 0.9, label: 'Excellent (0.8-1.0)' },
+              { v: 0.75, label: 'Good (0.7-0.79)' },
+              { v: 0.65, label: 'Fair (0.6-0.69)' },
+              { v: 0.55, label: 'Below Average (0.5-0.59)' },
+              { v: 0.4, label: 'Poor (0.0-0.49)' }
+            ].map((item) => (
+              <span
+                key={item.label}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '4px',
+                  backgroundColor: getMetricColor(item.v),
+                  color: item.v >= 0.6 ? '#000' : '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.85rem'
+                }}
+              >
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
