@@ -8,9 +8,12 @@ const STORAGE_KEY = 'devAuth_users';
 const SESSION_KEY = 'devAuth_session';
 
 // Default dev user — always available in development
+// Password is configurable via VITE_DEV_AUTH_PASSWORD env var (set in .env.local as VITE_DEV_AUTH_PASSWORD)
+const DEV_PASSWORD = import.meta.env.VITE_DEV_AUTH_PASSWORD || 'Admin123!';
+
 const DEV_USER = {
   username: 'dev-admin',
-  password: 'Admin123!',
+  password: DEV_PASSWORD,
   email: 'admin@dev.local',
   firstName: 'Dev',
   lastName: 'Admin',

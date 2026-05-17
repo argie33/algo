@@ -71,6 +71,7 @@ from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from utils.trade_status import PositionStatus
 import logging
 from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
@@ -501,6 +502,7 @@ class Orchestrator:
                 try:
                     # Count rows added in the last 5 days
                     if table == 'price_daily':
+                        assert_safe_table(table)
                         cur.execute(f"SELECT COUNT(*) FROM {table} WHERE date >= %s", (five_days_ago,))
                     elif table in ('buy_sell_daily', 'trend_template_data', 'technical_data_daily',
                                   'signal_quality_scores', 'swing_trader_scores', 'market_health_daily',
@@ -512,8 +514,11 @@ class Orchestrator:
                             col = 'date_recorded'
                         else:
                             col = 'date'
+                        assert_safe_table(table)
+                        assert_safe_column(col)
                         cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} >= %s", (five_days_ago,))
                     else:
+                        assert_safe_table(table)
                         cur.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
 
                     row = cur.fetchone()
@@ -1860,6 +1865,7 @@ class Orchestrator:
             ]
 
             for table, description in required_hard:
+                assert_safe_table(table)
                 cur.execute(
                     f"SELECT COUNT(*) FROM {table} WHERE date = %s",
                     (today,)
@@ -1872,6 +1878,7 @@ class Orchestrator:
 
             # Check soft requirements (don't block, just warn)
             for table, description in required_soft:
+                assert_safe_table(table)
                 if table == 'algo_risk_daily':
                     cur.execute(
                         f"SELECT COUNT(*) FROM {table} WHERE report_date = %s",
