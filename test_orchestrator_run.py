@@ -5,6 +5,7 @@ Orchestrator verification script - tests core 7-phase system
 import sys
 import os
 from pathlib import Path
+from datetime import date
 
 # Fix import paths
 repo_root = Path(__file__).parent

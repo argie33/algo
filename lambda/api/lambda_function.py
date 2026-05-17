@@ -1547,11 +1547,11 @@ class APIHandler:
                 position_count = int(row['position_count'] or 0) if row else 0
                 # Get latest account value from snapshots for real exposure calc
                 self.cur.execute("""
-                    SELECT portfolio_value FROM algo_portfolio_snapshots
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 snap = self.cur.fetchone()
-                portfolio_value = float(snap['portfolio_value'] or 0) if snap else 0
+                portfolio_value = float(snap['total_portfolio_value'] or 0) if snap else 0
                 exposure = round(total_invested / portfolio_value, 4) if portfolio_value > 0 else 0.0
                 return json_response(200, {
                     'total_value': total_invested,
