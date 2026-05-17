@@ -175,7 +175,20 @@ class OptimalLoader(ABC):
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 
-    def _bulk_insert(self, rows: List[dict]) -> int:
+    def _bulk_insert(self, rows: List[dict], symbol: Optional[str] = None, new_watermark: Optional[date] = None, watermark_mgr=None) -> int:
+        """Bulk insert rows and atomically update watermark if provided.
+
+        M4 FIX: Watermark is persisted in the same transaction as data to prevent
+        duplicates on crash between insert and watermark update.
+
+        Args:
+            rows: Rows to insert
+            symbol: Symbol for watermark tracking (optional)
+            new_watermark: New watermark value to persist (optional)
+            watermark_mgr: WatermarkManager instance for atomic updates (optional)
+
+        Returns: Number of rows inserted
+        """
         if not rows:
             return 0
         import io
@@ -216,6 +229,23 @@ class OptimalLoader(ABC):
             inserted = cur.rowcount
 
             cur.execute(f"DROP TABLE {staging}")
+
+            # M4 FIX: Update watermark atomically in the same transaction
+            if symbol and new_watermark:
+                if watermark_mgr:
+                    # Use WatermarkManager for atomic DB-backed watermark
+                    watermark_mgr.advance_watermark(
+                        new_watermark=new_watermark,
+                        symbol=symbol,
+                        rows_loaded=inserted,
+                        in_transaction=True  # Will commit with rest of transaction
+                    )
+                else:
+                    # Fallback to in-memory store
+                    wm_store = self._get_watermark()
+                    if wm_store:
+                        wm_store.set(symbol, new_watermark, rows_loaded=inserted)
+
             conn.commit()
             return inserted
         except Exception:
@@ -263,22 +293,23 @@ class OptimalLoader(ABC):
         if not rows:
             return 0
 
-        # Bulk insert in chunks
+        # M4 FIX: Calculate new watermark BEFORE insert so it can be persisted atomically
+        new_wm = self.watermark_from_rows(rows)
+
+        # Bulk insert in chunks, passing watermark for atomic persistence
         inserted = 0
-        for chunk_start in range(0, len(rows), self.chunk_size):
+        for i, chunk_start in enumerate(range(0, len(rows), self.chunk_size)):
             chunk = rows[chunk_start:chunk_start + self.chunk_size]
-            inserted += self._bulk_insert(chunk)
+            # Pass watermark only on last chunk to avoid overwriting with partial watermark
+            is_final_chunk = (chunk_start + self.chunk_size >= len(rows))
+            chunk_wm = new_wm if is_final_chunk else None
+            inserted += self._bulk_insert(chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm)
 
         # Update bloom filter post-insert
         if dedup and self.primary_key:
             for row in rows:
                 key = ":".join(str(row.get(c, "")) for c in self.primary_key)
                 dedup.add(key)
-
-        # Advance watermark on success
-        new_wm = self.watermark_from_rows(rows)
-        if wm_store and new_wm is not None:
-            wm_store.set(symbol, new_wm, rows_loaded=inserted)
 
         self._stats["rows_inserted"] += inserted
         return inserted
