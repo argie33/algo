@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import logging
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,10 @@ class ConfigValidator:
         if env_file and Path(env_file).exists():
             self._load_env_file(env_file)
 
-    def _load_env_file(self, env_file: str):
+    def _load_env_file(self, env_file):
         """Load environment from .env file."""
         try:
-            load_dotenv(env_file)
+            load_dotenv(str(env_file), override=True)
             logger.debug(f"Loaded environment from {env_file}")
         except Exception as e:
             self.warnings.append(f"Could not load {env_file}: {e}")

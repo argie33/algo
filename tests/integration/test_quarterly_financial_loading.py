@@ -16,7 +16,9 @@ Verifies:
 
 import pytest
 from datetime import date
+import psycopg2
 from utils.db_connection import get_db_connection
+from config.credential_helper import get_db_config
 
 
 @pytest.mark.integration
@@ -25,10 +27,7 @@ class TestQuarterlyIncomeStatement:
 
     def test_quarterly_income_statement_table_exists(self, seeded_test_db):
         """Verify quarterly_income_statement table exists with correct schema."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -54,10 +53,7 @@ class TestQuarterlyIncomeStatement:
 
     def test_quarterly_income_statement_unique_constraint(self, seeded_test_db):
         """Verify (symbol, fiscal_year, fiscal_period) uniqueness constraint."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -94,10 +90,7 @@ class TestQuarterlyBalanceSheet:
 
     def test_quarterly_balance_sheet_table_exists(self, seeded_test_db):
         """Verify quarterly_balance_sheet table exists with correct schema."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -128,10 +121,7 @@ class TestQuarterlyCashFlow:
 
     def test_quarterly_cash_flow_table_exists(self, seeded_test_db):
         """Verify quarterly_cash_flow table exists with correct schema."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -162,10 +152,7 @@ class TestTTMAggregates:
 
     def test_ttm_income_statement_table_exists(self, seeded_test_db):
         """Verify ttm_income_statement table exists."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -191,10 +178,7 @@ class TestTTMAggregates:
 
     def test_ttm_cash_flow_table_exists(self, seeded_test_db):
         """Verify ttm_cash_flow table exists."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
@@ -225,10 +209,7 @@ class TestQuarterlyDataIntegration:
 
     def test_quarterly_data_populated_in_tier(self, seeded_test_db):
         """Verify quarterly data can be queried for signal quality assessment."""
-        conn = psycopg2.connect(
-            host='localhost', port=5432, database='stocks_test',
-            user='stocks', password=''
-        )
+        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
         try:
