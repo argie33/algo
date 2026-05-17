@@ -28,9 +28,9 @@ router.get("/", async (req, res) => {
     `, [limitNum, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, result, 200);
+    return sendSuccess(res, result, 200);
   } catch (error) {
-    sendError(res, "Failed to fetch stocks: " + error.message, 500);
+    return sendError(res, "Failed to fetch stocks: " + error.message, 500);
   }
 });
 
@@ -59,9 +59,9 @@ router.get("/list", async (req, res) => {
     `, [limitNum, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, result, 200);
+    return sendSuccess(res, result, 200);
   } catch (error) {
-    sendError(res, "Failed to fetch stocks: " + error.message, 500);
+    return sendError(res, "Failed to fetch stocks: " + error.message, 500);
   }
 });
 
@@ -94,10 +94,10 @@ router.get("/deep-value", async (req, res) => {
     `, [limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, result, 200);
+    return sendSuccess(res, result, 200);
   } catch (error) {
     console.error("Error fetching deep value stocks:", error);
-    sendError(res, "Failed to fetch deep value stocks: " + error.message, 500);
+    return sendError(res, "Failed to fetch deep value stocks: " + error.message, 500);
   }
 });
 
@@ -134,9 +134,9 @@ router.get("/:symbol", async (req, res) => {
       return sendError(res, `Stock ${upperSymbol} not found`, 404);
     }
 
-    sendSuccess(res, result[0], 200);
+    return sendSuccess(res, result[0], 200);
   } catch (error) {
-    sendError(res, "Failed to fetch stock: " + error.message, 500);
+    return sendError(res, "Failed to fetch stock: " + error.message, 500);
   }
 });
 

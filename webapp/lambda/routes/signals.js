@@ -78,7 +78,7 @@ router.get("/", async (req, res) => {
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       signals: result,
       pagination: {
         total: total,
@@ -89,7 +89,7 @@ router.get("/", async (req, res) => {
     }, 200);
   } catch (error) {
     console.error("Error fetching signals:", error);
-    sendError(res, "Failed to fetch signals: " + error.message, 500);
+    return sendError(res, "Failed to fetch signals: " + error.message, 500);
   }
 });
 
@@ -163,10 +163,10 @@ router.get("/stocks", async (req, res) => {
     `, [...params, limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, { items: result }, 200);
+    return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching stock signals:", error);
-    sendError(res, "Failed to fetch stock signals: " + error.message, 500);
+    return sendError(res, "Failed to fetch stock signals: " + error.message, 500);
   }
 });
 
@@ -218,10 +218,10 @@ router.get("/etf", async (req, res) => {
     `, [limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
-    sendSuccess(res, { items: result }, 200);
+    return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching ETF signals:", error);
-    sendError(res, "Failed to fetch ETF signals: " + error.message, 500);
+    return sendError(res, "Failed to fetch ETF signals: " + error.message, 500);
   }
 });
 

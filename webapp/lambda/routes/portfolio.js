@@ -55,13 +55,13 @@ router.get("/", async (req, res) => {
       daily_pnl_percent: snapshot?.unrealized_pnl_pct !== undefined ? snapshot.unrealized_pnl_pct : (totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0)
     };
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       summary,
       positions,
       latest_snapshot: snapshot || null
     }, 200);
   } catch (error) {
-    sendError(res, `Failed to retrieve portfolio: ${error.message}`, 500);
+    return sendError(res, `Failed to retrieve portfolio: ${error.message}`, 500);
   }
 });
 
@@ -83,9 +83,9 @@ router.get("/holdings", async (req, res) => {
     `);
 
     const holdings = Array.isArray(holdingsObj) ? holdingsObj : (holdingsObj?.rows || []);
-    sendSuccess(res, holdings, 200);
+    return sendSuccess(res, holdings, 200);
   } catch (error) {
-    sendError(res, `Failed to retrieve holdings: ${error.message}`, 500);
+    return sendError(res, `Failed to retrieve holdings: ${error.message}`, 500);
   }
 });
 
@@ -110,9 +110,9 @@ router.get("/performance", async (req, res) => {
     `);
 
     const performance = Array.isArray(performanceObj) ? performanceObj : (performanceObj?.rows || []);
-    sendSuccess(res, performance, 200);
+    return sendSuccess(res, performance, 200);
   } catch (error) {
-    sendError(res, `Failed to retrieve performance: ${error.message}`, 500);
+    return sendError(res, `Failed to retrieve performance: ${error.message}`, 500);
   }
 });
 

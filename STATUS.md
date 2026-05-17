@@ -19,9 +19,19 @@
 4. ✅ **3.7: Industry sparkline fix** — Fixed filter from `r.rank != null` (always empty) to `r.dailyStrengthScore != null`. Updated chart dataKey to use `score` instead of `rank`. Removed unnecessary `reversed` domain. Industry sparklines now display correctly.
 5. ✅ **3.11: IG credit spread key unification** — Replaced all `BAMLC0A0CM` (alias) with `BAMLH0A0IG` (primary key) for consistency. Eliminates aliasing complexity, uses single authoritative key throughout frontend.
 
+**Phase 5: Infrastructure Fixes**
+6. ✅ **5.1: Terraform OIDC conversion** — Converted 4 code-deploy jobs from static IAM keys to OIDC:
+   - build-image: ECR login & Docker push
+   - deploy-algo: Lambda update
+   - deploy-api: Lambda update
+   - deploy-frontend: S3 sync & CloudFront invalidate
+7. ✅ **5.2: Remove hardcoded AWS Account ID** — Replaced `626216981288` with `${{ secrets.AWS_ACCOUNT_ID }}` in validation workflows.
+
 ### Commits This Session
 - `b74ae8c9d` — Phase 7 performance + Phase 3.7, 3.11 fixes
 - `5dfc8887d` — Phase 3.6 sector trends optimization
+- `331b2a07a` — Phase 5.2: Remove hardcoded AWS account ID
+- `776df1199` — Phase 5.1: OIDC conversion for code-deploy jobs
 
 ### System Status Summary
 | Component | Status | Details |
