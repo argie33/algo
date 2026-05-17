@@ -1989,7 +1989,7 @@ class Orchestrator:
 
             # 6a. Quality metrics (momentum, volatility, RSI, etc.)
             cur.execute(
-                "SELECT COUNT(*) FROM quality_metrics WHERE date = %s",
+                "SELECT COUNT(*) FROM quality_metrics WHERE DATE(created_at) = %s",
                 (today,)
             )
             quality_count = cur.fetchone()[0]

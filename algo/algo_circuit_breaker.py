@@ -28,6 +28,8 @@ from config.credential_helper import get_db_password, get_db_config
 
 import os
 import json
+import psycopg2
+import psycopg2.extensions
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
@@ -442,6 +444,9 @@ class CircuitBreaker:
 
         # H7 FIX: Check data freshness (must be from today or yesterday)
         data_date = row[0]
+        # Convert datetime to date if needed
+        if isinstance(data_date, datetime):
+            data_date = data_date.date()
         days_stale = (current_date - data_date).days
         max_stale_days = 1  # Market stage must be from today or yesterday
         if days_stale > max_stale_days:

@@ -126,6 +126,15 @@ class PositionSizer:
         """
         try:
             self.cur.execute("""
+                SELECT COUNT(*) FROM algo_portfolio_snapshots
+            """)
+            count_result = self.cur.fetchone()
+            if not count_result or count_result[0] == 0:
+                # No portfolio history yet (first run) — no drawdown to measure
+                logger.debug("No portfolio history yet; drawdown = 0%")
+                return 0.0
+
+            self.cur.execute("""
                 SELECT
                     MAX(total_portfolio_value) as peak,
                     (SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -134,8 +143,8 @@ class PositionSizer:
             """)
             result = self.cur.fetchone()
             if not result or not result[0] or not result[1]:
-                # Data missing: assume high drawdown to be conservative
-                logger.warning("Portfolio snapshot data incomplete; assuming 25% drawdown (fail-closed)")
+                # Data exists but inconsistent — fail-closed
+                logger.warning("Portfolio snapshot data inconsistent; assuming 25% drawdown (fail-closed)")
                 return 25.0
 
             peak = float(result[0])
