@@ -1,4 +1,4 @@
-﻿"""
+"""
 Integration tests: Full orchestrator pipeline against real database.
 
 Tests the entire orchestrator from start to finish:

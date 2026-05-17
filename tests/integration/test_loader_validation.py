@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Loader Validation - Verify all critical loaders populate fresh data
 

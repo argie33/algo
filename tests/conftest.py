@@ -1,4 +1,4 @@
-﻿"""
+"""
 Pytest configuration and shared fixtures for algo trading system tests.
 
 Provides:
