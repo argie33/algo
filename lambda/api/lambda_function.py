@@ -36,6 +36,7 @@ logger.setLevel(logging.INFO)
 # ThreadedConnectionPool allows multiple sequential connections within a single Lambda container.
 # minconn=2 (at least 2 idle connections), maxconn=10 (max 10 concurrent, plenty for 128MB Lambda)
 _db_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+_db_conn: Optional[psycopg2.extensions.connection] = None
 _db_creds: Optional[Dict] = None  # cache Secrets Manager response to avoid per-call latency
 
 # Rate limiting: track requests per IP
@@ -287,6 +288,28 @@ class APIHandler:
         except (ValueError, AttributeError):
             return 30
 
+    def _health_check(self) -> Dict:
+        """Health check: verify API and database are operational."""
+        try:
+            # Test database connectivity with simple query
+            self.cur.execute("SELECT 1 as connectivity_check")
+            self.cur.fetchone()
+            db_status = 'ok'
+        except Exception as e:
+            logger.error(f"Health check: database unavailable - {e}")
+            db_status = 'error'
+            return error_response(503, 'service_unavailable', 'Database connection failed')
+
+        return json_response(200, {
+            'status': 'healthy',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'database': db_status,
+            'checks': {
+                'api': 'ok',
+                'database': db_status
+            }
+        })
+
     def route(self, path: str, method: str = 'GET', query_params: Dict = None, body: Dict = None) -> Dict:
         """Route request to appropriate handler."""
         query_params = query_params or {}
@@ -295,7 +318,7 @@ class APIHandler:
         try:
             # Health check
             if path == '/api/health':
-                return json_response(200, {'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()})
+                return self._health_check()
 
             # Algo endpoints
             if path.startswith('/api/algo/'):
@@ -2492,9 +2515,11 @@ def lambda_handler(event, context):
     """AWS Lambda handler for HTTP API Gateway proxy integration."""
     try:
         # Validate required configuration before processing requests
+        environment = os.environ.get('ENVIRONMENT', 'production')
+
+        # Check FRONTEND_ORIGIN for CORS
         frontend_origin = os.environ.get('FRONTEND_ORIGIN')
         if not frontend_origin:
-            environment = os.environ.get('ENVIRONMENT', 'production')
             if environment == 'production':
                 # CRITICAL: CORS is disabled in production if FRONTEND_ORIGIN not set
                 logger.critical("FRONTEND_ORIGIN env var not set — API requests from browser will be blocked by CORS policy")
@@ -2503,8 +2528,20 @@ def lambda_handler(event, context):
                 # Dev/test: Allow localhost
                 logger.warning("FRONTEND_ORIGIN not set in development — allowing localhost")
 
-        # Parse request
+        # Check other critical env vars (except for /api/health which doesn't need DB)
         path = event.get('rawPath', event.get('path', '/'))
+        if path != '/api/health':
+            required_envs = ['DB_SECRET_ARN', 'DATABASE_SECRET_ARN', 'ECS_CLUSTER_ARN']
+            missing_envs = [e for e in required_envs if e not in ('DATABASE_SECRET_ARN',) and not os.getenv(e)]
+            # Allow either DB_SECRET_ARN or DATABASE_SECRET_ARN
+            has_db_secret = os.getenv('DB_SECRET_ARN') or os.getenv('DATABASE_SECRET_ARN')
+            if not has_db_secret:
+                logger.critical("Database secret ARN not set (DB_SECRET_ARN or DATABASE_SECRET_ARN)")
+                return error_response(503, 'misconfiguration', 'Database credentials not configured')
+            if environment == 'production' and not os.getenv('ECS_CLUSTER_ARN'):
+                logger.warning("ECS_CLUSTER_ARN not set - data patrol trigger will fail")
+
+        # Parse request (path already extracted above for env var checks)
         method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
         # Get client IP for rate limiting
         client_ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', 'unknown')
