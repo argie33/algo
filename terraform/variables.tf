@@ -223,6 +223,12 @@ variable "rds_log_retention_days" {
   default     = 30
 }
 
+variable "rds_multi_az" {
+  description = "Enable Multi-AZ deployment for RDS high availability. Set true for production (adds standby replica in different AZ). Default false for cost optimization in dev/testing."
+  type        = bool
+  default     = false
+}
+
 # ============================================================
 # ECS Configuration
 # ============================================================
