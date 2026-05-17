@@ -24,22 +24,23 @@
 
 ---
 
-## 📋 NEXT IMMEDIATE TASKS
+## 📋 COMPLETED THIS SESSION
 
-### DO THIS NOW (5 min - completed this session)
-- [x] Archive STATUS.md (this file, 6,295 lines → ~94 lines)
+### ✅ Task 1: Archive STATUS.md (5 min)
+- [x] Reduced from 6,295 to ~94 lines
+- [x] Historical session notes archived to git history
 
-### DO THIS SOON (DB Consolidation - ~30 min total)
+### ✅ Task 2: Consolidate DB Connection
+- [x] Created `utils/db_connection.py` with `get_db_connection()` factory
+- [x] Replaced 121 scattered `psycopg2.connect()` calls across 79 files
+- [x] Centralizes retry logic, credential management, enables future pooling
+- Impact: ~100 lines saved, single point of control
 
-**1. Consolidate DB Connection** (5-10 min)
-   - Create `utils/db_connection.py` with single `get_db_connection()` function
-   - Replace 120+ scattered `psycopg2.connect()` calls with this import
-   - Centralizes retry/pooling logic, saves ~100 lines
-
-**2. Consolidate `get_db_config()`** (5 min)
-   - Currently duplicated 15+ times across algo files
-   - Single source exists: `config/credential_helper.py`
-   - Just ensure all imports use that one source
+### ✅ Task 3: Consolidate `get_db_config()`
+- [x] Removed 32 duplicate `_get_db_config()` definitions
+- [x] All 32 files now import from `config/credential_helper`
+- [x] 3 defensive fallbacks intentionally kept (test fixtures, class methods)
+- Impact: ~500 lines saved, single source of truth for credentials
 
 ---
 
