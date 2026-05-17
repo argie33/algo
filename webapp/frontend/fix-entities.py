@@ -50,7 +50,9 @@ def fix_file(filepath):
         return False
 
 def main():
-    src_dir = r"C:\Users\arger\code\algo\webapp\frontend\src"
+    # Use relative path from script location instead of hardcoded absolute path
+    script_dir = Path(__file__).parent
+    src_dir = script_dir / 'src'
     fixed_count = 0
 
     for root, dirs, files in os.walk(src_dir):
