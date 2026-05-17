@@ -520,7 +520,7 @@ router.get('/markets', async (req, res) => {
 router.get('/swing-scores', async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);
+    const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'signals');
     const minScore = parseFloat(req.query.min_score) || 0;
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
