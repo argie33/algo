@@ -62,12 +62,13 @@ import os
 import sys
 import tempfile
 import psycopg2
+import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta, timezone
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
 from utils.trade_status import PositionStatus
@@ -82,7 +83,7 @@ if not env_file.exists():  # fallback: root when running from subdirectory
 if env_file.exists():
     load_dotenv(env_file)
 
-def _get_db_config():
+def _get_db_config() -> Dict[str, Any]:
     """Get DB config (lazy-loaded, uses centralized credential_helper)."""
     return get_db_config()
 
@@ -92,7 +93,7 @@ class Orchestrator:
 
     HALT_FLAG_PATH = str(Path(tempfile.gettempdir()) / 'algo_orchestrator_halt')
 
-    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
+    def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True, init_db: bool = True) -> None:
         from algo.algo_config import get_config
         self.config = config or get_config()
         self.run_date = run_date or _date.today()
@@ -119,7 +120,7 @@ class Orchestrator:
             self._ensure_schema_initialized()
             self._initialize_feature_flags()
 
-    def _get_conn(self):
+    def _get_conn(self) -> psycopg2.extensions.connection:
         """Get a database connection from the pool or create a fallback."""
         if self.db_pool:
             try:
@@ -128,7 +129,7 @@ class Orchestrator:
                 logger.debug(f"Pool exhausted, using fallback: {e}")
         return psycopg2.connect(**_get_db_config())
 
-    def _put_conn(self, conn):
+    def _put_conn(self, conn: Optional[psycopg2.extensions.connection]) -> None:
         """Return a connection to the pool."""
         if self.db_pool and conn:
             try:
@@ -139,7 +140,7 @@ class Orchestrator:
                 except Exception:
                     pass
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Close the connection pool on shutdown."""
         if self.db_pool:
             try:
@@ -149,7 +150,7 @@ class Orchestrator:
 
     # ---------- Database health monitoring (B4) ----------
 
-    def _check_db_connectivity(self):
+    def _check_db_connectivity(self) -> bool:
         """Test if database is reachable. Returns True if OK, False if failed."""
         conn = None
         cur = None
@@ -169,7 +170,7 @@ class Orchestrator:
                     pass
             self._put_conn(conn)
 
-    def _increment_db_failure_counter(self):
+    def _increment_db_failure_counter(self) -> int:
         """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
         try:
             current = 0
@@ -189,7 +190,7 @@ class Orchestrator:
             return True
         return False
 
-    def _reset_db_failure_counter(self):
+    def _reset_db_failure_counter(self) -> None:
         """Reset counter on successful DB connection."""
         try:
             if self.db_failure_counter_file.exists():
@@ -197,7 +198,7 @@ class Orchestrator:
         except Exception:
             pass
 
-    def _ensure_schema_initialized(self):
+    def _ensure_schema_initialized(self) -> None:
         """Initialize database schema if not already present. Idempotent."""
         conn = None
         cur = None
@@ -241,7 +242,7 @@ class Orchestrator:
                 except Exception:
                     pass
 
-    def _initialize_feature_flags(self):
+    def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
         try:
             from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
