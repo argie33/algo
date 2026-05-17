@@ -109,6 +109,7 @@ async function getDbConfig() {
                 },
         };
 
+        console.log(
           `Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
         );
         return dbConfig;
@@ -161,6 +162,7 @@ async function getDbConfig() {
               },
       };
 
+      console.log(
         `Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
       );
       return dbConfig;
@@ -448,6 +450,7 @@ async function query(text, params = []) {
 
     // Log query details for debugging BEFORE execution
     if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
+      console.log({
         query: typeof text === 'string' ? text.slice(0, 200) + (text.length > 200 ? "..." : "") : "NON_STRING",
         param_count: params ? params.length : 0,
         params_sample: params ? params.slice(0, 3) : []
@@ -463,6 +466,7 @@ async function query(text, params = []) {
 
     // Log result details for debugging
     if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
+      console.log({
         rows_returned: result && result.rows ? result.rows.length : 0,
         has_rows_property: result && 'rows' in result,
         result_type: result ? typeof result : 'null',
@@ -484,6 +488,7 @@ async function query(text, params = []) {
         duration: `${queryDuration}ms`,
       });
     } else if (process.env.NODE_ENV === "development" && queryDuration > 500) {
+      console.debug({
         query: text.slice(0, 80) + (text.length > 80 ? "..." : ""),
         rows: result.rowCount,
       });
