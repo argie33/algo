@@ -39,6 +39,20 @@ from validation_schema import (
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Validate configuration at Lambda startup (before handling any requests)
+try:
+    from utils.config_validator import ConfigValidator
+    _validator = ConfigValidator()
+    if not _validator.validate():
+        logger.critical("Configuration validation failed at Lambda startup")
+        for error in _validator.errors:
+            logger.critical(f"  ❌ {error}")
+        # Don't exit - Lambda handles this differently, but log clearly
+except ImportError:
+    logger.warning("Config validator not available - skipping validation (development mode)")
+except Exception as e:
+    logger.warning(f"Config validation error (non-blocking): {e}")
+
 
 class ContactRequest(BaseModel):
     """Contact form submission — validated via Pydantic before DB insert."""

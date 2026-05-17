@@ -2072,6 +2072,9 @@ if __name__ == "__main__":
     from algo.algo_logging import configure_root_logger
     configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
 
+    from utils.config_validator import validate_at_startup
+    validate_at_startup(env_file=Path(__file__).parent.parent / '.env.local')
+
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
     parser.add_argument('--date', type=str, help='Run date (YYYY-MM-DD)', default=None)
