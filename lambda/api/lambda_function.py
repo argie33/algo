@@ -3202,22 +3202,15 @@ def lambda_handler(event, context):
         # Get client IP for rate limiting
         client_ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', 'unknown')
 
-        # Rate limiting: Apply stricter limits to trading/action endpoints, standard to others
-        # Trading endpoints (prevent accidental rapid-fire trades): 5 req/min
-        if path.startswith('/api/trades') or path == '/api/algo/patrol':
-            max_requests, window_seconds = 5, 60
-            limit_desc = 'Max 5 requests per minute for trading endpoints'
-        # Admin/sensitive endpoints: 10 req/min
-        elif path.startswith('/api/admin') or path.startswith('/api/audit'):
-            max_requests, window_seconds = 10, 60
-            limit_desc = 'Max 10 requests per minute for admin endpoints'
-        # Standard endpoints: 100 req/min
-        else:
-            max_requests, window_seconds = 100, 60
-            limit_desc = 'Max 100 requests per minute'
+        # Per-endpoint rate limiting based on computational cost
+        from rate_limits import RateLimitConfig, check_endpoint_rate_limit
 
-        if not check_rate_limit(client_ip, max_requests=max_requests, window_seconds=window_seconds):
-            logger.warning(f"Rate limit exceeded for {client_ip} on {path} (limit: {limit_desc})")
+        allowed, limit_desc, status_code = check_endpoint_rate_limit(
+            client_ip, path, _rate_limit_tracker, _rate_limit_check_count
+        )
+
+        if not allowed:
+            logger.warning(f"Rate limit exceeded for {client_ip} on {path} ({RateLimitConfig.categorize_endpoint(path)} endpoint, {limit_desc})")
             return error_response(429, 'rate_limited', limit_desc)
 
         # API GW v2 HTTP API passes query params as plain strings, but all handlers
