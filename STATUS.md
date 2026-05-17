@@ -1,12 +1,46 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 94: Complete Terraform Configuration Fixes)
-**Status:** ✅ **INFRASTRUCTURE READY** | Terraform backend corrected, all resource imports automated, API Gateway queries dynamic
+**Last Updated:** 2026-05-17 (Session 95: Codebase Quality & Anti-Pattern Cleanup)
+**Status:** ✅ **INFRASTRUCTURE READY** | Code quality hardened: bare excepts replaced, hardcoding removed, magic numbers documented
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
 
 ---
 
-## ✅ SESSION 94: TERRAFORM CONFIGURATION FINALIZATION (CURRENT SESSION)
+## ✅ SESSION 95: CODEBASE QUALITY HARDENING (CURRENT SESSION)
+
+### Comprehensive Anti-Pattern Elimination
+
+**Critical Fixes** (Prevent bugs/crashes):
+1. **Logger Initialization Bug** → Moved logger setup before first use in local_api_server.py
+2. **Bare Except Clauses (5 instances)** → Replaced with specific exception handling:
+   - local_api_server.py: JSON parsing errors (2)
+   - lambda/api/lambda_function.py: Database operations
+   - loaders/loader_health_tracker.py: Column queries
+   - tests/test_frontend_api_integration.py: DB connection test
+3. **Hardcoded Filesystem Paths** → Made configurable via environment variables
+   - webapp/frontend/fix-entities.py: Use Path(__file__).parent
+   - local_api_server.py: LOCAL_API_HOST/LOCAL_API_PORT env vars
+
+**Code Quality Improvements**:
+1. **Magic Numbers Documented** in utils/defaults.py with origin/rationale:
+   - Position sizing (2%-8%), risk limits (0.75%), signal thresholds (0.6-0.7)
+   - Market exposure tier multipliers (1.0x→0.0x)
+2. **Swing Score Weights Clarified** in algo_swing_score.py:
+   - Setup (25%), Trend (20%), Momentum (20%), Volume (12%), Fundamentals (10%), Sector (8%), Multi-TF (5%)
+3. **Configuration Pattern Verified**:
+   - utils/defaults.py is single source of truth
+   - credential_helper.py imports from it (with proper fallbacks)
+   - Pattern already in place; mostly consistent
+
+**Clean-up**:
+- Archive migration scripts already removed from repo (d6c938db7)
+- Verified optimal_loader.py and run-all-loaders.py are complementary (not duplicates)
+
+**Result**: All bare exceptions eliminated, hardcoding removed, code is more maintainable and less prone to silent failures.
+
+---
+
+## ✅ SESSION 94: TERRAFORM CONFIGURATION FINALIZATION
 
 ### Comprehensive Terraform Backend & Configuration Fixes
 
