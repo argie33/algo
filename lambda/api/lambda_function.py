@@ -2642,10 +2642,10 @@ class APIHandler:
                     cp.sector, cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
-                    pd.close AS current_price,
-                    pd.close AS price,
+                    pd.current_close AS current_price,
+                    pd.current_close AS price,
                     ROUND(CASE
-                        WHEN pd_prev.close IS NOT NULL THEN ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0)) * 100
+                        WHEN pd.prev_close IS NOT NULL THEN ((pd.current_close - pd.prev_close) / NULLIF(pd.prev_close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
                     km.market_cap,
@@ -2664,17 +2664,17 @@ class APIHandler:
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
                 LEFT JOIN (
-                    SELECT DISTINCT ON (symbol) symbol, close
-                    FROM price_daily
-                    ORDER BY symbol, date DESC
-                ) pd ON pd.symbol = sc.symbol
-                LEFT JOIN (
-                    SELECT symbol, close FROM (
+                    SELECT symbol,
+                           MAX(CASE WHEN rn = 1 THEN close END) AS current_close,
+                           MAX(CASE WHEN rn = 2 THEN close END) AS prev_close
+                    FROM (
                         SELECT symbol, close,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
                         FROM price_daily
-                    ) ranked WHERE rn = 2
-                ) pd_prev ON pd_prev.symbol = sc.symbol
+                    ) ranked
+                    WHERE rn <= 2
+                    GROUP BY symbol
+                ) pd ON pd.symbol = sc.symbol
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
