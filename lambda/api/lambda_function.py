@@ -268,6 +268,28 @@ def _safe_offset(offset_str: Any, max_offset: int = 1000000, default: int = 0) -
         return default
 
 
+def _safe_days(days_str: Any, min_val: int = 1, max_val: int = 730, default: int = 30) -> int:
+    """Safely extract and clamp days parameter (max 2 years) to prevent DoS attacks."""
+    try:
+        if days_str is None:
+            return default
+        days = int(days_str)
+        return max(min_val, min(days, max_val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_page(page_str: Any, min_val: int = 1, max_val: int = 100000, default: int = 1) -> int:
+    """Safely extract and clamp page parameter to prevent DoS attacks via deep pagination."""
+    try:
+        if page_str is None:
+            return default
+        page = int(page_str)
+        return max(min_val, min(page, max_val))
+    except (ValueError, TypeError):
+        return default
+
+
 def _validate_symbol(symbol: str) -> bool:
     """Validate stock symbol format: 1-20 chars, uppercase letters, numbers, dash, dot only."""
     if not symbol:
@@ -513,7 +535,8 @@ class APIHandler:
         elif path == '/api/algo/circuit-breakers':
             return self._get_circuit_breakers()
         elif path == '/api/algo/equity-curve':
-            days = int(params.get('limit', [180])[0]) if params else 180
+            days_str = params.get('limit', [None])[0] if params else None
+            days = _safe_days(days_str, max_val=365, default=180)
             return self._get_equity_curve(days)
         elif path == '/api/algo/data-status':
             return self._get_data_status()
@@ -526,7 +549,8 @@ class APIHandler:
             offset = _safe_offset(offset_str)
             return self._get_patrol_log(limit, offset)
         elif path == '/api/algo/sector-rotation':
-            days = int(params.get('limit', [180])[0]) if params else 180
+            days_str = params.get('limit', [None])[0] if params else None
+            days = _safe_days(days_str, max_val=365, default=180)
             return self._get_sector_rotation(days)
         elif path == '/api/algo/sector-breadth':
             return self._get_sector_breadth()
@@ -535,7 +559,8 @@ class APIHandler:
             limit = _safe_limit(limit_str, max_val=200, default=100)
             return self._get_swing_scores(limit)
         elif path == '/api/algo/swing-scores-history':
-            days = int(params.get('days', [30])[0]) if params else 30
+            days_str = params.get('days', [None])[0] if params else None
+            days = _safe_days(days_str, max_val=365, default=30)
             return self._get_swing_scores_history(days)
         elif path == '/api/algo/rejection-funnel':
             return self._get_rejection_funnel()
@@ -1729,7 +1754,8 @@ class APIHandler:
             # Handle /api/sectors/trends-batch?sectors=X,Y,Z&days=90
             if path == '/api/sectors/trends-batch' or path.startswith('/api/sectors/trends-batch?'):
                 sectors_str = params.get('sectors', [None])[0] if params else None
-                days = int(params.get('days', [90])[0]) if params else 90
+                days_str = params.get('days', [None])[0] if params else None
+                days = _safe_days(days_str, max_val=365, default=90)
 
                 if not sectors_str:
                     return error_response(400, 'missing_param', 'sectors parameter required (comma-separated)')
@@ -1759,7 +1785,8 @@ class APIHandler:
 
             if sector_name and sector_name not in ('performance', 'trends-batch'):
                 # Return data for specific sector
-                days = int(params.get('days', [90])[0]) if params else 90
+                days_str = params.get('days', [None])[0] if params else None
+                days = _safe_days(days_str, max_val=365, default=90)
                 self.cur.execute("""
                     SELECT date, sector, return_pct
                     FROM sector_performance
@@ -1771,7 +1798,8 @@ class APIHandler:
             elif path in ('/api/sectors', '/api/sectors/performance'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=100, default=20)
-                page = int(params.get('page', [1])[0]) if params else 1
+                page_str = params.get('page', [None])[0] if params else None
+                page = _safe_page(page_str, default=1)
                 offset = (page - 1) * limit
 
                 self.cur.execute("""
@@ -1866,7 +1894,8 @@ class APIHandler:
             elif '/trend' in path:
                 parts = path.split('/')
                 sector_name = parts[3] if len(parts) > 3 else None
-                days = int(params.get('days', [90])[0]) if params else 90
+                days_str = params.get('days', [None])[0] if params else None
+                days = _safe_days(days_str, max_val=365, default=90)
                 if not sector_name:
                     return error_response(400, 'bad_request', 'Sector name required')
                 self.cur.execute("""
@@ -1891,7 +1920,8 @@ class APIHandler:
 
             if industry_name and industry_name != 'trend':
                 # Return data for specific industry
-                days = int(params.get('days', [90])[0]) if params else 90
+                days_str = params.get('days', [None])[0] if params else None
+                days = _safe_days(days_str, max_val=365, default=90)
                 self.cur.execute("""
                     SELECT date, industry, return_pct
                     FROM industry_performance
@@ -1903,7 +1933,8 @@ class APIHandler:
             else:
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=500, default=100)
-                page = int(params.get('page', [1])[0]) if params else 1
+                page_str = params.get('page', [None])[0] if params else None
+                page = _safe_page(page_str, default=1)
                 offset = (page - 1) * limit
 
                 self.cur.execute("""
@@ -2428,7 +2459,8 @@ class APIHandler:
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=500, default=100)
-                page = int(params.get('page', [1])[0]) if params else 1
+                page_str = params.get('page', [None])[0] if params else None
+                page = _safe_page(page_str, default=1)
                 offset = (page - 1) * limit
                 self.cur.execute("""
                     SELECT symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
