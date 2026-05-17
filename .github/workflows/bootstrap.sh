@@ -24,12 +24,13 @@ echo "   Account: $AWS_ACCOUNT_ID"
 
 echo ""
 echo "📋 Checking OIDC role..."
-ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/github-actions-role"
+ROLE_NAME="algo-svc-github-actions-dev"
+ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ROLE_NAME}"
 
-if aws iam get-role --role-name "github-actions-role" --region "$REGION" 2>/dev/null; then
+if aws iam get-role --role-name "$ROLE_NAME" --region "$REGION" 2>/dev/null; then
   echo "✅ OIDC role exists: $ROLE_ARN"
 else
-  echo "❌ ERROR: OIDC role 'github-actions-role' not found!"
+  echo "❌ ERROR: OIDC role '$ROLE_NAME' not found!"
   echo "   Please create the OIDC role via Terraform:"
   echo "   terraform init && terraform plan && terraform apply"
   exit 1
