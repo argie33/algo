@@ -29,6 +29,7 @@ import time
 from datetime import datetime, timedelta, date, timezone
 from typing import Dict, Any, Optional, List, Tuple
 from pydantic import BaseModel, Field, field_validator, ValidationError
+from middleware.auth_middleware import APIKeyValidator
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -3026,6 +3027,40 @@ def lambda_handler(event, context):
             body = json.loads(raw_body) if raw_body else {}
         except (json.JSONDecodeError, ValueError):
             body = {}
+
+        # API Authentication: Validate API key for all endpoints except /api/health
+        api_key_info = None
+        if path != '/api/health':
+            # Extract API key from headers or query parameters
+            headers = event.get('headers', {})
+            api_key = (
+                headers.get('authorization', '').replace('Bearer ', '').replace('bearer ', '') or
+                headers.get('Authorization', '').replace('Bearer ', '').replace('bearer ', '') or
+                headers.get('x-api-key', '') or
+                headers.get('X-API-Key', '') or
+                query_params.get('api_key', [None])[0]
+            )
+
+            # Validate API key
+            if not api_key:
+                logger.warning(f"Missing API key for {method} {path} from {client_ip}")
+                return error_response(401, 'missing_api_key', 'API key is required')
+
+            # Connect to database to validate key
+            temp_conn = None
+            try:
+                temp_conn = get_db_connection()
+                validator = APIKeyValidator(temp_conn)
+                is_valid, app_info, error_msg = validator.validate_key(api_key)
+
+                if not is_valid:
+                    logger.warning(f"Invalid API key for {method} {path} from {client_ip}: {error_msg}")
+                    return error_response(401, 'invalid_api_key', error_msg)
+
+                api_key_info = app_info
+            except Exception as e:
+                logger.error(f"API key validation error: {e}")
+                return error_response(500, 'auth_error', 'Authentication check failed')
 
         # Route to handler
         handler = APIHandler()
