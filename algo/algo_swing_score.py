@@ -33,15 +33,6 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_HOST,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
-from config.credential_helper import , get_db_config, get_db_password
 import os
 import json
 from utils.db_connection import get_db_connection
