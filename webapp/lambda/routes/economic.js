@@ -186,18 +186,13 @@ router.get("/leading-indicators", async (req, res) => {
       cpiYoY = ((currentCPI - yearAgoCPI) / yearAgoCPI) * 100;
     }
 
-    // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
+    // WARN if required series missing, but continue with available data (soft-fail)
     // Note: Consumer Sentiment uses UMCSENT (correct series). MICH on FRED is
     // Michigan Inflation Expectations (~2-5%), not the 50-100 sentiment index.
     const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'UMCSENT', 'ICSA', 'BUSLOANS'];
     const missingSeries = requiredSeries.filter(s => !indicators[s]);
     if (missingSeries.length > 0) {
-      console.error(`[ERROR] MISSING REQUIRED SERIES: ${missingSeries.join(', ')}`);
-      return sendError(res, "Missing required economic indicators from FRED database", 500, {
-        missing: missingSeries,
-        message: "Please run loadecondata.py to load economic indicators",
-        details: `Found ${result.rows.length} series, but missing ${missingSeries.length} critical indicators`
-      });
+      console.warn(`[WARN] Missing economic indicators: ${missingSeries.join(', ')} - returning partial response with null values`);
     }
 
     // Calculate yield curve data
