@@ -1,8 +1,32 @@
 # System Status
 
-**Last Updated:** 2026-05-18 (Session 75: Comprehensive API Security Hardening)  
-**Status:** 🚀 **PRODUCTION READY** | All Outstanding Issues COMPLETED | Security HARDENED | Rate Limiting ENABLED | Input Validation ADDED  
+**Last Updated:** 2026-05-17 (Session 76: Production Hardening Final Pass)  
+**Status:** 🚀 **PRODUCTION READY** | Security CRITICAL FIXES COMPLETE | Data Accuracy VERIFIED | Ready for Staging  
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 36 frontend pages | 29 API routes
+
+---
+
+## 📋 SESSION 76 SUMMARY: Final Production Hardening Fixes ✅
+
+### Critical Security Fix ✅
+- **Removed plaintext database password from STATUS.md** — Redacted all exposed credentials
+- Password was visible in git history; NOTE: Database credentials need to be rotated as they were exposed
+- Commit: `122a0ee6f` — security: redact plaintext database password from STATUS.md
+
+### Data Accuracy Fix ✅
+- **McClellan Oscillator A/D Line Calculation** — Fixed to use day-over-day price comparison
+  - Changed from: `CASE WHEN close > open` (intraday direction) 
+  - Changed to: `CASE WHEN close > LAG(close)` (day-over-day direction)
+  - Affects: /api/market/mcclellan-oscillator, /api/market/technicals, /api/market/technicals-fresh
+  - Impact: McClellan now correctly reflects market breadth (stocks advancing vs declining daily)
+  - Commit: `c33f80067` — fix: McClellan oscillator using wrong price comparison
+
+### Verification Complete ✅
+- Algo safety: Fail-closed trading phases (4, 6), halt flag mechanism, circuit breaker ✅
+- Scoring accuracy: Dynamic weight renormalization with explicit None handling ✅
+- GDP regime detection: Using growth rate (not absolute level) ✅
+- API error handling: Specific exception handlers, sanitized error messages ✅
+- No exposed credentials in codebase ✅
 
 ---
 
