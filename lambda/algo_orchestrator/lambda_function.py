@@ -7,12 +7,9 @@ import os
 import json
 import logging
 from datetime import datetime, date as _date
+from config.credential_helper import get_db_config
 
 # Add repo root to path so we can import algo modules
-try:
-    except ImportError:
-    DEFAULT_DB_HOST = "localhost"
-    DEFAULT_DB_NAME = "stocks"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,11 +30,12 @@ def get_database_credentials():
         response = secrets.get_secret_value(SecretId=secret_arn)
         creds = json.loads(response['SecretString'])
 
-        os.environ['DB_HOST'] = creds.get('host', DEFAULT_DB_HOST)
-        os.environ['DB_PORT'] = str(creds.get('port', 5432))
-        os.environ['DB_USER'] = creds.get('username', DEFAULT_DB_NAME)
+        cfg = get_db_config()
+        os.environ['DB_HOST'] = creds.get('host', cfg['host'])
+        os.environ['DB_PORT'] = str(creds.get('port', cfg['port']))
+        os.environ['DB_USER'] = creds.get('username', cfg['user'])
         os.environ['DB_PASSWORD'] = creds.get('password', '')
-        os.environ['DB_NAME'] = creds.get('dbname', DEFAULT_DB_NAME)
+        os.environ['DB_NAME'] = creds.get('dbname', cfg['database'])
 
         logger.info("Database credentials loaded from Secrets Manager")
     except Exception as e:

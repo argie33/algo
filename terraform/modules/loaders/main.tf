@@ -154,7 +154,6 @@ locals {
     "aaiidata"                      = "loadaaiidata.py"
     "naaim_data"                    = "loadnaaim.py"
     "feargreed"                     = "loadfeargreed.py"
-    "calendar"                      = "loadcalendar.py"
     "earnings_calendar"             = "load_earnings_calendar.py"
     "company_profile"               = "loadcompanyprofile.py"
     "analyst_sentiment"             = "loadanalystsentiment.py"
