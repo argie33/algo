@@ -803,24 +803,10 @@ CREATE TABLE IF NOT EXISTS seasonality_monthly_stats (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
--- STRATEGY & ANALYSIS DATA
--- ════════════════════════════════════════════════════════════════════════════
-
--- Covered call opportunities
-CREATE TABLE IF NOT EXISTS covered_call_opportunities (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    strike_price DECIMAL(12, 4),
-    expiration_date DATE,
-    annual_return_pct DECIMAL(8, 4),
-    probability_profit DECIMAL(8, 4),
-    data_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- EARNINGS & FINANCIAL FORECASTS
+
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- Earnings estimate trends
@@ -2040,7 +2026,7 @@ def _init_timescaledb(conn, cur):
                 print(f"    ⚠ Extension creation note: {str(e)[:80]}")
 
         # 2. Convert price_daily to hypertable
-        print("  [2/4] Converting price_daily to hypertable...")
+        logger.info("Converting price_daily to hypertable...")
         try:
             # Check if already a hypertable
             cur.execute("""
