@@ -55,6 +55,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
+from utils.structured_logger import get_logger
+
+logger = get_logger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -1150,7 +1153,7 @@ class DataPatrol:
         start_time = time.time()
         self.connect()
         try:
-            print(f"\n{'='*82}\nDATA PATROL — {self._run_id}\n{'='*82}\n")
+            logger.info(f"DATA PATROL — {self._run_id}")
 
             # Log configuration at start of run
             self._log_configuration()
@@ -1192,31 +1195,27 @@ class DataPatrol:
         for r in self.results:
             counts[r['severity']] = counts.get(r['severity'], 0) + 1
 
-        print(f"\n{'='*82}\nPATROL RESULTS — {self._run_id}\n{'='*82}\n")
-        print(f"  INFO:     {counts.get(INFO, 0)}")
-        print(f"  WARN:     {counts.get(WARN, 0)}")
-        print(f"  ERROR:    {counts.get(ERROR, 0)}")
-        print(f"  CRITICAL: {counts.get(CRIT, 0)}")
+        logger.info(f"PATROL RESULTS — {self._run_id}")
+        logger.info(f"  INFO:     {counts.get(INFO, 0)}")
+        logger.info(f"  WARN:     {counts.get(WARN, 0)}")
+        logger.info(f"  ERROR:    {counts.get(ERROR, 0)}")
+        logger.info(f"  CRITICAL: {counts.get(CRIT, 0)}")
         if elapsed_seconds:
             perf_status = "OK" if elapsed_seconds < 120 else "SLOW"
-            print(f"  TIME:     {elapsed_seconds:.1f}s [{perf_status}]\n")
-        else:
-            print()
+            logger.info(f"  TIME:     {elapsed_seconds:.1f}s [{perf_status}]")
 
         # Show all non-INFO findings
         flagged = [r for r in self.results if r['severity'] != INFO]
         if flagged:
-            print("FLAGGED:")
+            logger.info("FLAGGED:")
             for r in flagged:
                 sev_pad = r['severity'].upper().rjust(8)
-                print(f"  [{sev_pad}] {r['check']:20s} {r['target']:28s} : {r['message']}")
+                logger.info(f"  [{sev_pad}] {r['check']:20s} {r['target']:28s} : {r['message']}")
         else:
-            print("  No issues — all checks clean.\n")
+            logger.info("No issues — all checks clean.")
 
         ready = counts.get(CRIT, 0) == 0 and counts.get(ERROR, 0) == 0
-        print(f"\n{'='*82}")
-        print(f"  ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
-        print(f"{'='*82}\n")
+        logger.info(f"ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
 
         # Log performance metrics
         if elapsed_seconds:
@@ -1252,7 +1251,7 @@ if __name__ == '__main__':
     summary = p.run(quick=args.quick, validate_alpaca=args.validate_alpaca)
 
     if args.json:
-        print(json.dumps(summary, default=str, indent=2))
+        logger.info(json.dumps(summary, default=str, indent=2))
 
     import sys
     sys.exit(0 if summary['ready'] else 1)

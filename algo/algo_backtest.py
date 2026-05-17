@@ -30,12 +30,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, List, Any, Optional, Tuple
-import logging
 import argparse
 from collections import defaultdict
 import statistics
+from utils.structured_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -95,7 +95,7 @@ class Backtester:
         try:
             self.conn = psycopg2.connect(**DB_CONFIG)
         except Exception as e:
-            print(f"Failed to connect to database: {e}")
+            logger.error(f"Failed to connect to database: {e}")
             raise
 
     def disconnect(self):
@@ -260,9 +260,9 @@ class Backtester:
 
     def run(self) -> Dict[str, Any]:
         """Run backtest and return metrics."""
-        print(f"\nBacktesting {self.start_date} to {self.end_date}")
-        print(f"Initial capital: ${self.initial_capital:,.0f}")
-        print(f"Max positions: {self.max_positions}\n")
+        logger.info(f"Backtesting {self.start_date} to {self.end_date}")
+        logger.info(f"Initial capital: ${self.initial_capital:,.0f}")
+        logger.info(f"Max positions: {self.max_positions}")
 
         self.connect()
 
@@ -301,7 +301,7 @@ class Backtester:
                 self.min_portfolio_value = min(self.min_portfolio_value, portfolio_value)
 
                 if self.verbose and (i + 1) % 20 == 0:
-                    print(f"  Day {i+1}/{len(trading_dates)}: "
+                    logger.debug(f"Day {i+1}/{len(trading_dates)}: "
                           f"Portfolio=${portfolio_value:,.0f}, Positions={len(self.positions)}")
 
             # Calculate metrics
@@ -421,11 +421,11 @@ class Backtester:
         Returns run_id on success, None on failure.
         """
         if not self.conn:
-            print("Database not connected. Call connect() first.")
+            logger.error("Database not connected. Call connect() first.")
             return None
 
         if results.get('status') != 'OK':
-            print(f"Cannot save failed backtest: {results.get('status')}")
+            logger.error(f"Cannot save failed backtest: {results.get('status')}")
             return None
 
         try:
@@ -495,12 +495,12 @@ class Backtester:
                 ))
 
             self.conn.commit()
-            print(f"✅ Saved backtest run {run_id}: {run_name}")
+            logger.info(f"Saved backtest run {run_id}: {run_name}")
             return str(run_id)
 
         except Exception as e:
             self.conn.rollback()
-            print(f"❌ Failed to save backtest results: {e}")
+            logger.error(f"Failed to save backtest results: {e}")
             return None
         finally:
             if cur:

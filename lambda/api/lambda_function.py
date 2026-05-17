@@ -2938,19 +2938,19 @@ class APIHandler:
             self.cur.execute("""
                 SELECT
                     loader_name,
-                    run_date,
-                    rows_processed,
+                    start_at,
+                    symbol_count,
                     duration_seconds,
-                    status,
-                    error_message,
-                    checksum
+                    success,
+                    error_count,
+                    table_name
                 FROM data_loader_runs
-                WHERE (loader_name, run_date) IN (
-                    SELECT loader_name, MAX(run_date)
+                WHERE (loader_name, start_at) IN (
+                    SELECT loader_name, MAX(start_at)
                     FROM data_loader_runs
                     GROUP BY loader_name
                 )
-                ORDER BY run_date DESC, loader_name
+                ORDER BY start_at DESC, loader_name
             """)
             rows = self.cur.fetchall()
 
@@ -2963,18 +2963,19 @@ class APIHandler:
 
             loaders = []
             for row in rows:
-                run_date = row['run_date']
-                age_hours = (datetime.now(timezone.utc) - run_date.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                start_time = row['start_at']
+                age_hours = (datetime.now(timezone.utc) - start_time.replace(tzinfo=timezone.utc)).total_seconds() / 3600
                 health = 'stale' if age_hours > 24 else 'fresh'
+                status = 'success' if row['success'] else 'failed'
 
                 loaders.append({
                     'name': row['loader_name'],
-                    'last_run': run_date.isoformat() if run_date else None,
-                    'rows_processed': row['rows_processed'],
-                    'duration_seconds': row['duration_seconds'],
-                    'status': row['status'],
-                    'error': row['error_message'],
-                    'checksum': row['checksum'],
+                    'table': row['table_name'],
+                    'last_run': start_time.isoformat() if start_time else None,
+                    'symbols_processed': row['symbol_count'] or 0,
+                    'duration_seconds': row['duration_seconds'] or 0,
+                    'status': status,
+                    'errors': row['error_count'] or 0,
                     'age_hours': round(age_hours, 1),
                     'health': health,
                 })
@@ -2986,7 +2987,7 @@ class APIHandler:
                     'total': len(loaders),
                     'healthy': len([l for l in loaders if l['health'] == 'fresh']),
                     'stale': len([l for l in loaders if l['health'] == 'stale']),
-                    'failed': len([l for l in loaders if l['status'] != 'success']),
+                    'failed': len([l for l in loaders if l['status'] == 'failed']),
                 }
             })
         except Exception as e:

@@ -90,7 +90,7 @@ def _get_db_config():
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    HALT_FLAG_PATH = "/tmp/algo_orchestrator_halt"
+    HALT_FLAG_PATH = str(Path(tempfile.gettempdir()) / 'algo_orchestrator_halt')
 
     def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
         from algo.algo_config import get_config
@@ -1393,10 +1393,16 @@ class Orchestrator:
                 min_grade = constraints.get('min_swing_grade', 'B')
                 min_grade_idx = grade_order.index(min_grade) if min_grade in grade_order else 3
                 before = len(qualified)
+                # Safe grade lookup: unknown grades default to 'F' (worst grade)
+                def get_grade_idx(grade):
+                    try:
+                        return grade_order.index(grade) if grade in grade_order else grade_order.index('F')
+                    except ValueError:
+                        return grade_order.index('F')
                 qualified = [
                     t for t in qualified
                     if (t.get('swing_score', 0) >= min_score and
-                        grade_order.index(t.get('swing_grade', 'F')) >= min_grade_idx)
+                        get_grade_idx(t.get('swing_grade', 'F')) >= min_grade_idx)
                 ]
                 if len(qualified) < before:
                     logger.info(f"  Tier filter: {before} -> {len(qualified)} "

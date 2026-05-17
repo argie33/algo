@@ -12,13 +12,13 @@ Rules:
 """
 
 import os
-import logging
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
+from utils.structured_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -164,7 +164,7 @@ class PositionSizer:
             drawdown_pct = ((peak - current) / peak) * 100
             return max(0, drawdown_pct)
         except Exception as e:
-            print(f"ERROR: Could not calculate drawdown: {e}")
+            logger.error(f"Could not calculate drawdown: {e}")
             # B13: Return extreme drawdown to force trading halt
             return 25.0
 
@@ -200,7 +200,7 @@ class PositionSizer:
             if row and row[0] is not None:
                 return float(row[0]) / 100.0
         except Exception as e:
-            print(f"WARNING: Could not fetch market exposure: {e}")
+            logger.warning(f"Could not fetch market exposure: {e}")
             # B13: Return conservative multiplier (50% exposure) on error
             return 0.5
         return 1.0  # neutral if not computed yet
@@ -437,9 +437,9 @@ if __name__ == "__main__":
         stop_loss_price=142.50
     )
 
-    print(f"Position Size Calculation Test:")
-    print(f"  Status: {result['status']}")
-    print(f"  Shares: {result['shares']}")
-    print(f"  Position Value: ${result.get('position_value', 0):.2f}")
-    print(f"  Risk %: {result['position_size_pct']:.2f}%")
-    print(f"  Reason: {result['reason']}")
+    logger.info(f"Position Size Calculation Test:")
+    logger.info(f"  Status: {result['status']}")
+    logger.info(f"  Shares: {result['shares']}")
+    logger.info(f"  Position Value: ${result.get('position_value', 0):.2f}")
+    logger.info(f"  Risk %: {result['position_size_pct']:.2f}%")
+    logger.info(f"  Reason: {result['reason']}")

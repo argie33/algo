@@ -27,14 +27,13 @@ except ImportError:
 import os
 import psycopg2
 import argparse
-import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date as _date, datetime, timedelta
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
+from utils.structured_logger import get_logger
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -294,11 +293,11 @@ class LoaderMonitor:
                     for f in self.findings
                 ],
             }
-            print(json.dumps(out, indent=2))
+            logger.info(json.dumps(out, indent=2))
         else:
-            print(f"\n=== LOADER MONITOR REPORT ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) ===\n")
+            logger.info(f"LOADER MONITOR REPORT ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
             if not self.findings:
-                print("✓ All checks passed")
+                logger.info("All checks passed")
             else:
                 by_severity = {}
                 for sev, check, msg in self.findings:
@@ -308,9 +307,9 @@ class LoaderMonitor:
 
                 for sev in ["CRITICAL", "ERROR", "WARN", "INFO"]:
                     if sev in by_severity:
-                        print(f"\n[{sev}]")
+                        logger.info(f"[{sev}]")
                         for check, msg in by_severity[sev]:
-                            print(f"  {check}: {msg}")
+                            logger.info(f"  {check}: {msg}")
 
 
 def main():

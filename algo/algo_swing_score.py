@@ -866,7 +866,7 @@ class SwingTraderScore:
             except Exception:
                 pass
 
-        total_pts = max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts)
+        total_pts = min(self.W_SECTOR, max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts))
         return total_pts, {
             'industry': industry,
             'industry_rank': ind_rank,
