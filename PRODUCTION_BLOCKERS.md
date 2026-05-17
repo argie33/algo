@@ -39,7 +39,30 @@
 
 ---
 
-### 4. Missing Test Database Setup Module
+### 4. Loaders Have Imports Inside Docstrings (DATA PIPELINE BROKEN)
+**Files:** 15+ loaders (loadetfpricedaily.py, load_cash_flow.py, load_balance_sheet.py, load_income_statement.py, etc.)
+**Issue:** Import statements are written in docstrings instead of actual Python code
+**Example:**
+```python
+"""
+import sys
+from utils.logging_setup import get_logger  <-- INSIDE DOCSTRING
+
+Loads ETF daily OHLCV data...
+"""
+
+logger = get_logger(__name__)  <-- ERROR: get_logger never imported!
+```
+**Impact:** CRITICAL - Data loader pipeline completely broken
+- All 40+ loaders fail at module load time
+- Can't initialize database
+- Production data never loads
+
+**Loaders Affected:** loadetfpricedaily, load_cash_flow, load_balance_sheet, load_income_statement, load_key_metrics, load_quality_metrics, load_value_metrics, and others (~15 total)
+
+---
+
+### 5. Missing Test Database Setup Module
 **File:** Missing `setup_test_db.py`
 **Issue:** 9 integration tests can't run; they import non-existent module
 **Impact:** Can't validate data loader pipeline, quarterly financials, orchestrator flow
@@ -51,7 +74,7 @@
 
 ---
 
-### 5. Database Connectivity Issue
+### 6. Database Connectivity Issue
 **Issue:** PostgreSQL authentication failing with credentials from .env.local
 **Status:** `psycopg2.OperationalError: FATAL: password authentication failed for user "postgres"`
 **Impact:** 
@@ -63,7 +86,7 @@
 
 ## HIGH PRIORITY BLOCKERS (Deploy will fail without these)
 
-### 6. NPM Dependencies - Unused Packages
+### 7. NPM Dependencies - Unused Packages
 **Issue:** 80+ extraneous packages in package.json
 **Packages:** @redis/*, @eslint/*, moment, redis, polars
 **Size:** ~400MB unused dependencies
@@ -74,7 +97,7 @@
 
 ---
 
-### 7. Terraform Deprecation Warnings
+### 8. Terraform Deprecation Warnings
 **File:** `terraform/modules/database/main.tf` line 707
 **Issue:** DynamoDB using deprecated `hash_key` argument (should be `key_schema`)
 **Impact:** Non-blocking now, but AWS will deprecate this
@@ -84,21 +107,21 @@
 
 ## KNOWN ISSUES (Not Production Blockers Yet)
 
-### 8. Module Import Path Inconsistency
+### 9. Module Import Path Inconsistency
 **Issue:** Some code tries `from loaders.env_loader import load_env` but file is at `config/env_loader.py`
 **Impact:** Minor - imports fail in isolation but orchestrator loads env correctly
 **Status:** Works in orchestrator context due to sys.path manipulation
 
 ---
 
-### 9. No Alpaca Account Validation
+### 10. No Alpaca Account Validation
 **Issue:** Code doesn't validate Alpaca paper trading credentials on startup
 **Impact:** Will fail when orchestrator tries to fetch account data in Phase 7
 **Severity:** High - production must validate trading credentials on deploy
 
 ---
 
-### 10. No Data Freshness Requirements Defined
+### 11. No Data Freshness Requirements Defined
 **Issue:** Phase 1 data freshness gate hardcoded to 7 days; no config validation
 **Impact:** Could load stale data without warning if data source goes down
 **Severity:** Medium - need explicit SLA targets per data source
@@ -132,30 +155,33 @@
 
 ## BLOCKING YOU FROM REAL-MONEY DEPLOYMENT
 
-1. **Circuit breaker bugs** - Will halt all trading on errors
-2. **Database connectivity** - Can't start locally or in AWS
-3. **Position sizer bug** - Incorrect sizing on first trade
-4. **Filter pipeline issue** - Tier 3 signals can't run
-5. **Missing test setup** - Can't validate data pipeline
-6. **Alpaca credential validation** - No way to catch auth errors early
-7. **Data freshness gates** - No SLA enforcement per source
+1. **DATA PIPELINE BROKEN** - Imports in docstrings; loaders fail at startup
+2. **Circuit breaker bugs** - Will halt all trading on errors
+3. **Database connectivity** - Can't start locally or in AWS
+4. **Position sizer bug** - Incorrect sizing on first trade
+5. **Filter pipeline issue** - Tier 3 signals can't run
+6. **Missing test setup** - Can't validate data pipeline
+7. **Alpaca credential validation** - No way to catch auth errors early
+8. **Data freshness gates** - No SLA enforcement per source
 
 ---
 
 ## RECOMMENDED FIX ORDER
 
-1. **FIRST:** Fix database password auth (2 mins) - unblock local testing
-2. **SECOND:** Fix circuit breaker NoneType bugs (30 mins) - unblock Phase 2
-3. **THIRD:** Fix position sizer drawdown (15 mins) - correct position sizing
-4. **FOURTH:** Add setup_test_db.py (20 mins) - unblock integration tests
-5. **FIFTH:** Add Alpaca credential validation (15 mins)
-6. **SIXTH:** Fix filter pipeline query attribute (10 mins)
-7. **SEVENTH:** Remove unused NPM dependencies (10 mins)
-8. **EIGHTH:** Plan Terraform hash_key migration (not urgent)
+1. **FIRST:** Fix loader imports (docstring to code) (~45 mins) - UNBLOCK DATA PIPELINE
+   - Move imports from docstrings to actual code in 15+ loaders
+2. **SECOND:** Fix database password auth (2 mins) - unblock local testing
+3. **THIRD:** Fix circuit breaker NoneType bugs (30 mins) - unblock Phase 2
+4. **FOURTH:** Fix position sizer drawdown (15 mins) - correct position sizing
+5. **FIFTH:** Add setup_test_db.py (20 mins) - unblock integration tests
+6. **SIXTH:** Add Alpaca credential validation (15 mins)
+7. **SEVENTH:** Fix filter pipeline query attribute (10 mins)
+8. **EIGHTH:** Remove unused NPM dependencies (10 mins)
+9. **NINTH:** Plan Terraform hash_key migration (not urgent)
 
 ---
 
-**Total estimated fix time:** ~2 hours
+**Total estimated fix time:** ~3 hours (was 2 hours, but loader fixes are critical)
 
 **After these fixes:**
 - All tests will pass
