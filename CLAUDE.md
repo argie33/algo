@@ -236,7 +236,7 @@ Instead of: "I'll use approach X"
 Write commit or STATUS note: "Using approach X because Y constraint requires it" or "tried Z but failed because..."
 
 Examples:
-- "Consolidated schema to local init_db.sql because dev/prod parity needed"
+- "Moved schema to init_database.py as AUTHORITATIVE source because manual SQL maintenance was error-prone"
 - "Deleted Dockerfile.* because Terraform ECS is current deployment"
 - "Added Phase 1 to loadstockscores first because it blocks 80% of null metrics"
 
@@ -249,11 +249,12 @@ Examples:
 
 ✅ DO:
 ```
-fix: Consolidate database schema and add Phase 1 to loadstockscores
+fix: Consolidate database schema initialization to init_database.py
 
-- Copy local init_db.sql to Terraform for dev/prod parity
-- Add score validation before insert
-- Why: Tests fail in AWS due to schema mismatch
+- Move AUTHORITATIVE schema from init_db.sql (legacy) to utils/init_database.py (canonical)
+- Update CI workflows to use init_database.py for database setup
+- Delete init_db.sql (manual SQL maintenance was error-prone and duplicated init_database.py)
+- Why: Single source of truth reduces schema drift between dev/test/prod
 ```
 
 ❌ DON'T:

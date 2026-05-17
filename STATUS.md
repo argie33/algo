@@ -329,12 +329,8 @@ These block everything else:
 ## 🔨 SESSION 51 — FULL-STACK HARDENING (Batch 1-3 Complete)
 
 ### Batch 1: Critical Schema & Infrastructure Fixes ✅ COMPLETE
-- `init_db.sql:2565` — Removed dangling SQL fragment (syntax error)
-- `init_db.sql:2494` — Fixed `overall_score` → `composite_score` in partial index
-- `init_db.sql:1003-1020` — Added `UNIQUE(symbol, date)` to `ttm_income_statement` and `ttm_cash_flow` (prevented data duplication)
-- `init_db.sql:317,494` — Removed duplicate `positioning_metrics` definition (kept first with all columns)
-- `init_db.sql` — Added missing indexes: `price_weekly(symbol,date)`, `price_monthly(symbol,date)`, `technical_data_weekly(symbol,date)`, `technical_data_monthly(symbol,date)`
-- `init_db.sql` — Added `data_loader_runs` table (enabled provenance tracking)
+- `utils/init_database.py` — AUTHORITATIVE schema definition (legacy init_db.sql deleted, all changes now tracked here)
+  - Includes all prior fixes: dangling fragments, `overall_score` → `composite_score`, `UNIQUE(symbol, date)` constraints, indexes, `data_loader_runs` table
 - `algo_config.py:287-290` — Fixed `_validate_value()` to allow negative percentages for drawdown/halt thresholds
 
 ### Batch 2: Algorithm Correctness Fixes ✅ COMPLETE

@@ -27,7 +27,7 @@ tier_1b_aggregates = [
 # Tier 1c: Technical indicators (depends on tier 1 prices)
 tier_1c_technical = [
     'load_technical_indicators.py',  # RSI, MACD, SMA, EMA, ATR, ADX, ROC
-    'load_trend_template_data.py',  # Minervini trend template scoring
+    # Note: Trend template scoring done by loadstockscores.py (swing_score)
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)

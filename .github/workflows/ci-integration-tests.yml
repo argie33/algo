@@ -46,12 +46,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          pip install psycopg2-binary python-dotenv
+
       - name: Initialize database schema
         env:
-          PGPASSWORD: ''
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: stocks
+          DB_PASSWORD: ''
+          DB_NAME: stocks
         run: |
           echo "📝 Initializing database schema..."
-          psql -h localhost -U stocks -d stocks -f init_db.sql -v ON_ERROR_STOP=1
+          python3 utils/init_database.py
 
       - name: Verify schema
         env:
@@ -183,12 +196,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Initialize database schema
-        env:
-          PGPASSWORD: ''
-        run: |
-          psql -h localhost -U stocks -d stocks -f init_db.sql -v ON_ERROR_STOP=1
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -197,6 +204,17 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Initialize database schema
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: stocks
+          DB_PASSWORD: ''
+          DB_NAME: stocks
+        run: |
+          echo "📝 Initializing database schema..."
+          python3 utils/init_database.py
 
       - name: Run algo (dry run mode)
         env:

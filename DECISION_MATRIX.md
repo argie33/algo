@@ -15,7 +15,7 @@ Quick reference for "where does this change go?"
 | **Change frontend UI** | `webapp/frontend/src/pages/*.jsx` | Test: `npm run dev` | `gh workflow run deploy-webapp.yml` |
 | **Fix data loader** | `load<NAME>.py` (e.g., `loadpricedaily.py`) | Test: run loader locally | Auto (ECS task updates on next run) |
 | **Add market calendar rule** | `algo_market_calendar.py` | Test locally | Auto |
-| **Add database audit field** | `algo_orchestrator.py` (Phase 7) or `init_db.sql` | Test locally | Auto (Lambda init on first run) |
+| **Add database audit field** | `algo_orchestrator.py` (Phase 7) or `utils/init_database.py` | Test locally | Auto (Lambda init on first run) |
 
 ## Infrastructure Changes
 
