@@ -62,7 +62,6 @@ router.get("/:indicator", async (req, res) => {
 // LEADING INDICATORS - Comprehensive overview
 // ============================================
 router.get("/leading-indicators", async (req, res) => {
-  console.log("GET /api/economic/leading-indicators called");
 
   try {
     // Get latest AND historical values for trend analysis
@@ -191,7 +190,6 @@ router.get("/leading-indicators", async (req, res) => {
           value: parseFloat(row.value),
           date: row.date,
         };
-        console.log(`  [OK] ${sid}: ${row.value} (${row.date})`);
       }
 
       // Collect historical data points - use series-specific max
@@ -499,8 +497,6 @@ router.get("/leading-indicators", async (req, res) => {
 // Consolidated from market routes for API cleanliness
 
 router.get("/yield-curve-full", async (req, res) => {
-  console.log("📈 Treasury Yield Curve & Credit Spreads endpoint called");
-
   try {
     // Fetch treasury maturity yields with 60-day history - only request what might exist
     const yieldCurveQuery = `

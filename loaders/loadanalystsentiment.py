@@ -49,7 +49,7 @@ class AnalystSentimentLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch analyst recommendations from yfinance."""
+        """Fetch analyst recommendations from yfinance and aggregate into sentiment."""
         try:
             import yfinance as yf
         except ImportError:
@@ -62,17 +62,40 @@ class AnalystSentimentLoader(OptimalLoader):
             if recs is None or recs.empty:
                 return None
 
-            results = []
+            # Group by date and aggregate sentiment counts
+            sentiment_by_date = {}
             for idx, row in recs.iterrows():
-                # yfinance returns DatetimeIndex and columns: Firm, To Grade, From Grade, Action
                 rec_date = idx.date() if hasattr(idx, 'date') else idx
+                rating = row.get('To Grade', '').lower()
+
+                if rec_date not in sentiment_by_date:
+                    sentiment_by_date[rec_date] = {
+                        'bullish': 0, 'bearish': 0, 'neutral': 0, 'total': 0
+                    }
+
+                # Categorize rating
+                if rating in ['buy', 'overweight', 'outperform', 'strong buy']:
+                    sentiment_by_date[rec_date]['bullish'] += 1
+                elif rating in ['sell', 'underweight', 'underperform', 'strong sell']:
+                    sentiment_by_date[rec_date]['bearish'] += 1
+                elif rating in ['hold', 'equal weight', 'neutral']:
+                    sentiment_by_date[rec_date]['neutral'] += 1
+
+                sentiment_by_date[rec_date]['total'] += 1
+
+            # Convert to result format
+            results = []
+            for rec_date, counts in sentiment_by_date.items():
                 results.append({
                     'symbol': symbol,
                     'date': rec_date,
-                    'firm': row.get('Firm', ''),
-                    'to_grade': row.get('To Grade', ''),
-                    'from_grade': row.get('From Grade'),
-                    'action': row.get('Action', '')
+                    'analyst_count': counts['total'],
+                    'bullish_count': counts['bullish'],
+                    'bearish_count': counts['bearish'],
+                    'neutral_count': counts['neutral'],
+                    'target_price': None,
+                    'current_price': None,
+                    'upside_downside_percent': None
                 })
 
             return results if results else None
