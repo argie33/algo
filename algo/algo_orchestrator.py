@@ -89,6 +89,8 @@ def _get_db_config():
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
+    HALT_FLAG_PATH = "/tmp/algo_orchestrator_halt"
+
     def __init__(self, config=None, run_date=None, dry_run=False, verbose=True, init_db=True):
         from algo.algo_config import get_config
         self.config = config or get_config()
@@ -144,6 +146,14 @@ class Orchestrator:
             return current
         except Exception:
             return 1
+
+    def _check_halt_flag(self) -> bool:
+        """Check for halt flag file. Returns True if halt was requested."""
+        if os.path.exists(self.HALT_FLAG_PATH):
+            logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
+            self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
+            return True
+        return False
 
     def _reset_db_failure_counter(self):
         """Reset counter on successful DB connection."""
@@ -961,6 +971,8 @@ class Orchestrator:
 
     def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(4, 'EXIT EXECUTION')
+        if self._check_halt_flag():
+            return False
         try:
             from algo.algo_trade_executor import TradeExecutor
             from algo.algo_exit_engine import ExitEngine
@@ -1173,7 +1185,7 @@ class Orchestrator:
         except Exception as e:
             traceback.print_exc()
             self.log_phase_result(4, 'exit_execution', 'error', str(e))
-            return True
+            return False  # FAIL-CLOSED: Exit failures could leave positions unbalanced
 
     def phase_4b_pyramid_adds(self) -> List[Dict[str, Any]]:
         """Add to winners (Livermore) — runs after exits, before new entries."""
@@ -1208,6 +1220,8 @@ class Orchestrator:
 
     def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
+        if self._check_halt_flag():
+            return False
         try:
             from algo.algo_filter_pipeline import FilterPipeline
             exposure_mult = 1.0
@@ -1246,6 +1260,8 @@ class Orchestrator:
 
     def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(6, 'ENTRY EXECUTION')
+        if self._check_halt_flag():
+            return False
         try:
             from algo.algo_trade_executor import TradeExecutor
             executor = TradeExecutor(self.config)
@@ -1403,7 +1419,15 @@ class Orchestrator:
                         logger.error(f"  Failed {trade['symbol']}: {result.get('message')}")
                 except Exception as e:
                     errors += 1
-                    logger.info(f"  Exception on {trade['symbol']}: {e}")
+                    logger.error(f"  Exception on {trade['symbol']}: {e}", exc_info=True)
+
+            # Circuit breaker: if >50% of trades fail in a batch, halt
+            if len(qualified) > 2 and errors > 0:
+                failure_rate = errors / (entered + blocked + errors)
+                if failure_rate > 0.5:
+                    logger.critical(f"BATCH FAILURE RATE {failure_rate:.0%} exceeds 50% threshold ({errors}/{entered + blocked + errors}) — halting Phase 6")
+                    self.log_phase_result(6, 'entry_execution', 'error', f'Batch failure rate {failure_rate:.0%} ({errors} of {entered + blocked + errors})')
+                    return False  # FAIL-CLOSED on batch failures
 
             self.log_phase_result(
                 6, 'entry_execution', 'success',
@@ -1414,7 +1438,7 @@ class Orchestrator:
         except Exception as e:
             traceback.print_exc()
             self.log_phase_result(6, 'entry_execution', 'error', str(e))
-            return True
+            return False  # FAIL-CLOSED: Entry execution failures could result in partial positions
 
     def phase_7_reconcile(self) -> Dict[str, Any]:
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
