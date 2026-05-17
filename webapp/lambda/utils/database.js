@@ -104,8 +104,7 @@ async function getDbConfig() {
                 },
         };
 
-        console.log(
-          console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+        console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
         return dbConfig;
       } catch (secretError) {
         console.warn(
@@ -156,8 +155,7 @@ async function getDbConfig() {
               },
       };
 
-      console.log(
-        console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+      console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
       return dbConfig;
     }
 
