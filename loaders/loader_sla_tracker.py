@@ -241,6 +241,13 @@ class LoaderSLATracker:
                     if not row:
                         # SLA tracker not populated — fall back to direct table freshness check
                         try:
+                            # Validate table name to prevent SQL injection
+                            if not (table_name and isinstance(table_name, str) and
+                                   table_name.replace('_', '').replace('-', '').isalnum() and
+                                   len(table_name) <= 63):
+                                log.error(f"Invalid table name for freshness check: {table_name}")
+                                failures.append(f"{table_name}: Invalid table name")
+                                continue
                             cur.execute(f"SELECT MAX(date) FROM {table_name}")
                             max_date_row = cur.fetchone()
                             if not max_date_row or not max_date_row[0]:

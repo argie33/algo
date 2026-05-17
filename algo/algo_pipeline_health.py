@@ -35,6 +35,7 @@ from datetime import date as _date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +189,12 @@ class PipelineHealth:
         )
 
         try:
+            # Validate table and column names to prevent SQL injection
+            safe_table = assert_safe_table(table_name)
+            safe_date_col = assert_safe_column(date_column)
+
             # Get row count
-            self.cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            self.cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
             result = self.cur.fetchone()
             health.row_count = result[0] if result else 0
 
@@ -199,7 +204,7 @@ class PipelineHealth:
                 return health
 
             # Get latest date
-            self.cur.execute(f"SELECT MAX({date_column})::DATE FROM {table_name}")
+            self.cur.execute(f"SELECT MAX({safe_date_col})::DATE FROM {safe_table}")
             result = self.cur.fetchone()
             latest_date = result[0] if result else None
 

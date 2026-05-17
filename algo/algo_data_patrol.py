@@ -1098,8 +1098,12 @@ class DataPatrol:
             try:
                 # key_metrics uses 'ticker' instead of 'symbol'
                 sym_col = 'ticker' if tbl == 'key_metrics' else 'symbol'
+                # Validate identifiers for safety
+                safe_tbl = assert_safe_table(tbl)
+                safe_col = assert_safe_column(col)
+                safe_sym_col = assert_safe_column(sym_col)
                 self.cur.execute(
-                    f"SELECT MAX({col}::date), COUNT(*), COUNT(DISTINCT {sym_col}) FROM {tbl}"
+                    f"SELECT MAX({safe_col}::date), COUNT(*), COUNT(DISTINCT {safe_sym_col}) FROM {safe_tbl}"
                 )
                 latest, total, unique_syms = self.cur.fetchone()
                 if not latest:
