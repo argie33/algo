@@ -244,7 +244,7 @@ class LoaderMonitor:
                 )
             )
         else:
-            logger.info(f"✓ Daily load volume OK: {today_count} symbols")
+            logger.info(f"[OK] Daily load volume OK: {today_count} symbols")
 
         # 3. Check universe coverage
         coverage_pct = self.check_universe_coverage()
@@ -257,7 +257,7 @@ class LoaderMonitor:
                 )
             )
         else:
-            logger.info(f"✓ Universe coverage OK: {coverage_pct}%")
+            logger.info(f"[OK] Universe coverage OK: {coverage_pct}%")
 
         # 4. List most stale symbols (informational)
         stale_symbols = self.check_stale_symbols(stale_threshold_days=5)

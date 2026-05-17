@@ -127,15 +127,15 @@ class ConfigValidator:
         if self.errors:
             logger.error(f"Configuration validation FAILED with {len(self.errors)} error(s):")
             for error in self.errors:
-                logger.error(f"  ❌ {error}")
+                logger.error(f"  [ERROR] {error}")
             return False
 
         if self.warnings:
             logger.warning(f"Configuration warnings ({len(self.warnings)}):")
             for warning in self.warnings:
-                logger.warning(f"  ⚠️  {warning}")
+                logger.warning(f"  [WARNING] {warning}")
 
-        logger.info(f"✓ Configuration valid ({len(self.config)} settings loaded)")
+        logger.info(f"[OK] Configuration valid ({len(self.config)} settings loaded)")
         return True
 
     def get(self, key: str, default=None):

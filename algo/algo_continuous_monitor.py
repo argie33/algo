@@ -76,9 +76,9 @@ class ContinuousMonitor:
                 # Send alert
                 self._alert_critical(issues)
             elif issues['error_count'] > 0:
-                logger.info(f"  ⚠️  ERROR: {issues['error_count']} issues")
+                logger.info(f"  [WARNING]  ERROR: {issues['error_count']} issues")
             else:
-                logger.info(f"  ✓ All critical checks passed")
+                logger.info(f"  [OK] All critical checks passed")
 
             self._log_run(issues)
         except Exception as e:

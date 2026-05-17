@@ -430,7 +430,7 @@ class AlgoConfig:
                 """, (key, value, dtype, desc))
 
             conn.commit()
-            logger.info(f"✓ Initialized {len(self.DEFAULTS)} config defaults")
+            logger.info(f"[OK] Initialized {len(self.DEFAULTS)} config defaults")
             return True
         except Exception as e:
             logger.error(f"Error initializing defaults: {e}")

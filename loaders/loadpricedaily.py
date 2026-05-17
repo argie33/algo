@@ -213,10 +213,6 @@ def main():
 
     loader = PriceDailyLoader()
     try:
-        # Pre-load fallback prices to avoid per-symbol connections during rate limiting
-        logger.info(f"Pre-loading fallback prices for {len(symbols)} symbols...")
-        loader._batch_load_fallback_prices(symbols)
-
         # PHASE 1: Initialize data integrity tracking (disabled for local testing)
         # logger.info("[Phase 1] Initializing data integrity components...")
         # loader.start_provenance_tracking()

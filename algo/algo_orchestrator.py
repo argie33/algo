@@ -644,7 +644,7 @@ class Orchestrator:
         if stage2 == 0:
             return f"{total} signals exist but NONE are Stage 2. RSI<30 in Stage 2 stocks is rare. Check market stage."
         if final > 0:
-            return f"✓ {final} candidates qualified. Ready to execute."
+            return f"[OK] {final} candidates qualified. Ready to execute."
 
         # Find the biggest rejection point
         max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
@@ -1669,7 +1669,7 @@ class Orchestrator:
         # Loudly warn if DEV_MODE is active — this bypasses all data freshness and patrol gates
         if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
             logger.critical("=" * 70)
-            logger.critical("⚠️  DEV_MODE=true IS ACTIVE — ALL DATA QUALITY GATES ARE BYPASSED")
+            logger.critical("[WARNING]  DEV_MODE=true IS ACTIVE — ALL DATA QUALITY GATES ARE BYPASSED")
             logger.critical("   Do NOT run with DEV_MODE in production or with real capital.")
             logger.critical("=" * 70)
             if not self.dry_run:
@@ -1765,7 +1765,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_3a_reconciliation"):
                     self.phase_3a_reconciliation()
-                logger.info("✓ Phase 3a (Reconciliation) completed")
+                logger.info("[OK] Phase 3a (Reconciliation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 3a (Reconciliation) failed: {e}", exc_info=True)
                 self.log_phase_result(3, 'reconciliation', 'error', str(e))
@@ -1774,7 +1774,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_3_position_monitor"):
                     self.phase_3_position_monitor()
-                logger.info("✓ Phase 3 (Position Monitor) completed")
+                logger.info("[OK] Phase 3 (Position Monitor) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
                 self.log_phase_result(3, 'position_monitor', 'error', str(e))
@@ -1783,7 +1783,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_3b_exposure_policy"):
                     self.phase_3b_exposure_policy()
-                logger.info("✓ Phase 3b (Exposure Policy) completed")
+                logger.info("[OK] Phase 3b (Exposure Policy) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
                 self.log_phase_result('3b', 'exposure_policy', 'error', str(e))
@@ -1795,7 +1795,7 @@ class Orchestrator:
                     if result is False:
                         logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("✓ Phase 4 (Exit Execution) completed")
+                logger.info("[OK] Phase 4 (Exit Execution) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, 'exit_execution', 'error', str(e))
@@ -1804,7 +1804,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_4b_pyramid_adds"):
                     self.phase_4b_pyramid_adds()
-                logger.info("✓ Phase 4b (Pyramid Adds) completed")
+                logger.info("[OK] Phase 4b (Pyramid Adds) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 4b (Pyramid Adds) failed: {e}", exc_info=True)
                 self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
@@ -1816,7 +1816,7 @@ class Orchestrator:
                     if result is False:
                         logger.critical("HALT: Phase 5 (Signal Generation) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("✓ Phase 5 (Signal Generation) completed")
+                logger.info("[OK] Phase 5 (Signal Generation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
                 self.log_phase_result(5, 'signal_generation', 'error', str(e))
@@ -1828,7 +1828,7 @@ class Orchestrator:
                     if result is False:
                         logger.critical("HALT: Phase 6 (Entry Execution) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("✓ Phase 6 (Entry Execution) completed")
+                logger.info("[OK] Phase 6 (Entry Execution) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(6, 'entry_execution', 'error', str(e))
@@ -1839,7 +1839,7 @@ class Orchestrator:
                     result = self.phase_7_reconcile()
                 # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
                 # (positions may already be executed, so we must sync state)
-                logger.info("✓ Phase 7 (Reconciliation) completed")
+                logger.info("[OK] Phase 7 (Reconciliation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
                 self.log_phase_result(7, 'reconciliation', 'error', str(e))
@@ -1909,7 +1909,7 @@ class Orchestrator:
                 if count == 0:
                     issues.append(f"{description} missing for {today}")
                 else:
-                    logger.debug(f"  ✓ {table}: {count} rows for {today}")
+                    logger.debug(f"  [OK] {table}: {count} rows for {today}")
 
             # Check soft requirements (don't block, just warn)
             for table, description in required_soft:
@@ -1928,7 +1928,7 @@ class Orchestrator:
                 if count == 0:
                     warnings.append(f"{description} not available (will be populated after trading)")
                 else:
-                    logger.debug(f"  ✓ {table}: {count} rows for today")
+                    logger.debug(f"  [OK] {table}: {count} rows for today")
 
             # 2. Check price freshness
             cur.execute(
@@ -2154,11 +2154,14 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
+    from config.env_loader import load_env
+    load_env()
+
     from algo.algo_logging import configure_root_logger
     configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
 
     from utils.config_validator import validate_at_startup
-    validate_at_startup()  # Validates environment variables only, no .env files
+    validate_at_startup(env_file=Path(__file__).parent.parent / '.env.local')
 
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')

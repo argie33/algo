@@ -238,7 +238,7 @@ class TestMarketStageCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (2, 'uptrend')
+            mock_cur.fetchone.return_value = (date.today(), 2, 'uptrend')
 
             result = cb._check_market_stage(date.today())
 
@@ -254,7 +254,7 @@ class TestMarketStageCircuitBreaker:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (4, 'downtrend')
+            mock_cur.fetchone.return_value = (date.today(), 4, 'downtrend')
 
             result = cb._check_market_stage(date.today())
 

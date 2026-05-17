@@ -12,8 +12,8 @@ Rules:
 """
 
 from config.env_loader import load_env
-from utils.logging_setup import get_logger
 import os
+import psycopg2
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
