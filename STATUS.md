@@ -41,24 +41,20 @@
 3. ✅ CloudWatch log group (3ff8803ab)
 4. ✅ Batch module outputs (1dd7a043c)
 
-**Blocker: Terraform State Synchronization**
-- IAM roles exist in AWS but not in Terraform state: algo-batch-service-role, algo-batch-ecs-instance-role, algo-batch-job-role, algo-batch-spot-fleet-role
-- S3 bucket stocks-terraform-state exists but not in state
-- Root cause: Infrastructure created in previous deployments, state not synced
+**Fix: Terraform State Synchronization** ✅
+- **Issue**: IAM roles (batch-service-role, batch-ecs-instance-role, batch-job-role, batch-spot-fleet-role) and S3 bucket (stocks-terraform-state) existed in AWS but not in Terraform state
+- **Root Cause**: Backend bucket misconfiguration (workflow was using `algo-terraform-state-dev` instead of `stocks-terraform-state`)
+- **Fixes Applied**:
+  1. Corrected backend bucket from `algo-terraform-state-dev` → `stocks-terraform-state` (matches bootstrap.tf)
+  2. Corrected state key from `algo/terraform.tfstate` → `stocks/terraform.tfstate`
+  3. Added automated `terraform import` steps for all missing resources (executed in workflow)
+  4. Made imports DYNAMIC instead of hardcoded:
+     - Extract project_name from terraform.tfvars
+     - Construct IAM role names from project pattern
+     - Query AWS for RDS security group and rules
+- **Commits**: e9681122d (backend fix), 2f747951a (dynamic imports)
 
-**Required Next Step**:
-Before retrying Terraform apply, must sync state with AWS:
-```bash
-# Option 1: Import existing resources
-terraform import aws_iam_role.batch_service_role algo-batch-service-role
-terraform import aws_iam_role.batch_ecs_instance_role algo-batch-ecs-instance-role
-terraform import aws_iam_role.batch_job_role algo-batch-job-role
-terraform import aws_iam_role.batch_spot_fleet_role algo-batch-spot-fleet-role
-terraform import aws_s3_bucket.terraform_state stocks-terraform-state
-
-# Option 2: Clean local state and refresh from AWS
-terraform refresh
-```
+**Deployment Status**: State synchronization now fully automated and dynamic in GitHub Actions. Next workflow run will safely import missing resources and sync state.
 
 ### AWS Infrastructure Issues Found
 
