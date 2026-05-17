@@ -211,7 +211,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
 router.get("/all", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
 
     // OPTIMIZED: Parallelize data and count queries
     const [result, countResult] = await Promise.all([

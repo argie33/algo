@@ -622,8 +622,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
       return ema;
     };
 
-    // Get advance/decline data - adaptive to available data
-    // First try last 90 days, then last 365 days, then all data
+    // Get advance/decline data - limited to last 180 days for performance
     const advanceDeclineQuery = `
       WITH daily_data AS (
         SELECT
@@ -632,6 +631,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
           COUNT(CASE WHEN close < open THEN 1 END) as declines
         FROM price_daily
         WHERE close IS NOT NULL AND open IS NOT NULL
+          AND date >= CURRENT_DATE - INTERVAL '180 days'
         GROUP BY date
         ORDER BY date ASC
       )
