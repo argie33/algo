@@ -6,7 +6,7 @@ import sys
 import time
 import logging
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Quarterly loaders that support --period flag

@@ -12,6 +12,7 @@ Requires: annual_income_statement populated
 
 import argparse
 import logging
+logger = logging.getLogger(__name__)
 import os
 import sys
 from datetime import date
@@ -38,9 +39,7 @@ except ImportError:
 
 from utils.optimal_loader import OptimalLoader
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 
 log = logging.getLogger(__name__)

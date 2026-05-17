@@ -220,8 +220,7 @@ def get_alpaca_credentials() -> Dict[str, str]:
 
 if __name__ == "__main__":
     # Simple test: try to get credentials
-    logging.basicConfig(level=logging.INFO)
-    try:
+        try:
         db_creds = get_db_credentials()
         logger.info("[OK] DB credentials loaded")
     except ValueError as e:

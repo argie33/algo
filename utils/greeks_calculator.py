@@ -233,8 +233,7 @@ class GreeksCalculator:
 
 # Example usage
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-
+    
     # Example: AAPL call option
     # Stock: $175, Strike: $180, 30 days to expiration
     # Risk-free rate: 4.5%, Implied Volatility: 20%

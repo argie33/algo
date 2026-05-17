@@ -14,6 +14,7 @@ except ImportError:
 
 import argparse
 import logging
+logger = logging.getLogger(__name__)
 import os
 import sys
 from datetime import date, timedelta
@@ -31,9 +32,7 @@ try:
 except ImportError:
     pass
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 
 _TIMEFRAME_CONFIG = {

@@ -226,13 +226,6 @@ resource "aws_db_proxy" "main" {
   vpc_subnet_ids         = var.private_subnet_ids
   vpc_security_group_ids = [var.rds_security_group_id]
 
-  connection_pool_options {
-    max_connections          = 200
-    max_idle_connections     = 100
-    connection_borrow_timeout = 120
-    init_query               = "SET SESSION idle_in_transaction_session_timeout = 1800000"
-  }
-
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-proxy"
   })
@@ -241,10 +234,10 @@ resource "aws_db_proxy" "main" {
 }
 
 resource "aws_db_proxy_target" "main" {
-  count           = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name          = aws_db_proxy.main[0].name
-  target_arn             = aws_db_instance.main.arn
-  db_cluster_identifiers = []
+  count              = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name      = aws_db_proxy.main[0].name
+  target_group_name  = "default"
+  db_instance_identifier = aws_db_instance.main.identifier
 
   depends_on = [aws_db_proxy.main]
 }
@@ -724,6 +717,7 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
 resource "aws_dynamodb_table" "watermarks" {
   name           = "${var.project_name}-watermarks-${var.environment}"
   billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "source"
 
   attribute {
     name = "source"
@@ -740,25 +734,12 @@ resource "aws_dynamodb_table" "watermarks" {
     type = "N"
   }
 
-  key_schema {
-    attribute_name = "source"
-    key_type       = "HASH"
-  }
-
   # Global secondary index for querying by status (for monitoring)
   global_secondary_index {
     name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "updated_at"
     projection_type = "ALL"
-
-    key_schema {
-      attribute_name = "status"
-      key_type       = "HASH"
-    }
-
-    key_schema {
-      attribute_name = "updated_at"
-      key_type       = "RANGE"
-    }
   }
 
   # Time-to-live: Auto-delete stale watermarks after 90 days of no updates

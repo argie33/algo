@@ -17,6 +17,7 @@ Run:
 
 import argparse
 import logging
+logger = logging.getLogger(__name__)
 import os
 from config.credential_helper import get_db_password, get_db_config
 import sys
@@ -46,9 +47,7 @@ except ImportError:
     pass
 # <<< dotenv-autoload <<<
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 
 

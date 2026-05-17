@@ -23,7 +23,7 @@ import argparse
 from typing import Dict, Optional
 from datetime import datetime
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+s: %(message)s")
 logger = logging.getLogger(__name__)
 
 

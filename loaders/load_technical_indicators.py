@@ -21,9 +21,7 @@ import numpy as np
 import pandas as pd
 from loaders.loader_validation import validate_technical_row, count_validation_errors
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 

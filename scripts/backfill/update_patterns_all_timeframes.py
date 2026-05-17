@@ -20,7 +20,7 @@ from datetime import datetime
 from algo.algo_sql_safety import assert_safe_table
 from config.credential_helper import get_db_password, get_db_config
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 env_path = Path('.env.local')

@@ -32,6 +32,7 @@ except ImportError:
 
 import argparse
 import logging
+logger = logging.getLogger(__name__)
 import os
 import sys
 import time
@@ -49,9 +50,7 @@ try:
 except ImportError:
     pass
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 
 # FRED series to load — series_id is used as the "symbol" in OptimalLoader

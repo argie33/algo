@@ -16,6 +16,7 @@ credential_manager = get_credential_manager()
 
 import argparse
 import logging
+logger = logging.getLogger(__name__)
 import os
 import sys
 from datetime import date
@@ -34,9 +35,7 @@ except ImportError:
     pass
 # <<< dotenv-autoload <<<
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+s [%(levelname)s] %(name)s: %(message)s",
 )
 
 
