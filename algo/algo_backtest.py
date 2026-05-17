@@ -387,7 +387,7 @@ class Backtester:
         # Days in backtest
         days_in_test = (self.daily_values[-1]['date'] - self.daily_values[0]['date']).days
 
-        return {
+        results = {
             'status': 'OK',
             'start_date': str(self.start_date),
             'end_date': str(self.end_date),
@@ -407,7 +407,100 @@ class Backtester:
             'profit_factor': round(profit_factor, 2),
             'expectancy_r': round(expectancy_r, 3),
             'max_positions': self.max_positions,
+            'trades': self.trades,
         }
+        return results
+
+    def save_results_to_db(self, results: Dict[str, Any], strategy_name: str = 'momentum', run_name: str = None) -> Optional[str]:
+        """
+        Save backtest results to backtest_runs and backtest_trades tables.
+        Returns run_id on success, None on failure.
+        """
+        if not self.conn:
+            print("Database not connected. Call connect() first.")
+            return None
+
+        if results.get('status') != 'OK':
+            print(f"Cannot save failed backtest: {results.get('status')}")
+            return None
+
+        try:
+            cur = self.conn.cursor()
+
+            # Generate run_name if not provided
+            if not run_name:
+                run_name = f"{strategy_name}_{self.start_date}_to_{self.end_date}"
+
+            # Insert into backtest_runs
+            run_query = """
+                INSERT INTO backtest_runs (
+                    run_name, run_timestamp, strategy_name,
+                    date_start, date_end,
+                    total_signals, total_trades, winning_trades, losing_trades,
+                    win_rate, avg_win_pct, avg_loss_pct,
+                    expectancy_per_trade, total_return_pct, max_drawdown_pct,
+                    sharpe_annualized, sortino_annualized, profit_factor,
+                    notes
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s
+                )
+                RETURNING run_id
+            """
+
+            cur.execute(run_query, (
+                run_name, datetime.now(), strategy_name,
+                self.start_date, self.end_date,
+                len(results.get('trades', [])), results['closed_trades'], results['winning_trades'],
+                results['closed_trades'] - results['winning_trades'],
+                results['win_rate_pct'], results['avg_win_r'] * 100, results['avg_loss_r'] * 100,
+                results['expectancy_r'], results['total_return_pct'], results['max_drawdown_pct'],
+                results['sharpe_ratio'], results['sharpe_ratio'],  # sortino = sharpe for now
+                results['profit_factor'],
+                f"Backtest run {run_name}"
+            ))
+
+            run_id = cur.fetchone()[0]
+
+            # Insert trades
+            for trade in results.get('trades', []):
+                trade_query = """
+                    INSERT INTO backtest_trades (
+                        run_id, symbol,
+                        entry_date, exit_date,
+                        entry_price, exit_price,
+                        quantity, profit_loss, profit_loss_pct,
+                        trade_outcome, exit_reason, holding_days
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+
+                outcome = 'win' if trade.get('pnl', 0) > 0 else 'loss'
+                holding_days = (trade.get('exit_date') - trade.get('entry_date')).days if 'exit_date' in trade else 0
+
+                cur.execute(trade_query, (
+                    run_id, trade['symbol'],
+                    trade['entry_date'], trade['exit_date'],
+                    trade['entry_price'], trade['exit_price'],
+                    trade['shares'], trade['pnl'], trade['return_pct'],
+                    outcome, 'manual_exit', holding_days
+                ))
+
+            self.conn.commit()
+            print(f"✅ Saved backtest run {run_id}: {run_name}")
+            return str(run_id)
+
+        except Exception as e:
+            self.conn.rollback()
+            print(f"❌ Failed to save backtest results: {e}")
+            return None
+        finally:
+            if cur:
+                cur.close()
 
 
 def main():
@@ -494,7 +587,16 @@ def main():
             max_positions=args.max_positions,
             verbose=args.verbose,
         )
+        bt.connect()
         result = bt.run()
+
+        # Save results to database
+        if result['status'] == 'OK':
+            run_id = bt.save_results_to_db(result)
+            if run_id:
+                result['run_id'] = run_id
+
+        bt.disconnect()
 
         print(f"\n{'='*80}")
         print(f"BACKTEST RESULTS")

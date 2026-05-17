@@ -57,6 +57,8 @@ class FilterPipeline:
         self._candidate_holdings = {}  # symbols that passed T5 in this run, for sector counting
         self.advanced = None  # AdvancedFilters instance, lazy-init
         self._snapshot_eval_date = None  # Immutable snapshot of eval_date for this run
+        self._last_stop_method = None
+        self._last_stop_reasoning = None
 
     def connect(self) -> None:
         self.conn = psycopg2.connect(**_get_db_config())
@@ -380,7 +382,7 @@ class FilterPipeline:
                     trade['target_3_price'] = None
 
                 # Propagate stop method and reasoning to trade dict
-                trade['stop_method'] = self._last_stop_method
+                trade['stop_method'] = getattr(self, '_last_stop_method', 'unknown')
                 trade['stop_reasoning'] = getattr(self, '_last_stop_reasoning', 'No reasoning recorded')
 
             logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")

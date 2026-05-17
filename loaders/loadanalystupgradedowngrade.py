@@ -67,10 +67,10 @@ class AnalystRatingsLoader(OptimalLoader):
                 ud_date = idx.date() if hasattr(idx, 'date') else idx
                 results.append({
                     'symbol': symbol,
-                    'date': ud_date,
+                    'action_date': ud_date,
                     'firm': row.get('Firm', ''),
-                    'to_grade': row.get('To Grade', ''),
-                    'from_grade': row.get('From Grade'),
+                    'new_rating': row.get('To Grade', ''),
+                    'old_rating': row.get('From Grade'),
                     'action': row.get('Action', '')
                 })
 

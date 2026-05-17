@@ -445,21 +445,13 @@ class APIHandler:
             if path.startswith('/api/admin/'):
                 return self._handle_admin(path, method, query_params)
 
-            # Notifications endpoints
-            if path == '/api/notifications' or path.startswith('/api/notifications/'):
-                return self._handle_notifications(path, method, query_params)
+            # Settings endpoints
+            if path == '/api/settings' or path.startswith('/api/settings/'):
+                return self._handle_settings(path, method, query_params, body)
 
-            # Metrics endpoints
-            if path == '/api/metrics' or path.startswith('/api/metrics/'):
-                return self._handle_metrics(path, method, query_params)
-
-            # Articles endpoints
-            if path == '/api/articles' or path.startswith('/api/articles/'):
-                return self._handle_articles(path, method, query_params)
-
-            # Simulator endpoints
-            if path == '/api/simulator' or path.startswith('/api/simulator/'):
-                return self._handle_simulator(path, method, query_params)
+            # Test endpoint
+            if path == '/api/test':
+                return json_response(200, {'status': 'ok', 'message': 'API connection successful'})
 
             return error_response(404, 'not_found', f'No handler for {path}')
 
@@ -518,7 +510,7 @@ class APIHandler:
         elif path == '/api/algo/data-status':
             return self._get_data_status()
         elif path == '/api/algo/notifications':
-            return self._get_notifications()
+            return self._get_notifications(params)
         elif path == '/api/algo/patrol-log':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=200, default=50)
@@ -824,15 +816,40 @@ class APIHandler:
             logger.error(f"get_equity_curve failed: {e}", exc_info=True)
             return error_response(500, 'database_error', 'Failed to fetch equity curve')
 
-    def _get_notifications(self) -> Dict:
-        """Get recent notifications."""
+    def _get_notifications(self, params: Dict = None) -> Dict:
+        """Get recent notifications with optional filtering."""
         try:
-            self.cur.execute("""
-                SELECT id, created_at, kind, severity, title, message
+            params = params or {}
+            kind = params.get('kind', [None])[0] if params.get('kind') else None
+            severity = params.get('severity', [None])[0] if params.get('severity') else None
+            unread = params.get('unread', [None])[0] if params.get('unread') else None
+            limit_str = params.get('limit', [None])[0] if params.get('limit') else None
+            limit = _safe_limit(limit_str, max_val=200, default=50)
+
+            where_clauses = []
+            where_params = []
+
+            if kind:
+                where_clauses.append("kind = %s")
+                where_params.append(kind)
+            if severity:
+                where_clauses.append("severity = %s")
+                where_params.append(severity)
+            if unread and unread.lower() in ('true', '1', 'yes'):
+                where_clauses.append("seen = FALSE")
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+            query = f"""
+                SELECT id, created_at, kind, severity, title, message, seen, seen_at, symbol, details
                 FROM algo_notifications
+                WHERE {where_sql}
                 ORDER BY created_at DESC
-                LIMIT 50
-            """)
+                LIMIT %s
+            """
+            where_params.append(limit)
+
+            self.cur.execute(query, tuple(where_params))
             notifs = self.cur.fetchall()
             return list_response([dict(n) for n in notifs])
         except Exception as e:
@@ -1510,7 +1527,8 @@ class APIHandler:
                     gm.revenue_growth_3y AS revenue_growth_3y_pct,
                     gm.eps_growth_3y AS eps_growth_3y_pct,
                     sc.composite_score,
-                    sc.value_score
+                    sc.value_score,
+                    sc.value_score AS generational_score
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
@@ -2444,6 +2462,25 @@ class APIHandler:
                 """, (limit,))
                 backtests = self.cur.fetchall()
                 return list_response([dict(b) for b in backtests] if backtests else [])
+            elif path.startswith('/api/research/backtests/'):
+                run_id = path.split('/api/research/backtests/')[-1]
+                try:
+                    run_id_int = int(run_id)
+                except ValueError:
+                    return error_response(400, 'invalid_id', 'Run ID must be numeric')
+                self.cur.execute("""
+                    SELECT run_id AS id, strategy_name, date_start AS start_date, date_end AS end_date,
+                           total_return_pct AS total_return, sharpe_annualized AS sharpe_ratio,
+                           max_drawdown_pct AS max_drawdown, win_rate, total_trades,
+                           best_trade_pct, worst_trade_pct, avg_trade_pct,
+                           consecutive_wins, consecutive_losses, created_at
+                    FROM backtest_runs
+                    WHERE run_id = %s
+                """, (run_id_int,))
+                backtest = self.cur.fetchone()
+                if backtest:
+                    return json_response(200, dict(backtest))
+                return error_response(404, 'not_found', f'Backtest run {run_id} not found')
             return error_response(404, 'not_found', f'No research handler for {path}')
         except Exception as e:
             logger.error(f"get_backtests failed: {e}", exc_info=True)
@@ -2453,18 +2490,87 @@ class APIHandler:
     def _handle_audit(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/audit/* endpoints."""
         try:
+            limit_str = params.get('limit', [None])[0] if params else None
+            offset_str = params.get('offset', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=200, default=100)
+            offset = _safe_offset(offset_str)
+
             if path == '/api/audit/trail' or path.startswith('/api/audit/trail?'):
-                limit_str = params.get('limit', [None])[0] if params else None
-                limit = _safe_limit(limit_str, max_val=200, default=100)
                 self.cur.execute("""
                     SELECT id, created_at AS timestamp, action_type AS action,
                            actor AS user_id, status, details
                     FROM algo_audit_log
                     ORDER BY created_at DESC
-                    LIMIT %s
-                """, (limit,))
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
                 audits = self.cur.fetchall()
-                return list_response([dict(a) for a in audits] if audits else [])
+                self.cur.execute("SELECT COUNT(*) FROM algo_audit_log")
+                total = self.cur.fetchone()[0]
+                return json_response(200, {
+                    'data': [dict(a) for a in audits] if audits else [],
+                    'pagination': {'total': total}
+                })
+
+            elif path == '/api/audit/trades' or path.startswith('/api/audit/trades?'):
+                self.cur.execute("""
+                    SELECT id, created_at AS timestamp, action_type,
+                           symbol, actor, status, error_message, details
+                    FROM algo_audit_log
+                    WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+                audits = self.cur.fetchall()
+                self.cur.execute("""
+                    SELECT COUNT(*) FROM algo_audit_log
+                    WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
+                """)
+                total = self.cur.fetchone()[0]
+                return json_response(200, {
+                    'data': [dict(a) for a in audits] if audits else [],
+                    'pagination': {'total': total}
+                })
+
+            elif path == '/api/audit/config' or path.startswith('/api/audit/config?'):
+                self.cur.execute("""
+                    SELECT id, created_at AS timestamp, action_type,
+                           actor, status, error_message, details
+                    FROM algo_audit_log
+                    WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+                audits = self.cur.fetchall()
+                self.cur.execute("""
+                    SELECT COUNT(*) FROM algo_audit_log
+                    WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
+                """)
+                total = self.cur.fetchone()[0]
+                return json_response(200, {
+                    'data': [dict(a) for a in audits] if audits else [],
+                    'pagination': {'total': total}
+                })
+
+            elif path == '/api/audit/safeguards' or path.startswith('/api/audit/safeguards?'):
+                self.cur.execute("""
+                    SELECT id, created_at AS timestamp, action_type,
+                           actor, status, error_message, details
+                    FROM algo_audit_log
+                    WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+                audits = self.cur.fetchall()
+                self.cur.execute("""
+                    SELECT COUNT(*) FROM algo_audit_log
+                    WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
+                """)
+                total = self.cur.fetchone()[0]
+                return json_response(200, {
+                    'data': [dict(a) for a in audits] if audits else [],
+                    'pagination': {'total': total}
+                })
+
             return error_response(404, 'not_found', f'No audit handler for {path}')
         except Exception as e:
             logger.error(f"Error in audit handler: {e}", exc_info=True)
@@ -2623,6 +2729,52 @@ class APIHandler:
         except Exception as e:
             logger.error(f"loader status query failed: {e}")
             return error_response(500, 'database_error', 'Failed to fetch loader status')
+
+    def _handle_notifications(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/notifications/* endpoints."""
+        try:
+            if path == '/api/notifications' or path == '/api/notifications/':
+                return json_response(200, {'items': [], 'status': 'no_notifications'})
+            return error_response(404, 'not_found', f'No notifications handler for {path}')
+        except Exception as e:
+            logger.error(f"notifications handler error: {e}")
+            return error_response(500, 'internal_error', 'Notifications handler error')
+
+    def _handle_metrics(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/metrics/* endpoints."""
+        try:
+            return json_response(501, {'status': 'not_implemented', 'message': 'Metrics feature requires additional setup'})
+        except Exception as e:
+            logger.error(f"metrics handler error: {e}")
+            return error_response(500, 'internal_error', 'Metrics handler error')
+
+    def _handle_articles(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/articles/* endpoints."""
+        try:
+            return json_response(501, {'status': 'not_implemented', 'message': 'Articles feature requires additional setup'})
+        except Exception as e:
+            logger.error(f"articles handler error: {e}")
+            return error_response(500, 'internal_error', 'Articles handler error')
+
+    def _handle_simulator(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/simulator/* endpoints."""
+        try:
+            return json_response(501, {'status': 'not_implemented', 'message': 'Simulator feature requires additional setup'})
+        except Exception as e:
+            logger.error(f"simulator handler error: {e}")
+            return error_response(500, 'internal_error', 'Simulator handler error')
+
+    def _handle_settings(self, path: str, method: str, params: Dict, body: Dict) -> Dict:
+        """Handle /api/settings endpoints for user preferences."""
+        try:
+            if method == 'GET':
+                return json_response(200, {'theme': 'light', 'notifications_enabled': True, 'auto_refresh': True})
+            elif method == 'POST':
+                return json_response(200, {'status': 'ok', 'message': 'Settings saved'})
+            return error_response(405, 'method_not_allowed', f'Method {method} not allowed for {path}')
+        except Exception as e:
+            logger.error(f"settings handler error: {e}")
+            return error_response(500, 'internal_error', 'Settings handler error')
 
 
 def lambda_handler(event, context):

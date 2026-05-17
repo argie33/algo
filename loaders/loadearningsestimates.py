@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 class EarningsEstimatesLoader(OptimalLoader):
     """Load earnings surprise estimates from historical earnings data."""
 
-    table_name = "earnings_surprise"
+    table_name = "earnings_estimates"
     primary_key = ("symbol", "earnings_date")
     watermark_field = "earnings_date"
 
@@ -104,20 +104,19 @@ class EarningsEstimatesLoader(OptimalLoader):
 
             for row in rows:
                 self.cur.execute("""
-                    INSERT INTO earnings_surprise
-                    (symbol, earnings_date, actual_eps, expected_eps, surprise_pct, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO earnings_estimates
+                    (symbol, earnings_date, eps_actual, eps_estimate, eps_surprise_pct)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (symbol, earnings_date) DO UPDATE
-                    SET actual_eps = EXCLUDED.actual_eps,
-                        expected_eps = EXCLUDED.expected_eps,
-                        surprise_pct = EXCLUDED.surprise_pct
+                    SET eps_actual = EXCLUDED.eps_actual,
+                        eps_estimate = EXCLUDED.eps_estimate,
+                        eps_surprise_pct = EXCLUDED.eps_surprise_pct
                 """, (
                     row['symbol'],
                     row['earnings_date'],
                     row['actual_eps'],
                     row['expected_eps'],
                     row['surprise_pct'],
-                    row['created_at'],
                 ))
                 inserted += 1
 

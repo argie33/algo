@@ -1593,7 +1593,10 @@ class Orchestrator:
             logger.critical("   Do NOT run with DEV_MODE in production or with real capital.")
             logger.critical("=" * 70)
             if not self.dry_run:
-                logger.critical("   DEV_MODE + LIVE mode detected — proceeding but data may be stale.")
+                raise RuntimeError(
+                    "ABORT: DEV_MODE=true with ORCHESTRATOR_DRY_RUN=false is not allowed. "
+                    "Set ORCHESTRATOR_DRY_RUN=true or disable DEV_MODE before running live trading."
+                )
 
         # Check market calendar
         if not MarketCalendar.is_trading_day(self.run_date):
