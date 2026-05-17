@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+"""
 from pathlib import Path
 
 Balance Sheet Loader — annual and quarterly from SEC EDGAR.

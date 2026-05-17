@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+"""
 ETF Price Aggregate Loader — weekly and monthly OHLCV bars derived from daily ETF prices.
 
 Timeframe determined by LOADER_TYPE env var (etf_prices_weekly / etf_prices_monthly)
@@ -20,9 +21,6 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import date, timedelta
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config

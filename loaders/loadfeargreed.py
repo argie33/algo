@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Fear & Greed Index Loader - Market Sentiment Indicators
 
@@ -32,7 +36,6 @@ import sys
 import psycopg2
 import psycopg2.extensions
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.env_loader import load_env
 import time
 import logging

@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+"""
 Load technical indicators into technical_data_daily from price_daily.
 
 Computes: RSI, MACD, SMA, EMA, ATR, ADX, Rate of Change, etc.
 Uses watermarks — only inserts rows newer than the existing max date per symbol.
 Warm-up: fetches 300 trading days of history before the watermark to seed indicators.
 """
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 import os
 import logging

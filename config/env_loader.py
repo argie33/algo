@@ -23,17 +23,31 @@ _env_initialized = False
 
 
 def load_env():
-    """Initialize environment (no .env file loading).
+    """Initialize environment by loading .env.local for local development.
 
-    This function does nothing except mark initialization complete.
-    All credentials must come from environment variables or AWS Secrets Manager.
+    Priority:
+    1. .env.local (for local development)
+    2. Environment variables (for AWS/production)
+    3. AWS Secrets Manager (production only)
     """
     global _env_initialized
 
     if _env_initialized:
         return
 
-    # Just mark as initialized
-    # NO .env.local loading - that was the security hole
-    # Credentials MUST come from environment variables
+    # Load .env.local for local development
+    import os
+    from pathlib import Path
+
+    env_file = Path(__file__).parent.parent / '.env.local'
+    if env_file.exists():
+        logger.debug(f"Loading .env.local from {env_file}")
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip().strip('"').strip("'")
+        logger.debug("Loaded environment from .env.local")
+
     _env_initialized = True

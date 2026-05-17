@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Seasonality Loader — computes S&P 500 (SPY) monthly and day-of-week return
-import sys
 import psycopg2
-from pathlib import Path
 
 statistics from the price_daily table and writes them into
 seasonality_monthly_stats and seasonality_day_of_week.
@@ -15,11 +17,6 @@ Run:
     python3 loadseasonality.py
 """
 from utils.logging_setup import get_logger
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 try:
     from config.credential_manager import get_credential_manager

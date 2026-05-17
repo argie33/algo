@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import sys
-import psycopg2
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import sys
+import psycopg2
 from pathlib import Path
 
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring

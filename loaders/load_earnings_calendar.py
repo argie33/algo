@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Earnings Calendar Loader - Fetches upcoming earnings dates for blackout enforcement.
 
@@ -16,11 +20,6 @@ Run:
 """
 import psycopg2
 from utils.logging_setup import get_logger
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 import argparse
 import logging

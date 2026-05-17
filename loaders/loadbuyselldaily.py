@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Daily Buy/Sell Signals Loader - Optimal Pattern.
 
@@ -22,8 +26,6 @@ import psycopg2
 from pathlib import Path
 from datetime import date, timedelta
 from typing import List, Optional
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Earnings Estimates & Surprise Loader
 
 Populates earnings_surprise and earnings_estimates with surprise calculations
-import sys
 from pathlib import Path
 
 from historical earnings data.
@@ -22,9 +25,6 @@ except ImportError:
 
 import logging
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.db_connection import get_db_connection
 from datetime import date, timedelta
 from typing import Optional

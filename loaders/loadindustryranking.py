@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 loadindustryranking.py — Compute industry_ranking from constituent stock returns
 
@@ -11,11 +15,6 @@ Run after loadpricedaily.py and loaddailycompanydata.py.
 USAGE:
   python3 loadindustryranking.py
 """
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 import os
 from utils.db_connection import get_db_connection

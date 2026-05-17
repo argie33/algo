@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Company Profile Loader — Sector, industry, and company info from yfinance.
 
@@ -9,10 +13,6 @@ Run:
     python3 loadcompanyprofile.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 from utils.logging_setup import get_logger
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging

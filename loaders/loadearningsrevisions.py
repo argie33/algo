@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 """
 Earnings Estimate Revisions Loader - Optimal Pattern
 
 Tracks how analyst consensus estimates are changing over time.
-import sys
 from pathlib import Path
 
 Fetches estimate trends and revision counts from DataSourceRouter.
@@ -19,9 +22,6 @@ import argparse
 import json as json_lib
 import logging
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import date, timedelta
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config
