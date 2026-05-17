@@ -81,6 +81,18 @@ const menuItems = [
     path: "/app/sectors",
     category: "markets",
   },
+  {
+    text: "Economic Data",
+    icon: <TrendingUpIcon />,
+    path: "/app/economic",
+    category: "markets",
+  },
+  {
+    text: "Sentiment",
+    icon: <TrendingUpIcon />,
+    path: "/app/sentiment",
+    category: "markets",
+  },
 
   // Trading Signals Section
   {
@@ -130,6 +142,37 @@ const menuItems = [
     path: "/app/metrics",
     category: "analysis",
   },
+  {
+    text: "Scores",
+    icon: <TrendingUpIcon />,
+    path: "/app/scores",
+    category: "analysis",
+  },
+
+  // Algo Trading Section
+  {
+    text: "Algo Trading",
+    icon: <TrendingUpIcon />,
+    path: "/app/algo-dashboard",
+    category: "algo",
+    requireAuth: true,
+  },
+
+  // Admin Section
+  {
+    text: "System Health",
+    icon: <TrendingUpIcon />,
+    path: "/app/health",
+    category: "admin",
+    adminOnly: true,
+  },
+  {
+    text: "Audit Log",
+    icon: <TrendingUpIcon />,
+    path: "/app/audit",
+    category: "admin",
+    adminOnly: true,
+  },
 
 ];
 
@@ -141,9 +184,10 @@ function App() {
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
-    stocks: true,
+    signals: true,
     portfolio: true,
-    research: true,
+    analysis: true,
+    algo: true,
     admin: true,
   });
 
@@ -215,6 +259,8 @@ function App() {
     signals: "Trading Signals",
     portfolio: "Portfolio",
     analysis: "Analysis",
+    algo: "Trading",
+    admin: "Admin",
   };
 
   const drawer = (

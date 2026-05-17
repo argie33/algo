@@ -66,7 +66,6 @@ const detectDivergence = (...scores) => {
 const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'analyst', label: 'Analyst Detail' },
-  { value: 'social', label: 'Social Detail' },
 ];
 
 export default function Sentiment() {
@@ -347,15 +346,6 @@ export default function Sentiment() {
 
         {tab === 'analyst' && (
           <AnalystTab
-            stocks={filtered}
-            isLoading={isLoading}
-            selectedSymbol={selectedSymbol}
-            setSelectedSymbol={setSelectedSymbol}
-          />
-        )}
-
-        {tab === 'social' && (
-          <SocialTab
             stocks={filtered}
             isLoading={isLoading}
             selectedSymbol={selectedSymbol}

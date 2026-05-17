@@ -8,6 +8,7 @@ Fixtures (db_connection, cursor) are provided by conftest.py
 
 import pytest
 from datetime import datetime, timezone, timedelta
+from psycopg2 import sql
 
 
 class TestCriticalTableExistence:
@@ -60,7 +61,9 @@ class TestDataFreshness:
 
         try:
             for requirement in self.FRESHNESS_REQUIREMENTS.values():
-                cur.execute(f"SELECT COUNT(*) FROM {requirement['table']}")
+                cur.execute(sql.SQL("SELECT COUNT(*) FROM {}").format(
+                    sql.Identifier(requirement['table'])
+                ))
                 result = cur.fetchone()
                 count = result[0] if result else 0
 
@@ -77,10 +80,12 @@ class TestDataFreshness:
 
         for name, requirement in self.FRESHNESS_REQUIREMENTS.items():
             try:
-                cursor.execute(f"""
-                    SELECT MAX({requirement['column']})::DATE as latest_date
-                    FROM {requirement['table']}
-                """)
+                cursor.execute(sql.SQL(
+                    "SELECT MAX({})::DATE as latest_date FROM {}"
+                ).format(
+                    sql.Identifier(requirement['column']),
+                    sql.Identifier(requirement['table'])
+                ))
 
                 result = cursor.fetchone()
                 if not result or result['latest_date'] is None:
