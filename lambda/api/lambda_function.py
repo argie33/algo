@@ -2218,10 +2218,6 @@ class APIHandler:
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
-            # Prevent DoS via excessive limit/offset
-            limit = max(1, min(int(limit), 10000))  # Cap between 1 and 10000
-            offset = max(0, min(int(offset), 1000000))  # Cap offset at 1M max
-
             allowed_sorts = {
                 'composite_score': 'sc.composite_score',
                 'momentum_score': 'sc.momentum_score',
@@ -2232,9 +2228,7 @@ class APIHandler:
                 'stability_score': 'sc.stability_score',
                 'symbol': 'sc.symbol'
             }
-            if sort_by not in allowed_sorts:
-                sort_by = 'composite_score'
-            sort_col = allowed_sorts[sort_by]
+            sort_col = allowed_sorts.get(sort_by, 'sc.composite_score')
             sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
 
             where_clause = "WHERE sc.composite_score > 0"
