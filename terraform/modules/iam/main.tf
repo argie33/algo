@@ -167,7 +167,8 @@ data "aws_iam_policy_document" "github_actions" {
     ]
 
     resources = [
-      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*",
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:stocks-*"
     ]
   }
 
@@ -375,6 +376,11 @@ data "aws_iam_policy_document" "github_actions" {
     effect = "Allow"
 
     actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:GetBucketLocation",
+      "s3:GetBucketVersioning",
+      "s3:PutBucketVersioning",
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",

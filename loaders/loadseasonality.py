@@ -34,8 +34,7 @@ try:
 except ImportError:
     pass
 
-s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("loadseasonality")
 
 MONTH_NAMES = {

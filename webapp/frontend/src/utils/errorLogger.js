@@ -79,30 +79,20 @@ export const logApiError = (component, operation, error, context = {}) => {
     } catch (stringifyError) {
       console.log("Failed to stringify error:", stringifyError);
     }
-  if (error?.isAxiosError) {
-    const axiosDetails = {
-      url: error.config?.url,
-      method: error.config?.method,
-      baseURL: error.config?.baseURL,
-      timeout: error.config?.timeout,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      responseData: error.response?.data,
-    };
-    if (import.meta.env && import.meta.env.DEV) {
+
+    // Log axios-specific details
+    if (error?.isAxiosError) {
+      const axiosDetails = {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+      };
+      console.log(`🔗 Axios Details:`, axiosDetails);
     }
-  }
 
-  if (import.meta.env && import.meta.env.DEV) {
+    console.log(`📚 Stack Trace:`, errorStack);
     console.groupEnd();
-
-    // Also log a simple version for easier searching (with safe stringification)
-    const simplifiedLog = {
-      error: errorMessage,
-      context: safeStringify(context),
-      `❌ ${component} - ${operation} failed:`,
-      safeStringify(simplifiedLog)
-    );
   }
 };
 
@@ -146,7 +136,9 @@ export const logApiSuccess = (
       : "N/A",
     context,
   };
+
   if (import.meta.env && import.meta.env.DEV) {
+    console.log(`✅ ${component} - ${operation} succeeded`, successLog);
   }
 };
 
@@ -159,9 +151,13 @@ export const createComponentLogger = (component) => ({
   error: (operation, error, context) =>
     logApiError(component, operation, error, context),
   queryError: (queryKey, error, context) =>
+    logQueryError(component, queryKey, error, context),
+  success: (operation, result, context) =>
+    logApiSuccess(component, operation, result, context),
   info: (message, context) =>
     import.meta.env &&
     import.meta.env.DEV &&
+    console.log(`ℹ️ ${component}:`, message, context),
 });
 
 export default {

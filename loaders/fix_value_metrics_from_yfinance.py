@@ -20,7 +20,7 @@ if env_file.exists():
 import psycopg2
 import yfinance as yf
 
-s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 from config.credential_helper import get_db_password

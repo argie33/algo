@@ -137,8 +137,7 @@ def update_value_metrics(metrics_list: List[Dict]):
                     SET pe_ratio = %s,
                         pb_ratio = %s,
                         ps_ratio = %s,
-                        dividend_yield = %s,
-                        updated_at = NOW()
+                        dividend_yield = %s
                     WHERE symbol = %s
                 """, (
                     m['pe_ratio'],

@@ -27,8 +27,7 @@ if env_path.exists():
     load_dotenv(env_path)
 
 # ─── Logging setup ─────────────────────────────────────────────────────────────
-s] %(levelname)s %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s] %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("loadstocksymbols")
 
 # ─── Config ────────────────────────────────────────────────────────────────────

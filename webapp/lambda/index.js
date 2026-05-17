@@ -881,7 +881,8 @@ const isLambdaEnvironment = !!process.env.LAMBDA_TASK_ROOT || !!process.env.AWS_
 if (!isLambdaEnvironment) {
   // Local development or EC2 - start HTTP server
   server.listen(PORT, '::', () => {
-      `âœ… Financial Dashboard API running on port ${PORT}`
+    console.log(
+      `✅ Financial Dashboard API running on port ${PORT}`
     );
 
     // Initialize Alpaca portfolio sync scheduler

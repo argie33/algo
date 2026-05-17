@@ -50,8 +50,7 @@ try:
 except ImportError:
     pass
 
-s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 # FRED series to load — series_id is used as the "symbol" in OptimalLoader
 #
