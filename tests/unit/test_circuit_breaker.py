@@ -15,6 +15,7 @@ Tests each of 8 circuit breakers:
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import date, timedelta
+from algo.algo_circuit_breaker import CircuitBreaker
 
 
 @pytest.mark.unit

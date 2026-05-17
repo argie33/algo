@@ -24,7 +24,6 @@ except ImportError:
     credential_manager = None
 
 import argparse
-from config.credential_helper import get_db_password, get_db_config
 import logging
 import psycopg2
 logger = get_logger(__name__)
@@ -158,13 +157,7 @@ def get_active_etf_symbols() -> List[str]:
     from utils.db_connection import get_db_connection
     conn = None
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-            port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-            user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-            password=get_db_password(),
-            database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-        )
+        conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]

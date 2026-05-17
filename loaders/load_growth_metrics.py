@@ -13,13 +13,11 @@ Requires: annual_income_statement populated.
 import argparse
 import logging
 import os
-import psycopg2
 from datetime import date
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-from config.credential_helper import get_db_password
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 

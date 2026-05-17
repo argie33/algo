@@ -12,13 +12,20 @@ from pathlib import Path
 from datetime import date, datetime, timedelta
 import logging
 
+from config.credential_helper import (
+    DEFAULT_DB_HOST,
+    DEFAULT_DB_PORT,
+    DEFAULT_DB_USER,
+    DEFAULT_DB_NAME,
+)
+
 logger = logging.getLogger(__name__)
 
 # Test database config — read from environment, fallback to defaults
 TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', DEFAULT_DB_HOST)
-TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
+TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', DEFAULT_DB_PORT))
 TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_NAME)
+TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_USER)
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
 MAIN_DB_NAME = DEFAULT_DB_NAME
 
@@ -37,7 +44,7 @@ def setup_test_db():
         conn = psycopg2.connect(
             host=TEST_DB_HOST,
             port=TEST_DB_PORT,
-            database=DEFAULT_DB_USER,
+            database="postgres",
             user=TEST_DB_USER,
             password=TEST_DB_PASSWORD,
         )

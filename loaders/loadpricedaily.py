@@ -21,8 +21,8 @@ import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
 
-from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
+from utils.db_connection import get_db_connection
 from utils.monitoring.loader_validation import validate_price_row, count_validation_errors
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
@@ -158,13 +158,7 @@ class PriceDailyLoader(OptimalLoader):
 
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
-        db_conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-            port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-            user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-            password=get_db_password(),
-            database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-        )
+        db_conn = get_db_connection()
         self.tracker = DataProvenanceTracker(
             loader_name="loadpricedaily",
             table_name="price_daily",
