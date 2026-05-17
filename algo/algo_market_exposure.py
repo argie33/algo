@@ -389,7 +389,8 @@ class MarketExposure:
         )
         rows = self.cur.fetchall()
         if not rows or rows[0][2] is None or int(rows[0][3]) < 150:
-            return {'score_factor': 0.5, 'value': None, 'reason': 'Insufficient history'}
+            # M2 FIX: Fail-closed on missing data (0.1 instead of 0.5 = more conservative)
+            return {'score_factor': 0.1, 'value': None, 'reason': 'Insufficient history'}
 
         cur_close = float(rows[0][1])
         sma_now = float(rows[0][2])
@@ -469,7 +470,8 @@ class MarketExposure:
             )
             r2 = self.cur.fetchone()
             if not r2 or r2[0] is None:
-                return {'score_factor': 0.7, 'value': None}
+                # M2 FIX: Fail-closed on missing data (0.1 instead of 0.7)
+            return {'score_factor': 0.1, 'value': None}
             vix = float(r2[0])
             return self._vix_score(vix, rising=False)
         vix = float(row[0])
@@ -758,7 +760,8 @@ class MarketExposure:
         )
         row = self.cur.fetchone()
         if not row or row[0] is None:
-            return {'score_factor': 0.6, 'value': None, 'reason': 'No NAAIM data'}
+            # M2 FIX: Fail-closed on missing data (0.1 instead of 0.6)
+            return {'score_factor': 0.1, 'value': None, 'reason': 'No NAAIM data'}
 
         naaim = float(row[0])
         if naaim > 80:
