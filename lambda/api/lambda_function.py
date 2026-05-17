@@ -1992,6 +1992,11 @@ class APIHandler:
                 return list_response([dict(r) for r in rows] if rows else [])
             elif path == '/api/market/latest':
                 return self._get_market_latest()
+            elif path == '/api/market/cap-distribution':
+                return json_response(501, {'status': 'not_implemented', 'message': 'Market cap distribution requires data aggregation'})
+            elif path == '/api/market/correlation':
+                return json_response(501, {'status': 'not_implemented', 'message': 'Correlation matrix requires additional computation'})
+            return error_response(404, 'not_found', f'No market handler for {path}')
         except Exception as e:
             logger.error(f"market handler error: {e}")
             return error_response(500, 'database_error', 'Failed to fetch market data')
