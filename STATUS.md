@@ -1,8 +1,93 @@
 # System Status
 
-**Last Updated:** 2026-05-16 (Session 61: Phase 4 & 5 Production Hardening)  
-**Status:** ✅ PHASES 1-4 COMPLETE | PHASE 5 (80%) IN PROGRESS | Infrastructure complete  
-**Current Work:** Infrastructure wiring complete (patrol trigger, portfolio cash). Frontend polish (80% done). Remaining: connection pooling + RS percentile ranking.
+**Last Updated:** 2026-05-17 (Session 62: Data Pipeline + Orchestrator Verification)  
+**Status:** ✅ ORCHESTRATOR VERIFIED | DATA PIPELINE POPULATED | 18 commits ahead of origin, ready to push  
+**Current Work:** Orchestrator runs all 7 phases correctly. 248K buy/sell signals loaded. Filter pipeline verified (0 signals correct for pressure market). Push to AWS when ready.
+
+---
+
+## 🎯 SESSION 62 (2026-05-17) — DATA PIPELINE + ORCHESTRATOR VERIFICATION ✅
+
+### What Was Done
+- **Data pipeline fully populated:** 248K buy/sell signals, 1.5M technical indicators loaded
+- **Orchestrator verified end-to-end:** All 7 phases complete in dry-run. 0 qualified signals is CORRECT for pressure market (Stage 2 filter working as designed)
+- **Filter pipeline fixed:** Added `tier_0_pass`/`tier_0_reason` schema migration to `filter_rejection_log`
+- **load_technical_indicators.py rewritten:** Now uses watermarks + parallel processing instead of DELETE+full-recompute daily
+- **Loaders recovered:** Previously deleted loaders (load_earnings_calendar, loadcompanyprofile, loadsectors, loadanalystsentiment) recovered from git history
+- **run-all-loaders.py fixed:** load_technical_indicators.py added back to Tier 1c (reads from price_daily, no external APIs)
+- **NotFound.jsx created:** 404 page component for unmatched routes
+
+### 🐛 Bugs Fixed
+1. **numpy "list-list" error** in load_technical_indicators.py — calculate_sma/ema returned lists, MACD subtraction failed. Fixed by ensuring numpy arrays throughout.
+2. **filter_rejection_log missing columns** — tier_0_pass/tier_0_reason not in table schema. Applied ALTER TABLE migration.
+3. **load_technical_indicators.py deleted** — previous session removed it; recreated with watermark-based incremental loading.
+
+### ✅ Verified Working
+- Orchestrator Phase 1-7 all complete on dry-run
+- 149 BUY signals evaluated for 2026-05-15 → 0 qualified (all Stage 4 or Stage 1, none Stage 2 with proper close/volume)  
+- Stage 2 filter working correctly (561 Stage 2 stocks exist but only 1 with BUY signal, and it failed close quality + volume)
+- Phase 2 circuit breakers: all clear (drawdown 0%, VIX 20.0)
+- Portfolio snapshot: $75,131.38 paper account, 1 SPY position
+
+### ⚠️ Known Gaps
+- `earnings_calendar` is empty (no loader runs in prod) — earnings blackout is fail-open
+- `loadcompanyprofile.py` recovered but not in run-all-loaders.py Tier 2 (removed by prior session per Terraform design)
+- 86 symbols missing from technical_data_daily (short price histories, fixed in new loader)
+- Alpaca package not installed locally — Phase 3a gracefully degrades
+
+### Next Steps
+1. **Push to AWS** (18 commits ahead of origin/main): `git push origin main`
+   - GitHub Actions auto-deploys on push to main
+   - Verify Lambda functions, RDS, API Gateway after deploy
+2. **Monday integration test** (May 18, 2026): Run orchestrator on live market
+3. **Paper trading test**: Let orchestrator run without `--dry-run` flag
+
+---
+
+## 🎯 SESSION 61 (2026-05-16) — PHASE 4 & 5: INFRASTRUCTURE + FRONTEND POLISH ✅
+
+### Phase 4 Completion (Real Data Wiring)
+**4a. Patrol Trigger (Complete)**
+- ✅ Created data_patrol ECS task definition (terraform/modules/loaders/main.tf)
+- ✅ Added patrol task outputs to loaders module
+- ✅ Wired patrol task parameters from loaders → services module (terraform/main.tf)
+- ✅ Updated lambda/api/lambda_function.py to invoke patrol ECS task asynchronously
+- ✅ Added ecs:RunTask + iam:PassRole permissions to API Lambda role
+- ✅ Returns 202 status with task ARN when triggered
+
+**4b. Portfolio Cash (Already Working)**
+- ✅ Verified: Already fetching from algo_portfolio_snapshots and calculating cash dynamically
+
+**4c. Interest Coverage (Noted Limitation)**
+- Interest expense not available in annual_income_statement schema
+- Set to NULL for now; data source needed for future implementation
+
+**4d. Sectors/Industries Trends (Fixed in Phase 1)**
+- perf_20d column already added to CTEs in Phase 1
+
+### Phase 5 Completion (Polish & Performance)
+
+**5f. Debug console.log removal (Done)**
+- ✅ Removed '[API Config Debug]' log from api.js
+
+**5h. 404 NotFound page (Done)**
+- ✅ Created NotFound.jsx page component
+- ✅ Replaced marketing wildcard route with NotFound instead of Home redirect
+- ✅ Broken links now visible instead of silently redirecting
+
+**5c. MetricsDashboard nav (Done)**
+- ✅ Added Metrics page to sidebar navigation
+
+**5e. BacktestResults loading state (Done)**
+- ✅ Added loading indicator while detail query fetches
+
+**Remaining Phase 5 items:**
+- 5a. Connection pooling (orchestrator/loaders) — requires refactoring pool management
+- 5b. RS percentile ranking — requires batch rank computation
+
+### Commits This Session
+- Phase 4.a infrastructure + API patrol trigger wiring
+- Phase 5 frontend polish (4 improvements)
 
 ---
 
