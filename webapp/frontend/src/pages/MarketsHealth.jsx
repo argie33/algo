@@ -1234,10 +1234,10 @@ function SectorRotationSignalCard() {
     { refetchInterval: 1000 * 60 * 15 }
   );
 
-  if (loading && !data?.items?.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
-  if (error || !data?.items?.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
+  const items = Array.isArray(data) ? data : (data?.items || []);
 
-  const items = data.items || [];
+  if (loading && !items.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
+  if (error || !items.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
   const latest = items[items.length - 1];
   const prior = items[items.length - 2] || latest;
 
