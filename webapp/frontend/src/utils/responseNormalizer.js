@@ -64,8 +64,16 @@ export const extractData = (response) => {
 export const extractPaginatedData = (response) => {
   const data = response.data || response;
 
+  // If success is false, throw error
+  if (data.success === false) {
+    throw new Error(data.message || 'API request failed');
+  }
+
+  // Extract items (should be array, not full envelope)
+  const items = Array.isArray(data.items) ? data.items : [];
+
   return {
-    items: extractData(response),
+    items,
     pagination: data.pagination || {
       limit: data.limit,
       offset: data.offset,
