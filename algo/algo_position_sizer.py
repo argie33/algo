@@ -11,19 +11,19 @@ Rules:
 - Max positions: 12 concurrent
 """
 
+from config.credential_helper import get_db_config, get_db_password
 import os
 import psycopg2
 from utils.db_connection import get_db_connection
 from pathlib import Path
-from config.credential_helper import get_db_password, get_db_config
+
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 def _get_db_config():
     """Database configuration (uses centralized credential_helper)."""
-    from config.credential_helper import get_db_config
+    
     return get_db_config()
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""

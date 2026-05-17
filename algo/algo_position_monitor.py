@@ -19,12 +19,10 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
-
-
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
 import json
-from config.credential_helper import get_db_password, get_db_config
+
 import requests
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
@@ -32,9 +30,6 @@ import logging
 from utils.db_connection_pool import get_db_pool
 
 logger = logging.getLogger(__name__)
-
-
-
 
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
@@ -676,7 +671,6 @@ class PositionMonitor:
         finally:
             if need_disconnect:
                 self.disconnect()
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config

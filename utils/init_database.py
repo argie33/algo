@@ -1947,6 +1947,23 @@ CREATE INDEX IF NOT EXISTS idx_backtest_results_strategy ON backtest_results(str
 CREATE INDEX IF NOT EXISTS idx_backtest_results_date ON backtest_results(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_id);
 CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
+
+-- Feature flags table
+CREATE TABLE IF NOT EXISTS feature_flags (
+    id SERIAL PRIMARY KEY,
+    flag_name VARCHAR(255) UNIQUE NOT NULL,
+    flag_type VARCHAR(50) NOT NULL,
+    value TEXT NOT NULL,
+    description TEXT,
+    metadata JSONB DEFAULT '{}',
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feature_flags_name ON feature_flags(flag_name);
+CREATE INDEX IF NOT EXISTS idx_feature_flags_type ON feature_flags(flag_type);
+CREATE INDEX IF NOT EXISTS idx_feature_flags_updated ON feature_flags(updated_at DESC);
 """
 
 def _run_migrations(conn, cur):

@@ -12,13 +12,13 @@ Tier 5: Portfolio health (open positions, concentration, sector limits)
 Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 """
 
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
-from config.credential_helper import get_db_password, get_db_config
+
 from algo.algo_config import get_config
 from algo.algo_advanced_filters import AdvancedFilters
 from algo.algo_swing_score import SwingTraderScore
@@ -31,11 +31,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""
     return get_db_config()
-
 
 class FilterPipeline:
     """5-tier filtering and signal evaluation."""
@@ -1445,7 +1443,6 @@ class FilterPipeline:
         except Exception as e:
             logger.debug(f'Correlation check failed: {e}')
             return {'pass': True, 'reason': 'Correlation check error (continuing)'}
-
 
 if __name__ == "__main__":
     pipeline = FilterPipeline()

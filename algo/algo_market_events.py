@@ -10,11 +10,9 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
-
-
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
-from config.credential_helper import get_db_password, get_db_config
+
 import requests
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
@@ -22,8 +20,6 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
-
-
 
 class MarketEventHandler:
     """Detect and respond to market events and halts."""

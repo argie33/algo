@@ -8,7 +8,6 @@ symbol not held, etc). Catches cases where orders were filled outside our
 workflow or positions were closed in Alpaca but marked open in DB.
 """
 
-from config.credential_helper import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_HOST,
@@ -17,16 +16,15 @@ from config.credential_helper import (
     DEFAULT_DB_NAME,
 )
 
-
+from config.credential_helper import , get_db_config, get_db_password
 import os
 import json
 from utils.db_connection import get_db_connection
 from pathlib import Path
-from config.credential_helper import get_db_password, get_db_config
+
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 def _get_db_config_dict():
     """Lazy-load DB config at runtime instead of module import time."""
@@ -37,7 +35,6 @@ def _get_db_config_dict():
     "password": get_db_password(),
     "database": get_db_config()['database'],
     }
-
 
 class PositionReconciler:
     """Compare DB positions with Alpaca account state."""
@@ -178,7 +175,6 @@ class PositionReconciler:
             self.conn.commit()
         except Exception as e:
             logger.warning(f"  [WARN] Could not log reconciliation: {e}")
-
 
 if __name__ == '__main__':
     reconciler = PositionReconciler()

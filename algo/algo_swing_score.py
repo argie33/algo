@@ -33,7 +33,6 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
-from config.credential_helper import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_HOST,
@@ -41,10 +40,8 @@ from config.credential_helper import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
-from config.credential_helper import get_db_password, get_db_config
 
-
-
+from config.credential_helper import , get_db_config, get_db_password
 import os
 import json
 from utils.db_connection import get_db_connection
@@ -56,7 +53,6 @@ from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
-
 def _get_db_config_dict():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
@@ -67,10 +63,8 @@ def _get_db_config_dict():
     "database": get_db_config()['database'],
     }
 
-
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
-
 
     W_SETUP = 25        # Chart setup quality (breakout levels, support/resistance) - highest priority
     W_TREND = 20        # Trend direction and strength (moving average relationships, slope)
@@ -1021,7 +1015,6 @@ class SwingTraderScore:
                 self._owned.commit()
         except Exception as e:
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
-
 
 if __name__ == "__main__":
     s = SwingTraderScore()

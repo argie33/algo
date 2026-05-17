@@ -37,12 +37,9 @@ USAGE:
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
-from config.credential_helper import get_db_config
 from utils.logging_setup import get_logger
-from config.credential_helper import get_db_password, get_db_config
 
-
-
+from config.credential_helper import get_db_config, get_db_password
 import os
 import json
 import argparse
@@ -56,14 +53,12 @@ from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""
     return get_db_config()
 
 # Severity levels
 INFO, WARN, ERROR, CRIT = 'info', 'warn', 'error', 'critical'
-
 
 class DataPatrol:
     """Comprehensive data integrity patrol."""
@@ -167,7 +162,6 @@ class DataPatrol:
             except Exception as rb_e:
 
                 logger.error(f"Unhandled exception: {rb_e}")
-
 
     def check_staleness(self):
         """P1. Latest data within expected window."""
@@ -1139,7 +1133,6 @@ class DataPatrol:
         except Exception as e:
             self.log('fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
 
-
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
@@ -1231,7 +1224,6 @@ class DataPatrol:
             'all_results': self.results,
             'elapsed_seconds': elapsed_seconds,
         }
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Data integrity patrol')

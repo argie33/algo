@@ -1,4 +1,4 @@
-from config.credential_helper import get_db_password, get_db_config
+
 """
 Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure
 
@@ -17,9 +17,8 @@ Alerts:
 - Beta exposure > 2.0 (2× market risk) → WARNING
 """
 
-
-
 from utils.db_connection import get_db_connection
+from config.credential_helper import get_db_config, get_db_password
 import os
 import logging
 from datetime import datetime, date
@@ -28,10 +27,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-
 def _get_db_config():
     """Database configuration (uses centralized credential_helper)."""
-    from config.credential_helper import get_db_config
+    
     return get_db_config()
 class PortfolioRisk:
     """Portfolio risk metrics and concentration analysis."""

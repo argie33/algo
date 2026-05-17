@@ -5,16 +5,13 @@ Prevents entries ±N days around earnings announcements to avoid whipsaws.
 Default: ±7 days from earnings date is a blackout period.
 """
 
-
-
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
 import logging
-from config.credential_helper import get_db_password, get_db_config
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +21,9 @@ except ImportError:
     class AlertManager:
         def critical(self, *args, **kwargs): pass
 
-
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""
     return get_db_config()
-
 
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
@@ -109,7 +104,6 @@ class EarningsBlackout:
         except Exception as e:
             logger.warning(f"Failed to fetch earnings for {symbol}: {e}")
             return []
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config

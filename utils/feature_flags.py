@@ -263,31 +263,11 @@ DEFAULT_FEATURE_FLAGS = {
 
 
 def create_feature_flags_table():
-    """Create feature_flags table if it doesn't exist."""
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS feature_flags (
-                    id SERIAL PRIMARY KEY,
-                    flag_name VARCHAR(255) UNIQUE NOT NULL,
-                    flag_type VARCHAR(50) NOT NULL,
-                    value TEXT NOT NULL,
-                    description TEXT,
-                    metadata JSONB DEFAULT '{}',
-                    enabled BOOLEAN DEFAULT true,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
-                )
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_name ON feature_flags(flag_name)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_type ON feature_flags(flag_type)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_feature_flags_updated ON feature_flags(updated_at DESC)")
-            conn.commit()
-            conn.close()
-            logger.info("Feature flags table created")
-    except Exception as e:
-        logger.error(f"Failed to create feature flags table: {e}")
+    """Feature flags table is now created in utils/init_database.py (AUTHORITATIVE).
+
+    This function is kept for backwards compatibility but does nothing.
+    """
+    pass
 
 
 def initialize_safe_defaults():

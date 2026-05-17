@@ -11,9 +11,7 @@ Usage:
   python3 algo_continuous_monitor.py --interval 300  # custom interval (seconds)
 """
 
-
-
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
 import time
 import json
@@ -22,13 +20,10 @@ from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date as _date
 from algo.algo_market_calendar import MarketCalendar
-from config.credential_helper import get_db_password, get_db_config
+
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-
 
 class ContinuousMonitor:
     """Run critical checks continuously."""
@@ -206,7 +201,6 @@ class ContinuousMonitor:
         except Exception as e:
             logger.info(f"\nFatal error: {e}")
             traceback.print_exc()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Continuous critical monitoring')

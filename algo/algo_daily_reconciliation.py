@@ -10,12 +10,10 @@ Tasks:
 5. Audit and log discrepancies
 """
 
-
-
-from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config, get_db_password
 import os
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_password, get_db_config
+
 import requests
 import logging
 from pathlib import Path

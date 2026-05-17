@@ -16,12 +16,9 @@ USAGE:
   python3 algo_loader_monitor.py --check-freshness
 """
 
-from config.credential_helper import get_db_config
 from utils.logging_setup import get_logger
-from config.credential_helper import get_db_password, get_db_config
 
-
-
+from config.credential_helper import get_db_config, get_db_password
 import os
 from utils.db_connection import get_db_connection
 import argparse
@@ -32,7 +29,6 @@ from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
@@ -42,7 +38,6 @@ def _get_db_config():
     "password": get_db_password(),
     "database": get_db_config()['database'],
     }
-
 
 class LoaderMonitor:
     """Monitor data loader health and freshness."""
@@ -303,7 +298,6 @@ class LoaderMonitor:
                         for check, msg in by_severity[sev]:
                             logger.info(f"  {check}: {msg}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Monitor data loader health")
     parser.add_argument(
@@ -339,7 +333,6 @@ def main():
 
     finally:
         monitor.disconnect()
-
 
 if __name__ == "__main__":
     exit(main())

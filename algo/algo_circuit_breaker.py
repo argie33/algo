@@ -23,8 +23,7 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
-from config.credential_helper import get_db_password, get_db_config
-
+from config.credential_helper import get_db_config, get_db_password
 import os
 import json
 import psycopg2
@@ -38,10 +37,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def _get_db_config():
     """Database configuration (uses centralized credential_helper)."""
-    from config.credential_helper import get_db_config
+    
     return get_db_config()
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
@@ -662,7 +660,6 @@ class CircuitBreaker:
             )
         except Exception as e:
             logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config
