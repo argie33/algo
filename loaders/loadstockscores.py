@@ -156,12 +156,11 @@ class StockScoresLoader(OptimalLoader):
         value_score = _vs if _vs is not None else 50.0  # Default neutral if no value metrics
 
         # Composite: weighted average — 6 factors combining technical + fundamental metrics
-        # quality_score (fundamental strength) now integrated with appropriate weighting
         composite_score = (
-            momentum_score * 0.20 +      # 20% momentum (RSI-based)
+            momentum_score * 0.20 +      # 20% momentum (63-day momentum)
             growth_score * 0.19 +        # 19% growth (momentum + vol-adjusted)
             stability_score * 0.19 +     # 19% stability (inverse volatility)
-            value_score * 0.12 +         # 12% value (RSI-inverted, undervaluation signal)
+            value_score * 0.12 +         # 12% value (P/E and P/B valuation metrics)
             positioning_score * 0.15 +   # 15% positioning (recent returns, trend strength)
             quality_score * 0.15         # 15% quality (fundamental: margins, ROE, leverage, liquidity)
         )

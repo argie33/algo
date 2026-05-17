@@ -278,7 +278,7 @@ def main():
 
         # Record loader SLA status for orchestrator Phase 1 freshness check
         try:
-            from loader_sla_tracker import get_tracker
+            from loaders.loader_sla_tracker import get_tracker
             from datetime import date
             tracker = get_tracker()
             latest_date = date.today() if stats["rows_inserted"] > 0 else None

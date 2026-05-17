@@ -565,7 +565,7 @@ class Orchestrator:
             else:
                 # Check critical loader SLA status first — fail-closed if data didn't load
                 try:
-                    from loader_sla_tracker import get_tracker
+                    from loaders.loader_sla_tracker import get_tracker
                     tracker = get_tracker()
                     all_critical_ok, failures = tracker.check_critical_loaders()
 

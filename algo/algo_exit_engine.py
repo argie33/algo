@@ -34,7 +34,10 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
-from trade_performance_auditor import TradePerformanceAuditor
+try:
+    from trade_performance_auditor import TradePerformanceAuditor
+except ImportError:
+    TradePerformanceAuditor = None
 from algo.algo_trade_executor import TradeExecutor
 from algo.algo_signals import SignalComputer
 from utils.trade_status import TradeStatus, PositionStatus
@@ -79,8 +82,7 @@ class ExitEngine:
         if not current_date:
             current_date = datetime.now().date()
 
-        # NEW: Initialize performance auditor (Phase 2 integration)
-        auditor = TradePerformanceAuditor(self.config)
+        auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 
         self.connect()
         try:
@@ -202,7 +204,8 @@ class ExitEngine:
                 """, (TradeStatus.CLOSED.value, current_date))
                 closed_trades = self.cur.fetchall()
                 for (trade_id,) in closed_trades:
-                    auditor.audit_exit(trade_id)
+                    if auditor:
+                        auditor.audit_exit(trade_id)
             except Exception as audit_err:
                 logger.error(f"Warning: Failed to audit closed trades: {audit_err}")
 
