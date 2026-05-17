@@ -10,6 +10,7 @@ import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import logging
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +75,14 @@ class LoaderHealthTracker:
         """
         try:
             # Check if table exists
-            self.cur.execute(f"""
+            assert_safe_table(table_name)
+            self.cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_schema = 'public'
-                    AND table_name = '{table_name}'
+                    AND table_name = %s
                 )
-            """)
+            """, (table_name,))
 
             if not self.cur.fetchone()[0]:
                 return {
@@ -100,6 +102,7 @@ class LoaderHealthTracker:
 
             for date_col in date_columns:
                 try:
+                    assert_safe_column(date_col)
                     self.cur.execute(f"""
                         SELECT MAX({date_col}::DATE) FROM {table_name}
                     """)
@@ -111,7 +114,7 @@ class LoaderHealthTracker:
                     continue
 
             self.cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-            row_count = self.cur.fetchone()[0]
+            row_count = self.cur.fetchone()[0] if self.cur.fetchone() else 0
 
             # Calculate age in days
             if latest_date:

@@ -19,6 +19,7 @@ from datetime import datetime, date
 from typing import Optional, Dict, List
 import os
 from config.credential_helper import get_db_password, get_db_config
+from algo.algo_sql_safety import assert_safe_table
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -242,12 +243,7 @@ class LoaderSLATracker:
                         # SLA tracker not populated — fall back to direct table freshness check
                         try:
                             # Validate table name to prevent SQL injection
-                            if not (table_name and isinstance(table_name, str) and
-                                   table_name.replace('_', '').replace('-', '').isalnum() and
-                                   len(table_name) <= 63):
-                                log.error(f"Invalid table name for freshness check: {table_name}")
-                                failures.append(f"{table_name}: Invalid table name")
-                                continue
+                            assert_safe_table(table_name)
                             cur.execute(f"SELECT MAX(date) FROM {table_name}")
                             max_date_row = cur.fetchone()
                             if not max_date_row or not max_date_row[0]:
