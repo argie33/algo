@@ -819,10 +819,10 @@ router.get("/volatility", async (req, res) => {
       responseData = {};
     }
 
-    sendSuccess(res, responseData);
+    return sendSuccess(res, responseData);
   } catch (error) {
     console.error("Error fetching market volatility:", error);
-    sendError(res, "Failed to fetch market volatility: ", 500);
+    return sendError(res, "Failed to fetch market volatility: ", 500);
   }
 });
 
@@ -893,7 +893,7 @@ router.get("/indicators", async (req, res) => {
       return sendNotFound(res, "No data found for this query");
     }
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       indices: result.rows,
       breadth: {
         total_stocks: parseInt(breadth.total_stocks),
@@ -909,7 +909,7 @@ router.get("/indicators", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market indicators:", error);
-    sendError(res, "Failed to fetch market indicators", 500);
+    return sendError(res, "Failed to fetch market indicators", 500);
   }
 });
 
@@ -1296,7 +1296,7 @@ router.get("/seasonality", async (req, res) => {
       seasonalScore: calculateSeasonalScore(currentDate),
     };
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       currentYear,
       currentYearReturn,
       currentPosition,
@@ -1319,7 +1319,7 @@ router.get("/seasonality", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching seasonality data:", error);
-    sendError(res, "Failed to fetch seasonality data", 500);
+    return sendError(res, "Failed to fetch seasonality data", 500);
   }
 });
 
@@ -1743,7 +1743,7 @@ router.get("/correlation", async (req, res) => {
       },
     };
 
-    sendSuccess(res, {
+    return sendSuccess(res, {
       correlations: correlationData.matrix,
       statistics: correlationData.statistics,
       analysis
@@ -1751,7 +1751,7 @@ router.get("/correlation", async (req, res) => {
   } catch (error) {
     console.error("Market correlation analysis error:", error);
 
-    sendError(res, "Failed to calculate market correlations", 500);
+    return sendError(res, "Failed to calculate market correlations", 500);
   }
 });
 
@@ -1813,7 +1813,7 @@ router.get("/indices", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Market indices error:", error.message);
-    sendError(res, "Failed to fetch market indices", 500);
+    return sendError(res, "Failed to fetch market indices", 500);
   }
 });
 
@@ -3051,9 +3051,9 @@ router.get("/cap-distribution", async (req, res) => {
       SELECT * FROM distribution ORDER BY total_cap DESC;
     `);
 
-    sendSuccess(res, result.rows || []);
+    return sendSuccess(res, result.rows || []);
   } catch (error) {
-    sendSuccess(res, []);
+    return sendSuccess(res, []);
   }
 });
 

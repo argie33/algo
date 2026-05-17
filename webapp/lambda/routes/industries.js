@@ -187,10 +187,10 @@ router.get("/trends-batch", async (req, res) => {
       });
     });
 
-    sendSuccess(res, grouped, 200);
+    return sendSuccess(res, grouped, 200);
   } catch (error) {
     console.error("Error fetching industry trends batch:", error);
-    sendError(res, "Failed to fetch industry trends: " + error.message, 500);
+    return sendError(res, "Failed to fetch industry trends: " + error.message, 500);
   }
 });
 
