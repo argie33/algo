@@ -3,6 +3,10 @@
 """
 ETF Daily Price Loader - Optimal Pattern.
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Loads ETF daily OHLCV data from Alpaca/yfinance.
 Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Company Profile Loader — Sector, industry, and company info from yfinance.
 
 Populates company_profile table with fundamental company data.

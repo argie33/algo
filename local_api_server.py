@@ -134,7 +134,8 @@ def server_error(error):
 
 
 if __name__ == '__main__':
-    port = 3001
-    logger.info(f"Starting local API server on http://localhost:{port}")
+    port = int(os.getenv('LOCAL_API_PORT', 3001))
+    host = os.getenv('LOCAL_API_HOST', '127.0.0.1')
+    logger.info(f"Starting local API server on http://{host}:{port}")
     logger.info("Press Ctrl+C to stop the server")
-    app.run(host='127.0.0.1', port=port, debug=True, use_reloader=False)
+    app.run(host=host, port=port, debug=True, use_reloader=False)

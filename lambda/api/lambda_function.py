@@ -4144,8 +4144,6 @@ def lambda_handler(event, context):
         # Check other critical env vars (except for /api/health which doesn't need DB)
         path = event.get('rawPath', event.get('path', '/'))
         if path != '/api/health':
-            required_envs = ['DB_SECRET_ARN', 'DATABASE_SECRET_ARN', 'ECS_CLUSTER_ARN']
-            missing_envs = [e for e in required_envs if e not in ('DATABASE_SECRET_ARN',) and not os.getenv(e)]
             # Allow either DB_SECRET_ARN or DATABASE_SECRET_ARN
             has_db_secret = os.getenv('DB_SECRET_ARN') or os.getenv('DATABASE_SECRET_ARN')
             if not has_db_secret:

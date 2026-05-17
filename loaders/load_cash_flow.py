@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Cash Flow Loader — annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_TYPE env var (financials_annual_cashflow / financials_quarterly_cashflow)

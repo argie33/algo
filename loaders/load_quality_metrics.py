@@ -2,6 +2,10 @@
 """
 Quality Metrics Loader - Optimal Pattern (Refactored)
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Computes fundamental quality metrics from annual financials:
 - Operating Margin: Operating Income / Revenue
 - Net Margin: Net Income / Revenue

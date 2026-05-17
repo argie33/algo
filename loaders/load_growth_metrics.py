@@ -2,6 +2,10 @@
 """
 Growth Metrics Loader - Optimal Pattern (Refactored)
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Computes multi-year growth metrics from annual financials:
 - Revenue Growth: 1Y, 3Y, 5Y YoY growth
 - EPS Growth: 1Y, 3Y, 5Y YoY growth

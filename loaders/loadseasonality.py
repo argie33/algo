@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
 Seasonality Loader — computes S&P 500 (SPY) monthly and day-of-week return
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 statistics from the price_daily table and writes them into
 seasonality_monthly_stats and seasonality_day_of_week.
 

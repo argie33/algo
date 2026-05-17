@@ -2,6 +2,10 @@
 """
 Value Metrics Loader
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Fetches PE, PB, PS, PEG, dividend yield from yfinance.
 Writes ratios to value_metrics and market_cap to key_metrics in one pass.
 Falls back to computing from SEC financial data when yfinance returns nothing.

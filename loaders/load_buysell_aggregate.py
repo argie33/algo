@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily prices.
 
 Timeframe determined by LOADER_TYPE env var (signals_weekly / signals_monthly)

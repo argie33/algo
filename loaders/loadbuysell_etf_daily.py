@@ -3,6 +3,10 @@
 """
 ETF Daily Buy/Sell Signals Loader - Optimal Pattern.
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Computes buy/sell signals from ETF price data.
 Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Price Aggregate Loader — weekly and monthly OHLCV bars derived from daily prices.
 
 Timeframe determined by LOADER_TYPE env var (stock_prices_weekly / stock_prices_monthly)

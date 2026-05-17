@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 # Phase 1: Data Integrity Integration - 2026-05-09
 """
 Daily Price Loader - Enhanced with Data Integrity Phase 1.

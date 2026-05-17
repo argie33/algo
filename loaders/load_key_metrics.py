@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 Key Metrics Loader — market cap and insider/institution holdings from Finnhub.
 
 Market cap and shareholding data for all stocks in universe.
