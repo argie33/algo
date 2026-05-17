@@ -114,25 +114,29 @@ jobs:
       - name: Build Data Freshness Monitor Lambda
         run: |
           # Build data-freshness-monitor Lambda ZIP before Terraform tries to deploy it.
-          # Terraform reads the ZIP file during plan, so it MUST exist before terraform plan.
-          LAMBDA_DIR=$GITHUB_WORKSPACE/lambda/data-freshness-monitor
+          # Terraform runs in terraform/ directory and looks for ZIP at:
+          # modules/monitoring/../../lambda/data-freshness-monitor/lambda_function.zip
+          # = terraform/lambda/data-freshness-monitor/lambda_function.zip
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/data-freshness-monitor
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda/data-freshness-monitor
           PKG_DIR=/tmp/data-freshness-pkg
-          mkdir -p $PKG_DIR
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
 
           # Copy Lambda function code
-          cp $LAMBDA_DIR/lambda_function.py $PKG_DIR/
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
 
           # Install dependencies
-          python3.11 -m pip install -r $LAMBDA_DIR/requirements.txt \
+          python3.11 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
             -t $PKG_DIR/ \
             --no-cache-dir --quiet
 
-          # Create ZIP file
+          # Create ZIP in the location where Terraform expects it
           cd $PKG_DIR
-          zip -r $LAMBDA_DIR/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
+          zip -r $TERRAFORM_LAMBDA/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
 
-          echo "✅ data-freshness-monitor Lambda ZIP: $(du -sh $LAMBDA_DIR/lambda_function.zip | cut -f1)"
-          unzip -l $LAMBDA_DIR/lambda_function.zip | head -20
+          echo "✅ data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
+          unzip -l $TERRAFORM_LAMBDA/lambda_function.zip | head -20
 
       - name: Terraform Init
         run: |
@@ -203,9 +207,8 @@ jobs:
 
       - name: Fix API Gateway Route (AWS + Terraform State)
         run: |
-          # AWS API Gateway v2 doesn't allow in-place authorization_type updates.
-          # Solution: Delete the route from AWS, remove from state, let Terraform recreate it.
-          # MUST run before terraform plan so the plan includes route creation.
+          # AWS API Gateway v2 auto-creates $default route; import it into Terraform state.
+          # MUST run before terraform plan so Terraform knows about existing route.
 
           # Extract API Gateway name dynamically from Terraform config
           PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
@@ -223,48 +226,30 @@ jobs:
           fi
 
           echo "Found API Gateway: $API_ID"
+
+          # Check if route is already in Terraform state
+          if terraform state list 2>/dev/null | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
+            echo "Route already in Terraform state"
+            exit 0
+          fi
+
+          # Try to import the route from AWS
           ROUTE_ID=$(aws apigatewayv2 get-routes \
             --api-id $API_ID \
             --query 'Items[?RouteKey==`$default`].RouteId' \
             --output text \
             --region $AWS_REGION 2>/dev/null || echo "")
 
-          if [ -n "$ROUTE_ID" ] && [ "$ROUTE_ID" != "None" ]; then
-            echo "Deleting existing route from AWS (has wrong auth config)"
-            aws apigatewayv2 delete-route \
-              --api-id $API_ID \
-              --route-id $ROUTE_ID \
-              --region $AWS_REGION || echo "Warning: Route delete had an error (may already be deleted)"
-
-            # Wait for deletion to propagate
-            sleep 2
-
-            # Verify deletion
-            ROUTE_ID_CHECK=$(aws apigatewayv2 get-routes \
-              --api-id $API_ID \
-              --query 'Items[?RouteKey==`$default`].RouteId' \
-              --output text \
-              --region $AWS_REGION 2>/dev/null || echo "")
-
-            if [ -z "$ROUTE_ID_CHECK" ] || [ "$ROUTE_ID_CHECK" = "None" ]; then
-              echo "✅ Route deleted from AWS (verified)"
-            else
-              echo "⚠️  Route still exists in AWS after deletion attempt"
-            fi
-          else
-            echo "Route not found in AWS (already deleted or never created)"
+          if [ -z "$ROUTE_ID" ] || [ "$ROUTE_ID" = "None" ]; then
+            echo "Route not found in AWS (will be created by Terraform)"
+            exit 0
           fi
 
-          # Remove from Terraform state so Terraform will recreate it
-          if terraform state list 2>/dev/null | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
-            echo "Removing route from Terraform state..."
-            terraform state rm 'module.services.aws_apigatewayv2_route.api_default' 2>/dev/null || true
-            echo "✅ Route removed from state"
-          else
-            echo "Route not in Terraform state (OK — will be created fresh)"
-          fi
-
-          echo "Terraform will now create the route with authorization_type = NONE"
+          echo "Found route $ROUTE_ID in AWS, importing to Terraform state"
+          # Import format: API_ID,ROUTE_KEY (escape $ as \$)
+          terraform import -var-file=terraform.tfvars "module.services.aws_apigatewayv2_route.api_default" "$API_ID,\$default" 2>&1 | grep -v "^Acquiring state" || true
+          sleep 1
+          echo "Terraform will now manage the existing route"
 
       - name: Terraform Plan
         run: |
