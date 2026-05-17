@@ -17,14 +17,6 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-def get_db_config():
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": os.getenv("DB_PASSWORD", ""),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
 
 def backfill_sqs_sql():
     """Use SQL to calculate SQS for all signals using technical data."""

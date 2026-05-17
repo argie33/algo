@@ -28,15 +28,6 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-def get_db_config():
-    """Get database configuration."""
-    return {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", 5432)),
-        "user": os.getenv("DB_USER", "stocks"),
-        "password": os.getenv("DB_PASSWORD", "postgres"),
-        "database": os.getenv("DB_NAME", "stocks"),
-    }
 
 class PerformanceMetricsCalculator:
     """Calculate trading performance metrics."""
