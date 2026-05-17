@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -46,8 +47,7 @@ try:
 except ImportError:
     pass
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EarningsCalendarLoader:

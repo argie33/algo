@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -21,7 +22,7 @@ Run:
 
 import argparse
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 import os
 from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
@@ -43,7 +44,6 @@ from utils.data_watermark_manager import WatermarkManager
 from loaders.loader_validation import validate_score_row, count_validation_errors
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class StockScoresLoader(OptimalLoader):
@@ -204,7 +204,7 @@ class StockScoresLoader(OptimalLoader):
         deltas = closes.diff()
         gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
         losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses
+        rs = gains / losses.replace(0, 1e-10)  # Guard against division by zero
         rsi = 100 - (100 / (1 + rs))
         return rsi
 

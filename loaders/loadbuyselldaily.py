@@ -3,6 +3,7 @@
 Daily Buy/Sell Signals Loader - Optimal Pattern.
 
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -29,7 +30,7 @@ except ImportError:
 
 import argparse
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 import os
 import sys
 from datetime import date, timedelta
@@ -42,7 +43,6 @@ from dotenv import load_dotenv
 
 from utils.optimal_loader import OptimalLoader
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 log = logging.getLogger(__name__)
 

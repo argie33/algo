@@ -4,6 +4,7 @@ Earnings Estimate Revisions Loader - Optimal Pattern
 
 Tracks how analyst consensus estimates are changing over time.
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -36,8 +37,7 @@ from utils.optimal_loader import OptimalLoader
 _credential_manager = get_credential_manager()
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EarningsRevisionsLoader(OptimalLoader):

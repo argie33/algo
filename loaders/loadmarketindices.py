@@ -12,8 +12,9 @@ Run:
 
 
 import argparse
+from utils.logging_setup import get_logger
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 import os
 import sys
 from datetime import date
@@ -26,7 +27,6 @@ from dotenv import load_dotenv
 
 from utils.optimal_loader import OptimalLoader
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 log = logging.getLogger(__name__)
 

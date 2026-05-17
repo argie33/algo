@@ -11,8 +11,9 @@ Run:
 
 
 import argparse
+from utils.logging_setup import get_logger
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 import sys
 import os
 from pathlib import Path
@@ -49,7 +50,6 @@ except ImportError:
     OptimalLoader = object
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class AnalystRatingsLoader(OptimalLoader):

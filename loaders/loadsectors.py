@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -20,7 +21,7 @@ credential_manager = get_credential_manager()
 
 import argparse
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 import os
 import sys
 from config.env_loader import load_env
@@ -30,7 +31,6 @@ from typing import List, Optional
 from utils.optimal_loader import OptimalLoader
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class SectorsLoader(OptimalLoader):

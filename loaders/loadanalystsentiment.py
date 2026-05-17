@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+from utils.logging_setup import get_logger
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -22,7 +23,7 @@ except ImportError:
 
 import argparse
 import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
@@ -34,7 +35,6 @@ from typing import List, Optional
 from utils.optimal_loader import OptimalLoader
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class AnalystSentimentLoader(OptimalLoader):
