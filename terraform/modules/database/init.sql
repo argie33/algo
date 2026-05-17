@@ -434,6 +434,22 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Data loader run tracking for provenance
+CREATE TABLE IF NOT EXISTS data_loader_runs (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(255) NOT NULL,
+    run_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+    records_loaded INTEGER DEFAULT 0,
+    records_updated INTEGER DEFAULT 0,
+    error_message TEXT,
+    duration_seconds DECIMAL(10, 2),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, run_date)
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMPANY & FUNDAMENTAL DATA
 -- ════════════════════════════════════════════════════════════════════════════
@@ -2459,6 +2475,24 @@ WHERE close IS NOT NULL;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_symbol_desc
 ON price_daily (symbol, date DESC)
 WHERE close > 0;
+
+-- WEEKLY/MONTHLY PRICE INDEXES — Essential for aggregation queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_weekly_symbol_date
+ON price_weekly (symbol, date)
+WHERE close IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_monthly_symbol_date
+ON price_monthly (symbol, date)
+WHERE close IS NOT NULL;
+
+-- WEEKLY/MONTHLY TECHNICAL DATA INDEXES — For technical analysis aggregations
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_weekly_symbol_date
+ON technical_data_weekly (symbol, date)
+WHERE sma_20 IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_monthly_symbol_date
+ON technical_data_monthly (symbol, date)
+WHERE sma_20 IS NOT NULL;
 
 -- TECHNICAL DATA INDEXES — Technical indicator queries
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_technical_data_daily_date

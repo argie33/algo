@@ -25,8 +25,8 @@ tier_1b_aggregates = [
 ]
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)
-# NOTE: Technical indicators moved to loadstockscores.py (swing_score calculation)
 tier_1c_technical = [
+    'load_technical_indicators.py',  # RSI, MACD, SMA, EMA, ATR — reads from price_daily, no API calls
 ]
 
 # Tier 2: Reference data (no data deps, just symbol deps, can run in parallel)
