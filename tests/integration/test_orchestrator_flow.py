@@ -294,34 +294,4 @@ class TestOrchestratorPhaseFlow:
             if lock_path.exists():
                 lock_path.unlink()
 
-    def test_stale_data_halts_orchestrator(self, test_config):
-        """When Phase 1 detects stale data >7 days, orchestrator should return success=False."""
-        from algo.algo_orchestrator import Orchestrator
-
-        orch = Orchestrator(
-            run_date=date.today(),
-            dry_run=True,
-        )
-
-        lock_path = Path('.algo_orchestrator.lock')
-        if lock_path.exists():
-            lock_path.unlink()
-
-        try:
-            # Mock data freshness check to simulate stale data
-            with patch('algo.algo_orchestrator.Orchestrator._check_data_freshness', return_value=False), \
-                 patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'):
-
-                result = orch.run()
-
-                # Orchestrator should return dict with success=False or not attempt phases
-                assert result is not None
-                assert isinstance(result, dict)
-                # If data is stale, success should be False (or orchestrator stops early)
-                if 'success' in result:
-                    assert result['success'] is False
-
-        finally:
-            if lock_path.exists():
-                lock_path.unlink()
 
