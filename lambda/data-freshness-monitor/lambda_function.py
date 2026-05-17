@@ -41,9 +41,9 @@ CRITICAL_TABLES = [
 ]
 
 SEVERITY_THRESHOLDS = {
-    'empty': 0,           # 0 rows = CRITICAL
-    'stale_warning': 3,   # >3 days = WARNING
-    'stale_critical': 7,  # >7 days = CRITICAL
+    'empty': 0,
+    'stale_warning': 3,
+    'stale_critical': 7,
 }
 
 
@@ -59,7 +59,7 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        logger.info(f"ERROR: Failed to connect to database: {e}")
+        logger.error(f"Failed to connect to database: {e}")
         raise
 
 
@@ -97,7 +97,6 @@ def publish_custom_metrics(table_data):
     for table in table_data:
         table_name, row_count, latest_date, age_days, status, checked_at = table
 
-        # Metric 1: Row count
         metrics.append({
             'MetricName': f'DataLoader_{table_name}_RowCount',
             'Value': row_count,
@@ -105,15 +104,13 @@ def publish_custom_metrics(table_data):
             'Timestamp': datetime.utcnow(),
         })
 
-        # Metric 2: Data age (in days)
         metrics.append({
             'MetricName': f'DataLoader_{table_name}_AgeDays',
-            'Value': age_days if age_days else 999,  # 999 if null (missing data)
+            'Value': age_days if age_days else 999,
             'Unit': 'Count',
             'Timestamp': datetime.utcnow(),
         })
 
-        # Metric 3: Health status (1=healthy, 0=warning/critical)
         health_value = 1 if status == 'HEALTHY' else 0
         metrics.append({
             'MetricName': f'DataLoader_{table_name}_Status',
@@ -132,7 +129,7 @@ def publish_custom_metrics(table_data):
             )
             logger.info(f"Published {len(batch)} metrics to CloudWatch")
         except Exception as e:
-            logger.info(f"ERROR: Failed to publish metrics: {e}")
+            logger.error(f"Failed to publish metrics: {e}")
             raise
 
 
@@ -148,7 +145,6 @@ def check_data_health(table_data):
     for table in table_data:
         table_name, row_count, latest_date, age_days, status, checked_at = table
 
-        # Check for empty tables
         if row_count == 0:
             issues['critical'].append({
                 'table': table_name,
@@ -156,7 +152,6 @@ def check_data_health(table_data):
                 'row_count': row_count,
             })
 
-        # Check for stale data
         elif age_days >= SEVERITY_THRESHOLDS['stale_critical']:
             issues['critical'].append({
                 'table': table_name,
@@ -207,8 +202,7 @@ def lambda_handler(event, context):
             }, indent=2, default=str),
         }
 
-        # Log summary
-        logger.info(f"\n=== DATA FRESHNESS SUMMARY ===")
+        logger.info(f"=== DATA FRESHNESS SUMMARY ===")
         logger.info(f"Tables checked: {len(table_data)}")
         logger.info(f"Healthy: {issues['healthy_count']}")
         logger.info(f"Critical issues: {len(issues['critical'])}")
@@ -229,7 +223,7 @@ def lambda_handler(event, context):
         return response
 
     except Exception as e:
-        logger.info(f"ERROR: {e}")
+        logger.error(f"ERROR: {e}")
         return {
             'statusCode': 500,
             'body': json.dumps({
@@ -241,7 +235,5 @@ def lambda_handler(event, context):
 
 # For local testing
 if __name__ == '__main__':
-    import sys
-
     result = lambda_handler({}, None)
     logger.info("\nResult:", result)
