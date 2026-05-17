@@ -7,6 +7,7 @@ Tests composite swing score calculation combining multiple factors.
 import pytest
 from unittest.mock import MagicMock
 from datetime import date, timedelta
+from algo.algo_swing_score import SwingTraderScore
 
 
 @pytest.mark.unit
@@ -15,8 +16,6 @@ class TestSwingScore:
 
     def test_score_calculation_basic(self):
         """Should calculate numeric swing score from price/technical data."""
-        from algo.algo_swing_score import SwingTraderScore
-
         config = {}
         scorer = SwingTraderScore(config)
 

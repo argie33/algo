@@ -11,7 +11,7 @@ Output (stdout):
 
 import json
 from config.env_loader import load_env
-from config.credential_helper import get_db_password
+from utils.db_connection import get_db_connection
 import os
 import sys
 from pathlib import Path
@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_db_conn():
-    from utils.db_connection import get_db_connection
-    return get_db_connection()
+        return get_db_connection()
 
 
 def preview(symbol: str, entry_price: float, stop_loss: float) -> dict:

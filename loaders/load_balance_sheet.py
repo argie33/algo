@@ -37,7 +37,8 @@ _PERIOD_CONFIG = {
         "primary_key": ("symbol", "fiscal_year"),
         "schema_cols": frozenset({
             "symbol", "fiscal_year",
-            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
+            "total_assets", "current_assets", "total_liabilities", "current_liabilities", "stockholders_equity",
+            "inventory", "cash_and_equivalents", "accounts_receivable", "ppe_net", "goodwill", "long_term_debt",
         }),
         "field_mapping": {
             # SEC EDGAR client converts concept names to snake_case before returning

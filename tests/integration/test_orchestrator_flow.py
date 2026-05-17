@@ -19,6 +19,8 @@ from datetime import date
 from pathlib import Path
 import os
 
+from algo.algo_orchestrator import Orchestrator
+
 
 @pytest.mark.integration
 @pytest.mark.db
@@ -27,8 +29,6 @@ class TestOrchestratorWithRealDatabase:
 
     def test_full_pipeline_dry_run(self, seeded_test_db, test_config):
         """Full orchestrator pipeline in dry-run should complete all 7 phases."""
-        from algo.algo_orchestrator import Orchestrator
-
         # Create orchestrator in dry-run mode
         orch = Orchestrator(
             run_date=date.today(),

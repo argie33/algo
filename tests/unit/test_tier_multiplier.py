@@ -13,6 +13,7 @@ Verifies that multipliers are applied correctly based on market exposure tier.
 import pytest
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
+from algo.algo_filter_pipeline import FilterPipeline
 
 
 @pytest.mark.unit

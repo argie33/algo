@@ -14,31 +14,26 @@ Falls back to computing from SEC financial data when yfinance returns nothing.
 import argparse
 import logging
 import os
-import psycopg2
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Dict, List, Optional
 
 import yfinance as yf
+from utils.db_connection import get_db_connection
 
 try:
-    except ImportError:
-    def get_db_password():
-        return os.getenv("DB_PASSWORD", "")
+    from config.credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
 
 def get_db_conn():
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-        port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-        password=get_db_password(),
-        database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-    )
+    return get_db_connection()
 
 
 def get_symbols() -> List[str]:

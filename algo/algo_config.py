@@ -7,16 +7,9 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 import os
 import logging
-
-try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
-    DEFAULT_DB_HOST = DEFAULT_DB_HOST
-    DEFAULT_DB_PORT = 5432
-    DEFAULT_DB_USER = "stocks"
-    DEFAULT_DB_NAME = "stocks"
 
 logger = logging.getLogger(__name__)
 from utils.db_connection import get_db_connection
@@ -64,29 +57,11 @@ except Exception as e:
         raise
 
 try:
-    if _cred_mgr:
-        DB_CONFIG = _cred_mgr.get_db_credentials()
-    else:
-        raise ValueError("Using environment variables instead")
-except (ValueError, AttributeError) as e:
-    logger.warning(f"Failed to load DB credentials from manager: {e}")
-    # Fallback to env vars for backward compatibility during migration and CI
-    try:
-        if _cred_mgr:
-            db_password = _cred_mgr.get_db_credentials()["password"]
-        else:
-            db_password = os.getenv("DB_PASSWORD", "")
-    except (ValueError, AttributeError):
-        db_password = os.getenv("DB_PASSWORD", "")
-
-    DB_CONFIG = {
-        "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
-        "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-        "user": os.getenv("DB_USER", DEFAULT_DB_USER),
-        "password": db_password,
-        "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
-    }
-    logger.warning("Using fallback DB credentials — credential_manager failed")
+    # Always use credential_helper as single source of truth for DB config
+    DB_CONFIG = get_db_config()
+except Exception as e:
+    logger.error(f"Failed to load database credentials: {e}")
+    raise RuntimeError(f"Cannot initialize AlgoConfig without database credentials: {e}")
 
 # Alias for backwards compatibility
 DATABASE_CONFIG = DB_CONFIG

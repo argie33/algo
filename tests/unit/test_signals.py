@@ -7,6 +7,7 @@ Tests signal computation from raw price and technical indicators.
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import date, timedelta
+from algo.algo_signals import SignalComputer
 
 
 @pytest.mark.unit
@@ -15,8 +16,6 @@ class TestSignalComputation:
 
     def test_signal_generation_basic(self):
         """Should generate buy/sell signals from price data."""
-        from algo.algo_signals import SignalComputer
-
         config = {}
         computer = SignalComputer(config)
 
