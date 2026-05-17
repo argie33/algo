@@ -23,7 +23,7 @@ from typing import List, Optional
 
 from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
-from loaders.loader_validation import validate_price_row, count_validation_errors
+from utils.monitoring.loader_validation import validate_price_row, count_validation_errors
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
@@ -218,7 +218,7 @@ def main():
 
         # Record loader SLA status for orchestrator Phase 1 freshness check
         try:
-            from loaders.loader_sla_tracker import get_tracker
+            from utils.monitoring.loader_sla_tracker import get_tracker
             from datetime import date
             tracker = get_tracker()
             latest_date = date.today() if stats["rows_inserted"] > 0 else None

@@ -349,7 +349,7 @@ def main():
         stats = loader.run(symbols, parallelism=args.parallelism)
 
         try:
-            from loaders.loader_sla_tracker import get_tracker
+            from utils.monitoring.loader_sla_tracker import get_tracker
             tracker = get_tracker()
             latest_date = date.today() if stats["rows_inserted"] > 0 else None
             tracker.update_sla_status(

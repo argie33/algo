@@ -22,7 +22,7 @@ from utils.db_connection import get_db_connection
 import psycopg2.extras
 import numpy as np
 import pandas as pd
-from loaders.loader_validation import validate_technical_row, count_validation_errors
+from utils.monitoring.loader_validation import validate_technical_row, count_validation_errors
 
 logger = logging.getLogger(__name__)
 

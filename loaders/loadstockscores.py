@@ -43,7 +43,7 @@ except ImportError:
 from utils.data_tick_validator import validate_score_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager
-from loaders.loader_validation import validate_score_row, count_validation_errors
+from utils.monitoring.loader_validation import validate_score_row, count_validation_errors
 
 
 

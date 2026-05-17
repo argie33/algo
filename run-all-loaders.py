@@ -49,8 +49,8 @@ tier_2_reference = [
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
     # Company and sentiment data
     'loadcompanyprofile.py', 'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
-    # Calendar and economic data
-    'loadcalendar.py', 'load_earnings_calendar.py',
+    # Calendar data
+    'load_earnings_calendar.py',
     # Sector and industry data
     'loadsectors.py', 'loadindustryranking.py', 'loadnaaim.py',
 ]
@@ -208,7 +208,7 @@ logger.info(f"\n{'='*70}")
 logger.info(f"DATA LOADER HEALTH CHECK")
 logger.info(f"{'='*70}\n")
 try:
-    from loaders.loader_health_tracker import LoaderHealthTracker
+    from utils.monitoring.loader_health_tracker import LoaderHealthTracker
     tracker = LoaderHealthTracker()
     tracker.connect()
     try:

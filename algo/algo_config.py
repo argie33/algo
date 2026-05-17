@@ -7,10 +7,9 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 from config.env_loader import load_env
-import psycopg2
-import psycopg2.extensions
 import os
 import logging
+import psycopg2
 
 try:
     from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
@@ -21,11 +20,7 @@ except ImportError:
     DEFAULT_DB_NAME = "stocks"
 
 logger = logging.getLogger(__name__)
-try:
-    from utils.db_connection import get_db_connection
-except ImportError:
-    # Lambda: psycopg2 binary not available, will fail at runtime if DB needed
-    psycopg2 = None
+from utils.db_connection import get_db_connection
 from pathlib import Path
 
 
@@ -250,13 +245,10 @@ class AlgoConfig:
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
-        if psycopg2 is None:
-            logger.warning("Warning: psycopg2 not available, using defaults")
-            return
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             cur.execute("SELECT key, value, value_type FROM algo_config")
@@ -377,7 +369,7 @@ class AlgoConfig:
             # Validate before storing
             self._validate_value(key, str(value), value_type)
 
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             cur.execute("""
@@ -419,7 +411,7 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             for key, (value, dtype, desc) in self.DEFAULTS.items():

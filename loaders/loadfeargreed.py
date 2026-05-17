@@ -244,14 +244,8 @@ async def main():
     log_mem("startup")
 
     # Connect to DB
-    logging.info("Loading database configuration...")
-    cfg = get_db_config()
-    logging.info(f"Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['database']}")
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["database"]
-    )
+    logging.info("Connecting to database...")
+    conn = get_db_connection()
     logging.info("Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

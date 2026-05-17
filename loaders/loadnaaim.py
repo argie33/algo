@@ -33,8 +33,6 @@ Version: v1.0
 Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
 FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
-import psycopg2
-import psycopg2.extensions
 from config.env_loader import load_env
 import time
 import logging
@@ -307,15 +305,9 @@ def main():
     log_mem("startup")
 
     # Connect to DB
-    logging.info("🔌 Loading database configuration...")
-    cfg = get_db_config()
-    logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['database']}")
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["database"]
-    )
-    logging.info("✅ Database connection established")
+    logging.info("Connecting to database...")
+    conn = get_db_connection()
+    logging.info("Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 

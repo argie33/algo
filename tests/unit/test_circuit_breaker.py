@@ -348,8 +348,11 @@ class TestAllCircuitBreakers:
     def test_all_clear_no_halt(self, test_config):
         """All CBs green should not halt trading."""
         from algo.algo_circuit_breaker import CircuitBreaker
+        from unittest.mock import MagicMock
 
         cb = CircuitBreaker(test_config)
+        cb.cur = MagicMock()
+        cb.conn = MagicMock()
 
         with patch.object(cb, 'connect'), \
              patch.object(cb, 'disconnect'), \
