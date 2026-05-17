@@ -5,7 +5,7 @@
 set -e
 
 REGION="${AWS_REGION:-us-east-1}"
-ACCOUNT_ID="${AWS_ACCOUNT_ID:-626216981288}"
+ACCOUNT_ID="${AWS_ACCOUNT_ID:?ERROR: AWS_ACCOUNT_ID environment variable is required}"
 
 echo "Setting up CloudWatch log groups in region: $REGION"
 

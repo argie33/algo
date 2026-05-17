@@ -75,7 +75,7 @@ sudo service postgresql start
 docker run -d \
   --name postgres \
   -e POSTGRES_USER=stocks \
-  -e POSTGRES_PASSWORD=bed0elAn \
+  -e POSTGRES_PASSWORD=$DB_PASSWORD \
   -e POSTGRES_DB=stocks \
   -p 5432:5432 \
   postgres:15
@@ -149,7 +149,7 @@ Located: `webapp/lambda/.env`
 - `PORT=3001`
 - `DB_HOST=localhost`
 - `DB_USER=stocks`
-- `DB_PASSWORD=bed0elAn`
+- `DB_PASSWORD=$DB_PASSWORD` (set via environment or .env.local)
 - `DB_NAME=stocks`
 - `DB_PORT=5432`
 

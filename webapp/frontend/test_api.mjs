@@ -3,7 +3,18 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://stocks:bed0elAn@localhost/stocks';
+const dbHost = process.env.DB_HOST || 'localhost';
+const dbPort = process.env.DB_PORT || 5432;
+const dbUser = process.env.DB_USER || 'stocks';
+const dbPassword = process.env.DB_PASSWORD;
+const dbName = process.env.DB_NAME || 'stocks';
+
+if (!dbPassword) {
+  console.error('ERROR: DB_PASSWORD environment variable is required');
+  process.exit(1);
+}
+
+const DATABASE_URL = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function testAPI() {

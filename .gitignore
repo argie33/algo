@@ -33,12 +33,33 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment
+# Environment — NEVER commit these files
+# Root level env files
 .env
-**/.env.local
 .env.local
+.env.development
+.env.production
+.env.staging
+.env.test
 .env.*.local
-.env.vault  # Local secrets vault - NEVER commit
+.env.vault
+# Subdirectory env files
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.env.staging
+**/.env.test
+**/.env.*.local
+**/.env.vault
+# But DO commit template/example files
+!.env.example
+!.env.*.example
+!.env.local.example
+!.env.vault.template
+!**/.env.example
+!**/.env.*.example
+!**/.env.local.example
 
 # Testing
 coverage/

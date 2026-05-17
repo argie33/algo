@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 os.chdir('C:\\Users\\arger\\code\\algo')
 load_dotenv('.env.local')
 
-conn = psycopg2.connect('host=localhost user=postgres password=bed0elAn dbname=stocks')
+db_password = os.getenv('DB_PASSWORD', 'postgres')
+conn = psycopg2.connect(f'host=localhost user=postgres password={db_password} dbname=stocks')
 cur = conn.cursor()
 
 # Get all tables
