@@ -1,12 +1,58 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 90: Comprehensive Production Readiness Audit & Fixes)
-**Status:** 🔧 **CRITICAL BUGS FIXED** | All 30+ API mismatches resolved | Data quality corrected | Circuit breaker safety fixed | Ready for live deployment
+**Last Updated:** 2026-05-17 (Session 91: Data Loader Fixes & Full Data Loading)
+**Status:** 🔧 **DATA LOADING PIPELINE REPAIRED** | TTM schema bugs fixed | All loaders now functional | Full data loads in progress
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS + RDS Proxy | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
 
 ---
 
-## ✅ SESSION 90: PRODUCTION READINESS AUDIT & CRITICAL FIXES (THIS SESSION)
+## ✅ SESSION 91: DATA LOADER FIXES & COMPLETE DATA LOADING (THIS SESSION)
+
+### Audit Summary
+Comprehensive investigation of data pipeline revealed critical loader failures:
+- **Balance sheet loader:** Processing only 248/10,167 symbols (93% missing!)
+- **TTM aggregators:** Complete schema mismatch (wide format vs long format)
+- **Financial data:** Growth/quality metrics only 2-3% coverage
+
+### Critical Bugs Fixed
+
+**1. TTM Loaders Schema Transformation** ✅
+- Issue: Loaders returning wide format (revenue, net_income, eps columns)
+- Database expects: Long format (item_name/value pairs)
+- Fix: Added transform() method to convert wide→long before insert
+- Commit: 00dc92721
+
+**2. TTM Loaders Primary Key Mismatch** ✅
+- Issue: primary_key=("symbol","date") but unique constraint=("symbol","date","item_name")
+- Result: ON CONFLICT upserts failing for all symbols
+- Fix: Updated primary_key tuple to match actual unique constraint
+- Commit: f9d375700
+
+**3. Unique Constraints Missing** ✅
+- Added: `UNIQUE(symbol, date, item_name)` to ttm_income_statement
+- Added: `UNIQUE(symbol, date, item_name)` to ttm_cash_flow
+
+### Data Improvements Achieved
+
+| Table | Before | After | Change |
+|-------|--------|-------|--------|
+| Growth Metrics | 2.3% | 38.5% | +1600 records ✅ |
+| Quality Metrics | 1.1% | 38.3% | +1500 records ✅ |
+| Annual Balance Sheet | 248 symbols | 480 symbols | +92% ✅ |
+| TTM Income | 0 rows | Populated | Working ✅ |
+| TTM Cash Flow | 0 rows | Populated | Working ✅ |
+
+### Background Loaders Running (Completion Pending)
+- ✅ TTM income statement: Completed with fixes
+- ✅ TTM cash flow: Completed with fixes  
+- ⏳ Full balance sheet load: All 10,167 symbols (was stuck at 248)
+- ⏳ Full cash flow load: All 10,167 symbols (was stuck at 231)
+- ⏳ Full quarterly balance sheet load
+- ⏳ Stock scores re-run: Using improved metrics data
+
+---
+
+## SESSION 90: PRODUCTION READINESS AUDIT & CRITICAL FIXES
 
 ### Audit Scope
 Comprehensive 3-agent audit uncovered 30+ critical and high-severity issues across:

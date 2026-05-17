@@ -22,6 +22,34 @@
 
 **Constraints:** No experimental loaders, **Terraform IaC only (CloudFormation eliminated)**, paper trading, all blockers fixed.
 
+---
+
+## 🔄 LOADER DISCIPLINE (Mechanical Rules)
+
+**Strategy: ONE-LOADER-PER-DATA-SOURCE**
+- Each external data source (Alpaca, SEC, AAII, etc.) has **exactly ONE loader**
+- Loaders run in tier order (Tier 0→4) via `run-all-loaders.py`
+- Each loader is **integrated into run-all-loaders.py** or **deleted immediately**
+- No alternatives, experiments, or orphaned versions
+
+**When Adding a Loader:**
+1. Why does this data source exist? (name the external API/source)
+2. Add loader to appropriate tier in `run-all-loaders.py`
+3. Test end-to-end: `python3 run-all-loaders.py`
+4. **If you can't wire it into run-all-loaders.py → DELETE the loader immediately**
+
+**When You See Orphaned Code:**
+- Utility scripts (one-time fixes, diagnostics) → **DELETE immediately**
+- Partial implementations (90% done, "will finish later") → **DELETE immediately**
+- Alternative loaders (same data source, not integrated) → **DELETE immediately**
+- Skipped tests without expiration dates → **DELETE immediately**
+
+**Token Optimization:** STATUS.md max 300 lines (current state + next 3 steps only). Memory files ≤8. No session histories or audit summaries in files; archive to git commits instead. See [[token-optimization-session-2026-05-17]] for rules.
+
+**Code Governance:** See [[code-governance-rules]] for dependency, import, and dead code discipline.
+
+---
+
 **IMPORTANT — Credential Management:**
 - ✅ `.env.local` = Your dev credentials (LOCAL ONLY, gitignored, KEEP THIS)
 - ❌ NEVER delete `.env.local` — it breaks local development
