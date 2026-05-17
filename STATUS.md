@@ -45,8 +45,11 @@
 | **Deployment** | ⚠️ OIDC | Awaiting AWS OIDC setup (not technically blocking) |
 
 ### What's Left
-- **Phase 5 (Infrastructure):** OIDC conversion, hardcoded account ID removal — requires AWS access, deferred
-- **Optional:** Future performance optimizations (price_latest materialized view)
+- **AWS OIDC Role Setup:** GitHub Actions OIDC provider and IAM roles must be created/configured in AWS. Code is ready, awaiting AWS credentials.
+- **Optional:** Future optimizations (price_latest materialized view, query prefetching)
+
+### Production Readiness
+✅ **ALL CODE FIXES COMPLETE.** The system is feature-complete and security-hardened. Remaining work is pure infrastructure setup (AWS OIDC bootstrapping) which does not block application functionality. The system can run locally or in AWS with static credentials until OIDC is configured.
 
 ---
 
