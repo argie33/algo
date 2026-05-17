@@ -402,6 +402,7 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     momentum_score DECIMAL(8, 2),
     positioning_score DECIMAL(8, 2),
     data_completeness DECIMAL(3, 2),  -- 0.0-1.0: fraction of score components with real data (1.0 = all 6 present)
+    rs_percentile INTEGER,  -- 0-100: cross-sectional rank of 12-month returns vs all symbols
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -484,6 +485,28 @@ CREATE TABLE IF NOT EXISTS community_signups (
     email VARCHAR(255) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
     subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User settings (full preferences stored by settings.js)
+CREATE TABLE IF NOT EXISTS user_settings (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL UNIQUE,
+    theme VARCHAR(20) DEFAULT 'dark',
+    language VARCHAR(10) DEFAULT 'en',
+    notifications_enabled BOOLEAN DEFAULT TRUE,
+    notifications_email BOOLEAN DEFAULT TRUE,
+    notifications_sms BOOLEAN DEFAULT FALSE,
+    email_alerts_trading BOOLEAN DEFAULT TRUE,
+    email_alerts_performance BOOLEAN DEFAULT TRUE,
+    email_alerts_system BOOLEAN DEFAULT FALSE,
+    auto_refresh_enabled BOOLEAN DEFAULT TRUE,
+    auto_refresh_interval INTEGER DEFAULT 30,
+    default_timeframe VARCHAR(10) DEFAULT '1d',
+    default_watchlist_sort VARCHAR(50) DEFAULT 'name',
+    sidebar_collapsed BOOLEAN DEFAULT FALSE,
+    preferences JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Contact form submissions

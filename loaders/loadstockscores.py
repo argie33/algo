@@ -429,6 +429,85 @@ class StockScoresLoader(OptimalLoader):
             self.tracker.end_run(success=success)
             logging.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
+    def compute_rs_percentiles(self) -> None:
+        """Compute cross-sectional RS percentile rankings based on 12-month returns.
+
+        After loading all stock scores, ranks each symbol's 12-month return vs all others,
+        converts to 0-100 percentile, and stores in stock_scores.rs_percentile.
+        """
+        conn = None
+        try:
+            import pandas as pd
+            import numpy as np
+            from datetime import datetime, timedelta
+
+            conn = self._connect()
+            cur = conn.cursor()
+
+            # Get all symbols in stock_scores
+            cur.execute("SELECT symbol FROM stock_scores ORDER BY symbol")
+            symbols = [r[0] for r in cur.fetchall()]
+            logging.info(f"Computing RS percentiles for {len(symbols)} symbols...")
+
+            # Compute 12-month returns for each symbol
+            returns_12m = {}
+            end_date = date.today()
+            start_date = end_date - timedelta(days=365)
+
+            for symbol in symbols:
+                try:
+                    # Get price data for past 12 months
+                    cur.execute("""
+                        SELECT close FROM price_daily
+                        WHERE symbol = %s AND trade_date >= %s AND trade_date <= %s
+                        ORDER BY trade_date DESC LIMIT 2
+                    """, (symbol, start_date, end_date))
+                    prices = [r[0] for r in cur.fetchall()]
+
+                    if len(prices) >= 2:
+                        # Most recent price / 12-month-ago price - 1
+                        ret = (float(prices[0]) / float(prices[-1])) - 1.0
+                        returns_12m[symbol] = ret
+                except Exception as e:
+                    logging.debug(f"Could not compute 12m return for {symbol}: {e}")
+                    returns_12m[symbol] = None
+
+            # Rank returns cross-sectionally (only for symbols with valid returns)
+            valid_symbols = {s: r for s, r in returns_12m.items() if r is not None}
+            if not valid_symbols:
+                logging.warning("No valid 12-month returns found")
+                return
+
+            # Sort by return and assign percentile ranks
+            sorted_symbols = sorted(valid_symbols.items(), key=lambda x: x[1])
+            percentile_ranks = {}
+            n = len(sorted_symbols)
+
+            for rank, (symbol, _) in enumerate(sorted_symbols):
+                # Percentile: (rank / total_count) * 100, range 0-100
+                percentile = (rank / max(1, n - 1)) * 100 if n > 1 else 50
+                percentile_ranks[symbol] = int(round(percentile))
+
+            # Update stock_scores with percentile ranks
+            update_count = 0
+            for symbol, percentile in percentile_ranks.items():
+                cur.execute(
+                    "UPDATE stock_scores SET rs_percentile = %s WHERE symbol = %s",
+                    (percentile, symbol)
+                )
+                update_count += cur.rowcount
+
+            conn.commit()
+            logging.info(f"Updated RS percentiles for {update_count}/{len(symbols)} symbols")
+
+        except Exception as e:
+            logging.error(f"Error computing RS percentiles: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
+
 
 def get_active_symbols() -> List[str]:
     """Pull active symbols from the stocks table."""
@@ -466,6 +545,8 @@ def main():
     # loader.start_provenance_tracking()  # Disabled for local testing (data_loader_runs table missing)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
+        # Compute cross-sectional RS percentile rankings after scores are loaded
+        loader.compute_rs_percentiles()
         # loader.end_provenance_tracking(success=True)  # Disabled for local testing
     except Exception as e:
         # loader.end_provenance_tracking(success=False)  # Disabled for local testing

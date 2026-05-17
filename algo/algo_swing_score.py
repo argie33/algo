@@ -662,18 +662,20 @@ class SwingTraderScore:
           - EPS 3-year CAGR (0-4 pts): From growth_metrics table
             • >= 25% = 4 pts (CAN SLIM "C" criterion: strong earnings growth)
             • 15-25% = 3 pts (solid growth)
-            • 5-15% = 1 pt (modest growth)
+            • 5-15% = 1.5 pts (modest growth)
             • <5% = 0 pts (weak growth)
           - Revenue 3-year CAGR (0-3 pts): Top-line growth validation
             • >= 15% = 3 pts
             • 5-15% = 2 pts
             • <5% = 0 pts
-          - Net Income YoY (0-2 pts): Recent earnings acceleration
-            • >= 15% = 2 pts
-            • >= 5% = 1 pt
-            • <5% = 0 pts
-          - Revenue YoY (0-1 pt): Recent sales acceleration validation
-            • >= 5% = 1 pt
+          - Net Income YoY (0-1.5 pts): Recent earnings acceleration
+            • >= 10% = 1.5 pts
+            • > 0% = 1 pt
+            • <= 0% = 0 pts
+          - Revenue YoY (0-1.5 pts): Recent sales acceleration validation
+            • >= 10% = 1.5 pts
+            • > 0% = 1 pt
+            • <= 0% = 0 pts
 
         Fundamentals provide the earnings power that sustains stock moves. Swing
         setups with strong growth are more likely to run hard on breakouts.

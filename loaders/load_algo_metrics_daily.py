@@ -326,7 +326,16 @@ class AlgoMetricsLoader:
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (symbol, date) DO UPDATE SET
                         price_52w_high = EXCLUDED.price_52w_high,
-                        price_52w_low = EXCLUDED.price_52w_low
+                        price_52w_low = EXCLUDED.price_52w_low,
+                        percent_from_52w_low = EXCLUDED.percent_from_52w_low,
+                        percent_from_52w_high = EXCLUDED.percent_from_52w_high,
+                        price_above_sma50 = EXCLUDED.price_above_sma50,
+                        price_above_sma200 = EXCLUDED.price_above_sma200,
+                        sma50_above_sma200 = EXCLUDED.sma50_above_sma200,
+                        minervini_trend_score = EXCLUDED.minervini_trend_score,
+                        weinstein_stage = EXCLUDED.weinstein_stage,
+                        trend_direction = EXCLUDED.trend_direction,
+                        consolidation_flag = EXCLUDED.consolidation_flag
                 """
                 self.execute(query, (
                     symbol, date_obj, high_52w, low_52w,
@@ -530,10 +539,15 @@ class AlgoMetricsLoader:
                     volume_score = 10
 
                 # Distance from 52-week high (closer to high = better for trending)
-                if pct_from_high >= 0:
-                    distance_score = min(15, int(pct_from_high * 0.15))  # max 15 at 100% from high
+                # pct_from_high = ((high - price) / range * 100), positive = below high
+                if pct_from_high <= 5:    # within 5% of 52w high
+                    distance_score = 15
+                elif pct_from_high <= 15:  # within 15% of 52w high
+                    distance_score = 10
+                elif pct_from_high <= 30:  # within 30% of 52w high
+                    distance_score = 5
                 else:
-                    distance_score = 5  # neutral if below high
+                    distance_score = 0     # far from high, penalize
 
                 earnings_score = 8  # baseline; would reduce near earnings if data available
 

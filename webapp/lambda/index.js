@@ -766,6 +766,7 @@ app.use("/api/user", require("./routes/user"));
 app.use("/api/signals/range", cacheMiddleware(60), rangeSignalsRoutes);
 app.use("/api/signals/mean-reversion", cacheMiddleware(60), meanReversionSignalsRoutes);
 app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
+app.use("/api/backtests", cacheMiddleware(120), backtestsRoutes);  // alias for frontend compatibility
 
 // Status and price routes
 app.use("/api/status", cacheMiddleware(30), statusRoutes);

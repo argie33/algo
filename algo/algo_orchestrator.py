@@ -62,6 +62,7 @@ import os
 import sys
 import tempfile
 import psycopg2
+from psycopg2 import pool as psycopg2_pool
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
@@ -105,9 +106,46 @@ class Orchestrator:
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
 
+        # Initialize connection pool for better performance
+        try:
+            self.db_pool = psycopg2_pool.ThreadedConnectionPool(
+                minconn=2, maxconn=10, **_get_db_config()
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
+            self.db_pool = None
+
         if init_db:
             self._ensure_schema_initialized()
             self._initialize_feature_flags()
+
+    def _get_conn(self):
+        """Get a database connection from the pool or create a fallback."""
+        if self.db_pool:
+            try:
+                return self.db_pool.getconn()
+            except Exception as e:
+                logger.debug(f"Pool exhausted, using fallback: {e}")
+        return psycopg2.connect(**_get_db_config())
+
+    def _put_conn(self, conn):
+        """Return a connection to the pool."""
+        if self.db_pool and conn:
+            try:
+                self.db_pool.putconn(conn)
+            except Exception:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def cleanup(self):
+        """Close the connection pool on shutdown."""
+        if self.db_pool:
+            try:
+                self.db_pool.closeall()
+            except Exception as e:
+                logger.warning(f"Error closing pool: {e}")
 
     # ---------- Database health monitoring (B4) ----------
 
@@ -116,7 +154,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**_get_db_config())
+            conn = self._get_conn()
             cur = conn.cursor()
             cur.execute("SELECT 1")
             return True
@@ -129,11 +167,7 @@ class Orchestrator:
                     cur.close()
                 except Exception:
                     pass
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+            self._put_conn(conn)
 
     def _increment_db_failure_counter(self):
         """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
@@ -1954,9 +1988,12 @@ if __name__ == "__main__":
 
     run_date = _date.fromisoformat(args.date) if args.date else None
     orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
-    if args.skip_freshness:
-        orch.skip_freshness = True
-        logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
-    final = orch.run()
-    sys.exit(0 if final['success'] else 1)
+    try:
+        if args.skip_freshness:
+            orch.skip_freshness = True
+            logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
+        final = orch.run()
+        sys.exit(0 if final['success'] else 1)
+    finally:
+        orch.cleanup()
 

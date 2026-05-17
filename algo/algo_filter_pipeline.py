@@ -379,6 +379,10 @@ class FilterPipeline:
                     trade['target_2_price'] = None
                     trade['target_3_price'] = None
 
+                # Propagate stop method and reasoning to trade dict
+                trade['stop_method'] = self._last_stop_method
+                trade['stop_reasoning'] = getattr(self, '_last_stop_reasoning', 'No reasoning recorded')
+
             logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
             logger.info("=" * 100)
             logger.info(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
