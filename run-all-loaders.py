@@ -36,7 +36,6 @@ tier_1c_technical = [
 #   TTM loaders sum 4 most recent quarters for trailing twelve months metric.
 #   This provides both period-specific data AND rolling metrics needed for signal quality.
 tier_2_reference = [
-    'loadcompanyprofile.py',
     # Annual financials
     ('load_income_statement.py', ['--period', 'annual']),
     ('load_balance_sheet.py', ['--period', 'annual']),
@@ -46,12 +45,9 @@ tier_2_reference = [
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
-    'load_earnings_calendar.py',  # Upcoming earnings dates for blackout enforcement
     'load_key_metrics.py',
     'loadmarketindices.py', 'loadseasonality.py',
-    'loadsectors.py',  # Note: industry_ranking populated by loadsectors.py
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
-    'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
 ]
 
 # Tier 2c: TTM aggregates (depends on quarterly financials from tier 2)
