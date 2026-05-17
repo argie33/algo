@@ -9,6 +9,41 @@ const { initializeAlpacaTrader } = require("../utils/alpacaTrading");
 const { query } = require("../utils/database");
 
 /**
+ * Check if an order for this symbol/side/quantity already exists today (prevents duplicates on retry)
+ * @param {string} symbol - Stock symbol
+ * @param {string} side - "buy" or "sell"
+ * @param {number} quantity - Order quantity
+ * @returns {Promise<Object|null>} Existing order if found, null otherwise
+ */
+async function checkExistingOrder(symbol, side, quantity) {
+  try {
+    const alpacaTrader = initializeAlpacaTrader(true); // paper mode for checking
+    if (!alpacaTrader || !alpacaTrader.getOrders) return null;
+
+    const orders = await alpacaTrader.getOrders({
+      status: "all",
+      limit: 100,
+    });
+
+    if (!orders || !Array.isArray(orders)) return null;
+
+    // Look for matching order created today with same symbol/side/qty
+    const today = new Date().toISOString().split("T")[0];
+    return orders.find(
+      (o) =>
+        o.symbol === symbol &&
+        o.side === side &&
+        o.qty === quantity &&
+        o.created_at.includes(today) &&
+        o.status !== "cancelled"
+    ) || null;
+  } catch (error) {
+    console.error(`Error checking existing order: ${error.message}`);
+    return null; // If check fails, allow new order (safer than blocking)
+  }
+}
+
+/**
  * Execute portfolio optimization trades via Alpaca
  * @param {string} userId - User ID
  * @param {string} optimizationId - Optimization ID for tracking
@@ -63,6 +98,21 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     // Execute sells first
     for (const trade of sellTrades) {
       try {
+        // IDEMPOTENCY: Check if order for this symbol was already executed today
+        const existingOrder = await checkExistingOrder(trade.symbol, "sell", trade.quantity);
+        if (existingOrder) {
+          executedTrades.push({
+            symbol: trade.symbol,
+            action: trade.action,
+            quantity: trade.quantity,
+            order_id: existingOrder.id,
+            status: "submitted",
+            alpaca_status: existingOrder.status,
+            submitted_at: existingOrder.created_at,
+            note: "(deduplicated - order already exists)",
+          });
+          continue;
+        }
 
         const validateResult = await alpacaTrader.validateTrade(
           trade.symbol,
@@ -100,7 +150,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
             submitted_at: new Date().toISOString(),
           });
 
-          // Update database to reflect executed trade
+          // Update database to reflect executed trade (after order is definitely submitted)
           await recordExecutedTrade(userId, optimizationId, {
             ...trade,
             order_id: orderResult.data.id,
@@ -138,6 +188,21 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     // Execute buys
     for (const trade of buyTrades) {
       try {
+        // IDEMPOTENCY: Check if order for this symbol was already executed today
+        const existingOrder = await checkExistingOrder(trade.symbol, "buy", trade.quantity);
+        if (existingOrder) {
+          executedTrades.push({
+            symbol: trade.symbol,
+            action: trade.action,
+            quantity: trade.quantity,
+            order_id: existingOrder.id,
+            status: "submitted",
+            alpaca_status: existingOrder.status,
+            submitted_at: existingOrder.created_at,
+            note: "(deduplicated - order already exists)",
+          });
+          continue;
+        }
 
         // Check if we have enough buying power
         const estimatedCost = trade.quantity * (trade.current_price || 150); // Fallback to $150 estimate
@@ -186,7 +251,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
 
           updatedBuyingPower -= estimatedCost;
 
-          // Update database to reflect executed trade
+          // Update database to reflect executed trade (after order is definitely submitted)
           await recordExecutedTrade(userId, optimizationId, {
             ...trade,
             order_id: orderResult.data.id,

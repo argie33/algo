@@ -1967,6 +1967,27 @@ class Orchestrator:
             else:
                 issues.append("No technical data found")
 
+            # 6. Check stock scores data completeness (scores must have >80% component coverage)
+            # data_completeness field ranges 0.0-1.0 (1.0 = all 6 score components available, 0.8+ = acceptable)
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_scores WHERE updated_at = %s AND data_completeness >= 0.8",
+                (today,)
+            )
+            complete_scores = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_scores WHERE updated_at = %s",
+                (today,)
+            )
+            total_scores = cur.fetchone()[0]
+            if total_scores > 0:
+                completeness_pct = (complete_scores / total_scores) * 100
+                if completeness_pct < 50:
+                    issues.append(f"Stock scores incomplete: only {completeness_pct:.1f}% have >=80% component coverage")
+                elif completeness_pct < 80:
+                    warnings.append(f"Stock scores: {completeness_pct:.1f}% have full component coverage (ideal: >80%)")
+            else:
+                warnings.append("Stock scores not available for today (quality_metrics or value_metrics missing)")
+
             passes = len(issues) == 0
             return passes, issues, warnings
 
