@@ -56,11 +56,11 @@ class TestFrontendPages:
         """Connect to database for endpoint validation."""
         try:
             conn = psycopg2.connect(
-                host='localhost',
-                port=5432,
-                database='stocks',
-                user='stocks',
-                password=''
+                host=os.getenv('DB_HOST', 'localhost'),
+                port=int(os.getenv('DB_PORT', '5432')),
+                database=os.getenv('DB_NAME', 'stocks'),
+                user=os.getenv('DB_USER', 'postgres'),
+                password=os.getenv('DB_PASSWORD', '')
             )
             conn.autocommit = True
             yield conn
