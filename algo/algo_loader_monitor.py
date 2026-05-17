@@ -109,22 +109,29 @@ class LoaderMonitor:
 
         return missing, stale
 
-    def check_daily_load_volume(self, expected_min=4000):
-        """Check if today's load volume is healthy.
+    def check_daily_load_volume(self, expected_min=4000, check_date=None):
+        """Check if today's (or specified date's) load volume is healthy.
 
         Args:
-            expected_min: Minimum symbol count expected for today's load
+            expected_min: Minimum symbol count expected for the load
+            check_date: Date to check (default: CURRENT_DATE). Pass None to skip for historical runs.
 
         Returns:
-            (count, status) — (symbols with today's data, 'OK' or 'LOW')
+            (count, status) — (symbols with data, 'OK' or 'LOW' or 'SKIP')
         """
         try:
+            # If check_date is None and we're in a historical/backtest context, skip the check
+            if check_date is None:
+                from datetime import date
+                check_date = date.today()
+
             self.cur.execute(
                 """
                 SELECT COUNT(DISTINCT symbol)
                 FROM price_daily
-                WHERE date = CURRENT_DATE
-            """
+                WHERE date = %s
+            """,
+                (check_date,)
             )
             count = self.cur.fetchone()[0]
             status = "OK" if count >= expected_min else "LOW"

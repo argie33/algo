@@ -14,6 +14,7 @@ const express = require('express');
 const { getPool } = require('../utils/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const paginationConfig = require('../config/pagination');
 
 const router = express.Router();
 
@@ -323,8 +324,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
 router.get('/trades', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);  // Clamp to [1, 1000]
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
 
     // Parallelize data fetch and count query
     const [result, countResult] = await Promise.all([
