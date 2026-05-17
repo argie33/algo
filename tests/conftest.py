@@ -12,6 +12,7 @@ import os
 import sys
 import pytest
 import psycopg2
+import psycopg2.extras
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
@@ -26,12 +27,54 @@ env_file = Path(__file__).parent.parent / '.env.test'
 if env_file.exists():
     load_dotenv(env_file)
 
-# Test database config — use test-specific DB if available
-TEST_DB_HOST = os.getenv('TEST_DB_HOST', 'localhost')
-TEST_DB_PORT = int(os.getenv('TEST_DB_PORT', 5432))
-TEST_DB_NAME = os.getenv('TEST_DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER', 'stocks')
-TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD', '')
+# Also load .env.local as fallback for local tests
+env_local = Path(__file__).parent.parent / '.env.local'
+if env_local.exists():
+    load_dotenv(env_local)
+
+# Test database config — use test-specific DB if available, fallback to main DB
+TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', 'localhost')
+TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
+TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
+TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', 'stocks')
+TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
+
+
+@pytest.fixture(scope="session")
+def db_connection():
+    """Create a persistent database connection for the test session.
+
+    This fixture connects to the main database (stocks) for data integrity tests.
+    Used by fixtures that need cross-test database access.
+    """
+    try:
+        conn = psycopg2.connect(
+            host=TEST_DB_HOST,
+            port=TEST_DB_PORT,
+            database=TEST_DB_NAME,
+            user=TEST_DB_USER,
+            password=TEST_DB_PASSWORD,
+        )
+        # Enable autocommit to avoid transaction state issues between tests
+        conn.autocommit = True
+        yield conn
+        conn.close()
+    except psycopg2.OperationalError as e:
+        pytest.skip(f"Database not available: {e}")
+
+
+@pytest.fixture
+def cursor(db_connection):
+    """Create a database cursor for executing queries.
+
+    Each test gets a fresh cursor, but they all share the session db_connection.
+    """
+    cur = db_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    yield cur
+    try:
+        cur.close()
+    except Exception:
+        pass
 
 
 @pytest.fixture
