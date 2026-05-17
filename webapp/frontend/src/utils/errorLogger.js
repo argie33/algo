@@ -71,8 +71,6 @@ export const logApiError = (component, operation, error, context = {}) => {
 
     // Log additional context if provided (with safe stringification)
     if (context.url) console.log(`🌐 URL: ${context.url}`);
-    if (context.params)
-    if (context.response)
     if (context.status) console.log(`🚦 Status: ${context.status}`);
 
     // Log full error details safely (avoid circular references)
@@ -81,11 +79,6 @@ export const logApiError = (component, operation, error, context = {}) => {
     } catch (stringifyError) {
       console.log("Failed to stringify error:", stringifyError);
     }
-
-    console.log(`📚 Stack Trace:`, errorStack);
-  }
-
-  // Additional axios error details if available (with safe stringification)
   if (error?.isAxiosError) {
     const axiosDetails = {
       url: error.config?.url,
@@ -107,8 +100,6 @@ export const logApiError = (component, operation, error, context = {}) => {
     const simplifiedLog = {
       error: errorMessage,
       context: safeStringify(context),
-      timestamp,
-    };
       `❌ ${component} - ${operation} failed:`,
       safeStringify(simplifiedLog)
     );
@@ -168,9 +159,6 @@ export const createComponentLogger = (component) => ({
   error: (operation, error, context) =>
     logApiError(component, operation, error, context),
   queryError: (queryKey, error, context) =>
-    logQueryError(component, queryKey, error, context),
-  success: (operation, result, context) =>
-    logApiSuccess(component, operation, result, context),
   info: (message, context) =>
     import.meta.env &&
     import.meta.env.DEV &&

@@ -578,7 +578,13 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+            # Only score symbols with recent price data (within last 7 days)
+            cur.execute("""
+                SELECT DISTINCT symbol
+                FROM price_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                ORDER BY symbol
+            """)
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()

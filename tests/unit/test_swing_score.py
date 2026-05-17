@@ -18,7 +18,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Mock input data
         candidate = {
@@ -40,7 +40,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Above both moving averages = higher score
         bullish = {
@@ -66,7 +66,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Overbought RSI
         overbought = {'rsi': 75.0}
@@ -83,7 +83,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # High volume = better confirmation
         high_vol = {
@@ -107,7 +107,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Perfect Stage 2 setup
         stage_2 = {
@@ -127,7 +127,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Over-extended
         extended = {
@@ -153,7 +153,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Data with multiple positive factors
         candidate = {
@@ -178,7 +178,7 @@ class TestSwingScore:
         from algo.algo_swing_score import SwingTraderScore
 
         config = {}
-        scorer = SwingScore(config)
+        scorer = SwingTraderScore(config)
 
         # Scores should be bounded and consistent
         perfect_setup = {'score': 85}

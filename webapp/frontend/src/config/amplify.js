@@ -72,12 +72,6 @@ export function configureAmplify() {
     const config = getAmplifyConfig();
     const runtimeConfig = getRuntimeConfig();
 
-    if (!isCognitoConfigured()) {
-      console.warn(
-        "⚠️  Cognito not configured - using dummy values for development"
-      );
-    }
-
     Amplify.configure(config);
   } catch (error) {
     console.error("❌ Failed to configure Amplify:", error);

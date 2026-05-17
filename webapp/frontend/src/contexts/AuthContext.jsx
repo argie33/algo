@@ -269,12 +269,6 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured OR dev auth is forced OR in DEV mode
       // Use dev auth if Cognito isn't configured OR in DEV mode OR dev auth is forced
       if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV) {
-
-        try {
-          const user = await devAuth.getCurrentUser();
-          const session = await devAuth.fetchAuthSession();
-
-          if (user && session.tokens) {
             // Store access token for API requests
             localStorage.setItem("accessToken", session.tokens.accessToken);
 
@@ -448,6 +442,7 @@ export function AuthProvider({ children }) {
                                import.meta.env.DEV;
 
       if (shouldUseDevAuth) {
+        console.log(
           forceDevAuth
             ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
             : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
