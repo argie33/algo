@@ -126,11 +126,7 @@ def get_db_connection():
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch data')
-    try:
-        creds = _load_creds()
         # Handle both 'username' and 'user' keys (Secrets Manager vs env vars)
         username = creds.get('username') or creds.get('user')
         database = creds.get('dbname') or creds.get('database')
@@ -156,11 +152,7 @@ def get_db_connection():
     except psycopg2.DatabaseError as e:
         logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
         return error_response(500, 'internal_error', 'Database query failed')
-    except Exception as e:
-        logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
         return error_response(500, 'internal_error', 'Failed to fetch data')
-        logger.error(f"Database connection failed: {e}")
-        raise
 
 
 def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict] = None) -> Dict:
@@ -342,11 +334,7 @@ def validate_request(model_class: type, data: Dict[str, Any]) -> Tuple[bool, Any
     except psycopg2.DatabaseError as e:
         logger.error(f'Database error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
         return error_response(500, 'internal_error', 'Database query failed')
-    except Exception as e:
-        logger.error(f'Unexpected error: {e}', extra={'operation': 'load creds', 'error_type': type(e).__name__})
         return error_response(500, 'internal_error', 'Failed to fetch data')
-def _safe_limit(limit_str: Any, min_val: int = 1, max_val: int = 50000, default: int = 50000) -> int:
-    """Safely extract and clamp limit parameter to prevent DoS attacks via large result sets."""
     try:
         if limit_str is None:
             return default
@@ -428,11 +416,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': ' init  ', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': ' init  ', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch data')
-        # Do NOT close self.conn â€” it's the module-level cached connection for reuse
-
     def _sanitize_error(self, exc: Exception) -> str:
         """Sanitize exception messages to prevent information leakage."""
         error_str = str(exc)
@@ -483,11 +467,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database connection failed')
-            logger.error(f"Health check: database unavailable - {e}")
-            db_status = 'error'
             return error_response(503, 'service_unavailable', 'Database connection failed')
 
         return json_response(200, {
@@ -604,11 +584,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'health check', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Internal server error')
-    def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/algo/* endpoints."""
         # Handle PATCH /api/algo/notifications/{id}/read
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
@@ -635,11 +611,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to update notification')
-        # Handle DELETE /api/algo/notifications/{id}
-        if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             try:
                 self.cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
@@ -657,11 +629,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to delete notification')
-        # Handle POST /api/algo/patrol
-        if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
             return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
         # Handle POST /api/algo/pre-trade-impact
@@ -772,11 +740,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'fetch algo status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo status', 'error_type': type(e).__name__, 'traceback': __import__('traceback').format_exc()})
             return error_response(500, 'internal_error', 'Failed to fetch algo status')
-
-    def _get_algo_trades(self, limit: int = 200) -> Dict:
         """Get recent trades with all fields for frontend."""
         try:
             self.cur.execute("""
@@ -807,11 +771,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'fetch algo trades', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo trades', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch trades')
-
-    def _get_algo_positions(self) -> Dict:
         """Get current open positions with all tracking fields."""
         try:
             self.cur.execute("""
@@ -841,11 +801,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'fetch algo positions', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo positions', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch positions')
-
-    def _get_algo_performance(self) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
         try:
             import numpy as np
@@ -905,11 +861,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'get algo performance', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo performance', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch data')
-            # Fallback max_dd from cumulative trade returns if snapshots unavailable
-            if max_dd == 0.0 and len(pnls_pcts) > 0:
                 daily_returns = np.array(pnls_pcts) / 100.0
                 cumulative = np.cumprod(1 + daily_returns)
                 running_max = np.maximum.accumulate(cumulative)
@@ -958,11 +910,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error during performance calculation: {e}', extra={'operation': 'calculate performance', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error during performance calculation: {e}', extra={'operation': 'calculate performance', 'error_type': type(e).__name__, 'exc_info': True})
             return error_response(500, 'internal_error', 'Failed to calculate performance metrics')
-
-    def _get_circuit_breakers(self) -> Dict:
         """Get circuit breaker status from most recent orchestrator run."""
         try:
             # Most recent circuit breaker check (halt or all-clear)
@@ -1026,11 +974,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (circuit breakers): {e}', extra={'operation': 'fetch circuit breakers', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (circuit breakers): {e}', extra={'operation': 'fetch circuit breakers', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch circuit breaker status')
-
-    def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -1056,11 +1000,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (equity curve): {e}', extra={'operation': 'fetch equity curve', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (equity curve): {e}', extra={'operation': 'fetch equity curve', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
-
-    def _get_data_status(self) -> Dict:
         """Get data freshness status."""
         try:
             self.cur.execute("""
@@ -1086,11 +1026,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (data status): {e}', extra={'operation': 'fetch data status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (data status): {e}', extra={'operation': 'fetch data status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch data status')
-
-    def _get_notifications(self, params: Dict = None) -> Dict:
         """Get recent notifications with optional filtering."""
         try:
             params = params or {}
@@ -1138,11 +1074,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (notifications): {e}', extra={'operation': 'fetch notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (notifications): {e}', extra={'operation': 'fetch notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch notifications')
-
-    def _analyze_pre_trade_impact(self, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
         try:
             symbol = body.get('symbol', '').upper()
@@ -1268,11 +1200,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to analyze trade impact')
-    def _trigger_data_patrol(self) -> Dict:
-        """Trigger async data patrol ECS task."""
         try:
             ecs = boto3.client('ecs')
 
@@ -1311,8 +1239,6 @@ class APIHandler:
             else:
                 logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
                 return error_response(500, 'internal_error', 'Failed to trigger patrol task')
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
             if error_code == 'ClusterNotFoundException':
                 logger.error(f"ECS cluster not found: {error_code}")
                 return error_response(503, 'service_unavailable', 'Patrol service not configured')
@@ -1334,11 +1260,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to trigger data patrol')
-    def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
-        """Get data patrol findings with pagination."""
         try:
             # Get total count for pagination metadata
             self.cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
@@ -1364,11 +1286,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch patrol log')
-    def _get_sector_rotation(self, days: int = 180) -> Dict:
-        """Get sector rotation data: defensive vs cyclical relative strength."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
@@ -1437,11 +1355,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
-    def _get_sector_breadth(self) -> Dict:
-        """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
         try:
             self.cur.execute("""
                 WITH latest_date AS (
@@ -1491,11 +1405,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
-    def _get_swing_scores(self, limit: int = 100) -> Dict:
-        """Get swing trade candidates with scoring."""
         try:
             self.cur.execute("""
                 SELECT
@@ -1522,11 +1432,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores')
-    def _get_swing_scores_history(self, days: int = 30) -> Dict:
-        """Get swing scores historical data."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
@@ -1552,11 +1458,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
-    def _get_rejection_funnel(self) -> Dict:
-        """Get signal rejection funnel."""
         try:
             self.cur.execute("""
                 SELECT
@@ -1586,11 +1488,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
-    def _get_markets(self) -> Dict:
-        """Get current market regime data and historical exposure."""
         try:
             # Get latest market exposure data
             self.cur.execute("""
@@ -1628,11 +1526,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch markets data')
-
-    def _get_algo_evaluate(self) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
         try:
             self.cur.execute("""
@@ -1666,11 +1560,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
-    def _get_data_quality(self) -> Dict:
-        """Get data quality summary from latest data_patrol_log run."""
         try:
             self.cur.execute("""
                 SELECT
@@ -1707,11 +1597,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to check data quality')
-    def _get_exposure_policy(self) -> Dict:
-        """Get latest market exposure from market_exposure_daily."""
         try:
             self.cur.execute("""
                 SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
@@ -1743,11 +1629,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
-    def _get_sector_stage2(self) -> Dict:
-        """Get percentage of stocks in Stage 2 by sector."""
         try:
             self.cur.execute("""
                 WITH latest_date AS (
@@ -1786,11 +1668,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector stage 2')
-    def _get_algo_config(self) -> Dict:
-        """Return all algo configuration rows."""
         try:
             self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
             rows = self.cur.fetchall()
@@ -1807,11 +1685,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch algo config')
-    def _get_algo_config_key(self, key: str) -> Dict:
-        """Return a single algo config key."""
         try:
             self.cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
             row = self.cur.fetchone()
@@ -1828,11 +1702,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch config key')
-    def _get_algo_audit_log(self, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
-        """Return algo audit log entries with pagination."""
         try:
             # Get total count
             if action_type:
@@ -1871,11 +1741,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit log')
-    def _handle_financials(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/financials/{symbol}/* endpoints."""
         try:
             parts = path.split('/')
             if len(parts) < 4:
@@ -1986,8 +1852,6 @@ class APIHandler:
         except Exception as e:
             logger.error(f"financials handler error: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Financials handler error')
-
-    def _handle_earnings(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/earnings/* endpoints. Returns upcoming/past earnings dates."""
         try:
             period = params.get('period', ['upcoming'])[0] if params else 'upcoming'
@@ -2035,11 +1899,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle earnings', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle earnings', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Earnings handler error')
-    def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/signals/* endpoints."""
         if path == '/api/signals/stocks':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
@@ -2132,11 +1992,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (signals): {e}', extra={'operation': 'fetch stock signals', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (signals): {e}', extra={'operation': 'fetch stock signals', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch signals')
-
-    def _get_signals_etf(self, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
         try:
             self.cur.execute("""
@@ -2174,11 +2030,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (ETF signals): {e}', extra={'operation': 'fetch ETF signals', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (ETF signals): {e}', extra={'operation': 'fetch ETF signals', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch ETF signals')
-
-    def _handle_prices(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/prices/* endpoints."""
         match = re.match(r'/api/prices/history/([A-Z0-9.]+)', path)
         if match:
@@ -2216,11 +2068,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error (price history): {e}', extra={'operation': 'fetch price history', 'symbol': symbol, 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (price history): {e}', extra={'operation': 'fetch price history', 'symbol': symbol, 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch price history')
-
-    def _handle_stocks(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/stocks and /api/stocks/* endpoints."""
         if path == '/api/stocks/deep-value':
             limit_str = params.get('limit', [None])[0] if params else None
@@ -2263,11 +2111,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch stocks')
-        elif path.startswith('/api/stocks/'):
-            symbol = path.split('/api/stocks/')[-1]
             if not _validate_symbol(symbol):
                 return error_response(400, 'bad_request', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
             try:
@@ -2294,11 +2138,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle stocks', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch stock details')
-        else:
-            return error_response(404, 'not_found', f'No stocks handler for {path}')
 
     def _get_deep_value_stocks(self, limit: int = 600) -> Dict:
         """Get deep value stock screener data from normalized metric tables."""
@@ -2402,11 +2242,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get deep value stocks', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get deep value stocks', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch value stocks')
-    def _handle_portfolio(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/portfolio/* endpoints."""
         try:
             if path == '/api/portfolio/summary':
                 self.cur.execute("""
@@ -2460,11 +2296,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle portfolio', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle portfolio', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch portfolio allocation')
-    def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
             # Handle /api/sectors/trends-batch?sectors=X,Y,Z&days=90
             if path == '/api/sectors/trends-batch' or path.startswith('/api/sectors/trends-batch?'):
@@ -2667,11 +2499,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle sectors', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle sectors', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sectors')
-    def _handle_industries(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/industries and /api/industries/{name} - return ranking data."""
         try:
             # Extract industry name if provided: /api/industries/Software
             parts = path.split('/')
@@ -2799,11 +2627,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle industries', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle industries', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch industries')
-    def _handle_market(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/market/* endpoints."""
         try:
             if path == '/api/market/indices':
                 return self._get_markets()
@@ -2941,11 +2765,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market data')
-    def _get_fear_greed_history(self, days: int = 30) -> Dict:
-        """Get fear/greed index history."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             self.cur.execute("""
@@ -2968,11 +2788,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sentiment history')
-    def _get_market_latest(self) -> Dict:
-        """Get latest market data including indices, breadth, and sentiment."""
         try:
             self.cur.execute("""
                 SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -3022,11 +2838,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market latest')
-    def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/VIX':
                 # Return VIX data from market_health_daily
@@ -3072,11 +2884,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch economic data')
-    def _get_leading_indicators(self) -> Dict:
-        """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
         indicator_map = {
             'UNRATE': 'Unemployment Rate',
@@ -3197,11 +3005,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch leading indicators')
-    def _get_yield_curve_full(self) -> Dict:
-        """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
             # Get latest yield curve data (full curve by maturity)
             self.cur.execute("""
@@ -3300,11 +3104,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch yield curve')
-    def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/sentiment/* endpoints."""
         try:
             if path == '/api/sentiment/summary':
                 self.cur.execute("""
@@ -3384,10 +3184,6 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle sentiment', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle sentiment', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch sentiment data')
-            logger.error(f"Error in sentiment handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch sentiment data')
 
 
@@ -3426,11 +3222,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get vix data', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get vix data', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch VIX data')
-    def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/scores/* endpoints."""
         if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
@@ -3538,10 +3330,6 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get stock scores', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get stock scores', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch stock scores')
-            logger.error(f"get_stock_scores failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch stock scores')
 
 
@@ -3622,10 +3410,6 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle research', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle research', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch backtest results')
-            logger.error(f"get_backtests failed: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch backtest results')
 
 
@@ -3726,11 +3510,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle audit', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle audit', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit data')
-    def _handle_trades(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/trades and /api/trades/* endpoints."""
         try:
             if path == '/api/trades':
                 limit_str = params.get('limit', [None])[0] if params else None
@@ -3788,10 +3568,6 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle trades', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle trades', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch trades')
-            logger.error(f"Error in trades handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch trades')
 
 
@@ -3834,11 +3610,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle contact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle contact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Contact handler error')
-    def _handle_admin(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/admin/* endpoints for operational visibility."""
         try:
             if path == '/api/admin/loader-status':
                 return self._get_loader_status()
@@ -3861,11 +3633,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Admin handler error')
-    def _get_loader_status(self) -> Dict:
-        """Get status of all data loaders from data_loader_runs table."""
         try:
             self.cur.execute("""
                 SELECT
@@ -3934,11 +3702,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch loader status')
-    def _get_system_health(self) -> Dict:
-        """Get overall system health status."""
         try:
             health_data = {'status': 'healthy', 'components': {}}
 
@@ -3958,11 +3722,7 @@ class APIHandler:
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to fetch data')
-                logger.error(f"Database health check failed: {e}")
-                health_data['components']['database'] = 'error'
                 health_data['status'] = 'degraded'
 
             # Check data freshness
@@ -4007,11 +3767,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get system health')
-    def _get_database_stats(self) -> Dict:
-        """Get database statistics."""
         try:
             stats = {}
 
@@ -4057,11 +3813,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get database stats')
-    def _get_data_quality(self) -> Dict:
-        """Get data quality metrics."""
         try:
             quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
 
@@ -4108,11 +3860,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get data quality metrics')
-    def _handle_notifications(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/notifications/* endpoints."""
         try:
             if path == '/api/notifications' or path == '/api/notifications/':
                 return json_response(200, {'items': [], 'status': 'no_notifications'})
@@ -4129,11 +3877,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Notifications handler error')
-    def _handle_metrics(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/metrics/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Metrics feature requires additional setup'})
         except psycopg2.errors.UndefinedTable as e:
@@ -4148,11 +3892,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle metrics', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle metrics', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Metrics handler error')
-    def _handle_articles(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/articles/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Articles feature requires additional setup'})
         except psycopg2.errors.UndefinedTable as e:
@@ -4167,11 +3907,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle articles', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle articles', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Articles handler error')
-    def _handle_simulator(self, path: str, method: str, params: Dict) -> Dict:
-        """Handle /api/simulator/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Simulator feature requires additional setup'})
         except psycopg2.errors.UndefinedTable as e:
@@ -4186,11 +3922,7 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle simulator', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle simulator', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Simulator handler error')
-    def _handle_settings(self, path: str, method: str, params: Dict, body: Dict) -> Dict:
-        """Handle /api/settings endpoints for user preferences."""
         try:
             if method == 'GET':
                 return json_response(200, {'theme': 'light', 'notifications_enabled': True, 'auto_refresh': True})
@@ -4209,10 +3941,6 @@ class APIHandler:
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Settings handler error')
-            logger.error(f"settings handler error: {e}")
             return error_response(500, 'internal_error', 'Settings handler error')
 
 
@@ -4314,11 +4042,7 @@ def lambda_handler(event, context):
             except psycopg2.DatabaseError as e:
                 logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Authentication check failed')
-        # Route to handler
-        handler = APIHandler()
         handler.connect()
         try:
             response = handler.route(path, method, query_params, body)
@@ -4339,9 +4063,5 @@ def lambda_handler(event, context):
     except psycopg2.DatabaseError as e:
         logger.error(f'Database error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
         return error_response(500, 'internal_error', 'Database query failed')
-    except Exception as e:
-        logger.error(f'Unexpected error: {e}', extra={'operation': 'handle settings', 'error_type': type(e).__name__})
-        return error_response(500, 'internal_error', 'Internal server error')
-        logger.error(f"Lambda handler error: {e}", exc_info=True)
         return error_response(500, 'internal_error', 'Internal server error')
 

@@ -8,10 +8,12 @@ Runs SQL schema from init.sql; idempotent (uses IF NOT EXISTS).
 import json
 import logging
 import os
-from psycopg2 import OperationalError
+import psycopg2
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+DEFAULT_DB_PORT = 5432
 
 
 def lambda_handler(event, context):

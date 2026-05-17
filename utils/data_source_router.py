@@ -45,8 +45,6 @@ from algo.algo_retry import retry, ALPACA_DATA_LIMITER, YFINANCE_LIMITER
 
 logger = logging.getLogger(__name__)
 
-log = logging.getLogger(__name__)
-
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30) -> Any:
     """Call a function with timeout protection. Raises TimeoutError if it takes too long."""
