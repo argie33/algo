@@ -351,6 +351,18 @@ class BuySellDailyLoader(OptimalLoader):
         def _f(v):
             return float(v) if v is not None and not pd.isna(v) else None
 
+        # Fetch trend data for this date if available
+        date_str = date_val if isinstance(date_val, str) else str(date_val)
+        trend_info = trend_data.get(date_str, {})
+        stage_number = trend_info.get("stage_number")
+        trend_direction = trend_info.get("trend_direction")
+
+        # CRITICAL FILTER: Only generate signals for Weinstein Stage 2 (established uptrend)
+        # Stage 1 (early), Stage 3 (late), Stage 4 (distribution) are excluded
+        # This aligns with FilterPipeline expectations and focuses on optimal entry points
+        if stage_number != 2:
+            return None
+
         # Compute entry price, stop level, and buy level
         close_price = _f(row.get("close"))
         high_price = _f(row.get("high"))
@@ -375,12 +387,6 @@ class BuySellDailyLoader(OptimalLoader):
 
         # Buy level is the same as entry price (we're trading the close)
         buy_level = entry_price
-
-        # Fetch trend data for this date if available
-        date_str = date_val if isinstance(date_val, str) else str(date_val)
-        trend_info = trend_data.get(date_str, {})
-        stage_number = trend_info.get("stage_number")
-        trend_direction = trend_info.get("trend_direction")
 
         # Derive market_stage from trend_direction (real data only)
         market_stage = trend_direction if trend_direction else None

@@ -203,6 +203,21 @@ logger.info(f"Successful: {len(successful)}/{len(all_loaders)}")
 logger.info(f"Failed: {len(failed)}")
 logger.info(f"Rate Limited: {len(rate_limited)}")
 
+# Run data loader health check to populate data_loader_status table
+logger.info(f"\n{'='*70}")
+logger.info(f"DATA LOADER HEALTH CHECK")
+logger.info(f"{'='*70}\n")
+try:
+    from loaders.loader_health_tracker import LoaderHealthTracker
+    tracker = LoaderHealthTracker()
+    tracker.connect()
+    try:
+        tracker.run_health_check(verbose=True)
+    finally:
+        tracker.disconnect()
+except Exception as e:
+    logger.error(f"Health check failed: {e}")
+
 if failed:
     logger.info(f"\nFailed loaders:")
     for loader in failed[:5]:
