@@ -2304,18 +2304,46 @@ class APIHandler:
         """Get deep value stock screener data from normalized metric tables."""
         try:
             self.cur.execute("""
+                WITH price_stats AS (
+                    SELECT
+                        symbol,
+                        close AS current_price,
+                        MAX(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 252 PRECEDING AND CURRENT ROW) AS high_52w,
+                        MAX(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 756 PRECEDING AND CURRENT ROW) AS high_3y,
+                        MIN(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 252 PRECEDING AND CURRENT ROW) AS low_52w,
+                        ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                    FROM price_daily
+                ),
+                latest_prices AS (
+                    SELECT * FROM price_stats WHERE rn = 1
+                ),
+                sector_medians AS (
+                    SELECT
+                        sc.symbol,
+                        vm.pe_ratio,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY vm2.pe_ratio) OVER (PARTITION BY cp.sector) AS sector_median_pe
+                    FROM stock_scores sc
+                    JOIN value_metrics vm ON vm.symbol = sc.symbol
+                    LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
+                    LEFT JOIN value_metrics vm2 ON vm2.symbol IN (
+                        SELECT cp2.ticker FROM company_profile cp2 WHERE cp2.sector = cp.sector
+                    )
+                )
                 SELECT
                     sc.symbol,
                     ss.security_name AS company_name,
                     cp.sector, cp.industry,
-                    pd_latest.close AS current_price,
+                    lp.current_price,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     vm.ps_ratio AS price_to_sales,
                     vm.peg_ratio,
                     vm.dividend_yield,
                     vm.fcf_yield,
+                    vm.ev_to_ebitda,
                     qm.roe AS roe_pct,
+                    qm.operating_margin AS op_margin_pct,
+                    qm.gross_margin AS gross_margin_pct,
                     qm.net_margin AS net_margin_pct,
                     qm.roa AS roa_pct,
                     qm.debt_to_equity,
@@ -2324,6 +2352,27 @@ class APIHandler:
                     gm.eps_growth_1y AS eps_growth_yoy_pct,
                     gm.revenue_growth_3y AS revenue_growth_3y_pct,
                     gm.eps_growth_3y AS eps_growth_3y_pct,
+                    gm.fcf_growth_1y AS fcf_growth_yoy_pct,
+                    gm.sustainable_growth_rate AS sustainable_growth_pct,
+                    lp.high_52w,
+                    lp.high_3y,
+                    lp.low_52w,
+                    COALESCE(ROUND((1 - lp.current_price / NULLIF(lp.high_52w, 0)) * 100, 1), NULL) AS drop_from_52w_high_pct,
+                    COALESCE(ROUND((1 - lp.current_price / NULLIF(lp.high_3y, 0)) * 100, 1), NULL) AS drop_from_3y_high_pct,
+                    sm.sector_median_pe,
+                    (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pe_ratio) FROM value_metrics) AS market_median_pe,
+                    COALESCE(ROUND((1 - vm.pe_ratio / NULLIF(sm.sector_median_pe, 0)) * 100, 1), NULL) AS discount_vs_sector_pe_pct,
+                    COALESCE(ROUND((1 - vm.pe_ratio / NULLIF((SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pe_ratio) FROM value_metrics), 0)) * 100, 1), NULL) AS discount_vs_market_pe_pct,
+                    0 AS intrinsic_value_per_share,
+                    0 AS margin_of_safety_pct,
+                    0 AS op_margin_trend_pp,
+                    0 AS gross_margin_trend_pp,
+                    0 AS roe_trend_pp,
+                    CASE
+                        WHEN qm.roe >= 25 AND qm.operating_margin >= 15 THEN 'tier1'
+                        WHEN qm.roe >= 20 AND qm.operating_margin >= 12 THEN 'tier2'
+                        ELSE 'other'
+                    END AS quality_rank,
                     sc.composite_score,
                     sc.value_score,
                     sc.value_score AS generational_score
@@ -2333,11 +2382,8 @@ class APIHandler:
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
-                LEFT JOIN (
-                    SELECT DISTINCT ON (symbol) symbol, close
-                    FROM price_daily
-                    ORDER BY symbol, date DESC
-                ) pd_latest ON pd_latest.symbol = sc.symbol
+                LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
+                LEFT JOIN sector_medians sm ON sm.symbol = sc.symbol
                 WHERE sc.value_score > 0
                 ORDER BY sc.value_score DESC
                 LIMIT %s
