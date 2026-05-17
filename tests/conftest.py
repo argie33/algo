@@ -23,11 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Add root directory to path so tests can import algo modules
 
-# Load test env vars
-env_file = Path(__file__).parent.parent / '.env.test'
-if env_file.exists():
-env_local = Path(__file__).parent.parent / '.env.local'
-if env_local.exists():
+# Load test env vars (no .env.local — credentials via environment variables only)
 # Test database config — use test-specific DB if available, fallback to main DB
 TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', 'localhost')
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))

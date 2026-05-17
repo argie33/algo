@@ -33,10 +33,17 @@ class TestFilterPipeline(unittest.TestCase):
         """Test FilterPipeline initializes without errors."""
         self.assertIsNotNone(self.pipeline)
 
-    @patch('algo.algo_filter_pipeline.query')
-    def test_tier3_quality_filter_basic(self, mock_query):
+    @patch('algo.algo_filter_pipeline.get_db_connection')
+    def test_tier3_quality_filter_basic(self, mock_get_db_connection):
         """Test Tier 3 quality filter returns empty list for no candidates."""
-        mock_query.return_value = Mock(rows=[])
+        # Mock database connection
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_cursor.fetchone.return_value = None
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_get_db_connection.return_value = mock_conn
 
         # Pipeline should handle empty input gracefully
         result = self.pipeline.get_signals_for_date(date.today())

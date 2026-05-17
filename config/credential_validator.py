@@ -44,9 +44,9 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     # This is always required. No defaults allowed.
     db_password = os.getenv("DB_PASSWORD")
     if not db_password and not is_aws:
-                errors.append(
-            "❌ DB_PASSWORD not set. Set in .env.local for local development or "
-            "in AWS Secrets Manager for production."
+        errors.append(
+            "❌ DB_PASSWORD not set. Set DB_PASSWORD environment variable "
+            "for local development or in AWS Secrets Manager for production."
         )
     elif not db_password and is_aws:
         # Production: must come from Secrets Manager

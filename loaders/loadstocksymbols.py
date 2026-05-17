@@ -21,12 +21,6 @@ import psycopg2
 from psycopg2.extras import execute_values
 import requests
 
-# Load environment variables from .env.local if it exists (look in project root)
-env_path = Path(__file__).parent.parent / '.env.local'
-if env_path.exists():
-    from dotenv import load_dotenv
-    load_dotenv(env_path)
-
 # ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s] %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("loadstocksymbols")

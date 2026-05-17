@@ -195,6 +195,5 @@ def validate_at_startup(env_file: Optional[str] = None) -> Dict[str, Any]:
 # Example usage in application startup:
 #
 # if __name__ == '__main__':
-#     config = validate_at_startup('.env.local')
 #     # Now safe to use config values
 #     app.run(host=config.get('API_HOST'), port=config.get('API_PORT'))

@@ -13,9 +13,6 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env.local'))
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
-
 
 class LoaderHealthTracker:
     """Track loader execution status and data freshness."""
