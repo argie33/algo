@@ -43,7 +43,7 @@
 
 **Database Verification Results:**
 - ✅ PostgreSQL listening on localhost:5432
-- ✅ Connection successful with postgres user / bed0elAn password
+- ✅ Connection successful with postgres user / [REDACTED] password
 - ✅ Database "stocks" initialized with 125 tables
 - ✅ 10,167 stock symbols loaded
 - ✅ 1,528,512 price_daily records (1,953 symbols with data)
