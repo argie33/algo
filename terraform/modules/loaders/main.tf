@@ -696,8 +696,8 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
         { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" },
-        { name = "ALPACA_API_KEY", valueFrom = "${var.algo_secrets_arn}:ALPACA_API_KEY::" },
-        { name = "ALPACA_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:ALPACA_SECRET_KEY::" }
+        { name = "APCA_API_KEY_ID", valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::" },
+        { name = "APCA_API_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::" }
       ]
 
       environment = [
@@ -705,8 +705,8 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
-        { name = "ALPACA_PAPER_TRADING", value = "true" },
-        { name = "ORCHESTRATOR_LOG_LEVEL", value = "INFO" },
+        { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) },
+        { name = "ORCHESTRATOR_LOG_LEVEL", value = "info" },
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = "auto" },
         { name = "ORCHESTRATOR_DRY_RUN", value = "false" }
       ]

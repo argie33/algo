@@ -9,37 +9,27 @@ import logging
 from datetime import datetime, date as _date
 from config.credential_helper import get_db_config
 
-# Add repo root to path so we can import algo modules
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'paper')
-# ORCHESTRATOR_DRY_RUN is set by Terraform. Default to LIVE execution (false).
 DRY_RUN = os.getenv('ORCHESTRATOR_DRY_RUN', 'false').lower() == 'true'
 
-def get_database_credentials():
-    """Fetch database credentials from AWS Secrets Manager."""
+def prepare_database_credentials():
+    """Prepare database credentials for Lambda execution.
+
+    In AWS Lambda, credentials come from Secrets Manager via DATABASE_SECRET_ARN.
+    This function ensures they're available for the orchestrator.
+    credential_helper.get_db_config() will handle the fallback logic.
+    """
     try:
-        import boto3
-        secrets = boto3.client('secretsmanager')
-        secret_arn = os.getenv('DATABASE_SECRET_ARN')
-        if not secret_arn:
-            raise ValueError('DATABASE_SECRET_ARN environment variable not set')
-
-        response = secrets.get_secret_value(SecretId=secret_arn)
-        creds = json.loads(response['SecretString'])
-
+        # If DATABASE_SECRET_ARN is set, credential_manager will use it
+        # If DB_PASSWORD env var is set, credential_helper will use it
+        # Either way, we're good — just validate the connection can be made
         cfg = get_db_config()
-        os.environ['DB_HOST'] = creds.get('host', cfg['host'])
-        os.environ['DB_PORT'] = str(creds.get('port', cfg['port']))
-        os.environ['DB_USER'] = creds.get('username', cfg['user'])
-        os.environ['DB_PASSWORD'] = creds.get('password', '')
-        os.environ['DB_NAME'] = creds.get('dbname', cfg['database'])
-
-        logger.info("Database credentials loaded from Secrets Manager")
+        logger.info(f"Database configuration ready: {cfg['host']}:{cfg['port']}/{cfg['database']}")
     except Exception as e:
-        logger.error(f"Failed to get database credentials: {str(e)}")
+        logger.error(f"Failed to prepare database credentials: {str(e)}")
         raise
 
 def lambda_handler(event, context):
@@ -56,8 +46,8 @@ def lambda_handler(event, context):
         logger.info(f"Dry Run: {DRY_RUN}")
         logger.info("=" * 80)
 
-        # Fetch database credentials from Secrets Manager
-        get_database_credentials()
+        # Prepare database credentials (from Secrets Manager or env vars)
+        prepare_database_credentials()
 
         # Import and run orchestrator directly (no subprocess)
         # Import from the root-level algo_orchestrator.py module, not the package

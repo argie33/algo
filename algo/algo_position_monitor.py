@@ -19,11 +19,7 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 from config.credential_helper import get_db_config
 import os

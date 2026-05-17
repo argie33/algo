@@ -6,12 +6,10 @@ Default thresholds: Alert at 70%, Block entries at 80%.
 """
 
 import os
-from pathlib import Path
 from typing import Dict, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 
 class MarginMonitor:
@@ -21,9 +19,19 @@ class MarginMonitor:
         self.config = config or {}
         self.alert_threshold = float(self.config.get('margin_alert_pct', 70.0))
         self.halt_threshold = float(self.config.get('margin_halt_pct', 80.0))
-        self.alpaca_api_key = os.getenv("APCA_API_KEY_ID", "")
-        self.alpaca_secret = os.getenv("APCA_API_SECRET_KEY", "")
+        self._load_alpaca_credentials()
         self.base_url = "https://paper-api.alpaca.markets" if os.getenv("ALPACA_PAPER") == "true" else "https://api.alpaca.markets"
+
+    def _load_alpaca_credentials(self):
+        """Load Alpaca credentials from credential_manager with fallback to env vars."""
+        try:
+            from config.credential_manager import get_credential_manager
+            creds = get_credential_manager().get_alpaca_credentials()
+            self.alpaca_api_key = creds.get("key", "")
+            self.alpaca_secret = creds.get("secret", "")
+        except Exception:
+            self.alpaca_api_key = os.getenv("APCA_API_KEY_ID", "")
+            self.alpaca_secret = os.getenv("APCA_API_SECRET_KEY", "")
 
     def get_margin_usage(self) -> Dict[str, float]:
         """Fetch live account margin info from Alpaca."""

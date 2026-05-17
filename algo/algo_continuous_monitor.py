@@ -11,11 +11,7 @@ Usage:
   python3 algo_continuous_monitor.py --interval 300  # custom interval (seconds)
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 from config.credential_helper import get_db_config
 import os

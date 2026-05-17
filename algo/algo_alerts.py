@@ -10,11 +10,7 @@ Configuration via environment variables:
   ALERT_WEBHOOK_URL: optional Slack/Teams/custom webhook
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 import os
 import json
@@ -45,7 +41,7 @@ class AlertManager:
         self.smtp_host = os.getenv('ALERT_SMTP_HOST', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', 587))
         self.smtp_user = os.getenv('ALERT_SMTP_USER', '')
-        self.smtp_password = credential_manager.get_password("smtp/password", default="")
+        self.smtp_password = self._load_smtp_password()
         self.webhook_url = os.getenv('ALERT_WEBHOOK_URL', '')
 
         # SMS via Twilio
@@ -60,6 +56,16 @@ class AlertManager:
                 self.twilio_from = os.getenv('TWILIO_PHONE_NUMBER', '')
             except Exception as e:
                 logger.warning(f"Twilio init failed: {e}")
+
+    def _load_smtp_password(self) -> str:
+        """Load SMTP password from credential_manager or env var."""
+        try:
+            from config.credential_manager import get_credential_manager
+            cm = get_credential_manager()
+            return cm.get_password("smtp/password", default="")
+        except Exception:
+            pass
+        return os.getenv('ALERT_SMTP_PASSWORD', '')
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
         """Send alert when patrol finds issues.

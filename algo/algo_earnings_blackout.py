@@ -5,11 +5,7 @@ Prevents entries ±N days around earnings announcements to avoid whipsaws.
 Default: ±7 days from earnings date is a blackout period.
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 from config.credential_helper import get_db_config
 import os

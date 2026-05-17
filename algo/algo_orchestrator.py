@@ -63,11 +63,7 @@ from config.credential_helper import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 import os
 import tempfile

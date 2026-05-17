@@ -10,11 +10,7 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 from config.credential_helper import get_db_config
 import os

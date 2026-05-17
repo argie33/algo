@@ -38,14 +38,16 @@ SIGNALS IMPLEMENTED:
       Detects breakout from a pivot high (Livermore line of least resistance).
 """
 
-from config.credential_helper import get_db_config
-from config.credential_helper import get_db_password, get_db_config
+from config.credential_helper import (
+    get_db_password,
+    get_db_config,
+    DEFAULT_DB_HOST,
+    DEFAULT_DB_PORT,
+    DEFAULT_DB_USER,
+    DEFAULT_DB_NAME,
+)
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
+
 
 import os
 from utils.db_connection import get_db_connection
