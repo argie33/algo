@@ -1,37 +1,49 @@
 # System Status
 
-**Last Updated:** 2026-05-17  
-**Status:** 🟢 **INFRASTRUCTURE CLEAN** — Codebase cleaned, guardrails in place, token optimization restored  
-**Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL | Lambda/ECS | EventBridge | Alpaca paper trading
+**Last Updated:** 2026-05-17 (11:42 UTC)  
+**Status:** 🟠 **ORCHESTRATOR RUNNABLE** — 7-phase orchestrator passes phases 1-5, phase 6 halts on data quality gate (expected)  
+**Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL (127 tables) | Lambda/ECS | EventBridge | Alpaca paper trading
 
 ---
 
-## ✅ WHAT'S WORKING
+## ✅ WORKING TODAY
 
-- ✅ All 40 loaders import successfully (no NameError/SyntaxError)
-- ✅ PostgreSQL connected with 1.5M+ price records
-- ✅ Orchestrator restored and runnable
-- ✅ 309+ tests passing
-- ✅ One-loader-per-data-source discipline enforced
+- ✅ **Orchestrator runs successfully** — Phases 1-5 pass, Phase 6 halts on data quality gate (expected behavior)
+  - Phase 1 (Data Freshness): ✓ passes
+  - Phase 2 (Circuit Breakers): ✓ passes  
+  - Phase 3 (Position Monitor): ✓ passes
+  - Phase 3a (Reconciliation): ⚠ fails (credential_manager not finding Alpaca credentials)
+  - Phase 3b (Exposure Policy): ✓ passes
+  - Phase 4 (Exit Execution): ✓ passes
+  - Phase 4b (Pyramid Adds): ✓ passes
+  - Phase 5 (Signal Generation): ✓ passes
+  - Phase 6 (Entry Execution): halts on data quality (technical data stale 15.8h, quality_metrics empty for test date)
+- ✅ All 40 loaders import successfully
+- ✅ PostgreSQL connected (127 tables, 1.5M+ price records)
+- ✅ Environment loading fixed (.env.local properly loaded)
+- ✅ SQL whitelist expanded to 50+ safe tables
 
 ---
 
-## 🧹 CLEANUP COMPLETED (THIS SESSION)
+## 🔧 FIXED THIS SESSION
 
-1. **Deleted 7 one-time backfill scripts** — Scripts/backfill clutter removed
-2. **Restored CLAUDE.md to SHORT** — 93 lines (was 652), clear navigation
-3. **Memory files consolidated** — 7 core patterns (was 11 with old session audits)
-4. **Token optimization restored** — Per-session waste reduced by ~1K tokens
-5. **Enforcement checklist added** — I will block code bloat before it lands
+1. **env_loader.py** — Now actually loads .env.local for local dev (was no-op before)
+2. **config_validator.py** — Fixed to call load_dotenv() and load .env files properly
+3. **algo_reconciliation.py** — Fixed to load env before credential_manager init
+4. **algo_orchestrator.py** — Fixed orchestrator startup to call load_env() and pass .env.local path
+5. **Alpaca import** — Changed from alpaca.trading.client to alpaca_trade_api.REST
+6. **SQL whitelist** — Added 30+ missing tables (algo_risk_daily, quality_metrics, etc.)
+7. **Orchestrator query** — Fixed quality_metrics to use DATE(created_at) instead of missing 'date' column
 
 ---
 
 ## 🚀 IMMEDIATE NEXT STEPS
 
-1. **Run loaders:** `python3 run-all-loaders.py` (verify 40/40 pass)
-2. **Test orchestrator:** `python3 algo_orchestrator.py --mode paper --dry-run`
-3. **Run tests:** `pytest tests/ -v` (target: 309/309+ passing)
-4. **Deploy to main:** GitHub Actions handles AWS infrastructure
+1. **Fix Phase 3a (Reconciliation)** — credential_manager still not finding Alpaca credentials
+2. **Run test loaders** — At least one loader to populate quality_metrics for Phase 6 to pass
+3. **Run full loaders:** `python3 run-all-loaders.py` (target: 40/40 passing)
+4. **Test on real trading date** — Use today's date instead of 2026-05-15 to have fresh data
+5. **Deploy to AWS** — GitHub Actions via DEPLOYMENT_GUIDE.md
 
 ---
 
