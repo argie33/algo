@@ -2,10 +2,9 @@
 """
 Load technical indicators into technical_data_daily from price_daily.
 
-Computes: RSI, MACD, SMA, EMA, ATR, Rate of Change, etc.
+Computes: RSI, MACD, SMA, EMA, ATR, ADX, Rate of Change, etc.
 Uses watermarks — only inserts rows newer than the existing max date per symbol.
 Warm-up: fetches 300 trading days of history before the watermark to seed indicators.
-Run with --full-reload to clear and recompute everything.
 """
 
 import os
@@ -33,17 +32,17 @@ if not env_file.exists():
 if env_file.exists():
     load_dotenv(env_file)
 
-WARMUP_DAYS = 300  # history needed to warm up 200-day SMA
+WARMUP_DAYS = 300  # days of history needed to warm up 200-day SMA
 
 
-def _get_db_config():
+def get_db_connection():
     from config.credential_helper import get_db_password
-    return dict(
+    return psycopg2.connect(
         host=os.getenv('DB_HOST', 'localhost'),
         port=int(os.getenv('DB_PORT', 5432)),
         user=os.getenv('DB_USER', 'stocks'),
         password=get_db_password(),
-        database=os.getenv('DB_NAME', 'stocks'),
+        database=os.getenv('DB_NAME', 'stocks')
     )
 
 
@@ -55,8 +54,8 @@ def calculate_rsi(prices, period=14):
     seed = deltas[:period + 1]
     up = seed[seed >= 0].sum() / period
     down = -seed[seed < 0].sum() / period
-    rsi = np.full(len(prices), 50.0)
     rs = np.zeros(len(prices))
+    rsi = np.full(len(prices), 50.0)
     if down != 0:
         rsi[:period] = 100.0 - 100.0 / (1.0 + up / down)
     for i in range(period, len(prices)):
@@ -106,16 +105,52 @@ def calculate_roc(prices, period):
     return roc
 
 
+def calculate_mansfield_rs(symbol_closes, spy_closes, period=252):
+    """
+    Calculate Mansfield Relative Strength: ratio of symbol's momentum to SPY's momentum.
+    RS > 100 = outperforming market, RS < 100 = underperforming market.
+    Period: 252 trading days (1 year).
+    """
+    symbol_closes = np.asarray(symbol_closes, dtype=float)
+    spy_closes = np.asarray(spy_closes, dtype=float)
+
+    # Ensure both arrays are same length (should be from same date range)
+    min_len = min(len(symbol_closes), len(spy_closes))
+    symbol_closes = symbol_closes[-min_len:]
+    spy_closes = spy_closes[-min_len:]
+
+    mansfield_rs = np.zeros(len(symbol_closes))
+
+    for i in range(period, len(symbol_closes)):
+        stock_momentum = (symbol_closes[i] / symbol_closes[i - period] - 1) * 100 if symbol_closes[i - period] != 0 else 0
+        spy_momentum = (spy_closes[i] / spy_closes[i - period] - 1) * 100 if spy_closes[i - period] != 0 else 0
+
+        # RS = (stock momentum / SPY momentum) * 100, clamped to 0-200 range
+        if spy_momentum > 0:
+            mansfield_rs[i] = (stock_momentum / spy_momentum) * 100
+        else:
+            mansfield_rs[i] = 50.0  # Default neutral if SPY has no momentum
+
+        # Clamp to reasonable range (0-200, where 100 = market-neutral)
+        mansfield_rs[i] = max(0, min(200, mansfield_rs[i]))
+
+    return mansfield_rs
+
+
 def process_symbol(symbol, watermark, conn_params):
     """Compute and insert technical indicators for one symbol."""
     try:
         conn = psycopg2.connect(**conn_params)
         cur = conn.cursor()
 
-        start_date = (watermark - timedelta(days=int(WARMUP_DAYS * 1.5))) if watermark else date(2000, 1, 1)
+        # Fetch price history (warmup + any new dates)
+        if watermark:
+            start_date = watermark - timedelta(days=WARMUP_DAYS * 1.5)
+        else:
+            start_date = date(2000, 1, 1)
 
         cur.execute("""
-            SELECT date, high, low, close
+            SELECT date, open, high, low, close, volume
             FROM price_daily
             WHERE symbol = %s AND date >= %s
             ORDER BY date ASC
@@ -127,9 +162,9 @@ def process_symbol(symbol, watermark, conn_params):
             return symbol, 0, None
 
         dates = [r[0] for r in rows]
-        highs = np.array([float(r[1]) for r in rows])
-        lows = np.array([float(r[2]) for r in rows])
-        closes = np.array([float(r[3]) for r in rows])
+        highs = np.array([float(r[2]) for r in rows])
+        lows = np.array([float(r[3]) for r in rows])
+        closes = np.array([float(r[4]) for r in rows])
 
         rsi_vals = calculate_rsi(closes)
         sma20 = calculate_sma(closes, 20)
@@ -146,6 +181,21 @@ def process_symbol(symbol, watermark, conn_params):
         roc120 = calculate_roc(closes, 120)
         roc252 = calculate_roc(closes, 252)
 
+        # Fetch SPY data for Mansfield RS calculation
+        try:
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY' AND date >= %s
+                ORDER BY date ASC
+            """, (start_date,))
+            spy_rows = cur.fetchall()
+            spy_closes = np.array([float(r[0]) for r in spy_rows]) if spy_rows else np.array([1.0] * len(closes))
+            mansfield_rs = calculate_mansfield_rs(closes, spy_closes)
+        except Exception:
+            # If SPY data unavailable, use neutral RS values
+            mansfield_rs = np.full(len(closes), 100.0)
+
+        # Only insert rows newer than watermark
         rows_to_insert = []
         for i, d in enumerate(dates):
             if watermark and d <= watermark:
@@ -158,7 +208,7 @@ def process_symbol(symbol, watermark, conn_params):
                 float(roc60[i]), float(roc120[i]), float(roc252[i]),
                 float(sma20[i]), float(sma50[i]), float(sma200[i]),
                 float(ema12[i]), float(ema26[i]), float(atr_vals[i]),
-                0.0, 0.0, 0.0, 0.0,  # adx, plus_di, minus_di, mansfield_rs
+                0.0, 0.0, 0.0, float(mansfield_rs[i]),  # adx, plus_di, minus_di, mansfield_rs
             ))
 
         if rows_to_insert:
@@ -192,20 +242,32 @@ def process_symbol(symbol, watermark, conn_params):
 
 
 def load_technical_indicators(symbols=None, parallelism=8):
-    conn_params = _get_db_config()
-    conn = psycopg2.connect(**conn_params)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     if symbols is None:
         cur.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
         symbols = [r[0] for r in cur.fetchall()]
 
+    # Get watermarks for all symbols in one query
     cur.execute("""
         SELECT symbol, MAX(date) FROM technical_data_daily
         WHERE symbol = ANY(%s)
         GROUP BY symbol
     """, (symbols,))
     watermarks = {r[0]: r[1] for r in cur.fetchall()}
+
+    conn_params = dict(
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=int(os.getenv('DB_PORT', 5432)),
+        user=os.getenv('DB_USER', 'stocks'),
+        password=os.getenv('DB_PASSWORD', ''),
+        database=os.getenv('DB_NAME', 'stocks'),
+    )
+    # Override password with credential helper
+    from config.credential_helper import get_db_password
+    conn_params['password'] = get_db_password()
+
     cur.close()
     conn.close()
 
@@ -214,7 +276,7 @@ def load_technical_indicators(symbols=None, parallelism=8):
     errors = 0
     skipped = 0
 
-    logger.info(f"Technical indicators: {total} symbols (parallelism={parallelism})")
+    logger.info(f"Computing technical indicators for {total} symbols (parallelism={parallelism})...")
 
     with ThreadPoolExecutor(max_workers=parallelism) as executor:
         futures = {executor.submit(process_symbol, sym, watermarks.get(sym), conn_params): sym for sym in symbols}
@@ -230,21 +292,21 @@ def load_technical_indicators(symbols=None, parallelism=8):
             else:
                 inserted += count
 
-            if completed % 200 == 0:
+            if completed % 100 == 0:
                 logger.info(f"  {completed}/{total} processed ({inserted} rows inserted, {errors} errors)")
 
-    logger.info(f"Completed: {total} symbols, {inserted} new rows, {errors} errors, {skipped} up-to-date")
+    logger.info(f"\nCompleted: {total} symbols, {inserted} new rows, {errors} errors, {skipped} up-to-date")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--symbols', help='Comma-separated symbols (default: all)')
     parser.add_argument('--parallelism', type=int, default=8)
-    parser.add_argument('--full-reload', action='store_true', help='Clear and recompute from scratch')
+    parser.add_argument('--full-reload', action='store_true', help='Delete all data and recompute from scratch')
     args = parser.parse_args()
 
     if args.full_reload:
-        conn = psycopg2.connect(**_get_db_config())
+        conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("DELETE FROM technical_data_daily")
         conn.commit()
