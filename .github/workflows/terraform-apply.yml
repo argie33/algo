@@ -193,7 +193,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Delete all non-default VPCs (force cleanup for VPC limit)
@@ -466,7 +466,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Check last successful state
