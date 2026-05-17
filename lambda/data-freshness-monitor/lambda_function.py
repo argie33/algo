@@ -11,15 +11,12 @@ Triggered by EventBridge on schedule (every 6 hours or on-demand).
 
 import json
 import boto3
-from utils.db_connection import get_db_connection
 import os
 from datetime import datetime
 import logging
+import psycopg2
 
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # AWS clients
 cloudwatch = boto3.client('cloudwatch')

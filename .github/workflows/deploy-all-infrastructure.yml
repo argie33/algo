@@ -111,6 +111,29 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
+      - name: Build Data Freshness Monitor Lambda
+        run: |
+          # Build data-freshness-monitor Lambda ZIP before Terraform tries to deploy it.
+          # Terraform reads the ZIP file during plan, so it MUST exist before terraform plan.
+          LAMBDA_DIR=$GITHUB_WORKSPACE/lambda/data-freshness-monitor
+          PKG_DIR=/tmp/data-freshness-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy Lambda function code
+          cp $LAMBDA_DIR/lambda_function.py $PKG_DIR/
+
+          # Install dependencies
+          python3.11 -m pip install -r $LAMBDA_DIR/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP file
+          cd $PKG_DIR
+          zip -r $LAMBDA_DIR/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
+
+          echo "✅ data-freshness-monitor Lambda ZIP: $(du -sh $LAMBDA_DIR/lambda_function.zip | cut -f1)"
+          unzip -l $LAMBDA_DIR/lambda_function.zip | head -20
+
       - name: Terraform Init
         run: |
           terraform init \
@@ -211,18 +234,34 @@ jobs:
             aws apigatewayv2 delete-route \
               --api-id $API_ID \
               --route-id $ROUTE_ID \
-              --region $AWS_REGION
-            echo "✅ Route deleted from AWS"
+              --region $AWS_REGION || echo "Warning: Route delete had an error (may already be deleted)"
+
+            # Wait for deletion to propagate
+            sleep 2
+
+            # Verify deletion
+            ROUTE_ID_CHECK=$(aws apigatewayv2 get-routes \
+              --api-id $API_ID \
+              --query 'Items[?RouteKey==`$default`].RouteId' \
+              --output text \
+              --region $AWS_REGION 2>/dev/null || echo "")
+
+            if [ -z "$ROUTE_ID_CHECK" ] || [ "$ROUTE_ID_CHECK" = "None" ]; then
+              echo "✅ Route deleted from AWS (verified)"
+            else
+              echo "⚠️  Route still exists in AWS after deletion attempt"
+            fi
           else
             echo "Route not found in AWS (already deleted or never created)"
           fi
 
-          if terraform state list | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
-            echo "Removing route from Terraform state (will be recreated with correct auth)"
-            terraform state rm 'module.services.aws_apigatewayv2_route.api_default'
+          # Remove from Terraform state so Terraform will recreate it
+          if terraform state list 2>/dev/null | grep -qF "module.services.aws_apigatewayv2_route.api_default"; then
+            echo "Removing route from Terraform state..."
+            terraform state rm 'module.services.aws_apigatewayv2_route.api_default' 2>/dev/null || true
             echo "✅ Route removed from state"
           else
-            echo "Route not in state"
+            echo "Route not in Terraform state (OK — will be created fresh)"
           fi
 
           echo "Terraform will now create the route with authorization_type = NONE"
