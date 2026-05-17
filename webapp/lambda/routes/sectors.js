@@ -226,10 +226,10 @@ router.get("/:sector/trend", async (req, res) => {
       dailyStrengthScore: 0,  // Placeholder; can compute from price momentum if needed
     }));
 
-    sendSuccess(res, { sector, trendData }, 200);
+    return sendSuccess(res, { sector, trendData }, 200);
   } catch (error) {
     console.error("Error fetching sector trend:", error);
-    sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+    return sendError(res, "Failed to fetch sector trend: " + error.message, 500);
   }
 });
 
