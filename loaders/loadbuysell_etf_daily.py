@@ -27,6 +27,7 @@ except ImportError:
 import argparse
 from config.credential_helper import get_db_password, get_db_config
 import logging
+import psycopg2
 from utils.logging_setup import get_logger
 logger = get_logger(__name__)
 import os

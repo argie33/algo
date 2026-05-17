@@ -18,6 +18,7 @@ except ImportError:
 
 import argparse
 import logging
+from utils.logging_setup import get_logger
 logger = get_logger(__name__)
 import os
 import sys
