@@ -1717,7 +1717,6 @@ CREATE INDEX IF NOT EXISTS idx_technical_daily_date ON technical_data_daily(date
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbol);
-CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON analyst_sentiment_analysis(symbol);
 
 -- Algo system indexes
 CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);
@@ -1923,16 +1922,8 @@ CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol)
 CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_symbol ON safeguard_audit_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_timestamp ON safeguard_audit_log(timestamp);
 
--- Indexes for signal tables
-CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_symbol_date ON mean_reversion_signals_daily(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_etf_symbol_date ON mean_reversion_signals_daily_etf(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_range_signals_daily_symbol_date ON range_signals_daily(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_range_signals_daily_etf_symbol_date ON range_signals_daily_etf(symbol, date);
-
 -- Indexes for sentiment tables
 CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
-CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);
-CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol_date ON sentiment_social(symbol, date DESC);
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON sentiment_social(date DESC);
 

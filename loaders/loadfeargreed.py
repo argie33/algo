@@ -192,7 +192,7 @@ async def get_fear_greed_data():
             }
 
             # Fetch the data
-            logging.info(f"📡 Fetching JSON from CNN API...")
+            logging.info(f"Fetching JSON from CNN API...")
             response = session.get(FEAR_GREED_URL, headers=headers, timeout=30)
             response.raise_for_status()
 
@@ -201,7 +201,7 @@ async def get_fear_greed_data():
             # Extract the historical data array
             data_array = data_json['fear_and_greed_historical']['data']
 
-            logging.info(f"✅ Successfully fetched {len(data_array)} Fear & Greed records")
+            logging.info(f"Successfully fetched {len(data_array)} Fear & Greed records")
             session.close()
 
             return data_array
@@ -214,7 +214,7 @@ async def get_fear_greed_data():
 
             if attempt < MAX_RETRIES:
                 retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
-                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_RETRIES})")
+                logging.info(f"Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_RETRIES})")
                 await asyncio.sleep(retry_delay)  # Use async sleep
             else:
                 logging.error(f"❌ CRITICAL: Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts")

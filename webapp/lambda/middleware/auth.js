@@ -1,5 +1,6 @@
 const { validateJwtToken } = require("../utils/apiKeyService");
 const logger = require("../utils/logger");
+const { sendError } = require("../utils/apiResponse");
 
 /**
  * Authentication Middleware - Clean implementation with three explicit paths
@@ -48,39 +49,23 @@ const handleTestAuth = (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication required',
-      code: 'MISSING_TOKEN',
-    });
+    return sendError(res, 'Authentication required', 401, { code: 'MISSING_TOKEN' });
   }
 
   if (!authHeader.startsWith('Bearer ') && !authHeader.startsWith('bearer ')) {
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid token format',
-      code: 'INVALID_TOKEN_FORMAT',
-    });
+    return sendError(res, 'Invalid token format', 401, { code: 'INVALID_TOKEN_FORMAT' });
   }
 
   const tokenParts = authHeader.split(' ').filter((part) => part.length > 0);
   const token = (tokenParts[1] || '').trim();
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication required',
-      code: 'MISSING_TOKEN',
-    });
+    return sendError(res, 'Authentication required', 401, { code: 'MISSING_TOKEN' });
   }
 
   // Reject dev-bypass-token in test environment
   if (token === 'dev-bypass-token') {
-    return res.status(403).json({
-      success: false,
-      error: 'Invalid token',
-      code: 'INVALID_TOKEN',
-    });
+    return sendError(res, 'Invalid token', 403, { code: 'INVALID_TOKEN' });
   }
 
   // Allow test tokens
