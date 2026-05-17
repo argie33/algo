@@ -69,6 +69,12 @@ variable "sns_alert_topic_arn" {
   }
 }
 
+variable "sns_alerts_enabled" {
+  description = "Enable SNS alerts for pipeline failures"
+  type        = bool
+  default     = false
+}
+
 variable "common_tags" {
   description = "Common resource tags"
   type        = map(string)

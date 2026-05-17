@@ -233,7 +233,7 @@ resource "aws_cloudwatch_dashboard" "main" {
 
 # Composite alarm: API is unhealthy (5xx errors OR Lambda errors exceed thresholds)
 resource "aws_cloudwatch_composite_alarm" "api_unhealthy" {
-  count             = var.sns_alerts_topic_arn != "" ? 1 : 0
+  count             = var.sns_alerts_enabled ? 1 : 0
   alarm_name        = "${var.project_name}-api-unhealthy-${var.environment}"
   alarm_description = "Composite alarm: API Gateway 5xx errors OR Lambda errors detected"
   actions_enabled   = true

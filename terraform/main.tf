@@ -252,6 +252,7 @@ module "pipeline" {
   algo_orchestrator_task_definition_arn = module.loaders.algo_orchestrator_task_definition_arn
   algo_orchestrator_container_name      = "${var.project_name}-algo-orchestrator"
   sns_alert_topic_arn                   = coalesce(module.services.sns_alerts_topic_arn, "")
+  sns_alerts_enabled                    = var.sns_alerts_enabled
   common_tags                           = local.common_tags
 }
 

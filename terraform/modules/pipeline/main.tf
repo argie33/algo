@@ -590,7 +590,7 @@ resource "aws_cloudwatch_event_target" "algo_orchestrator" {
 # ============================================================
 
 resource "aws_cloudwatch_metric_alarm" "pipeline_failed" {
-  count               = var.sns_alert_topic_arn != "" ? 1 : 0
+  count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-eod-pipeline-failed-${var.environment}"
   alarm_description   = "EOD data pipeline execution failed — orchestrator may not have run"
   namespace           = "AWS/States"
