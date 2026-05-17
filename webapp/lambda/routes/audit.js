@@ -7,6 +7,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // Protect all audit endpoints with auth + admin role
@@ -15,8 +16,7 @@ router.use(authenticateToken, requireAdmin);
 // GET /api/audit/trades - Trading audit log
 router.get("/trades", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
+    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'audit');
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let sql = "SELECT * FROM algo_audit_log";
