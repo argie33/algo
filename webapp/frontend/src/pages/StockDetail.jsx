@@ -860,16 +860,26 @@ function num1(v) {
 
 // ─── Analysts tab ──────────────────────────────────────────────────────────
 function AnalystsTab({ data, last }) {
-  if (!data || (data.analyst_count ?? 0) === 0) {
+  // Handle both old flat structure and new nested {metrics, momentum, recentUpgrades} structure
+  const metrics = data?.metrics || data;
+  const momentum = data?.momentum || {};
+  const recentUpgrades = data?.recentUpgrades || [];
+
+  const totalAnalysts = metrics?.totalAnalysts ?? metrics?.analyst_count ?? 0;
+  if (!data || totalAnalysts === 0) {
     return <Empty wrap title="No analyst coverage data" desc="No analyst sentiment found for this symbol." />;
   }
-  const target = data.target_price != null ? Number(data.target_price) : null;
-  const upside = data.upside_downside_percent != null ? Number(data.upside_downside_percent) : null;
+
+  const target = metrics?.avgPriceTarget ?? data?.target_price;
+  const upside = metrics?.priceTargetVsCurrent ?? data?.upside_downside_percent;
+  const bullish = metrics?.bullish ?? data?.bullish_count ?? 0;
+  const neutral = metrics?.neutral ?? data?.neutral_count ?? 0;
+  const bearish = metrics?.bearish ?? data?.bearish_count ?? 0;
 
   const dist = [
-    { name: 'Bullish', value: Number(data.bullish_count || 0), color: 'var(--success)' },
-    { name: 'Neutral', value: Number(data.neutral_count || 0), color: 'var(--amber)' },
-    { name: 'Bearish', value: Number(data.bearish_count || 0), color: 'var(--danger)' },
+    { name: 'Bullish', value: Number(bullish || 0), color: 'var(--success)' },
+    { name: 'Neutral', value: Number(neutral || 0), color: 'var(--amber)' },
+    { name: 'Bearish', value: Number(bearish || 0), color: 'var(--danger)' },
   ];
 
   return (
@@ -878,14 +888,14 @@ function AnalystsTab({ data, last }) {
         <div className="card-head">
           <div>
             <div className="card-title">Analyst Coverage</div>
-            <div className="card-sub">Consensus · {data.analyst_count} analysts</div>
+            <div className="card-sub">Consensus · {totalAnalysts} analysts</div>
           </div>
           <div className="card-actions">
             <span className={`badge badge-lg ${
-              data.consensus === 'buy' ? 'badge-success'
-              : data.consensus === 'sell' ? 'badge-danger'
+              (metrics?.consensus || data?.consensus) === 'buy' ? 'badge-success'
+              : (metrics?.consensus || data?.consensus) === 'sell' ? 'badge-danger'
               : 'badge-amber'
-            }`}>{(data.consensus || 'hold').toUpperCase()}</span>
+            }`}>{((metrics?.consensus || data?.consensus) || 'hold').toUpperCase()}</span>
           </div>
         </div>
         <div className="card-body">
@@ -902,13 +912,13 @@ function AnalystsTab({ data, last }) {
           </div>
           <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
             <Stile label="Bullish" value={
-              <span className="mono tnum up">{data.bullish_count} ({num(data.bullish_percent, 0)}%)</span>
+              <span className="mono tnum up">{bullish} ({num(metrics?.bullishPercent ?? data?.bullish_percent ?? 0, 0)}%)</span>
             } />
             <Stile label="Neutral" value={
-              <span className="mono tnum">{data.neutral_count} ({num(data.neutral_percent, 0)}%)</span>
+              <span className="mono tnum">{neutral} ({num(metrics?.neutralPercent ?? data?.neutral_percent ?? 0, 0)}%)</span>
             } />
             <Stile label="Bearish" value={
-              <span className="mono tnum down">{data.bearish_count} ({num(data.bearish_percent, 0)}%)</span>
+              <span className="mono tnum down">{bearish} ({num(metrics?.bearishPercent ?? data?.bearish_percent ?? 0, 0)}%)</span>
             } />
           </div>
         </div>
@@ -923,12 +933,12 @@ function AnalystsTab({ data, last }) {
         </div>
         <div className="card-body">
           <div className="grid grid-2">
-            <Stile label="Current" value={fmtMoney(last ?? data.current_price)} />
+            <Stile label="Current" value={fmtMoney(last)} />
             <Stile label="Avg Target" value={fmtMoney(target)} />
             <Stile label="Upside / Downside" value={
               <span className={`mono tnum ${sigClass(upside)}`}>{upside != null ? `${upside >= 0 ? '+' : ''}${num(upside, 1)}%` : '—'}</span>
             } sub="vs current price" />
-            <Stile label="Coverage" value={`${data.analyst_count} analysts`} sub={data.date ? `as of ${String(data.date).slice(0,10)}` : ''} />
+            <Stile label="Coverage" value={`${totalAnalysts} analysts`} sub={data?.date ? `as of ${String(data.date).slice(0,10)}` : ''} />
           </div>
 
           {target && last && (
