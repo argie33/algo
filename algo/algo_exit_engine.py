@@ -540,10 +540,11 @@ class ExitEngine:
                 if len(rows) < 21:
                     return None
                 closes = [float(r[0]) for r in rows]
-                # 21-EMA
+                # 21-EMA (reverse list to compute oldest→newest, not backwards)
+                closes_asc = list(reversed(closes))
                 k = 2.0 / 22.0
-                ema = closes[0]
-                for c in closes[1:]:
+                ema = closes_asc[0]
+                for c in closes_asc[1:]:
                     ema = c * k + ema * (1 - k)
                 return round(ema * 0.99, 2)
             else:

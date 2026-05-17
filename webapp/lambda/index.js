@@ -38,6 +38,7 @@ const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const { marketCache } = require("./utils/market-cache");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const { cacheMiddleware } = require("./middleware/cacheMiddleware");
+const { sendSuccess, sendError } = require("./utils/apiResponse");
 const auditRoutes = require("./routes/audit");
 const contactRoutes = require("./routes/contact");
 const commoditiesRoutes = require("./routes/commodities");
@@ -88,11 +89,7 @@ app.use((req, res, next) => {
     req.socket.on('timeout', () => {
       console.error(`⏱️ Request timeout: ${req.method} ${req.path}`);
       if (!res.headersSent) {
-        res.status(503).json({
-          success: false,
-          error: 'Request timeout - server busy',
-          timestamp: new Date().toISOString()
-        });
+        sendError(res, 'Request timeout - server busy', 503);
       }
       req.socket.destroy();
     });
@@ -312,11 +309,7 @@ const csrf = (req, res, next) => {
   const sessionToken = req.session?.csrfToken;
 
   if (!token || token !== sessionToken) {
-    return res.status(403).json({
-      success: false,
-      error: 'CSRF token invalid or missing',
-      code: 'CSRF_VALIDATION_FAILED'
-    });
+    return sendError(res, 'CSRF token invalid or missing', 403, { code: 'CSRF_VALIDATION_FAILED' });
   }
 
   next();
@@ -345,11 +338,7 @@ app.use(responseNormalizer);
 // JSON parsing error handler
 app.use((error, req, res, next) => {
   if (error instanceof SyntaxError && error.status === 400 && "body" in error) {
-    return res.status(400).json({
-      success: false,
-      error: "Bad Request",
-      message: "Invalid JSON format",
-    });
+    return sendError(res, "Invalid JSON format", 400);
   }
   next(error);
 });
@@ -472,19 +461,16 @@ app.use(async (req, res, next) => {
 
 
     // For other endpoints, return service unavailable instead of forbidden
-    res.status(503).json({
-      success: false,
-      error: "Service temporarily unavailable - database connection failed",
-      message: "The database is currently unavailable. Please try again later.",
-      timestamp: new Date().toISOString(),
-      details: !isProduction ? error.message : undefined,
-      debug: !isProduction
-        ? {
-            config: error.config,
-            env: error.env,
-          }
-        : undefined,
-    });
+    const errorDetails = {
+      message: "The database is currently unavailable. Please try again later."
+    };
+    if (!isProduction) {
+      errorDetails.debug = {
+        config: error.config,
+        env: error.env,
+      };
+    }
+    return sendError(res, "Service temporarily unavailable - database connection failed", 503, errorDetails);
   }
 });
 
@@ -492,17 +478,13 @@ app.use(async (req, res, next) => {
 
 // TEST endpoint to verify API routing works
 app.get("/api/test", (req, res) => {
-  res.json({ message: "API test endpoint works!", success: true });
+  return sendSuccess(res, { message: "API test endpoint works!" });
 });
 
 // DEBUG endpoint - shows current error context (dev mode only)
 app.get("/api/debug/test-error", (req, res) => {
   if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({
-      success: false,
-      error: "Debug endpoints only available in development mode",
-      timestamp: new Date().toISOString()
-    });
+    return sendError(res, "Debug endpoints only available in development mode", 403);
   }
 
   try {
@@ -517,42 +499,28 @@ app.get("/api/debug/test-error", (req, res) => {
 
     // Validate table name against whitelist
     if (!allowedTables.includes(tableName.toLowerCase())) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid table name. Allowed tables: ${allowedTables.join(', ')}`,
-        timestamp: new Date().toISOString()
-      });
+      return sendError(res, `Invalid table name. Allowed tables: ${allowedTables.join(', ')}`, 400);
     }
 
     // Use parameterized query with validated table name
     const testQuery = `SELECT COUNT(*) FROM ${tableName}`;
 
     query(testQuery).then(() => {
-      res.json({
-        success: true,
-        message: `Table "${tableName}" is accessible`,
-        timestamp: new Date().toISOString()
-      });
+      return sendSuccess(res, { message: `Table "${tableName}" is accessible` });
     }).catch((err) => {
-      res.status(500).json({
-        success: false,
-        error: err.message,
+      const details = {
         code: err.code,
         detail: err.detail,
         hint: err.hint,
         table: tableName,
-        timestamp: new Date().toISOString(),
         recommendation: err.code === '42P01'
           ? `Table "${tableName}" does not exist - needs to be created`
           : 'Check database logs for details'
-      });
+      };
+      return sendError(res, err.message, 500, details);
     });
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      timestamp: new Date().toISOString()
-    });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -602,7 +570,7 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
 
     // Validate dataType
     if (!['stocks', 'etf'].includes(dataType)) {
-      return res.status(400).json({ success: false, error: "Invalid dataType. Must be 'stocks' or 'etf'" });
+      return sendError(res, "Invalid dataType. Must be 'stocks' or 'etf'", 400);
     }
 
     // Map type and timeframe to table (with support for both stocks and ETFs)
@@ -734,8 +702,7 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
     } catch (err) {
       // If query fails with timeout, return graceful response instead of crashing
       console.warn(`Query failed: ${err.message}`);
-      return res.json({
-        success: true,
+      return sendSuccess(res, {
         items: [],
         pagination: {
           limit: safeLimit,
@@ -746,7 +713,6 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
           hasNext: false,
           hasPrev: false
         },
-        timestamp: new Date().toISOString(),
         note: 'Query timeout on large dataset. Try with more specific filters (symbol, date range, or signal type).'
       });
     }
@@ -818,27 +784,23 @@ app.use("/api/settings", require("./routes/settings"));
 
 // API info endpoint
 app.get("/api", (req, res) => {
-  res.json({
-    data: {
-      name: "Financial Dashboard API",
-      version: "2.0.0",
-      status: "operational",
-      endpoints: {
-        algo: "/api/algo",
-        contact: "/api/contact",
-        economic: "/api/economic",
-        financials: "/api/financials",
-        health: "/api/health",
-        market: "/api/market",
-        portfolio: "/api/portfolio",
-        sectors: "/api/sectors",
-        signals: "/api/signals",
-        stocks: "/api/stocks",
-        trades: "/api/trades"
-      },
-      timestamp: new Date().toISOString(),
-    },
-    success: true
+  return sendSuccess(res, {
+    name: "Financial Dashboard API",
+    version: "2.0.0",
+    status: "operational",
+    endpoints: {
+      algo: "/api/algo",
+      contact: "/api/contact",
+      economic: "/api/economic",
+      financials: "/api/financials",
+      health: "/api/health",
+      market: "/api/market",
+      portfolio: "/api/portfolio",
+      sectors: "/api/sectors",
+      signals: "/api/signals",
+      stocks: "/api/stocks",
+      trades: "/api/trades"
+    }
   });
 });
 
@@ -876,9 +838,9 @@ app.get("/api/debug/stock-scores-count", async (req, res) => {
     const { query: dbQuery } = require("./utils/database");
     const result = await dbQuery("SELECT COUNT(*) as count FROM stock_scores");
     const count = result?.rows[0]?.count || 0;
-    return res.json({ success: true, stock_scores_count: count, rows_sample: 0 });
+    return sendSuccess(res, { stock_scores_count: count, rows_sample: 0 });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return sendError(res, error.message, 500);
   }
 });
 

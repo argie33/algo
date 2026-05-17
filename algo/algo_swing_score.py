@@ -645,6 +645,8 @@ class SwingTraderScore:
         accum_pts = max(0.0, min(6.0, (net + 1) * 0.75))
 
         pts = ratio_pts + accum_pts
+        # Cap to W_VOLUME max (same pattern as other components like _setup_component)
+        pts = min(self.W_VOLUME, pts)
         return pts, {
             'today_volume_ratio': round(ratio, 2) if ratio else None,
             'accumulation_days': accum,

@@ -365,6 +365,20 @@ class FilterPipeline:
             max_positions = int(self.config.get('max_positions', 6))
             final_trades = passed_all_tiers[:max_positions]
 
+            # Calculate target prices for all final trades (R-multiple based)
+            for trade in final_trades:
+                entry = trade.get('entry_price', 0)
+                stop = trade.get('stop_loss_price', 0)
+                if entry > 0 and stop > 0 and stop < entry:
+                    r = entry - stop  # Risk per share
+                    trade['target_1_price'] = round(entry + 1.5 * r, 2)
+                    trade['target_2_price'] = round(entry + 3.0 * r, 2)
+                    trade['target_3_price'] = round(entry + 4.0 * r, 2)
+                else:
+                    trade['target_1_price'] = None
+                    trade['target_2_price'] = None
+                    trade['target_3_price'] = None
+
             logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
             logger.info("=" * 100)
             logger.info(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"

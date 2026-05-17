@@ -22,6 +22,7 @@ import json
 import logging
 import psycopg2
 import psycopg2.extras
+import psycopg2.errors
 import re
 import time
 from datetime import datetime, timedelta, date, timezone
@@ -1088,9 +1089,18 @@ class APIHandler:
                 return json_response(200, dict(row))
 
             return error_response(400, 'invalid_endpoint', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
+        except psycopg2.errors.UndefinedTable as e:
+            logger.warning(f"financials: table not found - {str(e)[:100]}")
+            return error_response(503, 'data_not_loaded', 'Financial data not yet loaded. Check data pipeline status.')
+        except psycopg2.errors.UndefinedColumn as e:
+            logger.warning(f"financials: column not found - {str(e)[:100]}")
+            return error_response(503, 'schema_mismatch', 'Financial data schema outdated. Contact administrator.')
+        except psycopg2.DatabaseError as e:
+            logger.error(f"financials handler database error: {e}", exc_info=True)
+            return error_response(503, 'database_error', 'Temporary database issue. Please retry.')
         except Exception as e:
             logger.error(f"financials handler error: {e}", exc_info=True)
-            return error_response(500, 'internal_error', f'Financials handler error: {str(e)}')
+            return error_response(500, 'internal_error', 'Financials handler error')
 
     def _handle_earnings(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/earnings/* endpoints. Returns upcoming/past earnings dates."""
