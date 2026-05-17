@@ -1590,19 +1590,32 @@ class APIHandler:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
     def _get_markets(self) -> Dict:
-        """Get current market regime data."""
+        """Get current market regime data and historical exposure."""
         try:
+            # Get latest market exposure data
             self.cur.execute("""
-                SELECT
-                    symbol, date, close, volume
-                FROM price_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                AND symbol IN ('SPY', 'QQQ', 'IWM', 'VIX')
-                ORDER BY symbol, date DESC
-                LIMIT 120
+                SELECT id, date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
+                FROM market_exposure_daily
+                ORDER BY date DESC
+                LIMIT 1
             """)
-            markets = self.cur.fetchall()
-            return list_response([dict(m) for m in markets])
+            latest = self.cur.fetchone()
+            current = dict(latest) if latest else None
+
+            # Get 60-day exposure history for chart
+            self.cur.execute("""
+                SELECT date, exposure_pct, regime, distribution_days
+                FROM market_exposure_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '60 days'
+                ORDER BY date ASC
+            """)
+            history = [dict(h) for h in self.cur.fetchall()]
+
+            return json_response(200, {
+                'success': True,
+                'current': current,
+                'history': history
+            })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get markets'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
@@ -1618,6 +1631,7 @@ class APIHandler:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch markets data')
+
     def _get_algo_evaluate(self) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
         try:
@@ -2052,6 +2066,7 @@ class APIHandler:
             self.cur.execute(f"""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
+                    COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
                     bsd.strength, bsd.reason,
                     COALESCE(td.close, 0) as close,
                     COALESCE(td.rsi, 0) as rsi,
@@ -2060,12 +2075,36 @@ class APIHandler:
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
                     COALESCE(td.ema_12, 0) as ema_12,
+                    COALESCE(td.ema_21, 0) as ema_21,
                     COALESCE(td.ema_26, 0) as ema_26,
+                    COALESCE(td.mansfield_rs, 0) as mansfield_rs,
                     COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
                     COALESCE(tt.trend_direction, 'unknown') as trend,
                     ss.security_name, cp.sector, cp.industry,
                     COALESCE(swg.score, 0) AS swing_score,
-                    swg.components->>'grade' AS grade
+                    swg.components->>'grade' AS grade,
+                    COALESCE(bsd.base_type, NULL) as base_type,
+                    COALESCE(bsd.base_length_days, NULL) as base_length_days,
+                    COALESCE(bsd.buylevel, 0) as buylevel,
+                    COALESCE(bsd.stoplevel, 0) as stoplevel,
+                    COALESCE(bsd.risk_reward_ratio, 0) as risk_reward_ratio,
+                    COALESCE(bsd.volume_surge_pct, 0) as volume_surge_pct,
+                    COALESCE(bsd.entry_quality_score, 0) as entry_quality_score,
+                    COALESCE(bsd.signal_quality_score, 0) as signal_quality_score,
+                    COALESCE(bsd.buy_zone_start, 0) as buy_zone_start,
+                    COALESCE(bsd.buy_zone_end, 0) as buy_zone_end,
+                    COALESCE(bsd.pivot_price, 0) as pivot_price,
+                    COALESCE(bsd.initial_stop, 0) as initial_stop,
+                    COALESCE(bsd.trailing_stop, 0) as trailing_stop,
+                    COALESCE(bsd.position_size_recommendation, NULL) as position_size_recommendation,
+                    COALESCE(bsd.profit_target_8pct, 0) as profit_target_8pct,
+                    COALESCE(bsd.profit_target_20pct, 0) as profit_target_20pct,
+                    COALESCE(bsd.profit_target_25pct, 0) as profit_target_25pct,
+                    COALESCE(bsd.exit_trigger_1_price, 0) as exit_trigger_1_price,
+                    COALESCE(bsd.exit_trigger_2_price, 0) as exit_trigger_2_price,
+                    COALESCE(bsd.sell_level, 0) as sell_level,
+                    COALESCE(bsd.rs_rating, 0) as rs_rating,
+                    COALESCE(bsd.avg_volume_50d, 0) as avg_volume_50d
                 FROM buy_sell_daily bsd
                 LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
                     AND bsd.date = td.date
