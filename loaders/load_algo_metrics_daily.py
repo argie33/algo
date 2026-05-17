@@ -151,7 +151,7 @@ class AlgoMetricsLoader:
             logger.info("Summary:")
             for key, val in self.stats.items():
                 logger.info(f"  {key:.<30} {val:>10}")
-            logger.info()
+            logger.info("")
 
             # Refresh materialized view for prices endpoints
             try:
@@ -220,7 +220,7 @@ class AlgoMetricsLoader:
                 WHERE symbol = %s AND date >= %s - INTERVAL '20 days'
                   AND close < open
             """
-            self.execute(dist_query, ('^GSPC' if symbol == '^GSPC' else 'SPY',))
+            self.execute(dist_query, ('^GSPC' if symbol == '^GSPC' else 'SPY', date_obj))
             dist_result = self.cur.fetchone()
             distribution_days = dist_result[0] if dist_result else 0
 
@@ -502,9 +502,9 @@ class AlgoMetricsLoader:
                 result = self.cur.fetchone()
 
                 if result:
-                    trend_score = result[0] if result[0] else 0
-                    stage = result[1] if result[1] else 1
-                    pct_from_high = result[2] if result[2] else 0
+                    trend_score = float(result[0]) if result[0] else 0.0
+                    stage = int(result[1]) if result[1] else 1
+                    pct_from_high = float(result[2]) if result[2] else 0.0
                 else:
                     # Fallback: trend data not available, skip this signal
                     # We need trend_template_data for meaningful SQS scoring
@@ -518,10 +518,10 @@ class AlgoMetricsLoader:
                 self.execute(query, (symbol, date_obj))
                 tech_result = self.cur.fetchone()
                 if tech_result:
-                    rsi = tech_result[0] if tech_result[0] else 50
+                    rsi = float(tech_result[0]) if tech_result[0] else 50.0
 
                 # Calculate SQS component scores
-                trend_component = min(35, int(trend_score * 3.5) if trend_score else 0)
+                trend_component = min(35, int(float(trend_score) * 3.5) if trend_score else 0)
 
                 if stage == 2:
                     stage_score = 15
