@@ -119,9 +119,9 @@ class AlgoConfig:
         'risk_reduction_at_minus_20': ('0.0', 'float', 'Risk % at -20% drawdown (halt)'),
 
         # Filter Thresholds
-        'min_completeness_score': ('45', 'int', 'Minimum data completeness % (reduced from 70 to match current data quality ~50%)'),
+        'min_completeness_score': ('70', 'int', 'Minimum data completeness % (Minervini standard)'),
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
-        'min_signal_quality_score': ('40', 'int', 'Minimum SQS 0-100 (reduced from 60 - matches current single-factor SQS)'),
+        'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
         'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
         'min_avg_daily_dollar_volume': ('1000000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
@@ -310,13 +310,40 @@ class AlgoConfig:
             if f_val < 20 or f_val > 100:
                 raise ValueError(f'{key}: {f_val} out of range [20-100]')
 
-        # R-multiples: positive
+        # R-multiples: positive, reasonable range
         if 'r_multiple' in key.lower():
             f_val = float(value) if isinstance(value, (int, float, str)) else value
             if f_val < 0.5 or f_val > 10:
                 raise ValueError(f'{key}: {f_val} out of range [0.5-10]')
 
+        # Pyramid split: must be comma-separated numbers summing to 100
+        if key == 'pyramid_split_pct' and dtype == 'string':
+            try:
+                parts = [float(p.strip()) for p in str(value).split(',')]
+                total = sum(parts)
+                if abs(total - 100.0) > 1.0:
+                    raise ValueError(f'{key}: parts sum to {total:.1f}, must equal 100')
+            except ValueError as e:
+                if 'sum' in str(e) or 'equal' in str(e):
+                    raise
+                raise ValueError(f'{key}: expected comma-separated numbers like "50,33,17"')
+
         return True
+
+    def _validate_r_multiple_ordering(self):
+        """Verify t1 < t2 < t3 R-multiple targets (called after full config load)."""
+        try:
+            t1 = float(self._config.get('t1_target_r_multiple', 1.5))
+            t2 = float(self._config.get('t2_target_r_multiple', 3.0))
+            t3 = float(self._config.get('t3_target_r_multiple', 4.0))
+            if not (t1 < t2 < t3):
+                import logging
+                logging.getLogger(__name__).warning(
+                    f'Config: R-multiple targets not ordered (t1={t1} t2={t2} t3={t3}). '
+                    f'Expected t1 < t2 < t3.'
+                )
+        except (TypeError, ValueError):
+            pass
 
     def get(self, key, default=None):
         """Get configuration value."""

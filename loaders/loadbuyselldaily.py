@@ -281,10 +281,11 @@ class BuySellDailyLoader(OptimalLoader):
     @staticmethod
     def _compute_rsi(closes, period=14):
         """Compute Relative Strength Index."""
+        import numpy as np
         deltas = closes.diff()
         gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
         losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses
+        rs = gains / losses.replace(0, np.nan)  # Avoid division by zero
         rsi = 100 - (100 / (1 + rs))
         return rsi
 
@@ -312,6 +313,7 @@ class BuySellDailyLoader(OptimalLoader):
     def _compute_adx(highs, lows, closes, period=14):
         """Compute Average Directional Index (simplified)."""
         import pandas as pd
+        import numpy as np
         plus_dm = highs.diff()
         minus_dm = lows.diff().abs()
         plus_dm[plus_dm < 0] = 0
@@ -321,9 +323,11 @@ class BuySellDailyLoader(OptimalLoader):
         tr3 = (lows - closes.shift()).abs()
         tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
         atr = tr.rolling(window=period).mean()
+        atr = atr.replace(0, np.nan)  # Avoid division by zero
         plus_di = 100 * (plus_dm.rolling(period).mean() / atr)
         minus_di = 100 * (minus_dm.rolling(period).mean() / atr)
-        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+        denom = (plus_di + minus_di).replace(0, np.nan)  # Avoid division by zero
+        dx = 100 * (plus_di - minus_di).abs() / denom
         adx = dx.rolling(period).mean()
         return adx
 

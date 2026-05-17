@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""
+Data Pipeline Health Monitor
+
+Provides real-time observability into the entire data pipeline:
+- Table freshness (when was data last updated)
+- Row counts and growth trends
+- Data quality metrics (null rates, anomalies)
+- Loader execution status
+- SLA compliance
+
+Used by orchestrator Phase 1 for fail-closed data validation
+and by API for dashboard health indicators.
+
+USAGE:
+  health = PipelineHealth()
+  status = health.get_pipeline_status()
+  print(status.is_healthy)  # True if all critical data fresh
+"""
+
+from config.credential_helper import get_db_password, get_db_config
+
+try:
+    from config.credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
+
+import os
+import psycopg2
+import logging
+from pathlib import Path
+from dotenv import load_dotenv
+from datetime import date as _date, datetime, timedelta, timezone
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+env_file = Path(__file__).parent / '.env.local'
+if not env_file.exists():
+    env_file = Path(__file__).parent.parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
+
+
+class HealthStatus(str, Enum):
+    HEALTHY = "HEALTHY"
+    STALE = "STALE"  # Data older than SLA
+    VERY_STALE = "VERY_STALE"  # Data > 2x SLA old
+    MISSING = "MISSING"  # Table empty
+    ERROR = "ERROR"  # Query failed
+
+
+@dataclass
+class TableHealth:
+    """Health status for a single table."""
+    table_name: str
+    status: HealthStatus
+    row_count: int = 0
+    latest_date: Optional[_date] = None
+    age_days: int = 0
+    sla_days: int = 7
+    last_checked: datetime = field(default_factory=datetime.now)
+    error_message: Optional[str] = None
+
+    @property
+    def is_healthy(self) -> bool:
+        return self.status == HealthStatus.HEALTHY
+
+    @property
+    def is_critical(self) -> bool:
+        """Check if table is critical for algo execution."""
+        critical_tables = {
+            'stock_symbols', 'price_daily', 'buy_sell_daily',
+            'stock_scores', 'economic_data', 'market_health_daily'
+        }
+        return self.table_name in critical_tables
+
+    def to_dict(self) -> Dict:
+        return {
+            'table': self.table_name,
+            'status': self.status.value,
+            'rows': self.row_count,
+            'latest_date': self.latest_date.isoformat() if self.latest_date else None,
+            'age_days': self.age_days,
+            'sla_days': self.sla_days,
+            'is_healthy': self.is_healthy,
+            'is_critical': self.is_critical,
+            'error': self.error_message
+        }
+
+
+@dataclass
+class PipelineStatus:
+    """Overall pipeline health status."""
+    timestamp: datetime = field(default_factory=datetime.now)
+    tables: Dict[str, TableHealth] = field(default_factory=dict)
+    is_healthy: bool = True
+    critical_alerts: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    @property
+    def healthy_count(self) -> int:
+        return sum(1 for t in self.tables.values() if t.is_healthy)
+
+    @property
+    def total_count(self) -> int:
+        return len(self.tables)
+
+    @property
+    def coverage_pct(self) -> float:
+        if not self.tables:
+            return 0.0
+        return (self.healthy_count / self.total_count) * 100
+
+    def to_dict(self) -> Dict:
+        return {
+            'timestamp': self.timestamp.isoformat(),
+            'is_healthy': self.is_healthy,
+            'healthy_count': self.healthy_count,
+            'total_count': self.total_count,
+            'coverage_pct': round(self.coverage_pct, 1),
+            'critical_alerts': self.critical_alerts,
+            'warnings': self.warnings,
+            'tables': {name: t.to_dict() for name, t in self.tables.items()}
+        }
+
+
+class PipelineHealth:
+    """Monitor and report on data pipeline health."""
+
+    # Define critical tables and their SLA requirements
+    CRITICAL_TABLES = {
+        'stock_symbols': {'date_column': 'created_at', 'sla_days': 30},
+        'price_daily': {'date_column': 'date', 'sla_days': 2},
+        'buy_sell_daily': {'date_column': 'date', 'sla_days': 2},
+        'stock_scores': {'date_column': 'date', 'sla_days': 2},
+        'economic_data': {'date_column': 'date', 'sla_days': 7},
+        'market_health_daily': {'date_column': 'date', 'sla_days': 2},
+        'company_profile': {'date_column': 'updated_at', 'sla_days': 30},
+        'earnings_calendar': {'date_column': 'created_at', 'sla_days': 30},
+    }
+
+    def __init__(self):
+        self.conn = None
+        self.cur = None
+
+    def connect(self):
+        """Establish database connection."""
+        try:
+            self.conn = psycopg2.connect(**self._get_db_config())
+            self.cur = self.conn.cursor()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            raise
+
+    def disconnect(self):
+        """Close database connection."""
+        if self.cur:
+            try:
+                self.cur.close()
+            except Exception:
+                pass
+        if self.conn:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _get_db_config():
+        return {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", 5432)),
+            "user": os.getenv("DB_USER", "stocks"),
+            "password": get_db_password(),
+            "database": os.getenv("DB_NAME", "stocks"),
+        }
+
+    def check_table_health(self, table_name: str, date_column: str, sla_days: int) -> TableHealth:
+        """Check health of a single table."""
+        health = TableHealth(
+            table_name=table_name,
+            status=HealthStatus.ERROR,
+            sla_days=sla_days
+        )
+
+        try:
+            # Get row count
+            self.cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            result = self.cur.fetchone()
+            health.row_count = result[0] if result else 0
+
+            if health.row_count == 0:
+                health.status = HealthStatus.MISSING
+                health.error_message = "Table is empty"
+                return health
+
+            # Get latest date
+            self.cur.execute(f"SELECT MAX({date_column})::DATE FROM {table_name}")
+            result = self.cur.fetchone()
+            latest_date = result[0] if result else None
+
+            if not latest_date:
+                health.status = HealthStatus.MISSING
+                health.error_message = f"No {date_column} values found"
+                return health
+
+            health.latest_date = latest_date
+            health.age_days = (_date.today() - latest_date).days
+
+            # Determine status based on SLA
+            if health.age_days > (sla_days * 2):
+                health.status = HealthStatus.VERY_STALE
+            elif health.age_days > sla_days:
+                health.status = HealthStatus.STALE
+            else:
+                health.status = HealthStatus.HEALTHY
+
+        except Exception as e:
+            health.status = HealthStatus.ERROR
+            health.error_message = str(e)
+
+        return health
+
+    def get_pipeline_status(self) -> PipelineStatus:
+        """Get complete pipeline health status."""
+        if not self.conn or not self.cur:
+            try:
+                self.connect()
+            except Exception as e:
+                logger.error(f"Cannot check pipeline status: {e}")
+                status = PipelineStatus()
+                status.is_healthy = False
+                status.critical_alerts.append(f"Database connection failed: {e}")
+                return status
+
+        status = PipelineStatus()
+
+        # Check each critical table
+        for table_name, config in self.CRITICAL_TABLES.items():
+            try:
+                health = self.check_table_health(
+                    table_name,
+                    config['date_column'],
+                    config['sla_days']
+                )
+                status.tables[table_name] = health
+
+                # Alert on critical issues
+                if health.is_critical:
+                    if health.status == HealthStatus.MISSING:
+                        status.critical_alerts.append(
+                            f"CRITICAL: {table_name} is empty - no trades can execute"
+                        )
+                    elif health.status == HealthStatus.VERY_STALE:
+                        status.critical_alerts.append(
+                            f"CRITICAL: {table_name} is very stale ({health.age_days} days old)"
+                        )
+                    elif health.status == HealthStatus.STALE:
+                        status.warnings.append(
+                            f"WARNING: {table_name} is stale ({health.age_days} days old)"
+                        )
+            except Exception as e:
+                logger.error(f"Error checking {table_name}: {e}")
+                status.tables[table_name] = TableHealth(
+                    table_name=table_name,
+                    status=HealthStatus.ERROR,
+                    error_message=str(e)
+                )
+
+        # Overall health determination
+        has_critical_issues = any(
+            not t.is_healthy and t.is_critical
+            for t in status.tables.values()
+        )
+        status.is_healthy = not has_critical_issues and len(status.critical_alerts) == 0
+
+        return status
+
+    def log_health_check(self, status: PipelineStatus):
+        """Log pipeline health to database for historical tracking."""
+        try:
+            for table_health in status.tables.values():
+                self.cur.execute(
+                    """
+                    INSERT INTO data_loader_status
+                    (table_name, status, row_count, latest_date, age_days, checked_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (table_name, DATE(checked_at))
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        row_count = EXCLUDED.row_count,
+                        latest_date = EXCLUDED.latest_date,
+                        age_days = EXCLUDED.age_days
+                    """,
+                    (
+                        table_health.table_name,
+                        table_health.status.value,
+                        table_health.row_count,
+                        table_health.latest_date,
+                        table_health.age_days
+                    )
+                )
+            self.conn.commit()
+        except Exception as e:
+            logger.warning(f"Failed to log health check: {e}")
+            self.conn.rollback()
+
+    def assert_pipeline_ready(self) -> bool:
+        """Check if pipeline is ready for trading.
+        Raises exception if critical data is missing/stale.
+        """
+        status = self.get_pipeline_status()
+
+        if status.critical_alerts:
+            error_msg = "Pipeline not ready for trading:\n" + "\n".join(status.critical_alerts)
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        return True
+
+
+if __name__ == '__main__':
+    import json
+    health = PipelineHealth()
+    health.connect()
+    status = health.get_pipeline_status()
+    print(json.dumps(status.to_dict(), indent=2, default=str))
+    health.disconnect()

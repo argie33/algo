@@ -1,0 +1,249 @@
+"""
+Data Freshness Monitor - CloudWatch Custom Metrics Publisher
+
+Queries data_loader_status table and publishes custom metrics for:
+- Table row counts
+- Data age (staleness)
+- Loader health status
+
+Triggered by EventBridge on schedule (every 6 hours or on-demand).
+"""
+
+import json
+import boto3
+import psycopg2
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# AWS clients
+cloudwatch = boto3.client('cloudwatch')
+rds_client = boto3.client('rds')
+
+# Database configuration
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_USER = os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_NAME = os.getenv('DB_NAME', 'stocks')
+DB_PORT = int(os.getenv('DB_PORT', 5432))
+
+# Critical tables to monitor
+CRITICAL_TABLES = [
+    'stock_symbols',
+    'price_daily',
+    'buy_sell_daily',
+    'stock_scores',
+    'economic_data',
+    'fear_greed_index',
+    'market_health_daily',
+]
+
+SEVERITY_THRESHOLDS = {
+    'empty': 0,           # 0 rows = CRITICAL
+    'stale_warning': 3,   # >3 days = WARNING
+    'stale_critical': 7,  # >7 days = CRITICAL
+}
+
+
+def get_db_connection():
+    """Connect to RDS database."""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            port=DB_PORT
+        )
+        return conn
+    except Exception as e:
+        print(f"ERROR: Failed to connect to database: {e}")
+        raise
+
+
+def query_data_loader_status():
+    """Query data_loader_status table for health metrics."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT
+                table_name,
+                row_count,
+                latest_date,
+                age_days,
+                freshness_status,
+                checked_at
+            FROM data_loader_status
+            WHERE table_name = ANY(%s)
+            ORDER BY table_name
+        """, (CRITICAL_TABLES,))
+
+        results = cur.fetchall()
+        return results
+    finally:
+        cur.close()
+        conn.close()
+
+
+def publish_custom_metrics(table_data):
+    """Publish custom CloudWatch metrics for each table."""
+
+    metrics = []
+
+    for table in table_data:
+        table_name, row_count, latest_date, age_days, status, checked_at = table
+
+        # Metric 1: Row count
+        metrics.append({
+            'MetricName': f'DataLoader_{table_name}_RowCount',
+            'Value': row_count,
+            'Unit': 'Count',
+            'Timestamp': datetime.utcnow(),
+        })
+
+        # Metric 2: Data age (in days)
+        metrics.append({
+            'MetricName': f'DataLoader_{table_name}_AgeDays',
+            'Value': age_days if age_days else 999,  # 999 if null (missing data)
+            'Unit': 'Count',
+            'Timestamp': datetime.utcnow(),
+        })
+
+        # Metric 3: Health status (1=healthy, 0=warning/critical)
+        health_value = 1 if status == 'HEALTHY' else 0
+        metrics.append({
+            'MetricName': f'DataLoader_{table_name}_Status',
+            'Value': health_value,
+            'Unit': 'Count',
+            'Timestamp': datetime.utcnow(),
+        })
+
+    # Publish metrics in batches (CloudWatch limit is 20 per request)
+    for i in range(0, len(metrics), 20):
+        batch = metrics[i:i+20]
+        try:
+            cloudwatch.put_metric_data(
+                Namespace='AlgoDataFreshness',
+                MetricData=batch
+            )
+            print(f"Published {len(batch)} metrics to CloudWatch")
+        except Exception as e:
+            print(f"ERROR: Failed to publish metrics: {e}")
+            raise
+
+
+def check_data_health(table_data):
+    """Check for critical issues and return summary."""
+
+    issues = {
+        'critical': [],
+        'warning': [],
+        'healthy_count': 0,
+    }
+
+    for table in table_data:
+        table_name, row_count, latest_date, age_days, status, checked_at = table
+
+        # Check for empty tables
+        if row_count == 0:
+            issues['critical'].append({
+                'table': table_name,
+                'reason': 'NO DATA',
+                'row_count': row_count,
+            })
+
+        # Check for stale data
+        elif age_days >= SEVERITY_THRESHOLDS['stale_critical']:
+            issues['critical'].append({
+                'table': table_name,
+                'reason': 'STALE (>7 days)',
+                'age_days': age_days,
+            })
+
+        elif age_days >= SEVERITY_THRESHOLDS['stale_warning']:
+            issues['warning'].append({
+                'table': table_name,
+                'reason': f'STALE ({age_days} days)',
+                'age_days': age_days,
+            })
+
+        else:
+            issues['healthy_count'] += 1
+
+    return issues
+
+
+def lambda_handler(event, context):
+    """Main Lambda handler."""
+
+    try:
+        print("Starting data freshness check...")
+
+        # Query database for status
+        table_data = query_data_loader_status()
+        print(f"Retrieved status for {len(table_data)} tables")
+
+        # Publish custom metrics to CloudWatch
+        publish_custom_metrics(table_data)
+
+        # Check for health issues
+        issues = check_data_health(table_data)
+
+        # Build response
+        response = {
+            'statusCode': 200,
+            'body': json.dumps({
+                'timestamp': datetime.utcnow().isoformat(),
+                'tables_checked': len(table_data),
+                'healthy': issues['healthy_count'],
+                'critical_issues': len(issues['critical']),
+                'warnings': len(issues['warning']),
+                'critical': issues['critical'],
+                'warnings_detail': issues['warning'],
+            }, indent=2, default=str),
+        }
+
+        # Log summary
+        print(f"\n=== DATA FRESHNESS SUMMARY ===")
+        print(f"Tables checked: {len(table_data)}")
+        print(f"Healthy: {issues['healthy_count']}")
+        print(f"Critical issues: {len(issues['critical'])}")
+        print(f"Warnings: {len(issues['warning'])}")
+
+        if issues['critical']:
+            print(f"\n🚨 CRITICAL ISSUES:")
+            for issue in issues['critical']:
+                print(f"  - {issue['table']}: {issue['reason']}")
+
+        if issues['warning']:
+            print(f"\n⚠️  WARNINGS:")
+            for issue in issues['warning']:
+                print(f"  - {issue['table']}: {issue['reason']}")
+
+        print(f"\n✅ Metrics published to CloudWatch")
+
+        return response
+
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': str(e),
+                'timestamp': datetime.utcnow().isoformat(),
+            }),
+        }
+
+
+# For local testing
+if __name__ == '__main__':
+    import sys
+    sys.path.insert(0, '/Users/arger/code/algo')
+
+    result = lambda_handler({}, None)
+    print("\nResult:", result)

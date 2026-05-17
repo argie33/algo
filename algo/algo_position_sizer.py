@@ -308,6 +308,10 @@ class PositionSizer:
 
             # If stage phase says zero, halt this entry
             if phase_mult == 0.0:
+                logger.warning(
+                    f'Position sizing halted for {symbol}: Stage-2 climax phase detected. '
+                    f'No new entries until stock exits climax conditions.'
+                )
                 return {
                     'shares': 0, 'position_size_pct': 0, 'risk_dollars': 0,
                     'status': 'phase_climax',

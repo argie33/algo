@@ -600,6 +600,33 @@ class Orchestrator:
         conn = None
         cur = None
         try:
+            # Check overall pipeline health first
+            try:
+                from algo.algo_pipeline_health import PipelineHealth
+                health = PipelineHealth()
+                health.connect()
+                status = health.get_pipeline_status()
+                health.log_health_check(status)
+                health.disconnect()
+
+                if self.verbose:
+                    logger.info(f"  [HEALTH] Pipeline: {status.healthy_count}/{status.total_count} tables healthy "
+                               f"({status.coverage_pct:.0f}%)")
+
+                # Log any critical alerts
+                for alert in status.critical_alerts:
+                    logger.error(f"  [CRITICAL] {alert}")
+                    self.log_phase_result(1, 'pipeline_health', 'halt', alert)
+                    return False
+
+                # Log warnings but don't fail
+                for warning in status.warnings:
+                    logger.warning(f"  [WARNING] {warning}")
+
+            except Exception as e:
+                logger.warning(f"  [WARN] Pipeline health check failed: {e}")
+                # Don't fail-close on health check error, let other checks handle it
+
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
 

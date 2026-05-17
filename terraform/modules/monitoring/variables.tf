@@ -75,3 +75,56 @@ variable "sns_alerts_topic_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Data Freshness Monitoring Configuration
+# ============================================================
+
+variable "enable_data_freshness_monitoring" {
+  description = "Enable data freshness monitoring Lambda and alarms"
+  type        = bool
+  default     = true
+}
+
+variable "db_host" {
+  description = "RDS database host"
+  type        = string
+}
+
+variable "db_user" {
+  description = "RDS database user"
+  type        = string
+}
+
+variable "db_name" {
+  description = "RDS database name"
+  type        = string
+}
+
+variable "db_port" {
+  description = "RDS database port"
+  type        = string
+  default     = "5432"
+}
+
+variable "db_password" {
+  description = "RDS database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "private_subnet_ids" {
+  description = "Private subnet IDs for Lambda VPC config"
+  type        = list(string)
+}
+
+variable "rds_security_group_id" {
+  description = "RDS security group ID"
+  type        = string
+}
+
+variable "python_dependencies_layer_arn" {
+  description = "ARN of Lambda layer with Python dependencies (psycopg2, requests, etc.)"
+  type        = string
+  default     = ""
+}

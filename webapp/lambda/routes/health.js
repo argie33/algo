@@ -75,6 +75,73 @@ router.get("/detailed", async (req, res) => {
   }
 });
 
+// Pipeline health status - checks data loader freshness
+router.get("/pipeline", async (req, res) => {
+  try {
+    // Query data_loader_status to get latest pipeline health
+    const result = await query(`
+      SELECT
+        table_name,
+        status,
+        row_count,
+        latest_date,
+        age_days,
+        checked_at
+      FROM data_loader_status
+      WHERE checked_at = (SELECT MAX(checked_at) FROM data_loader_status)
+      ORDER BY table_name
+    `);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return sendSuccess(res, {
+        status: "unknown",
+        message: "No pipeline health data available yet",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const tables = result.rows;
+    const healthyCount = tables.filter(t => t.status === 'HEALTHY').length;
+    const totalCount = tables.length;
+    const coveragePct = (healthyCount / totalCount * 100).toFixed(1);
+
+    const criticalAlerts = [];
+    const warnings = [];
+
+    for (const table of tables) {
+      if (['stock_symbols', 'price_daily', 'buy_sell_daily', 'stock_scores', 'economic_data', 'market_health_daily'].includes(table.table_name)) {
+        if (table.status === 'MISSING') {
+          criticalAlerts.push(`${table.table_name} is empty - no trades can execute`);
+        } else if (table.status === 'VERY_STALE') {
+          criticalAlerts.push(`${table.table_name} is very stale (${table.age_days} days old)`);
+        } else if (table.status === 'STALE') {
+          warnings.push(`${table.table_name} is stale (${table.age_days} days old)`);
+        }
+      }
+    }
+
+    const isHealthy = criticalAlerts.length === 0;
+
+    return sendSuccess(res, {
+      status: isHealthy ? "healthy" : "unhealthy",
+      is_healthy: isHealthy,
+      healthy_count: healthyCount,
+      total_count: totalCount,
+      coverage_pct: parseFloat(coveragePct),
+      critical_alerts: criticalAlerts,
+      warnings: warnings,
+      tables: tables,
+      timestamp: tables[0]?.checked_at || new Date().toISOString()
+    });
+  } catch (error) {
+    return sendSuccess(res, {
+      status: "error",
+      message: "Pipeline health check failed: " + error.message,
+      timestamp: new Date().toISOString()
+    }, 200);
+  }
+});
+
 // Deep diagnostics
 router.get("/diagnostics", async (req, res) => {
   try {

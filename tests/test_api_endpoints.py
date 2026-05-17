@@ -19,8 +19,13 @@ from datetime import datetime
 BASE_URL = "http://localhost:3001"
 
 # API endpoints to test with expected structures
+# Updated to match actual endpoints in Lambda (deleted pages/endpoints removed)
 ENDPOINTS = {
-    # Algo endpoints
+    # Core health & status
+    "/api/health": "GET",
+    "/api/status": "GET",
+
+    # Algo (main trading system)
     "/api/algo/status": "GET",
     "/api/algo/trades?limit=10": "GET",
     "/api/algo/positions": "GET",
@@ -28,32 +33,23 @@ ENDPOINTS = {
     "/api/algo/circuit-breakers": "GET",
     "/api/algo/data-status": "GET",
 
-    # Market endpoints
-    "/api/market/latest": "GET",
-
-    # Sentiment endpoints
-    "/api/sentiment/vix": "GET",
-
-    # Sector endpoints
+    # Market & Sectors
     "/api/sectors": "GET",
-
-    # Stock endpoints
     "/api/stocks?limit=10": "GET",
-    "/api/scores/stockscores?limit=10": "GET",
 
-    # Economic endpoints
+    # Scores & Signals
+    "/api/scores/stockscores?limit=10": "GET",
+    "/api/signals/search": "GET",
+
+    # Economic Data
     "/api/economic/leading-indicators": "GET",
 
-    # Financial endpoints
-    "/api/financials/balance-sheet/AAPL": "GET",
-    "/api/financials/income-statement/AAPL": "GET",
-    "/api/financials/cash-flow/AAPL": "GET",
-
-    # Health endpoint
-    "/api/health": "GET",
+    # Supporting Data
+    "/api/industries": "GET",
+    "/api/commodities": "GET",
 }
 
-def test_endpoint(url, method="GET"):
+def verify_endpoint(url, method="GET"):
     """Test a single endpoint"""
     try:
         if method == "GET":
@@ -121,7 +117,7 @@ def main():
 
     for endpoint, method in ENDPOINTS.items():
         url = f"{BASE_URL}{endpoint}"
-        result = test_endpoint(url, method)
+        result = verify_endpoint(url, method)
         results.append(result)
 
         status_str = f"[{result['status']:3d}]" if result['status'] else "[ERR]"
