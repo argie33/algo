@@ -88,6 +88,26 @@ class SwingTraderScore:
         self._signals = None
         self._load_config_weights()
 
+    def _load_config_weights(self):
+        """Load swing score component weights from config table if available."""
+        if self.cur is None:
+            return  # Use hardcoded defaults
+        try:
+            # Try to load weights from algo_config table
+            self.cur.execute(
+                "SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'"
+            )
+            weights = {k: int(v) for k, v in self.cur.fetchall()}
+            self.W_SETUP = weights.get('swing_weight_setup', self.W_SETUP)
+            self.W_TREND = weights.get('swing_weight_trend', self.W_TREND)
+            self.W_MOMENTUM = weights.get('swing_weight_momentum', self.W_MOMENTUM)
+            self.W_VOLUME = weights.get('swing_weight_volume', self.W_VOLUME)
+            self.W_FUNDAMENTALS = weights.get('swing_weight_fundamentals', self.W_FUNDAMENTALS)
+            self.W_SECTOR = weights.get('swing_weight_sector', self.W_SECTOR)
+            self.W_MULTI_TF = weights.get('swing_weight_multi_timeframe', self.W_MULTI_TF)
+        except Exception as e:
+            logger.debug(f"Could not load swing weights from config: {e} — using defaults")
+
     def connect(self):
         if self.cur is None:
             self._owned = psycopg2.connect(**_get_db_config())

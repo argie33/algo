@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Phase 5, Issue 4.1: Orchestrator Runtime Profiling
 Profiles each phase of the orchestrator to identify bottlenecks.
@@ -36,7 +36,7 @@ def profile_orchestrator():
         )
 
         init_time = time.time() - start
-        print(f"✓ Initialization: {init_time:.2f}s")
+        print(f"[OK] Initialization: {init_time:.2f}s")
         print()
 
         # Run orchestrator and capture phase timings
@@ -73,7 +73,7 @@ def profile_orchestrator():
             result = orchestrator.run()
             total_time = time.time() - phase_start
 
-            print(f"✓ Orchestrator completed in {total_time:.2f}s")
+            print(f"[OK] Orchestrator completed in {total_time:.2f}s")
             print()
             print("RESULTS:")
             print(f"  Trades generated: {len(result.get('trades', []))}")
@@ -144,3 +144,4 @@ def profile_orchestrator():
 
 if __name__ == '__main__':
     sys.exit(profile_orchestrator())
+

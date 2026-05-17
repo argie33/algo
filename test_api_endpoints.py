@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Phase 2: API Endpoint Verification Test Suite
 Tests all 25+ API endpoints for:
@@ -127,7 +127,7 @@ def main():
     for path, method, status, desc in ENDPOINTS:
         success, msg, actual_status = test_endpoint(API_BASE, path, method, status)
         local_results.append((path, desc, success, msg, actual_status))
-        status_symbol = "✅" if success else "❌"
+        status_symbol = "[PASS]" if success else "[FAIL]"
         print(f"{status_symbol} {method:4} {path:40} {desc:30} [{actual_status}]")
 
     local_passed = sum(1 for _, _, success, _, _ in local_results if success)
@@ -147,7 +147,7 @@ def main():
         print("-" * 80)
 
         success, msg, status = test_endpoint(API_HEALTH, "/api/health", "GET", 200)
-        print(f"{'✅' if success else '❌'} GET /api/health {msg} [{status}]")
+        print(f"{'[PASS]' if success else '[FAIL]'} GET /api/health {msg} [{status}]")
         print()
 
     print("NOTES:")
@@ -161,3 +161,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

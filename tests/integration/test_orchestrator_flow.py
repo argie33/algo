@@ -1,14 +1,14 @@
-"""
+﻿"""
 Integration tests: Full orchestrator pipeline against real database.
 
 Tests the entire orchestrator from start to finish:
-- Phase 1: Data freshness ✓
-- Phase 2: Circuit breakers ✓
-- Phase 3: Position monitoring & reconciliation ✓
-- Phase 4: Exit execution + pyramid adds ✓
-- Phase 5: Signal generation & filtering ✓
-- Phase 6: Entry execution ✓
-- Phase 7: Reconciliation & snapshot ✓
+- Phase 1: Data freshness [OK]
+- Phase 2: Circuit breakers [OK]
+- Phase 3: Position monitoring & reconciliation [OK]
+- Phase 4: Exit execution + pyramid adds [OK]
+- Phase 5: Signal generation & filtering [OK]
+- Phase 6: Entry execution [OK]
+- Phase 7: Reconciliation & snapshot [OK]
 
 Uses real database (seeded_test_db), real algo logic, mocked final Alpaca order.
 """
@@ -223,3 +223,4 @@ class TestOrchestratorControlFlow:
         finally:
             if lock_path.exists():
                 lock_path.unlink()
+

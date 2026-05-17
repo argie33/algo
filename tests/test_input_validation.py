@@ -1,4 +1,4 @@
-"""
+﻿"""
 Issue 3.2: Input Validation Security Audit
 
 Tests to verify SQL injection prevention on high-traffic API endpoints.
@@ -35,7 +35,7 @@ class TestInputValidationSQLInjection:
         assert len(dangerous_patterns) == 0, \
             f"Found dangerous SQL patterns (f-strings or .format on SQL): {dangerous_patterns[:2]}"
 
-        print(f"✅ SQL injection prevention: {parameterized_count} parameterized queries found, no dangerous patterns")
+        print(f"[PASS] SQL injection prevention: {parameterized_count} parameterized queries found, no dangerous patterns")
 
     def test_string_formatting_in_sql(self):
         """Check that SQL queries don't use string formatting."""
@@ -57,7 +57,7 @@ class TestInputValidationSQLInjection:
                 print(f"   Line {line_num}: {line[:60]}")
             # Mark as warning but don't fail (might be false positives)
         else:
-            print(f"✅ No obvious string formatting in SQL queries")
+            print(f"[PASS] No obvious string formatting in SQL queries")
 
     def test_input_bounds_validation(self):
         """Check for input bounds and type validation."""
@@ -78,7 +78,7 @@ class TestInputValidationSQLInjection:
         assert validated >= 2, f"Should have input validation (found {validated})"
 
         for check, found in validates.items():
-            status = "✅" if found else "❌"
+            status = "[PASS]" if found else "[FAIL]"
             print(f"{status} {check}")
 
 
@@ -106,7 +106,7 @@ class TestInputValidationAudit:
         )
 
         assert has_limit_check or has_days_check, "Should validate numeric parameters"
-        print(f"✅ Numeric parameter validation found")
+        print(f"[PASS] Numeric parameter validation found")
 
     def test_error_message_sanitization(self):
         """Verify error messages don't leak SQL/database details."""
@@ -126,7 +126,7 @@ class TestInputValidationAudit:
         if exposes_exception:
             print(f"⚠️  Warning: May expose exception details in error responses")
         else:
-            print(f"✅ Error messages properly sanitized")
+            print(f"[PASS] Error messages properly sanitized")
 
     def test_symbol_parameter_validation(self):
         """Check for symbol parameter sanitization."""
@@ -146,7 +146,7 @@ class TestInputValidationAudit:
         # Look for symbol length check
         has_length_check = 'len(' in code and 'symbol' in code
 
-        print(f"✅ Symbol parameter handling: length check={has_length_check}, type check={has_symbol_check}")
+        print(f"[PASS] Symbol parameter handling: length check={has_length_check}, type check={has_symbol_check}")
 
 
 class TestSecurityEndpoints:
@@ -168,7 +168,7 @@ class TestSecurityEndpoints:
         ])
 
         if has_auth:
-            print(f"✅ API authentication implemented")
+            print(f"[PASS] API authentication implemented")
         else:
             print(f"⚠️  Warning: May not have API authentication")
 
@@ -182,7 +182,7 @@ class TestSecurityEndpoints:
         has_rate_limit = 'rate' in code.lower() or 'throttle' in code.lower()
 
         if has_rate_limit:
-            print(f"✅ Rate limiting patterns found")
+            print(f"[PASS] Rate limiting patterns found")
         else:
             print(f"ℹ️  Rate limiting not explicitly in Lambda (may be in API Gateway)")
 
@@ -198,7 +198,7 @@ class TestSecurityEndpoints:
         has_wildcard = "'*'" in code and 'Access-Control' in code
 
         if has_cors and not has_wildcard:
-            print(f"✅ CORS properly restricted (not wildcard)")
+            print(f"[PASS] CORS properly restricted (not wildcard)")
         elif has_cors:
             print(f"⚠️  Warning: CORS may use wildcard (less secure)")
         else:
@@ -208,3 +208,4 @@ class TestSecurityEndpoints:
 if __name__ == '__main__':
     # Run tests with pytest
     pytest.main([__file__, '-v'])
+

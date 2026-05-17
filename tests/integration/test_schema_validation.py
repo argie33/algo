@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Database Schema Validation - Verify schema matches code expectations
 
@@ -193,10 +193,10 @@ class SchemaValidator:
         self.checks_total += 1
         if passed:
             self.checks_passed += 1
-            logger.info(f"✓ {message}")
+            logger.info(f"[OK] {message}")
         else:
             self.issues.append(message)
-            logger.error(f"✗ {message}")
+            logger.error(f"[FAIL] {message}")
 
     def validate_all(self):
         """Run all validation checks."""
@@ -313,3 +313,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

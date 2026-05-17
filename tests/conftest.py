@@ -1,4 +1,4 @@
-"""
+﻿"""
 Pytest configuration and shared fixtures for algo trading system tests.
 
 Provides:
@@ -114,9 +114,9 @@ def seeded_test_db(request):
     from setup_test_db import setup_test_db
     try:
         setup_test_db()
-        print("\n✓ Test database setup complete")
+        print("\n[OK] Test database setup complete")
     except Exception as e:
-        print(f"\n✗ Test database setup failed: {e}")
+        print(f"\n[FAIL] Test database setup failed: {e}")
         # Skip the test instead of failing if the database is not available
         pytest.skip(f"Test database not available: {e}", allow_module_level=False)
 
@@ -326,3 +326,4 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if 'db' in item.keywords:
                 item.add_marker(skip_db)
+

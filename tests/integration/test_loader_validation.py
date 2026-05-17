@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Loader Validation - Verify all critical loaders populate fresh data
 
@@ -80,10 +80,10 @@ class LoaderValidator:
         self.checks_total += 1
         if passed:
             self.checks_passed += 1
-            logger.info(f"✓ {message}")
+            logger.info(f"[OK] {message}")
         else:
             self.issues.append(message)
-            logger.error(f"✗ {message}")
+            logger.error(f"[FAIL] {message}")
 
     def validate_all(self):
         """Run all validation checks."""
@@ -252,7 +252,7 @@ class LoaderValidator:
                 if is_critical and success_rate < 100:
                     self._log_check(False, f"{msg} [CRITICAL]")
                 else:
-                    logger.info(f"  ✓ {msg}")
+                    logger.info(f"  [OK] {msg}")
 
         except Exception as e:
             logger.warning(f"Could not check loader SLA: {e}")
@@ -266,3 +266,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
