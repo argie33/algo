@@ -30,6 +30,7 @@ Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
 FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
 import sys
+from config.env_loader import load_env
 import time
 import logging
 import json
@@ -48,14 +49,6 @@ import requests
 from bs4 import BeautifulSoup
 
 # Load .env.local if it exists
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 # -------------------------------
 # Script metadata & logging setup 

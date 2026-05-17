@@ -27,6 +27,7 @@ from utils.loader_helpers import get_active_symbols
 import logging
 import os
 import sys
+from config.env_loader import load_env
 import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
@@ -45,16 +46,6 @@ from loaders.loader_validation import validate_price_row, count_validation_error
 
 _credential_manager = credential_manager
 
-# >>> dotenv-autoload >>>
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
-# <<< dotenv-autoload <<<
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

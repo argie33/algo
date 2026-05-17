@@ -24,6 +24,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
+from config.env_loader import load_env
 from utils.loader_helpers import _resolve_timeframe
 from utils.loader_helpers import get_active_symbols
 from typing import List, Optional

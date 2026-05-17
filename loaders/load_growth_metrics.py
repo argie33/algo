@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from config.credential_helper import get_db_password
+from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 
 try:

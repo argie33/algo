@@ -26,6 +26,7 @@ import os
 from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import sys
+from config.env_loader import load_env
 import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
@@ -41,16 +42,6 @@ from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager
 from loaders.loader_validation import validate_score_row, count_validation_errors
 
-# >>> dotenv-autoload >>>
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
-# <<< dotenv-autoload <<<
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 

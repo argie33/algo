@@ -24,19 +24,12 @@ import sys
 from datetime import date, timedelta
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config
+from config.env_loader import load_env
 from utils.loader_helpers import _resolve_timeframe
 from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
 
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 

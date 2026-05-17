@@ -27,15 +27,11 @@ import psycopg2
 from datetime import date, timedelta
 from typing import Optional
 from pathlib import Path
+from config.env_loader import load_env
 from dotenv import load_dotenv
 
 from utils.optimal_loader import OptimalLoader
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

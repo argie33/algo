@@ -33,6 +33,7 @@ except ImportError:
     credential_manager = None
 
 from config.credential_helper import get_db_password
+from config.env_loader import load_env
 
 # dotenv-autoload
 try:

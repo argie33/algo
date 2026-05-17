@@ -27,16 +27,9 @@ from config.credential_helper import get_db_password, get_db_config
 import math
 import os
 import sys
+from config.env_loader import load_env
 from collections import defaultdict
 
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("loadseasonality")

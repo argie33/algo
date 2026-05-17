@@ -29,6 +29,7 @@ Last Updated: 2026-01-28 - Data loss fix deployed and ready for ECS execution
 FIXED: Removed DROP TABLE vulnerability - data now safely preserved on crash
 """
 import sys
+from config.env_loader import load_env
 import time
 import logging
 import json
@@ -53,14 +54,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # Load .env.local if it exists
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 # -------------------------------
 # Script metadata & logging setup 

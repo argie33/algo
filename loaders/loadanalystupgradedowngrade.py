@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 import sys
 import os
 from pathlib import Path
+from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -47,16 +48,6 @@ except ImportError:
     # Fallback: create simple loader class if utils not available
     OptimalLoader = object
 
-# >>> dotenv-autoload >>>
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
-# <<< dotenv-autoload <<<
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 

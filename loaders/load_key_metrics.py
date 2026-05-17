@@ -29,17 +29,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from config.env_loader import load_env
 from typing import Dict, List, Optional
 
 import psycopg2
 import requests
 from dotenv import load_dotenv
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logging.basicConfig(
     level=logging.INFO,
