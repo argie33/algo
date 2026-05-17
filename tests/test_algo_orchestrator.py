@@ -18,7 +18,7 @@ import pytest
 import psycopg2
 from unittest.mock import Mock, MagicMock, patch, call
 from datetime import date, datetime, timedelta
-from algo.algo_orchestrator import AlgoOrchestrator
+from algo.algo_orchestrator import Orchestrator
 from utils.trade_status import TradeStatus, PositionStatus
 
 
