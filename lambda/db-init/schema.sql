@@ -129,23 +129,6 @@ CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analyst sentiment summary
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    total_analysts INTEGER,
-    target_price DECIMAL(12, 4),
-    current_price DECIMAL(12, 4),
-    upside_downside_percent DECIMAL(8, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
-
 -- ════════════════════════════════════════════════════════════════════════════
 -- TECHNICAL INDICATORS
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1726,7 +1709,6 @@ CREATE INDEX IF NOT EXISTS idx_technical_daily_date ON technical_data_daily(date
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbol);
-CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON analyst_sentiment_analysis(symbol);
 
 -- Algo system indexes
 CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);
@@ -1837,69 +1819,6 @@ CREATE TABLE IF NOT EXISTS etf_symbols (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    timeframe VARCHAR(20),
-    date DATE,
-    confluence_score DECIMAL(8,4),
-    signal VARCHAR(50),
-    price DECIMAL(12,4),
-    sma_20 DECIMAL(12,4),
-    sma_50 DECIMAL(12,4),
-    zscore DECIMAL(8,4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, timeframe, date)
-);
-
-CREATE TABLE IF NOT EXISTS mean_reversion_signals_daily_etf (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    timeframe VARCHAR(20),
-    date DATE,
-    confluence_score DECIMAL(8,4),
-    signal VARCHAR(50),
-    price DECIMAL(12,4),
-    sma_20 DECIMAL(12,4),
-    sma_50 DECIMAL(12,4),
-    zscore DECIMAL(8,4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, timeframe, date)
-);
-
--- ════════════════════════════════════════════════════════════════════════════
--- RANGE SIGNAL TABLES
--- ════════════════════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS range_signals_daily (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    date DATE,
-    signal VARCHAR(50),
-    resistance DECIMAL(12,4),
-    support DECIMAL(12,4),
-    current_price DECIMAL(12,4),
-    range_width DECIMAL(12,4),
-    risk_reward_ratio DECIMAL(8,4),
-    breakout_probability DECIMAL(8,4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
-
-CREATE TABLE IF NOT EXISTS range_signals_daily_etf (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20),
-    date DATE,
-    signal VARCHAR(50),
-    resistance DECIMAL(12,4),
-    support DECIMAL(12,4),
-    current_price DECIMAL(12,4),
-    range_width DECIMAL(12,4),
-    risk_reward_ratio DECIMAL(8,4),
-    breakout_probability DECIMAL(8,4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMMODITY ANALYSIS TABLES
@@ -1995,16 +1914,8 @@ CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol)
 CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_symbol ON safeguard_audit_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_timestamp ON safeguard_audit_log(timestamp);
 
--- Indexes for signal tables
-CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_symbol_date ON mean_reversion_signals_daily(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_mean_reversion_signals_daily_etf_symbol_date ON mean_reversion_signals_daily_etf(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_range_signals_daily_symbol_date ON range_signals_daily(symbol, date);
-CREATE INDEX IF NOT EXISTS idx_range_signals_daily_etf_symbol_date ON range_signals_daily_etf(symbol, date);
-
 -- Indexes for sentiment tables
 CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
-CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);
-CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol_date ON sentiment_social(symbol, date DESC);
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON sentiment_social(date DESC);
 

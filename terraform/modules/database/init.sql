@@ -129,23 +129,6 @@ CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analyst sentiment summary
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    total_analysts INTEGER,
-    target_price DECIMAL(12, 4),
-    current_price DECIMAL(12, 4),
-    upside_downside_percent DECIMAL(8, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
-
 -- ════════════════════════════════════════════════════════════════════════════
 -- TECHNICAL INDICATORS
 -- ════════════════════════════════════════════════════════════════════════════
