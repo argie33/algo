@@ -1651,16 +1651,20 @@ class Orchestrator:
                                      '--skip-freshness flag used — data freshness check skipped')
             else:
                 try:
-                    if not self.phase_1_data_freshness():
-                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
-                        self.log_phase_result(1, 'data_freshness', 'fail', 'Stale or missing critical data')
-                        return self._final_report()
+                    with TimeBlock("phase_1_data_freshness"):
+                        if not self.phase_1_data_freshness():
+                            logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                            self.log_phase_result(1, 'data_freshness', 'fail', 'Stale or missing critical data')
+                            return self._final_report()
                 except Exception as e:
                     logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
                     self.log_phase_result(1, 'data_freshness', 'error', str(e))
                     return self._final_report()
 
-            if not self.phase_2_circuit_breakers():
+            with TimeBlock("phase_2_circuit_breakers"):
+                phase_2_passed = self.phase_2_circuit_breakers()
+
+            if not phase_2_passed:
                 logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
                 self.phase_3a_reconciliation()
                 self.phase_3_position_monitor()
@@ -1671,7 +1675,8 @@ class Orchestrator:
 
             # Phase 3a: Reconciliation
             try:
-                self.phase_3a_reconciliation()
+                with TimeBlock("phase_3a_reconciliation"):
+                    self.phase_3a_reconciliation()
                 logger.info("✓ Phase 3a (Reconciliation) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 3a (Reconciliation) failed: {e}", exc_info=True)
@@ -1688,7 +1693,8 @@ class Orchestrator:
 
             # Phase 3b: Exposure Policy
             try:
-                self.phase_3b_exposure_policy()
+                with TimeBlock("phase_3b_exposure_policy"):
+                    self.phase_3b_exposure_policy()
                 logger.info("✓ Phase 3b (Exposure Policy) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
@@ -1696,10 +1702,11 @@ class Orchestrator:
 
             # Phase 4: Exit Execution
             try:
-                result = self.phase_4_exit_execution()
-                if result is False:
-                    logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
-                    return self._final_report()
+                with TimeBlock("phase_4_exit_execution"):
+                    result = self.phase_4_exit_execution()
+                    if result is False:
+                        logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
+                        return self._final_report()
                 logger.info("✓ Phase 4 (Exit Execution) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
@@ -1707,7 +1714,8 @@ class Orchestrator:
 
             # Phase 4b: Pyramid Adds
             try:
-                self.phase_4b_pyramid_adds()
+                with TimeBlock("phase_4b_pyramid_adds"):
+                    self.phase_4b_pyramid_adds()
                 logger.info("✓ Phase 4b (Pyramid Adds) completed")
             except Exception as e:
                 logger.error(f"✗ Phase 4b (Pyramid Adds) failed: {e}", exc_info=True)
@@ -1739,7 +1747,8 @@ class Orchestrator:
 
             # Phase 7: Reconciliation (fail-open — doesn't execute trades, just records state)
             try:
-                result = self.phase_7_reconcile()
+                with TimeBlock("phase_7_reconciliation"):
+                    result = self.phase_7_reconcile()
                 # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
                 # (positions may already be executed, so we must sync state)
                 logger.info("✓ Phase 7 (Reconciliation) completed")

@@ -170,6 +170,64 @@ router.post('/', requireAuth, async (req, res, next) => {
       notes
     } = req.body;
 
+    // INPUT VALIDATION
+    if (!run_name || !strategy_name) {
+      return sendError(res, "run_name and strategy_name are required", 400);
+    }
+
+    // Validate string lengths
+    if (run_name.length > 255) {
+      return sendError(res, "run_name must be <= 255 characters", 400);
+    }
+    if (strategy_name.length > 100) {
+      return sendError(res, "strategy_name must be <= 100 characters", 400);
+    }
+
+    // Validate dates
+    if (date_start && date_end) {
+      const start = new Date(date_start);
+      const end = new Date(date_end);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return sendError(res, "date_start and date_end must be valid dates", 400);
+      }
+      if (start > end) {
+        return sendError(res, "date_start must be before date_end", 400);
+      }
+    }
+
+    // Validate numeric fields are non-negative
+    const numericFields = {
+      total_signals: [total_signals, 0, 1000000],
+      total_trades: [total_trades, 0, 1000000],
+      winning_trades: [winning_trades, 0, total_trades || 1000000],
+      losing_trades: [losing_trades, 0, total_trades || 1000000],
+      win_rate: [win_rate, 0, 100],
+      avg_win_pct: [avg_win_pct, -100, 100],
+      avg_loss_pct: [avg_loss_pct, -100, 100],
+      avg_hold_days: [avg_hold_days, 0, 10000],
+      expectancy_per_trade: [expectancy_per_trade, -100000, 100000],
+      total_return_pct: [total_return_pct, -100000, 100000],
+      max_drawdown_pct: [max_drawdown_pct, 0, 100],
+      sharpe: [sharpe, -100, 100],
+      sortino: [sortino, -100, 100],
+      calmar_ratio: [calmar_ratio, -100, 100],
+      profit_factor: [profit_factor, 0, 100]
+    };
+
+    for (const [field, [value, min, max]] of Object.entries(numericFields)) {
+      if (value !== null && value !== undefined && value !== '') {
+        const num = parseFloat(value);
+        if (isNaN(num) || num < min || num > max) {
+          return sendError(res, `${field} must be a number between ${min} and ${max}`, 400);
+        }
+      }
+    }
+
+    // Validate notes length
+    if (notes && notes.length > 5000) {
+      return sendError(res, "notes must be <= 5000 characters", 400);
+    }
+
     const insertQ = `
       INSERT INTO backtest_runs (
         run_name, strategy_name,
@@ -195,7 +253,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       run_id: result.rows[0].run_id
     }, "Backtest created successfully", 201);
   } catch (error) {
-    console.error("Error creating backtest", error);
+    logger.error("Error creating backtest", error);
     return sendError(res, "Failed to create backtest: " + error.message, 500);
   }
 });
