@@ -714,9 +714,8 @@ class APIHandler:
         """Get data freshness status."""
         try:
             self.cur.execute("""
-                SELECT symbol, MAX(date) as latest_date
-                FROM price_daily
-                GROUP BY symbol
+                SELECT symbol, latest_date
+                FROM data_loader_status
                 ORDER BY latest_date DESC
                 LIMIT 10
             """)

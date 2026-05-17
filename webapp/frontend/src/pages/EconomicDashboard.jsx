@@ -141,7 +141,7 @@ export default function EconomicDashboard() {
         weight: +vixVal > 35 ? 100 : +vixVal > 25 ? 60 : Math.max(0, +vixVal * 2),
       });
     }
-    const igHist = yieldData?.credit?.history?.['BAMLC0A0CM'] || [];
+    const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
     const igVal  = igHist.at?.(-1)?.value;
     if (igVal != null) {
       tiles.push({
@@ -161,7 +161,7 @@ export default function EconomicDashboard() {
     if (!yieldData?.credit?.history) return [];
     const vixSeries  = yieldData.credit.history['VIXCLS'] || [];
     const hySeries   = yieldData.credit.history['BAMLH0A0HYM2'] || [];
-    const igSeries   = yieldData.credit.history['BAMLC0A0CM'] || [];
+    const igSeries   = yieldData.credit.history['BAMLH0A0IG'] || [];
     const curveSeries = (yieldData.history?.T10Y2Y || []);
     if (vixSeries.length < 10 || hySeries.length < 10) return [];
     const map = new Map();

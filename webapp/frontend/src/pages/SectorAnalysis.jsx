@@ -673,16 +673,16 @@ function SparklineTrend({ name, type }) {
     { enabled: !!name, staleTime: 1000 * 60 * 10 }
   );
 
-  const rows = (resp?.trendData || []).filter(r => r.rank != null);
+  const rows = (resp?.trendData || []).filter(r => r.dailyStrengthScore != null);
   if (rows.length < 2) return <span className="t-xs muted">—</span>;
 
-  const data = rows.map(r => ({ date: r.date, rank: r.rank }));
+  const data = rows.map(r => ({ date: r.date, score: r.dailyStrengthScore }));
   return (
     <div style={{ width: 90, height: 30 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-          <YAxis hide reversed domain={['dataMin', 'dataMax']} />
-          <Line type="monotone" dataKey="rank" stroke="var(--brand)"
+          <YAxis hide domain={['dataMin', 'dataMax']} />
+          <Line type="monotone" dataKey="score" stroke="var(--brand)"
                 strokeWidth={1.5} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
