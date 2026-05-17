@@ -13,7 +13,7 @@ Validates exit conditions:
 import pytest
 from unittest.mock import MagicMock, patch, call
 from datetime import datetime, date as _date, timedelta
-import psycopg2
+from utils.db_connection import get_db_connection
 import os
 
 

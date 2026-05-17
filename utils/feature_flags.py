@@ -15,10 +15,11 @@ Flags stored in database (easy to toggle without deploy):
 - Queryable in real-time
 """
 
+from config.credential_helper import get_db_config
 from config.env_loader import load_env
 import logging
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from config.credential_helper import get_db_password, get_db_config
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -29,241 +30,12 @@ from utils.structured_logger import get_logger
 
 logger = logging.getLogger(__name__)
 
-
 logger = get_logger(__name__)
-
-def _get_db_config():
-    """Lazy-load DB config at runtime (uses centralized credential_helper)."""
-    return get_db_config()
-
-
-class FeatureFlagType(Enum):
-    """Types of feature flags."""
-    SIGNAL_TIER = "signal_tier"  # Enable/disable signal filter tier
-    A_B_TEST = "ab_test"  # A/B test variant selection
-    SYMBOL_OVERRIDE = "symbol_override"  # Per-symbol enable/disable
-    ROLLOUT = "rollout"  # Gradual rollout (% of trades)
-
-
-class FeatureFlags:
-    """Manage feature flags for safe signal control."""
-
-    def __init__(self):
-        self.conn = None
-        self._cache: Dict[str, Any] = {}
-        self._cache_updated_at = None
-        self._cache_ttl_seconds = 30  # Refresh cache every 30 seconds
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = psycopg2.connect(**_get_db_config())
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-
-    def set_flag(
-        self,
-        flag_name: str,
-        flag_type: str,
-        value: Any,
-        description: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        """
-        Set a feature flag value.
-
-        Args:
-            flag_name: Name of the flag (e.g., "tier_2_enabled", "ab_test_variant_a")
-            flag_type: Type of flag (SIGNAL_TIER, A_B_TEST, etc.)
-            value: The value to set (bool, int, str, etc.)
-            description: Human-readable description
-            metadata: Optional extra context
-
-        Returns:
-            True if set successfully
-        """
-        try:
-            self.connect()
-
-            import json
-            metadata_json = json.dumps(metadata or {})
-
-            with self.conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO feature_flags
-                    (flag_name, flag_type, value, description, metadata, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (flag_name) DO UPDATE SET
-                        value = EXCLUDED.value,
-                        metadata = EXCLUDED.metadata,
-                        updated_at = NOW()
-                """, (
-                    flag_name,
-                    flag_type,
-                    str(value),
-                    description,
-                    metadata_json,
-                ))
-                self.conn.commit()
-
-            # Clear cache
-            self._cache.clear()
-
-            logger.info("Feature flag updated", extra={
-                "flag_name": flag_name,
-                "value": value,
-                "type": flag_type,
-            })
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to set flag: {e}")
-            return False
-
-    def get_flag(self, flag_name: str, default: Any = None) -> Any:
-        """Get a feature flag value (with TTL cache)."""
-        try:
-            self.connect()
-
-            # Check cache with TTL (refresh every 30 seconds)
-            from datetime import datetime as dt
-            now = dt.now()
-            cache_expired = (
-                self._cache_updated_at is None or
-                (now - self._cache_updated_at).total_seconds() > self._cache_ttl_seconds
-            )
-
-            if flag_name in self._cache and not cache_expired:
-                return self._cache[flag_name]
-
-            # Refresh cache if expired
-            if cache_expired:
-                self._cache.clear()
-                self._cache_updated_at = now
-
-            with self.conn.cursor() as cur:
-                cur.execute("""
-                    SELECT value, enabled FROM feature_flags
-                    WHERE flag_name = %s
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                """, (flag_name,))
-
-                row = cur.fetchone()
-                if row:
-                    value, enabled = row[0], row[1]
-                    # If flag is disabled, return False; otherwise parse and return value
-                    if not enabled:
-                        self._cache[flag_name] = False
-                        return False
-                    # Parse value back to bool if it was boolean
-                    if isinstance(value, str):
-                        if value.lower() in ('true', 'false'):
-                            value = value.lower() == 'true'
-                        elif value.isdigit():
-                            value = int(value)
-                    self._cache[flag_name] = value
-                    return value
-
-            return default
-
-        except Exception as e:
-            logger.warning(f"Failed to get flag {flag_name}: {e}")
-            return default
-
-    def is_enabled(self, flag_name: str, default: bool = True) -> bool:
-        """Check if a feature is enabled."""
-        value = self.get_flag(flag_name, default)
-        return value in (True, 'true', '1', 1)
-
-    def disable_flag(self, flag_name: str) -> bool:
-        """Disable a flag immediately (emergency disable)."""
-        return self.set_flag(flag_name, "emergency_disable", False,
-                            description=f"Emergency disable at {datetime.now().isoformat()}")
-
-    def enable_flag(self, flag_name: str) -> bool:
-        """Re-enable a flag."""
-        return self.set_flag(flag_name, "enable", True)
-
-    def list_flags(self) -> List[Dict[str, Any]]:
-        """Get all feature flags."""
-        try:
-            self.connect()
-
-            with self.conn.cursor() as cur:
-                cur.execute("""
-                    SELECT flag_name, flag_type, value, description, enabled, updated_at
-                    FROM feature_flags
-                    ORDER BY updated_at DESC
-                """)
-
-                columns = [desc[0] for desc in cur.description]
-                results = []
-                for row in cur.fetchall():
-                    results.append(dict(zip(columns, row)))
-                return results
-
-        except Exception as e:
-            logger.error(f"Failed to list flags: {e}")
-            return []
-
-    def get_signal_tier_enabled(self, tier: int) -> bool:
-        """Check if a signal tier is enabled."""
-        return self.is_enabled(f"signal_tier_{tier}_enabled", default=True)
-
-    def get_ab_test_variant(self, test_name: str, default: str = "control") -> str:
-        """Get A/B test variant."""
-        return self.get_flag(f"ab_test_{test_name}_variant", default)
-
-    def get_rollout_percentage(self, feature_name: str, default: int = 100) -> int:
-        """Get rollout percentage (0-100)."""
-        pct = self.get_flag(f"rollout_{feature_name}_pct", default)
-        try:
-            return int(pct)
-        except (ValueError, TypeError):
-            return default
-
-
-# Safe default feature flags (fail-closed / conservative)
-DEFAULT_FEATURE_FLAGS = {
-    # Signal Pipeline - All enabled by default (safe = enabled)
-    'signal_tier_1_enabled': ('signal_tier', True, 'Enable Tier 1: Data Quality Gates'),
-    'signal_tier_2_enabled': ('signal_tier', True, 'Enable Tier 2: Market Health Gates'),
-    'signal_tier_3_enabled': ('signal_tier', True, 'Enable Tier 3: Trend Template Confirmation'),
-    'signal_tier_4_enabled': ('signal_tier', True, 'Enable Tier 4: Signal Quality Scores'),
-    'signal_tier_5_enabled': ('signal_tier', True, 'Enable Tier 5: Portfolio Health'),
-
-    # Risk Management - All enabled by default (conservative = enabled)
-    'circuit_breaker_enabled': ('signal_tier', True, 'Enable circuit breaker on extreme VIX/breadth'),
-    'earnings_blackout_enabled': ('signal_tier', True, 'Enable earnings date blackout'),
-    'position_sizing_enabled': ('signal_tier', True, 'Enable dynamic position sizing by tier'),
-    'max_position_size_pct': ('rollout', 8.0, 'Maximum single position size as % of portfolio'),
-    'base_risk_pct': ('rollout', 0.75, 'Base portfolio risk per trade'),
-
-    # Trading Execution
-    'paper_trading_mode': ('signal_tier', True, 'Use paper trading (safe = true)'),
-    'require_manual_approval': ('signal_tier', False, 'Require manual approval before trades'),
-    'execute_trades': ('signal_tier', True, 'Execute trades (false = dry-run only)'),
-
-    # Data Quality
-    'skip_missing_data': ('signal_tier', True, 'Skip trades when key data is missing'),
-    'require_current_prices': ('signal_tier', True, 'Require current market prices (< 1 day old)'),
-
-    # A/B Testing & Rollout
-    'rollout_new_signals_pct': ('rollout', 100, 'Percentage of new signals to evaluate (0-100)'),
-    'ab_test_tier_5_variant': ('ab_test', 'control', 'Variant for Tier 5 A/B test: control or experimental'),
-}
-
 
 def create_feature_flags_table():
     """Create feature_flags table if it doesn't exist."""
     try:
-        conn = psycopg2.connect(**_get_db_config())
+        conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS feature_flags (
@@ -286,7 +58,6 @@ def create_feature_flags_table():
             logger.info("Feature flags table created")
     except Exception as e:
         logger.error(f"Failed to create feature flags table: {e}")
-
 
 def initialize_safe_defaults():
     """Initialize feature flags with safe (fail-closed) defaults.
@@ -322,10 +93,8 @@ def initialize_safe_defaults():
         logger.error(f"Failed to initialize feature flags: {e}")
         return False
 
-
 # Singleton
 _flags = None
-
 
 def get_flags() -> FeatureFlags:
     """Get singleton feature flags manager."""
@@ -333,7 +102,6 @@ def get_flags() -> FeatureFlags:
     if _flags is None:
         _flags = FeatureFlags()
     return _flags
-
 
 if __name__ == "__main__":
     import argparse

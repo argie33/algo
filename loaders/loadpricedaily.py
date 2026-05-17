@@ -31,7 +31,7 @@ import logging
 import os
 import sys
 from config.env_loader import load_env
-import psycopg2
+from utils.db_connection import get_db_connection
 from datetime import date, timedelta
 from typing import List, Optional
 

@@ -10,7 +10,7 @@ Or import and call setup_test_db() from pytest fixtures.
 
 from config.env_loader import load_env
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import date, timedelta, datetime
 from decimal import Decimal

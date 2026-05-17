@@ -52,7 +52,7 @@ class GrowthMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute multi-year growth metrics from annual income statement."""
         try:
-            import psycopg2
+            from utils.db_connection import get_db_connection
         except ImportError:
             return None
 

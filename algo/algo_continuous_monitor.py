@@ -22,7 +22,7 @@ import os
 import time
 import json
 import argparse
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date as _date
 from algo.algo_market_calendar import MarketCalendar
@@ -44,7 +44,7 @@ class ContinuousMonitor:
         self.run_count = 0
 
     def connect(self):
-        self.conn = psycopg2.connect(**get_db_config())
+        self.conn = get_db_connection()
         self.cur = self.conn.cursor()
 
     def disconnect(self):

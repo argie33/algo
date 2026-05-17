@@ -11,7 +11,7 @@ Triggered by EventBridge on schedule (every 6 hours or on-demand).
 
 import json
 import boto3
-import psycopg2
+from utils.db_connection import get_db_connection
 import os
 from datetime import datetime
 import logging

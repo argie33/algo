@@ -7,7 +7,7 @@ Functions that were defined identically in 19+ loader files, now centralized her
 
 from config.env_loader import load_env
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from typing import List
 from pathlib import Path
 

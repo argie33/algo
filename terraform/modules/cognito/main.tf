@@ -39,7 +39,7 @@ resource "aws_cognito_user_pool" "stocks_trading" {
 resource "aws_cognito_user_pool_client" "web_app" {
   name            = "stocks-web-app-${var.environment}"
   user_pool_id    = aws_cognito_user_pool.stocks_trading.id
-  generate_secret = false  # No secret for public frontend apps
+  generate_secret = false # No secret for public frontend apps
 
   # Authentication flows
   explicit_auth_flows = [
@@ -100,10 +100,10 @@ resource "aws_cognito_user_pool_domain" "main" {
 
 # Test user for development
 resource "aws_cognito_user" "test_user" {
-  count             = var.environment == "dev" ? 1 : 0
-  user_pool_id      = aws_cognito_user_pool.stocks_trading.id
-  username          = "testuser@stocks.local"
-  temporary_password = "TempPassword123!"
+  count              = var.environment == "dev" ? 1 : 0
+  user_pool_id       = aws_cognito_user_pool.stocks_trading.id
+  username           = "testuser@stocks.local"
+  temporary_password = var.test_user_password
   attributes = {
     email          = "testuser@stocks.local"
     email_verified = true

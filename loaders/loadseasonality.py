@@ -47,7 +47,7 @@ DOW_NAMES = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Frida
 
 
 def _connect():
-    import psycopg2
+    from utils.db_connection import get_db_connection
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),

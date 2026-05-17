@@ -270,7 +270,7 @@ module "monitoring" {
   api_gateway_name = module.services.api_gateway_id
 
   # Database configuration
-  rds_identifier         = module.database.rds_identifier
+  rds_identifier        = module.database.rds_identifier
   db_host               = module.database.rds_address
   db_user               = module.database.rds_username
   db_name               = module.database.rds_database_name

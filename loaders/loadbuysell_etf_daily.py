@@ -157,7 +157,7 @@ class BuySellETFDailyLoader(OptimalLoader):
 
 def get_active_etf_symbols() -> List[str]:
     """Pull active ETF symbols from database or use defaults."""
-    import psycopg2
+    from utils.db_connection import get_db_connection
     conn = None
     try:
         conn = psycopg2.connect(

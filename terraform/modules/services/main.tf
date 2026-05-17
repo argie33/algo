@@ -56,12 +56,12 @@ data "archive_file" "api_function_local" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name    = local.api_lambda_name
-  role             = var.api_lambda_role_arn
-  handler          = "index.handler"
-  runtime          = "nodejs20.x"
-  timeout          = var.api_lambda_timeout
-  memory_size      = var.api_lambda_memory
+  function_name = local.api_lambda_name
+  role          = var.api_lambda_role_arn
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  timeout       = var.api_lambda_timeout
+  memory_size   = var.api_lambda_memory
 
   # Use S3 package if available, otherwise local file
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
@@ -91,7 +91,7 @@ resource "aws_lambda_function" "api" {
       FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       # Data patrol task configuration (for /api/algo/patrol endpoint)
-      ECS_CLUSTER_ARN           = var.ecs_cluster_arn
+      ECS_CLUSTER_ARN            = var.ecs_cluster_arn
       PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn
       PATROL_CONTAINER_NAME      = var.patrol_task_container_name
       PATROL_SUBNET_IDS          = join(",", var.private_subnet_ids_for_patrol)
@@ -191,7 +191,7 @@ resource "aws_apigatewayv2_route" "api_default" {
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
   # Cognito auth disabled for MVP; can be enabled by uncommenting cognito authorizer resource above
-  authorizer_id      = null
+  authorizer_id = null
 
   lifecycle {
     # Force replacement to ensure authorization_type is properly applied
@@ -280,8 +280,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   count = var.cloudfront_enabled ? 1 : 0
 
   origin {
-    domain_name = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
-    origin_id   = "S3Frontend"
+    domain_name              = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+    origin_id                = "S3Frontend"
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend[0].id
   }
 
@@ -431,12 +431,12 @@ data "archive_file" "algo_function_local" {
 }
 
 resource "aws_lambda_function" "algo" {
-  function_name    = local.algo_lambda_name
-  role             = var.algo_lambda_role_arn
-  handler          = "lambda_function.lambda_handler"
-  runtime          = "python3.11"
-  timeout          = var.algo_lambda_timeout
-  memory_size      = var.algo_lambda_memory
+  function_name = local.algo_lambda_name
+  role          = var.algo_lambda_role_arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.11"
+  timeout       = var.algo_lambda_timeout
+  memory_size   = var.algo_lambda_memory
 
   # Use S3 package if available, otherwise local file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
@@ -456,18 +456,18 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DATABASE_SECRET_ARN      = var.rds_credentials_secret_arn
-      DB_ENDPOINT              = var.rds_endpoint
-      DB_HOST                  = var.rds_endpoint
-      DB_NAME                  = var.rds_database_name
-      ALERTS_SNS_TOPIC         = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
-      EXECUTION_MODE           = var.execution_mode
-      ORCHESTRATOR_DRY_RUN     = tostring(var.orchestrator_dry_run)
-      APCA_API_BASE_URL        = var.alpaca_api_base_url
-      ALPACA_PAPER_TRADING     = tostring(var.alpaca_paper_trading)
-      LOG_LEVEL                = var.orchestrator_log_level
-      DATA_PATROL_ENABLED      = tostring(var.data_patrol_enabled)
-      DATA_PATROL_TIMEOUT_MS   = tostring(var.data_patrol_timeout_ms)
+      DATABASE_SECRET_ARN    = var.rds_credentials_secret_arn
+      DB_ENDPOINT            = var.rds_endpoint
+      DB_HOST                = var.rds_endpoint
+      DB_NAME                = var.rds_database_name
+      ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      EXECUTION_MODE         = var.execution_mode
+      ORCHESTRATOR_DRY_RUN   = tostring(var.orchestrator_dry_run)
+      APCA_API_BASE_URL      = var.alpaca_api_base_url
+      ALPACA_PAPER_TRADING   = tostring(var.alpaca_paper_trading)
+      LOG_LEVEL              = var.orchestrator_log_level
+      DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
+      DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
     }
   }
 
@@ -517,12 +517,12 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 # ============================================================
 
 resource "aws_scheduler_schedule" "algo_orchestrator" {
-  count                         = var.algo_schedule_enabled ? 1 : 0
-  name                          = "${var.project_name}-algo-schedule-${var.environment}"
-  description                   = "Trigger algo orchestrator Lambda at scheduled time"
-  schedule_expression           = var.algo_schedule_expression
-  schedule_expression_timezone  = var.algo_schedule_timezone
-  state                         = "ENABLED"
+  count                        = var.algo_schedule_enabled ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-${var.environment}"
+  description                  = "Trigger algo orchestrator Lambda at scheduled time"
+  schedule_expression          = var.algo_schedule_expression
+  schedule_expression_timezone = var.algo_schedule_timezone
+  state                        = "ENABLED"
 
   flexible_time_window {
     mode = "OFF"
@@ -759,7 +759,7 @@ resource "aws_cloudwatch_metric_alarm" "price_data_stale" {
   statistic           = "Maximum"
   threshold           = 3
   alarm_description   = "CRITICAL: price_daily table is 3+ days stale. No trading data available."
-  treat_missing_data  = "breaching"  # If no data, treat as breaching (fail-closed)
+  treat_missing_data  = "breaching" # If no data, treat as breaching (fail-closed)
   alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
   tags                = var.common_tags
 }
@@ -823,7 +823,7 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
   evaluation_periods  = 1
   metric_name         = "LoaderFailureCount24h"
   namespace           = "AlgoTrading"
-  period              = 86400  # 24 hours
+  period              = 86400 # 24 hours
   statistic           = "Sum"
   threshold           = 2
   alarm_description   = "WARNING: 2+ loaders failed in the last 24 hours. Data pipeline degraded."

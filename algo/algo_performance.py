@@ -20,7 +20,7 @@ try:
 except ImportError:
     credential_manager = None
 
-import psycopg2
+from utils.db_connection import get_db_connection
 import json
 import numpy as np
 from datetime import datetime, date, timedelta

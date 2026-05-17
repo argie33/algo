@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from config.env_loader import load_env
 from datetime import datetime

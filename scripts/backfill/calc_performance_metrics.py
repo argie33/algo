@@ -15,7 +15,7 @@ Metrics:
 from config.env_loader import load_env
 import os
 import sys
-import psycopg2
+from utils.db_connection import get_db_connection
 import numpy as np
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -36,7 +36,7 @@ class PerformanceMetricsCalculator:
     def connect(self):
         """Connect to database."""
         try:
-            self.conn = psycopg2.connect(**get_db_config())
+            self.conn = get_db_connection()
             self.cur = self.conn.cursor()
             logger.info("✓ Database connected")
         except Exception as e:

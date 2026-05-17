@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
 
 # GitHub Actions deployment role - Create the role with OIDC trust
 resource "aws_iam_role" "github_actions" {
-  name              = "${var.project_name}-svc-github-actions-${var.environment}"
+  name               = "${var.project_name}-svc-github-actions-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
 
   tags = var.common_tags

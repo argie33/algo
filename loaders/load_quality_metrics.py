@@ -53,7 +53,7 @@ class QualityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute quality metrics from balance sheet and income statement."""
         try:
-            import psycopg2
+            from utils.db_connection import get_db_connection
         except ImportError:
             return None
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Stock Analytics Platform - API Lambda Handler
 
 Serves HTTP API endpoints for the frontend dashboard.
@@ -20,7 +20,7 @@ Endpoints:
 import os
 import json
 import logging
-import psycopg2
+from utils.db_connection import get_db_connection
 import psycopg2.extras
 import psycopg2.errors
 import psycopg2.pool

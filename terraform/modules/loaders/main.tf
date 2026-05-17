@@ -126,52 +126,52 @@ locals {
   # Maps each Terraform loader key to the actual Python script filename.
   # entrypoint.sh reads LOADER_FILE to determine which script to exec.
   loader_file_map = {
-    "stock_symbols"              = "loadstocksymbols.py"
-    "stock_prices_daily"         = "loadpricedaily.py"
-    "stock_prices_weekly"        = "load_price_aggregate.py"
-    "stock_prices_monthly"       = "load_price_aggregate.py"
-    "etf_prices_daily"           = "loadetfpricedaily.py"
-    "etf_prices_weekly"          = "load_etf_price_aggregate.py"
-    "etf_prices_monthly"         = "load_etf_price_aggregate.py"
-    "financials_annual_income"   = "load_income_statement.py"
-    "financials_annual_balance"  = "load_balance_sheet.py"
-    "financials_annual_cashflow" = "load_cash_flow.py"
+    "stock_symbols"                 = "loadstocksymbols.py"
+    "stock_prices_daily"            = "loadpricedaily.py"
+    "stock_prices_weekly"           = "load_price_aggregate.py"
+    "stock_prices_monthly"          = "load_price_aggregate.py"
+    "etf_prices_daily"              = "loadetfpricedaily.py"
+    "etf_prices_weekly"             = "load_etf_price_aggregate.py"
+    "etf_prices_monthly"            = "load_etf_price_aggregate.py"
+    "financials_annual_income"      = "load_income_statement.py"
+    "financials_annual_balance"     = "load_balance_sheet.py"
+    "financials_annual_cashflow"    = "load_cash_flow.py"
     "financials_quarterly_income"   = "load_income_statement.py"
     "financials_quarterly_balance"  = "load_balance_sheet.py"
     "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"      = "loadttmincomestatement.py"
-    "financials_ttm_cashflow"    = "loadttmcashflow.py"
-    "key_metrics"                = "load_key_metrics.py"
-    "growth_metrics"             = "load_growth_metrics.py"
-    "quality_metrics"            = "load_quality_metrics.py"
-    "value_metrics"              = "load_value_metrics.py"
-    "earnings_history"   = "loadearningshistory.py"
-    "earnings_revisions" = "loadearningsrevisions.py"
-    "earnings_surprise"  = "loadearningsestimates.py"
-    "market_indices"             = "loadmarketindices.py"
-    "seasonality"                = "loadseasonality.py"
-    "econ_data"                  = "loadecondata.py"
-    "aaiidata"                   = "loadaaiidata.py"
-    "naaim_data"                 = "loadnaaim.py"
-    "feargreed"                  = "loadfeargreed.py"
-    "calendar"                   = "loadcalendar.py"
-    "earnings_calendar"          = "load_earnings_calendar.py"
-    "company_profile"            = "loadcompanyprofile.py"
-    "analyst_sentiment"          = "loadanalystsentiment.py"
-    "analyst_upgrades_downgrades" = "loadanalystupgradedowngrade.py"
-    "sectors"                    = "loadsectors.py"
-    "industry_ranking"           = "loadindustryranking.py"
-    "trend_template_data"        = "load_trend_template_data.py"
-    "stock_scores"               = "loadstockscores.py"
-    "signals_daily"              = "loadbuyselldaily.py"
-    "signals_weekly"             = "load_buysell_aggregate.py"
-    "signals_monthly"            = "load_buysell_aggregate.py"
-    "signals_etf_daily"          = "loadbuysell_etf_daily.py"
-    "signals_etf_weekly"         = "load_buysell_etf_aggregate.py"
-    "signals_etf_monthly"        = "load_buysell_etf_aggregate.py"
-    "algo_metrics_daily"         = "load_algo_metrics_daily.py"
-    "eod_bulk_refresh"           = "load_eod_bulk.py"
-    "market_data_batch"          = "load_market_data_batch.py"
+    "financials_ttm_income"         = "loadttmincomestatement.py"
+    "financials_ttm_cashflow"       = "loadttmcashflow.py"
+    "key_metrics"                   = "load_key_metrics.py"
+    "growth_metrics"                = "load_growth_metrics.py"
+    "quality_metrics"               = "load_quality_metrics.py"
+    "value_metrics"                 = "load_value_metrics.py"
+    "earnings_history"              = "loadearningshistory.py"
+    "earnings_revisions"            = "loadearningsrevisions.py"
+    "earnings_surprise"             = "loadearningsestimates.py"
+    "market_indices"                = "loadmarketindices.py"
+    "seasonality"                   = "loadseasonality.py"
+    "econ_data"                     = "loadecondata.py"
+    "aaiidata"                      = "loadaaiidata.py"
+    "naaim_data"                    = "loadnaaim.py"
+    "feargreed"                     = "loadfeargreed.py"
+    "calendar"                      = "loadcalendar.py"
+    "earnings_calendar"             = "load_earnings_calendar.py"
+    "company_profile"               = "loadcompanyprofile.py"
+    "analyst_sentiment"             = "loadanalystsentiment.py"
+    "analyst_upgrades_downgrades"   = "loadanalystupgradedowngrade.py"
+    "sectors"                       = "loadsectors.py"
+    "industry_ranking"              = "loadindustryranking.py"
+    "trend_template_data"           = "load_trend_template_data.py"
+    "stock_scores"                  = "loadstockscores.py"
+    "signals_daily"                 = "loadbuyselldaily.py"
+    "signals_weekly"                = "load_buysell_aggregate.py"
+    "signals_monthly"               = "load_buysell_aggregate.py"
+    "signals_etf_daily"             = "loadbuysell_etf_daily.py"
+    "signals_etf_weekly"            = "load_buysell_etf_aggregate.py"
+    "signals_etf_monthly"           = "load_buysell_etf_aggregate.py"
+    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
+    "eod_bulk_refresh"              = "load_eod_bulk.py"
+    "market_data_batch"             = "load_market_data_batch.py"
   }
 
   scheduled_loaders = {
@@ -350,15 +350,15 @@ locals {
 
     # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by Alpaca (180 req/min)
     # parallelism=16 with 1 vCPU: ~3x faster than serial, stays under rate limit
-    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
-    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
-    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 16 }
-    "etf_prices_daily"     = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
-    "etf_prices_weekly"    = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
-    "etf_prices_monthly"   = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 8  }
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
+    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
+    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
+    "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
+    "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
+    "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8  }
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Financial statements (10:00am ET) — I/O bound, rate-limited by yfinance/SEC
     # parallelism=4: respect yfinance rate limits (60/min), 500+ symbols
@@ -372,12 +372,12 @@ locals {
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Key metrics (market cap, insider holdings) — I/O bound, rate-limited by Finnhub (free tier ~60/min)
-    "key_metrics"                   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
-    "growth_metrics"                = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
-    "quality_metrics"               = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
-    "value_metrics"                 = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Earnings data (11:00am ET) — I/O bound
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
@@ -386,32 +386,32 @@ locals {
     "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
 
     # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
-    "company_profile"              = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_sentiment"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_upgrades_downgrades"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "sectors"                      = { cpu = 512, memory = 1024, timeout = 600,  parallelism = 4 }
-    "industry_ranking"             = { cpu = 512, memory = 1024, timeout = 600,  parallelism = 4 }
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "sectors"                     = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
 
     # Market & economic data — small datasets, single-threaded fine
-    "market_indices"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "seasonality"          = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "econ_data"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "aaiidata"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "naaim_data"           = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "feargreed"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "calendar"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "market_indices" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "econ_data"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "calendar"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Stock scores (compute-heavy scoring) — run via Step Functions EOD pipeline
-    "stock_scores"      = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "stock_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Right-size: 2 vCPU with 8 threads = good CPU utilization for pandas/numpy work
     "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 8 }
     "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
-    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900,  parallelism = 4 }
-    "signals_etf_weekly"  = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
-    "signals_etf_monthly" = { cpu = 512,  memory = 1024, timeout = 600,  parallelism = 2 }
+    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 4 }
+    "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
+    "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -602,15 +602,15 @@ resource "aws_ecs_task_definition" "continuous_monitor" {
 
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER",     valueFrom = "${var.db_secret_arn}:username::" }
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
       ]
 
       environment = [
         { name = "LOADER_FILE", value = "algo_continuous_monitor.py" },
-        { name = "AWS_REGION",  value = var.aws_region },
-        { name = "DB_HOST",     value = var.db_host },
-        { name = "DB_PORT",     value = tostring(var.db_port) },
-        { name = "DB_NAME",     value = var.db_name }
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name }
       ]
     }
   ])
@@ -684,7 +684,7 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
 
       # Orchestrator entry point: python3 algo_orchestrator.py [args]
       # Step Functions passes mode and dry_run as environment variables
-      command   = ["python3", "algo_orchestrator.py"]
+      command = ["python3", "algo_orchestrator.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -696,29 +696,29 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
       }
 
       secrets = [
-        { name = "DB_PASSWORD",      valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER",          valueFrom = "${var.db_secret_arn}:username::" },
-        { name = "ALPACA_API_KEY",   valueFrom = "${var.algo_secrets_arn}:ALPACA_API_KEY::" },
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" },
+        { name = "ALPACA_API_KEY", valueFrom = "${var.algo_secrets_arn}:ALPACA_API_KEY::" },
         { name = "ALPACA_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:ALPACA_SECRET_KEY::" }
       ]
 
       environment = [
-        { name = "AWS_REGION",                    value = var.aws_region },
-        { name = "DB_HOST",                       value = var.db_host },
-        { name = "DB_PORT",                       value = tostring(var.db_port) },
-        { name = "DB_NAME",                       value = var.db_name },
-        { name = "ALPACA_PAPER_TRADING",          value = "true" },
-        { name = "ORCHESTRATOR_LOG_LEVEL",        value = "INFO" },
-        { name = "ORCHESTRATOR_EXECUTION_MODE",   value = "auto" },
-        { name = "ORCHESTRATOR_DRY_RUN",          value = "false" }
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name },
+        { name = "ALPACA_PAPER_TRADING", value = "true" },
+        { name = "ORCHESTRATOR_LOG_LEVEL", value = "INFO" },
+        { name = "ORCHESTRATOR_EXECUTION_MODE", value = "auto" },
+        { name = "ORCHESTRATOR_DRY_RUN", value = "false" }
       ]
     }
   ])
 
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "1024"    # More CPU for complex calculations than loaders
-  memory                   = "2048"    # More memory for 7-phase trading orchestration
+  cpu                      = "1024" # More CPU for complex calculations than loaders
+  memory                   = "2048" # More memory for 7-phase trading orchestration
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -748,7 +748,7 @@ resource "aws_ecs_task_definition" "data_patrol" {
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
 
-      command   = ["python3", "algo_data_patrol.py"]
+      command = ["python3", "algo_data_patrol.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -761,22 +761,22 @@ resource "aws_ecs_task_definition" "data_patrol" {
 
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER",     valueFrom = "${var.db_secret_arn}:username::" }
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
       ]
 
       environment = [
         { name = "AWS_REGION", value = var.aws_region },
-        { name = "DB_HOST",    value = var.db_host },
-        { name = "DB_PORT",    value = tostring(var.db_port) },
-        { name = "DB_NAME",    value = var.db_name }
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name }
       ]
     }
   ])
 
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "512"    # Smaller than orchestrator (256 was too small)
-  memory                   = "1024"   # Basic monitoring task
+  cpu                      = "512"  # Smaller than orchestrator (256 was too small)
+  memory                   = "1024" # Basic monitoring task
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 

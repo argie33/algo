@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 import boto3
-import psycopg2
+from utils.db_connection import get_db_connection
 import argparse
 from typing import Dict, Optional
 from datetime import datetime

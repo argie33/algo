@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_db_conn():
-    import psycopg2
+    from utils.db_connection import get_db_connection
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),

@@ -66,7 +66,7 @@ resource "aws_db_instance" "main" {
 
   # Performance & Optimization
   multi_az            = var.db_multi_az
-  storage_type        = "gp3"  # gp3 is 20% cheaper than gp2 with same or better IOPS
+  storage_type        = "gp3" # gp3 is 20% cheaper than gp2 with same or better IOPS
   publicly_accessible = false # Private subnet, no public endpoint
 
   # Encryption
@@ -75,9 +75,9 @@ resource "aws_db_instance" "main" {
   iam_database_authentication_enabled = true
 
   # Monitoring & Logs
-  enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
-  monitoring_interval             = 60
-  monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
+  enabled_cloudwatch_logs_exports       = ["postgresql"] # Query logs to CloudWatch
+  monitoring_interval                   = 60
+  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
   performance_insights_enabled          = var.environment == "prod"
   performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
@@ -210,10 +210,10 @@ data "aws_iam_policy_document" "rds_proxy_secrets" {
 # ============================================================
 
 resource "aws_db_proxy" "main" {
-  count                   = var.enable_rds_proxy ? 1 : 0
-  name                    = "${var.project_name}-proxy"
-  debug_logging           = false
-  engine_family           = "POSTGRESQL"
+  count         = var.enable_rds_proxy ? 1 : 0
+  name          = "${var.project_name}-proxy"
+  debug_logging = false
+  engine_family = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
@@ -234,9 +234,9 @@ resource "aws_db_proxy" "main" {
 }
 
 resource "aws_db_proxy_target" "main" {
-  count              = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name      = aws_db_proxy.main[0].name
-  target_group_name  = "default"
+  count                  = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name          = aws_db_proxy.main[0].name
+  target_group_name      = "default"
   db_instance_identifier = aws_db_instance.main.identifier
 
   depends_on = [aws_db_proxy.main]
@@ -422,7 +422,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connection_ratio" {
   }
 
   metric_query {
-    id          = "active"
+    id = "active"
     metric {
       metric_name = "DatabaseConnections"
       namespace   = "AWS/RDS"
@@ -436,7 +436,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connection_ratio" {
   }
 
   metric_query {
-    id          = "max_connections"
+    id = "max_connections"
     metric {
       metric_name = "MaxConnections"
       namespace   = "AWS/RDS"
@@ -457,7 +457,7 @@ resource "aws_cloudwatch_log_metric_filter" "connection_timeout" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-connection-timeout-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  pattern = "connection limit exceeded"
+  pattern        = "connection limit exceeded"
 
   metric_transformation {
     name      = "RDSConnectionTimeouts"
@@ -491,7 +491,7 @@ resource "aws_cloudwatch_log_metric_filter" "too_many_connections" {
   count          = var.enable_rds_alarms ? 1 : 0
   name           = "${var.project_name}-too-many-connections-filter"
   log_group_name = aws_cloudwatch_log_group.rds_postgresql.name
-  pattern = "too many connections"
+  pattern        = "too many connections"
 
   metric_transformation {
     name      = "RDSTooManyConnections"
@@ -705,9 +705,9 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
 # Enables incremental loading to reduce API calls and improve performance
 
 resource "aws_dynamodb_table" "watermarks" {
-  name           = "${var.project_name}-watermarks-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "source"
+  name         = "${var.project_name}-watermarks-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "source"
   # TODO: Migrate to partition_key when AWS provider deprecates hash_key (currently both supported)
 
   attribute {
@@ -848,7 +848,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_rotation_duration" {
   namespace           = "AWS/Lambda"
   period              = "300"
   statistic           = "Average"
-  threshold           = "30000"  # milliseconds
+  threshold           = "30000" # milliseconds
   treat_missing_data  = "notBreaching"
   alarm_actions       = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
 

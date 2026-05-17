@@ -26,7 +26,7 @@ from config.credential_helper import get_db_password, get_db_config
 import os
 import sys
 import json
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, List, Any, Optional, Tuple
@@ -82,7 +82,7 @@ class Backtester:
     def connect(self):
         """Connect to database."""
         try:
-            self.conn = psycopg2.connect(**get_db_config())
+            self.conn = get_db_connection()
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise

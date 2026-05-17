@@ -16,7 +16,7 @@ try:
 except ImportError:
     boto3 = None
 
-import psycopg2
+from utils.db_connection import get_db_connection
 import requests
 from psycopg2.extras import execute_values
 

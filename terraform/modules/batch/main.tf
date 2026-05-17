@@ -298,9 +298,9 @@ EOF
 # ============================================================
 
 resource "aws_batch_compute_environment" "spot" {
-  type                     = "MANAGED"
-  state                    = "ENABLED"
-  service_role             = aws_iam_role.batch_service_role.arn
+  type         = "MANAGED"
+  state        = "ENABLED"
+  service_role = aws_iam_role.batch_service_role.arn
 
   compute_resources {
     type                = "SPOT"

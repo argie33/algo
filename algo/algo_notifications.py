@@ -13,7 +13,7 @@ from algo.algo_alerts import AlertManager
 from algo.algo_config import DATABASE_CONFIG
 
 try:
-    import psycopg2
+    from utils.db_connection import get_db_connection
     from psycopg2.extras import RealDictCursor
 except ImportError:
     psycopg2 = None

@@ -42,7 +42,7 @@ class SectorsLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute sector performance metrics from price_daily + company_profile."""
-        import psycopg2
+        from utils.db_connection import get_db_connection
         conn = None
         try:
             conn = psycopg2.connect(

@@ -13,7 +13,7 @@ USAGE:
 """
 
 import pytest
-import psycopg2
+from utils.db_connection import get_db_connection
 from datetime import date as _date, timedelta
 
 

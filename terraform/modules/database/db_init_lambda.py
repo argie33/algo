@@ -8,7 +8,7 @@ Runs SQL schema from init.sql; idempotent (uses IF NOT EXISTS).
 import json
 import logging
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from psycopg2 import OperationalError
 
 logger = logging.getLogger()

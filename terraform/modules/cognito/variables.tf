@@ -19,6 +19,13 @@ variable "domain_name" {
   default     = "example.com"
 }
 
+variable "test_user_password" {
+  description = "Temporary password for test user (dev only)"
+  type        = string
+  default     = "TempPassword123!"
+  sensitive   = true
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

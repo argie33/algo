@@ -56,7 +56,7 @@ variable "algo_orchestrator_task_definition_arn" {
 variable "algo_orchestrator_container_name" {
   description = "Container name within the algo orchestrator task definition"
   type        = string
-  default     = "algo-orchestrator"  # Will be: project_name-algo-orchestrator
+  default     = "algo-orchestrator" # Will be: project_name-algo-orchestrator
 }
 
 variable "sns_alert_topic_arn" {

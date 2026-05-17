@@ -16,7 +16,7 @@ Verifies:
 
 import pytest
 from datetime import date
-import psycopg2
+from utils.db_connection import get_db_connection
 
 
 @pytest.mark.integration

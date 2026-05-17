@@ -8,7 +8,7 @@
 # ============================================================
 
 resource "aws_iam_role" "data_freshness_monitor" {
-  name               = "${var.project_name}-data-freshness-monitor-${var.environment}"
+  name = "${var.project_name}-data-freshness-monitor-${var.environment}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -31,8 +31,8 @@ resource "aws_iam_role_policy_attachment" "data_freshness_logs" {
 
 # Policy for CloudWatch metrics and RDS access
 resource "aws_iam_role_policy" "data_freshness_metrics" {
-  name   = "${var.project_name}-data-freshness-metrics-${var.environment}"
-  role   = aws_iam_role.data_freshness_monitor.id
+  name = "${var.project_name}-data-freshness-metrics-${var.environment}"
+  role = aws_iam_role.data_freshness_monitor.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

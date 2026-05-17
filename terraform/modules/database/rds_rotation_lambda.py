@@ -14,7 +14,7 @@ Rotates RDS master user password every 30 days:
 import json
 import logging
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 import secrets
 import string
 import boto3

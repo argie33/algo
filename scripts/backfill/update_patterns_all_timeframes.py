@@ -9,7 +9,7 @@ try:
 except ImportError:
     credential_manager = None
 
-import psycopg2
+from utils.db_connection import get_db_connection
 from psycopg2.extras import execute_batch
 import pandas as pd
 from pathlib import Path

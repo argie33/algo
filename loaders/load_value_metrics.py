@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
 import time
 
-import psycopg2
+from utils.db_connection import get_db_connection
 import yfinance as yf
 
 try:

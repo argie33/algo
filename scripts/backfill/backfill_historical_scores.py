@@ -23,6 +23,7 @@ USAGE:
   python3 backfill_historical_scores.py --days 30 --symbols AAPL,NVDA  # subset for testing
 """
 
+from config.credential_helper import get_db_config
 from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
@@ -33,32 +34,20 @@ except ImportError:
 
 import os
 import argparse
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
-
 
 from algo.algo_signals import SignalComputer
 import logging
 
 logger = logging.getLogger(__name__)
 
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
-    }
-
-
 def backfill(days_back, symbol_filter=None, batch_size=100):
     conn = None
     cur = None
     try:
-        conn = psycopg2.connect(**_get_db_config())
+        conn = get_db_connection()
         cur = conn.cursor()
 
         # Get trading days from price_daily
@@ -181,7 +170,6 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
                 conn.close()
             except Exception:
                 pass
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Backfill historical scores')

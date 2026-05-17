@@ -17,7 +17,7 @@ except ImportError:
     credential_manager = None
 
 from config.env_loader import load_env
-import psycopg2
+from utils.db_connection import get_db_connection
 import os
 from config.credential_helper import get_db_password, get_db_config
 import requests

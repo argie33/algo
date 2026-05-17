@@ -5,7 +5,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
 from config.env_loader import load_env
-import psycopg2
+from utils.db_connection import get_db_connection
 from datetime import datetime, timedelta
 from pathlib import Path
 from utils.structured_logger import get_logger

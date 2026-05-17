@@ -23,7 +23,7 @@ import argparse
 import logging
 import os
 import sys
-import psycopg2
+from utils.db_connection import get_db_connection
 from datetime import date, timedelta
 from typing import Optional, List, Dict, Any
 from pathlib import Path

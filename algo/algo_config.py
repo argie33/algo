@@ -20,7 +20,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 try:
-    import psycopg2
+    from utils.db_connection import get_db_connection
 except ImportError:
     # Lambda: psycopg2 binary not available, will fail at runtime if DB needed
     psycopg2 = None
@@ -254,7 +254,7 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             cur.execute("SELECT key, value, value_type FROM algo_config")
@@ -375,7 +375,7 @@ class AlgoConfig:
             # Validate before storing
             self._validate_value(key, str(value), value_type)
 
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             cur.execute("""
@@ -417,7 +417,7 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            conn = get_db_connection()
             cur = conn.cursor()
 
             for key, (value, dtype, desc) in self.DEFAULTS.items():

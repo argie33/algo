@@ -87,7 +87,7 @@ class BuySellDailyLoader(OptimalLoader):
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         """Read OHLCV from local price_daily table."""
-        import psycopg2
+        from utils.db_connection import get_db_connection
         conn = self._connect()
         cur = conn.cursor()
         try:

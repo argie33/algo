@@ -25,7 +25,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import psycopg2
+from utils.db_connection import get_db_connection
 from datetime import date, timedelta
 from typing import Optional
 from pathlib import Path

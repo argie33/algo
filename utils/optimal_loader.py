@@ -160,7 +160,7 @@ class OptimalLoader(ABC):
         conn = getattr(self._tls, "conn", None)
         if conn is not None and not conn.closed:
             return conn
-        import psycopg2
+        from utils.db_connection import get_db_connection
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),

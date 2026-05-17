@@ -16,6 +16,7 @@ Usage:
         pool.putconn(conn)
 """
 
+from config.credential_helper import get_db_config
 from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
@@ -27,20 +28,6 @@ except ImportError:
 import os
 import psycopg2.pool
 from pathlib import Path
-
-
-def _get_db_config():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
-    }
-
-# Global pool instance
-_pool = None
 
 def get_db_pool(minconn=2, maxconn=10):
     """Get or create the global connection pool.

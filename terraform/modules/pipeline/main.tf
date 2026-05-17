@@ -20,9 +20,9 @@ locals {
   # Network config injected into every ECS task launched by Step Functions
   network_config = {
     AwsvpcConfiguration = {
-      Subnets         = var.private_subnet_ids
-      SecurityGroups  = [var.ecs_tasks_sg_id]
-      AssignPublicIp  = "DISABLED"
+      Subnets        = var.private_subnet_ids
+      SecurityGroups = [var.ecs_tasks_sg_id]
+      AssignPublicIp = "DISABLED"
     }
   }
 }
@@ -149,9 +149,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
-          Cluster        = var.ecs_cluster_arn
-          LaunchType     = "FARGATE"
-          TaskDefinition = var.loader_task_definition_arns["eod_bulk_refresh"]
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["eod_bulk_refresh"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -179,9 +179,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["trend_template_data"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["trend_template_data"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -201,9 +201,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["stock_scores"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -236,9 +236,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_daily"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_daily"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -258,9 +258,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_weekly"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_weekly"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -280,9 +280,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_monthly"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_monthly"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -302,9 +302,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_etf_daily"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_daily"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -324,9 +324,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_etf_weekly"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_weekly"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -346,9 +346,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 Type     = "Task"
                 Resource = "arn:aws:states:::ecs:runTask.sync"
                 Parameters = {
-                  Cluster        = var.ecs_cluster_arn
-                  LaunchType     = "FARGATE"
-                  TaskDefinition = var.loader_task_definition_arns["signals_etf_monthly"]
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_monthly"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -375,9 +375,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
-          Cluster        = var.ecs_cluster_arn
-          LaunchType     = "FARGATE"
-          TaskDefinition = var.loader_task_definition_arns["algo_metrics_daily"]
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["algo_metrics_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -399,9 +399,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
-          Cluster        = var.ecs_cluster_arn
-          LaunchType     = "FARGATE"
-          TaskDefinition = var.algo_orchestrator_task_definition_arn
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.algo_orchestrator_task_definition_arn
           NetworkConfiguration = local.network_config
           Overrides = {
             ContainerOverrides = [{
@@ -537,7 +537,7 @@ resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
 resource "aws_cloudwatch_event_rule" "algo_orchestrator_daily" {
   name                = "${var.project_name}-orchestrator-daily-${var.environment}"
   description         = "Daily algorithmic orchestrator: positions, exits, entries (5:30pm ET)"
-  schedule_expression = "cron(30 21 ? * MON-FRI *)"  # 5:30pm ET = 21:30 UTC
+  schedule_expression = "cron(30 21 ? * MON-FRI *)" # 5:30pm ET = 21:30 UTC
   state               = "ENABLED"
   tags                = var.common_tags
 }
@@ -556,9 +556,9 @@ resource "aws_cloudwatch_event_target" "algo_orchestrator" {
   role_arn  = aws_iam_role.eventbridge_lambda.arn
 
   input = jsonencode({
-    mode      = "paper"
-    dry_run   = false
-    run_date  = null  # Use current date
+    mode     = "paper"
+    dry_run  = false
+    run_date = null # Use current date
   })
 }
 

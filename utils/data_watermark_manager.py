@@ -40,7 +40,7 @@ USAGE:
 """
 
 import logging
-import psycopg2
+from utils.db_connection import get_db_connection
 import json
 from datetime import date as _date, datetime
 from typing import Optional, Dict, Any

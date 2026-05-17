@@ -10,10 +10,11 @@ Validates:
 - Order size limits
 """
 
+from config.credential_helper import get_db_config
 from config.env_loader import load_env
 import logging
 from typing import Dict, Any, Tuple, Optional
-import psycopg2
+from utils.db_connection import get_db_connection
 import os
 from config.credential_helper import get_db_password
 
@@ -25,9 +26,7 @@ except ImportError:
 
 from pathlib import Path
 
-
 logger = logging.getLogger(__name__)
-
 
 class PreTradeChecks:
     """Validation layer before executing trades."""

@@ -45,7 +45,7 @@ try:
 except ImportError:
     resource = None  # Windows doesn't have resource module
 
-import psycopg2
+from utils.db_connection import get_db_connection
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 

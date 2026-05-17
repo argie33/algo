@@ -5,7 +5,7 @@ Provides visibility into which loaders are working and data freshness.
 """
 
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 import logging

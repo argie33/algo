@@ -28,7 +28,7 @@ except ImportError:
 from config.env_loader import load_env
 import os
 import json
-import psycopg2
+from utils.db_connection import get_db_connection
 from config.credential_helper import get_db_password, get_db_config
 import requests
 from pathlib import Path

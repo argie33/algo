@@ -5,7 +5,7 @@ Uses technical data (RSI, momentum) since trend_template is not fully backfilled
 """
 
 from config.env_loader import load_env
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 import os
 import sys
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def backfill_sqs_sql():
     """Use SQL to calculate SQS for all signals using technical data."""
-    conn = psycopg2.connect(**get_db_config())
+    conn = get_db_connection()
     cur = conn.cursor()
 
     try:

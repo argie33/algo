@@ -11,7 +11,7 @@ USAGE:
 
 from config.env_loader import load_env
 import pytest
-import psycopg2
+from utils.db_connection import get_db_connection
 from psycopg2 import sql
 import os
 from pathlib import Path

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.env_loader import load_env
 load_env()
 import os
-import psycopg2
+from utils.db_connection import get_db_connection
 from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
 import logging
@@ -2121,7 +2121,7 @@ def _init_timescaledb(conn, cur):
 def init_database():
     """Initialize database schema."""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = get_db_connection()
         cur = conn.cursor()
 
         logger.info("╔════════════════════════════════════════════════════════╗")
