@@ -32,10 +32,7 @@ OUTPUTS:
 Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
-import psycopg2
-import psycopg2.extensions
 from config.env_loader import load_env
-from config.credential_helper import get_db_config
 load_env()
 import time
 import logging
@@ -50,6 +47,7 @@ except ImportError:
     resource = None  # Windows doesn't have resource module
 
 from utils.db_connection import get_db_connection
+import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
@@ -249,14 +247,8 @@ if __name__ == "__main__":
         log_mem("startup")
 
         # Connect to DB
-        logging.info("Loading database configuration...")
-        cfg = get_db_config()
-        logging.info(f"Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['database']}")
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["database"]
-        )
+        logging.info("Connecting to database...")
+        conn = get_db_connection()
         logging.info("Database connection established")
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
