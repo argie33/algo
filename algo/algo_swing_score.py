@@ -73,7 +73,7 @@ def _get_db_config():
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
 
-    # Component weights (sum = 100)
+    # Component weights (sum = 100) - loaded from config, fallback to defaults
     W_SETUP = 25
     W_TREND = 20
     W_MOMENTUM = 20
@@ -86,6 +86,7 @@ class SwingTraderScore:
         self.cur = cur
         self._owned = None
         self._signals = None
+        self._load_config_weights()
 
     def connect(self):
         if self.cur is None:
