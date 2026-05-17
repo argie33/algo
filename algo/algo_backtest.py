@@ -49,13 +49,6 @@ if not db_password:
         logger.critical(f"Database password unavailable. Credential manager failed: {e}")
         db_password = None  # Will be caught at connection time
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": db_password,
-    "database": os.getenv("DB_NAME", "stocks"),
-}
 
 
 class Backtester:
@@ -89,7 +82,7 @@ class Backtester:
     def connect(self):
         """Connect to database."""
         try:
-            self.conn = psycopg2.connect(**DB_CONFIG)
+            self.conn = psycopg2.connect(**get_db_config())
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise

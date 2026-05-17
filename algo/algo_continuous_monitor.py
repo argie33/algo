@@ -32,13 +32,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "stocks"),
-    "password": get_db_password(),
-    "database": os.getenv("DB_NAME", "stocks"),
-}
 
 
 class ContinuousMonitor:
@@ -51,7 +44,7 @@ class ContinuousMonitor:
         self.run_count = 0
 
     def connect(self):
-        self.conn = psycopg2.connect(**DB_CONFIG)
+        self.conn = psycopg2.connect(**get_db_config())
         self.cur = self.conn.cursor()
 
     def disconnect(self):
