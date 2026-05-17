@@ -1136,10 +1136,10 @@ class APIHandler:
 
             self.cur.execute(sql, params_tuple)
             rows = self.cur.fetchall()
-            return json_response(200, {'items': [dict(r) for r in rows], 'total': len(rows)})
+            return list_response([dict(r) for r in rows], total=len(rows))
         except Exception as e:
             logger.error(f"earnings handler error: {e}", exc_info=True)
-            return error_response(500, 'internal_error', f'Earnings handler error: {str(e)}')
+            return error_response(500, 'internal_error', 'Earnings handler error')
 
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
