@@ -10,14 +10,14 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     const response = await axios.get(`${API_BASE}${endpoint}`, { timeout });
     const success = response.status === expectedStatus;
 
-      `${success ? "✅" : "❌"} ${name}: ${response.status} (${response.statusText})`
+      `${success ? "" : ""} ${name}: ${response.status} (${response.statusText})`
     );
     if (response.data && response.data.error) {
       console.log(`   Error: ${response.data.error}`);
     }
     return success;
   } catch (error) {
-    console.log(`❌ ${name}: ${error.message}`);
+    console.log(` ${name}: ${error.message}`);
     return false;
   }
 }
@@ -46,7 +46,7 @@ async function runApiTests() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-    `\n📊 Results: ${passed}/${total} tests passed (${Math.round((passed / total) * 100)}%)`
+    `\n Results: ${passed}/${total} tests passed (${Math.round((passed / total) * 100)}%)`
   );
   return passed === total;
 }
@@ -67,7 +67,7 @@ async function testErrorHandling() {
     }
   }
 
-    `\n🔥 Error Handling: ${passed}/${errorTests.length} tests passed`
+    `\n Error Handling: ${passed}/${errorTests.length} tests passed`
   );
   return passed === errorTests.length;
 }
@@ -80,12 +80,12 @@ async function main() {
     const errorSuccess = await testErrorHandling();
 
     const overallSuccess = apiSuccess && errorSuccess;
-      `\n${overallSuccess ? "🎉" : "💥"} Overall Result: ${overallSuccess ? "SUCCESS" : "FAILED"}`
+      `\n${overallSuccess ? "" : ""} Overall Result: ${overallSuccess ? "SUCCESS" : "FAILED"}`
     );
 
     process.exit(overallSuccess ? 0 : 1);
   } catch (error) {
-    console.error("💥 Test suite failed:", error.message);
+    console.error(" Test suite failed:", error.message);
     process.exit(1);
   }
 }

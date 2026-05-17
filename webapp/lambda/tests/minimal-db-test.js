@@ -13,7 +13,7 @@ async function testDatabase() {
 
     const pool = await db.initializeDatabase();
     if (!pool) {
-      console.error("❌ Database pool is null");
+      console.error(" Database pool is null");
       return false;
     }
 
@@ -27,7 +27,7 @@ async function testDatabase() {
     await db.closeDatabase();
     return true;
   } catch (error) {
-    console.error("❌ Database test failed:", error.message);
+    console.error(" Database test failed:", error.message);
     return false;
   }
 }

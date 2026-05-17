@@ -44,7 +44,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     const result = await sesClient.send(command);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
-    console.error('❌ Failed to send email:', error.message);
+    console.error(' Failed to send email:', error.message);
     throw error;
   }
 };

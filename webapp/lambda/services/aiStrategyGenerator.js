@@ -1883,7 +1883,7 @@ def execute_statistical_arbitrage_strategy(symbols, start_date, end_date):
     primary_symbol = symbols[0] if symbols else 'AAPL'
     secondary_symbol = symbols[1] if len(symbols) > 1 else 'MSFT'
     
-    print(f"🔗 Running statistical arbitrage on pair: {primary_symbol} - {secondary_symbol}")
+    print(f" Running statistical arbitrage on pair: {primary_symbol} - {secondary_symbol}")
     
     # Generate synthetic price data for demonstration
     date_range = pd.date_range(start=start_date, end=end_date, freq='D')
@@ -2030,7 +2030,7 @@ def execute_statistical_arbitrage_strategy(symbols, start_date, end_date):
                 })
             position = 0
     
-    print(f"📊 Statistical arbitrage generated {len(signals)} signals")
+    print(f" Statistical arbitrage generated {len(signals)} signals")
     return signals
 
 # Execute the strategy
@@ -2056,7 +2056,7 @@ def execute_ml_momentum_strategy(symbols, start_date, end_date):
     prediction_horizon = 5  # Days to predict
     confidence_threshold = 0.7  # ML confidence threshold
     
-    print(f"🤖 Running ML-enhanced momentum strategy on {len(symbols)} symbols")
+    print(f" Running ML-enhanced momentum strategy on {len(symbols)} symbols")
     
     for symbol in symbols:
         # Generate synthetic price data with trend patterns
@@ -2166,7 +2166,7 @@ def execute_ml_momentum_strategy(symbols, start_date, end_date):
                         }
                     })
     
-    print(f"🧠 ML momentum strategy generated {len(signals)} signals")
+    print(f" ML momentum strategy generated {len(signals)} signals")
     return signals
 
 def calculate_rsi(prices, window=14):
@@ -2655,7 +2655,7 @@ class FundamentalAnalysisStrategy:
             if (market_cap < self.min_market_cap or 
                 pe_ratio > self.max_pe_ratio or 
                 roe < self.min_roe):
-                print(f"❌ {symbol} failed screening (Score: {score:.1f})")
+                print(f" {symbol} failed screening (Score: {score:.1f})")
                 continue
             
             current_price = stock_data['prices']['Close'].iloc[-1]
@@ -2698,11 +2698,11 @@ class FundamentalAnalysisStrategy:
                 }
             })
             
-            print(f"✅ {symbol} - Score: {score:.1f}, Signal: {signal_type}")
+            print(f" {symbol} - Score: {score:.1f}, Signal: {signal_type}")
         
         # Rank stocks by fundamental score
         sorted_scores = sorted(stock_scores.items(), key=lambda x: x[1], reverse=True)
-        print("\\n📊 FUNDAMENTAL RANKING:")
+        print("\\n FUNDAMENTAL RANKING:")
         for symbol, score in sorted_scores[:10]:  # Top 10
             print(f"{symbol}: {score:.1f}")
         
@@ -2710,7 +2710,7 @@ class FundamentalAnalysisStrategy:
     
     def run_analysis(self):
         """Run complete fundamental analysis"""
-        print("🔍 Starting Fundamental Analysis Strategy...")
+        print(" Starting Fundamental Analysis Strategy...")
         print(f"Analyzing {len(self.symbols)} symbols")
         print(f"Filters: Min Market Cap: {self.min_market_cap/1e9:.1f}B, Max P/E: {self.max_pe_ratio}, Min ROE: {self.min_roe:.1%}")
         
@@ -2977,7 +2977,7 @@ class SentimentTradingStrategy:
                     }
                 })
                 signal_generated = True
-                print(f"✅ {symbol} - BUY signal (Sentiment: {combined_sentiment:.3f}, Confidence: {confidence:.2f})")
+                print(f" {symbol} - BUY signal (Sentiment: {combined_sentiment:.3f}, Confidence: {confidence:.2f})")
                 
             elif combined_sentiment < -self.sentiment_threshold and overall_confidence > 0.4:
                 signal_type = 'sell'
@@ -3002,16 +3002,16 @@ class SentimentTradingStrategy:
                     }
                 })
                 signal_generated = True
-                print(f"🔻 {symbol} - SELL signal (Sentiment: {combined_sentiment:.3f}, Confidence: {confidence:.2f})")
+                print(f" {symbol} - SELL signal (Sentiment: {combined_sentiment:.3f}, Confidence: {confidence:.2f})")
             
             if not signal_generated:
-                print(f"➖ {symbol} - No signal (Sentiment: {combined_sentiment:.3f}, too weak)")
+                print(f" {symbol} - No signal (Sentiment: {combined_sentiment:.3f}, too weak)")
         
         return signals
     
     def run_analysis(self):
         """Run complete sentiment trading analysis"""
-        print("📊 Starting Sentiment Trading Analysis...")
+        print(" Starting Sentiment Trading Analysis...")
         print(f"Symbols: {self.symbols}")
         print(f"Sentiment Threshold: ±{self.sentiment_threshold}")
         print(f"Volume Threshold: {self.volume_threshold}x average")
@@ -3236,7 +3236,7 @@ class SeasonalPatternsStrategy:
             # Fetch historical data
             historical_data = self.fetch_historical_data(symbol, self.lookback_years)
             if historical_data is None or len(historical_data) < 500:
-                print(f"❌ Insufficient data for {symbol}")
+                print(f" Insufficient data for {symbol}")
                 continue
             
             # Calculate seasonal patterns
@@ -3281,7 +3281,7 @@ class SeasonalPatternsStrategy:
                         }
                     })
                     
-                    print(f"✅ {symbol} - Monthly seasonal BUY (Month: {month_row['month_name']}, Expected: {month_row['mean']:.3f})")
+                    print(f" {symbol} - Monthly seasonal BUY (Month: {month_row['month_name']}, Expected: {month_row['mean']:.3f})")
             
             # Calendar anomaly signals
             current_day = current_date.day
@@ -3311,7 +3311,7 @@ class SeasonalPatternsStrategy:
                     }
                 })
                 
-                print(f"✅ {symbol} - End of month effect BUY (Strength: {calendar_anomalies['end_of_month_effect']['strength']:.2f})")
+                print(f" {symbol} - End of month effect BUY (Strength: {calendar_anomalies['end_of_month_effect']['strength']:.2f})")
             
             # January Effect
             if (current_month == 1 and current_day < 20 and
@@ -3335,7 +3335,7 @@ class SeasonalPatternsStrategy:
                     }
                 })
                 
-                print(f"✅ {symbol} - January effect BUY (Strength: {calendar_anomalies['january_effect']['strength']:.2f})")
+                print(f" {symbol} - January effect BUY (Strength: {calendar_anomalies['january_effect']['strength']:.2f})")
             
             # Halloween Effect (Sell in May)
             if (current_month == 5 and 
@@ -3360,13 +3360,13 @@ class SeasonalPatternsStrategy:
                     }
                 })
                 
-                print(f"🔻 {symbol} - Sell in May signal (Summer underperformance expected)")
+                print(f" {symbol} - Sell in May signal (Summer underperformance expected)")
         
         return signals
     
     def run_analysis(self):
         """Run complete seasonal patterns analysis"""
-        print("📅 Starting Seasonal Patterns Analysis...")
+        print(" Starting Seasonal Patterns Analysis...")
         print(f"Symbols: {self.symbols}")
         print(f"Lookback Period: {self.lookback_years} years")
         print(f"Minimum Pattern Strength: {self.min_pattern_strength}")
@@ -3606,7 +3606,7 @@ class MultiAssetRotationStrategy:
         # Fetch price data
         price_data = self.fetch_multi_asset_data(all_symbols)
         if price_data.empty:
-            print("❌ No price data available")
+            print(" No price data available")
             return []
         
         print(f"Successfully fetched data for {len(price_data.columns)} assets")
@@ -3681,7 +3681,7 @@ class MultiAssetRotationStrategy:
     
     def run_analysis(self):
         """Run complete multi-asset rotation analysis"""
-        print("🔄 Starting Multi-Asset Rotation Analysis...")
+        print(" Starting Multi-Asset Rotation Analysis...")
         print(f"Asset Universe Categories: {list(self.asset_universe.keys())}")
         print(f"Rebalance Frequency: {self.rebalance_frequency}")
         print(f"Lookback Period: {self.lookback_months} months")
@@ -3690,7 +3690,7 @@ class MultiAssetRotationStrategy:
         signals = self.generate_rotation_signals()
         
         if not signals:
-            print("❌ No signals generated")
+            print(" No signals generated")
             return []
         
         # Analysis summary
@@ -3863,7 +3863,7 @@ class RegimeSwitchingStrategy:
         feature_matrix = features[regime_features].dropna()
         
         if len(feature_matrix) < 100:
-            print("❌ Insufficient data for regime identification")
+            print(" Insufficient data for regime identification")
             return None, None
         
         # Standardize features
@@ -3962,7 +3962,7 @@ class RegimeSwitchingStrategy:
             # Fetch market data with regime features
             market_data = self.fetch_market_data(symbol)
             if market_data is None or len(market_data) < 200:
-                print(f"❌ Insufficient data for {symbol}")
+                print(f" Insufficient data for {symbol}")
                 continue
             
             # Identify regimes
@@ -4050,16 +4050,16 @@ class RegimeSwitchingStrategy:
                     }
                 })
                 
-                print(f"✅ {symbol} - {action.upper()} signal (Regime: {regime_type}, "
+                print(f" {symbol} - {action.upper()} signal (Regime: {regime_type}, "
                       f"Confidence: {confidence:.2f}, Transition Risk: {transition_analysis['transition_probability']:.2f})")
             else:
-                print(f"➖ {symbol} - No clear regime identified")
+                print(f" {symbol} - No clear regime identified")
         
         return signals
     
     def run_analysis(self):
         """Run complete regime switching analysis"""
-        print("🔄 Starting Regime Switching Analysis...")
+        print(" Starting Regime Switching Analysis...")
         print(f"Symbols: {self.symbols}")
         print(f"Number of Regimes: {self.n_regimes}")
         print(f"Lookback Period: {self.lookback_days} days")
@@ -4067,7 +4067,7 @@ class RegimeSwitchingStrategy:
         signals = self.generate_regime_based_signals()
         
         if not signals:
-            print("❌ No regime-based signals generated")
+            print(" No regime-based signals generated")
             return []
         
         # Analysis summary
@@ -4207,8 +4207,8 @@ When RSI rises above 70, it generates a sell signal indicating the asset is over
   async optimizeStrategy(strategy, options = {}) {
     try {
 
-      // ❌ Strategy optimization requires real backtesting - cannot use mock improvements
-      console.error("❌ Strategy optimization not available - requires real backtesting engine with historical data");
+      //  Strategy optimization requires real backtesting - cannot use mock improvements
+      console.error(" Strategy optimization not available - requires real backtesting engine with historical data");
 
       return {
         success: false,

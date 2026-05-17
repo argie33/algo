@@ -278,7 +278,7 @@ describe("ErrorTracker", () => {
         })
       );
       expect(console.log).toHaveBeenCalledWith(
-        "🚨 ALERT:",
+        " ALERT:",
         "High error rate detected: 6 database errors in the last minute (threshold: 5)"
       );
     });

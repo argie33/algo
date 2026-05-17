@@ -213,7 +213,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     }
 
     // Summary
-      console.log(`✅ Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`);
+      console.log(` Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`);
 
     return {
       success: executedTrades.length > 0,
@@ -230,7 +230,7 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error("❌ Alpaca execution handler error:", error);
+    console.error(" Alpaca execution handler error:", error);
     return {
       success: false,
       message: "Failed to execute trades via Alpaca",

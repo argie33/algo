@@ -146,7 +146,7 @@ async function ensureTestData() {
     }
 
   } catch (error) {
-    console.error('❌ Error creating webapp tables:', error);
+    console.error(' Error creating webapp tables:', error);
     throw error;
   }
 }
@@ -188,7 +188,7 @@ async function createLoaderTables() {
     }
 
   } catch (error) {
-    console.error('❌ Error creating Python loader tables:', error);
+    console.error(' Error creating Python loader tables:', error);
     throw error;
   }
 }
@@ -413,7 +413,7 @@ async function setupTestDatabase() {
     await populateLoaderTestData();
 
   } catch (error) {
-    console.error('❌ Failed to setup test database:', error);
+    console.error(' Failed to setup test database:', error);
     throw error;
   }
 }

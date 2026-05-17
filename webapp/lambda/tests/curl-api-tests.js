@@ -29,7 +29,7 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
 
     return success;
   } catch (error) {
-    console.log(`❌ ${name}: ${error.message}`);
+    console.log(` ${name}: ${error.message}`);
     return false;
   }
 }
@@ -76,7 +76,7 @@ async function runApiTests() {
   const totalPassed = passed + dataPassed;
   const totalTests = tests.length + dataTests.length;
 
-    `\n🎯 Overall: ${totalPassed}/${totalTests} tests passed (${Math.round((totalPassed / totalTests) * 100)}%)`
+    `\n Overall: ${totalPassed}/${totalTests} tests passed (${Math.round((totalPassed / totalTests) * 100)}%)`
   );
   return totalPassed >= Math.ceil(totalTests * 0.8); // 80% pass rate
 }
@@ -86,6 +86,6 @@ runApiTests()
     if (!success) throw new Error("Tests failed");
   })
   .catch((error) => {
-    console.error("💥 Test runner failed:", error.message);
+    console.error(" Test runner failed:", error.message);
     throw error;
   });

@@ -34,7 +34,7 @@ function getAlpacaService() {
   const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
 
   if (!apiKey || !secretKey) {
-    console.error("❌ Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY");
+    console.error(" Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY");
     return null;
   }
 
@@ -74,16 +74,16 @@ async function performAlpacaSync() {
           ),
         ]);
       } catch (err) {
-        console.error("❌ Alpaca API fetch error:", err.message);
+        console.error(" Alpaca API fetch error:", err.message);
         return { status: "error", reason: "fetch_failed", details: err.message };
       }
 
       if (!account || !positions) {
-        console.error("❌ Failed to fetch Alpaca data");
+        console.error(" Failed to fetch Alpaca data");
         return { status: "error", reason: "fetch_failed" };
       }
 
-        console.log(`✅ [CRON] Retrieved ${positions.length} positions from Alpaca`);
+        console.log(` [CRON] Retrieved ${positions.length} positions from Alpaca`);
 
       // Batch database operations for better performance
       try {
@@ -146,7 +146,7 @@ async function performAlpacaSync() {
 
         lastSyncTime = now;
 
-          console.log(`✅ [CRON] Portfolio sync complete: $${portfolioValue?.toFixed(2)} portfolio value`);
+          console.log(` [CRON] Portfolio sync complete: $${portfolioValue?.toFixed(2)} portfolio value`);
 
         return {
           status: "success",
@@ -155,11 +155,11 @@ async function performAlpacaSync() {
           timestamp: new Date().toISOString(),
         };
       } catch (dbErr) {
-        console.error("❌ Database error during sync:", dbErr.message);
+        console.error(" Database error during sync:", dbErr.message);
         return { status: "error", reason: "database_error", details: dbErr.message };
       }
     } catch (error) {
-      console.error("❌ Alpaca sync error:", error.message);
+      console.error(" Alpaca sync error:", error.message);
       return {
         status: "error",
         reason: "sync_failed",
@@ -171,7 +171,7 @@ async function performAlpacaSync() {
   try {
     return await Promise.race([syncOperation, syncTimeout]);
   } catch (error) {
-    console.error("❌ [CRON] Sync operation failed:", error.message);
+    console.error(" [CRON] Sync operation failed:", error.message);
     return { status: "error", reason: "timeout_or_error", details: error.message };
   }
 }
@@ -200,11 +200,11 @@ function initializeAlpacaSync() {
     syncScheduler = cron.schedule("*/10 * * * *", () => {
       // Fire and forget - don't await to prevent blocking the event loop
       performAlpacaSync().catch((err) =>
-        console.error("❌ [CRON] Scheduled sync error:", err.message)
+        console.error(" [CRON] Scheduled sync error:", err.message)
       );
     });
 
-      "✅ Alpaca portfolio sync scheduler initialized (every 10 minutes)"
+      " Alpaca portfolio sync scheduler initialized (every 10 minutes)"
     );
 
     // Also perform an initial sync on startup (after 5 seconds)

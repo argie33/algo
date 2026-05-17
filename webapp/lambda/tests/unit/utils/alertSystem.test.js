@@ -462,7 +462,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       await alertSystem.sendEmailNotification(alert);
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "📧 Email notification: [critical] Test Email Alert"
+          " Email notification: [critical] Test Email Alert"
         )
       );
       consoleSpy.mockRestore();
@@ -491,7 +491,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       await alertSystem.sendWebhookNotification(alert);
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "🔗 Webhook notification sent: [warning] Test Webhook Alert"
+          " Webhook notification sent: [warning] Test Webhook Alert"
         )
       );
       consoleSpy.mockRestore();
@@ -661,14 +661,14 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       // Mock console.log to capture test notification output
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       await alertSystem.testNotifications();
-      expect(consoleSpy).toHaveBeenCalledWith("🧪 Test notifications sent");
+      expect(consoleSpy).toHaveBeenCalledWith(" Test notifications sent");
       consoleSpy.mockRestore();
     });
     it("should force health check", async () => {
       // Mock console.log to capture health check output
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       const result = await alertSystem.forceHealthCheck();
-      expect(consoleSpy).toHaveBeenCalledWith("🔍 Forcing health check...");
+      expect(consoleSpy).toHaveBeenCalledWith(" Forcing health check...");
       expect(result).toBeDefined();
       expect(result).toHaveProperty("active");
       expect(result).toHaveProperty("config");

@@ -49,7 +49,7 @@ class PortfolioAutoInit {
       return true;
 
     } catch (error) {
-      console.error(`❌ Portfolio auto-init failed: ${error.message}`);
+      console.error(` Portfolio auto-init failed: ${error.message}`);
       return false;
     }
   }
@@ -79,7 +79,7 @@ class PortfolioAutoInit {
 
       return true;  // Real data exists
     } catch (error) {
-      console.error(`❌ History check failed: ${error.message}`);
+      console.error(` History check failed: ${error.message}`);
       return false;
     }
   }
@@ -130,7 +130,7 @@ class PortfolioAutoInit {
       return true;
 
     } catch (error) {
-      console.error(`❌ Sector population failed: ${error.message}`);
+      console.error(` Sector population failed: ${error.message}`);
       return false;
     }
   }
@@ -213,7 +213,7 @@ class PortfolioAutoInit {
       return true;
 
     } catch (error) {
-      console.error(`❌ Metric recalculation failed: ${error.message}`);
+      console.error(` Metric recalculation failed: ${error.message}`);
       return false;
     }
   }

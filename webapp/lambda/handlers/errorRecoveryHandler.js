@@ -55,7 +55,7 @@ async function retryWithBackoff(operation, operationType = "api_call", context =
       const isRetryable = isRetryableError(error, config.retryableErrors);
 
       if (!isRetryable || attempt === config.maxRetries) {
-        console.error(`❌ Operation failed after ${attempt} attempts:`, error.message);
+        console.error(` Operation failed after ${attempt} attempts:`, error.message);
         throw error;
       }
 

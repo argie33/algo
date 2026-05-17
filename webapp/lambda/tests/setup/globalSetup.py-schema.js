@@ -269,7 +269,7 @@ module.exports = async () => {
     return true;
 
   } catch (error) {
-    console.error('❌ Error setting up database tables:', error);
+    console.error(' Error setting up database tables:', error);
     throw error;
   }
 };

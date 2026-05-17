@@ -27,7 +27,7 @@ try {
   ({ query, safeFloat, safeInt, safeFixed } = require("../utils/database"));
 } catch (error) {
   databaseInitError = error;
-  console.error("❌ CRITICAL: Database service failed to load in commodities routes:", error.message);
+  console.error(" CRITICAL: Database service failed to load in commodities routes:", error.message);
   // Provide fallback functions that return null for missing data
   safeFloat = (val) => val !== null && val !== undefined ? parseFloat(val) : null;
   safeInt = (val) => val !== null && val !== undefined ? parseInt(val) : null;
@@ -119,7 +119,7 @@ router.get("/categories", async (req, res) => {
 
     return sendPaginated(res, categories, { limit: categories.length, offset: 0, total: categories.length });
   } catch (error) {
-    console.error("❌ Error fetching commodity categories:", error.message);
+    console.error(" Error fetching commodity categories:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
   }
 });
@@ -224,7 +224,7 @@ router.get("/full/:symbol", async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error("❌ Error fetching full commodity data:", error.message);
+    console.error(" Error fetching full commodity data:", error.message);
     return sendError(res, "Commodity data not available.", 503);
   }
 });
@@ -293,7 +293,7 @@ router.get("/prices", async (req, res) => {
 
     return sendPaginated(res, prices, { limit: prices.length, offset: 0, total: prices.length });
   } catch (error) {
-    console.error("❌ Error fetching commodity prices:", error.message);
+    console.error(" Error fetching commodity prices:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
   }
 });
@@ -386,7 +386,7 @@ router.get("/market-summary", async (req, res) => {
       sectors: sectors
     });
   } catch (error) {
-    console.error("❌ Error fetching market summary:", error.message);
+    console.error(" Error fetching market summary:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
   }
 });
@@ -473,7 +473,7 @@ router.get("/cot/:symbol", async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("❌ Error fetching COT data:", error.message);
+    console.error(" Error fetching COT data:", error.message);
     return sendError(res, "COT data not available. Requires cot_data table and data loader.", 503);
   }
 });
@@ -532,7 +532,7 @@ router.get("/seasonality/:symbol", async (req, res) => {
       seasonality: seasonality
     });
   } catch (error) {
-    console.error("❌ Error fetching seasonality data:", error.message);
+    console.error(" Error fetching seasonality data:", error.message);
     return sendError(res, "Seasonality data not available. Requires commodity_seasonality table and data loader.", 503);
   }
 });
@@ -594,7 +594,7 @@ router.get("/correlations", async (req, res) => {
       correlations: correlations
     });
   } catch (error) {
-    console.error("❌ Error fetching correlations:", error.message);
+    console.error(" Error fetching correlations:", error.message);
     return sendError(res, "Correlation data not available. Requires commodity_correlations table and data loader.", 503);
   }
 });
@@ -659,7 +659,7 @@ router.get("/technicals/:symbol", async (req, res) => {
       latest: technicals[technicals.length - 1]
     });
   } catch (error) {
-    console.error("❌ Error fetching technicals:", error.message);
+    console.error(" Error fetching technicals:", error.message);
     return sendError(res, "Technical data not available.", 503);
   }
 });
@@ -709,7 +709,7 @@ router.get("/macro", async (req, res) => {
       macroDrivers: Object.values(macroBySeriesAndDate)
     });
   } catch (error) {
-    console.error("❌ Error fetching macro data:", error.message);
+    console.error(" Error fetching macro data:", error.message);
     return sendError(res, "Macro data not available.", 503);
   }
 });
@@ -749,7 +749,7 @@ router.get("/events", async (req, res) => {
       total: events.length
     });
   } catch (error) {
-    console.error("❌ Error fetching events:", error.message);
+    console.error(" Error fetching events:", error.message);
     return sendError(res, "Event calendar not available.", 503);
   }
 });

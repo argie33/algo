@@ -483,7 +483,7 @@ class AlpacaService {
         return null;
       }
 
-        console.log(`✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
+        console.log(` Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
 
       return {
         symbol: symbol,
@@ -496,7 +496,7 @@ class AlpacaService {
         exchange: quote.Exchange || "UNKNOWN",
       };
     } catch (error) {
-      console.error(`❌ Alpaca quote fetch error for ${symbol}:`, {
+      console.error(` Alpaca quote fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
         errorCode: error.code,
@@ -521,7 +521,7 @@ class AlpacaService {
         return null;
       }
 
-        console.log(`✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
+        console.log(` Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
 
       return {
         symbol: symbol,
@@ -532,7 +532,7 @@ class AlpacaService {
         exchange: trade.Exchange || "UNKNOWN",
       };
     } catch (error) {
-      console.error(`❌ Alpaca trade fetch error for ${symbol}:`, {
+      console.error(` Alpaca trade fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
         errorCode: error.code,
@@ -590,7 +590,7 @@ class AlpacaService {
         vwap: parseFloat(bar.VWAP) || null,
       }));
     } catch (error) {
-      console.error(`❌ Alpaca bars fetch error for ${symbol}:`, {
+      console.error(` Alpaca bars fetch error for ${symbol}:`, {
         error: error.message,
         statusCode: error.status,
         errorCode: error.code,
@@ -611,7 +611,7 @@ class AlpacaService {
 
       const clock = await this.client.getClock();
 
-        console.log(`✅ Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
+        console.log(` Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
 
       return {
         timestamp: clock.timestamp,
@@ -621,7 +621,7 @@ class AlpacaService {
         timezone: "America/New_York",
       };
     } catch (error) {
-      console.error("❌ Alpaca market clock fetch error:", {
+      console.error(" Alpaca market clock fetch error:", {
         error: error.message,
         statusCode: error.status,
         errorCode: error.code,
@@ -991,9 +991,9 @@ class AlpacaService {
       // ⛔ CRITICAL FIX: NO FAKE MARKET DATA EVER
       // This is a production system handling real money
       // Never return mock prices or fake data
-      console.error(`❌ PRODUCTION API CALL TO UNIMPLEMENTED ENDPOINT: ${provider}${endpoint}`);
-      console.error(`❌ This should not happen - real API should be used in production`);
-      console.error(`❌ Returning error instead of fake data`);
+      console.error(` PRODUCTION API CALL TO UNIMPLEMENTED ENDPOINT: ${provider}${endpoint}`);
+      console.error(` This should not happen - real API should be used in production`);
+      console.error(` Returning error instead of fake data`);
 
       return {
         success: false,

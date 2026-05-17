@@ -29,12 +29,12 @@ const requestLogger = (req, res, next) => {
       };
 
       if (statusCode >= 500) {
-        console.error(`🔴 SERVER ERROR [${statusCode}]:`, {
+        console.error(` SERVER ERROR [${statusCode}]:`, {
           ...errorContext,
           response: data
         });
       } else if (statusCode >= 400) {
-        console.warn(`🟡 CLIENT ERROR [${statusCode}]:`, {
+        console.warn(` CLIENT ERROR [${statusCode}]:`, {
           ...errorContext,
           error: data?.error || data?.message || data
         });

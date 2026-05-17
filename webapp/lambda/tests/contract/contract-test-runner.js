@@ -500,7 +500,7 @@ async function runContractTest(endpoint, baseURL) {
       return false;
     }
   } catch (error) {
-    console.log(`❌ ${endpoint} - Request failed: ${error.message}`);
+    console.log(` ${endpoint} - Request failed: ${error.message}`);
     testResults.failed++;
     testResults.contracts[endpoint] = {
       status: "ERROR",
@@ -676,7 +676,7 @@ async function main() {
         }
       }
     } catch (error) {
-      console.error(`❌ Fatal error testing ${env}:`, error.message);
+      console.error(` Fatal error testing ${env}:`, error.message);
       process.exit(1);
     }
   }

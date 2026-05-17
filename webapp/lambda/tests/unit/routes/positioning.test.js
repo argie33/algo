@@ -134,7 +134,7 @@ describe("Positioning Routes", () => {
         .expect(200);
       expect(response.body.metadata.timeframe).toBe("weekly");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "📊 Stock positioning data requested - symbol: all, timeframe: weekly"
+        " Stock positioning data requested - symbol: all, timeframe: weekly"
       );
     });
     it("should handle database query failures with 500 error", async () => {

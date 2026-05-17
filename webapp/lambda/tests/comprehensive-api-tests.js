@@ -100,7 +100,7 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
     });
     const success = response.status === expectedStatus;
 
-      `${success ? "✅" : "❌"} ${name.padEnd(20)}: ${response.status}`
+      `${success ? "" : ""} ${name.padEnd(20)}: ${response.status}`
     );
 
     if (!success && response.data?.error) {
@@ -111,7 +111,7 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
   } catch (error) {
     const isExpectedError =
       error.response?.status && [404, 501, 503].includes(error.response.status);
-    const symbol = isExpectedError ? "⚠️" : "❌";
+    const symbol = isExpectedError ? "⚠️" : "";
     const status = error.response?.status || "TIMEOUT";
 
       `${symbol} ${name.padEnd(20)}: ${status} (${error.response?.statusText || error.message})`
@@ -127,7 +127,7 @@ async function testEndpoint(name, endpoint, expectedStatus = 200) {
 }
 
 async function runComprehensiveTests() {
-    "Legend: ✅ = Working, ❌ = Error, ⚠️ = Not Implemented (404/501/503)\n"
+    "Legend:  = Working,  = Error, ⚠️ = Not Implemented (404/501/503)\n"
   );
 
   // Test all route endpoints
@@ -140,7 +140,7 @@ async function runComprehensiveTests() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-    `\n📊 Route Tests: ${routePassed}/${ROUTE_TESTS.length} working (${Math.round((routePassed / ROUTE_TESTS.length) * 100)}%)\n`
+    `\n Route Tests: ${routePassed}/${ROUTE_TESTS.length} working (${Math.round((routePassed / ROUTE_TESTS.length) * 100)}%)\n`
   );
 
   // Test data endpoints
@@ -153,7 +153,7 @@ async function runComprehensiveTests() {
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
-    `\n📊 Data Tests: ${dataPassed}/${DATA_TESTS.length} working (${Math.round((dataPassed / DATA_TESTS.length) * 100)}%)\n`
+    `\n Data Tests: ${dataPassed}/${DATA_TESTS.length} working (${Math.round((dataPassed / DATA_TESTS.length) * 100)}%)\n`
   );
 
   // Summary
@@ -161,7 +161,7 @@ async function runComprehensiveTests() {
   const totalTests = ROUTE_TESTS.length + DATA_TESTS.length;
   const successRate = Math.round((totalPassed / totalTests) * 100);
 
-    `🎯 FINAL RESULTS: ${totalPassed}/${totalTests} endpoints working (${successRate}%)`
+    ` FINAL RESULTS: ${totalPassed}/${totalTests} endpoints working (${successRate}%)`
   );
 
   if (successRate >= 80) {
@@ -176,12 +176,12 @@ async function runComprehensiveTests() {
 setTimeout(() => {
   runComprehensiveTests()
     .then((success) => {
-        `\n${success ? "🎉 COMPREHENSIVE TEST PASSED" : "💥 COMPREHENSIVE TEST FAILED"}`
+        `\n${success ? " COMPREHENSIVE TEST PASSED" : " COMPREHENSIVE TEST FAILED"}`
       );
       process.exit(success ? 0 : 1);
     })
     .catch((error) => {
-      console.error("💥 Test runner failed:", error.message);
+      console.error(" Test runner failed:", error.message);
       process.exit(1);
     });
 }, 2000);

@@ -1474,7 +1474,7 @@ router.get("/correlation", async (req, res) => {
   try {
     const { symbols, period = "1M", limit: _limit = 50 } = req.query;
 
-      console.log(`📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`);
+      console.log(` Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`);
 
     // Generate correlation matrix from market_data table (faster)
     const generateCorrelationMatrix = async (targetSymbols, period) => {
@@ -1790,7 +1790,7 @@ router.get("/indices", async (req, res) => {
       lastUpdate: items.length > 0 ? items[0].date : null
     });
   } catch (error) {
-    console.error("❌ Market indices error:", error.message);
+    console.error(" Market indices error:", error.message);
     return sendError(res, "Failed to fetch market indices", 500);
   }
 });
@@ -2575,7 +2575,7 @@ router.get("/technicals", async (req, res) => {
 
     return sendSuccess(res, technicals);
   } catch (error) {
-    console.error("❌ [Market API] Technicals error:", error);
+    console.error(" [Market API] Technicals error:", error);
     return sendError(res, error.message ? `Failed to fetch technicals: ${error.message}` : "Failed to fetch technicals", 500);
   }
 });
@@ -2658,7 +2658,7 @@ router.get("/sentiment", async (req, res) => {
 
     return sendSuccess(res, sentiment);
   } catch (error) {
-    console.error("❌ [Market API] Sentiment error:", error);
+    console.error(" [Market API] Sentiment error:", error);
     return sendError(res, error.message ? `Failed to fetch sentiment: ${error.message}` : "Failed to fetch sentiment", 500);
   }
 });

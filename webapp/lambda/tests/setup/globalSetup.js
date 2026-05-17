@@ -85,7 +85,7 @@ module.exports = async () => {
     await populateLoaderTestData();
 
   } catch (error) {
-    console.error('❌ Global setup failed:', error);
+    console.error(' Global setup failed:', error);
     // Tests should fail if real database schema cannot be loaded - no fallbacks
     throw error;
   }

@@ -45,7 +45,7 @@ async function initializeWebappTables() {
             error.message.includes('duplicate key')) {
           console.log(`⚠️ Migration ${migrationFile} skipped (already applied or duplicate): ${error.message}`);
         } else {
-          console.error(`❌ Migration ${migrationFile} failed:`, error.message);
+          console.error(` Migration ${migrationFile} failed:`, error.message);
         }
       }
     }

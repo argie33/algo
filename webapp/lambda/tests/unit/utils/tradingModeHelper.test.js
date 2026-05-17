@@ -105,7 +105,7 @@ describe("Trading Mode Helper Unit Tests", () => {
           description:
             "Paper trading - Simulated trades, no real money at risk",
           risk_level: "none",
-          disclaimer: "📊 Paper trading for learning and strategy testing.",
+          disclaimer: " Paper trading for learning and strategy testing.",
         },
       });
     });

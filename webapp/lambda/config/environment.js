@@ -48,7 +48,7 @@ function validateEnvironment() {
     }
 
     if (missing.length > 0) {
-      console.error("❌ CRITICAL: Missing required environment variables in production:");
+      console.error(" CRITICAL: Missing required environment variables in production:");
       missing.forEach(v => console.error(`   - ${v}`));
       throw new Error("Missing required environment variables");
     }

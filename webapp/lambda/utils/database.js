@@ -171,7 +171,7 @@ async function getDbConfig() {
     throw configError;
   } catch (error) {
     // Re-throw configuration errors instead of silently returning null
-    console.error("❌ Critical database configuration error:", {
+    console.error(" Critical database configuration error:", {
       message: error.message,
       code: error.code,
       env: {
@@ -267,7 +267,7 @@ async function initializeDatabase() {
       };
       // CRITICAL FIX: Always throw database initialization errors instead of silently returning null
       // Silent failures prevent visibility into real database issues and cause API endpoints to return null
-      console.error("❌ CRITICAL: Database initialization failed:", {
+      console.error(" CRITICAL: Database initialization failed:", {
         error: error.message,
         code: error.code,
         config: config,

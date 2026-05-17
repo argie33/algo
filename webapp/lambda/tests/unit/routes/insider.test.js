@@ -63,7 +63,7 @@ describe("Insider Routes", () => {
       await request(app).get("/api/insider/trades/TSLA");
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        "👥 Insider trades requested for TSLA"
+        " Insider trades requested for TSLA"
       );
     });
 

@@ -287,7 +287,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     });
     test("should handle special characters and numbers", () => {
       const specialArticle = {
-        title: "Stock $AAPL +5.2% @NYSE #earnings 🚀",
+        title: "Stock $AAPL +5.2% @NYSE #earnings ",
         description: "Price: $150.25 (+3.8%) Volume: 1.2M shares traded.",
       };
       expect(() => analyzer.analyzeSentiment(specialArticle)).not.toThrow();

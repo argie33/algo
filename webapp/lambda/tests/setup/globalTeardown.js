@@ -15,6 +15,6 @@ module.exports = async () => {
     }
 
   } catch (error) {
-    console.error('❌ Error during global teardown:', error);
+    console.error(' Error during global teardown:', error);
   }
 };

@@ -13,7 +13,7 @@ module.exports = async () => {
     // Give time for connections to fully close
     await new Promise((resolve) => setTimeout(resolve, 1000));
   } catch (error) {
-    console.error("❌ Error in global teardown:", error.message);
+    console.error(" Error in global teardown:", error.message);
   }
 
   // Force garbage collection if available

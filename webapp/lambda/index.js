@@ -62,12 +62,12 @@ const app = express();
 
 // CRITICAL: Catch unhandled errors to prevent orphaned processes
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Promise Rejection:', reason);
+  console.error(' Unhandled Promise Rejection:', reason);
   if (reason && reason.stack) console.error('Stack:', reason.stack);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  console.error(' Uncaught Exception:', error);
   console.error('Stack:', error.stack);
   console.error('⚠️ Server continues running (DO NOT EXIT - prevents orphaned processes)');
 });
@@ -881,8 +881,7 @@ const isLambdaEnvironment = !!process.env.LAMBDA_TASK_ROOT || !!process.env.AWS_
 if (!isLambdaEnvironment) {
   // Local development or EC2 - start HTTP server
   server.listen(PORT, '::', () => {
-    console.log(
-      console.log(`✅ Financial Dashboard API running on port ${PORT}`);
+    console.log(`Financial Dashboard API running on port ${PORT}`);
 
     // Initialize Alpaca portfolio sync scheduler
     // Syncs every 10 minutes automatically

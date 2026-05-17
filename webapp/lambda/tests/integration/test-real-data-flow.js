@@ -31,7 +31,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
     const response = await axios(config);
     return response.data;
   } catch (error) {
-    console.error(`❌ API call failed: ${method} ${endpoint}`, error.response?.data || error.message);
+    console.error(` API call failed: ${method} ${endpoint}`, error.response?.data || error.message);
     throw error;
   }
 }
@@ -347,7 +347,7 @@ describe('Real Data Flow Verification', () => {
 
           // Pattern: fear_greed_index should not default to 50
           if (jsonStr.includes('"fear_greed_index":50')) {
-            throw new Error(`❌ FAKE DATA: fear_greed_index defaulting to 50 in ${endpoint}`);
+            throw new Error(` FAKE DATA: fear_greed_index defaulting to 50 in ${endpoint}`);
           }
 
           // Pattern: momentum_score should not default to 50 when RSI is missing
@@ -389,7 +389,7 @@ if (require.main === module) {
     try {
       // Add your test execution logic here
     } catch (error) {
-      console.error('❌ Test failed:', error);
+      console.error(' Test failed:', error);
       process.exit(1);
     }
   };

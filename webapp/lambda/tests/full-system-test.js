@@ -35,11 +35,11 @@ async function test(name, fn) {
   try {
     await fn();
     testResults.passed++;
-    log(`  ✅ ${name}`, "green");
+    log(`   ${name}`, "green");
   } catch (error) {
     testResults.failed++;
     testResults.errors.push({ test: name, error: error.message });
-    log(`  ❌ ${name}: ${error.message}`, "red");
+    log(`   ${name}: ${error.message}`, "red");
   }
 }
 
@@ -49,7 +49,7 @@ async function runFullSystemTest() {
   log("╚════════════════════════════════════════════════════════════╝\n", "cyan");
 
   // Phase 1: Database Setup
-  log("📦 PHASE 1: Database Setup", "blue");
+  log(" PHASE 1: Database Setup", "blue");
   log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   await test("Database connection available", async () => {
@@ -101,7 +101,7 @@ async function runFullSystemTest() {
   });
 
   // Phase 2: API Endpoint Tests
-  log("\n📊 PHASE 2: API Endpoint Tests", "blue");
+  log("\n PHASE 2: API Endpoint Tests", "blue");
   log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   let optimizationId = null;
@@ -210,7 +210,7 @@ async function runFullSystemTest() {
   });
 
   // Phase 3: Data Quality Tests
-  log("\n✔️  PHASE 3: Data Quality Tests", "blue");
+  log("\n️  PHASE 3: Data Quality Tests", "blue");
   log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   await test("Recommendations have no null critical values", async () => {
@@ -265,7 +265,7 @@ async function runFullSystemTest() {
   });
 
   // Phase 4: Correlation & Diversification
-  log("\n📈 PHASE 4: Correlation & Diversification", "blue");
+  log("\n PHASE 4: Correlation & Diversification", "blue");
   log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   await test("Diversification score is calculated", async () => {
@@ -319,7 +319,7 @@ async function runFullSystemTest() {
   });
 
   // Phase 6: Cleanup
-  log("\n🧹 PHASE 6: Cleanup", "blue");
+  log("\n PHASE 6: Cleanup", "blue");
   log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   await test("Remove test portfolio", async () => {
@@ -336,7 +336,7 @@ async function runFullSystemTest() {
   log(`Failed: ${testResults.failed}`, testResults.failed > 0 ? "red" : "green");
 
   if (testResults.errors.length > 0) {
-    log("\n❌ ERRORS:\n", "red");
+    log("\n ERRORS:\n", "red");
     testResults.errors.forEach((err) => {
       log(`  ${err.test}:`, "red");
       log(`    ${err.error}\n`, "yellow");
@@ -346,7 +346,7 @@ async function runFullSystemTest() {
   log("\n" + "─".repeat(60));
 
   if (testResults.failed === 0) {
-    log("✅ ALL TESTS PASSED - System is working correctly!", "green");
+    log(" ALL TESTS PASSED - System is working correctly!", "green");
     log("\nNext steps:");
     log("  1. Configure Alpaca credentials for paper trading");
     log("  2. Deploy to production");
@@ -354,7 +354,7 @@ async function runFullSystemTest() {
     log("  4. Enable live trading when ready");
     return 0;
   } else {
-    log("❌ SOME TESTS FAILED - Review errors above", "red");
+    log(" SOME TESTS FAILED - Review errors above", "red");
     return 1;
   }
 }
@@ -363,6 +363,6 @@ async function runFullSystemTest() {
 runFullSystemTest()
   .then((exitCode) => process.exit(exitCode))
   .catch((error) => {
-    log(`\n❌ Fatal error: ${error.message}`, "red");
+    log(`\n Fatal error: ${error.message}`, "red");
     process.exit(1);
   });
