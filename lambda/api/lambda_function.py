@@ -203,6 +203,13 @@ def _safe_offset(offset_str: Any, max_offset: int = 1000000, default: int = 0) -
         return default
 
 
+def _validate_symbol(symbol: str) -> bool:
+    """Validate stock symbol format: 1-20 chars, uppercase letters, numbers, dash, dot only."""
+    if not symbol:
+        return False
+    return bool(re.match(r'^[A-Z0-9.\-]{1,20}$', symbol))
+
+
 class APIHandler:
     """Main API request handler."""
 
@@ -415,7 +422,8 @@ class APIHandler:
         elif path == '/api/algo/notifications':
             return self._get_notifications()
         elif path == '/api/algo/patrol-log':
-            limit = int(params.get('limit', [50])[0]) if params else 50
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=200, default=50)
             return self._get_patrol_log(limit)
         elif path == '/api/algo/sector-rotation':
             days = int(params.get('limit', [180])[0]) if params else 180
@@ -423,7 +431,8 @@ class APIHandler:
         elif path == '/api/algo/sector-breadth':
             return self._get_sector_breadth()
         elif path == '/api/algo/swing-scores':
-            limit = int(params.get('limit', [100])[0]) if params else 100
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=200, default=100)
             return self._get_swing_scores(limit)
         elif path == '/api/algo/swing-scores-history':
             days = int(params.get('days', [30])[0]) if params else 30
@@ -446,7 +455,8 @@ class APIHandler:
             key = path[len('/api/algo/config/'):]
             return self._get_algo_config_key(key)
         elif path == '/api/algo/audit-log':
-            limit = int(params.get('limit', [100])[0]) if params else 100
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=200, default=100)
             action_type = params.get('action_type', [None])[0] if params else None
             return self._get_algo_audit_log(limit, action_type)
         else:
@@ -1144,7 +1154,8 @@ class APIHandler:
         """Handle /api/earnings/* endpoints. Returns upcoming/past earnings dates."""
         try:
             period = params.get('period', ['upcoming'])[0] if params else 'upcoming'
-            limit = int(params.get('limit', [25])[0]) if params else 25
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=100, default=25)
             symbol = params.get('symbol', [None])[0] if params else None
 
             if period == 'upcoming':
@@ -1269,13 +1280,16 @@ class APIHandler:
         if match:
             symbol = match.group(1)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
-            limit = int(params.get('limit', [60])[0]) if params else 60
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=60)
             return self._get_price_history(symbol, timeframe, limit)
         else:
             return error_response(404, 'not_found', f'Invalid prices endpoint: {path}')
 
     def _get_price_history(self, symbol: str, timeframe: str = 'daily', limit: int = 60) -> Dict:
         """Get price history for a symbol."""
+        if not _validate_symbol(symbol):
+            return error_response(400, 'invalid_symbol', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
         try:
             self.cur.execute("""
                 SELECT date, open, high, low, close, volume
@@ -1293,10 +1307,12 @@ class APIHandler:
     def _handle_stocks(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/stocks and /api/stocks/* endpoints."""
         if path == '/api/stocks/deep-value':
-            limit = int(params.get('limit', [600])[0]) if params else 600
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=100)
             return self._get_deep_value_stocks(limit)
         elif path == '/api/stocks' or path == '/api/stocks/list':
-            limit = int(params.get('limit', [100])[0]) if params else 100
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=100)
             symbol_filter = params.get('symbol', [None])[0] if params else None
             industry_filter = params.get('industry', [None])[0] if params else None
             try:
@@ -1324,6 +1340,8 @@ class APIHandler:
                 return error_response(500, 'database_error', 'Failed to fetch stocks')
         elif path.startswith('/api/stocks/'):
             symbol = path.split('/api/stocks/')[-1]
+            if not _validate_symbol(symbol):
+                return error_response(400, 'invalid_symbol', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
             try:
                 self.cur.execute("""
                     SELECT ss.symbol, ss.security_name as company_name,
@@ -1440,7 +1458,8 @@ class APIHandler:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
             if path in ('/api/sectors', '/api/sectors/performance'):
-                limit = int(params.get('limit', [20])[0]) if params else 20
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=100, default=20)
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
 
@@ -1570,7 +1589,8 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return list_response([dict(r) for r in rows])
             else:
-                limit = int(params.get('limit', [500])[0]) if params else 500
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=500, default=100)
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
 
@@ -2078,7 +2098,8 @@ class APIHandler:
                     })
                 return json_response(200, {})
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
-                limit = int(params.get('limit', [5000])[0]) if params else 5000
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=500, default=100)
                 page = int(params.get('page', [1])[0]) if params else 1
                 offset = (page - 1) * limit
                 self.cur.execute("""
@@ -2258,7 +2279,8 @@ class APIHandler:
         """Handle /api/research/* endpoints."""
         try:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
-                limit = int(params.get('limit', [50])[0]) if params else 50
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=200, default=50)
                 self.cur.execute("""
                     SELECT run_id AS id, strategy_name, date_start AS start_date, date_end AS end_date, total_return_pct AS total_return,
                            sharpe_annualized AS sharpe_ratio, max_drawdown_pct AS max_drawdown, win_rate, total_trades
@@ -2278,7 +2300,8 @@ class APIHandler:
         """Handle /api/audit/* endpoints."""
         try:
             if path == '/api/audit/trail' or path.startswith('/api/audit/trail?'):
-                limit = int(params.get('limit', [100])[0]) if params else 100
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=200, default=100)
                 self.cur.execute("""
                     SELECT id, created_at AS timestamp, action_type AS action,
                            actor AS user_id, status, details
@@ -2297,8 +2320,10 @@ class APIHandler:
         """Handle /api/trades and /api/trades/* endpoints."""
         try:
             if path == '/api/trades':
-                limit = int(params.get('limit', [100])[0]) if params else 100
-                offset = int(params.get('offset', [0])[0]) if params else 0
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=500, default=100)
+                offset_str = params.get('offset', [None])[0] if params else None
+                offset = _safe_offset(offset_str)
                 status_filter = params.get('status', [None])[0] if params else None
                 query = """
                     SELECT trade_id, symbol, signal_date, trade_date, entry_time,
