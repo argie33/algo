@@ -18,7 +18,6 @@ USAGE:
   logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
-from config.credential_helper import get_db_config
 from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
@@ -40,12 +39,15 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
+
+
 class HealthStatus(str, Enum):
     HEALTHY = "HEALTHY"
     STALE = "STALE"  # Data older than SLA
     VERY_STALE = "VERY_STALE"  # Data > 2x SLA old
     MISSING = "MISSING"  # Table empty
     ERROR = "ERROR"  # Query failed
+
 
 @dataclass
 class TableHealth:
@@ -85,6 +87,7 @@ class TableHealth:
             'error': self.error_message
         }
 
+
 @dataclass
 class PipelineStatus:
     """Overall pipeline health status."""
@@ -119,6 +122,7 @@ class PipelineStatus:
             'warnings': self.warnings,
             'tables': {name: t.to_dict() for name, t in self.tables.items()}
         }
+
 
 class PipelineHealth:
     """Monitor and report on data pipeline health."""
@@ -318,6 +322,7 @@ class PipelineHealth:
             raise RuntimeError(error_msg)
 
         return True
+
 
 if __name__ == '__main__':
     import json

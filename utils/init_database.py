@@ -2121,7 +2121,7 @@ def _init_timescaledb(conn, cur):
 def init_database():
     """Initialize database schema."""
     try:
-        conn = get_db_connection()
+        conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
 
         logger.info("╔════════════════════════════════════════════════════════╗")

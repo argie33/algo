@@ -14,7 +14,7 @@ from config.credential_helper import get_db_config
 logger = logging.getLogger(__name__)
 
 
-def get_db_connection(max_retries: int = 3, timeout: int = 5) -> psycopg2.extensions.connection:
+def get_db_connection(max_retries: int = 3, timeout: int = 5):
     """Get a PostgreSQL connection with automatic retry and credential management.
 
     Args:

@@ -254,7 +254,7 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            conn = get_db_connection()
+            conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
 
             cur.execute("SELECT key, value, value_type FROM algo_config")
@@ -375,7 +375,7 @@ class AlgoConfig:
             # Validate before storing
             self._validate_value(key, str(value), value_type)
 
-            conn = get_db_connection()
+            conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
 
             cur.execute("""
@@ -417,7 +417,7 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            conn = get_db_connection()
+            conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
 
             for key, (value, dtype, desc) in self.DEFAULTS.items():

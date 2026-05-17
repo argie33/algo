@@ -25,7 +25,6 @@ Each tier has a complete action profile that the orchestrator applies
 in Phase 2.5 (between circuit breakers and position monitor).
 """
 
-from config.credential_helper import get_db_config
 from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
@@ -44,6 +43,112 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _get_db_config():
+    """Lazy-load DB config at runtime instead of module import time."""
+    return {
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "user": os.getenv("DB_USER", "stocks"),
+    "password": get_db_password(),
+    "database": os.getenv("DB_NAME", "stocks"),
+    }
+
+
+# Each policy tier defines:
+#   risk_multiplier:        Multiplier on base_risk_pct (× drawdown × phase)
+#   max_new_positions_today: Cap on new entries per day
+#   min_swing_score:        Required score for a new entry
+#   min_swing_grade:        Required letter grade
+#   tighten_winners_at_r:   Tighten stop when position > this R-multiple
+#   force_partial_at_r:     Force partial exit when position > this R
+#   halt_new_entries:       Block all new positions
+#   force_exit_negative_r:  Cut losers (negative R) instead of waiting for stop
+#   max_concentration_pct:  Override max single-position concentration
+EXPOSURE_TIERS = [
+    {
+        'name': 'confirmed_uptrend',
+        'min_pct': 80,
+        'max_pct': 100,
+        'description': 'Healthy bull market — full deployment',
+        'risk_multiplier': 1.0,
+        'max_new_positions_today': 5,
+        'min_swing_score': 60.0,
+        'min_swing_grade': 'B',
+        'tighten_winners_at_r': None,
+        'force_partial_at_r': None,
+        'halt_new_entries': False,
+        'force_exit_negative_r': False,
+        'max_concentration_pct': 50.0,
+        'color': 'green',
+    },
+    {
+        'name': 'healthy_uptrend',
+        'min_pct': 60,
+        'max_pct': 80,
+        'description': 'Bull market with caution — slightly reduced risk',
+        'risk_multiplier': 0.85,
+        'max_new_positions_today': 4,
+        'min_swing_score': 65.0,
+        'min_swing_grade': 'B',
+        'tighten_winners_at_r': 3.0,
+        'force_partial_at_r': None,
+        'halt_new_entries': False,
+        'force_exit_negative_r': False,
+        'max_concentration_pct': 45.0,
+        'color': 'lightgreen',
+    },
+    {
+        'name': 'pressure',
+        'min_pct': 40,
+        'max_pct': 60,
+        'description': 'Uptrend under pressure — defensive posture',
+        'risk_multiplier': 0.5,
+        'max_new_positions_today': 2,
+        'min_swing_score': 70.0,
+        'min_swing_grade': 'A',
+        'tighten_winners_at_r': 2.0,
+        'force_partial_at_r': 3.0,
+        'halt_new_entries': False,
+        'force_exit_negative_r': False,
+        'max_concentration_pct': 35.0,
+        'color': 'yellow',
+    },
+    {
+        'name': 'caution',
+        'min_pct': 20,
+        'max_pct': 40,
+        'description': 'Major caution — entries halted unless exceptional',
+        'risk_multiplier': 0.25,
+        'max_new_positions_today': 1,
+        'min_swing_score': 75.0,
+        'min_swing_grade': 'A',
+        'tighten_winners_at_r': 1.5,
+        'force_partial_at_r': 2.0,
+        'halt_new_entries': True,
+        'force_exit_negative_r': False,
+        'max_concentration_pct': 25.0,
+        'color': 'orange',
+    },
+    {
+        'name': 'correction',
+        'min_pct': 0,
+        'max_pct': 20,
+        'description': 'Market correction — preserve capital',
+        'risk_multiplier': 0.0,
+        'max_new_positions_today': 0,
+        'min_swing_score': 100.0,
+        'min_swing_grade': 'A+',
+        'tighten_winners_at_r': 1.0,
+        'force_partial_at_r': 1.5,
+        'halt_new_entries': True,
+        'force_exit_negative_r': True,
+        'max_concentration_pct': 15.0,
+        'color': 'red',
+    },
+]
+
+
 def tier_for_exposure(exposure_pct):
     """Return the active policy tier for a given exposure %.
 
@@ -60,6 +165,7 @@ def tier_for_exposure(exposure_pct):
     if exposure_pct < 0:
         return EXPOSURE_TIERS[-1]
     return EXPOSURE_TIERS[0]
+
 
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""
@@ -227,6 +333,7 @@ class ExposurePolicy:
             'halt_new_entries': tier['halt_new_entries'],
             'max_concentration_pct': tier['max_concentration_pct'],
         }
+
 
 if __name__ == "__main__":
     p = ExposurePolicy()
