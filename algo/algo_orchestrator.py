@@ -255,7 +255,7 @@ class Orchestrator:
                 logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
             # Don't fail the orchestrator if flags aren't available
 
-    def _check_data_patrol(self, cur):
+    def _check_data_patrol(self, cur: Any) -> bool:
         """Check data patrol results. Fail-closed if critical/error findings.
 
         Only checks the LATEST patrol run (not accumulated from all runs in 24h).
@@ -355,7 +355,7 @@ class Orchestrator:
 
     # ---------- Logging helpers ----------
 
-    def _acquire_run_lock(self, lock_timeout_seconds=3600):
+    def _acquire_run_lock(self, lock_timeout_seconds: int = 3600) -> bool:
         """Acquire exclusive lock to prevent concurrent orchestrator runs.
 
         Uses file-based locking with PID checking and timestamp-based expiration.
@@ -417,7 +417,7 @@ class Orchestrator:
             logger.error(f"ERROR: Could not create lock file: {e}")
             return False
 
-    def _release_run_lock(self):
+    def _release_run_lock(self) -> None:
         """Release the run lock."""
         if self._lock_acquired and self.lock_file.exists():
             try:
@@ -426,13 +426,13 @@ class Orchestrator:
             except Exception:
                 pass
 
-    def log_phase_start(self, phase_num, name):
+    def log_phase_start(self, phase_num: int, name: str) -> None:
         if self.verbose:
             logger.info(f"\n{'='*70}")
             logger.info(f"PHASE {phase_num}: {name}")
             logger.info(f"{'='*70}")
 
-    def log_phase_result(self, phase_num, name, status, summary):
+    def log_phase_result(self, phase_num: int, name: str, status: str, summary: str) -> None:
         import json
         self.phase_results[phase_num] = {
             'name': name,
@@ -474,7 +474,7 @@ class Orchestrator:
 
     # ---------- Pipeline Health & Visibility ----------
 
-    def _check_pipeline_health(self, cur):
+    def _check_pipeline_health(self, cur: Any) -> None:
         """Check that all required tables have recent data for signal processing."""
         if not cur:
             return
@@ -540,7 +540,7 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"Pipeline health check failed: {e}")
 
-    def _report_signal_waterfall(self):
+    def _report_signal_waterfall(self) -> None:
         """Log signal count at each filter tier for visibility on rejections."""
         conn = None
         cur = None
