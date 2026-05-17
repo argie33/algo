@@ -1600,11 +1600,38 @@ class APIHandler:
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
+            # Handle /api/sectors/trends-batch?sectors=X,Y,Z&days=90
+            if path == '/api/sectors/trends-batch' or path.startswith('/api/sectors/trends-batch?'):
+                sectors_str = params.get('sectors', [None])[0] if params else None
+                days = int(params.get('days', [90])[0]) if params else 90
+
+                if not sectors_str:
+                    return error_response(400, 'missing_param', 'sectors parameter required (comma-separated)')
+
+                sectors = [s.strip() for s in sectors_str.split(',')]
+                result = {}
+
+                for sector in sectors:
+                    if not sector:
+                        continue
+                    self.cur.execute("""
+                        SELECT date, AVG(close) AS avgPrice
+                        FROM price_daily pd
+                        JOIN company_profile cp ON pd.symbol = cp.symbol
+                        WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        GROUP BY pd.date
+                        ORDER BY pd.date ASC
+                    """, (sector, days))
+                    rows = self.cur.fetchall()
+                    result[sector] = [dict(r) for r in rows] if rows else []
+
+                return json_response(200, {'data': result})
+
             # Extract sector name if provided: /api/sectors/Technology
             parts = path.split('/')
             sector_name = parts[3] if len(parts) > 3 else None
 
-            if sector_name and sector_name not in ('performance',):
+            if sector_name and sector_name not in ('performance', 'trends-batch'):
                 # Return data for specific sector
                 days = int(params.get('days', [90])[0]) if params else 90
                 self.cur.execute("""
@@ -2468,19 +2495,48 @@ class APIHandler:
                     run_id_int = int(run_id)
                 except ValueError:
                     return error_response(400, 'invalid_id', 'Run ID must be numeric')
+
+                # Get backtest run details
                 self.cur.execute("""
-                    SELECT run_id AS id, strategy_name, date_start AS start_date, date_end AS end_date,
-                           total_return_pct AS total_return, sharpe_annualized AS sharpe_ratio,
-                           max_drawdown_pct AS max_drawdown, win_rate, total_trades,
-                           best_trade_pct, worst_trade_pct, avg_trade_pct,
-                           consecutive_wins, consecutive_losses, created_at
+                    SELECT run_id, strategy_name, date_start, date_end,
+                           total_return_pct, sharpe_annualized, max_drawdown_pct, win_rate,
+                           total_trades, best_trade_pct, worst_trade_pct, avg_trade_pct,
+                           consecutive_wins, consecutive_losses, created_at, notes
                     FROM backtest_runs
                     WHERE run_id = %s
                 """, (run_id_int,))
                 backtest = self.cur.fetchone()
-                if backtest:
-                    return json_response(200, dict(backtest))
-                return error_response(404, 'not_found', f'Backtest run {run_id} not found')
+                if not backtest:
+                    return error_response(404, 'not_found', f'Backtest run {run_id} not found')
+
+                # Get trades for this backtest
+                limit_str = params.get('limit', [None])[0] if params else None
+                offset_str = params.get('offset', [None])[0] if params else None
+                limit = _safe_limit(limit_str, max_val=500, default=100)
+                offset = _safe_offset(offset_str)
+
+                self.cur.execute("""
+                    SELECT trade_id, symbol, signal_date, entry_date, entry_price, entry_quantity,
+                           exit_date, exit_price, profit_loss_pct, mfe_pct, mae_pct
+                    FROM backtest_trades
+                    WHERE run_id = %s
+                    ORDER BY entry_date DESC
+                    LIMIT %s OFFSET %s
+                """, (run_id_int, limit, offset))
+                trades = self.cur.fetchall()
+
+                self.cur.execute("""
+                    SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
+                """, (run_id_int,))
+                total_trades_count = self.cur.fetchone()[0]
+
+                # Build response
+                run_dict = dict(backtest)
+                return json_response(200, {
+                    'run': run_dict,
+                    'trades': [dict(t) for t in trades] if trades else [],
+                    'trade_pagination': {'total': total_trades_count}
+                })
             return error_response(404, 'not_found', f'No research handler for {path}')
         except Exception as e:
             logger.error(f"get_backtests failed: {e}", exc_info=True)

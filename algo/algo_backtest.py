@@ -307,6 +307,10 @@ class Backtester:
             # Calculate metrics
             metrics = self._calculate_metrics()
 
+            # Save results to database if successful
+            if metrics.get('status') == 'OK':
+                self.save_results_to_db(metrics, strategy_name='momentum')
+
         finally:
             self.disconnect()
 
