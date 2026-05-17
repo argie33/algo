@@ -458,7 +458,7 @@ class APIHandler:
 
             # Industries endpoints
             if path == '/api/industries' or path.startswith('/api/industries/'):
-                return self._handle_industries(path, query_params)
+                return self._handle_industries(path, method, query_params)
 
             # Market endpoints
             if path.startswith('/api/market/'):
@@ -1637,7 +1637,22 @@ class APIHandler:
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
-            if path in ('/api/sectors', '/api/sectors/performance'):
+            # Extract sector name if provided: /api/sectors/Technology
+            parts = path.split('/')
+            sector_name = parts[3] if len(parts) > 3 else None
+
+            if sector_name and sector_name not in ('performance',):
+                # Return data for specific sector
+                days = int(params.get('days', [90])[0]) if params else 90
+                self.cur.execute("""
+                    SELECT date, sector, return_pct
+                    FROM sector_performance
+                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    ORDER BY date DESC
+                """, (sector_name, days))
+                rows = self.cur.fetchall()
+                return list_response([dict(r) for r in rows])
+            elif path in ('/api/sectors', '/api/sectors/performance'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = _safe_limit(limit_str, max_val=100, default=20)
                 page = int(params.get('page', [1])[0]) if params else 1
@@ -1751,15 +1766,16 @@ class APIHandler:
             logger.error(f"Error in sectors handler: {e}", exc_info=True)
             return error_response(500, 'database_error', 'Failed to fetch sectors')
 
-    def _handle_industries(self, path: str, params: Dict) -> Dict:
-        """Handle /api/industries and /api/industries/{name}/trend - return full ranking data."""
+    def _handle_industries(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/industries and /api/industries/{name} - return ranking data."""
         try:
-            if '/trend' in path:
-                parts = path.split('/')
-                industry_name = parts[3] if len(parts) > 3 else None
+            # Extract industry name if provided: /api/industries/Software
+            parts = path.split('/')
+            industry_name = parts[3] if len(parts) > 3 else None
+
+            if industry_name and industry_name != 'trend':
+                # Return data for specific industry
                 days = int(params.get('days', [90])[0]) if params else 90
-                if not industry_name:
-                    return error_response(400, 'bad_request', 'Industry name required')
                 self.cur.execute("""
                     SELECT date, industry, return_pct
                     FROM industry_performance
@@ -2052,7 +2068,18 @@ class APIHandler:
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
-            if path == '/api/economic/leading-indicators':
+            if path == '/api/economic/VIX':
+                # Return VIX data from market_health_daily
+                self.cur.execute("""
+                    SELECT date, vix_level as vix
+                    FROM market_health_daily
+                    WHERE vix_level IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 100
+                """)
+                rows = self.cur.fetchall()
+                return list_response([dict(r) for r in rows] if rows else [])
+            elif path == '/api/economic/leading-indicators':
                 return self._get_leading_indicators()
             elif path == '/api/economic/indicators':
                 return self._get_leading_indicators()
@@ -2563,15 +2590,17 @@ class APIHandler:
                 rows = self.cur.fetchall()
                 return list_response([dict(r) for r in rows])
             elif path == '/api/contact' and method == 'POST':
+                # Validate contact request against schema
                 data = body or {}
-                name = str(data.get('name', ''))[:200]
-                email = str(data.get('email', ''))[:200]
-                subject = str(data.get('subject', ''))[:500]
-                message = str(data.get('message', ''))[:5000]
+                valid, result, error_msg = validate_request(ContactRequest, data)
+                if not valid:
+                    return error_response(400, 'validation_error', error_msg)
+
+                contact = result  # ContactRequest instance
                 self.cur.execute("""
                     INSERT INTO contact_submissions (name, email, subject, message, status, submitted_at)
                     VALUES (%s, %s, %s, %s, 'new', NOW())
-                """, (name, email, subject, message))
+                """, (contact.name, contact.email, contact.subject, contact.message))
                 self.conn.commit()
                 return json_response(200, {'status': 'submitted', 'message': 'Contact form submission received'})
             return error_response(404, 'not_found', f'No handler for {path}')

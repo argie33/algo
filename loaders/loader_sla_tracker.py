@@ -233,6 +233,8 @@ class LoaderSLATracker:
                         FROM loader_sla_status
                         WHERE table_name = %s
                         AND last_check_at >= NOW() - INTERVAL '1 day'
+                        ORDER BY last_check_at DESC
+                        LIMIT 1
                     """, (table_name,))
 
                     row = cur.fetchone()
@@ -241,7 +243,7 @@ class LoaderSLATracker:
                         continue
 
                     status, error = row
-                    if status != 'OK':
+                    if status and status.upper() != 'OK':
                         failures.append(f"{table_name}: {status} ({error})")
 
             return len(failures) == 0, failures

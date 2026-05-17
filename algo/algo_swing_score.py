@@ -962,6 +962,8 @@ class SwingTraderScore:
         then inserts/upserts to the database. Stores results for frontend display,
         historical tracking, and post-trade performance analysis.
 
+        Handles sparse data by providing default component values if not present.
+
         Args:
             symbol: Stock ticker
             eval_date: Date evaluated
@@ -972,12 +974,30 @@ class SwingTraderScore:
         """
         try:
             comp = result.get('components', {})
+
+            # Ensure all components have default structure for sparse data handling
+            default_components = {
+                'setup_quality': {'pts': 0.0, 'max': self.W_SETUP},
+                'trend_quality': {'pts': 0.0, 'max': self.W_TREND},
+                'momentum_rs': {'pts': 0.0, 'max': self.W_MOMENTUM},
+                'volume': {'pts': 0.0, 'max': self.W_VOLUME},
+                'fundamentals': {'pts': 0.0, 'max': self.W_FUNDAMENTALS},
+                'sector_industry': {'pts': 0.0, 'max': self.W_SECTOR},
+                'multi_timeframe': {'pts': 0.0, 'max': self.W_MULTI_TF},
+            }
+
+            # Merge provided components with defaults (override where data exists)
+            for key in default_components:
+                if key in comp:
+                    default_components[key].update(comp[key])
+
             components_json = {
-                **comp,
+                **default_components,
                 'grade': result.get('grade', 'F'),
                 'pass': result.get('pass', False),
                 'reason': result.get('reason'),
             }
+
             self.cur.execute(
                 """
                 INSERT INTO swing_trader_scores (symbol, date, score, components)
@@ -987,7 +1007,7 @@ class SwingTraderScore:
                     components = EXCLUDED.components,
                     created_at = CURRENT_TIMESTAMP
                 """,
-                (symbol, eval_date, result.get('swing_score', 0), json.dumps(components_json)),
+                (symbol, eval_date, float(result.get('swing_score', 0)), json.dumps(components_json)),
             )
             if self._owned:
                 self._owned.commit()

@@ -85,7 +85,16 @@ def test_endpoint(base_url: str, path: str, method: str, expected_status: int) -
         if method == 'GET':
             response = requests.get(url, timeout=5)
         elif method == 'POST':
-            response = requests.post(url, json={}, timeout=5)
+            # For contact endpoint, send valid contact form data
+            body = {}
+            if path == '/api/contact':
+                body = {
+                    'name': 'Test User',
+                    'email': 'test@example.com',
+                    'subject': 'Test Subject',
+                    'message': 'This is a test message for the contact form endpoint'
+                }
+            response = requests.post(url, json=body, timeout=5)
         else:
             return False, f"Unknown method {method}", -1
 
