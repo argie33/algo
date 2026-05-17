@@ -27,9 +27,36 @@
 
 **Deployment Status**: VPC count argument edits did not apply initially. Applied and committed again (58a164cb2). New deployment in progress...
 
-### Previous Attempt
-- Commit b21c479ad had monitoring/pipeline fixes but VPC changes didn't apply (Edit tool issue)
-- Terraform failed with same VPC count errors (lines 63, 132 in vpc/main.tf)
+### Progress Log
+
+**Attempt 1 (b21c479ad)**: Monitoring & pipeline count fixes applied, but VPC edits didn't apply (Edit tool issue)
+- Result: Failed with same VPC count errors (lines 63, 132)
+
+**Attempt 2 (58a164cb2)**: VPC count fixes reapplied explicitly
+- Result: Failed with new error: "Invalid index" on technicals_daily loader that was removed
+
+**Attempt 3 (f160478e1)**: Removed technicals_daily step from EOD pipeline (loader no longer exists)
+- Updated state machine to skip TechnicalsDaily and go directly to ParallelEnrichment
+- Status: Deployment in progress... (polling for completion)
+
+### AWS Infrastructure Issues Found
+
+| Issue | Impact | Status |
+|-------|--------|--------|
+| VPC route table count arguments (2 places) | Prevents Terraform planning | ✅ Fixed |
+| Monitoring module count argument | Prevents Terraform planning | ✅ Fixed |
+| Pipeline module missing sns_alerts_enabled variable | Prevents Terraform planning | ✅ Fixed |
+| technicals_daily loader removed but referenced in pipeline | "Invalid index" error during plan | ✅ Fixed |
+
+### Next Steps (When Terraform Succeeds)
+
+1. **Test Lambda Execution** - Check cold starts and execution logs
+2. **Verify RDS Connectivity** - Database access from Lambda
+3. **Test API Gateway** - Authentication and routing
+4. **Check Secrets Manager** - Credential retrieval
+5. **Validate CloudFront** - Frontend distribution and CORS
+6. **Test EventBridge** - Scheduler triggering
+7. **Smoke Test Frontend** - All 22 pages functional
 
 ---
 
