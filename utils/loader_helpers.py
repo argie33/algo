@@ -62,6 +62,24 @@ def _resolve_timeframe(cli_arg: str = None) -> str:
     return "monthly" if "monthly" in loader_type else "weekly"
 
 
+def _resolve_timeframe(cli_arg: str = None) -> str:
+    """Resolve timeframe from CLI arg or environment variable for aggregate loaders.
+
+    Used by: load_buysell_aggregate.py, load_buysell_etf_aggregate.py,
+             load_etf_price_aggregate.py, load_price_aggregate.py
+
+    Originally defined identically in 4 different files. Consolidated 2026-05-18.
+
+    Priority:
+    1. CLI argument (if provided)
+    2. LOADER_TYPE environment variable (if contains "monthly" -> "monthly", else "weekly")
+    """
+    if cli_arg:
+        return cli_arg
+    loader_type = os.getenv("LOADER_TYPE", "")
+    return "monthly" if "monthly" in loader_type else "weekly"
+
+
 def _resolve_period(cli_arg: str = None) -> str:
     """Resolve period from CLI arg or environment variable.
 

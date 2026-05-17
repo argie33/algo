@@ -20,6 +20,7 @@ import sys
 from datetime import date, timedelta
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config
+from utils.loader_helpers import _resolve_timeframe
 from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
@@ -35,12 +36,6 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-
-def _resolve_timeframe(cli_arg: Optional[str]) -> str:
-    if cli_arg:
-        return cli_arg
-    loader_type = os.getenv("LOADER_TYPE", "")
-    return "monthly" if "monthly" in loader_type else "weekly"
 
 
 class EtfPriceAggregateLoader(OptimalLoader):
