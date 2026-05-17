@@ -138,11 +138,13 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
         # Set PYTHONPATH to include root directory so loaders can import config modules
         env = os.environ.copy()
         env['PYTHONPATH'] = os.getcwd() + os.pathsep + os.path.join(os.getcwd(), 'config')
+        # Increase timeout for data-heavy loaders (loadpricedaily needs ~10-15 min for 10k symbols)
+        loader_timeout = 1200 if 'price' in loader.lower() or 'scores' in loader.lower() else 600
         result = subprocess.run(
             ['python3', loader_path] + args,
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=loader_timeout,
             env=env
         )
 
