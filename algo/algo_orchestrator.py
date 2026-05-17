@@ -1984,7 +1984,28 @@ class Orchestrator:
             else:
                 issues.append("No technical data found")
 
-            # 6. Check stock scores data completeness (scores must have >80% component coverage)
+            # 6. M3 FIX: Check multiple metric types for completeness before trading
+            # Expand from H6 stock_scores check to include quality_metrics and value_metrics
+
+            # 6a. Quality metrics (momentum, volatility, RSI, etc.)
+            cur.execute(
+                "SELECT COUNT(*) FROM quality_metrics WHERE date = %s",
+                (today,)
+            )
+            quality_count = cur.fetchone()[0]
+            if quality_count < (covered * 0.80):  # At least 80% of covered symbols
+                issues.append(f"Quality metrics incomplete: {quality_count}/{covered} symbols ({(quality_count/max(covered,1)*100):.0f}%)")
+
+            # 6b. Value metrics (PE, PB, PS ratios)
+            cur.execute(
+                "SELECT COUNT(*) FROM value_metrics WHERE DATE(created_at) = %s",
+                (today,)
+            )
+            value_count = cur.fetchone()[0]
+            if value_count < (covered * 0.70):  # At least 70% of covered symbols (PE coverage is lower)
+                warnings.append(f"Value metrics incomplete: {value_count}/{covered} symbols ({(value_count/max(covered,1)*100):.0f}%)")
+
+            # 6c. Stock scores data completeness (scores must have >80% component coverage)
             # data_completeness field ranges 0.0-1.0 (1.0 = all 6 score components available, 0.8+ = acceptable)
             cur.execute(
                 "SELECT COUNT(*) FROM stock_scores WHERE updated_at = %s AND data_completeness >= 0.8",
