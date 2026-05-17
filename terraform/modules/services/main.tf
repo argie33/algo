@@ -195,7 +195,7 @@ resource "aws_apigatewayv2_route" "api_default" {
   lifecycle {
     # AWS auto-recreates this route during updates, causing 409 conflicts.
     # Ignore all changes after initial creation to let AWS manage it.
-    ignore_all_changes = true
+    ignore_changes = all
   }
 
   depends_on = [aws_apigatewayv2_integration.api_lambda, aws_apigatewayv2_stage.api]
