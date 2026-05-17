@@ -2,9 +2,6 @@
 """
 Daily Buy/Sell Signals Loader - Optimal Pattern.
 
-import sys
-from pathlib import Path
-
 Computes buy/sell trading signals from price_daily using technical indicators.
 Inherits watermarks, dedup, parallelism, and bulk COPY from OptimalLoader.
 
@@ -17,33 +14,30 @@ Data source:
 Run:
     python3 loadbuyselldaily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+import argparse
+import logging
+import os
+import sys
+import psycopg2
+from pathlib import Path
+from datetime import date, timedelta
+from typing import List, Optional
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
+from utils.logging_setup import get_logger
 from utils.loader_helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
 
-import argparse
-import logging
 logger = get_logger(__name__)
-import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from datetime import date, timedelta
-from pathlib import Path
-from config.env_loader import load_env
-from typing import List, Optional
-
-
-
-from utils.optimal_loader import OptimalLoader
-
-
 log = logging.getLogger(__name__)
 
 

@@ -24,13 +24,7 @@ def get_active_symbols() -> List[str]:
 
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
     """
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
+    conn = get_db_connection()
     try:
         cur = conn.cursor()
         cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")

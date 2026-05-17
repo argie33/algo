@@ -18,7 +18,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Load .env.local or .env.test
 
 # Get DB password from environment first, fall back to credential manager if needed
 db_password = os.getenv("TEST_DB_PASSWORD") or os.getenv("DB_PASSWORD")

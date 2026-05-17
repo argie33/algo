@@ -14,19 +14,25 @@ from typing import List, Tuple, Optional
 
 # Known safe tables (whitelist for dynamic table names)
 SAFE_TABLES = {
-    'price_daily', 'price_intraday', 'price_weekly',
+    'price_daily', 'price_intraday', 'price_weekly', 'price_monthly',
     'market_health_daily', 'market_events', 'market_exposure_daily',
     'algo_trades', 'algo_positions', 'algo_signals', 'algo_portfolio_snapshots',
-    'algo_audit_log', 'algo_notifications', 'algo_data_patrol',
-    'stock_fundamentals', 'stock_ownership', 'stock_ratings',
-    'sector_performance', 'market_calendar',
-    'data_quality_log', 'data_patrol_log',
-    'technical_data_daily', 'buy_sell_daily', 'trend_template_data',
-    'signal_quality_scores', 'sector_ranking', 'industry_ranking',
-    'insider_transactions', 'analyst_upgrade_downgrade', 'stock_scores',
-    'aaii_sentiment', 'growth_metrics', 'earnings_history',
-    'buy_sell_weekly', 'buy_sell_monthly', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
-    'quality_metrics', 'value_metrics', 'growth_metrics',
+    'algo_audit_log', 'algo_notifications', 'algo_data_patrol', 'algo_risk_daily',
+    'algo_performance_daily', 'algo_signals_evaluated', 'algo_trade_adds',
+    'algo_tca', 'algo_information_coefficient', 'algo_model_registry', 'algo_champion_challenger',
+    'algo_config', 'algo_config_audit',
+    'stock_fundamentals', 'stock_ownership', 'stock_ratings', 'stock_scores', 'stock_symbols',
+    'sector_performance', 'market_calendar', 'sector_ranking', 'industry_ranking', 'industry_performance',
+    'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
+    'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+    'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly', 'buy_sell_daily_etf', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
+    'trend_template_data', 'signal_quality_scores',
+    'insider_transactions', 'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades',
+    'aaii_sentiment', 'growth_metrics', 'earnings_history', 'earnings_calendar',
+    'quality_metrics', 'value_metrics', 'momentum_metrics', 'stability_metrics',
+    'backtest_results', 'backtest_runs', 'backtest_trades',
+    'trades', 'portfolio_holdings', 'portfolio_history', 'portfolio_performance',
+    'etf_symbols', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
 }
 
 # Known safe columns (whitelist for dynamic column names)

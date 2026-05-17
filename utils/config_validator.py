@@ -7,7 +7,6 @@ Provides clear error messages for missing/invalid values.
 """
 
 import os
-from dotenv import load_dotenv
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional

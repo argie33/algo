@@ -57,7 +57,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# Load .env.local if it exists
 
 # -------------------------------
 # Script metadata & logging setup 

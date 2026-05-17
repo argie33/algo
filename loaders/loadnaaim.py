@@ -56,7 +56,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# Load .env.local if it exists
 load_env()
 
 # -------------------------------

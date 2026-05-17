@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env.local
 env_path = Path(__file__).parent / '.env.local'
-if env_path.exists():
-    load_dotenv(env_path)
-    logger.info(f"Loaded environment from {env_path}")
+if env_path.exists():    logger.info(f"Loaded environment from {env_path}")
 else:
     logger.info(f"Warning: .env.local not found at {env_path}")
 

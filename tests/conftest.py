@@ -18,7 +18,6 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 import logging
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,8 @@ logger = logging.getLogger(__name__)
 # Load test env vars
 env_file = Path(__file__).parent.parent / '.env.test'
 if env_file.exists():
-    load_dotenv(env_file)
-
-# Also load .env.local as fallback for local tests
 env_local = Path(__file__).parent.parent / '.env.local'
 if env_local.exists():
-    load_dotenv(env_local)
-
 # Test database config — use test-specific DB if available, fallback to main DB
 TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', 'localhost')
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))

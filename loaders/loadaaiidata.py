@@ -58,7 +58,6 @@ import pandas as pd
 import requests
 from io import BytesIO
 
-# Load .env.local if it exists
 
 # -------------------------------
 # Script metadata & logging setup   

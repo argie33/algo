@@ -17,7 +17,6 @@ import os
 from pathlib import Path
 from datetime import date as _date
 
-# Load environment variables from .env.local
 
 
 class TestFrontendPages:

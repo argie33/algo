@@ -39,6 +39,7 @@ Example - full price_daily loader:
 import logging
 import os
 import time
+import psycopg2
 from abc import ABC, abstractmethod
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence

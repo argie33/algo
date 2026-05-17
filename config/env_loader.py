@@ -1,49 +1,39 @@
 #!/usr/bin/env python3
 """
-Centralized environment variable loading.
+Environment variable validation and setup.
 
-All modules should use this single source of truth for loading .env files.
-Prevents duplicate loading patterns scattered across 20+ loader files.
+IMPORTANT: Credentials are NEVER loaded from .env files.
+They come from:
+1. Environment variables (CI, local development)
+2. AWS Secrets Manager (production Lambda/ECS)
+
+All credentials must be set explicitly before running any algo/loader/test code.
+See CLAUDE.md for how to set up credentials properly.
 """
 
 import os
-from pathlib import Path
-from dotenv import load_dotenv
+import logging
 
-# Track if already loaded to avoid redundant loads
-_env_loaded = False
+logger = logging.getLogger(__name__)
+
+# Track if already initialized
+_env_initialized = False
 
 
 def load_env():
-    """Load .env.local from project root or local directory.
+    """Validate that required environment variables are set.
 
-    Searches in order:
-    1. ./.env.local (current directory)
-    2. ../.env.local (parent directory)
-    3. ../../.env.local (grandparent directory)
+    Does NOT load from .env files - all credentials must be environment variables.
 
-    Called automatically on first import, but can be called explicitly if needed.
+    This is called automatically on module import but can be called explicitly.
     """
-    global _env_loaded
+    global _env_initialized
 
-    if _env_loaded:
+    if _env_initialized:
         return
 
-    # Try multiple locations
-    search_paths = [
-        Path(".env.local"),
-        Path(__file__).parent / ".env.local",
-        Path(__file__).parent.parent / ".env.local",
-        Path(__file__).parent.parent.parent / ".env.local",
-    ]
-
-    for env_path in search_paths:
-        if env_path.exists():
-            load_dotenv(env_path)
-            _env_loaded = True
-            return
-
-    # Not found, but that's OK - will use environment variables
-    _env_loaded = True
+    # Just mark as initialized - no .env.local loading
+    # All credentials must come from environment variables or AWS Secrets Manager
+    _env_initialized = True
 
 
