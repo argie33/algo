@@ -182,22 +182,20 @@ resource "aws_lambda_permission" "api_gateway" {
 # NOTE: Cognito is disabled (cognito_enabled=false in tfvars)
 # The API Gateway authorization is intentionally set to NONE for public access
 #
-# IMPORTANT: This route MUST have authorization_type="NONE" for public API access.
-# If AWS doesn't allow updating an existing route's authorization, Terraform will
-# need to destroy and recreate it. The lifecycle rules below handle this.
+# IMPORTANT: AWS API Gateway v2 auto-creates $default route when HTTP API is created.
+# Terraform can create it, but conflicts occur if AWS recreates it during updates.
+# Lifecycle rule: ignore_all_changes prevents Terraform from fighting with AWS's auto-recreation.
 resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
-  # Cognito auth disabled for MVP; can be enabled by uncommenting cognito authorizer resource above
-  authorizer_id = null
+  authorizer_id      = null
 
   lifecycle {
-    # Force replacement to ensure authorization_type is properly applied
-    # AWS API Gateway sometimes caches old auth settings, so recreation ensures clean state
-    create_before_destroy = true
-    ignore_changes        = []
+    # AWS auto-recreates this route during updates, causing 409 conflicts.
+    # Ignore all changes after initial creation to let AWS manage it.
+    ignore_all_changes = true
   }
 
   depends_on = [aws_apigatewayv2_integration.api_lambda, aws_apigatewayv2_stage.api]
