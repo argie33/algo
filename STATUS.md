@@ -1,12 +1,39 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 92: Terraform IaC Audit & Blocker Resolution)
-**Status:** ✅ **TERRAFORM IaC VALIDATED** | All GitHub Actions deployment blockers resolved | Ready for CI/CD testing
+**Last Updated:** 2026-05-17 (Session 93: Terraform Count Argument Fixes)
+**Status:** 🔄 **IN PROGRESS** | Count argument errors fixed, deployment testing underway
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
 
 ---
 
-## ✅ SESSION 92: TERRAFORM IaC AUDIT & BLOCKER RESOLUTION (THIS SESSION)
+## 🔄 SESSION 93: TERRAFORM COUNT ARGUMENT FIXES (THIS SESSION)
+
+### Issue: "Invalid count argument" Deployment Failures
+
+**Problem**: GitHub Actions deployment failing with 4 Terraform errors:
+1. `modules/vpc/main.tf:63` - Route table association public count
+2. `modules/vpc/main.tf:132` - Route table association private count  
+3. `modules/monitoring/main.tf:236` - Composite alarm count
+4. `modules/pipeline/main.tf:593` - Pipeline failure alarm count
+
+**Root Cause**: Count expressions depended on resource attributes or module outputs not available until apply time. Terraform cannot predict count during planning.
+
+**Fixes Applied**:
+- VPC: Changed `count = length(aws_subnet.public)` → `count = length(var.public_subnet_cidrs)`
+- VPC: Changed `count = length(aws_subnet.private)` → `count = length(var.private_subnet_cidrs)`
+- Monitoring: Changed `count = var.sns_alerts_topic_arn != ""` → `count = var.sns_alerts_enabled`
+- Pipeline: Added `sns_alerts_enabled` variable, updated count expression and main.tf module call
+- **Commit**: b21c479ad
+
+**Deployment Status**: VPC count argument edits did not apply initially. Applied and committed again (58a164cb2). New deployment in progress...
+
+### Previous Attempt
+- Commit b21c479ad had monitoring/pipeline fixes but VPC changes didn't apply (Edit tool issue)
+- Terraform failed with same VPC count errors (lines 63, 132 in vpc/main.tf)
+
+---
+
+## ✅ SESSION 92: TERRAFORM IaC AUDIT & BLOCKER RESOLUTION
 
 ### Terraform IaC Comprehensive Audit
 
