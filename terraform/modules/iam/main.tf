@@ -13,16 +13,10 @@ data "aws_iam_openid_connect_provider" "github" {
   arn = "arn:aws:iam::${var.aws_account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
-# GitHub Actions deployment role - LEAST PRIVILEGE
-# Scoped to: this repository only, no wildcard actions
-resource "aws_iam_role" "github_actions" {
-  name               = "${var.project_name}-svc-github-actions-${var.environment}"
-  description        = "GitHub Actions deployment role for ${var.project_name}"
-  assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-svc-github-actions-${var.environment}"
-  })
+# GitHub Actions deployment role - Reference existing role (created manually or via bootstrap)
+# The role is assumed to exist and have proper trust policy already configured
+data "aws_iam_role" "github_actions" {
+  name = "${var.project_name}-svc-github-actions-${var.environment}"
 }
 
 # Trust policy: ONLY this repository, ONLY GitHub Actions
