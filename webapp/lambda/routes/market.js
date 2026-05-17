@@ -459,7 +459,7 @@ router.get("/status", (req, res) => {
     });
   } catch (err) {
     console.error('Error getting market status:', err.message);
-    return sendError(res, err.message, 500);
+    return sendError(res, 'Failed to fetch market status', 500);
   }
 });
 
