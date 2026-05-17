@@ -13,10 +13,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config'))
 
 try:
-    from credential_helper import get_db_password, get_db_config
+    from config.credential_helper import get_db_password, get_db_config
     import psycopg2
 except ImportError as e:
-    print(f"ERROR: Failed to import credential_helper: {e}")
+    print(f"ERROR: Failed to import config.credential_helper: {e}")
     sys.exit(1)
 
 def verify_database():

@@ -21,7 +21,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
-from credential_helper import get_db_password
+from config.credential_helper import get_db_password
 
 try:
     from config.credential_manager import get_credential_manager

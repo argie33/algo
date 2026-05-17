@@ -18,7 +18,7 @@ except ImportError:
     credential_manager = None
 
 import os
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv

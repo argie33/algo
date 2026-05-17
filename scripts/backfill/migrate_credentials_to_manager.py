@@ -16,7 +16,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 
 # Files to skip
 SKIP_FILES = {

@@ -17,7 +17,7 @@ Single unified script that calculates ALL algo metrics daily in one efficient pa
 Runs as single atomic transaction. Idempotent design - safe to run multiple times per day.
 """
 
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

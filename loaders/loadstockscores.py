@@ -18,7 +18,7 @@ Run:
 import argparse
 import logging
 import os
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 import sys
 import psycopg2
 from datetime import date, timedelta

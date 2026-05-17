@@ -18,7 +18,7 @@ except ImportError:
 
 import argparse
 import logging
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 import os
 import sys
 from datetime import date

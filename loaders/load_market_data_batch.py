@@ -103,7 +103,7 @@ class MarketDataBatchLoader:
         """Record loader SLA status in database."""
         try:
             import psycopg2
-            from credential_helper import get_db_password
+            from config.credential_helper import get_db_password
 
             conn = psycopg2.connect(
                 host=os.getenv("DB_HOST", "localhost"),

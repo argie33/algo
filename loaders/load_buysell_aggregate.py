@@ -18,7 +18,7 @@ import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from typing import List, Optional
 
 try:

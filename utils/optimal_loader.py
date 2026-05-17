@@ -1,4 +1,4 @@
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 """
 Optimal loader - the synthesis of every Tier 1 + Tier 2 optimization.
 

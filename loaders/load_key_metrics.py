@@ -18,7 +18,7 @@ except ImportError:
     credential_manager = None
 
 import argparse
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 import logging
 import os
 import sys

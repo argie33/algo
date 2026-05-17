@@ -23,7 +23,7 @@ from datetime import date, timedelta
 from typing import List, Dict, Any
 import yfinance as yf
 
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from pathlib import Path as _DotenvPath
 
 # >>> dotenv-autoload >>>

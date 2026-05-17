@@ -28,7 +28,7 @@ import logging
 import json
 import os
 from pathlib import Path
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from typing import Dict, List
 from dotenv import load_dotenv
 

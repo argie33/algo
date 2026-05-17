@@ -142,7 +142,7 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
             ['python3', loader_path] + args,
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=600,
             env=env
         )
 

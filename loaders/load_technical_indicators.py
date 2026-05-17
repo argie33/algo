@@ -33,7 +33,7 @@ except ImportError:
 
 def get_db_password():
     """Get DB password from env or credential manager."""
-    from credential_helper import get_db_password as helper_get_pwd
+    from config.credential_helper import get_db_password as helper_get_pwd
     return helper_get_pwd()
 
 def get_db_connection():

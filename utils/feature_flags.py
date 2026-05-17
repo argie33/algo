@@ -18,7 +18,7 @@ Flags stored in database (easy to toggle without deploy):
 import logging
 import os
 import psycopg2
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum

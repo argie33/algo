@@ -21,7 +21,7 @@ USAGE:
     python3 migrate_indexes.py --check    # report only, no changes
 """
 
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

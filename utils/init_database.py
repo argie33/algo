@@ -15,7 +15,7 @@ import os
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from credential_helper import get_db_password, get_db_config
+from config.credential_helper import get_db_password, get_db_config
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
