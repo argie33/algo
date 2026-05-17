@@ -623,14 +623,15 @@ router.get("/mcclellan-oscillator", async (req, res) => {
     };
 
     // Get advance/decline data - limited to last 180 days for performance
+    // Compare day-over-day prices (close > previous day's close) not intraday (close > open)
     const advanceDeclineQuery = `
       WITH daily_data AS (
         SELECT
           date,
-          COUNT(CASE WHEN close > open THEN 1 END) as advances,
-          COUNT(CASE WHEN close < open THEN 1 END) as declines
+          COUNT(CASE WHEN close > LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as advances,
+          COUNT(CASE WHEN close < LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as declines
         FROM price_daily
-        WHERE close IS NOT NULL AND open IS NOT NULL
+        WHERE close IS NOT NULL
           AND date >= CURRENT_DATE - INTERVAL '180 days'
         GROUP BY date
         ORDER BY date ASC
@@ -2463,15 +2464,16 @@ router.get("/technicals", async (req, res) => {
       })(),
 
       // 2. McClellan Oscillator (from /data endpoint logic)
+      // Fixed: Use day-over-day comparison (close > LAG(close)) instead of intraday (close > open)
       (async () => {
         const result = await query(`
           WITH daily_data AS (
             SELECT
               date,
-              COUNT(CASE WHEN close > open THEN 1 END) as advances,
-              COUNT(CASE WHEN close < open THEN 1 END) as declines
+              COUNT(CASE WHEN close > LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as advances,
+              COUNT(CASE WHEN close < LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as declines
             FROM price_daily
-            WHERE close IS NOT NULL AND open IS NOT NULL
+            WHERE close IS NOT NULL
             GROUP BY date
             ORDER BY date DESC
             LIMIT 365
@@ -2838,15 +2840,16 @@ router.get("/technicals-fresh", async (req, res) => {
       })(),
 
       // 2. McClellan Oscillator (real data from database)
+      // Fixed: Use day-over-day comparison (close > LAG(close)) instead of intraday (close > open)
       (async () => {
         const result = await query(`
           WITH daily_data AS (
             SELECT
               date,
-              COUNT(CASE WHEN close > open THEN 1 END) as advances,
-              COUNT(CASE WHEN close < open THEN 1 END) as declines
+              COUNT(CASE WHEN close > LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as advances,
+              COUNT(CASE WHEN close < LAG(close) OVER (PARTITION BY symbol ORDER BY date) THEN 1 END) as declines
             FROM price_daily
-            WHERE close IS NOT NULL AND open IS NOT NULL
+            WHERE close IS NOT NULL
             GROUP BY date
             ORDER BY date DESC
             LIMIT 365
