@@ -1898,6 +1898,21 @@ CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol_date ON stock_scores(symbol, 
 -- Buy/Sell daily: optimize date queries
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_date ON buy_sell_daily(date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_date_desc_symbol ON buy_sell_daily(date DESC, symbol);
+
+-- Stock scores: optimize updated_at for freshness checks (data pipeline health)
+CREATE INDEX IF NOT EXISTS idx_stock_scores_updated_at ON stock_scores(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_updated_at_symbol ON stock_scores(updated_at DESC, symbol);
+
+-- Market health: optimize phase tracking by stage number
+CREATE INDEX IF NOT EXISTS idx_market_health_daily_stage ON market_health_daily(stage_number);
+CREATE INDEX IF NOT EXISTS idx_market_health_daily_date_stage ON market_health_daily(date DESC, stage_number);
+
+-- Filter rejection log: optimize diagnostics queries with composite index
+CREATE INDEX IF NOT EXISTS idx_filter_rejection_eval_symbol ON filter_rejection_log(eval_date, symbol);
+
+-- Algo positions: optimize status+symbol for position monitoring loops
+CREATE INDEX IF NOT EXISTS idx_algo_positions_status_symbol ON algo_positions(status, symbol);
 
 -- Notifications: optimize by symbol queries
 CREATE INDEX IF NOT EXISTS idx_algo_notifications_symbol ON algo_notifications(symbol);
