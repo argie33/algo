@@ -81,7 +81,20 @@ class TtmIncomeStatementLoader(OptimalLoader):
         }]
 
     def transform(self, rows):
-        return rows
+        """Transform wide format (revenue, net_income) to long format (item_name, value)."""
+        transformed = []
+        for row in rows:
+            symbol = row.get("symbol")
+            date_val = row.get("date")
+            for field, value in row.items():
+                if field not in ("symbol", "date") and value is not None:
+                    transformed.append({
+                        "symbol": symbol,
+                        "date": date_val,
+                        "item_name": field,
+                        "value": value,
+                    })
+        return transformed
 
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row) and row.get("date") is not None
