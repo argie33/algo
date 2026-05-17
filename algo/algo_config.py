@@ -467,12 +467,6 @@ def get_config():
         _instance = AlgoConfig()
     return _instance
 
-def reload_config():
-    """Force reload of configuration."""
-    global _instance
-    if _instance:
-        _instance.reload()
-
 if __name__ == "__main__":
     config = get_config()
     config.initialize_defaults()

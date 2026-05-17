@@ -143,31 +143,3 @@ def get_dynamic_weights(eval_date: date, cur=None) -> Dict[str, float]:
     detector = MarketRegimeDetector(cur=cur)
     regime = detector.detect_regime(eval_date)
     return detector.get_weights(regime)
-
-
-# Example usage in composite score calculation:
-def compute_composite_with_dynamic_weights(
-    momentum_score: float,
-    growth_score: float,
-    stability_score: float,
-    value_score: float,
-    positioning_score: float,
-    quality_score: float,
-    eval_date: date,
-    cur=None
-) -> float:
-    """
-    Compute composite score using dynamically-weighted components based on market regime.
-    """
-    weights = get_dynamic_weights(eval_date, cur=cur)
-
-    composite = (
-        momentum_score * weights['momentum'] +
-        growth_score * weights['growth'] +
-        stability_score * weights['stability'] +
-        value_score * weights['value'] +
-        positioning_score * weights['positioning'] +
-        quality_score * weights['quality']
-    )
-
-    return round(composite, 2)

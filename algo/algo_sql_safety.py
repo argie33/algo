@@ -119,50 +119,6 @@ def safe_select_count(
     return (count, max_date)
 
 
-def safe_select_with_date(
-    cur,
-    table: str,
-    columns: List[str],
-    date_column: Optional[str] = None,
-    where_clause: Optional[str] = None
-) -> List[Tuple]:
-    """
-    Safely execute a SELECT query with dynamic table/column names.
-
-    Args:
-        cur: psycopg2 cursor
-        table: Table name (validated)
-        columns: List of column names (each validated)
-        date_column: Optional date column for MAX() calculation
-        where_clause: Optional WHERE clause
-
-    Returns:
-        List of result tuples
-    """
-    # Validate identifiers
-    table = validate_identifier(table, SAFE_TABLES, 'table')
-
-    validated_cols = []
-    for col in columns:
-        validated_cols.append(validate_identifier(col, SAFE_COLUMNS, 'column'))
-
-    if date_column:
-        date_column = validate_identifier(date_column, SAFE_COLUMNS, 'column')
-
-    # Build query
-    col_str = ', '.join(validated_cols)
-    if date_column:
-        query = f"SELECT {col_str}, MAX({date_column}::date) FROM {table}"
-    else:
-        query = f"SELECT {col_str} FROM {table}"
-
-    if where_clause:
-        query += f" WHERE {where_clause}"
-
-    cur.execute(query)
-    return cur.fetchall()
-
-
 def assert_safe_table(table: str) -> str:
     """Assertion wrapper for table name validation."""
     return validate_identifier(table, SAFE_TABLES, 'table')
@@ -171,14 +127,6 @@ def assert_safe_table(table: str) -> str:
 def assert_safe_column(column: str) -> str:
     """Assertion wrapper for column name validation."""
     return validate_identifier(column, SAFE_COLUMNS, 'column')
-
-
-# SQL identifier quoter for Identifier patterns (psycopg2)
-def quote_identifier(name: str) -> sql.Identifier:
-    """Return a psycopg2 SQL Identifier for safe quoting."""
-    # Still validate
-    validate_identifier(name, SAFE_TABLES | SAFE_COLUMNS, 'identifier')
-    return sql.Identifier(name)
 
 
 # For backwards compatibility - direct safe execution
