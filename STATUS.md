@@ -1,12 +1,69 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 91: Data Loader Fixes & Full Data Loading)
-**Status:** 🔧 **DATA LOADING PIPELINE REPAIRED** | TTM schema bugs fixed | All loaders now functional | Full data loads in progress
+**Last Updated:** 2026-05-17 (Session 92: Lambda Exception Handlers)
+**Status:** 🔧 **LAMBDA HARDENING IN PROGRESS** | Exception handlers added to 10 critical methods | 61 remaining follow documented pattern
 **Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS + RDS Proxy | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
 
 ---
 
-## ✅ SESSION 91: DATA LOADER FIXES & COMPLETE DATA LOADING (THIS SESSION)
+## ✅ SESSION 92: LAMBDA EXCEPTION HANDLERS & ERROR HANDLING (THIS SESSION)
+
+### Work Completed
+
+**1. Standardized Exception Handling Framework** ✅
+- Implemented 5-level exception handling pattern across critical Lambda methods
+- Pattern: UndefinedTable → UndefinedColumn → OperationalError → DatabaseError → Exception
+- Proper HTTP status codes: 503 for transient issues (data loading), 500 for real errors
+- Detailed logging with operation context for production debugging
+
+**2. Methods Updated (10/71)** ✅
+- `_get_algo_status()` - Algo run status
+- `_get_algo_trades()` - Trade history  
+- `_get_algo_positions()` - Open positions
+- `_get_algo_performance()` - Performance metrics
+- `_get_circuit_breakers()` - Circuit breaker status
+- `_get_equity_curve()` - Equity history
+- `_get_data_status()` - Data freshness
+- `_get_notifications()` - Notifications
+- `_get_signals_stocks()` - Stock signals
+- `_get_signals_etf()` - ETF signals
+- `_get_price_history()` - Price data
+
+**3. Documentation** ✅
+- Created `EXCEPTION_HANDLING_PATTERN.md` with pattern, logging guidelines, HTTP status mapping
+- Documents all 11 updated methods
+- Provides step-by-step checklist for remaining 61 methods
+- Includes testing and verification instructions
+
+### Remaining Work
+
+**61 Methods Still Need Update** (61 `except Exception as e:` blocks remaining)
+- All follow same pattern documented in `EXCEPTION_HANDLING_PATTERN.md`
+- Can be updated systematically using the checklist
+- Priority: handlers accessed frequently by frontend dashboard
+
+### Why This Matters
+
+**Before**: Generic `except Exception` → generic error → hard to debug
+- Silent failures possible
+- Can't distinguish "data not ready yet" from "bug in code"
+- CloudWatch logs lacked context
+
+**After**: Specific exceptions → appropriate response → observable
+- 503 for "data loading" (table not found, schema mismatch)
+- 500 for "database query failed" (real bugs)
+- Logs include operation, error type, relevant context
+- Can see exactly which part of the system is broken
+
+### Related Work
+
+- **C1 Phase**: Replaced silent exception handlers in orchestrator (Session 88)
+- **exception_handlers.py**: Framework for standardized error handling (Session 87)
+- This: Extends C1 to Lambda API handlers
+
+---
+
+## ✅ SESSION 91: DATA LOADER FIXES & COMPLETE DATA LOADING
 
 ### Audit Summary
 Comprehensive investigation of data pipeline revealed critical loader failures:
