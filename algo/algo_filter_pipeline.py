@@ -1117,7 +1117,7 @@ class FilterPipeline:
 
             from algo.algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)
-            result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price)
+            result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price, signal_date)
 
             # Check sizing result status
             if result['status'] != 'ok':

@@ -210,13 +210,14 @@ class PositionSizer:
         except Exception:
             return 1.0
 
-    def get_phase_size_multiplier(self, symbol):
+    def get_phase_size_multiplier(self, symbol, signal_date=None):
         """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
         try:
             from algo.algo_signals import SignalComputer
             from datetime import date as _date
             sc = SignalComputer(cur=self.cur)
-            phase = sc.stage2_phase(symbol, _date.today())
+            eval_date = signal_date if signal_date else _date.today()
+            phase = sc.stage2_phase(symbol, eval_date)
             return phase.get('size_multiplier', 1.0)
         except Exception:
             return 1.0
@@ -256,7 +257,7 @@ class PositionSizer:
             # B13: Return max_positions to block new entries (not 999 which is confusing)
             return int(self.config.get('max_positions', 12))
 
-    def calculate_position_size(self, symbol, entry_price, stop_loss_price):
+    def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None):
         """
         Calculate position size for a new trade.
 
@@ -300,7 +301,7 @@ class PositionSizer:
             # Dynamic risk = base × drawdown × market_exposure × stage_phase × vix_caution
             base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100
             exposure_mult = self.get_market_exposure_multiplier()
-            phase_mult = self.get_phase_size_multiplier(symbol)
+            phase_mult = self.get_phase_size_multiplier(symbol, signal_date)
             vix_mult = self.get_vix_caution_multiplier()
             adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult * vix_mult
             risk_dollars = portfolio_value * adjusted_risk_pct

@@ -1,20 +1,20 @@
-"""
+﻿"""
 Stock Analytics Platform - API Lambda Handler
 
 Serves HTTP API endpoints for the frontend dashboard.
 Connects to RDS PostgreSQL database and returns JSON.
 
 Endpoints:
-- /api/algo/* — algo orchestrator status, positions, trades, performance
-- /api/signals/* — trading signals (stocks, etfs)
-- /api/prices/* — price history
-- /api/stocks/* — stock screeners
-- /api/portfolio/* — portfolio data
-- /api/sectors/* — sector analysis
-- /api/market/* — market data
-- /api/economic/* — economic indicators
-- /api/sentiment/* — market sentiment
-- /api/health — API health check
+- /api/algo/* â€” algo orchestrator status, positions, trades, performance
+- /api/signals/* â€” trading signals (stocks, etfs)
+- /api/prices/* â€” price history
+- /api/stocks/* â€” stock screeners
+- /api/portfolio/* â€” portfolio data
+- /api/sectors/* â€” sector analysis
+- /api/market/* â€” market data
+- /api/economic/* â€” economic indicators
+- /api/sentiment/* â€” market sentiment
+- /api/health â€” API health check
 """
 
 import os
@@ -197,7 +197,7 @@ class APIHandler:
                 self.conn.rollback()
         except Exception as e:
             logger.debug(f"Error during disconnect: {e}")
-        # Do NOT close self.conn — it's the module-level cached connection for reuse
+        # Do NOT close self.conn â€” it's the module-level cached connection for reuse
 
     def _safe_limit(self, limit_val, default=200, max_limit=10000) -> int:
         """Safely extract and validate limit parameter (prevents DoS)."""
@@ -341,7 +341,7 @@ class APIHandler:
                     (int(notif_id),)
                 )
                 self.conn.commit()
-                return json_response(200, {'ok': True})
+                return json_response(200, {'status': 'updated'})
             except Exception as e:
                 logger.error(f"notification mark-read error: {e}")
                 return error_response(500, 'notification_error', 'Failed to update notification')
@@ -351,14 +351,14 @@ class APIHandler:
             try:
                 self.cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
                 self.conn.commit()
-                return json_response(200, {'ok': True})
+                return json_response(200, {'status': 'deleted'})
             except Exception as e:
                 logger.error(f"notification delete error: {e}")
                 return error_response(500, 'notification_error', 'Failed to delete notification')
         # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
-            return json_response(200, {'ok': True, 'message': 'Patrol triggered'})
+            return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
         if path == '/api/algo/status':
             return self._get_algo_status()
         elif path == '/api/algo/trades':
@@ -723,7 +723,7 @@ class APIHandler:
                 task_arn = response['tasks'][0]['taskArn']
                 logger.info(f"Triggered data patrol ECS task: {task_arn}")
                 return json_response(202, {
-                    'ok': True,
+                    'status': 'triggered',
                     'message': 'Data patrol triggered',
                     'task_arn': task_arn,
                     'task_id': task_arn.split('/')[-1]
@@ -1744,6 +1744,8 @@ class APIHandler:
                 """)
                 rows = self.cur.fetchall()
                 return list_response([dict(r) for r in rows] if rows else [])
+            elif path == '/api/market/latest':
+                return self._get_market_latest()
         except Exception as e:
             logger.error(f"market handler error: {e}")
             return error_response(500, 'database_error', str(e))
@@ -1764,10 +1766,55 @@ class APIHandler:
             logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
             return error_response(500, 'database_error', str(e))
 
+    def _get_market_latest(self) -> Dict:
+        """Get latest market data including indices, breadth, and sentiment."""
+        try:
+            self.cur.execute("""
+                SELECT date, market_trend, market_stage, advance_decline_ratio,
+                       new_highs_count, new_lows_count, vix_level, put_call_ratio,
+                       distribution_days_4w, up_volume_percent, breadth_momentum_10d
+                FROM market_health_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            market_row = self.cur.fetchone()
+
+            self.cur.execute("""
+                SELECT date, fear_greed_value, fear_greed_label
+                FROM fear_greed_index
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            sentiment_row = self.cur.fetchone()
+
+            self.cur.execute("""
+                SELECT symbol, close
+                FROM price_daily
+                WHERE date = (SELECT MAX(date) FROM price_daily)
+                ORDER BY symbol
+                LIMIT 10
+            """)
+            recent_prices = self.cur.fetchall()
+
+            result = {}
+            if market_row:
+                result['market'] = dict(market_row)
+            if sentiment_row:
+                result['sentiment'] = dict(sentiment_row)
+            if recent_prices:
+                result['prices'] = [dict(p) for p in recent_prices]
+
+            return json_response(200, result if result else {})
+        except Exception as e:
+            logger.error(f"Error fetching market latest: {e}", exc_info=True)
+            return error_response(500, 'database_error', str(e))
+
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/leading-indicators':
+                return self._get_leading_indicators()
+            elif path == '/api/economic/indicators':
                 return self._get_leading_indicators()
             elif path == '/api/economic/yield-curve-full':
                 return self._get_yield_curve_full()
@@ -1858,7 +1905,7 @@ class APIHandler:
                 # For level series, compute YoY % change so the frontend gets a meaningful rate
                 display_value = value
                 if series_id in yoy_pct_series and len(history) >= 12:
-                    # history is sorted ascending; last = most recent, -13 ≈ 1 year ago
+                    # history is sorted ascending; last = most recent, -13 â‰ˆ 1 year ago
                     cur_h  = history[-1] if history else None
                     yr_ago = history[-13] if len(history) >= 13 else history[0]
                     if cur_h and yr_ago and yr_ago.get('value') and cur_h.get('value'):
@@ -2032,11 +2079,40 @@ class APIHandler:
                 return list_response([dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
                 return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
+            elif path == '/api/sentiment/vix':
+                return self._get_vix_data()
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except Exception as e:
             logger.error(f"Error in sentiment handler: {e}", exc_info=True)
             return error_response(500, 'internal_error', f'Sentiment handler error: {str(e)}')
 
+
+    def _get_vix_data(self) -> Dict:
+        """Get latest VIX data and historical trend."""
+        try:
+            self.cur.execute("""
+                SELECT date, vix_level, put_call_ratio, market_trend, market_stage
+                FROM market_health_daily
+                WHERE vix_level IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 60
+            """)
+            rows = self.cur.fetchall()
+
+            if not rows:
+                return json_response(200, {'data': [], 'latest': None})
+
+            latest = dict(rows[0]) if rows else None
+            history = [dict(r) for r in rows]
+
+            return json_response(200, {
+                'latest': latest,
+                'history': history,
+                'signal': 'fear' if latest and latest.get('vix_level', 0) > 25 else 'neutral' if latest and latest.get('vix_level', 0) > 15 else 'greed'
+            })
+        except Exception as e:
+            logger.error(f"Error fetching VIX data: {e}", exc_info=True)
+            return error_response(500, 'database_error', str(e))
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
         if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
@@ -2248,7 +2324,7 @@ class APIHandler:
                     VALUES (%s, %s, %s, %s, 'new', NOW())
                 """, (name, email, subject, message))
                 self.conn.commit()
-                return json_response(200, {'ok': True, 'message': 'Contact form submission received'})
+                return json_response(200, {'status': 'submitted', 'message': 'Contact form submission received'})
             return error_response(404, 'not_found', f'No handler for {path}')
         except Exception as e:
             logger.error(f"contact handler error: {e}")
@@ -2297,3 +2373,4 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Lambda handler error: {e}", exc_info=True)
         return error_response(500, 'internal_error', str(e))
+

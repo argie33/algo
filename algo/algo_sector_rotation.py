@@ -275,8 +275,8 @@ class SectorRotationDetector:
                     json.dumps({
                         'defensive_lead_score': result.get('defensive_lead_score'),
                         'cyclical_weak_score': result.get('cyclical_weak_score'),
-                        'defensive_avg_rs_4w': result.get('defensive_avg_rs_4w'),
-                        'cyclical_avg_rs_4w': result.get('cyclical_avg_rs_4w'),
+                        'defensive_rank_improvement_4w': result.get('defensive_rank_improvement_4w'),
+                        'cyclical_rank_improvement_4w': result.get('cyclical_rank_improvement_4w'),
                         'spread_4w': result.get('spread_4w'),
                         'weeks_persistent': result.get('weeks_persistent'),
                         'reduce_exposure_pts': result.get('reduce_exposure_pts'),
@@ -298,9 +298,9 @@ if __name__ == "__main__":
         print(f"  Signal:               {result['signal']}")
         print(f"  Defensive lead score: {result['defensive_lead_score']}/100")
         print(f"  Cyclical weak score:  {result['cyclical_weak_score']}/100")
-        print(f"  Defensive avg RS 4w:  {result['defensive_avg_rs_4w']}%")
-        print(f"  Cyclical avg RS 4w:   {result['cyclical_avg_rs_4w']}%")
-        print(f"  Spread:               {result['spread_4w']}%")
+        print(f"  Defensive rank improvement 4w:  {result['defensive_rank_improvement_4w']}")
+        print(f"  Cyclical rank improvement 4w:   {result['cyclical_rank_improvement_4w']}")
+        print(f"  Spread:               {result['spread_4w']}")
         print(f"  Weeks persistent:     {result['weeks_persistent']}/4")
         print(f"  Recommended exp drop: {result['reduce_exposure_pts']} pts")
         print(f"\n  Per-sector RS:")

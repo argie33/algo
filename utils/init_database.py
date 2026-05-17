@@ -580,17 +580,21 @@ CREATE TABLE IF NOT EXISTS institutional_positioning (
 -- COMMODITY & MARKET DATA
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Commodity prices and data
+-- Commodity prices and data (current snapshot)
 CREATE TABLE IF NOT EXISTS commodity_prices (
     id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
+    symbol VARCHAR(20) NOT NULL UNIQUE,
     name VARCHAR(255),
     price DECIMAL(12, 4),
-    date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    change_amount DECIMAL(12, 4),
+    change_percent DECIMAL(8, 4),
+    volume BIGINT,
+    high_52w DECIMAL(12, 4),
+    low_52w DECIMAL(12, 4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Commodity price history
+-- Commodity price history (OHLCV)
 CREATE TABLE IF NOT EXISTS commodity_price_history (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
@@ -600,26 +604,100 @@ CREATE TABLE IF NOT EXISTS commodity_price_history (
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
--- Commodity categories and relationships
+-- Commodity categories (one row per symbol)
 CREATE TABLE IF NOT EXISTS commodity_categories (
     id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL UNIQUE,
+    name VARCHAR(255),
     category VARCHAR(100),
-    symbols TEXT
+    subcategory VARCHAR(100),
+    unit VARCHAR(50),
+    exchange VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- COT (Commitments of Traders) data
 CREATE TABLE IF NOT EXISTS cot_data (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date DATE,
+    report_date DATE NOT NULL,
     commercial_long BIGINT,
     commercial_short BIGINT,
+    commercial_net BIGINT,
     non_commercial_long BIGINT,
     non_commercial_short BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    non_commercial_net BIGINT,
+    open_interest BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, report_date)
+);
+
+-- Commodity seasonality patterns
+CREATE TABLE IF NOT EXISTS commodity_seasonality (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    month INTEGER NOT NULL,
+    avg_return DECIMAL(8, 4),
+    win_rate DECIMAL(8, 4),
+    volatility DECIMAL(8, 4),
+    years_data INTEGER,
+    UNIQUE(symbol, month)
+);
+
+-- Commodity technical indicators
+CREATE TABLE IF NOT EXISTS commodity_technicals (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    bb_upper DECIMAL(12, 4),
+    bb_lower DECIMAL(12, 4),
+    bb_pct DECIMAL(8, 4),
+    atr DECIMAL(12, 4),
+    signal VARCHAR(10),
+    UNIQUE(symbol, date)
+);
+
+-- Commodity correlations
+CREATE TABLE IF NOT EXISTS commodity_correlations (
+    id SERIAL PRIMARY KEY,
+    symbol1 VARCHAR(20) NOT NULL,
+    symbol2 VARCHAR(20) NOT NULL,
+    correlation_30d DECIMAL(8, 4),
+    correlation_90d DECIMAL(8, 4),
+    correlation_1y DECIMAL(8, 4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol1, symbol2)
+);
+
+-- Commodity macro drivers
+CREATE TABLE IF NOT EXISTS commodity_macro_drivers (
+    id SERIAL PRIMARY KEY,
+    series_id VARCHAR(50) NOT NULL,
+    series_name VARCHAR(255),
+    date DATE NOT NULL,
+    value DECIMAL(12, 4),
+    UNIQUE(series_id, date)
+);
+
+-- Commodity economic event calendar
+CREATE TABLE IF NOT EXISTS commodity_events (
+    id SERIAL PRIMARY KEY,
+    event_name VARCHAR(255) NOT NULL,
+    event_date TIMESTAMP NOT NULL,
+    event_type VARCHAR(50),
+    description TEXT,
+    impact VARCHAR(20)
 );
 
 -- Market distribution days
