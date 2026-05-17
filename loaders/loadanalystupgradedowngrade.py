@@ -8,13 +8,13 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadanalystupgradedowngrade.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
+from utils.logging_setup import get_logger
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
-from utils.logging_setup import get_logger
 import logging
 logger = get_logger(__name__)
 import sys

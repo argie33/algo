@@ -3,7 +3,6 @@
 Daily Buy/Sell Signals Loader - Optimal Pattern.
 
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 Computes buy/sell trading signals from price_daily using technical indicators.
@@ -18,6 +17,7 @@ Data source:
 Run:
     python3 loadbuyselldaily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
+from utils.logging_setup import get_logger
 
 from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
@@ -29,7 +29,6 @@ except ImportError:
 
 import argparse
 import logging
-from utils.logging_setup import get_logger
 logger = get_logger(__name__)
 import os
 import sys

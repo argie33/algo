@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 Balance Sheet Loader — annual and quarterly from SEC EDGAR.
@@ -9,6 +8,7 @@ Balance Sheet Loader — annual and quarterly from SEC EDGAR.
 Period determined by LOADER_TYPE env var (financials_annual_balance / financials_quarterly_balance)
 or --period CLI flag for manual runs.
 """
+from utils.logging_setup import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

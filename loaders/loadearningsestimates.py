@@ -4,7 +4,6 @@ Earnings Estimates & Surprise Loader
 
 Populates earnings_surprise and earnings_estimates with surprise calculations
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 from historical earnings data.
@@ -12,6 +11,7 @@ from historical earnings data.
 Run:
     python3 loadearningsestimates.py
 """
+from utils.logging_setup import get_logger
 
 from config.credential_helper import get_db_password, get_db_config
 try:

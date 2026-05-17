@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
@@ -15,6 +14,7 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadanalystsentiment.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
+from utils.logging_setup import get_logger
 
 
 try:

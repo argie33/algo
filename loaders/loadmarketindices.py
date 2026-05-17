@@ -9,10 +9,10 @@ load_market_health_daily.py.
 Run:
     python3 loadmarketindices.py [--parallelism 4]
 """
+from utils.logging_setup import get_logger
 
 
 import argparse
-from utils.logging_setup import get_logger
 import logging
 logger = get_logger(__name__)
 import os

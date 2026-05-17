@@ -2,7 +2,6 @@
 """
 Seasonality Loader — computes S&P 500 (SPY) monthly and day-of-week return
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 statistics from the price_daily table and writes them into
@@ -14,6 +13,7 @@ aggregates rather than per-symbol rows.
 Run:
     python3 loadseasonality.py
 """
+from utils.logging_setup import get_logger
 
 import sys
 from pathlib import Path

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 ETF Price Aggregate Loader — weekly and monthly OHLCV bars derived from daily ETF prices.
@@ -9,6 +8,7 @@ ETF Price Aggregate Loader — weekly and monthly OHLCV bars derived from daily 
 Timeframe determined by LOADER_TYPE env var (etf_prices_weekly / etf_prices_monthly)
 or --timeframe CLI flag for manual runs.
 """
+from utils.logging_setup import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

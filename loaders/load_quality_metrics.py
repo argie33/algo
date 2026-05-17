@@ -12,12 +12,12 @@ Computes fundamental quality metrics from annual financials:
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
+from utils.logging_setup import get_logger
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.logging_setup import get_logger
 import argparse
 import logging
 logger = get_logger(__name__)

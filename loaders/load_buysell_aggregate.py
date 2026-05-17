@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily prices.
@@ -9,6 +8,7 @@ Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily price
 Timeframe determined by LOADER_TYPE env var (signals_weekly / signals_monthly)
 or --timeframe CLI flag for manual runs.
 """
+from utils.logging_setup import get_logger
 
 try:
     from config.credential_manager import get_credential_manager
@@ -18,7 +18,6 @@ except ImportError:
 
 import argparse
 import logging
-from utils.logging_setup import get_logger
 logger = get_logger(__name__)
 import os
 import sys

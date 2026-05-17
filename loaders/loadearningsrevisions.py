@@ -4,7 +4,6 @@ Earnings Estimate Revisions Loader - Optimal Pattern
 
 Tracks how analyst consensus estimates are changing over time.
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 Fetches estimate trends and revision counts from DataSourceRouter.
@@ -14,6 +13,7 @@ Uses OptimalLoader for watermarking, dedup, and bulk inserts.
 Run:
     python3 loadearningsrevisions.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
+from utils.logging_setup import get_logger
 
 import argparse
 import json as json_lib

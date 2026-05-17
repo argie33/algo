@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 ETF Daily Buy/Sell Signals Loader - Optimal Pattern.
 
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 Computes buy/sell signals from ETF price data.
@@ -16,6 +15,7 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadbuysell_etf_daily.py [--symbols SPY,QQQ] [--parallelism 8]
 """
+from utils.logging_setup import get_logger
 
 
 try:
@@ -28,7 +28,6 @@ import argparse
 from config.credential_helper import get_db_password, get_db_config
 import logging
 import psycopg2
-from utils.logging_setup import get_logger
 logger = get_logger(__name__)
 import os
 import sys

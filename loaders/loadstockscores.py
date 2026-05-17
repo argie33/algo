@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import sys
-from utils.logging_setup import get_logger
 from pathlib import Path
 
 # Phase 1: Data Integrity Integration - 2026-05-09
@@ -21,6 +20,7 @@ Now includes:
 Run:
     python3 loadstockscores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
+from utils.logging_setup import get_logger
 
 import argparse
 import logging

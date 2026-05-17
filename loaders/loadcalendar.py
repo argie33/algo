@@ -12,12 +12,12 @@ Sources:
 Run:
     python3 loadcalendar.py [--days-ahead 90]
 """
+from utils.logging_setup import get_logger
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.logging_setup import get_logger
 
 import argparse
 import logging
