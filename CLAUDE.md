@@ -39,13 +39,23 @@
 
 ---
 
-## 🔐 CREDENTIAL MANAGEMENT (ENV VARS ONLY - NO FILES)
+## 🔐 CREDENTIAL MANAGEMENT (ABSOLUTE RULE #7)
 
-- ✅ Set environment variables before running code
-- ❌ NO .env.local files (removed intentionally for security)
-- ❌ NEVER commit credentials (don't use files, can't accidentally commit)
-- 🔒 Local: Environment variables (you set them)
-- 🔒 Production: AWS Secrets Manager only (Lambda/ECS)
+**THIS IS NON-NEGOTIABLE:**
+
+- ❌ **NO .env files** — will cause code to fail (security violation)
+- ❌ **NO .env.local** — will be rejected by pre-commit hook
+- ❌ **NO hardcoded credentials** — will be rejected by pre-commit hook
+- ✅ **USE AWS Secrets Manager** — same for local dev + production (see LOCAL_CRED_SETUP.md)
+- ✅ **Environment variables** — only for CI/GitHub Actions (not local dev)
+
+**For local development:**
+See **LOCAL_CRED_SETUP.md** (5-minute one-time setup with AWS Secrets Manager)
+
+**Why this matters:**
+- .env files can be accidentally committed (human error)
+- AWS Secrets Manager = credentials never touch git
+- Same system for local dev + production = no surprises
 
 ---
 
