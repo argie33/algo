@@ -52,12 +52,17 @@ can show exactly what happened and when.
 """
 
 import sys
-from config.credential_helper import get_db_config
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.env_loader import load_env
-from config.credential_helper import get_db_password, get_db_config
+from config.credential_helper import (
+    get_db_password,
+    get_db_config,
+    DEFAULT_DB_HOST,
+    DEFAULT_DB_PORT,
+    DEFAULT_DB_USER,
+    DEFAULT_DB_NAME,
+)
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()

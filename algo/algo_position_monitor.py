@@ -25,7 +25,6 @@ try:
 except ImportError:
     credential_manager = None
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 import os
 import json

@@ -5,7 +5,6 @@ Tracks margin usage and enforces entry gates to prevent over-leverage.
 Default thresholds: Alert at 70%, Block entries at 80%.
 """
 
-from config.env_loader import load_env
 import os
 from pathlib import Path
 from typing import Dict, Tuple

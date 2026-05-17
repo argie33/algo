@@ -6,7 +6,6 @@ Centralized configuration from database. Changes take effect immediately without
 Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 import os
 import logging

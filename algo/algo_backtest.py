@@ -20,7 +20,6 @@ Walk-Forward Optimization (WFO):
 - Warn if WFE < 0.5 (curve-fitting detected)
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from utils.logging_setup import get_logger
 from config.credential_helper import get_db_password, get_db_config

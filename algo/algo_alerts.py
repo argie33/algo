@@ -16,7 +16,6 @@ try:
 except ImportError:
     credential_manager = None
 
-from config.env_loader import load_env
 import os
 import json
 import smtplib

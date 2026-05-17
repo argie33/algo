@@ -1,4 +1,3 @@
-from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure

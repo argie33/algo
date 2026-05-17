@@ -11,7 +11,6 @@ Rules:
 - Max positions: 12 concurrent
 """
 
-from config.env_loader import load_env
 import os
 import psycopg2
 from utils.db_connection import get_db_connection

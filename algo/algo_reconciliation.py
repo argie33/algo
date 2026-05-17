@@ -8,7 +8,6 @@ symbol not held, etc). Catches cases where orders were filled outside our
 workflow or positions were closed in Alpaca but marked open in DB.
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from config.credential_helper import get_db_config
 

@@ -10,7 +10,6 @@ Validates:
 - Order size limits
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from config.credential_helper import get_db_config
 import logging

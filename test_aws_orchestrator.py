@@ -20,42 +20,42 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def test_imports():
     """Verify all imports work."""
-    print("✓ Testing imports...")
+    print("[TEST] Testing imports...")
     try:
         from algo.algo_orchestrator import Orchestrator
         from config.credential_helper import get_db_config, get_db_password
         from utils.db_connection import get_db_connection
-        print("  ✓ All imports successful")
+        print("  [OK] All imports successful")
         return True
     except ImportError as e:
-        print(f"  ✗ Import failed: {e}")
+        print(f"  [FAIL] Import failed: {e}")
         return False
 
 def test_credentials():
     """Verify credentials are accessible."""
-    print("✓ Testing credentials...")
+    print("[TEST] Testing credentials...")
     try:
         # DB credentials
         db_config = get_db_config()
-        print(f"  ✓ DB config available: {db_config['host']}:{db_config['port']}/{db_config['database']}")
+        print(f"  [OK] DB config available: {db_config['host']}:{db_config['port']}/{db_config['database']}")
 
         # Alpaca credentials
         alpaca_key = os.getenv('ALPACA_API_KEY')
         alpaca_secret = os.getenv('ALPACA_SECRET_KEY')
 
         if alpaca_key and alpaca_secret:
-            print(f"  ✓ Alpaca credentials found")
+            print(f"  [OK] Alpaca credentials found")
         else:
-            print(f"  ⚠ Alpaca credentials NOT found (paper trading may not work)")
+            print(f"  [WARN] Alpaca credentials NOT found (paper trading may not work)")
 
         return True
     except Exception as e:
-        print(f"  ✗ Credential test failed: {e}")
+        print(f"  [FAIL] Credential test failed: {e}")
         return False
 
 def test_orchestrator_init():
     """Verify orchestrator can be initialized."""
-    print("✓ Testing orchestrator initialization...")
+    print("[TEST] Testing orchestrator initialization...")
     try:
         from algo.algo_orchestrator import Orchestrator
 
@@ -70,19 +70,19 @@ def test_orchestrator_init():
             verbose=False,
             init_db=False  # Don't initialize DB for this test
         )
-        print(f"  ✓ Orchestrator initialized successfully")
+        print(f"  [OK] Orchestrator initialized successfully")
         print(f"  - Execution mode: {os.getenv('EXECUTION_MODE', 'auto')}")
         print(f"  - Dry run: {dry_run_env}")
         return True
     except Exception as e:
-        print(f"  ✗ Orchestrator init failed: {e}")
+        print(f"  [FAIL] Orchestrator init failed: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 def test_database_connection():
     """Verify database connection works."""
-    print("✓ Testing database connection...")
+    print("[TEST] Testing database connection...")
     try:
         from utils.db_connection import get_db_connection
         conn = get_db_connection()
@@ -92,13 +92,13 @@ def test_database_connection():
             count = cursor.fetchone()[0]
             cursor.close()
             conn.close()
-            print(f"  ✓ Database connected: {count} stock symbols in DB")
+            print(f"  [OK] Database connected: {count} stock symbols in DB")
             return True
         else:
-            print(f"  ✗ Could not establish database connection")
+            print(f"  [FAIL] Could not establish database connection")
             return False
     except Exception as e:
-        print(f"  ✗ Database connection failed: {e}")
+        print(f"  [FAIL] Database connection failed: {e}")
         return False
 
 def main():
@@ -124,16 +124,16 @@ def main():
     total = len(results)
 
     for test_name, result in results:
-        status = "✓ PASS" if result else "✗ FAIL"
+        status = "[PASS]" if result else "[FAIL]"
         print(f"{status:8} {test_name}")
 
     print(f"\nTotal: {passed}/{total} passed")
 
     if passed == total:
-        print("\n✓ All tests passed. Orchestrator is ready for AWS execution.")
+        print("\n[OK] All tests passed. Orchestrator is ready for AWS execution.")
         return 0
     else:
-        print(f"\n✗ {total - passed} test(s) failed. Fix issues before deployment.")
+        print(f"\n[FAIL] {total - passed} test(s) failed. Fix issues before deployment.")
         return 1
 
 if __name__ == "__main__":

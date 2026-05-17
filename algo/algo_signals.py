@@ -38,7 +38,6 @@ SIGNALS IMPLEMENTED:
       Detects breakout from a pivot high (Livermore line of least resistance).
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from config.credential_helper import get_db_password, get_db_config
 

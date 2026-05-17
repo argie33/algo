@@ -23,7 +23,6 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 import os

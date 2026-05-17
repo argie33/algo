@@ -12,7 +12,6 @@ Tier 5: Portfolio health (open positions, concentration, sector limits)
 Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 import os
 from utils.db_connection import get_db_connection

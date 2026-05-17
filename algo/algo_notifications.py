@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Trade & Risk Notifications - Alert on entries, exits, rejections, and risk events."""
 
-from config.env_loader import load_env
 import psycopg2
 import psycopg2.extensions
 import os

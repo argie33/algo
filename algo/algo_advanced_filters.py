@@ -26,23 +26,14 @@ Design notes:
     - Failures gracefully default to neutral when data is missing.
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
-try:
-    from config.credential_helper import get_db_password, get_db_config
-except ImportError:
-    # Fallback if credential_helper not available
-    def get_db_password():
-        return credential_manager.get_db_credentials()["password"] if credential_manager else ""
-    def get_db_config():
-        return credential_manager.get_db_credentials() if credential_manager else {}
-
-from config.env_loader import load_env
-from config.credential_helper import get_db_config
+from config.credential_helper import (
+    get_db_password,
+    get_db_config,
+    DEFAULT_DB_HOST,
+    DEFAULT_DB_PORT,
+    DEFAULT_DB_USER,
+    DEFAULT_DB_NAME,
+)
 import os
 import logging
 from utils.db_connection import get_db_connection

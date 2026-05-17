@@ -32,7 +32,6 @@ Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from config.credential_helper import get_db_password, get_db_config
 

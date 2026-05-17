@@ -4,7 +4,6 @@ Liquidity checks for Tier 5 portfolio health filtering.
 Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
-from config.env_loader import load_env
 from utils.logging_setup import get_logger
 from datetime import datetime, timedelta
 from pathlib import Path
