@@ -297,9 +297,6 @@ class DataSourceRouter:
 
     def _yf_balance_sheet(self, symbol: str, period: str):
         try:
-        except ImportError:
-            return None
-        try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
                 ticker = yf.Ticker(yf_symbol)
@@ -314,9 +311,6 @@ class DataSourceRouter:
 
     def _yf_income(self, symbol: str, period: str):
         try:
-        except ImportError:
-            return None
-        try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
                 ticker = yf.Ticker(yf_symbol)
@@ -330,9 +324,6 @@ class DataSourceRouter:
             return None
 
     def _yf_cash_flow(self, symbol: str, period: str):
-        try:
-        except ImportError:
-            return None
         try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
@@ -356,9 +347,6 @@ class DataSourceRouter:
         return self._try_chain(sources, f"Earnings[{symbol}]")
 
     def _yf_earnings(self, symbol: str):
-        try:
-        except ImportError:
-            return None
         try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
@@ -384,9 +372,6 @@ class DataSourceRouter:
 
     def _fetch_yfinance_eps_revisions(self, symbol: str):
         try:
-        except ImportError:
-            return None
-        try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
                 ticker = yf.Ticker(yf_symbol)
@@ -407,9 +392,6 @@ class DataSourceRouter:
         return self._try_chain(sources, f"EpsTrend[{symbol}]")
 
     def _fetch_yfinance_eps_trend(self, symbol: str):
-        try:
-        except ImportError:
-            return None
         try:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
