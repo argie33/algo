@@ -10,6 +10,7 @@ workflow or positions were closed in Alpaca but marked open in DB.
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config
 
 try:
     from config.credential_manager import get_credential_manager
@@ -29,11 +30,11 @@ logger = logging.getLogger(__name__)
 def _get_db_config_dict():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
+    "host": get_db_config()['host'],
     "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", DEFAULT_DB_USER),
+    "user": get_db_config()['user'],
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
+    "database": get_db_config()['database'],
     }
 
 

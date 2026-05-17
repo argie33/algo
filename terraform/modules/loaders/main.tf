@@ -398,7 +398,6 @@ locals {
     "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "calendar"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Stock scores (compute-heavy scoring) — run via Step Functions EOD pipeline
     "stock_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }

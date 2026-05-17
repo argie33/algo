@@ -12,6 +12,7 @@ Validates:
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config
 import logging
 from typing import Dict, Any, Tuple, Optional
 import os
@@ -44,11 +45,11 @@ class PreTradeChecks:
     def _get_db_config(self) -> Dict[str, Any]:
         """Get database configuration."""
         return {
-            "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
+            "host": get_db_config()['host'],
             "port": int(os.getenv("DB_PORT", 5432)),
-            "user": os.getenv("DB_USER", DEFAULT_DB_USER),
+            "user": get_db_config()['user'],
             "password": get_db_password(),
-            "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
+            "database": get_db_config()['database'],
         }
 
     def connect(self):

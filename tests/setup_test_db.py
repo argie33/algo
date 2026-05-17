@@ -10,6 +10,7 @@ Or import and call setup_test_db() from pytest fixtures.
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config
 import os
 from pathlib import Path
 from datetime import date, timedelta, datetime

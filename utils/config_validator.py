@@ -7,9 +7,11 @@ Provides clear error messages for missing/invalid values.
 """
 
 import os
+from config.credential_helper import get_db_config
 import sys
 from typing import Dict, List, Any, Optional
 import logging
+from config.credential_helper import DEFAULT_DB_HOST, DEFAULT_DB_NAME
 
 logger = logging.getLogger(__name__)
 

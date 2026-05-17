@@ -7,6 +7,7 @@ with complete schema and realistic test data for integration tests.
 """
 
 import os
+from config.credential_helper import get_db_config
 import psycopg2
 from config.credential_helper import get_db_config
 from pathlib import Path

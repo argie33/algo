@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Unified credential handling with proper fallbacks.
 
@@ -15,12 +15,13 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+_CACHED_CREDS: Optional[Dict] = None
+
+# Default database configuration
 DEFAULT_DB_HOST = "localhost"
-DEFAULT_DB_PORT = 5432
+DEFAULT_DB_PORT = "5432"
 DEFAULT_DB_USER = "stocks"
 DEFAULT_DB_NAME = "stocks"
-
-_CACHED_CREDS: Optional[Dict] = None
 
 
 def get_db_password() -> str:

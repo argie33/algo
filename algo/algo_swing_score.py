@@ -35,6 +35,7 @@ swing_score directly.
 
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
+from config.credential_helper import get_db_config
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -58,11 +59,11 @@ logger = logging.getLogger(__name__)
 def _get_db_config_dict():
     """Lazy-load DB config at runtime instead of module import time."""
     return {
-    "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
-    "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-    "user": os.getenv("DB_USER", DEFAULT_DB_USER),
+    "host": get_db_config()['host'],
+    "port": int(int(get_db_config()['port'])),
+    "user": get_db_config()['user'],
     "password": get_db_password(),
-    "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
+    "database": get_db_config()['database'],
     }
 
 

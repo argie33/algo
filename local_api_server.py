@@ -5,6 +5,7 @@ Wraps the Lambda handler and serves it on localhost:3001
 """
 
 import os
+from config.credential_helper import get_db_config
 import json
 import logging
 from flask import Flask, request, jsonify
