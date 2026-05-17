@@ -135,6 +135,44 @@ class RejectionTracker:
         finally:
             self.disconnect()
 
+    def log_pre_tier_rejection(self, eval_date: date, symbol: str, tier_0_reason: str,
+                              entry_price: float = None):
+        """
+        Log signal rejection at pre-tier stage (before Tier 1).
+
+        Args:
+            eval_date: Evaluation date
+            symbol: Stock symbol
+            tier_0_reason: Reason for pre-tier rejection (e.g., 'earnings_blackout', 'signal_age')
+            entry_price: Entry price (optional, may not be available at pre-tier stage)
+        """
+        self.connect()
+
+        try:
+            self.cur.execute("""
+                INSERT INTO filter_rejection_log
+                (eval_date, symbol, entry_price, rejected_at_tier, rejection_reason,
+                 tier_0_pass, tier_0_reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                eval_date,
+                symbol,
+                entry_price,
+                0,  # Pre-tier is tier 0
+                tier_0_reason,
+                False,  # Pre-tier rejection means tier_0_pass is False
+                tier_0_reason
+            ))
+
+            self.conn.commit()
+
+        except Exception as e:
+            log.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
+            self.conn.rollback()
+
+        finally:
+            self.disconnect()
+
     def get_rejection_funnel(self, eval_date: date):
         """
         Get rejection counts by tier for funnel visualization.

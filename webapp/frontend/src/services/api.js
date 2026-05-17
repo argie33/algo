@@ -182,56 +182,8 @@ try {
 // ============================================
 // RESPONSE NORMALIZATION HELPERS
 // ============================================
-// Standardize all API response handling across the app
-// Instead of 14 different extraction patterns, use these 3 helpers
-
-/**
- * Extract data from ANY API response format
- * Handles: items arrays, data objects, nested data.data, direct arrays
- */
-export const extractData = (response) => {
-  // Return the full data object with items and pagination intact
-  // Pages expect: { items: [...], pagination: {...} }
-  if (response?.data?.items) {
-    return response.data;  // Return full response.data which includes items and pagination
-  }
-  // Handle double-nested responses
-  if (response?.data?.data?.items) {
-    return response.data.data;
-  }
-  if (Array.isArray(response?.data?.data)) {
-    return { items: response.data.data, pagination: null };
-  }
-  // Handle direct array responses
-  if (Array.isArray(response?.data)) {
-    return { items: response.data, pagination: null };
-  }
-  // Handle object responses
-  if (response?.data?.data) {
-    return response.data.data;
-  }
-  // Fallback
-  return response?.data || null;
-};
-
-/**
- * Extract pagination info from paginated responses
- */
-export const extractPagination = (response) => {
-  return response?.data?.pagination || response?.data?.data?.pagination || null;
-};
-
-/**
- * Check if response indicates success
- */
-export const isResponseSuccess = (response) => {
-  return response?.data?.success !== false && response?.status >= 200 && response?.status < 300;
-};
-
-/**
- * Backward compatibility - old name still works
- */
-export const extractResponseData = extractData;
+// Data extraction moved to canonical responseNormalizer.js
+// Import from there if needed (currently only used by useApiQuery/useApiPaginatedQuery)
 
 // ============================================
 // MARKET DATA FUNCTIONS

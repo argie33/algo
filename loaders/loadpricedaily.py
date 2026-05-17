@@ -67,6 +67,7 @@ class PriceDailyLoader(OptimalLoader):
         self.tracker = None
         self.watermark_mgr = None
         self.run_id = None
+        self._fallback_prices_cache = {}  # Pre-loaded prices for fallback (avoids per-symbol connections)
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV via the data source router. Falls back to cached prices if APIs limited."""
@@ -90,43 +91,62 @@ class PriceDailyLoader(OptimalLoader):
             return self._fallback_to_yesterday(symbol, since, end)
         return None
 
+    def _batch_load_fallback_prices(self, symbols: List[str]) -> None:
+        """Batch load yesterday's prices once to avoid per-symbol connections during rate limiting."""
+        if not symbols:
+            return
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", "5432")),
+                user=os.getenv("DB_USER", "stocks"),
+                password=get_db_password(),
+                database=os.getenv("DB_NAME", "stocks"),
+            )
+            try:
+                yesterday = date.today() - timedelta(days=1)
+                placeholders = ','.join(['%s'] * len(symbols))
+                with conn.cursor() as cur:
+                    cur.execute(f"""
+                        SELECT symbol, open, high, low, close, volume
+                        FROM price_daily
+                        WHERE symbol IN ({placeholders}) AND date = %s
+                    """, tuple(symbols) + (yesterday,))
+                    for row in cur.fetchall():
+                        sym, open_p, high, low, close, vol = row
+                        self._fallback_prices_cache[sym] = {
+                            'open': open_p,
+                            'high': high,
+                            'low': low,
+                            'close': close,
+                            'volume': vol,
+                        }
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.debug(f"Could not batch load fallback prices: {e}")
+
     def _fallback_to_yesterday(self, symbol: str, yesterday: date, today: date):
         """Use yesterday's closing price as today's placeholder. Better than blocking trades."""
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            user=os.getenv("DB_USER", "stocks"),
-            password=get_db_password(),
-            database=os.getenv("DB_NAME", "stocks"),
-        )
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT open, high, low, close, volume FROM price_daily WHERE symbol = %s AND date = %s",
-                    (symbol, yesterday)
+        cached = self._fallback_prices_cache.get(symbol)
+        if cached:
+            logger.warning(f"[{symbol}] Using cached price from {yesterday} for {today} (API limited)")
+            if self.tracker:
+                self.tracker.record_error(
+                    symbol=symbol,
+                    error_type='API_LIMIT_HIT',
+                    error_message=f'Using fallback from {yesterday}',
+                    resolution='fallback',
                 )
-                row = cur.fetchone()
-                if row:
-                    open_p, high, low, close, vol = row
-                    logger.warning(f"[{symbol}] Using cached price from {yesterday} for {today} (API limited)")
-                    if self.tracker:
-                        self.tracker.record_error(
-                            symbol=symbol,
-                            error_type='API_LIMIT_HIT',
-                            error_message=f'Using fallback from {yesterday}',
-                            resolution='fallback',
-                        )
-                    return [{
-                        'symbol': symbol,
-                        'date': today,
-                        'open': open_p,
-                        'high': high,
-                        'low': low,
-                        'close': close,
-                        'volume': int(vol or 0),
-                    }]
-        finally:
-            conn.close()
+            return [{
+                'symbol': symbol,
+                'date': today,
+                'open': cached['open'],
+                'high': cached['high'],
+                'low': cached['low'],
+                'close': cached['close'],
+                'volume': int(cached['volume'] or 0),
+            }]
         return None
 
     def _try_fetch(self, symbol: str, start: date, end: date):
@@ -265,6 +285,10 @@ def main():
 
     loader = PriceDailyLoader()
     try:
+        # Pre-load fallback prices to avoid per-symbol connections during rate limiting
+        logger.info(f"Pre-loading fallback prices for {len(symbols)} symbols...")
+        loader._batch_load_fallback_prices(symbols)
+
         # PHASE 1: Initialize data integrity tracking (disabled for local testing)
         # logger.info("[Phase 1] Initializing data integrity components...")
         # loader.start_provenance_tracking()

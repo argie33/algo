@@ -174,6 +174,7 @@ class FilterPipeline:
                 if not blackout_check['pass']:
                     logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
                     pre_tier_rejections['earnings_blackout'] += 1
+                    tracker.log_pre_tier_rejection(eval_date, symbol, f"earnings_blackout: {blackout_check['reason']}")
                     continue
 
                 # A1: Signal Age Gate — reject signals older than max_signal_age_days (measured from TODAY, not eval_date)
@@ -182,6 +183,7 @@ class FilterPipeline:
                 if signal_age > max_signal_age_days:
                     logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
                     pre_tier_rejections['signal_age'] += 1
+                    tracker.log_pre_tier_rejection(eval_date, symbol, f"signal_age: {signal_age}d old (max {max_signal_age_days}d)")
                     continue
 
                 # Fetch stage, trend score, and price data for signal date
@@ -202,6 +204,7 @@ class FilterPipeline:
                     if stage_number != 2:
                         logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2)")
                         pre_tier_rejections['stage_not_2'] += 1
+                        tracker.log_pre_tier_rejection(eval_date, symbol, f"stage_not_2: Stage {stage_number} (need Stage 2)")
                         continue
 
                     # A2: Close Quality Gate — close must be in upper N% of day's range
@@ -212,6 +215,7 @@ class FilterPipeline:
                         if close_pct_of_range < min_close_quality_pct:
                             logger.info(f"  SKIP {symbol}: Close at {close_pct_of_range:.0f}% of range (need >{min_close_quality_pct:.0f}%)")
                             pre_tier_rejections['close_quality'] += 1
+                            tracker.log_pre_tier_rejection(eval_date, symbol, f"close_quality: Close at {close_pct_of_range:.0f}% of range (need >{min_close_quality_pct:.0f}%)")
                             continue
 
                     # A3: Volume Hard Gate — min breakout volume ratio
@@ -221,10 +225,12 @@ class FilterPipeline:
                         if vol_ratio < min_vol_ratio:
                             logger.info(f"  SKIP {symbol}: Vol {vol_ratio:.2f}x 50-day avg (need >{min_vol_ratio}x)")
                             pre_tier_rejections['volume'] += 1
+                            tracker.log_pre_tier_rejection(eval_date, symbol, f"volume: Vol {vol_ratio:.2f}x 50-day avg (need >{min_vol_ratio}x)")
                             continue
                 else:
                     logger.info(f"  SKIP {symbol}: No trend or price data for {signal_date}")
                     pre_tier_rejections['no_trend_data'] += 1
+                    tracker.log_pre_tier_rejection(eval_date, symbol, f"no_trend_data: No trend or price data for {signal_date}")
                     continue
 
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
@@ -232,6 +238,7 @@ class FilterPipeline:
                 entry_price = self._get_market_close(symbol, entry_date)
                 if entry_price is None:
                     pre_tier_rejections['no_entry_price'] += 1
+                    tracker.log_pre_tier_rejection(eval_date, symbol, f"no_entry_price: No market close for {entry_date}")
                     continue
 
                 # Validate entry near trendline support (optional confluence check)
