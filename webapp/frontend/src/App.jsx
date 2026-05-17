@@ -389,85 +389,81 @@ function App() {
   if (isMarketingPage) {
     // Marketing pages layout
     return (
-      <ErrorBoundary>
-        <Routes>
-          {/* Main Marketing Pages */}
-          <Route path="/" element={<Home />} />
-          <Route path="/firm" element={<Firm />} />
-          <Route path="/contact" element={<Contact />} />
+      <Routes>
+        {/* Main Marketing Pages */}
+        <Route path="/" element={<ErrorBoundary><Home /></ErrorBoundary>} />
+        <Route path="/firm" element={<ErrorBoundary><Firm /></ErrorBoundary>} />
+        <Route path="/contact" element={<ErrorBoundary><Contact /></ErrorBoundary>} />
 
-          {/* Firm Dropdown Pages */}
-          <Route path="/about" element={<About />} />
-          <Route path="/our-team" element={<OurTeam />} />
-          <Route path="/mission-values" element={<MissionValues />} />
+        {/* Firm Dropdown Pages */}
+        <Route path="/about" element={<ErrorBoundary><About /></ErrorBoundary>} />
+        <Route path="/our-team" element={<ErrorBoundary><OurTeam /></ErrorBoundary>} />
+        <Route path="/mission-values" element={<ErrorBoundary><MissionValues /></ErrorBoundary>} />
 
-          {/* Services Dropdown Pages */}
-          <Route path="/research-insights" element={<ResearchInsights />} />
-          <Route path="/articles/:articleId" element={<ArticleDetail />} />
-          <Route path="/investment-tools" element={<InvestmentTools />} />
-          <Route path="/wealth-management" element={<WealthManagement />} />
+        {/* Services Dropdown Pages */}
+        <Route path="/research-insights" element={<ErrorBoundary><ResearchInsights /></ErrorBoundary>} />
+        <Route path="/articles/:articleId" element={<ErrorBoundary><ArticleDetail /></ErrorBoundary>} />
+        <Route path="/investment-tools" element={<ErrorBoundary><InvestmentTools /></ErrorBoundary>} />
+        <Route path="/wealth-management" element={<ErrorBoundary><WealthManagement /></ErrorBoundary>} />
 
-          {/* Legal Pages */}
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
+        {/* Legal Pages */}
+        <Route path="/terms" element={<ErrorBoundary><Terms /></ErrorBoundary>} />
+        <Route path="/privacy" element={<ErrorBoundary><Privacy /></ErrorBoundary>} />
 
-          {/* Authentication */}
-          <Route path="/login" element={<LoginPage />} />
+        {/* Authentication */}
+        <Route path="/login" element={<ErrorBoundary><LoginPage /></ErrorBoundary>} />
 
-          {/* Fallback - page not found */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </ErrorBoundary>
+        {/* Fallback - page not found */}
+        <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
+      </Routes>
     );
   }
 
   // App pages layout (with drawer navigation)
   return (
-    <ErrorBoundary>
-      <AppLayout>
-        <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
-          <Routes>
-          {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
-          <Route path="/app/markets" element={<MarketsHealth />} />
-          <Route path="/app/market" element={<MarketsHealth />} />
-          <Route path="/app/economic" element={<EconomicDashboard />} />
-          <Route path="/app/sectors" element={<SectorAnalysis />} />
-          <Route path="/app/sentiment" element={<Sentiment />} />
+    <AppLayout>
+      <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
+        <Routes>
+        {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
+        <Route path="/app/markets" element={<ErrorBoundary><MarketsHealth /></ErrorBoundary>} />
+        <Route path="/app/market" element={<ErrorBoundary><MarketsHealth /></ErrorBoundary>} />
+        <Route path="/app/economic" element={<ErrorBoundary><EconomicDashboard /></ErrorBoundary>} />
+        <Route path="/app/sectors" element={<ErrorBoundary><SectorAnalysis /></ErrorBoundary>} />
+        <Route path="/app/sentiment" element={<ErrorBoundary><Sentiment /></ErrorBoundary>} />
 
-          {/* Stocks Analysis & Signals */}
-          <Route path="/app/deep-value" element={<DeepValueStocks />} />
-          <Route path="/app/trading-signals" element={<TradingSignals />} />
-          <Route path="/app/signals" element={<TradingSignals />} />
-          <Route path="/app/etf-signals" element={<TradingSignals />} />
-          <Route path="/app/swing" element={<SwingCandidates />} />
-          <Route path="/app/scores" element={<ScoresDashboard />} />
-          <Route path="/app/metrics" element={<MetricsDashboard />} />
-          <Route path="/app/stock/:symbol" element={<StockDetail />} />
+        {/* Stocks Analysis & Signals */}
+        <Route path="/app/deep-value" element={<ErrorBoundary><DeepValueStocks /></ErrorBoundary>} />
+        <Route path="/app/trading-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
+        <Route path="/app/signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
+        <Route path="/app/etf-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
+        <Route path="/app/swing" element={<ErrorBoundary><SwingCandidates /></ErrorBoundary>} />
+        <Route path="/app/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
+        <Route path="/app/metrics" element={<ErrorBoundary><MetricsDashboard /></ErrorBoundary>} />
+        <Route path="/app/stock/:symbol" element={<ErrorBoundary><StockDetail /></ErrorBoundary>} />
 
-          {/* Portfolio & Trading */}
-          <Route path="/app/portfolio" element={<ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute>} />
-          <Route path="/app/trades" element={<ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute>} />
-          <Route path="/app/performance" element={<ProtectedRoute requireAuth><PerformanceMetrics /></ProtectedRoute>} />
+        {/* Portfolio & Trading */}
+        <Route path="/app/portfolio" element={<ErrorBoundary><ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/trades" element={<ErrorBoundary><ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/performance" element={<ErrorBoundary><ProtectedRoute requireAuth><PerformanceMetrics /></ProtectedRoute></ErrorBoundary>} />
 
-          {/* Research & Testing */}
-          <Route path="/app/backtests" element={<BacktestResults />} />
+        {/* Research & Testing */}
+        <Route path="/app/backtests" element={<ErrorBoundary><BacktestResults /></ErrorBoundary>} />
 
-          {/* Algo */}
-          <Route path="/app/algo-dashboard" element={<ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute>} />
+        {/* Algo */}
+        <Route path="/app/algo-dashboard" element={<ErrorBoundary><ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute></ErrorBoundary>} />
 
-          {/* Admin & Settings */}
-          <Route path="/app/health" element={<ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute>} />
-          <Route path="/app/notifications" element={<ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute>} />
-          <Route path="/app/audit" element={<ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute>} />
-          <Route path="/app/pre-trade-simulator" element={<ProtectedRoute requireAuth requireRole="admin"><PreTradeSimulator /></ProtectedRoute>} />
-          <Route path="/app/settings" element={<ProtectedRoute requireAuth><Settings /></ProtectedRoute>} />
-        </Routes>
-        </Suspense>
+        {/* Admin & Settings */}
+        <Route path="/app/health" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/notifications" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/audit" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/pre-trade-simulator" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><PreTradeSimulator /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/settings" element={<ErrorBoundary><ProtectedRoute requireAuth><Settings /></ProtectedRoute></ErrorBoundary>} />
+      </Routes>
+      </Suspense>
 
-        {/* Authentication Modal */}
-        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-      </AppLayout>
-    </ErrorBoundary>
+      {/* Authentication Modal */}
+      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+    </AppLayout>
   );
 }
 
