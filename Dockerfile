@@ -16,8 +16,13 @@ COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
+COPY entrypoint.sh ./
+COPY run-all-loaders.py ./
+COPY init_database.py ./
 
-# Set up entry point for loader execution
-# Usage: docker run IMAGE loaders.load_stock_symbols or similar
-ENTRYPOINT ["python", "-m"]
-CMD ["loaders.load_stock_symbols"]
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
+
+# Set up entry point for ECS loader execution
+# ECS passes LOADER_FILE env var to specify which loader to run
+ENTRYPOINT ["./entrypoint.sh"]
