@@ -4,26 +4,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Growth Metrics Loader - Optimal Pattern (Refactored)
+Growth Metrics Loader - Computes multi-year growth metrics from annual financials.
 
-import psycopg2
-from pathlib import Path
-
-Computes multi-year growth metrics from annual financials:
-- Revenue Growth: 1Y, 3Y, 5Y YoY growth
-- EPS Growth: 1Y, 3Y, 5Y YoY growth
-- Growth Score: Composite (0-100)
-
-Requires: annual_income_statement populated
+Metrics: Revenue Growth (1Y, 3Y, 5Y), EPS Growth (1Y, 3Y, 5Y), Growth Score (0-100).
+Requires: annual_income_statement populated.
 """
 
 import argparse
 import logging
-logger = logging.getLogger(__name__)
 import os
+import psycopg2
 from datetime import date
-from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from config.credential_helper import get_db_password
 from config.env_loader import load_env
@@ -37,12 +31,6 @@ except ImportError:
 
 from utils.optimal_loader import OptimalLoader
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-
-log = logging.getLogger(__name__)
 
 
 class GrowthMetricsLoader(OptimalLoader):
