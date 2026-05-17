@@ -1557,6 +1557,27 @@ router.get("/correlation", async (req, res) => {
         return covariance / (n * sd1 * sd2);
       };
 
+      // OPTIMIZATION: Fetch all symbols' price data in a SINGLE query (not 200+ calls)
+      const batchPriceResult = await query(
+        `SELECT symbol, date, close FROM price_daily
+         WHERE symbol = ANY($1) AND date >= CURRENT_DATE - INTERVAL '365 days'
+         ORDER BY symbol, date DESC`,
+        [analysisSymbols]
+      );
+
+      // Build Map<symbol, prices[]> for fast in-memory lookups
+      const pricesBySymbol = new Map();
+      for (const row of batchPriceResult.rows || []) {
+        if (!pricesBySymbol.has(row.symbol)) {
+          pricesBySymbol.set(row.symbol, []);
+        }
+        pricesBySymbol.get(row.symbol).push(row);
+      }
+      // Reverse each symbol's prices to be chronological
+      for (const [symbol, prices] of pricesBySymbol.entries()) {
+        pricesBySymbol.set(symbol, prices.reverse());
+      }
+
       for (let i = 0; i < analysisSymbols.length; i++) {
         const row = [];
         for (let j = 0; j < analysisSymbols.length; j++) {
@@ -1569,20 +1590,10 @@ router.get("/correlation", async (req, res) => {
             const symbol2 = analysisSymbols[j];
             correlation = null; // Initialize as null, will be set if calculation succeeds
 
-            // Calculate REAL correlation from price_daily data in database - ALWAYS FRESH
+            // Calculate REAL correlation from in-memory price data
             try {
-              // Fetch fresh price data for each symbol (no caching)
-              const result1 = await query(
-                `SELECT date, close FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 252`,
-                [symbol1]
-              );
-              const prices1 = (result1?.rows || []).reverse();
-
-              const result2 = await query(
-                `SELECT date, close FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 252`,
-                [symbol2]
-              );
-              const prices2 = (result2?.rows || []).reverse();
+              const prices1 = pricesBySymbol.get(symbol1) || [];
+              const prices2 = pricesBySymbol.get(symbol2) || [];
 
               // Find overlapping dates and calculate returns
               if (prices1.length >= 2 && prices2.length >= 2) {
