@@ -51,9 +51,14 @@ def _load_creds() -> Dict:
     db_secret_arn = os.getenv('DB_SECRET_ARN') or os.getenv('DATABASE_SECRET_ARN')
     if db_secret_arn:
         import boto3
-        secrets = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-        response = secrets.get_secret_value(SecretId=db_secret_arn)
-        _db_creds = json.loads(response['SecretString'])
+        from botocore.exceptions import ClientError
+        try:
+            secrets = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            response = secrets.get_secret_value(SecretId=db_secret_arn)
+            _db_creds = json.loads(response['SecretString'])
+        except ClientError as e:
+            logger.error(f"Failed to load database credentials from Secrets Manager: {e.response['Error']['Code']}")
+            raise RuntimeError("Unable to load database credentials")
     else:
         _db_creds = {
             'host': os.getenv('DB_HOST', 'localhost'),
@@ -742,6 +747,7 @@ class APIHandler:
         """Trigger async data patrol ECS task."""
         try:
             import boto3
+            from botocore.exceptions import ClientError
             ecs = boto3.client('ecs')
 
             cluster_arn = os.getenv('ECS_CLUSTER_ARN', '')
@@ -779,6 +785,17 @@ class APIHandler:
             else:
                 logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
                 return error_response(500, 'server_error', 'Failed to trigger patrol task')
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'ClusterNotFoundException':
+                logger.error(f"ECS cluster not found: {error_code}")
+                return error_response(503, 'configuration_error', 'Patrol service not configured')
+            elif error_code == 'InvalidParameterException':
+                logger.error(f"Invalid ECS parameters: {error_code}")
+                return error_response(503, 'configuration_error', 'Patrol service configuration invalid')
+            else:
+                logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
+                return error_response(503, 'service_error', 'Unable to trigger patrol service')
         except Exception as e:
             logger.error(f"Error triggering data patrol: {e}", exc_info=True)
             return error_response(500, 'server_error', 'Failed to trigger data patrol')

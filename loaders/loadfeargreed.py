@@ -52,6 +52,16 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# Load .env.local if it exists
+from pathlib import Path as _DotenvPath
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = _DotenvPath(__file__).resolve().parent.parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
+
 # -------------------------------
 # Script metadata & logging setup 
 # -------------------------------
@@ -158,11 +168,11 @@ async def get_fear_greed_data():
     Fetches the CNN Fear & Greed index data via HTTP.
     Returns a list of dictionaries with date, index_value, and rating.
     """
-    logging.info(f"🔄 Starting Fear & Greed data fetch from: {FEAR_GREED_URL}")
+    logging.info(f"Starting Fear & Greed data fetch from: {FEAR_GREED_URL}")
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logging.info(f"🌐 HTTP attempt {attempt}/{MAX_RETRIES}")
+            logging.info(f"HTTP attempt {attempt}/{MAX_RETRIES}")
 
             # Create a session with retries
             session = requests.Session()
@@ -272,19 +282,19 @@ async def load_fear_greed_data(cur, conn):
 # Entrypoint
 # -------------------------------
 async def main():
-    logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+    logging.info(f"Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
     # Connect to DB
-    logging.info("🔌 Loading database configuration...")
+    logging.info("Loading database configuration...")
     cfg = get_db_config()
-    logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+    logging.info(f"Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
-    logging.info("✅ Database connection established")
+    logging.info("Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
