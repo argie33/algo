@@ -95,34 +95,63 @@ class EarningsCalendarLoader:
             import pandas as pd
 
             ticker = yf.Ticker(symbol)
-
-            # yfinance provides earnings dates
-            earnings_dates = ticker.earnings_dates
-            if earnings_dates is None or earnings_dates.empty:
-                return []
-
             results = []
-            for date_val, row in earnings_dates.iterrows():
-                if pd.isna(date_val):
-                    continue
 
-                # yfinance returns datetime, convert to date
-                earnings_date = pd.Timestamp(date_val).date()
+            # Primary: ticker.calendar returns the next earnings date(s)
+            # This works without lxml; ticker.earnings_dates requires lxml
+            try:
+                cal = ticker.calendar
+                if cal and 'Earnings Date' in cal:
+                    dates = cal['Earnings Date']
+                    if not isinstance(dates, list):
+                        dates = [dates]
+                    for d in dates:
+                        if d is None:
+                            continue
+                        if hasattr(d, 'date'):
+                            earnings_date = d  # already a date
+                        else:
+                            earnings_date = pd.Timestamp(d).date()
+                        if earnings_date < date.today():
+                            continue
+                        eps_est = cal.get('Earnings Average')
+                        rev_est = cal.get('Revenue Average')
+                        results.append({
+                            'symbol': symbol,
+                            'earnings_date': earnings_date,
+                            'announce_time': None,
+                            'eps_estimate': float(eps_est) if eps_est else None,
+                            'actual_eps': None,
+                            'revenue_estimate': int(rev_est) if rev_est else None,
+                            'actual_revenue': None,
+                            'fiscal_period': None,
+                        })
+            except Exception:
+                pass
 
-                # Only include future earnings
-                if earnings_date < date.today():
-                    continue
-
-                results.append({
-                    'symbol': symbol,
-                    'earnings_date': earnings_date,
-                    'announce_time': None,  # yfinance doesn't provide announcement time
-                    'eps_estimate': None,
-                    'actual_eps': None,
-                    'revenue_estimate': None,
-                    'actual_revenue': None,
-                    'fiscal_period': None,
-                })
+            # Fallback: earnings_dates (requires lxml — may not be available)
+            if not results:
+                try:
+                    earnings_dates = ticker.earnings_dates
+                    if earnings_dates is not None and not earnings_dates.empty:
+                        for date_val, row in earnings_dates.iterrows():
+                            if pd.isna(date_val):
+                                continue
+                            earnings_date = pd.Timestamp(date_val).date()
+                            if earnings_date < date.today():
+                                continue
+                            results.append({
+                                'symbol': symbol,
+                                'earnings_date': earnings_date,
+                                'announce_time': None,
+                                'eps_estimate': None,
+                                'actual_eps': None,
+                                'revenue_estimate': None,
+                                'actual_revenue': None,
+                                'fiscal_period': None,
+                            })
+                except Exception:
+                    pass
 
             return results
         except Exception as e:
