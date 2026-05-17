@@ -347,7 +347,10 @@ export default function StockDetail() {
           ['algo', 'Algo'],
           ['financials', 'Financials'],
           ['analysts', 'Analysts'],
-          ['signals', `Signals${signalsData?.length ? ` (${signalsData.length})` : ''}`],
+          ['signals', (() => {
+            const items = Array.isArray(signalsData) ? signalsData : (signalsData?.items || signalsData || []);
+            return `Signals${items?.length > 0 ? ` (${items.length})` : ''}`;
+          })()],
         ].map(([v, l]) => (
           <button
             key={v}
