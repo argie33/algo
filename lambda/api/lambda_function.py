@@ -552,7 +552,7 @@ class APIHandler:
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
                        exit_r_multiple,
                        EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
-                FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date ASC
+                FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date DESC LIMIT 1000
             """)
             trades = [dict(row) for row in self.cur.fetchall()]
             if not trades:
