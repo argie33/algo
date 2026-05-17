@@ -1420,17 +1420,18 @@ class FilterPipeline:
                 return {'pass': True, 'reason': 'Insufficient history'}
 
             # Compute correlations with existing holdings
+            # Only positive correlation creates concentration risk; negative correlation = hedging (desirable)
             new_returns = returns[new_symbol]
             max_corr = 0.0
             most_correlated = None
             for existing in existing_symbols:
                 if existing in returns.columns:
                     corr = new_returns.corr(returns[existing])
-                    if abs(corr) > max_corr:
-                        max_corr = abs(corr)
+                    if corr > max_corr:  # track only positive correlation
+                        max_corr = corr
                         most_correlated = existing
 
-            # Halt if correlation > 0.80
+            # Halt only if positively correlated > 0.80 (concentrated risk)
             if max_corr > 0.80:
                 return {
                     'pass': False,

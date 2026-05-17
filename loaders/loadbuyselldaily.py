@@ -270,8 +270,9 @@ class BuySellDailyLoader(OptimalLoader):
         df["avg_volume_50d"] = df["volume"].rolling(50).mean()
 
         signals = []
-        for _, row in df.iterrows():
-            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df, df)
+        for i in range(len(df)):
+            row = df.iloc[i]
+            sig = self._generate_signal_row(row, symbol, pd, trend_data, spy_df, df, row_idx=i)
             if sig:
                 signals.append(sig)
 
@@ -524,7 +525,7 @@ def main():
                 status="OK" if stats["symbols_failed"] == 0 else "PARTIAL",
             )
         except Exception as e:
-            logger.warning(f"Failed to record SLA status: {e}")
+            log.warning(f"Failed to record SLA status: {e}")
 
     finally:
         loader.close()
