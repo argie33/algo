@@ -615,7 +615,7 @@ class Orchestrator:
                 except Exception:
                     pass
 
-    def _interpret_waterfall(self, total, stage2, tier_rejections, final):
+    def _interpret_waterfall(self, total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
         """Interpret the signal waterfall to help diagnose 'no trades' situations."""
         if total == 0:
             return "No BUY signals generated today. Check buy_sell_daily loader or market conditions."
