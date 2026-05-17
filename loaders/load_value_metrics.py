@@ -2,37 +2,27 @@
 """
 Value Metrics Loader
 
-import sys
-from pathlib import Path
-
 Fetches PE, PB, PS, PEG, dividend yield from yfinance.
 Writes ratios to value_metrics and market_cap to key_metrics in one pass.
 Falls back to computing from SEC financial data when yfinance returns nothing.
 """
 
-import argparse
-import logging
-import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import Dict, List, Optional
 
+from config.env_loader import load_env
+load_env()
+
+import argparse
+import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional
 import time
 
 import psycopg2
 import yfinance as yf
-
-try:
-    _env = Path(__file__).parent / '.env.local'
-    if not _env.exists():
-        _env = Path(__file__).parent.parent / '.env.local'
-    if _env.exists():
-        load_dotenv(_env)
-except ImportError:
-    pass
 
 try:
     from config.credential_helper import get_db_password
