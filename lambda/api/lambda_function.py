@@ -24,6 +24,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 import psycopg2.pool
+import psycopg2.sql
 import re
 import time
 from datetime import datetime, timedelta, date, timezone
@@ -158,6 +159,12 @@ def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict
     if headers:
         default_headers.update(headers)
 
+    # Ensure consistent response structure: always include success and timestamp for standardization
+    if 'success' not in body:
+        body['success'] = True
+    if 'timestamp' not in body:
+        body['timestamp'] = datetime.now(timezone.utc).isoformat()
+
     return {
         'statusCode': status_code,
         'headers': default_headers,
@@ -165,21 +172,52 @@ def json_response(status_code: int, body: Dict[str, Any], headers: Optional[Dict
     }
 
 
-def error_response(status_code: int, error: str, message: str = '') -> Dict:
-    """Return error response. Internal errors are logged but not exposed to clients."""
+def error_response(status_code: int, error_code: str, message: str = '') -> Dict:
+    """Return standardized error response.
+    Format: {success: false, error: code, message: details, timestamp}
+    Internal errors are logged but not exposed to clients.
+    """
     if message:
-        logger.error(f"API error [{status_code}] {error}: {message}")
-    # Never return internal DB errors (column names, schema details) to clients
+        logger.error(f"API error [{status_code}] {error_code}: {message}")
+
+    # Sanitize message: never expose internal details in production
     safe_message = message if status_code < 500 else 'An internal error occurred'
-    return json_response(status_code, {'error': error, 'message': safe_message})
+
+    # Map HTTP status to error code if provided code is generic
+    if error_code == 'internal_error' and status_code == 500:
+        error_code = 'internal_error'
+    elif error_code == 'error' or not error_code:
+        if status_code == 400:
+            error_code = 'bad_request'
+        elif status_code == 401:
+            error_code = 'unauthorized'
+        elif status_code == 403:
+            error_code = 'forbidden'
+        elif status_code == 404:
+            error_code = 'not_found'
+        elif status_code == 409:
+            error_code = 'conflict'
+        elif status_code == 429:
+            error_code = 'rate_limited'
+        elif status_code == 503:
+            error_code = 'service_unavailable'
+        else:
+            error_code = 'error'
+
+    return json_response(status_code, {
+        'success': False,
+        'error': error_code,
+        'message': safe_message
+    })
 
 
 def list_response(items: list, total: int = None, page: int = 1, limit: int = None, offset: int = 0) -> Dict:
-    """Consistent list response: {items, total, pagination}."""
+    """Consistent list response: {success, items, total, pagination, timestamp}."""
     n = total if total is not None else len(items)
     lim = limit or len(items) or 1
     total_pages = max(1, -(-n // lim))  # ceiling division
     return json_response(200, {
+        'success': True,
         'items': items,
         'total': n,
         'pagination': {
@@ -342,7 +380,7 @@ class APIHandler:
         error_str = str(exc)
         # Hide database-specific details
         if 'relation' in error_str or 'column' in error_str or 'syntax error' in error_str:
-            return 'database_error'
+            return 'internal_error'
         if 'authentication' in error_str or 'permission' in error_str:
             return 'permission_denied'
         if 'connection' in error_str or 'timeout' in error_str:
@@ -495,7 +533,7 @@ class APIHandler:
                 try:
                     notif_id_int = int(notif_id)
                 except ValueError:
-                    return error_response(400, 'invalid_id', 'ID must be numeric')
+                    return error_response(400, 'bad_request', 'ID must be numeric')
                 self.cur.execute(
                     "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
                     (notif_id_int,)
@@ -504,7 +542,7 @@ class APIHandler:
                 return json_response(200, {'status': 'updated'})
             except Exception as e:
                 logger.error(f"notification mark-read error: {e}")
-                return error_response(500, 'notification_error', 'Failed to update notification')
+                return error_response(500, 'internal_error', 'Failed to update notification')
         # Handle DELETE /api/algo/notifications/{id}
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
@@ -514,7 +552,7 @@ class APIHandler:
                 return json_response(200, {'status': 'deleted'})
             except Exception as e:
                 logger.error(f"notification delete error: {e}")
-                return error_response(500, 'notification_error', 'Failed to delete notification')
+                return error_response(500, 'internal_error', 'Failed to delete notification')
         # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
@@ -617,7 +655,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_algo_status failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch algo status')
+            return error_response(500, 'internal_error', 'Failed to fetch algo status')
 
     def _get_algo_trades(self, limit: int = 200) -> Dict:
         """Get recent trades with all fields for frontend."""
@@ -640,7 +678,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_algo_trades failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch trades')
+            return error_response(500, 'internal_error', 'Failed to fetch trades')
 
     def _get_algo_positions(self) -> Dict:
         """Get current open positions with all tracking fields."""
@@ -662,7 +700,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_algo_positions failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch positions')
+            return error_response(500, 'internal_error', 'Failed to fetch positions')
 
     def _get_algo_performance(self) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
@@ -755,7 +793,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_algo_performance failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to calculate performance metrics')
+            return error_response(500, 'internal_error', 'Failed to calculate performance metrics')
 
     def _get_circuit_breakers(self) -> Dict:
         """Get circuit breaker status from most recent orchestrator run."""
@@ -811,7 +849,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_circuit_breakers failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch circuit breaker status')
+            return error_response(500, 'internal_error', 'Failed to fetch circuit breaker status')
 
     def _get_equity_curve(self, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
@@ -829,7 +867,7 @@ class APIHandler:
             return list_response([dict(c) for c in reversed(curve) if c])
         except Exception as e:
             logger.error(f"Error fetching equity curve: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch equity curve')
+            return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
     def _get_data_status(self) -> Dict:
         """Get data freshness status."""
@@ -847,7 +885,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_equity_curve failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch equity curve')
+            return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
     def _get_notifications(self, params: Dict = None) -> Dict:
         """Get recent notifications with optional filtering."""
@@ -887,7 +925,7 @@ class APIHandler:
             return list_response([dict(n) for n in notifs])
         except Exception as e:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch notifications')
+            return error_response(500, 'internal_error', 'Failed to fetch notifications')
 
     def _analyze_pre_trade_impact(self, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
@@ -898,7 +936,7 @@ class APIHandler:
             position_pct = body.get('position_pct')
 
             if not symbol:
-                return error_response(400, 'missing_symbol', 'symbol is required')
+                return error_response(400, 'bad_request', 'symbol is required')
 
             # Get current portfolio state
             self.cur.execute("""
@@ -1005,7 +1043,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"Error in pre-trade analysis: {e}", exc_info=True)
-            return error_response(500, 'analysis_error', 'Failed to analyze trade impact')
+            return error_response(500, 'internal_error', 'Failed to analyze trade impact')
 
     def _trigger_data_patrol(self) -> Dict:
         """Trigger async data patrol ECS task."""
@@ -1022,7 +1060,7 @@ class APIHandler:
 
             if not cluster_arn or not task_def_arn:
                 logger.warning("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
-                return error_response(503, 'unavailable', 'Patrol task not available')
+                return error_response(503, 'service_unavailable', 'Patrol task not available')
 
             response = ecs.run_task(
                 cluster=cluster_arn,
@@ -1048,21 +1086,21 @@ class APIHandler:
                 })
             else:
                 logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
-                return error_response(500, 'server_error', 'Failed to trigger patrol task')
+                return error_response(500, 'internal_error', 'Failed to trigger patrol task')
         except ClientError as e:
             error_code = e.response['Error']['Code']
             if error_code == 'ClusterNotFoundException':
                 logger.error(f"ECS cluster not found: {error_code}")
-                return error_response(503, 'configuration_error', 'Patrol service not configured')
+                return error_response(503, 'service_unavailable', 'Patrol service not configured')
             elif error_code == 'InvalidParameterException':
                 logger.error(f"Invalid ECS parameters: {error_code}")
-                return error_response(503, 'configuration_error', 'Patrol service configuration invalid')
+                return error_response(503, 'service_unavailable', 'Patrol service configuration invalid')
             else:
                 logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
-                return error_response(503, 'service_error', 'Unable to trigger patrol service')
+                return error_response(503, 'service_unavailable', 'Unable to trigger patrol service')
         except Exception as e:
             logger.error(f"Error triggering data patrol: {e}", exc_info=True)
-            return error_response(500, 'server_error', 'Failed to trigger data patrol')
+            return error_response(500, 'internal_error', 'Failed to trigger data patrol')
 
     def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
@@ -1081,7 +1119,7 @@ class APIHandler:
             return list_response([dict(f) for f in findings], total=total, limit=limit, offset=offset)
         except Exception as e:
             logger.error(f"Error fetching patrol log: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch patrol log')
+            return error_response(500, 'internal_error', 'Failed to fetch patrol log')
 
     def _get_sector_rotation(self, days: int = 180) -> Dict:
         """Get sector rotation data."""
@@ -1097,7 +1135,7 @@ class APIHandler:
             return list_response([dict(r) for r in rotation])
         except Exception as e:
             logger.error(f"Error fetching sector rotation: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch sector rotation')
+            return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
 
     def _get_sector_breadth(self) -> Dict:
         """Get sector breadth indicators (derived from price_daily by sector)."""
@@ -1119,7 +1157,7 @@ class APIHandler:
             return list_response([dict(b) for b in breadth])
         except Exception as e:
             logger.error(f"Error fetching sector breadth: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch sector breadth')
+            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
 
     def _get_swing_scores(self, limit: int = 100) -> Dict:
         """Get swing trade candidates with scoring."""
@@ -1139,7 +1177,7 @@ class APIHandler:
             return list_response([dict(s) for s in scores])
         except Exception as e:
             logger.error(f"get_swing_scores failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch swing scores')
+            return error_response(500, 'internal_error', 'Failed to fetch swing scores')
 
     def _get_swing_scores_history(self, days: int = 30) -> Dict:
         """Get swing scores historical data."""
@@ -1158,7 +1196,7 @@ class APIHandler:
             return list_response([dict(h) for h in history])
         except Exception as e:
             logger.error(f"get_swing_scores_history failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch swing scores history')
+            return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
 
     def _get_rejection_funnel(self) -> Dict:
         """Get signal rejection funnel."""
@@ -1181,7 +1219,7 @@ class APIHandler:
             return list_response([dict(f) for f in funnel])
         except Exception as e:
             logger.error(f"Error fetching rejection funnel: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch rejection funnel')
+            return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
 
     def _get_markets(self) -> Dict:
         """Get current market regime data."""
@@ -1199,7 +1237,7 @@ class APIHandler:
             return list_response([dict(m) for m in markets])
         except Exception as e:
             logger.error(f"Error fetching markets data: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch markets data')
+            return error_response(500, 'internal_error', 'Failed to fetch markets data')
 
     def _get_algo_evaluate(self) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
@@ -1225,7 +1263,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_algo_evaluate failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to evaluate algorithm')
+            return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
 
     def _get_data_quality(self) -> Dict:
         """Get data quality summary from latest data_patrol_log run."""
@@ -1255,7 +1293,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_data_quality failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to check data quality')
+            return error_response(500, 'internal_error', 'Failed to check data quality')
 
     def _get_exposure_policy(self) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
@@ -1280,7 +1318,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"get_exposure_policy failed: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch exposure policy')
+            return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
 
     def _get_sector_stage2(self) -> Dict:
         """Get Stage 2 stocks by sector from trend_template_data."""
@@ -1298,7 +1336,7 @@ class APIHandler:
             return list_response([dict(r) for r in rows])
         except Exception as e:
             logger.error(f"get_sector_stage2 failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch sector stage 2')
+            return error_response(500, 'internal_error', 'Failed to fetch sector stage 2')
 
     def _get_algo_config(self) -> Dict:
         """Return all algo configuration rows."""
@@ -1308,7 +1346,7 @@ class APIHandler:
             return list_response([dict(r) for r in rows])
         except Exception as e:
             logger.error(f"algo_config error: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch algo config')
+            return error_response(500, 'internal_error', 'Failed to fetch algo config')
 
     def _get_algo_config_key(self, key: str) -> Dict:
         """Return a single algo config key."""
@@ -1357,11 +1395,11 @@ class APIHandler:
         try:
             parts = path.split('/')
             if len(parts) < 4:
-                return error_response(400, 'invalid_path', 'Path must include symbol: /api/financials/{symbol}/{endpoint}')
+                return error_response(400, 'bad_request', 'Path must include symbol: /api/financials/{symbol}/{endpoint}')
             symbol = parts[3].upper()
             endpoint = parts[4] if len(parts) > 4 else None
             if not endpoint:
-                return error_response(400, 'invalid_path', 'Path must include endpoint (income-statement, balance-sheet, cash-flow, key-metrics)')
+                return error_response(400, 'bad_request', 'Path must include endpoint (income-statement, balance-sheet, cash-flow, key-metrics)')
             period = params.get('period', ['annual'])[0] if params else 'annual'
 
             if endpoint == 'income-statement':
@@ -1429,16 +1467,16 @@ class APIHandler:
                     return json_response(200, {})
                 return json_response(200, dict(row))
 
-            return error_response(400, 'invalid_endpoint', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
+            return error_response(400, 'bad_request', f'Unknown financial endpoint: {endpoint}. Valid: income-statement, balance-sheet, cash-flow, key-metrics')
         except psycopg2.errors.UndefinedTable as e:
             logger.warning(f"financials: table not found - {str(e)[:100]}")
-            return error_response(503, 'data_not_loaded', 'Financial data not yet loaded. Check data pipeline status.')
+            return error_response(503, 'service_unavailable', 'Financial data not yet loaded. Check data pipeline status.')
         except psycopg2.errors.UndefinedColumn as e:
             logger.warning(f"financials: column not found - {str(e)[:100]}")
-            return error_response(503, 'schema_mismatch', 'Financial data schema outdated. Contact administrator.')
+            return error_response(503, 'service_unavailable', 'Financial data schema outdated. Contact administrator.')
         except psycopg2.DatabaseError as e:
             logger.error(f"financials handler database error: {e}", exc_info=True)
-            return error_response(503, 'database_error', 'Temporary database issue. Please retry.')
+            return error_response(503, 'service_unavailable', 'Temporary database issue. Please retry.')
         except Exception as e:
             logger.error(f"financials handler error: {e}", exc_info=True)
             return error_response(500, 'internal_error', 'Financials handler error')
@@ -1470,7 +1508,7 @@ class APIHandler:
                 """
                 params_tuple = (limit,)
             else:
-                return error_response(400, 'invalid_period', f'Period must be "upcoming" or "past", got "{period}"')
+                return error_response(400, 'bad_request', f'Period must be "upcoming" or "past", got "{period}"')
 
             if symbol:
                 sql = sql.replace('WHERE earnings_date', 'WHERE symbol = %s AND earnings_date')
@@ -1535,7 +1573,7 @@ class APIHandler:
             return list_response([dict(s) for s in signals])
         except Exception as e:
             logger.error(f"get_signals_stocks failed: {e}", exc_info=True)
-            return error_response(500, 'signals_error', 'Failed to fetch signals')
+            return error_response(500, 'internal_error', 'Failed to fetch signals')
 
     def _get_signals_etf(self, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
@@ -1582,7 +1620,7 @@ class APIHandler:
     def _get_price_history(self, symbol: str, timeframe: str = 'daily', limit: int = 60) -> Dict:
         """Get price history for a symbol."""
         if not _validate_symbol(symbol):
-            return error_response(400, 'invalid_symbol', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
+            return error_response(400, 'bad_request', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
         try:
             self.cur.execute("""
                 SELECT date, open, high, low, close, volume
@@ -1630,11 +1668,11 @@ class APIHandler:
                 return list_response([dict(s) for s in stocks])
             except Exception as e:
                 logger.error(f"stocks list error: {e}")
-                return error_response(500, 'database_error', 'Failed to fetch stocks')
+                return error_response(500, 'internal_error', 'Failed to fetch stocks')
         elif path.startswith('/api/stocks/'):
             symbol = path.split('/api/stocks/')[-1]
             if not _validate_symbol(symbol):
-                return error_response(400, 'invalid_symbol', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
+                return error_response(400, 'bad_request', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
             try:
                 self.cur.execute("""
                     SELECT ss.symbol, ss.security_name as company_name,
@@ -1649,7 +1687,7 @@ class APIHandler:
                 return json_response(200, dict(row) if row else {})
             except Exception as e:
                 logger.error(f"stock detail error: {e}")
-                return error_response(500, 'database_error', 'Failed to fetch stock details')
+                return error_response(500, 'internal_error', 'Failed to fetch stock details')
         else:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
 
@@ -1699,7 +1737,7 @@ class APIHandler:
             return list_response([dict(s) for s in stocks])
         except Exception as e:
             logger.error(f"get_deep_value_stocks failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch value stocks')
+            return error_response(500, 'internal_error', 'Failed to fetch value stocks')
 
     def _handle_portfolio(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/portfolio/* endpoints."""
@@ -1746,7 +1784,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'Unknown portfolio endpoint: {path}')
         except Exception as e:
             logger.error(f"Error in portfolio allocation handler: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch portfolio allocation')
+            return error_response(500, 'internal_error', 'Failed to fetch portfolio allocation')
 
     def _handle_sectors(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
@@ -1758,7 +1796,7 @@ class APIHandler:
                 days = _safe_days(days_str, max_val=365, default=90)
 
                 if not sectors_str:
-                    return error_response(400, 'missing_param', 'sectors parameter required (comma-separated)')
+                    return error_response(400, 'bad_request', 'sectors parameter required (comma-separated)')
 
                 sectors = [s.strip() for s in sectors_str.split(',')]
                 result = {}
@@ -1909,7 +1947,7 @@ class APIHandler:
             return json_response(200, {'data': [], 'total': 0, 'page': 1, 'limit': 20})
         except Exception as e:
             logger.error(f"Error in sectors handler: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch sectors')
+            return error_response(500, 'internal_error', 'Failed to fetch sectors')
 
     def _handle_industries(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/industries and /api/industries/{name} - return ranking data."""
@@ -2030,7 +2068,7 @@ class APIHandler:
                 })
         except Exception as e:
             logger.error(f"Error in industries handler: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch industries')
+            return error_response(500, 'internal_error', 'Failed to fetch industries')
 
     def _handle_market(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/market/* endpoints."""
@@ -2156,7 +2194,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'No market handler for {path}')
         except Exception as e:
             logger.error(f"market handler error: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch market data')
+            return error_response(500, 'internal_error', 'Failed to fetch market data')
 
     def _get_fear_greed_history(self, days: int = 30) -> Dict:
         """Get fear/greed index history."""
@@ -2172,7 +2210,7 @@ class APIHandler:
             return list_response([dict(h) for h in history] if history else [])
         except Exception as e:
             logger.error(f"Error fetching sentiment history: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch sentiment history')
+            return error_response(500, 'internal_error', 'Failed to fetch sentiment history')
 
     def _get_market_latest(self) -> Dict:
         """Get latest market data including indices, breadth, and sentiment."""
@@ -2215,7 +2253,7 @@ class APIHandler:
             return json_response(200, result if result else {})
         except Exception as e:
             logger.error(f"Error fetching market latest: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch market latest')
+            return error_response(500, 'internal_error', 'Failed to fetch market latest')
 
     def _handle_economic(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/economic and /api/economic/* endpoints."""
@@ -2254,7 +2292,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'No economic handler for {path}')
         except Exception as e:
             logger.error(f"Error in economic handler: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch economic data')
+            return error_response(500, 'internal_error', 'Failed to fetch economic data')
 
     def _get_leading_indicators(self) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
@@ -2368,7 +2406,7 @@ class APIHandler:
 
         except Exception as e:
             logger.error(f"get_leading_indicators error: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch leading indicators')
+            return error_response(500, 'internal_error', 'Failed to fetch leading indicators')
 
     def _get_yield_curve_full(self) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
@@ -2432,7 +2470,7 @@ class APIHandler:
 
         except Exception as e:
             logger.error(f"get_yield_curve_full error: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch yield curve')
+            return error_response(500, 'internal_error', 'Failed to fetch yield curve')
 
     def _handle_sentiment(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/sentiment/* endpoints."""
@@ -2533,7 +2571,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"Error fetching VIX data: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch VIX data')
+            return error_response(500, 'internal_error', 'Failed to fetch VIX data')
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
         if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
@@ -2549,9 +2587,9 @@ class APIHandler:
             allowed_sorts = ['composite_score', 'momentum_score', 'quality_score', 'value_score',
                            'growth_score', 'positioning_score', 'stability_score', 'symbol']
             if sort_by not in allowed_sorts:
-                return error_response(400, 'invalid_sort', f'Sort must be one of: {", ".join(allowed_sorts)}')
+                return error_response(400, 'bad_request', f'Sort must be one of: {", ".join(allowed_sorts)}')
             if sort_order not in ['asc', 'desc']:
-                return error_response(400, 'invalid_sort_order', 'Sort order must be "asc" or "desc"')
+                return error_response(400, 'bad_request', 'Sort order must be "asc" or "desc"')
 
             return self._get_stock_scores(limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
         else:
@@ -2657,7 +2695,7 @@ class APIHandler:
                 try:
                     run_id_int = int(run_id)
                 except ValueError:
-                    return error_response(400, 'invalid_id', 'Run ID must be numeric')
+                    return error_response(400, 'bad_request', 'Run ID must be numeric')
 
                 # Get backtest run details
                 self.cur.execute("""
@@ -2844,7 +2882,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')
         except Exception as e:
             logger.error(f"Error in trades handler: {e}", exc_info=True)
-            return error_response(500, 'database_error', 'Failed to fetch trades')
+            return error_response(500, 'internal_error', 'Failed to fetch trades')
 
 
     def _handle_contact(self, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
@@ -2864,7 +2902,7 @@ class APIHandler:
                 data = body or {}
                 valid, result, error_msg = validate_request(ContactRequest, data)
                 if not valid:
-                    return error_response(400, 'validation_error', error_msg)
+                    return error_response(400, 'bad_request', error_msg)
 
                 contact = result  # ContactRequest instance
                 self.cur.execute("""
@@ -2876,7 +2914,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'No handler for {path}')
         except Exception as e:
             logger.error(f"contact handler error: {e}")
-            return error_response(500, 'database_error', 'Contact handler error')
+            return error_response(500, 'internal_error', 'Contact handler error')
 
     def _handle_admin(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
@@ -2892,7 +2930,7 @@ class APIHandler:
             return error_response(404, 'not_found', f'No admin handler for {path}')
         except Exception as e:
             logger.error(f"admin handler error: {e}")
-            return error_response(500, 'database_error', 'Admin handler error')
+            return error_response(500, 'internal_error', 'Admin handler error')
 
     def _get_loader_status(self) -> Dict:
         """Get status of all data loaders from data_loader_runs table."""
@@ -2953,7 +2991,7 @@ class APIHandler:
             })
         except Exception as e:
             logger.error(f"loader status query failed: {e}")
-            return error_response(500, 'database_error', 'Failed to fetch loader status')
+            return error_response(500, 'internal_error', 'Failed to fetch loader status')
 
     def _get_system_health(self) -> Dict:
         """Get overall system health status."""
@@ -2986,7 +3024,10 @@ class APIHandler:
             table_counts = {}
             for table in ['stock_symbols', 'price_daily', 'algo_trades', 'algo_positions']:
                 try:
-                    self.cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    query = psycopg2.sql.SQL("SELECT COUNT(*) FROM {}").format(
+                        psycopg2.sql.Identifier(table)
+                    )
+                    self.cur.execute(query)
                     count = self.cur.fetchone()[0]
                     table_counts[table] = count
                 except:
@@ -2997,7 +3038,7 @@ class APIHandler:
             return json_response(200, health_data)
         except Exception as e:
             logger.error(f"system health check failed: {e}")
-            return error_response(500, 'database_error', 'Failed to get system health')
+            return error_response(500, 'internal_error', 'Failed to get system health')
 
     def _get_database_stats(self) -> Dict:
         """Get database statistics."""
@@ -3036,7 +3077,7 @@ class APIHandler:
             return json_response(200, stats)
         except Exception as e:
             logger.error(f"database stats query failed: {e}")
-            return error_response(500, 'database_error', 'Failed to get database stats')
+            return error_response(500, 'internal_error', 'Failed to get database stats')
 
     def _get_data_quality(self) -> Dict:
         """Get data quality metrics."""
@@ -3076,7 +3117,7 @@ class APIHandler:
             return json_response(200, quality)
         except Exception as e:
             logger.error(f"data quality check failed: {e}")
-            return error_response(500, 'database_error', 'Failed to get data quality metrics')
+            return error_response(500, 'internal_error', 'Failed to get data quality metrics')
 
     def _handle_notifications(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/notifications/* endpoints."""
@@ -3137,7 +3178,7 @@ def lambda_handler(event, context):
             if environment == 'production':
                 # CRITICAL: CORS is disabled in production if FRONTEND_ORIGIN not set
                 logger.critical("FRONTEND_ORIGIN env var not set — API requests from browser will be blocked by CORS policy")
-                return error_response(503, 'misconfiguration', 'API not configured. Contact administrator.')
+                return error_response(503, 'service_unavailable', 'API not configured. Contact administrator.')
             else:
                 # Dev/test: Allow localhost
                 logger.warning("FRONTEND_ORIGIN not set in development — allowing localhost")
@@ -3151,7 +3192,7 @@ def lambda_handler(event, context):
             has_db_secret = os.getenv('DB_SECRET_ARN') or os.getenv('DATABASE_SECRET_ARN')
             if not has_db_secret:
                 logger.critical("Database secret ARN not set (DB_SECRET_ARN or DATABASE_SECRET_ARN)")
-                return error_response(503, 'misconfiguration', 'Database credentials not configured')
+                return error_response(503, 'service_unavailable', 'Database credentials not configured')
             if environment == 'production' and not os.getenv('ECS_CLUSTER_ARN'):
                 logger.warning("ECS_CLUSTER_ARN not set - data patrol trigger will fail")
 
@@ -3176,7 +3217,7 @@ def lambda_handler(event, context):
 
         if not check_rate_limit(client_ip, max_requests=max_requests, window_seconds=window_seconds):
             logger.warning(f"Rate limit exceeded for {client_ip} on {path} (limit: {limit_desc})")
-            return error_response(429, 'rate_limit_exceeded', limit_desc)
+            return error_response(429, 'rate_limited', limit_desc)
 
         # API GW v2 HTTP API passes query params as plain strings, but all handlers
         # do params.get('key', [default])[0]. Normalize each value to a single-item list
@@ -3209,7 +3250,7 @@ def lambda_handler(event, context):
             # Validate API key
             if not api_key:
                 logger.warning(f"Missing API key for {method} {path} from {client_ip}")
-                return error_response(401, 'missing_api_key', 'API key is required')
+                return error_response(401, 'unauthorized', 'API key is required')
 
             # Connect to database to validate key
             temp_conn = None
@@ -3220,12 +3261,12 @@ def lambda_handler(event, context):
 
                 if not is_valid:
                     logger.warning(f"Invalid API key for {method} {path} from {client_ip}: {error_msg}")
-                    return error_response(401, 'invalid_api_key', error_msg)
+                    return error_response(401, 'unauthorized', error_msg)
 
                 api_key_info = app_info
             except Exception as e:
                 logger.error(f"API key validation error: {e}")
-                return error_response(500, 'auth_error', 'Authentication check failed')
+                return error_response(500, 'unauthorized', 'Authentication check failed')
 
         # Route to handler
         handler = APIHandler()

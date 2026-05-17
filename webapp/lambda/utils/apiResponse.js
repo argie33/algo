@@ -43,29 +43,46 @@ module.exports = {
   },
 
   // Standard error response with optional detailed context
+  // Format: { success: false, error: "code", message: "details", timestamp }
   sendError: (res, error, statusCode = 500, details = null) => {
     let errorMsg = typeof error === 'string' ? error : (error?.message || 'Internal server error');
-    const response = {
-      success: false,
-      error: errorMsg,
-      timestamp: new Date().toISOString()
-    };
 
-    // In production, sanitize error messages to avoid leaking internal details
+    // Sanitize error messages in production (don't leak internal details)
+    let sanitized = errorMsg;
+    let errorCode = 'error';
+
     if (process.env.NODE_ENV === 'production' && statusCode === 500) {
-      // Sanitize DB/system errors that leak schema, paths, or sensitive details
       const sensitivePatterns = [
-        /ENOENT|EACCES|permission denied/i,
-        /column|table|database|schema/i,
-        /connection|timeout|ECONNREFUSED/i,
-        /password|secret|token|api[_-]key/i,
-        /\/[a-z]/i // file paths
+        { pattern: /ENOENT|EACCES|permission denied/i, code: 'permission_error' },
+        { pattern: /column|table|database|schema/i, code: 'database_error' },
+        { pattern: /connection|timeout|ECONNREFUSED/i, code: 'connection_error' },
+        { pattern: /password|secret|token|api[_-]key/i, code: 'security_error' },
+        { pattern: /\/[a-z]/i, code: 'system_error' }
       ];
 
-      if (sensitivePatterns.some(p => p.test(errorMsg))) {
-        response.error = 'An error occurred processing your request';
+      const matched = sensitivePatterns.find(p => p.pattern.test(errorMsg));
+      if (matched) {
+        errorCode = matched.code;
+        sanitized = 'An error occurred processing your request';
       }
     }
+
+    // Map HTTP status to error code if not already set
+    if (statusCode === 400) errorCode = 'bad_request';
+    else if (statusCode === 401) errorCode = 'unauthorized';
+    else if (statusCode === 403) errorCode = 'forbidden';
+    else if (statusCode === 404) errorCode = 'not_found';
+    else if (statusCode === 409) errorCode = 'conflict';
+    else if (statusCode === 429) errorCode = 'rate_limited';
+    else if (statusCode === 500) errorCode = 'internal_error';
+    else if (statusCode === 503) errorCode = 'service_unavailable';
+
+    const response = {
+      success: false,
+      error: errorCode,
+      message: sanitized,
+      timestamp: new Date().toISOString()
+    };
 
     // Include detailed error context in development mode
     if (process.env.NODE_ENV === 'development' && details) {
@@ -108,7 +125,8 @@ module.exports = {
   sendNotFound: (res, message = 'Resource not found') => {
     return res.status(404).json({
       success: false,
-      error: message,
+      error: 'not_found',
+      message: message,
       timestamp: new Date().toISOString()
     });
   },
@@ -118,7 +136,8 @@ module.exports = {
     const errorMsg = typeof error === 'string' ? error : (error?.message || 'Bad request');
     return res.status(400).json({
       success: false,
-      error: errorMsg,
+      error: 'bad_request',
+      message: errorMsg,
       timestamp: new Date().toISOString()
     });
   },
@@ -127,7 +146,8 @@ module.exports = {
   sendUnauthorized: (res, message = 'Unauthorized') => {
     return res.status(401).json({
       success: false,
-      error: message,
+      error: 'unauthorized',
+      message: message,
       timestamp: new Date().toISOString()
     });
   }
