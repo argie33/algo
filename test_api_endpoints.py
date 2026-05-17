@@ -87,11 +87,11 @@ def test_endpoint(base_url: str, path: str, method: str, expected_status: int) -
             return False, f"Unknown method {method}", -1
 
         if response.status_code == expected_status:
-            return True, "✅ OK", response.status_code
+            return True, "[OK]", response.status_code
         else:
             # For auth-required endpoints, 401 is also acceptable
             if expected_status == 200 and response.status_code == 401:
-                return True, "✅ OK (auth required)", 401
+                return True, "[OK] (auth required)", 401
             return False, f"Expected {expected_status}, got {response.status_code}", response.status_code
 
     except requests.exceptions.ConnectionError:
