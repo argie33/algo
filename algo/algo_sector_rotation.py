@@ -294,18 +294,18 @@ if __name__ == "__main__":
     d = SectorRotationDetector()
     result = d.compute(_date(2026, 4, 24))
     if result:
-        print(f"\n{'='*70}\nSECTOR ROTATION — {result['eval_date']}\n{'='*70}\n")
-        print(f"  Signal:               {result['signal']}")
-        print(f"  Defensive lead score: {result['defensive_lead_score']}/100")
-        print(f"  Cyclical weak score:  {result['cyclical_weak_score']}/100")
-        print(f"  Defensive rank improvement 4w:  {result['defensive_rank_improvement_4w']}")
-        print(f"  Cyclical rank improvement 4w:   {result['cyclical_rank_improvement_4w']}")
-        print(f"  Spread:               {result['spread_4w']}")
-        print(f"  Weeks persistent:     {result['weeks_persistent']}/4")
-        print(f"  Recommended exp drop: {result['reduce_exposure_pts']} pts")
-        print(f"\n  Per-sector RS:")
+        logger.info(f"SECTOR ROTATION — {result['eval_date']}")
+        logger.info(f"Signal: {result['signal']}")
+        logger.info(f"Defensive lead score: {result['defensive_lead_score']}/100")
+        logger.info(f"Cyclical weak score: {result['cyclical_weak_score']}/100")
+        logger.info(f"Defensive rank improvement 4w: {result['defensive_rank_improvement_4w']}")
+        logger.info(f"Cyclical rank improvement 4w: {result['cyclical_rank_improvement_4w']}")
+        logger.info(f"Spread: {result['spread_4w']}")
+        logger.info(f"Weeks persistent: {result['weeks_persistent']}/4")
+        logger.info(f"Recommended exp drop: {result['reduce_exposure_pts']} pts")
+        logger.info("Per-sector RS:")
         for sec, d in sorted(result['sector_data'].items(),
                               key=lambda x: x[1]['rs_excess_4w'], reverse=True):
             tag = '[DEF]' if d['is_defensive'] else '[CYC]' if d['is_cyclical'] else '[   ]'
-            print(f"    {tag} {sec:25s} {d['etf']:5s}  RS_4w={d['rs_excess_4w']:+6.2f}%  RS_12w={d['rs_excess_12w']:+6.2f}%")
+            logger.info(f"  {tag} {sec:25s} {d['etf']:5s}  RS_4w={d['rs_excess_4w']:+6.2f}%  RS_12w={d['rs_excess_12w']:+6.2f}%")
 

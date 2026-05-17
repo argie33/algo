@@ -109,8 +109,8 @@ if __name__ == "__main__":
     mm = MarginMonitor()
     info = mm.get_margin_usage()
     if info:
-        print(f"Margin: {info['margin_usage_pct']:.1f}%")
+        logger.info(f"Margin: {info['margin_usage_pct']:.1f}%")
         can_enter, msg = mm.can_enter_new_position()
-        print(f"Can enter: {can_enter} ({msg})")
+        logger.info(f"Can enter: {can_enter} ({msg})")
     else:
-        print("Alpaca API unavailable")
+        logger.warning("Alpaca API unavailable")

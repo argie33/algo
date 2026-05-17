@@ -955,19 +955,17 @@ if __name__ == "__main__":
         me.cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
         eval_d = me.cur.fetchone()[0]
     result = me.compute(eval_d)
-    print(f"\n{'='*70}")
-    print(f"MARKET EXPOSURE — {result['eval_date']}")
-    print(f"{'='*70}\n")
-    print(f"Regime: {result['regime']}")
-    print(f"Exposure %: {result['exposure_pct']}%")
-    print(f"Raw score: {result['raw_score']}")
-    print(f"Distribution days: {result['distribution_days']}")
+    logger.info(f"MARKET EXPOSURE — {result['eval_date']}")
+    logger.info(f"Regime: {result['regime']}")
+    logger.info(f"Exposure %: {result['exposure_pct']}%")
+    logger.info(f"Raw score: {result['raw_score']}")
+    logger.info(f"Distribution days: {result['distribution_days']}")
     if result['halt_reasons']:
-        print(f"\nHALT REASONS:")
+        logger.warning(f"HALT REASONS:")
         for r in result['halt_reasons']:
-            print(f"  - {r}")
-    print("\nFactor breakdown:")
+            logger.warning(f"  - {r}")
+    logger.info("Factor breakdown:")
     for name, info in result['factors'].items():
         pts = info.get('pts', 0)
         max_pts = info.get('max', '?')
-        print(f"  {name:22s}: {pts:5.1f} / {max_pts:>3} pts  ({info})")
+        logger.info(f"  {name:22s}: {pts:5.1f} / {max_pts:>3} pts  ({info})")

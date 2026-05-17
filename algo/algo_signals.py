@@ -1833,21 +1833,21 @@ if __name__ == "__main__":
                 logger.info(f"   ({k:40s}: {v})")
 
         ws = s.weinstein_stage(sym, eval_date)
-        print(f"\nWeinstein Stage: {ws.get('stage')} (slope={ws.get('slope_pct', 0):+.2f}%, "
+        logger.info(f"Weinstein Stage: {ws.get('stage')} (slope={ws.get('slope_pct', 0):+.2f}%, "
               f"price_vs_ma={ws.get('price_vs_ma_pct', 0):+.2f}%, conf={ws.get('confidence', 0)})")
 
         bd = s.base_detection(sym, eval_date)
-        print(f"\nBase Detection: in_base={bd.get('in_base')}, "
+        logger.info(f"Base Detection: in_base={bd.get('in_base')}, "
               f"depth={bd.get('base_depth_pct')}%, weeks={bd.get('weeks_in_base')}, "
               f"pivot=${bd.get('pivot_high')}, breakout_imminent={bd.get('breakout_imminent')}, "
               f"volume_dryup={bd.get('volume_dryup')}")
 
         td = s.td_sequential(sym, eval_date)
-        print(f"\nTD Sequential: count={td['setup_count']}, type={td['setup_type']}, "
+        logger.info(f"TD Sequential: count={td['setup_count']}, type={td['setup_type']}, "
               f"completed_9={td['completed_9']}, perfected={td['perfected']}")
 
         vcp = s.vcp_detection(sym, eval_date)
-        print(f"\nVCP: is_vcp={vcp.get('is_vcp')}, contractions={vcp.get('contractions')}, "
+        logger.info(f"VCP: is_vcp={vcp.get('is_vcp')}, contractions={vcp.get('contractions')}, "
               f"depths={vcp.get('depth_progression')}, tight={vcp.get('tight_pattern')}")
 
         pt = s.power_trend(sym, eval_date)

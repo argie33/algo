@@ -104,12 +104,11 @@ def verify_endpoint(url, method="GET"):
 
 def main():
     """Run all tests"""
-    print("\n" + "="*80)
-    print("API ENDPOINT VERIFICATION TEST SUITE")
-    print("="*80)
-    print(f"Server: {BASE_URL}")
-    print(f"Started: {datetime.now().isoformat()}")
-    print(f"Total endpoints to test: {len(ENDPOINTS)}\n")
+    logger = logging.getLogger(__name__)
+    logger.info(f"API ENDPOINT VERIFICATION TEST SUITE")
+    logger.info(f"Server: {BASE_URL}")
+    logger.info(f"Started: {datetime.now().isoformat()}")
+    logger.info(f"Total endpoints to test: {len(ENDPOINTS)}")
 
     results = []
     passed = 0
@@ -123,34 +122,32 @@ def main():
         status_str = f"[{result['status']:3d}]" if result['status'] else "[ERR]"
         outcome = "PASS" if result['success'] else "FAIL"
 
-        print(f"{outcome:4} {status_str} {endpoint}")
+        logger.info(f"{outcome:4} {status_str} {endpoint}")
 
         if result['success']:
             passed += 1
         else:
             failed += 1
             if result['error']:
-                print(f"      Error: {result['error']}")
+                logger.error(f"Error: {result['error']}")
 
     # Summary
-    print("\n" + "="*80)
-    print("SUMMARY")
-    print("="*80)
-    print(f"Total:  {len(ENDPOINTS)} endpoints")
-    print(f"Passed: {passed} ({100*passed//len(ENDPOINTS)}%)")
-    print(f"Failed: {failed}")
+    logger.info(f"SUMMARY")
+    logger.info(f"Total:  {len(ENDPOINTS)} endpoints")
+    logger.info(f"Passed: {passed} ({100*passed//len(ENDPOINTS)}%)")
+    logger.info(f"Failed: {failed}")
 
     if failed == 0:
-        print("\nRESULT: ALL TESTS PASSED")
+        logger.info("RESULT: ALL TESTS PASSED")
         return 0
     else:
-        print(f"\nRESULT: {failed} TESTS FAILED")
-        print("\nFailed endpoints:")
+        logger.error(f"RESULT: {failed} TESTS FAILED")
+        logger.warning("Failed endpoints:")
         for r in results:
             if not r['success']:
-                print(f"  - {r['method']:4} {r['url']}")
+                logger.warning(f"  - {r['method']:4} {r['url']}")
                 if r['error']:
-                    print(f"    {r['error']}")
+                    logger.error(f"    {r['error']}")
         return 1
 
 if __name__ == "__main__":
