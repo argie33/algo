@@ -114,17 +114,17 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="bucket=algo-terraform-state-dev" \
-            -backend-config="key=algo/terraform.tfstate" \
+            -backend-config="bucket=stocks-terraform-state" \
+            -backend-config="key=stocks/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
 
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Import RDS Security Group Rules (state sync)
+      - name: Import Existing AWS Resources (state sync)
         run: |
-          # Import existing RDS SG rules that exist in AWS but not in Terraform state.
+          # Import existing resources that exist in AWS but not in Terraform state.
           # Idempotent: terraform import exits 0 if already imported, errors only if AWS resource missing.
           import_if_missing() {
             local resource=$1
@@ -137,6 +137,7 @@ jobs:
             fi
           }
 
+          # Import RDS Security Group Rules
           import_if_missing \
             module.vpc.aws_security_group_rule.rds_from_ecs_tasks \
             sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0ddae70a1a80b54bd
@@ -152,6 +153,28 @@ jobs:
           import_if_missing \
             module.vpc.aws_security_group_rule.rds_self_postgres \
             sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_sg-0efd52dc5e807f2e0
+
+          # Import Batch IAM Roles (if they exist in AWS from prior deployments)
+          import_if_missing \
+            module.batch.aws_iam_role.batch_service_role \
+            algo-batch-service-role
+
+          import_if_missing \
+            module.batch.aws_iam_role.batch_ecs_instance_role \
+            algo-batch-ecs-instance-role
+
+          import_if_missing \
+            module.batch.aws_iam_role.batch_job_role \
+            algo-batch-job-role
+
+          import_if_missing \
+            module.batch.aws_iam_role.batch_spot_fleet_role \
+            algo-batch-spot-fleet-role
+
+          # Import S3 backend bucket (if it exists in AWS)
+          import_if_missing \
+            module.bootstrap.aws_s3_bucket.terraform_state \
+            stocks-terraform-state
 
       - name: Fix API Gateway Route (AWS + Terraform State)
         run: |
