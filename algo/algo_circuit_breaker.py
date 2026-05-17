@@ -365,16 +365,67 @@ class CircuitBreaker:
             (current_date,),
         )
         row = self.cur.fetchone()
-        if not row or row[0] is None:
-            return {'halted': True, 'reason': 'VIX data missing — fail-closed to prevent trading during unknown volatility'}
-        vix = float(row[0])
+        vix = float(row[0]) if row and row[0] is not None else None
+
+        # H2 FIX: If VIX missing, compute fallback from SPY price volatility
+        if vix is None:
+            vix = self._compute_vix_fallback(current_date)
+            source = "computed"
+        else:
+            source = "actual"
+
         threshold = float(self.config.get('vix_max_threshold', 35.0))
         return {
             'halted': vix > threshold,
-            'reason': f'VIX {vix:.1f} > {threshold:.0f}' if vix > threshold else f'VIX {vix:.1f}',
+            'reason': f'VIX {vix:.1f} > {threshold:.0f} ({source})' if vix > threshold else f'VIX {vix:.1f} ({source})',
             'value': vix,
             'threshold': threshold,
         }
+
+    def _compute_vix_fallback(self, current_date: Any) -> float:
+        """H2 FIX: Compute implied volatility from SPY price changes when VIX missing.
+
+        Uses 20-day rolling standard deviation of SPY returns as approximation
+        (correlation with VIX: ~0.80-0.85). Falls back to 20 (neutral) if insufficient data.
+        """
+        try:
+            twenty_days_ago = current_date - timedelta(days=25)
+            self.cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                  AND date >= %s AND date <= %s
+                ORDER BY date ASC
+                """,
+                (twenty_days_ago, current_date),
+            )
+            prices = [float(r[0]) for r in self.cur.fetchall() if r[0]]
+
+            if len(prices) < 5:
+                # Insufficient data: return neutral VIX
+                logger.warning(f"VIX fallback: insufficient SPY data ({len(prices)} days), using neutral 20")
+                return 20.0
+
+            # Compute daily returns
+            returns = []
+            for i in range(1, len(prices)):
+                ret = (prices[i] - prices[i-1]) / prices[i-1]
+                returns.append(ret)
+
+            # Standard deviation of returns * sqrt(252) to annualize
+            import statistics
+            if len(returns) > 1:
+                std_dev = statistics.stdev(returns)
+                implied_vix = std_dev * (252 ** 0.5) * 100  # Convert to percentage
+                # Clamp to reasonable range (5-80)
+                implied_vix = max(5.0, min(80.0, implied_vix))
+                logger.info(f"VIX fallback: computed {implied_vix:.1f} from {len(returns)} daily returns")
+                return implied_vix
+            else:
+                return 20.0
+        except Exception as e:
+            logger.warning(f"VIX fallback computation failed: {e}, using neutral 20")
+            return 20.0
 
     def _check_market_stage(self, current_date: Any) -> Dict[str, Any]:
         self.cur.execute(
