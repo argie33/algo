@@ -1,39 +1,35 @@
 #!/usr/bin/env python3
 """
-Environment variable validation and setup.
+Environment initialization (NO .env file loading).
 
-IMPORTANT: Credentials are NEVER loaded from .env files.
-They come from:
-1. Environment variables (CI, local development)
+IMPORTANT: This does NOT load .env.local files.
+All credentials must come from:
+1. Environment variables (set before running)
 2. AWS Secrets Manager (production Lambda/ECS)
 
-All credentials must be set explicitly before running any algo/loader/test code.
-See CLAUDE.md for how to set up credentials properly.
+This prevents accidental credential commits into git.
 """
 
-import os
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Track if already initialized
 _env_initialized = False
 
 
 def load_env():
-    """Validate that required environment variables are set.
+    """Initialize environment - does NOT load .env files.
 
-    Does NOT load from .env files - all credentials must be environment variables.
-
-    This is called automatically on module import but can be called explicitly.
+    All credentials must be set explicitly via environment variables
+    or provided by AWS Secrets Manager in production.
     """
     global _env_initialized
 
     if _env_initialized:
         return
 
-    # Just mark as initialized - no .env.local loading
-    # All credentials must come from environment variables or AWS Secrets Manager
+    # Just mark as initialized
+    # No .env.local loading - credentials come from env vars or Secrets Manager
     _env_initialized = True
 
 
