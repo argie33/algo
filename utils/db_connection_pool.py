@@ -25,6 +25,8 @@ except ImportError:
     credential_manager = None
 
 import os
+import psycopg2
+import psycopg2.pool
 from utils.db_connection import get_db_connection
 from pathlib import Path
 
