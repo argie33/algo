@@ -194,10 +194,7 @@ router.get("/history", async (req, res) => {
     }
   } catch (error) {
     console.error("Sentiment history error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch sentiment history",
-      success: false
-    });
+    return sendError(res, "Failed to fetch sentiment history", 500);
   }
 });
 

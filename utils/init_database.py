@@ -192,22 +192,6 @@ CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analyst sentiment summary
-CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE,
-    analyst_count INTEGER,
-    bullish_count INTEGER,
-    bearish_count INTEGER,
-    neutral_count INTEGER,
-    target_price DECIMAL(12, 4),
-    current_price DECIMAL(12, 4),
-    upside_downside_percent DECIMAL(8, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
-
 -- ════════════════════════════════════════════════════════════════════════════
 -- TECHNICAL INDICATORS
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1894,7 +1878,6 @@ CREATE INDEX IF NOT EXISTS idx_technical_daily_date ON technical_data_daily(date
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbol);
-CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON analyst_sentiment_analysis(symbol);
 
 -- Algo system indexes
 CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);

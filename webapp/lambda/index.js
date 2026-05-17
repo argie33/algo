@@ -65,6 +65,8 @@ const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const pricesRoutes = require("./routes/prices");
 const performanceRoutes = require("./routes/performance");
+const notificationsRoutes = require("./routes/notifications");
+const metricsRoutes = require("./routes/metrics");
 
 const app = express();
 
@@ -780,6 +782,10 @@ app.use("/api/algo", require("./routes/algo"));
 
 // User settings routes
 app.use("/api/settings", require("./routes/settings"));
+
+// Notifications and Metrics routes
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/metrics", metricsRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {

@@ -122,8 +122,7 @@ router.get('/:run_id', async (req, res, next) => {
     ]);
     const tradeTotal = tradeCountResult.rows[0].total;
 
-    res.json({
-      success: true,
+    return sendSuccess(res, {
       run,
       trades: tradesResult.rows,
       trade_pagination: {
@@ -134,8 +133,7 @@ router.get('/:run_id', async (req, res, next) => {
         totalPages: Math.ceil(tradeTotal / parseInt(limit)),
         hasNext: parseInt(offset) + parseInt(limit) < tradeTotal,
         hasPrev: parseInt(offset) > 0
-      },
-      timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error("Error fetching backtest run", error);

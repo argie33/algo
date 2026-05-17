@@ -62,13 +62,12 @@ router.get("/stockscores", async (req, res) => {
       totalPages: Math.ceil(total / limitNum)
     };
 
-    res.json({
-      success: true,
+    return sendSuccess(res, {
       items: scores,
       pagination: pagination
     });
   } catch (error) {
-    sendError(res, "Failed to fetch scores: " + error.message, 500);
+    return sendError(res, "Failed to fetch scores: " + error.message, 500);
   }
 });
 

@@ -1641,8 +1641,7 @@ router.get('/sector-stage2', async (req, res) => {
       HAVING COUNT(*) > 5
       ORDER BY stage_2 DESC
     `);
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         sector: r.sector,
         total: parseInt(r.total_stocks),
@@ -1653,12 +1652,11 @@ router.get('/sector-stage2', async (req, res) => {
         pct_stage_2: r.total_stocks > 0
           ? Math.round((r.stage_2 / r.total_stocks) * 1000) / 10 : 0,
         avg_trend_score: r.avg_trend_score ? parseFloat(r.avg_trend_score) : null,
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/sector-stage2:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1677,8 +1675,7 @@ router.get('/sector-rotation', async (req, res) => {
       [limit]
     );
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         date: r.date,
         sector: r.sector,
@@ -1687,12 +1684,11 @@ router.get('/sector-rotation', async (req, res) => {
         rank: r.rank,
         // details JSONB may contain extended metrics from algo_sector_rotation.py
         ...(r.details || {}),
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     // Table may not exist yet — return empty gracefully
-    return sendSuccess(res, { items: [], timestamp: new Date() });
+    return sendSuccess(res, { items: [] });
   }
 });
 
@@ -1736,16 +1732,10 @@ router.get('/data-quality', async (req, res) => {
                         : checks.some(c => c.status === 'WARNING') ? 'warning'
                         : 'ok';
 
-    return res.json({
-      success: true,
-      data: { status: overall_status, checks },
-    });
+    return sendSuccess(res, { data: { status: overall_status, checks } });
   } catch (error) {
     console.error('Error in /algo/data-quality:', error);
-    return res.json({
-      success: true,
-      data: { status: 'unknown', checks: [], error: error.message },
-    });
+    return sendSuccess(res, { data: { status: 'unknown', checks: [], error: error.message } });
   }
 });
 
@@ -1781,8 +1771,7 @@ router.get('/rejection-funnel', async (req, res) => {
     const t4 = t4_pass || 0;
     const t5 = t5_pass || 0;
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         date: eval_date,
         total_signals: total || 0,
@@ -1793,14 +1782,11 @@ router.get('/rejection-funnel', async (req, res) => {
           { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
           { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
         ],
-      },
+      }
     });
   } catch (error) {
     console.error('Error in /algo/rejection-funnel:', error);
-    return res.json({
-      success: true,
-      data: { total_signals: 0, tiers: [], error: error.message },
-    });
+    return sendSuccess(res, { data: { total_signals: 0, tiers: [], error: error.message } });
   }
 });
 
@@ -1837,21 +1823,17 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
       .filter(o => o.side === 'BUY')
       .reduce((s, o) => s + (o.requested_shares * o.requested_price), 0);
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       pending_orders,
       total_pending_value: Math.round(total_pending_value * 100) / 100,
-      approval_required: pending_orders.length > 0,
-      timestamp: new Date()
+      approval_required: pending_orders.length > 0
     });
   } catch (error) {
     console.error('Error in /algo/orders/pending:', error);
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       pending_orders: [],
       approval_required: false,
-      error: error.message,
-      timestamp: new Date()
+      error: error.message
     });
   }
 });
@@ -1892,19 +1874,10 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
       slippage_alert: parseFloat(row.avg_slippage_bps || 0) > 100,
     };
 
-    return res.json({
-      success: true,
-      metrics,
-      timestamp: new Date()
-    });
+    return sendSuccess(res, { metrics });
   } catch (error) {
     console.error('Error in /algo/execution-quality:', error);
-    return res.json({
-      success: true,
-      metrics: {},
-      error: error.message,
-      timestamp: new Date()
-    });
+    return sendSuccess(res, { metrics: {}, error: error.message });
   }
 });
 

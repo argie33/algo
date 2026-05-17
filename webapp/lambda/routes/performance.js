@@ -188,11 +188,7 @@ async function getRecentTrades(req, res) {
     return sendSuccess(res, trades);
   } catch (error) {
     console.error('Error fetching recent trades:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch recent trades',
-      details: error.message,
-    });
+    return sendError(res, 'Failed to fetch recent trades', 500, { details: error.message });
   }
 }
 

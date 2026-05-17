@@ -181,6 +181,28 @@ def check_rate_limit(ip: str, max_requests: int = 100, window_seconds: int = 60)
     return True
 
 
+def _safe_limit(limit_str: Any, min_val: int = 1, max_val: int = 500, default: int = 100) -> int:
+    """Safely extract and clamp limit parameter to prevent DoS attacks via large result sets."""
+    try:
+        if limit_str is None:
+            return default
+        limit = int(limit_str)
+        return max(min_val, min(limit, max_val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_offset(offset_str: Any, max_offset: int = 1000000, default: int = 0) -> int:
+    """Safely extract and clamp offset parameter."""
+    try:
+        if offset_str is None:
+            return default
+        offset = int(offset_str)
+        return max(0, min(offset, max_offset))
+    except (ValueError, TypeError):
+        return default
+
+
 class APIHandler:
     """Main API request handler."""
 
@@ -346,9 +368,13 @@ class APIHandler:
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
             try:
+                try:
+                    notif_id_int = int(notif_id)
+                except ValueError:
+                    return error_response(400, 'invalid_id', 'ID must be numeric')
                 self.cur.execute(
                     "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
-                    (int(notif_id),)
+                    (notif_id_int,)
                 )
                 self.conn.commit()
                 return json_response(200, {'status': 'updated'})
@@ -372,7 +398,8 @@ class APIHandler:
         if path == '/api/algo/status':
             return self._get_algo_status()
         elif path == '/api/algo/trades':
-            limit = int(params.get('limit', [200])[0]) if params else 200
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=200)
             return self._get_algo_trades(limit)
         elif path == '/api/algo/positions':
             return self._get_algo_positions()
@@ -1155,11 +1182,13 @@ class APIHandler:
     def _handle_signals(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/signals/* endpoints."""
         if path == '/api/signals/stocks':
-            limit = int(params.get('limit', [500])[0]) if params else 500
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=200)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
             return self._get_signals_stocks(limit, timeframe)
         elif path == '/api/signals/etf':
-            limit = int(params.get('limit', [500])[0]) if params else 500
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=200)
             return self._get_signals_etf(limit)
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')
@@ -2127,8 +2156,10 @@ class APIHandler:
     def _handle_scores(self, path: str, method: str, params: Dict) -> Dict:
         """Handle /api/scores/* endpoints."""
         if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
-            limit = int(params.get('limit', [5000])[0]) if params else 5000
-            offset = int(params.get('offset', [0])[0]) if params else 0
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = _safe_limit(limit_str, max_val=500, default=100)
+            offset_str = params.get('offset', [None])[0] if params else None
+            offset = _safe_offset(offset_str)
             sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
             sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
             sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'

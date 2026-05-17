@@ -1,15 +1,15 @@
 const express = require("express");
 const { query } = require("../utils/database");
+const { sendSuccess } = require("../utils/apiResponse");
 
 const router = express.Router();
 
 // Health check endpoint - minimal, no dependencies
 router.get("/", (req, res) => {
-  res.status(200).json({
+  return sendSuccess(res, {
     status: "healthy",
     healthy: true,
-    service: "Financial Dashboard API",
-    timestamp: new Date().toISOString()
+    service: "Financial Dashboard API"
   });
 });
 
