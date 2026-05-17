@@ -180,14 +180,19 @@ resource "aws_lambda_permission" "api_gateway" {
 
 # API route - $default
 # NOTE: AWS API Gateway v2 automatically creates the $default route when the HTTP API is created.
-# We do NOT manage it in Terraform to avoid 409 "Route already exists" conflicts.
-# AWS automatically routes requests to the Lambda integration we created above.
-#
-# If we need to update the route's configuration (authorization, targets, etc.) in the future,
-# we would need to either:
-# 1. Use AWS SDK outside of Terraform (scripts in the deployment workflow)
-# 2. Use a Terraform provider that supports importing auto-managed resources
-# 3. Implement custom Terraform logic to conditionally create/skip the route
+# We use lifecycle { ignore_changes = all } to prevent Terraform from fighting with AWS's auto-recreation.
+resource "aws_apigatewayv2_route" "api_default" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [aws_apigatewayv2_integration.api_lambda]
+}
 
 # Health check is unauthenticated so monitors and load balancers can reach it
 resource "aws_apigatewayv2_route" "health" {
