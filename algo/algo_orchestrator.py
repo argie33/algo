@@ -682,14 +682,18 @@ class Orchestrator:
                                                   f'Loader critical: {"; ".join(messages)}')
                             return False
 
-                        # Fail-closed on ERROR if it's a data volume issue (0 symbols loaded today)
+                        # Fail-closed on ERROR if it's a data volume issue (ONLY for live trading on current date)
                         volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
                         if volume_error:
+                            from datetime import date
+                            is_live_trading = (self.run_date == date.today())
                             for _, _, msg in volume_error:
-                                if '0 symbols' in msg:  # Zero data loaded today
+                                if '0 symbols' in msg and is_live_trading:  # Only fail on live trading
                                     self.log_phase_result(1, 'loader_health', 'halt',
                                                           f'No data loaded today: {msg}')
                                     return False
+                                elif not is_live_trading and self.verbose:
+                                    logger.info(f"  [SKIP] Load volume check (historical run): {msg}")
 
                         # Other errors are just warnings
                         if error_findings and self.verbose:
