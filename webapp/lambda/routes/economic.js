@@ -252,47 +252,29 @@ router.get("/leading-indicators", async (req, res) => {
             date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,
             history: historicalData["FEDFUNDS"] ? historicalData["FEDFUNDS"].reverse() : [],
           },
-          {
-            name: "GDP Growth",
-            category: "LEI", // Official Leading Economic Indicator
-            value: indicators["GDPC1"] ? (indicators["GDPC1"].value / 1000).toFixed(1) + "T" : null,
-            // rawValue: Calculate quarter-over-quarter GDP growth rate (not absolute level)
-            // Positive rate = expansion, negative rate = contraction
-            rawValue: (() => {
-              const hist = historicalData["GDPC1"];
-              if (!hist || hist.length < 2) return null;
-              const latest = hist[hist.length - 1]?.value;
-              const previous = hist[hist.length - 2]?.value;
-              if (!latest || !previous || previous === 0) return null;
-              return ((latest - previous) / previous) * 100;  // QoQ growth rate as percentage
-            })(),
-            unit: "% QoQ",
-            ...calculateTrend("GDPC1"),
-            signal: (() => {
-              const gdpGrowth = ((latest, previous) => {
-                const hist = historicalData["GDPC1"];
-                if (!hist || hist.length < 2) return null;
-                const l = hist[hist.length - 1]?.value;
-                const p = hist[hist.length - 2]?.value;
-                if (!l || !p) return null;
-                return ((l - p) / p) * 100;
-              })();
-              return gdpGrowth !== null ? (gdpGrowth > 0 ? "Positive" : gdpGrowth < 0 ? "Negative" : null) : null;
-            })(),
-            description: "Real Gross Domestic Product - Quarter-over-quarter growth rate",
-            strength: (() => {
-              const hist = historicalData["GDPC1"];
-              if (!hist || hist.length < 2) return null;
-              const latest = hist[hist.length - 1]?.value;
-              const previous = hist[hist.length - 2]?.value;
-              if (!latest || !previous) return null;
-              const gdpGrowth = ((latest - previous) / previous) * 100;
-              return Math.min(100, Math.max(0, gdpGrowth * 10 + 50));  // Convert growth rate to 0-100 scale
-            })(),
-            importance: "high",
-            date: indicators["GDPC1"] ? indicators["GDPC1"].date : null,
-            history: historicalData["GDPC1"] ? historicalData["GDPC1"].reverse() : [],
-          },
+          (() => {
+            // Calculate GDP growth rate: (latest - previous) / previous * 100
+            // Positive = expansion, negative = contraction
+            const hist = historicalData["GDPC1"];
+            const gdpGrowth = (hist && hist.length >= 2 && hist[hist.length - 2]?.value)
+              ? ((hist[hist.length - 1]?.value - hist[hist.length - 2]?.value) / hist[hist.length - 2]?.value) * 100
+              : null;
+
+            return {
+              name: "GDP Growth",
+              category: "LEI", // Official Leading Economic Indicator
+              value: gdpGrowth !== null ? `${gdpGrowth.toFixed(1)}% QoQ` : null,
+              rawValue: gdpGrowth,  // Now a growth rate (can be negative for contraction)
+              unit: "% QoQ",
+              ...calculateTrend("GDPC1"),
+              signal: gdpGrowth !== null ? (gdpGrowth > 0 ? "Positive" : gdpGrowth < 0 ? "Negative" : "Flat") : null,
+              description: "Real Gross Domestic Product - Quarter-over-quarter growth rate",
+              strength: gdpGrowth !== null ? Math.min(100, Math.max(0, gdpGrowth * 10 + 50)) : null,  // 0-100 scale
+              importance: "high",
+              date: indicators["GDPC1"] ? indicators["GDPC1"].date : null,
+              history: historicalData["GDPC1"] ? historicalData["GDPC1"].reverse() : [],
+            };
+          })(),
           {
             name: "Payroll Employment",
             category: "LEI", // Official Leading Economic Indicator
