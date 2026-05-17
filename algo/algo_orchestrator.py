@@ -2161,7 +2161,7 @@ if __name__ == "__main__":
     configure_root_logger(level=os.getenv("LOG_LEVEL", "INFO"))
 
     from utils.config_validator import validate_at_startup
-    validate_at_startup(env_file=Path(__file__).parent.parent / '.env.local')
+    validate_at_startup()  # Environment variables only, no .env files
 
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
