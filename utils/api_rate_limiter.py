@@ -146,4 +146,15 @@ def set_rate_limit(api_name: str, calls_per_second: float) -> None:
         logger.info(f"Set {api_name} rate limit to {calls_per_second:.1f} calls/sec")
 
 
-# Test code moved to tests/unit/test_api_rate_limiter.py
+if __name__ == '__main__':
+    # Test: verify rate limiting works
+    import sys
+    api = sys.argv[1] if len(sys.argv) > 1 else 'yfinance'
+    print(f"Testing rate limiter for {api}...")
+
+    start = time.time()
+    for i in range(5):
+        wait_time = wait_for_api(api)
+        elapsed = time.time() - start
+        print(f"  Call {i+1}: waited {wait_time*1000:.0f}ms, total {elapsed:.2f}s")
+    print(f"Test complete: {time.time() - start:.2f}s total")
