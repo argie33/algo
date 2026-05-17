@@ -330,6 +330,10 @@ class APIHandler:
             if path == '/api/contact' or path.startswith('/api/contact/'):
                 return self._handle_contact(path, method, query_params, body)
 
+            # Admin endpoints
+            if path.startswith('/api/admin/'):
+                return self._handle_admin(path, method, query_params)
+
             return error_response(404, 'not_found', f'No handler for {path}')
 
         except Exception as e:
@@ -2334,6 +2338,77 @@ class APIHandler:
             return error_response(404, 'not_found', f'No handler for {path}')
         except Exception as e:
             logger.error(f"contact handler error: {e}")
+            return error_response(500, 'database_error', str(e))
+
+    def _handle_admin(self, path: str, method: str, params: Dict) -> Dict:
+        """Handle /api/admin/* endpoints for operational visibility."""
+        try:
+            if path == '/api/admin/loader-status':
+                return self._get_loader_status()
+            return error_response(404, 'not_found', f'No admin handler for {path}')
+        except Exception as e:
+            logger.error(f"admin handler error: {e}")
+            return error_response(500, 'database_error', str(e))
+
+    def _get_loader_status(self) -> Dict:
+        """Get status of all data loaders from data_loader_runs table."""
+        try:
+            self.cur.execute("""
+                SELECT
+                    loader_name,
+                    run_date,
+                    rows_processed,
+                    duration_seconds,
+                    status,
+                    error_message,
+                    checksum
+                FROM data_loader_runs
+                WHERE (loader_name, run_date) IN (
+                    SELECT loader_name, MAX(run_date)
+                    FROM data_loader_runs
+                    GROUP BY loader_name
+                )
+                ORDER BY run_date DESC, loader_name
+            """)
+            rows = self.cur.fetchall()
+
+            if not rows:
+                return json_response(200, {
+                    'status': 'no_runs',
+                    'message': 'No loader runs recorded yet',
+                    'loaders': []
+                })
+
+            loaders = []
+            for row in rows:
+                run_date = row[1]
+                age_hours = (datetime.now(timezone.utc) - run_date.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                health = 'stale' if age_hours > 24 else 'fresh'
+
+                loaders.append({
+                    'name': row[0],
+                    'last_run': run_date.isoformat() if run_date else None,
+                    'rows_processed': row[2],
+                    'duration_seconds': row[3],
+                    'status': row[4],
+                    'error': row[5],
+                    'checksum': row[6],
+                    'age_hours': round(age_hours, 1),
+                    'health': health,
+                })
+
+            return json_response(200, {
+                'status': 'ok',
+                'loaders': loaders,
+                'summary': {
+                    'total': len(loaders),
+                    'healthy': len([l for l in loaders if l['health'] == 'fresh']),
+                    'stale': len([l for l in loaders if l['health'] == 'stale']),
+                    'failed': len([l for l in loaders if l['status'] != 'success']),
+                }
+            })
+        except Exception as e:
+            logger.error(f"loader status query failed: {e}")
             return error_response(500, 'database_error', str(e))
 
 

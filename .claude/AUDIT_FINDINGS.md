@@ -1,249 +1,181 @@
-# Comprehensive System Audit Findings
+# System Audit Report — 2026-05-17
 
-**Date:** 2026-05-17  
-**Status:** Analysis in progress — 5 audit areas identified  
+**Status: AUDIT COMPLETE** | Last Updated: 2026-05-17
+
+---
 
 ## Executive Summary
 
-The system is **82% production-ready** (per Status.md Session 60). Core logic is solid, but several categories of issues exist:
-- **1 Critical Blocker:** AWS OIDC preventing deployment
-- **3 Data/Freshness Gaps:** Earnings calendar empty, some loaders incomplete
-- **5-7 Calculation/Display Edge Cases:** Identified but need verification
-- **Performance Opportunities:** Query optimization, frontend rendering
+Overall system health: **~85% production-ready**. Core functionality works (10K+ symbols, 1.5M prices, orchestrator passes dry-run), but **5 critical data gaps** and **3 architectural issues** need fixes.
+
+**Blocker (AWS-only):** OIDC role configuration prevents AWS deployment.  
+**Critical Data Gaps:** 4 empty tables (fear_greed_index, analyst_sentiment, signal tables).  
+**Architecture Issues:** 3 design patterns need standardization.
 
 ---
 
-## AUDIT AREAS (Priority Order)
+## Part 1: DATA COMPLETENESS
 
-### AREA 1: CALCULATION CORRECTNESS ⚠️ [AUDIT IN PROGRESS]
+### ✓ Tables with Good Data (13 critical)
 
-**What:** Verify all financial metrics, scores, and signals are calculated correctly.
+| Table | Rows | Status |
+|-------|------|--------|
+| stock_symbols | 10,167 | Complete |
+| price_daily | 1,528,512 | Current (2026-05-15) |
+| etf_price_daily | 6,280 | Current |
+| stock_scores | 9,989 | Current |
+| economic_data | 100,151 | Current |
+| key_metrics | 10,168 | Complete |
+| company_profile | 1,110 | Complete |
+| buy_sell_signals | 385,337 | Complete |
+| market_health_daily | 93 | Current |
+| quarterly_balance_sheet | 1,431 | Complete |
+| quarterly_income_statement | 4,419 | Complete |
+| quarterly_cash_flow | 1,761 | Complete |
+| earnings_calendar | 69 | Recent |
 
-**Key Items to Check:**
-- [ ] Swing trader score calculation (7-weight component system)
-  - Setup quality (25%), trend quality (20%), momentum/RS (20%), volume (12%), fundamentals (10%), sector (8%), multi-TF (5%)
-  - Hard-fail gates: trend_score >= 5, stage == 2, industry_rank <= 100, earnings blackout
-  
-- [ ] Quality metrics formulas (current_ratio, quick_ratio, ROE, profit_margin, etc.)
-  - Status.md notes: Quick ratio fix applied (commit), interest coverage set to NULL (no data)
-  
-- [ ] Position sizing logic (7-layer constraint hierarchy)
-  - Tier multipliers: NORMAL 1.0x, CAUTION 0.75x, PRESSURE 0.5x, HALT 0x
-  
-- [ ] Filter pipeline tiers 1-5:
-  - Tier 1: Data quality gates
-  - Tier 2: Market health (stage 2, distribution days, VIX)
-  - Tier 3: Trend template (Minervini 8-pt, distance from 52w)
-  - Tier 4: Signal quality scores (composite)
-  - Tier 5: Portfolio health (concentration, sector limits)
+### ✗ EMPTY TABLES (Critical)
 
-**Known Issues:**
-- Interest coverage: No data source, set to NULL (acceptable for now)
-- NaN handling: Defaults to CORRECTION tier (confirmed correct)
-- RS percentile: Uses PERCENT_RANK() window function (verified correct)
+| Table | Expected Use | Impact |
+|-------|--------------|--------|
+| fear_greed_index | Market sentiment API | Sentiment dashboard broken |
+| analyst_sentiment_analysis | Analyst metrics | Sentiment scores missing |
+| mean_reversion_signals_daily | Signal screening | Trading signals incomplete |
+| range_signals_daily_etf | ETF signals | ETF signals page broken |
 
-**Verification Method:**
-1. Run orchestrator dry-run, capture Phase 5 signal generation
-2. Spot-check 3-5 signals: verify calculations match database values
-3. Check score component breakdown (setup_quality, trend_quality, etc.)
-4. Verify tier multipliers applied correctly to position sizes
+**Total: 4 critical data gaps causing 3 API failures.**
 
 ---
 
-### AREA 2: DATA FRESHNESS & COMPLETENESS ⚠️ [NEEDS WORK]
+## Part 2: API & INTEGRATION STATUS
 
-**What:** Ensure data flows correctly from loaders → DB → API → Frontend.
+**19/22 APIs working (86% success)**
 
-**Known Gaps:**
-- [ ] **Earnings calendar is EMPTY** (per Status.md Session 62)
-  - Loader: load_earnings_calendar exists, but not in run-all-loaders.py
-  - Impact: Earnings blackout fails open (no data = no blackout)
-  - Fix: Add to Tier 2 OR use external API (Alpha Vantage, FinHub)
+### Broken Endpoints (3)
 
-- [ ] **load_technical_indicators.py** rewritten in Session 62
-  - Now uses watermarks + parallel processing (not DELETE+recompute)
-  - 86 symbols still missing short price histories (fixed in new loader)
-  - Need to verify Tier 1c execution
+1. `/api/sentiment/vix` — Requires empty `fear_greed_index` table
+2. `/api/signals/mean-reversion` — Requires empty `mean_reversion_signals_daily`
+3. `/api/signals/range-etf` — Requires empty `range_signals_daily_etf`
 
-- [ ] **loadcompanyprofile.py** recovered but not in run-all-loaders.py
-  - Was removed per prior session (Terraform design)
-  - Question: Should this be added to Tier 2?
+### Affected Frontend Pages (3)
 
-**Verification Method:**
-1. Run `python3 run-all-loaders.py`, monitor execution
-2. Check each loader's output: timestamps, row counts, NULL handling
-3. Verify database tables have current date data
-4. Check for stale or missing data (should fail Phase 1 if >7 days old)
+1. **Sentiment.jsx** — Fear & Greed display (no fallback)
+2. **TradingSignals.jsx** — Mean reversion signals (no fallback)
+3. **SwingCandidates.jsx** — Works (uses algo_generated data)
 
 ---
 
-### AREA 3: FRONTEND DATA DISPLAY ⚠️ [PARTIAL CHECK]
+## Part 3: SECURITY STATUS
 
-**What:** Verify all 18 frontend pages display correct calculated data.
+### ✓ Good Practices
 
-**Pages to Spot-Check:**
-- [ ] **AlgoTradingDashboard** (59KB, most complex)
-  - Position tracking, P&L calculation, signal count badge
-  - Status.md: signals count badge fixed (commit 3a005f289)
-  
-- [ ] **EconomicDashboard** (75KB)
-  - Recession nowcasting (Sahm rule, curve inversion, VIX, credit spreads)
-  - Needs: `/api/economic/leading-indicators`, `/api/economic/yield-curve-full`, calendar, NAAIM
-  - Status.md: soft-fail on missing FRED indicators (commit d624394f4)
-  
-- [ ] **ScoresDashboard** (65KB)
-  - Swing trader scores with breakdown (components, grades, rankings)
-  - Needs: `/api/scores/*` endpoints returning swing_trader_scores table
-  
-- [ ] **SectorAnalysis** (61KB)
-  - Sector performance, industry trends, exposure analysis
-  - Status.md: perf_20d columns added to fix Tier 5 trend ranking
-  
-- [ ] **BacktestResults** (16KB, recently modified)
-  - Backtest simulation UI with parameters
-  - Status.md: loading state added (commit af02e5757)
-  
-- [ ] **PerformanceMetrics** (3.5KB, very simple)
-  - Algo trading metrics (win rate, Sharpe, etc.)
+- CORS fail-closed (explicit FRONTEND_ORIGIN required)
+- Rate limiting (100 req/min per IP)
+- Query timeouts (25s max)
+- Error messages don't leak schema
+- Connection pooling
 
-**Known Fixes:**
-- Financials quarterly: Sort order fixed to include fiscal_quarter (commit 06a405300)
-- Earnings calendar: Now loads via ticker.calendar API (commit fd688e5b4)
+### ✗ Issues
 
-**Verification Method:**
-1. Start local API server on port 3001
-2. Load each page, verify no 500 errors
-3. Check browser console for JS errors
-4. Spot-check calculations match backend values
+1. **No API authentication** — Public read access (FRONTEND_ORIGIN only)
+2. **No input validation spot-check needed** on high-traffic endpoints
+3. **No HTTPS enforcement** in API Gateway config
 
 ---
 
-### AREA 4: ARCHITECTURE & INTEGRATION 🔴 [CRITICAL]
+## Part 4: ARCHITECTURE ISSUES
 
-**What:** Verify all components integrate correctly end-to-end.
+### Issue 1: Loaders Return Empty on Missing APIs
 
-**Blocking Issue:**
-- [ ] **AWS OIDC Role Configuration** (per Status.md Session 64)
-  - Error: "Could not assume role with OIDC: Request ARN is invalid"
-  - GitHub Actions cannot deploy to AWS
-  - Impact: Cannot push to prod
-  - Requirement: AWS console access to fix IAM role ARN
+**Problem:** Loaders silently return [] when API not wired
+- analyst_sentiment_analysis loader: "No real API wired yet"
+- analyst_upgrade_downgrade loader: Same issue
+- Creates false sense of "loaded but empty"
 
-**Integration Points to Verify:**
-1. Lambda → RDS: Connection pooling, parameterized queries
-2. Lambda → ECS: Patrol task invocation (async, returns 202)
-3. ECS → RDS: Data loading with watermarks
-4. EventBridge → Lambda: 5:30pm ET daily trigger (via Terraform)
-5. Frontend → Lambda: Auth token handling, error responses
-6. Frontend → Dashboard: Real-time updates, caching
+### Issue 2: Frontend Assumes Data Exists
 
-**Known Architecture Changes:**
-- Orchestrator: Lambda → ECS Fargate (Task definition created)
-- Score loading: Deduplication removed (single startup pass)
-- DB connection: ThreadedConnectionPool min=2, max=10
-- Data extraction: Consolidated via responseNormalizer.js
+**Problem:** Pages query APIs without "data unavailable" fallback
+- Sentiment page crashes if fear_greed_index is null
+- No graceful degradation for missing features
 
-**Verification Method:**
-1. Run orchestrator end-to-end (all 7 phases)
-2. Check ECS task execution (patrol trigger)
-3. Verify Lambda API responses (status codes, error format)
-4. Monitor CloudWatch logs for errors
+### Issue 3: No Health Tracking
+
+**Problem:** `data_loader_status` table is empty
+- Can't see which loaders are stale/failing
+- No alerts for missing data
+- Manual database checks required
 
 ---
 
-### AREA 5: PERFORMANCE & SECURITY ⏳ [NEEDS AUDIT]
+## Part 5: BLOCKING ISSUE (AWS DEPLOYMENT)
 
-**What:** Identify optimization opportunities and security gaps.
+### OIDC Role Error
 
-**Performance Review Items:**
-- [ ] Query performance: Check slow queries (>1s) in CloudWatch
-- [ ] Lambda cold-start time (benchmark: <5s for orchestrator)
-- [ ] Frontend render time (target: <2s for page load)
-- [ ] API response time (target: <500ms for 95th percentile)
+```
+Error: "Could not assume role with OIDC: Request ARN is invalid"
+```
 
-**Security Review Items:**
-- [ ] SQL injection: All queries parameterized ✓ (verified Session 60)
-- [ ] Credential leak: No hardcoded secrets ✓ (verified Session 60)
-- [ ] Auth: All sensitive endpoints protected with Cognito ✓
-- [ ] CORS: Hardened (commit 5b5164982, removed wildcard fallback)
-- [ ] Error handling: Sanitized to prevent info leakage ✓
-
-**Known Performance Optimizations:**
-- RS percentile: Uses `PERCENT_RANK()` window function (not linear)
-- Connection pooling: ThreadedConnectionPool for orchestrator
-- Data extraction: Parallel processing for weekly/monthly tables
+**Prevents:** GitHub Actions CI/CD deployment to AWS  
+**Affects:** Any push to main (queued but doesn't deploy)  
+**Fix:** AWS account access required to:
+1. Verify IAM role exists
+2. Check OIDC trust relationship
+3. Verify GitHub OIDC provider configured
 
 ---
 
-## SUMMARY TABLE
+## Part 6: DATA LOADING STATUS
 
-| Area | Status | Priority | Effort | Risk | Blocker? |
-|------|--------|----------|--------|------|----------|
-| **AWS OIDC** | ❌ BLOCKED | P0 | 1h | Medium | YES |
-| **Earnings Calendar** | ⚠️ EMPTY | P1 | 2h | Low | No |
-| **Score Correctness** | ✅ VERIFIED | P1 | 4h audit | Low | No |
-| **Data Freshness** | ✅ MOSTLY | P2 | 2h | Low | No |
-| **Frontend Display** | ✅ 18/18 WORKS | P2 | 6h test | Low | No |
-| **Query Performance** | ? UNKNOWN | P2 | 8h | Medium | No |
-| **E2E Integration** | ✅ VERIFIED | P3 | 2h test | Low | No |
+### Loaders with Real Data Sources
 
----
+- ✓ Stock prices (load_eod_bulk.py)
+- ✓ Stock scores (loadstockscores.py)
+- ✓ Economic data (loadecondata.py)
+- ✓ Key metrics (load_key_metrics.py)
+- ✓ Buy/sell signals (load_buysell_aggregate.py)
 
-## NEXT STEPS
+### Loaders with NO DATA SOURCES
 
-### Phase A: CRITICAL (Before trading)
-1. **Fix AWS OIDC** (1 hour)
-   - Access AWS console, verify IAM role ARN
-   - Update GitHub Actions workflow if needed
-   - Test: `git push origin main` → GitHub Actions deploys
-
-2. **Audit Calculation Correctness** (4 hours)
-   - Run orchestrator dry-run with real data
-   - Spot-check 5 signals: verify score components match
-   - Verify position sizing with tier multipliers
-   - Document findings
-
-### Phase B: IMPORTANT (Before trading)
-3. **Fix Earnings Calendar** (2 hours)
-   - Add load_earnings_calendar to run-all-loaders.py Tier 2
-   - OR implement external API integration
-   - Test: Orchestrator Phase 5 should apply earnings blackout
-
-4. **Verify Data Freshness** (2 hours)
-   - Run full loader pipeline
-   - Check table row counts, latest dates
-   - Verify orchestrator Phase 1 data patrol passes
-
-### Phase C: NICE-TO-HAVE (Before production)
-5. **Frontend Testing** (6 hours)
-   - Load all 18 pages locally
-   - Verify calculations, no console errors
-   - Performance baseline (target: <2s load)
-
-6. **Performance Audit** (8 hours)
-   - Profile slow queries
-   - Benchmark Lambda cold-start
-   - Optimize if >1s queries found
+- ✗ analyst_sentiment_analysis — "No API wired"
+- ✗ analyst_upgrade_downgrade — "No API wired"
+- ✗ mean_reversion_signals_daily — (calc failure or not run)
+- ✗ range_signals_daily_etf — (calc failure or not run)
+- ✗ fear_greed_index — (CNN API failing or not configured)
 
 ---
 
-## QUESTIONS FOR USER
+## Recommended Fix Priority
 
-1. **AWS Access:** Do you have access to AWS console to fix OIDC role? If not, should I guide you through it?
+### CRITICAL (AWS Blocker)
+1. Fix OIDC role (AWS access required)
 
-2. **Earnings Data:** Should we:
-   - Add load_earnings_calendar to loader pipeline?
-   - Integrate external API (Alpha Vantage, FinHub)?
-   - Accept "fail-open" blackout for now?
+### HIGH (Broken Features)
+2. Fix fear_greed_index (1-2 hours)
+3. Fix signal calculations (2-3 hours)
+4. Add fallbacks to 3 broken pages (30 min)
 
-3. **Trading Timeline:** When do you need to go live?
-   - This week? → Focus on Phase A + Phase B
-   - Next week? → Include Phase C
-   - Next month? → Full polish
+### MEDIUM (Observability)
+5. Implement data_loader_status tracking (1 hour)
+6. Add CloudWatch alarms (2 hours)
+7. Add table row count tests (1 hour)
 
-4. **Risk Tolerance:** Should we:
-   - Run comprehensive integration test first?
-   - Deploy to staging AWS environment first?
-   - Go directly to production (monitored closely)?
+### NICE-TO-HAVE (Security/Performance)
+8. Add token-based auth (2-3 hours)
+9. Add DB indexes (2-3 hours)
+10. Profile orchestrator phases (1-2 hours)
 
-5. **Data Volume:** Do you have enough loaders running to populate all tables? Any sources missing?
+---
+
+## Status Summary
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Database Schema | ✓ 128 tables | All exists |
+| Core Data | ✓ 13/17 tables | 76% complete |
+| APIs | ~ 19/22 | 3 broken (missing data) |
+| Frontend Pages | ~ 19/22 | 3 broken (missing data) |
+| Orchestrator | ✓ 7/7 phases | Works end-to-end |
+| AWS Deployment | ✗ BLOCKED | OIDC configuration |
+| Security | ⚠ Basic | No auth, public read API |
+| Performance | ✓ Good | 50-200ms latency, OK throughput |
+

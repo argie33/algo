@@ -542,14 +542,14 @@ def main():
     # Batch load fundamental metrics once to avoid per-symbol database hits (performance optimization)
     loader._batch_load_quality_metrics(symbols)
     loader._batch_load_value_metrics(symbols)
-    # loader.start_provenance_tracking()  # Disabled for local testing (data_loader_runs table missing)
+    loader.start_provenance_tracking()  # Track loader execution
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
         # Compute cross-sectional RS percentile rankings after scores are loaded
         loader.compute_rs_percentiles()
-        # loader.end_provenance_tracking(success=True)  # Disabled for local testing
+        loader.end_provenance_tracking(success=True)  # Log successful completion
     except Exception as e:
-        # loader.end_provenance_tracking(success=False)  # Disabled for local testing
+        loader.end_provenance_tracking(success=False)  # Log failure
         logging.error(f"Loader failed: {e}")
         raise
     finally:

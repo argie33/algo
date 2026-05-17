@@ -10,6 +10,56 @@ const router = express.Router();
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================
 
+// GET /api/earnings/upcoming - Upcoming earnings from earnings_calendar table
+router.get("/upcoming", async (req, res) => {
+  try {
+    const { days = 60, limit = 100 } = req.query;
+    const daysNum = Math.min(Math.max(parseInt(days) || 60, 1), 365);
+    const limitNum = Math.min(Math.max(parseInt(limit) || 100, 1), 5000);
+
+    const result = await query(`
+      SELECT
+        symbol,
+        earnings_date,
+        announce_time,
+        eps_estimate,
+        actual_eps,
+        revenue_estimate,
+        actual_revenue,
+        fiscal_period,
+        created_at
+      FROM earnings_calendar
+      WHERE earnings_date >= CURRENT_DATE
+        AND earnings_date <= CURRENT_DATE + INTERVAL '${daysNum} days'
+      ORDER BY earnings_date ASC
+      LIMIT $1
+    `, [limitNum]);
+
+    const items = (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      earnings_date: row.earnings_date,
+      announce_time: row.announce_time,
+      eps_estimate: row.eps_estimate ? parseFloat(row.eps_estimate) : null,
+      eps_actual: row.actual_eps ? parseFloat(row.actual_eps) : null,
+      revenue_estimate: row.revenue_estimate ? parseInt(row.revenue_estimate) : null,
+      revenue_actual: row.actual_revenue ? parseInt(row.actual_revenue) : null,
+      fiscal_period: row.fiscal_period,
+    }));
+
+    return sendPaginated(res, items, {
+      limit: limitNum,
+      offset: 0,
+      total: items.length,
+      page: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    });
+  } catch (error) {
+    return sendError(res, `Failed to fetch upcoming earnings: ${error.message}`, 500);
+  }
+});
+
 // GET /api/earnings/calendar - Earnings calendar view with filters
 router.get("/calendar", async (req, res) => {
   try {

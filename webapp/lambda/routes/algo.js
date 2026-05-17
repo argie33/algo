@@ -958,13 +958,9 @@ router.get('/notifications', async (req, res) => {
 
     const result = await pool.query(sql, params);
 
-    return res.json({
-      success: true,
-      items: result.rows,
-      timestamp: new Date(),
-    });
+    return sendSuccess(res, { items: result.rows });
   } catch (error) {
-    return sendSuccess(res, { items: [], timestamp: new Date() });
+    return sendSuccess(res, { items: [] });
   }
 });
 
@@ -1048,14 +1044,12 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
       });
     });
 
-    return res.json({
-      success: result.exitCode === 0,
+    return sendSuccess(res, {
       exit_code: result.exitCode,
-      output: result.output.join(''),
-      timestamp: new Date(),
+      output: result.output.join('')
     });
   } catch (error) {
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1285,8 +1279,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
       }
     }
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         // Trade counts
         total_trades: trades.length,
@@ -1324,8 +1317,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
 
         // Sample sizes
         portfolio_snapshots: snaps.length,
-      },
-      timestamp: new Date(),
+      }
     });
   } catch (error) {
     console.error('Error in /algo/performance:', error);
@@ -1350,20 +1342,18 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
       LIMIT $1
     `, [limit]);
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.reverse().map(r => ({
         snapshot_date: r.snapshot_date,
         total_portfolio_value: parseFloat(r.total_portfolio_value || 0),
         daily_return_pct: parseFloat(r.daily_return_pct || 0),
         unrealized_pnl_pct: parseFloat(r.unrealized_pnl_pct || 0),
         position_count: parseInt(r.position_count || 0),
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/equity-curve:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1391,8 +1381,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
 
     const result = await pool.query(query_str, params);
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         id: r.id,
         action_type: r.action_type,
@@ -1403,12 +1392,11 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
         status: r.status,
         error: r.error_message,
         created_at: r.created_at,
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/audit-log:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1429,20 +1417,12 @@ router.get('/trade/:tradeId', async (req, res) => {
       [req.params.tradeId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Trade not found' });
+      return sendError(res, 'Trade not found', 404);
     }
-    return res.json({
-      success: true,
-      data: result.rows[0],
-      timestamp: new Date(),
-    });
+    return sendSuccess(res, { data: result.rows[0] });
   } catch (error) {
     console.error('Error in /algo/trade/:id:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date(),
-    });
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1579,18 +1559,16 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
         description: 'Trailing 5-session loss above threshold halts new entries' },
     ];
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         any_triggered: breakers.some(b => b.triggered),
         triggered_count: breakers.filter(b => b.triggered).length,
         breakers,
-      },
-      timestamp: new Date(),
+      }
     });
   } catch (error) {
     console.error('Error in /algo/circuit-breakers:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
@@ -1618,8 +1596,7 @@ router.get('/sector-breadth', async (req, res) => {
       HAVING COUNT(*) > 5
       ORDER BY cp.sector
     `);
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       items: result.rows.map(r => ({
         sector: r.sector,
         total_stocks: parseInt(r.total_stocks),
@@ -1629,12 +1606,11 @@ router.get('/sector-breadth', async (req, res) => {
           ? Math.round((r.above_50d / r.total_stocks) * 1000) / 10 : 0,
         pct_above_200d: r.total_stocks > 0
           ? Math.round((r.above_200d / r.total_stocks) * 1000) / 10 : 0,
-      })),
-      timestamp: new Date(),
+      }))
     });
   } catch (error) {
     console.error('Error in /algo/sector-breadth:', error);
-    return sendError(res, error.message);
+    return sendError(res, error.message, 500);
   }
 });
 
