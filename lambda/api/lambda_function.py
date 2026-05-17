@@ -28,80 +28,25 @@ import re
 import time
 from datetime import datetime, timedelta, date, timezone
 from typing import Dict, Any, Optional, List, Tuple
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field, field_validator, ValidationError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-# ============================================================================
-# REQUEST VALIDATION SCHEMAS (Pydantic models for input validation)
-# ============================================================================
-
-class PaginationParams(BaseModel):
-    """Standard pagination parameters."""
-    limit: Optional[int] = Field(default=200, ge=1, le=10000, description="Items per page")
-    offset: Optional[int] = Field(default=0, ge=0, le=1000000, description="Page offset")
-
-    @validator('limit')
-    def validate_limit(cls, v):
-        if v is None:
-            return 200
-        return v
-
-    @validator('offset')
-    def validate_offset(cls, v):
-        if v is None:
-            return 0
-        return v
-
-
-class DateRangeParams(BaseModel):
-    """Date range query parameters."""
-    range: Optional[str] = Field(default='30d', pattern=r'^\d+d$', description="Time range (e.g. '30d', '1y')")
-
-    @validator('range')
-    def validate_range(cls, v):
-        if v is None:
-            return '30d'
-        # Extract days from format like '30d'
-        if not v.endswith('d'):
-            raise ValueError('Range must end with "d" (e.g., "30d")')
-        try:
-            days = int(v[:-1])
-            if days < 1 or days > 365:
-                raise ValueError('Days must be between 1 and 365')
-        except ValueError:
-            raise ValueError('Range must be numeric followed by "d" (e.g., "30d")')
-        return v
-
-
 class ContactRequest(BaseModel):
-    """Contact form submission."""
+    """Contact form submission — validated via Pydantic before DB insert."""
     name: str = Field(..., min_length=1, max_length=255)
     email: str = Field(..., max_length=255)
     subject: str = Field(..., min_length=1, max_length=255)
     message: str = Field(..., min_length=10, max_length=5000)
 
-    @validator('email')
-    def validate_email(cls, v):
-        # Simple email validation
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
         if '@' not in v or '.' not in v.split('@')[-1]:
             raise ValueError('Invalid email format')
         return v.lower()
-
-
-class TradeRequest(BaseModel):
-    """Trade execution request."""
-    symbol: str = Field(..., regex=r'^[A-Z0-9.\-]{1,20}$')
-    quantity: int = Field(..., ge=1, le=1000000)
-    price: Optional[float] = Field(default=None, ge=0.01)
-
-    @validator('symbol')
-    def validate_symbol(cls, v):
-        if not v or not re.match(r'^[A-Z0-9.\-]{1,20}$', v):
-            raise ValueError('Invalid stock symbol')
-        return v.upper()
 
 
 # Module-level connection pool: Lambda containers are reused across warm invocations.
