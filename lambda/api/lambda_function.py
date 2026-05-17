@@ -425,22 +425,6 @@ class APIHandler:
             return error_response(500, 'internal_error', 'Failed to fetch data')
         # Do NOT close self.conn â€” it's the module-level cached connection for reuse
 
-    def _safe_limit(self, limit_val, default=200, max_limit=10000) -> int:
-        """Safely extract and validate limit parameter (prevents DoS)."""
-        try:
-            limit = int(limit_val) if limit_val else default
-            return max(1, min(limit, max_limit))
-        except (ValueError, TypeError):
-            return default
-
-    def _safe_offset(self, offset_val, max_offset=1000000) -> int:
-        """Safely extract and validate offset parameter (prevents DoS)."""
-        try:
-            offset = int(offset_val) if offset_val else 0
-            return max(0, min(offset, max_offset))
-        except (ValueError, TypeError):
-            return 0
-
     def _sanitize_error(self, exc: Exception) -> str:
         """Sanitize exception messages to prevent information leakage."""
         error_str = str(exc)
