@@ -8,6 +8,9 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load environment
 env_file = Path(__file__).parent.parent / '.env.local'
@@ -27,10 +30,10 @@ def setup_api_auth():
     cur = conn.cursor()
 
     try:
-        print("Setting up API authentication infrastructure...")
+        logger.info("Setting up API authentication infrastructure...")
 
         # 1. API keys table
-        print("  [1/3] Creating api_keys table...")
+        logger.info("  [1/3] Creating api_keys table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS api_keys (
                 id SERIAL PRIMARY KEY,
@@ -47,10 +50,10 @@ def setup_api_auth():
                 UNIQUE(app_name)
             );
         """)
-        print("    ✓ api_keys table created")
+        logger.info("    ✓ api_keys table created")
 
         # 2. API requests log table
-        print("  [2/3] Creating api_requests_log table...")
+        logger.info("  [2/3] Creating api_requests_log table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS api_requests_log (
                 id BIGSERIAL PRIMARY KEY,
@@ -67,10 +70,10 @@ def setup_api_auth():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        print("    ✓ api_requests_log table created")
+        logger.info("    ✓ api_requests_log table created")
 
         # 3. Create indexes for fast lookups and reporting
-        print("  [3/3] Creating indexes for performance...")
+        logger.info("  [3/3] Creating indexes for performance...")
         indexes = [
             ("api_keys_key_hash_idx", "CREATE INDEX IF NOT EXISTS api_keys_key_hash_idx ON api_keys(key_hash)"),
             ("api_keys_is_active_idx", "CREATE INDEX IF NOT EXISTS api_keys_is_active_idx ON api_keys(is_active) WHERE is_active = TRUE"),
@@ -85,17 +88,17 @@ def setup_api_auth():
                 cur.execute(index_sql)
             except Exception as e:
                 if "already exists" not in str(e).lower():
-                    print(f"      Warning: {str(e)[:100]}")
+                    logger.info(f"      Warning: {str(e)[:100]}")
 
-        print("    ✓ Indexes created")
+        logger.info("    ✓ Indexes created")
 
         conn.commit()
-        print("\n✅ API authentication infrastructure setup complete")
+        logger.info("\n✅ API authentication infrastructure setup complete")
         return True
 
     except Exception as e:
         conn.rollback()
-        print(f"\n❌ Setup failed: {e}")
+        logger.info(f"\n❌ Setup failed: {e}")
         return False
 
     finally:

@@ -17,6 +17,9 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -38,15 +41,15 @@ def load_industry_ranking():
     cur = conn.cursor()
     start = datetime.now()
 
-    print(f"\n{'='*70}\nLOADING INDUSTRY RANKING\n{'='*70}")
+    logger.info(f"\n{'='*70}\nLOADING INDUSTRY RANKING\n{'='*70}")
 
     cur.execute("SELECT MAX(date) FROM price_daily")
     latest_date = cur.fetchone()[0]
     if not latest_date:
-        print("  ERROR: no price data")
+        logger.info("  ERROR: no price data")
         return
 
-    print(f"  Computing for date: {latest_date}")
+    logger.info(f"  Computing for date: {latest_date}")
 
     # Compute average 4-week return per industry, weighted by liquidity (volume)
     cur.execute("""
@@ -105,7 +108,7 @@ def load_industry_ranking():
     """, (latest_date, latest_date))
 
     rows = cur.fetchall()
-    print(f"  Computed ranks for {len(rows)} industries")
+    logger.info(f"  Computed ranks for {len(rows)} industries")
 
     # Persist
     for industry, rank, strength, r1, r4, r12, n in rows:
@@ -122,12 +125,12 @@ def load_industry_ranking():
 
     conn.commit()
     elapsed = (datetime.now() - start).total_seconds()
-    print(f"\n  Persisted {len(rows)} industries")
-    print(f"\n  Top 15 industries by 4w momentum:")
+    logger.info(f"\n  Persisted {len(rows)} industries")
+    logger.info(f"\n  Top 15 industries by 4w momentum:")
     for i, (ind, rank, strength, r1, r4, r12, n) in enumerate(rows[:15], 1):
-        print(f"  {rank:>3} {ind[:40]:<40s} strength={strength:+6.2f} ret_4w={float(r4 or 0):+5.2f}% n={n}")
+        logger.info(f"  {rank:>3} {ind[:40]:<40s} strength={strength:+6.2f} ret_4w={float(r4 or 0):+5.2f}% n={n}")
 
-    print(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
+    logger.info(f"\n{'='*70}\nCOMPLETE — {elapsed:.1f}s\n{'='*70}\n")
 
     cur.close()
     conn.close()

@@ -16,6 +16,9 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -2003,7 +2006,7 @@ def _run_migrations(conn, cur):
 
     conn.commit()
     if succeeded:
-        print(f"  ✓ Applied {succeeded} schema migrations")
+        logger.info(f"  ✓ Applied {succeeded} schema migrations")
 
 
 def _init_timescaledb(conn, cur):
@@ -2015,15 +2018,15 @@ def _init_timescaledb(conn, cur):
     """
     try:
         # 1. Enable TimescaleDB extension
-        print("  [1/4] Enabling TimescaleDB extension...")
+        logger.info("  [1/4] Enabling TimescaleDB extension...")
         try:
             cur.execute("CREATE EXTENSION IF NOT EXISTS timescaledb WITH SCHEMA public CASCADE")
-            print("    ✓ TimescaleDB extension enabled")
+            logger.info("    ✓ TimescaleDB extension enabled")
         except Exception as e:
             if "already exists" in str(e).lower():
-                print("    ✓ TimescaleDB extension already enabled")
+                logger.info("    ✓ TimescaleDB extension already enabled")
             else:
-                print(f"    ⚠ Extension creation note: {str(e)[:80]}")
+                logger.info(f"    ⚠ Extension creation note: {str(e)[:80]}")
 
         # 2. Convert price_daily to hypertable
         logger.info("Converting price_daily to hypertable...")
@@ -2038,7 +2041,7 @@ def _init_timescaledb(conn, cur):
             is_hypertable = cur.fetchone()[0]
 
             if is_hypertable:
-                print("    ✓ price_daily already a hypertable")
+                logger.info("    ✓ price_daily already a hypertable")
             else:
                 cur.execute("""
                     SELECT create_hypertable('price_daily', 'date',
@@ -2046,12 +2049,12 @@ def _init_timescaledb(conn, cur):
                         chunk_time_interval => INTERVAL '3 months'
                     )
                 """)
-                print("    ✓ price_daily converted to hypertable (3-month chunks)")
+                logger.info("    ✓ price_daily converted to hypertable (3-month chunks)")
         except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+            logger.info(f"    ⚠ {str(e)[:80]}")
 
         # 3. Enable compression on price_daily
-        print("  [3/4] Enabling automatic compression on price_daily...")
+        logger.info("  [3/4] Enabling automatic compression on price_daily...")
         try:
             cur.execute("""
                 ALTER TABLE price_daily SET (
@@ -2065,12 +2068,12 @@ def _init_timescaledb(conn, cur):
                 SELECT add_compression_policy('price_daily', INTERVAL '30 days',
                     if_not_exists => TRUE)
             """)
-            print("    ✓ Compression enabled (auto-compress older than 30 days)")
+            logger.info("    ✓ Compression enabled (auto-compress older than 30 days)")
         except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+            logger.info(f"    ⚠ {str(e)[:80]}")
 
         # 4. Create continuous aggregate for daily rollups
-        print("  [4/4] Creating continuous aggregate for daily summaries...")
+        logger.info("  [4/4] Creating continuous aggregate for daily summaries...")
         try:
             cur.execute("""
                 CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_agg WITH (
@@ -2099,20 +2102,20 @@ def _init_timescaledb(conn, cur):
                     if_not_exists => TRUE
                 )
             """)
-            print("    ✓ Continuous aggregate created (auto-refreshed hourly)")
+            logger.info("    ✓ Continuous aggregate created (auto-refreshed hourly)")
         except Exception as e:
-            print(f"    ⚠ {str(e)[:80]}")
+            logger.info(f"    ⚠ {str(e)[:80]}")
 
         conn.commit()
         print()
-        print("✓ TimescaleDB initialization complete!")
-        print("  • Time-series queries now 10-100x faster")
-        print("  • Automatic data compression (30+ days)")
-        print("  • Hourly summary aggregates")
+        logger.info("✓ TimescaleDB initialization complete!")
+        logger.info("  • Time-series queries now 10-100x faster")
+        logger.info("  • Automatic data compression (30+ days)")
+        logger.info("  • Hourly summary aggregates")
         print()
 
     except Exception as e:
-        print(f"ERROR in TimescaleDB init: {e}")
+        logger.info(f"ERROR in TimescaleDB init: {e}")
 
 
 def init_database():
@@ -2121,9 +2124,9 @@ def init_database():
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
 
-        print("╔════════════════════════════════════════════════════════╗")
-        print("║  Initializing Database Schema (AUTHORITATIVE)         ║")
-        print("╚════════════════════════════════════════════════════════╝")
+        logger.info("╔════════════════════════════════════════════════════════╗")
+        logger.info("║  Initializing Database Schema (AUTHORITATIVE)         ║")
+        logger.info("╚════════════════════════════════════════════════════════╝")
         print()
 
         # Split by semicolon and execute each statement
@@ -2135,36 +2138,36 @@ def init_database():
         for i, stmt in enumerate(statements, 1):
             try:
                 cur.execute(stmt)
-                print(f"  ✓ [{i:2d}/{len(statements)}]")
+                logger.info(f"  ✓ [{i:2d}/{len(statements)}]")
                 succeeded += 1
             except Exception as e:
-                print(f"  ✗ [{i:2d}/{len(statements)}] {str(e)[:60]}")
+                logger.info(f"  ✗ [{i:2d}/{len(statements)}] {str(e)[:60]}")
                 failed += 1
 
         conn.commit()
         print()
-        print(f"✓ Schema initialization complete!")
-        print(f"  Succeeded: {succeeded}")
-        print(f"  Failed: {failed}")
+        logger.info(f"✓ Schema initialization complete!")
+        logger.info(f"  Succeeded: {succeeded}")
+        logger.info(f"  Failed: {failed}")
         print()
 
         # Apply migrations for existing databases
         _run_migrations(conn, cur)
 
         # Initialize TimescaleDB for time-series optimization
-        print("╔════════════════════════════════════════════════════════╗")
-        print("║  Initializing TimescaleDB for Time-Series (10-100x)   ║")
-        print("╚════════════════════════════════════════════════════════╝")
+        logger.info("╔════════════════════════════════════════════════════════╗")
+        logger.info("║  Initializing TimescaleDB for Time-Series (10-100x)   ║")
+        logger.info("╚════════════════════════════════════════════════════════╝")
         print()
         _init_timescaledb(conn, cur)
 
         print()
-        print("Schema is now READY for loaders to use")
+        logger.info("Schema is now READY for loaders to use")
         print()
         return failed == 0
 
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.info(f"ERROR: {e}")
         return False
     finally:
         try:

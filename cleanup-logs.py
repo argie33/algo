@@ -2,6 +2,9 @@
 import os
 import re
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 stats = {
     'files_processed': 0,
@@ -34,7 +37,7 @@ def clean_js_file(filepath):
     return removed
 
 def main():
-    print('\n[CLEANUP] Starting console log removal...\n')
+    logger.info('\n[CLEANUP] Starting console log removal...\n')
 
     files_to_process = []
     for root, dirs, filenames in os.walk('.'):
@@ -54,9 +57,9 @@ def main():
             stats['logs_removed'] += removed
             if removed > 0:
                 stats['files_modified'] += 1
-                print(f"  [OK] {filepath} (removed {removed})")
+                logger.info(f"  [OK] {filepath} (removed {removed})")
         except Exception as e:
-            print(f"  [SKIP] {filepath}: {e}")
+            logger.info(f"  [SKIP] {filepath}: {e}")
 
     print(f'\n{"=" * 60}')
     print(f'[CLEANUP] COMPLETE')

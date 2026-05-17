@@ -15,6 +15,9 @@ import psycopg2
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +63,7 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        print(f"ERROR: Failed to connect to database: {e}")
+        logger.info(f"ERROR: Failed to connect to database: {e}")
         raise
 
 
@@ -131,9 +134,9 @@ def publish_custom_metrics(table_data):
                 Namespace='AlgoDataFreshness',
                 MetricData=batch
             )
-            print(f"Published {len(batch)} metrics to CloudWatch")
+            logger.info(f"Published {len(batch)} metrics to CloudWatch")
         except Exception as e:
-            print(f"ERROR: Failed to publish metrics: {e}")
+            logger.info(f"ERROR: Failed to publish metrics: {e}")
             raise
 
 
@@ -182,11 +185,11 @@ def lambda_handler(event, context):
     """Main Lambda handler."""
 
     try:
-        print("Starting data freshness check...")
+        logger.info("Starting data freshness check...")
 
         # Query database for status
         table_data = query_data_loader_status()
-        print(f"Retrieved status for {len(table_data)} tables")
+        logger.info(f"Retrieved status for {len(table_data)} tables")
 
         # Publish custom metrics to CloudWatch
         publish_custom_metrics(table_data)
@@ -209,28 +212,28 @@ def lambda_handler(event, context):
         }
 
         # Log summary
-        print(f"\n=== DATA FRESHNESS SUMMARY ===")
-        print(f"Tables checked: {len(table_data)}")
-        print(f"Healthy: {issues['healthy_count']}")
-        print(f"Critical issues: {len(issues['critical'])}")
-        print(f"Warnings: {len(issues['warning'])}")
+        logger.info(f"\n=== DATA FRESHNESS SUMMARY ===")
+        logger.info(f"Tables checked: {len(table_data)}")
+        logger.info(f"Healthy: {issues['healthy_count']}")
+        logger.info(f"Critical issues: {len(issues['critical'])}")
+        logger.info(f"Warnings: {len(issues['warning'])}")
 
         if issues['critical']:
-            print(f"\n🚨 CRITICAL ISSUES:")
+            logger.info(f"\n🚨 CRITICAL ISSUES:")
             for issue in issues['critical']:
-                print(f"  - {issue['table']}: {issue['reason']}")
+                logger.info(f"  - {issue['table']}: {issue['reason']}")
 
         if issues['warning']:
-            print(f"\n⚠️  WARNINGS:")
+            logger.info(f"\n⚠️  WARNINGS:")
             for issue in issues['warning']:
-                print(f"  - {issue['table']}: {issue['reason']}")
+                logger.info(f"  - {issue['table']}: {issue['reason']}")
 
-        print(f"\n✅ Metrics published to CloudWatch")
+        logger.info(f"\n✅ Metrics published to CloudWatch")
 
         return response
 
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.info(f"ERROR: {e}")
         return {
             'statusCode': 500,
             'body': json.dumps({
@@ -246,4 +249,4 @@ if __name__ == '__main__':
     sys.path.insert(0, '/Users/arger/code/algo')
 
     result = lambda_handler({}, None)
-    print("\nResult:", result)
+    logger.info("\nResult:", result)

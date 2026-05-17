@@ -63,7 +63,7 @@ class GreeksCalculator:
         >>> greeks = GreeksCalculator.calculate_greeks(
         ...     S=100, K=105, T=0.25, r=0.05, sigma=0.20, option_type='call'
         ... )
-        >>> print(f"Delta: {greeks['delta']}, Theta: {greeks['theta']}")
+        >>> logger.info(f"Delta: {greeks['delta']}, Theta: {greeks['theta']}")
         """
 
         # Handle edge case: at or past expiration

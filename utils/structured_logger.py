@@ -136,4 +136,4 @@ if __name__ == "__main__":
         "error": "Rate limit exceeded",
     })
 
-    print("\n^ All logs are JSON. Paste into CloudWatch Insights.")
+    logger.info("\n^ All logs are JSON. Paste into CloudWatch Insights.")

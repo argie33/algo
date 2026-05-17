@@ -9,6 +9,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -29,7 +32,7 @@ def backfill_sqs_sql():
     cur = conn.cursor()
 
     try:
-        print("Backfilling Signal Quality Scores for all dates...")
+        logger.info("Backfilling Signal Quality Scores for all dates...")
 
         # Single SQL statement to calculate and insert SQS for all signals
         query = """
@@ -70,30 +73,30 @@ def backfill_sqs_sql():
             composite_sqs = EXCLUDED.composite_sqs
         """
 
-        print("Executing SQS backfill...")
+        logger.info("Executing SQS backfill...")
         cur.execute(query)
         rows_affected = cur.rowcount
         conn.commit()
 
-        print(f"Inserted/updated {rows_affected} SQS records")
+        logger.info(f"Inserted/updated {rows_affected} SQS records")
 
         # Verify
         cur.execute('SELECT COUNT(*), COUNT(DISTINCT date) FROM signal_quality_scores')
         total, dates = cur.fetchone()
 
-        print(f"\nFinal SQS Status:")
-        print(f"  Total rows: {total:,}")
-        print(f"  Unique dates: {dates}")
+        logger.info(f"\nFinal SQS Status:")
+        logger.info(f"  Total rows: {total:,}")
+        logger.info(f"  Unique dates: {dates}")
 
         if total >= 10000:
-            print(f"\n✓ SUCCESS - SQS backfilled for all signals")
+            logger.info(f"\n✓ SUCCESS - SQS backfilled for all signals")
             return True
         else:
-            print(f"\n⚠ Partial backfill ({total} rows, need 12,996)")
+            logger.info(f"\n⚠ Partial backfill ({total} rows, need 12,996)")
             return False
 
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.info(f"ERROR: {e}")
         conn.rollback()
         return False
     finally:

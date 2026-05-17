@@ -39,6 +39,9 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -340,47 +343,47 @@ class ExposurePolicy:
 if __name__ == "__main__":
     p = ExposurePolicy()
     active = p.get_active_tier()
-    print("=" * 80)
-    print("MARKET EXPOSURE POLICY")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("MARKET EXPOSURE POLICY")
+    logger.info("=" * 80)
     if active:
-        print(f"\nAs of: {active['as_of_date']}")
-        print(f"Exposure: {active['exposure_pct']}%")
-        print(f"Regime:   {active['regime']}")
+        logger.info(f"\nAs of: {active['as_of_date']}")
+        logger.info(f"Exposure: {active['exposure_pct']}%")
+        logger.info(f"Regime:   {active['regime']}")
         if active.get('halt_reasons'):
-            print(f"HALT:     {active['halt_reasons']}")
-        print(f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)")
-        print(f"  {active['tier']['description']}")
-        print(f"\nEntry Constraints:")
+            logger.info(f"HALT:     {active['halt_reasons']}")
+        logger.info(f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)")
+        logger.info(f"  {active['tier']['description']}")
+        logger.info(f"\nEntry Constraints:")
         constraints = p.get_entry_constraints()
         for k, v in constraints.items():
             if k not in ('as_of_date', 'tier_name', 'description'):
-                print(f"  {k:30s} = {v}")
+                logger.info(f"  {k:30s} = {v}")
     else:
-        print("\nNo market exposure data — run algo_market_exposure.py first")
+        logger.info("\nNo market exposure data — run algo_market_exposure.py first")
 
     actions = p.review_existing_positions()
-    print(f"\n\nPosition Review: {len(actions)} actions recommended")
+    logger.info(f"\n\nPosition Review: {len(actions)} actions recommended")
     for a in actions:
-        print(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={a.get('r_multiple', 0):+.2f}  "
+        logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={a.get('r_multiple', 0):+.2f}  "
               f"{a['reason']}")
         if a.get('new_stop'):
-            print(f"            new_stop=${a['new_stop']:.2f}")
+            logger.info(f"            new_stop=${a['new_stop']:.2f}")
 
-    print("\n" + "=" * 80)
-    print("ALL TIER DEFINITIONS")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("ALL TIER DEFINITIONS")
+    logger.info("=" * 80)
     for tier in EXPOSURE_TIERS:
-        print(f"\n{tier['name'].upper():20s} {tier['min_pct']:>3}-{tier['max_pct']:>3}%")
-        print(f"  {tier['description']}")
-        print(f"  risk_mult={tier['risk_multiplier']}, max_new/day={tier['max_new_positions_today']}, "
+        logger.info(f"\n{tier['name'].upper():20s} {tier['min_pct']:>3}-{tier['max_pct']:>3}%")
+        logger.info(f"  {tier['description']}")
+        logger.info(f"  risk_mult={tier['risk_multiplier']}, max_new/day={tier['max_new_positions_today']}, "
               f"min_grade={tier['min_swing_grade']}")
         if tier.get('tighten_winners_at_r'):
-            print(f"  tighten winners @ +{tier['tighten_winners_at_r']}R")
+            logger.info(f"  tighten winners @ +{tier['tighten_winners_at_r']}R")
         if tier.get('force_partial_at_r'):
-            print(f"  force partial @ +{tier['force_partial_at_r']}R")
+            logger.info(f"  force partial @ +{tier['force_partial_at_r']}R")
         if tier.get('halt_new_entries'):
-            print(f"  HALT NEW ENTRIES")
+            logger.info(f"  HALT NEW ENTRIES")
         if tier.get('force_exit_negative_r'):
-            print(f"  FORCE EXIT LOSERS")
+            logger.info(f"  FORCE EXIT LOSERS")
 

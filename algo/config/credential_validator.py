@@ -14,6 +14,8 @@ import sys
 import logging
 from typing import List, Tuple
 
+logger = logging.getLogger(__name__)
+
 log = logging.getLogger(__name__)
 
 
@@ -159,17 +161,17 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s"
     )
 
-    print("\nValidating credentials...")
-    print("-" * 60)
+    logger.info("\nValidating credentials...")
+    logger.info("-" * 60)
     is_valid, messages = validate_credentials()
 
     for msg in messages:
-        print(msg)
+        logger.info(msg)
 
-    print("-" * 60)
+    logger.info("-" * 60)
     if is_valid:
-        print("✓ All credentials valid")
+        logger.info("✓ All credentials valid")
         sys.exit(0)
     else:
-        print("✗ Credential validation failed")
+        logger.info("✗ Credential validation failed")
         sys.exit(1)

@@ -21,6 +21,8 @@ import logging
 import os
 from typing import Dict, Optional, Any
 
+logger = logging.getLogger(__name__)
+
 log = logging.getLogger(__name__)
 
 
@@ -221,13 +223,13 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     try:
         db_creds = get_db_credentials()
-        print("[OK] DB credentials loaded")
+        logger.info("[OK] DB credentials loaded")
     except ValueError as e:
-        print(f"[ERROR] DB credentials: {e}")
+        logger.info(f"[ERROR] DB credentials: {e}")
 
     try:
         alpaca_creds = get_alpaca_credentials()
         if alpaca_creds['key']:
-            print("[OK] Alpaca credentials loaded")
+            logger.info("[OK] Alpaca credentials loaded")
     except ValueError as e:
-        print(f"[ERROR] Alpaca credentials: {e}")
+        logger.info(f"[ERROR] Alpaca credentials: {e}")

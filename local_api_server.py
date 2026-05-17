@@ -17,9 +17,9 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
     load_dotenv(env_path)
-    print(f"Loaded environment from {env_path}")
+    logger.info(f"Loaded environment from {env_path}")
 else:
-    print(f"Warning: .env.local not found at {env_path}")
+    logger.info(f"Warning: .env.local not found at {env_path}")
 
 # Add lambda directory to path so we can import the handler
 sys.path.insert(0, str(Path(__file__).parent / 'lambda' / 'api'))

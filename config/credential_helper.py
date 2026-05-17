@@ -97,4 +97,4 @@ def clear_cache():
 
 if __name__ == "__main__":
     config = get_db_config()
-    print(f"DB Config: {config['host']}:{config['port']}/{config['database']}")
+    logger.info(f"DB Config: {config['host']}:{config['port']}/{config['database']}")

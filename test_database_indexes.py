@@ -11,13 +11,16 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import os
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load environment
 load_dotenv('.env.local')
 
-print("=" * 80)
-print("DATABASE INDEX VALIDATION")
-print("=" * 80)
+logger.info("=" * 80)
+logger.info("DATABASE INDEX VALIDATION")
+logger.info("=" * 80)
 print()
 
 # High-volume tables and their critical query columns
@@ -56,14 +59,14 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        print(f"[FAIL] Cannot connect to database: {e}")
-        print(f"   Host: {os.getenv('DB_HOST', 'localhost')}")
-        print(f"   Port: {os.getenv('DB_PORT', 5432)}")
+        logger.info(f"[FAIL] Cannot connect to database: {e}")
+        logger.info(f"   Host: {os.getenv('DB_HOST', 'localhost')}")
+        logger.info(f"   Port: {os.getenv('DB_PORT', 5432)}")
         print()
-        print("To run locally:")
-        print("  1. Ensure PostgreSQL is running")
-        print("  2. Set DB_PASSWORD in .env.local")
-        print("  3. Run: python3 init_database.py")
+        logger.info("To run locally:")
+        logger.info("  1. Ensure PostgreSQL is running")
+        logger.info("  2. Set DB_PASSWORD in .env.local")
+        logger.info("  3. Run: python3 init_database.py")
         return None
 
 def check_indexes():
@@ -83,14 +86,14 @@ def check_indexes():
             """, (table,))
 
             if not cur.fetchone()[0]:
-                print(f"[WARN]  Table not found: {table}")
+                logger.info(f"[WARN]  Table not found: {table}")
                 continue
 
             # Get table size
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             row_count = cur.fetchone()[0]
 
-            print(f"[TABLE] {table:25} ({row_count:,} rows)")
+            logger.info(f"[TABLE] {table:25} ({row_count:,} rows)")
 
             # Check each index
             for col_spec, query_pattern in columns:
@@ -103,7 +106,7 @@ def check_indexes():
 
                 if indexes:
                     for idx in indexes:
-                        print(f"   [OK] Index on {col_spec:25} ({idx[0]})")
+                        logger.info(f"   [OK] Index on {col_spec:25} ({idx[0]})")
                 else:
                     # Composite indexes might not match the LIKE pattern
                     # Check if at least one index exists
@@ -113,33 +116,33 @@ def check_indexes():
                     """, (table,))
 
                     if cur.fetchone()[0] > 0:
-                        print(f"   [WARN]  No index on {col_spec:25} (may have indexes on other columns)")
+                        logger.info(f"   [WARN]  No index on {col_spec:25} (may have indexes on other columns)")
                     else:
-                        print(f"   [FAIL] MISSING INDEX: {col_spec:25} - {query_pattern}")
+                        logger.info(f"   [FAIL] MISSING INDEX: {col_spec:25} - {query_pattern}")
 
             print()
 
         # Summary
-        print("=" * 80)
-        print("INDEX RECOMMENDATIONS")
-        print("=" * 80)
+        logger.info("=" * 80)
+        logger.info("INDEX RECOMMENDATIONS")
+        logger.info("=" * 80)
         print()
 
-        print("If indexes are missing, add them with:")
+        logger.info("If indexes are missing, add them with:")
         print()
-        print("# Add indexes to high-volume tables")
-        print("CREATE INDEX idx_price_daily_symbol ON price_daily(symbol);")
-        print("CREATE INDEX idx_price_daily_date ON price_daily(date);")
-        print("CREATE INDEX idx_price_daily_composite ON price_daily(symbol, date);")
+        logger.info("# Add indexes to high-volume tables")
+        logger.info("CREATE INDEX idx_price_daily_symbol ON price_daily(symbol);")
+        logger.info("CREATE INDEX idx_price_daily_date ON price_daily(date);")
+        logger.info("CREATE INDEX idx_price_daily_composite ON price_daily(symbol, date);")
         print()
-        print("CREATE INDEX idx_algo_trades_date ON algo_trades(entry_date DESC);")
-        print("CREATE INDEX idx_algo_trades_composite ON algo_trades(symbol, entry_date);")
+        logger.info("CREATE INDEX idx_algo_trades_date ON algo_trades(entry_date DESC);")
+        logger.info("CREATE INDEX idx_algo_trades_composite ON algo_trades(symbol, entry_date);")
         print()
-        print("# Test index effectiveness")
-        print("EXPLAIN ANALYZE")
-        print("  SELECT * FROM price_daily WHERE symbol = 'AAPL' AND date >= '2026-05-01';")
+        logger.info("# Test index effectiveness")
+        logger.info("EXPLAIN ANALYZE")
+        logger.info("  SELECT * FROM price_daily WHERE symbol = 'AAPL' AND date >= '2026-05-01';")
         print()
-        print("If EXPLAIN shows 'Seq Scan' instead of 'Index Scan', indexes aren't being used.")
+        logger.info("If EXPLAIN shows 'Seq Scan' instead of 'Index Scan', indexes aren't being used.")
         print()
 
     finally:

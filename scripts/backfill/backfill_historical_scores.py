@@ -44,6 +44,9 @@ if env_file.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 from algo.algo_signals import SignalComputer
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
@@ -71,7 +74,7 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
             (days_back,),
         )
         trading_days = [r[0] for r in cur.fetchall()]
-        print(f"Trading days to backfill: {len(trading_days)}")
+        logger.info(f"Trading days to backfill: {len(trading_days)}")
 
         # Get symbols (limit to ones with sufficient data)
         if symbol_filter:
@@ -83,7 +86,7 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
                 ORDER BY composite_completeness_pct DESC
             """)
             symbols = [r[0] for r in cur.fetchall()]
-        print(f"Symbols to process: {len(symbols)}")
+        logger.info(f"Symbols to process: {len(symbols)}")
 
         sc = SignalComputer(cur=cur)
 
@@ -165,12 +168,12 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
                 f"rate {rate:.0f} sym/s  elapsed {int(elapsed)}s"
             )
 
-        print(f"\n{'='*70}")
-        print(f"BACKFILL COMPLETE")
-        print(f"  Processed: {total_processed}")
-        print(f"  Skipped:   {total_skipped}")
-        print(f"  Elapsed:   {int((datetime.now() - start_time).total_seconds())}s")
-        print(f"{'='*70}\n")
+        logger.info(f"\n{'='*70}")
+        logger.info(f"BACKFILL COMPLETE")
+        logger.info(f"  Processed: {total_processed}")
+        logger.info(f"  Skipped:   {total_skipped}")
+        logger.info(f"  Elapsed:   {int((datetime.now() - start_time).total_seconds())}s")
+        logger.info(f"{'='*70}\n")
 
     finally:
         if cur:

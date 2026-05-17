@@ -25,6 +25,9 @@ import psycopg2
 from datetime import datetime, timedelta, date as _date
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -71,7 +74,7 @@ class BackfillMetrics:
 
     def backfill_market_health(self, start_date, end_date):
         """Load market health for all dates between start and end."""
-        print(f"\nBackfilling market_health_daily from {start_date} to {end_date}...")
+        logger.info(f"\nBackfilling market_health_daily from {start_date} to {end_date}...")
 
         # Get all trading dates
         self.cur.execute(
@@ -79,12 +82,12 @@ class BackfillMetrics:
             (start_date, end_date),
         )
         trading_dates = [r[0] for r in self.cur.fetchall()]
-        print(f"  Found {len(trading_dates)} trading dates")
+        logger.info(f"  Found {len(trading_dates)} trading dates")
 
         inserted = 0
         for i, date_obj in enumerate(trading_dates, 1):
             if i % 50 == 0:
-                print(f"  Processing {i}/{len(trading_dates)}...", end="\r")
+                logger.info(f"  Processing {i}/{len(trading_dates)}...", end="\r")
 
             try:
                 # Get SPY data for this date
@@ -126,18 +129,18 @@ class BackfillMetrics:
                 )
                 inserted += 1
             except Exception as e:
-                print(f"  Error on {date_obj}: {e}")
+                logger.info(f"  Error on {date_obj}: {e}")
                 continue
 
         self.conn.commit()
-        print(f"  [OK] Inserted {inserted} market_health rows")
+        logger.info(f"  [OK] Inserted {inserted} market_health rows")
 
     def backfill_trend_template(self, start_date, end_date):
         """Load trend template for all symbols and dates."""
-        print(f"\nBackfilling trend_template_data from {start_date} to {end_date}...")
+        logger.info(f"\nBackfilling trend_template_data from {start_date} to {end_date}...")
 
         symbols = self.get_symbols()
-        print(f"  Processing {len(symbols)} symbols")
+        logger.info(f"  Processing {len(symbols)} symbols")
 
         # Get all trading dates
         self.cur.execute(
@@ -149,7 +152,7 @@ class BackfillMetrics:
         inserted = 0
         for sym_idx, symbol in enumerate(symbols, 1):
             if sym_idx % 100 == 0:
-                print(f"  {sym_idx}/{len(symbols)} symbols, {inserted} rows inserted...", end="\r")
+                logger.info(f"  {sym_idx}/{len(symbols)} symbols, {inserted} rows inserted...", end="\r")
 
             for date_obj in trading_dates:
                 try:
@@ -213,34 +216,34 @@ class BackfillMetrics:
                     continue
 
         self.conn.commit()
-        print(f"  [OK] Inserted {inserted} trend_template rows")
+        logger.info(f"  [OK] Inserted {inserted} trend_template rows")
 
     def run(self):
         try:
             self.connect()
 
-            print("\n" + "="*70)
-            print("BACKFILL ALGO METRICS")
-            print("="*70)
+            logger.info("\n" + "="*70)
+            logger.info("BACKFILL ALGO METRICS")
+            logger.info("="*70)
 
             start_date, end_date = self.get_date_range()
             if not start_date:
-                print("ERROR: No price_daily data found")
+                logger.info("ERROR: No price_daily data found")
                 return False
 
-            print(f"Date range: {start_date} to {end_date}")
-            print(f"Span: {(end_date - start_date).days} days")
+            logger.info(f"Date range: {start_date} to {end_date}")
+            logger.info(f"Span: {(end_date - start_date).days} days")
 
             self.backfill_market_health(start_date, end_date)
             self.backfill_trend_template(start_date, end_date)
 
-            print(f"\n{'='*70}")
-            print("Backfill complete!")
-            print(f"{'='*70}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info("Backfill complete!")
+            logger.info(f"{'='*70}\n")
             return True
 
         except Exception as e:
-            print(f"\nERROR: {e}")
+            logger.info(f"\nERROR: {e}")
             import traceback
             traceback.print_exc()
             return False

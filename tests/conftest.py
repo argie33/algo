@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add root directory to path so tests can import algo modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -114,9 +117,9 @@ def seeded_test_db(request):
     from setup_test_db import setup_test_db
     try:
         setup_test_db()
-        print("\n[OK] Test database setup complete")
+        logger.info("\n[OK] Test database setup complete")
     except Exception as e:
-        print(f"\n[FAIL] Test database setup failed: {e}")
+        logger.info(f"\n[FAIL] Test database setup failed: {e}")
         # Skip the test instead of failing if the database is not available
         pytest.skip(f"Test database not available: {e}", allow_module_level=False)
 

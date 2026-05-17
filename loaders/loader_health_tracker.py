@@ -9,6 +9,9 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env.local'))
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
@@ -52,9 +55,9 @@ class LoaderHealthTracker:
                 database=os.getenv('DB_NAME', 'stocks'),
             )
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            print("✓ Connected to database")
+            logger.info("✓ Connected to database")
         except Exception as e:
-            print(f"✗ Database connection failed: {e}")
+            logger.info(f"✗ Database connection failed: {e}")
             raise
 
     def disconnect(self):
@@ -181,7 +184,7 @@ class LoaderHealthTracker:
             ))
             self.conn.commit()
         except Exception as e:
-            print(f"✗ Failed to update status for {health_check['table_name']}: {e}")
+            logger.info(f"✗ Failed to update status for {health_check['table_name']}: {e}")
             if self.conn:
                 self.conn.rollback()
 
@@ -205,11 +208,11 @@ class LoaderHealthTracker:
                 symbol = '✓' if status == 'HEALTHY' else '⚠' if status in ('STALE', 'VERY_STALE') else '✗'
                 age = f"{health['age_days']}d" if health['age_days'] is not None else "N/A"
                 rows = f"{health['row_count']:,}"
-                print(f"{symbol} {table_name:40} | {status:12} | Age: {age:6} | Rows: {rows}")
+                logger.info(f"{symbol} {table_name:40} | {status:12} | Age: {age:6} | Rows: {rows}")
 
         if verbose:
-            print("\n" + "="*80)
-            print(f"Summary: {status_summary['HEALTHY']} healthy, {status_summary['STALE']} stale, "
+            logger.info("\n" + "="*80)
+            logger.info(f"Summary: {status_summary['HEALTHY']} healthy, {status_summary['STALE']} stale, "
                   f"{status_summary['EMPTY']} empty, {status_summary['ERROR']} errors")
 
         return results, status_summary
@@ -224,7 +227,7 @@ def main():
 
         # Exit with error code if any critical tables are empty or missing
         if summary['EMPTY'] > 0 or summary['MISSING'] > 0:
-            print("\n⚠ WARNING: Critical tables are empty or missing!")
+            logger.info("\n⚠ WARNING: Critical tables are empty or missing!")
             return 1
 
         return 0

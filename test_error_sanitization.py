@@ -12,12 +12,15 @@ Verifies that API error responses don't leak:
 import requests
 import re
 from typing import Dict, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "http://localhost:3001"
 
-print("=" * 80)
-print("ERROR MESSAGE SANITIZATION TEST")
-print("=" * 80)
+logger.info("=" * 80)
+logger.info("ERROR MESSAGE SANITIZATION TEST")
+logger.info("=" * 80)
 print()
 
 # Test cases that should trigger errors
@@ -46,15 +49,15 @@ BAD_PATTERNS = [
     r'error.*at.*character', # SQL syntax error details
 ]
 
-print("Testing error message sanitization...")
+logger.info("Testing error message sanitization...")
 print()
 
 failed_tests = []
 
 for url, description, should_error in test_cases:
     test_url = f"{API_BASE}{url}"
-    print(f"Testing: {description}")
-    print(f"  URL: {test_url}")
+    logger.info(f"Testing: {description}")
+    logger.info(f"  URL: {test_url}")
 
     try:
         response = requests.get(test_url, timeout=5)
@@ -62,7 +65,7 @@ for url, description, should_error in test_cases:
         if response.status_code >= 400:
             try:
                 error_body = response.text
-                print(f"  Status: {response.status_code}")
+                logger.info(f"  Status: {response.status_code}")
 
                 # Check for sensitive patterns
                 found_leaks = []
@@ -71,45 +74,45 @@ for url, description, should_error in test_cases:
                         found_leaks.append(pattern)
 
                 if found_leaks:
-                    print(f"  [FAIL] ERROR LEAKAGE DETECTED:")
+                    logger.info(f"  [FAIL] ERROR LEAKAGE DETECTED:")
                     for leak in found_leaks[:3]:  # Show first 3
-                        print(f"     - Pattern matched: {leak}")
-                    print(f"  Response preview: {error_body[:100]}")
+                        logger.info(f"     - Pattern matched: {leak}")
+                    logger.info(f"  Response preview: {error_body[:100]}")
                     failed_tests.append((url, found_leaks))
                 else:
-                    print(f"  [OK] Error message is sanitized")
+                    logger.info(f"  [OK] Error message is sanitized")
 
             except Exception as e:
-                print(f"  [WARN]  Could not parse response: {str(e)[:50]}")
+                logger.info(f"  [WARN]  Could not parse response: {str(e)[:50]}")
         else:
-            print(f"  [WARN]  Expected error but got {response.status_code}")
+            logger.info(f"  [WARN]  Expected error but got {response.status_code}")
 
     except requests.exceptions.ConnectionError:
-        print(f"  [WARN]  Connection refused (is dev server running?)")
+        logger.info(f"  [WARN]  Connection refused (is dev server running?)")
     except Exception as e:
-        print(f"  [WARN]  Error: {str(e)[:50]}")
+        logger.info(f"  [WARN]  Error: {str(e)[:50]}")
 
     print()
 
 # Summary
-print("=" * 80)
-print("SANITIZATION TEST SUMMARY")
-print("=" * 80)
+logger.info("=" * 80)
+logger.info("SANITIZATION TEST SUMMARY")
+logger.info("=" * 80)
 print()
 
 if failed_tests:
-    print(f"[FAIL] {len(failed_tests)} error(s) have leakage:")
+    logger.info(f"[FAIL] {len(failed_tests)} error(s) have leakage:")
     for url, patterns in failed_tests:
-        print(f"   - {url}")
+        logger.info(f"   - {url}")
         for p in patterns[:2]:
-            print(f"     -> {p}")
+            logger.info(f"     -> {p}")
 else:
-    print("[OK] All error messages properly sanitized!")
+    logger.info("[OK] All error messages properly sanitized!")
 
 print()
-print("Guidelines:")
-print("  [OK] = Safe error messages (generic, no details)")
-print("  [FAIL] = Leaking implementation details (fix required)")
+logger.info("Guidelines:")
+logger.info("  [OK] = Safe error messages (generic, no details)")
+logger.info("  [FAIL] = Leaking implementation details (fix required)")
 print()
-print("For local development: Errors may be more verbose. Production should sanitize.")
+logger.info("For local development: Errors may be more verbose. Production should sanitize.")
 print()

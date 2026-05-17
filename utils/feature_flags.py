@@ -27,6 +27,8 @@ from dotenv import load_dotenv
 
 from utils.structured_logger import get_logger
 
+logger = logging.getLogger(__name__)
+
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
     env_file = Path(__file__).parent.parent / '.env.local'
@@ -360,30 +362,30 @@ if __name__ == "__main__":
     elif args.list:
         all_flags = flags.list_flags()
         if not all_flags:
-            print("No feature flags set yet")
+            logger.info("No feature flags set yet")
         else:
-            print(f"\n{'FLAG NAME':<40} {'TYPE':<20} {'VALUE':<15} {'ENABLED':<10}")
-            print("=" * 85)
+            logger.info(f"\n{'FLAG NAME':<40} {'TYPE':<20} {'VALUE':<15} {'ENABLED':<10}")
+            logger.info("=" * 85)
             for flag in all_flags:
-                print(f"{flag['flag_name']:<40} {flag['flag_type']:<20} "
+                logger.info(f"{flag['flag_name']:<40} {flag['flag_type']:<20} "
                       f"{flag['value']:<15} {str(flag['enabled']):<10}")
 
     elif args.enable:
         success = flags.enable_flag(args.enable)
-        print(f"{'✓' if success else '✗'} Flag '{args.enable}' enabled")
+        logger.info(f"{'✓' if success else '✗'} Flag '{args.enable}' enabled")
 
     elif args.disable:
         success = flags.disable_flag(args.disable)
-        print(f"{'✓' if success else '✗'} Flag '{args.disable}' disabled (EMERGENCY)")
+        logger.info(f"{'✓' if success else '✗'} Flag '{args.disable}' disabled (EMERGENCY)")
 
     elif args.set:
         flag_name, flag_type, value = args.set
         success = flags.set_flag(flag_name, flag_type, value)
-        print(f"{'✓' if success else '✗'} Flag '{flag_name}' set to '{value}'")
+        logger.info(f"{'✓' if success else '✗'} Flag '{flag_name}' set to '{value}'")
 
     elif args.get:
         value = flags.get_flag(args.get)
-        print(f"{args.get} = {value}")
+        logger.info(f"{args.get} = {value}")
 
     else:
         parser.print_help()

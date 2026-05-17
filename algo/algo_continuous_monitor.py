@@ -27,6 +27,9 @@ from dotenv import load_dotenv
 from datetime import datetime, date as _date
 from algo.algo_market_calendar import MarketCalendar
 from config.credential_helper import get_db_password, get_db_config
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -70,28 +73,28 @@ class ContinuousMonitor:
             now = datetime.now()
             status = MarketCalendar.market_status(now)
 
-            print(f"\n[{now.strftime('%H:%M:%S')}] Continuous Monitor Run #{self.run_count}")
-            print(f"  Market: {status['status']} - {status.get('reason', '')}")
+            logger.info(f"\n[{now.strftime('%H:%M:%S')}] Continuous Monitor Run #{self.run_count}")
+            logger.info(f"  Market: {status['status']} - {status.get('reason', '')}")
 
             if not status['is_open']:
-                print(f"  Skipping — market closed")
+                logger.info(f"  Skipping — market closed")
                 return
 
             # Run critical checks
             issues = self._check_critical_path()
 
             if issues['critical_count'] > 0:
-                print(f"  🚨 CRITICAL: {issues['critical_count']} issues")
+                logger.info(f"  🚨 CRITICAL: {issues['critical_count']} issues")
                 # Send alert
                 self._alert_critical(issues)
             elif issues['error_count'] > 0:
-                print(f"  ⚠️  ERROR: {issues['error_count']} issues")
+                logger.info(f"  ⚠️  ERROR: {issues['error_count']} issues")
             else:
-                print(f"  ✓ All critical checks passed")
+                logger.info(f"  ✓ All critical checks passed")
 
             self._log_run(issues)
         except Exception as e:
-            print(f"  ERROR: {e}")
+            logger.info(f"  ERROR: {e}")
             import traceback
             traceback.print_exc()
         finally:
@@ -174,7 +177,7 @@ class ContinuousMonitor:
                 ]
             )
         except Exception as e:
-            print(f"    (alert failed: {e})")
+            logger.info(f"    (alert failed: {e})")
 
     def _log_run(self, issues):
         """Log continuous monitor run."""
@@ -194,30 +197,30 @@ class ContinuousMonitor:
 
     def run_continuous(self):
         """Run checks continuously until market close."""
-        print(f"\nContinuous Monitor Started")
-        print(f"Interval: {self.interval}s ({self.interval/60:.0f} min)")
-        print(f"Running during market hours only\n")
+        logger.info(f"\nContinuous Monitor Started")
+        logger.info(f"Interval: {self.interval}s ({self.interval/60:.0f} min)")
+        logger.info(f"Running during market hours only\n")
 
         try:
             while True:
                 # Check if market is open
                 if not MarketCalendar.is_market_open():
                     next_trading = MarketCalendar.get_next_trading_day()
-                    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Market closed")
-                    print(f"Next trading day: {next_trading}")
-                    print("Exiting continuous monitor\n")
+                    logger.info(f"\n[{datetime.now().strftime('%H:%M:%S')}] Market closed")
+                    logger.info(f"Next trading day: {next_trading}")
+                    logger.info("Exiting continuous monitor\n")
                     break
 
                 self.run_once()
 
                 # Wait for next interval
-                print(f"  Next check in {self.interval}s... (Ctrl+C to exit)")
+                logger.info(f"  Next check in {self.interval}s... (Ctrl+C to exit)")
                 time.sleep(self.interval)
 
         except KeyboardInterrupt:
-            print(f"\n\nContinuous monitor stopped by user")
+            logger.info(f"\n\nContinuous monitor stopped by user")
         except Exception as e:
-            print(f"\nFatal error: {e}")
+            logger.info(f"\nFatal error: {e}")
             import traceback
             traceback.print_exc()
 

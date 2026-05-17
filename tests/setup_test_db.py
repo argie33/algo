@@ -15,6 +15,9 @@ from pathlib import Path
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load .env.local or .env.test
 env_file = Path(__file__).parent.parent / '.env.local'
@@ -54,7 +57,7 @@ MAIN_DB_CONFIG = {
 
 def create_test_database():
     """Create stocks_test database if it doesn't exist."""
-    print("Creating stocks_test database...")
+    logger.info("Creating stocks_test database...")
     try:
         conn = psycopg2.connect(**MAIN_DB_CONFIG)
         conn.autocommit = True
@@ -63,21 +66,21 @@ def create_test_database():
         # Check if DB exists
         cur.execute("SELECT 1 FROM pg_database WHERE datname = 'stocks_test'")
         if cur.fetchone():
-            print("  [OK] stocks_test already exists")
+            logger.info("  [OK] stocks_test already exists")
         else:
             cur.execute("CREATE DATABASE stocks_test")
-            print("  [OK] Created stocks_test")
+            logger.info("  [OK] Created stocks_test")
 
         cur.close()
         conn.close()
     except Exception as e:
-        print(f"  [FAIL] Failed to create database: {e}")
+        logger.info(f"  [FAIL] Failed to create database: {e}")
         raise
 
 
 def init_schema():
     """Initialize schema in stocks_test using init_database.py logic."""
-    print("Initializing schema...")
+    logger.info("Initializing schema...")
     try:
         # Import the SCHEMA from init_database directly
         sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -99,15 +102,15 @@ def init_schema():
         conn.commit()
         cur.close()
         conn.close()
-        print("  [OK] Schema initialized")
+        logger.info("  [OK] Schema initialized")
     except Exception as e:
-        print(f"  [FAIL] Failed to initialize schema: {e}")
+        logger.info(f"  [FAIL] Failed to initialize schema: {e}")
         raise
 
 
 def seed_test_data():
     """Seed minimal test data - just enough for tests to run without errors."""
-    print("Seeding test data...")
+    logger.info("Seeding test data...")
     try:
         conn = psycopg2.connect(**TEST_DB_CONFIG)
         cur = conn.cursor()
@@ -115,7 +118,7 @@ def seed_test_data():
         today = date.today()
 
         # Seed minimal price_daily: a few SPY records
-        print("    * Seeding price_daily (SPY)...")
+        logger.info("    * Seeding price_daily (SPY)...")
         for i in range(5, 0, -1):
             d = today - timedelta(days=i)
             spy_close = 500 + (i % 3)
@@ -130,7 +133,7 @@ def seed_test_data():
             )
 
         # Seed market_health_daily: a few records
-        print("    * Seeding market_health_daily...")
+        logger.info("    * Seeding market_health_daily...")
         for i in range(3, 0, -1):
             d = today - timedelta(days=i)
             cur.execute(
@@ -143,11 +146,11 @@ def seed_test_data():
             )
 
         conn.commit()
-        print("  [OK] Test data seeded")
+        logger.info("  [OK] Test data seeded")
         cur.close()
         conn.close()
     except Exception as e:
-        print(f"  [FAIL] Failed to seed data: {e}")
+        logger.info(f"  [FAIL] Failed to seed data: {e}")
         try:
             conn.rollback()
         except Exception:
@@ -157,17 +160,17 @@ def seed_test_data():
 
 def setup_test_db():
     """Main setup function - create DB, schema, seed data."""
-    print("\n" + "="*70)
-    print("Setting up stocks_test database")
-    print("="*70 + "\n")
+    logger.info("\n" + "="*70)
+    logger.info("Setting up stocks_test database")
+    logger.info("="*70 + "\n")
 
     create_test_database()
     init_schema()
     seed_test_data()
 
-    print("\n" + "="*70)
-    print("[OK] stocks_test setup complete")
-    print("="*70 + "\n")
+    logger.info("\n" + "="*70)
+    logger.info("[OK] stocks_test setup complete")
+    logger.info("="*70 + "\n")
 
 
 if __name__ == '__main__':

@@ -46,6 +46,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
 from algo.algo_pretrade_checks import PreTradeChecks
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if not env_file.exists():  # fallback: root when running from subdirectory
@@ -292,7 +295,7 @@ class PyramidEngine:
             portfolio_row = self.cur.fetchone()
             portfolio_value = portfolio_row[0] if portfolio_row and portfolio_row[0] else 100000
         except Exception as e:
-            print(f"Warning: Could not get portfolio value: {e}")
+            logger.info(f"Warning: Could not get portfolio value: {e}")
             portfolio_value = 100000
         finally:
             self.disconnect()
@@ -364,11 +367,11 @@ if __name__ == "__main__":
     from algo.algo_config import get_config
     e = PyramidEngine(get_config())
     recs = e.evaluate_pyramid_adds()
-    print(f"\n{'='*70}\nPYRAMID ADD RECOMMENDATIONS\n{'='*70}")
+    logger.info(f"\n{'='*70}\nPYRAMID ADD RECOMMENDATIONS\n{'='*70}")
     if not recs:
-        print("\nNo pyramid adds qualify today.")
+        logger.info("\nNo pyramid adds qualify today.")
     for r in recs:
-        print(f"\n  {r['symbol']:6s} #{r['add_number']}: +{r['add_size_shares']} sh @ "
+        logger.info(f"\n  {r['symbol']:6s} #{r['add_number']}: +{r['add_size_shares']} sh @ "
               f"${r['add_price']:.2f}  R={r['r_at_add']}")
-        print(f"         {r['reason']}")
+        logger.info(f"         {r['reason']}")
 

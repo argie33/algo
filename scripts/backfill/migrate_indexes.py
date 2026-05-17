@@ -34,6 +34,9 @@ import sys
 from pathlib import Path
 
 import psycopg2
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / ".env.local"
 if env_file.exists():
@@ -103,19 +106,19 @@ def has_index(cur, name):
 
 
 def report_state(cur):
-    print("\n=== Time-series index state ===")
+    logger.info("\n=== Time-series index state ===")
     pg_version = fetch_one(cur, "SHOW server_version")
-    print(f"  PostgreSQL: {pg_version}")
+    logger.info(f"  PostgreSQL: {pg_version}")
     for table, idxs in TARGETS:
         if not has_table(cur, table):
-            print(f"  · {table}: not present, skipping")
+            logger.info(f"  · {table}: not present, skipping")
             continue
         rowcount = fetch_one(
             cur, "SELECT reltuples::bigint FROM pg_class WHERE relname = %s", table
         ) or 0
         existing = [name for name, _ in idxs if has_index(cur, name)]
         missing = [name for name, _ in idxs if not has_index(cur, name)]
-        print(f"  · {table} (~{rowcount:,} rows): "
+        logger.info(f"  · {table} (~{rowcount:,} rows): "
               f"{len(existing)}/{len(idxs)} indexes present"
               + (f" missing={missing}" if missing else ""))
 
@@ -124,14 +127,14 @@ def apply_indexes(cur):
     created = 0
     for table, idxs in TARGETS:
         if not has_table(cur, table):
-            print(f"  · {table}: not present, skipping")
+            logger.info(f"  · {table}: not present, skipping")
             continue
         for name, frag in idxs:
             if has_index(cur, name):
-                print(f"  · {name}: already exists, skipping")
+                logger.info(f"  · {name}: already exists, skipping")
                 continue
             sql = f"CREATE INDEX IF NOT EXISTS {name} ON {table} {frag}"
-            print(f"  + {name}")
+            logger.info(f"  + {name}")
             cur.execute(sql)
             created += 1
     return created
@@ -143,7 +146,7 @@ def vacuum_analyze(conn, cur):
     for table, _ in TARGETS:
         if not has_table(cur, table):
             continue
-        print(f"  ANALYZE {table}")
+        logger.info(f"  ANALYZE {table}")
         cur.execute(f"ANALYZE {table}")
 
 
@@ -162,18 +165,18 @@ def main():
         if args.check:
             return 0
 
-        print("\n=== Apply indexes ===")
+        logger.info("\n=== Apply indexes ===")
         created = apply_indexes(cur)
         conn.commit()
-        print(f"\n  ✓ created {created} new index(es)")
+        logger.info(f"\n  ✓ created {created} new index(es)")
 
-        print("\n=== Refresh planner stats ===")
+        logger.info("\n=== Refresh planner stats ===")
         vacuum_analyze(conn, cur)
         conn.commit()
 
-        print("\n=== Final state ===")
+        logger.info("\n=== Final state ===")
         report_state(cur)
-        print("\n  ✓ Migration complete")
+        logger.info("\n  ✓ Migration complete")
         return 0
     except Exception:
         conn.rollback()

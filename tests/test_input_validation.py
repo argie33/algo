@@ -9,6 +9,9 @@ import pytest
 import os
 import re
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TestInputValidationSQLInjection:
@@ -36,7 +39,7 @@ class TestInputValidationSQLInjection:
         assert len(dangerous_patterns) == 0, \
             f"Found dangerous SQL patterns (f-strings or .format on SQL): {dangerous_patterns[:2]}"
 
-        print(f"[PASS] SQL injection prevention: {parameterized_count} parameterized queries found, no dangerous patterns")
+        logger.info(f"[PASS] SQL injection prevention: {parameterized_count} parameterized queries found, no dangerous patterns")
 
     def test_string_formatting_in_sql(self):
         """Check that SQL queries don't use string formatting."""
@@ -53,12 +56,12 @@ class TestInputValidationSQLInjection:
                     dangerous_lines.append((i, line.strip()))
 
         if dangerous_lines:
-            print(f"⚠️  Found potential unsafe query patterns:")
+            logger.info(f"⚠️  Found potential unsafe query patterns:")
             for line_num, line in dangerous_lines[:5]:
-                print(f"   Line {line_num}: {line[:60]}")
+                logger.info(f"   Line {line_num}: {line[:60]}")
             # Mark as warning but don't fail (might be false positives)
         else:
-            print(f"[PASS] No obvious string formatting in SQL queries")
+            logger.info(f"[PASS] No obvious string formatting in SQL queries")
 
     def test_input_bounds_validation(self):
         """Check for input bounds and type validation."""
@@ -80,7 +83,7 @@ class TestInputValidationSQLInjection:
 
         for check, found in validates.items():
             status = "[PASS]" if found else "[FAIL]"
-            print(f"{status} {check}")
+            logger.info(f"{status} {check}")
 
 
 class TestInputValidationAudit:
@@ -107,7 +110,7 @@ class TestInputValidationAudit:
         )
 
         assert has_limit_check or has_days_check, "Should validate numeric parameters"
-        print(f"[PASS] Numeric parameter validation found")
+        logger.info(f"[PASS] Numeric parameter validation found")
 
     def test_error_message_sanitization(self):
         """Verify error messages don't leak SQL/database details."""
@@ -130,9 +133,9 @@ class TestInputValidationAudit:
         assert has_error_handling, "Should have error handling"
 
         if has_sanitization:
-            print(f"[PASS] Error messages properly sanitized")
+            logger.info(f"[PASS] Error messages properly sanitized")
         else:
-            print(f"ℹ️  Error handling present (sanitization verified)")
+            logger.info(f"ℹ️  Error handling present (sanitization verified)")
 
     def test_symbol_parameter_validation(self):
         """Check for symbol parameter sanitization."""
@@ -152,7 +155,7 @@ class TestInputValidationAudit:
         # Look for symbol length check
         has_length_check = 'len(' in code and 'symbol' in code
 
-        print(f"[PASS] Symbol parameter handling: length check={has_length_check}, type check={has_symbol_check}")
+        logger.info(f"[PASS] Symbol parameter handling: length check={has_length_check}, type check={has_symbol_check}")
 
 
 class TestSecurityEndpoints:
@@ -181,7 +184,7 @@ class TestSecurityEndpoints:
 
         # Test passes if there's some form of authentication mechanism
         assert has_any_auth, "Should have authentication mechanism"
-        print(f"[PASS] API authentication implemented or delegated")
+        logger.info(f"[PASS] API authentication implemented or delegated")
 
     def test_rate_limiting_configured(self):
         """Check if rate limiting is configured."""
@@ -193,9 +196,9 @@ class TestSecurityEndpoints:
         has_rate_limit = 'rate' in code.lower() or 'throttle' in code.lower()
 
         if has_rate_limit:
-            print(f"[PASS] Rate limiting patterns found")
+            logger.info(f"[PASS] Rate limiting patterns found")
         else:
-            print(f"ℹ️  Rate limiting not explicitly in Lambda (may be in API Gateway)")
+            logger.info(f"ℹ️  Rate limiting not explicitly in Lambda (may be in API Gateway)")
 
     def test_cors_properly_configured(self):
         """Verify CORS headers are restricted."""
@@ -209,11 +212,11 @@ class TestSecurityEndpoints:
         has_wildcard = "'*'" in code and 'Access-Control' in code
 
         if has_cors and not has_wildcard:
-            print(f"[PASS] CORS properly restricted (not wildcard)")
+            logger.info(f"[PASS] CORS properly restricted (not wildcard)")
         elif has_cors:
-            print(f"⚠️  Warning: CORS may use wildcard (less secure)")
+            logger.info(f"⚠️  Warning: CORS may use wildcard (less secure)")
         else:
-            print(f"ℹ️  CORS configuration not found in Lambda")
+            logger.info(f"ℹ️  CORS configuration not found in Lambda")
 
 
 if __name__ == '__main__':

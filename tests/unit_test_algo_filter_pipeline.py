@@ -12,12 +12,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config'))
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import date, datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import the module to test
 try:
     from algo.algo_filter_pipeline import FilterPipeline
 except ImportError:
-    print("Warning: Could not import FilterPipeline, skipping tests")
+    logger.info("Warning: Could not import FilterPipeline, skipping tests")
     sys.exit(0)
 
 

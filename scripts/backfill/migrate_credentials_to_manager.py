@@ -17,6 +17,9 @@ import re
 import sys
 from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Files to skip
 SKIP_FILES = {
@@ -160,8 +163,8 @@ def main():
 
     py_files = [str(f) for f in py_files if f.is_file()]
 
-    print(f"Found {len(py_files)} Python files")
-    print("Starting migration...\n")
+    logger.info(f"Found {len(py_files)} Python files")
+    logger.info("Starting migration...\n")
 
     modified = 0
     skipped = 0
@@ -176,24 +179,24 @@ def main():
 
         if was_modified:
             modified += 1
-            print(f"[OK] {filepath}")
+            logger.info(f"[OK] {filepath}")
             for change in changes:
-                print(f"  - {change}")
+                logger.info(f"  - {change}")
         else:
             errors += 1
-            print(f"[ERROR] {filepath}")
+            logger.info(f"[ERROR] {filepath}")
             for change in changes:
-                print(f"  - {change}")
+                logger.info(f"  - {change}")
 
-    print(f"\n{'='*60}")
-    print(f"Results:")
-    print(f"  Modified: {modified}")
-    print(f"  Skipped: {skipped}")
-    print(f"  Errors: {errors}")
-    print(f"{'='*60}")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Results:")
+    logger.info(f"  Modified: {modified}")
+    logger.info(f"  Skipped: {skipped}")
+    logger.info(f"  Errors: {errors}")
+    logger.info(f"{'='*60}")
 
     # Final check
-    print("\nVerifying migrations...")
+    logger.info("\nVerifying migrations...")
     bad_patterns = [
         r'os\.getenv\(["\']DB_PASSWORD["\']\s*,\s*["\'][\'"]\)',
         r'os\.getenv\(["\']APCA_API_KEY_ID["\']\)',
@@ -210,15 +213,15 @@ def main():
             for pat in bad_patterns:
                 if re.search(pat, content):
                     remaining += 1
-                    print(f"[WARN] Still has old pattern: {filepath}")
+                    logger.info(f"[WARN] Still has old pattern: {filepath}")
                     break
         except:
             pass
 
     if remaining == 0:
-        print("[OK] No old credential patterns remaining!")
+        logger.info("[OK] No old credential patterns remaining!")
     else:
-        print(f"[WARN] {remaining} files still have old patterns")
+        logger.info(f"[WARN] {remaining} files still have old patterns")
 
     return 0 if errors == 0 else 1
 

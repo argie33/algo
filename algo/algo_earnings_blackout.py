@@ -127,8 +127,8 @@ if __name__ == "__main__":
 
     # Test
     result = eb.run("AAPL", _date(2026, 5, 15))
-    print(f"AAPL earnings check (2026-05-15): {result}")
+    logger.info(f"AAPL earnings check (2026-05-15): {result}")
 
     upcoming = eb.get_upcoming_earnings("AAPL")
-    print(f"AAPL upcoming earnings: {upcoming}")
+    logger.info(f"AAPL upcoming earnings: {upcoming}")
 

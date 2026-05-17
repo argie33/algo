@@ -7,6 +7,9 @@ Reviews PR changes and provides intelligent feedback
 import os
 import subprocess
 import google.generativeai as genai
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_pr_changes():
     """Get the diff from the PR"""
@@ -18,14 +21,14 @@ def get_pr_changes():
         )
         return result.stdout
     except Exception as e:
-        print(f"Error getting git diff: {e}")
+        logger.info(f"Error getting git diff: {e}")
         return None
 
 def review_with_gemini(diff_content):
     """Review code changes with Gemini"""
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
-        print("❌ GEMINI_API_KEY not set")
+        logger.info("❌ GEMINI_API_KEY not set")
         return None
 
     genai.configure(api_key=api_key)
@@ -53,22 +56,22 @@ Provide your review in markdown format.
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"❌ Error during review: {e}")
+        logger.info(f"❌ Error during review: {e}")
         return None
 
 def main():
-    print("🤖 Running Gemini AI Code Review...")
+    logger.info("🤖 Running Gemini AI Code Review...")
 
     # Get PR changes
     diff = get_pr_changes()
     if not diff:
-        print("❌ No changes found")
+        logger.info("❌ No changes found")
         return
 
     # Review with Gemini
     review = review_with_gemini(diff)
     if not review:
-        print("❌ Review failed")
+        logger.info("❌ Review failed")
         return
 
     # Save review output
@@ -76,8 +79,8 @@ def main():
         f.write("## 🤖 Gemini AI Code Review\n\n")
         f.write(review)
 
-    print("✅ Review complete")
-    print(review)
+    logger.info("✅ Review complete")
+    logger.info(review)
 
 if __name__ == "__main__":
     main()

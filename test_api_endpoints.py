@@ -13,6 +13,9 @@ import json
 import sys
 import io
 from typing import Dict, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -114,46 +117,46 @@ def test_endpoint(base_url: str, path: str, method: str, expected_status: int) -
         return False, f"Error: {str(e)}", -1
 
 def main():
-    print("=" * 80)
-    print("API ENDPOINT VERIFICATION TEST SUITE")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("API ENDPOINT VERIFICATION TEST SUITE")
+    logger.info("=" * 80)
     print()
 
     # Test local dev server first
-    print("Testing Local Development Server (React + Express)")
-    print("-" * 80)
+    logger.info("Testing Local Development Server (React + Express)")
+    logger.info("-" * 80)
 
     local_results = []
     for path, method, status, desc in ENDPOINTS:
         success, msg, actual_status = test_endpoint(API_BASE, path, method, status)
         local_results.append((path, desc, success, msg, actual_status))
         status_symbol = "[PASS]" if success else "[FAIL]"
-        print(f"{status_symbol} {method:4} {path:40} {desc:30} [{actual_status}]")
+        logger.info(f"{status_symbol} {method:4} {path:40} {desc:30} [{actual_status}]")
 
     local_passed = sum(1 for _, _, success, _, _ in local_results if success)
     local_total = len(local_results)
 
     print()
-    print("=" * 80)
-    print("LOCAL DEV SERVER SUMMARY")
-    print("=" * 80)
-    print(f"Passed: {local_passed}/{local_total}")
+    logger.info("=" * 80)
+    logger.info("LOCAL DEV SERVER SUMMARY")
+    logger.info("=" * 80)
+    logger.info(f"Passed: {local_passed}/{local_total}")
     print()
 
     # Test AWS endpoint (health check only)
     if "--aws" in sys.argv:
-        print("=" * 80)
-        print("Testing AWS Production API Gateway")
-        print("-" * 80)
+        logger.info("=" * 80)
+        logger.info("Testing AWS Production API Gateway")
+        logger.info("-" * 80)
 
         success, msg, status = test_endpoint(API_HEALTH, "/api/health", "GET", 200)
-        print(f"{'[PASS]' if success else '[FAIL]'} GET /api/health {msg} [{status}]")
+        logger.info(f"{'[PASS]' if success else '[FAIL]'} GET /api/health {msg} [{status}]")
         print()
 
-    print("NOTES:")
-    print("- Local tests require: npm run dev (React dev server on port 3001)")
-    print("- Auth endpoints should return 401 without API key")
-    print("- Use --aws flag to test AWS API Gateway endpoint")
+    logger.info("NOTES:")
+    logger.info("- Local tests require: npm run dev (React dev server on port 3001)")
+    logger.info("- Auth endpoints should return 401 without API key")
+    logger.info("- Use --aws flag to test AWS API Gateway endpoint")
     print()
 
     # Return exit code based on results

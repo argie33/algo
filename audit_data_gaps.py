@@ -7,6 +7,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load env
 env_file = Path(__file__).parent / '.env.local'
@@ -24,15 +27,15 @@ try:
     )
     cur = conn.cursor()
 
-    print("=" * 70)
-    print("DATA COMPLETENESS AUDIT")
-    print("=" * 70)
+    logger.info("=" * 70)
+    logger.info("DATA COMPLETENESS AUDIT")
+    logger.info("=" * 70)
     print()
 
     # Check total symbols
     cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_active = TRUE")
     total_symbols = cur.fetchone()[0]
-    print(f"OK Total active symbols: {total_symbols}")
+    logger.info(f"OK Total active symbols: {total_symbols}")
     print()
 
     # Check critical data tables
@@ -49,8 +52,8 @@ try:
         ('technical_data_daily', 'symbol'),
     ]
 
-    print("[TABLES] TABLE POPULATION STATUS:")
-    print("-" * 70)
+    logger.info("[TABLES] TABLE POPULATION STATUS:")
+    logger.info("-" * 70)
 
     for table, symbol_col in critical_tables:
         # Check if table exists
@@ -62,7 +65,7 @@ try:
         """)
 
         if not cur.fetchone()[0]:
-            print(f"NO  {table.ljust(30)} - TABLE DOES NOT EXIST")
+            logger.info(f"NO  {table.ljust(30)} - TABLE DOES NOT EXIST")
             continue
 
         # Check row count
@@ -79,14 +82,14 @@ try:
             coverage = (unique_symbols / total_symbols * 100) if total_symbols > 0 else 0
 
             status = "OK" if coverage > 90 else "LOW" if coverage > 50 else "EMPTY"
-            print(f"{status} {table.ljust(30)} {count:>12,} rows | {coverage:>5.1f}% coverage ({unique_symbols:,} symbols)")
+            logger.info(f"{status} {table.ljust(30)} {count:>12,} rows | {coverage:>5.1f}% coverage ({unique_symbols:,} symbols)")
         else:
-            print(f"OK {table.ljust(30)} {count:>12,} rows")
+            logger.info(f"OK {table.ljust(30)} {count:>12,} rows")
 
     print()
-    print("=" * 70)
-    print("CRITICAL GAPS TO ADDRESS:")
-    print("-" * 70)
+    logger.info("=" * 70)
+    logger.info("CRITICAL GAPS TO ADDRESS:")
+    logger.info("-" * 70)
 
     # Check earnings_calendar specifically
     cur.execute("SELECT COUNT(*) FROM earnings_calendar")
@@ -108,15 +111,15 @@ try:
         gaps.append(f"OK: analyst_sentiment: {sentiment_count} rows")
 
     for gap in gaps:
-        print(gap)
+        logger.info(gap)
 
     print()
-    print("=" * 70)
-    print("RECOMMENDED ACTIONS:")
-    print("-" * 70)
+    logger.info("=" * 70)
+    logger.info("RECOMMENDED ACTIONS:")
+    logger.info("-" * 70)
 
     if earnings_count < 100:
-        print("""
+        logger.info("""
 1. RUN: python3 loaders/load_earnings_calendar.py
    - Fetches 6-12 months of earnings dates
    - Required for: Earnings blackout enforcement
@@ -124,24 +127,24 @@ try:
         """)
 
     if sentiment_count < 100:
-        print("""
+        logger.info("""
 2. RUN: python3 loaders/loadanalystsentiment.py
    - Fetches analyst sentiment ratings
    - Required for: Sentiment-based signals
    - Estimated time: 5-10 minutes for 10K+ symbols
         """)
 
-    print("""
+    logger.info("""
 3. VERIFY loaders are in Terraform ECS task:
    - Check: terraform/modules/loaders/main.tf
    - Ensure: load_earnings_calendar.py and loadanalystsentiment.py in LOADER_FILE_MAP
    - These should run daily in production
     """)
 
-    print("=" * 70)
+    logger.info("=" * 70)
 
     conn.close()
 
 except Exception as e:
-    print(f"ERROR: Database error: {e}")
-    print("\nMake sure PostgreSQL is running and .env.local is configured")
+    logger.info(f"ERROR: Database error: {e}")
+    logger.info("\nMake sure PostgreSQL is running and .env.local is configured")

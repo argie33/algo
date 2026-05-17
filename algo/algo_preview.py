@@ -25,6 +25,9 @@ except ImportError:
     pass
 
 from config.credential_helper import get_db_password
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_db_conn():

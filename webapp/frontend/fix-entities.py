@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import os
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Map of replacements - be careful to only replace in JSX text content
 replacements = {
@@ -43,7 +46,7 @@ def fix_file(filepath):
             return True
         return False
     except Exception as e:
-        print(f"Error processing {filepath}: {e}")
+        logger.info(f"Error processing {filepath}: {e}")
         return False
 
 def main():
@@ -56,9 +59,9 @@ def main():
                 filepath = os.path.join(root, file)
                 if fix_file(filepath):
                     fixed_count += 1
-                    print(f"[+] Fixed: {os.path.relpath(filepath)}")
+                    logger.info(f"[+] Fixed: {os.path.relpath(filepath)}")
 
-    print(f"\nFixed {fixed_count} files total")
+    logger.info(f"\nFixed {fixed_count} files total")
 
 if __name__ == '__main__':
     main()

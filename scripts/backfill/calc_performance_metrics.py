@@ -20,6 +20,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -47,9 +50,9 @@ class PerformanceMetricsCalculator:
         try:
             self.conn = psycopg2.connect(**get_db_config())
             self.cur = self.conn.cursor()
-            print("✓ Database connected")
+            logger.info("✓ Database connected")
         except Exception as e:
-            print(f"✗ Database connection failed: {e}")
+            logger.info(f"✗ Database connection failed: {e}")
             raise
 
     def disconnect(self):
@@ -74,7 +77,7 @@ class PerformanceMetricsCalculator:
 
             rows = self.cur.fetchall()
             if len(rows) < 2:
-                print(f"  ⚠ Insufficient data for returns calculation ({len(rows)} days)")
+                logger.info(f"  ⚠ Insufficient data for returns calculation ({len(rows)} days)")
                 return None
 
             daily_returns = []
@@ -86,7 +89,7 @@ class PerformanceMetricsCalculator:
 
             return np.array(daily_returns) if daily_returns else None
         except Exception as e:
-            print(f"  ✗ Error getting returns: {e}")
+            logger.info(f"  ✗ Error getting returns: {e}")
             return None
 
     def calculate_sharpe_ratio(self, returns: np.ndarray, risk_free_rate: float = 0.02) -> float:
@@ -164,7 +167,7 @@ class PerformanceMetricsCalculator:
                     }
             return None
         except Exception as e:
-            print(f"  ✗ Error getting trade stats: {e}")
+            logger.info(f"  ✗ Error getting trade stats: {e}")
             return None
 
     def persist_metrics(self, report_date: date, metrics: Dict):
@@ -194,25 +197,25 @@ class PerformanceMetricsCalculator:
                 metrics.get('profit_factor', 0),
             ))
             self.conn.commit()
-            print(f"✓ Metrics persisted for {report_date}")
+            logger.info(f"✓ Metrics persisted for {report_date}")
         except Exception as e:
-            print(f"✗ Failed to persist metrics: {e}")
+            logger.info(f"✗ Failed to persist metrics: {e}")
 
     def calculate_all(self, report_date: Optional[date] = None):
         """Calculate all performance metrics."""
         if report_date is None:
             report_date = date.today()
 
-        print(f"\n{'='*60}")
-        print(f"PERFORMANCE METRICS CALCULATION — {report_date}")
-        print(f"{'='*60}\n")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"PERFORMANCE METRICS CALCULATION — {report_date}")
+        logger.info(f"{'='*60}\n")
 
         self.connect()
 
         metrics = {}
 
         # Calculate returns-based metrics
-        print("Calculating returns-based metrics...")
+        logger.info("Calculating returns-based metrics...")
         returns = self.get_portfolio_daily_returns(lookback_days=252)
 
         if returns is not None and len(returns) > 0:
@@ -224,17 +227,17 @@ class PerformanceMetricsCalculator:
             metrics['sortino'] = round(sortino, 2)
             metrics['max_dd'] = round(max_dd * 100, 2)
 
-            print(f"  Sharpe Ratio (252d): {metrics['sharpe']}")
-            print(f"  Sortino Ratio (252d): {metrics['sortino']}")
-            print(f"  Max Drawdown: {metrics['max_dd']}%")
+            logger.info(f"  Sharpe Ratio (252d): {metrics['sharpe']}")
+            logger.info(f"  Sortino Ratio (252d): {metrics['sortino']}")
+            logger.info(f"  Max Drawdown: {metrics['max_dd']}%")
         else:
-            print("  ⚠ Insufficient data for returns-based metrics")
+            logger.info("  ⚠ Insufficient data for returns-based metrics")
             metrics['sharpe'] = 0
             metrics['sortino'] = 0
             metrics['max_dd'] = 0
 
         # Calculate trade-based metrics
-        print("\nCalculating trade-based metrics (90d)...")
+        logger.info("\nCalculating trade-based metrics (90d)...")
         trade_stats = self.get_trade_statistics()
 
         if trade_stats:
@@ -248,23 +251,23 @@ class PerformanceMetricsCalculator:
             else:
                 metrics['profit_factor'] = 1.0 if trade_stats['total_pnl'] >= 0 else 0.0
 
-            print(f"  Win Rate: {metrics['win_rate']}%")
-            print(f"  Profit Factor: {metrics['profit_factor']}")
-            print(f"  Total Trades (90d): {trade_stats['total_trades']}")
+            logger.info(f"  Win Rate: {metrics['win_rate']}%")
+            logger.info(f"  Profit Factor: {metrics['profit_factor']}")
+            logger.info(f"  Total Trades (90d): {trade_stats['total_trades']}")
         else:
-            print("  ⚠ Insufficient trade data")
+            logger.info("  ⚠ Insufficient trade data")
             metrics['win_rate'] = 0
             metrics['profit_factor'] = 0
 
         # Persist to database
-        print("\nPersisting metrics...")
+        logger.info("\nPersisting metrics...")
         self.persist_metrics(report_date, metrics)
 
         self.disconnect()
 
-        print(f"\n{'='*60}")
-        print("Calculation complete")
-        print(f"{'='*60}\n")
+        logger.info(f"\n{'='*60}")
+        logger.info("Calculation complete")
+        logger.info(f"{'='*60}\n")
 
         return metrics
 
@@ -276,12 +279,12 @@ if __name__ == "__main__":
         try:
             report_date = datetime.strptime(sys.argv[1], "%Y-%m-%d").date()
         except ValueError:
-            print(f"Invalid date format. Use YYYY-MM-DD")
+            logger.info(f"Invalid date format. Use YYYY-MM-DD")
             sys.exit(1)
 
     try:
         metrics = calc.calculate_all(report_date)
         sys.exit(0)
     except Exception as e:
-        print(f"✗ Calculation failed: {e}")
+        logger.info(f"✗ Calculation failed: {e}")
         sys.exit(1)
