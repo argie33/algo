@@ -10,7 +10,6 @@ Provides:
 
 import os
 import sys
-from config.credential_helper import get_db_config
 import pytest
 import psycopg2.extras
 from pathlib import Path
@@ -35,10 +34,10 @@ os.environ.setdefault('DB_USER', DEFAULT_DB_USER)
 
 # Load test env vars (no .env.local — credentials via environment variables only)
 # Test database config — use test-specific DB if available, fallback to main DB
-TEST_DB_HOST = os.getenv('TEST_DB_HOST') or get_db_config()['host']
+TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', DEFAULT_DB_HOST)
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
 TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER') or get_db_config()['user']
+TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_USER)
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
 
 

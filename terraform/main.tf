@@ -233,6 +233,11 @@ module "services" {
   orchestrator_log_level         = var.orchestrator_log_level
   data_patrol_enabled            = var.data_patrol_enabled
   data_patrol_timeout_ms         = var.data_patrol_timeout_ms
+  ecs_cluster_arn                = module.compute.ecs_cluster_arn
+  patrol_task_definition_arn     = module.loaders.data_patrol_task_definition_arn
+  patrol_task_container_name     = "${var.project_name}-data-patrol"
+  private_subnet_ids_for_patrol  = module.vpc.private_subnet_ids
+  ecs_tasks_sg_id                = module.vpc.ecs_tasks_security_group_id
   common_tags                    = local.common_tags
 }
 

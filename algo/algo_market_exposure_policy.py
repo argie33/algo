@@ -28,7 +28,6 @@ in Phase 2.5 (between circuit breakers and position monitor).
 from config.env_loader import load_env
 from config.credential_helper import get_db_config
 from config.credential_helper import get_db_password, get_db_config
-from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
 
 try:
     from config.credential_manager import get_credential_manager

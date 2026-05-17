@@ -10,8 +10,7 @@ from datetime import datetime, date as _date
 
 # Add repo root to path so we can import algo modules
 try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
+    except ImportError:
     DEFAULT_DB_HOST = "localhost"
     DEFAULT_DB_NAME = "stocks"
 

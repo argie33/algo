@@ -13,8 +13,12 @@ import os
 import logging
 from typing import Dict, Optional
 
-
 logger = logging.getLogger(__name__)
+
+DEFAULT_DB_HOST = "localhost"
+DEFAULT_DB_PORT = 5432
+DEFAULT_DB_USER = "stocks"
+DEFAULT_DB_NAME = "stocks"
 
 _CACHED_CREDS: Optional[Dict] = None
 
@@ -71,11 +75,11 @@ def get_db_config() -> Dict[str, any]:
         return _CACHED_CREDS
 
     config = {
-        "host": get_db_config()['host'],
-        "port": int(int(get_db_config()['port'])),
-        "user": get_db_config()['user'],
+        "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
+        "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+        "user": os.getenv("DB_USER", DEFAULT_DB_USER),
         "password": get_db_password(),
-        "database": get_db_config()['database'],
+        "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
     _CACHED_CREDS = config
