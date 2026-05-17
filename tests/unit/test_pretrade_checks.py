@@ -66,16 +66,12 @@ class TestPreTradeChecksPositionSize:
         portfolio_value = 100000.0
         position_value = 10000.0  # Exactly 10% limit
 
-        # Mock DB checks to pass (symbol exists, no duplicate)
-        with patch.object(pretrade_checks, 'connect'), \
-             patch.object(pretrade_checks, '_get_db_config', return_value={}):
+        # Test buying power check (first check in run_all)
+        max_position_pct = float(pretrade_checks.config.get('max_position_size_pct', 10.0)) / 100.0
+        max_position_value = portfolio_value * max_position_pct
 
-            # Manually bypass DB checks for this test
-            max_position_pct = float(pretrade_checks.config.get('max_position_size_pct', 10.0)) / 100.0
-            max_position_value = portfolio_value * max_position_pct
-
-            # Position equals limit, so should pass
-            assert position_value <= max_position_value, "Position at limit should pass"
+        # Position equals limit, so should pass
+        assert position_value <= max_position_value, "Position at limit should pass"
 
 
 class TestPreTradeChecksBuyingPower:
