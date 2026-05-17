@@ -2,6 +2,8 @@
 node_modules/
 **/node_modules/
 package-lock.json
+# EXCEPTION: Lambda package-lock.json must be tracked for AWS deployment
+!webapp/lambda/package-lock.json
 
 # Build outputs
 dist/
