@@ -747,6 +747,91 @@ resource "aws_cloudwatch_metric_alarm" "loader_symbol_failures" {
   tags                = var.common_tags
 }
 
+# CRITICAL: Alert if price_daily is stale (no trading data for 3+ days)
+resource "aws_cloudwatch_metric_alarm" "price_data_stale" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-price-data-stale-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "PriceDataAgeDays"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = 3
+  alarm_description   = "CRITICAL: price_daily table is 3+ days stale. No trading data available."
+  treat_missing_data  = "breaching"  # If no data, treat as breaching (fail-closed)
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# CRITICAL: Alert if stock_scores is stale (outdated scoring)
+resource "aws_cloudwatch_metric_alarm" "scores_data_stale" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-scores-stale-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "StockScoresAgeDays"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = 3
+  alarm_description   = "CRITICAL: stock_scores table is 3+ days stale. Signals may be invalid."
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# CRITICAL: Alert if buy_sell_daily is stale (no signal data)
+resource "aws_cloudwatch_metric_alarm" "signals_data_stale" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-signals-stale-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "SignalsDataAgeDays"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = 3
+  alarm_description   = "CRITICAL: buy_sell_daily table is 3+ days stale. No trading signals available."
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# WARNING: Alert if any table has empty row count (loader failed completely)
+resource "aws_cloudwatch_metric_alarm" "empty_critical_table" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-empty-table-warning-${var.environment}"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CriticalTableRowCount"
+  namespace           = "AlgoTrading"
+  period              = 3600
+  statistic           = "Minimum"
+  threshold           = 100
+  alarm_description   = "WARNING: A critical table has very few rows. Loader may have failed."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
+# WARNING: Alert if multiple loaders failed in last 24 hours
+resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-loader-failures-24h-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "LoaderFailureCount24h"
+  namespace           = "AlgoTrading"
+  period              = 86400  # 24 hours
+  statistic           = "Sum"
+  threshold           = 2
+  alarm_description   = "WARNING: 2+ loaders failed in the last 24 hours. Data pipeline degraded."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
 resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
