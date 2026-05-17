@@ -688,6 +688,64 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
 }
 
 # ============================================================
+# Data Patrol ECS Task Definition (On-Demand Data Monitoring)
+#
+# Invoked via API endpoint /api/algo/patrol to validate data freshness.
+# Checks: stock_symbols count, latest price dates, signal computation status.
+# ============================================================
+
+resource "null_resource" "ensure_patrol_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-data-patrol --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "data_patrol" {
+  depends_on = [null_resource.ensure_patrol_log_group]
+
+  family = "${var.project_name}-data-patrol"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-data-patrol"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+
+      command   = ["python3", "algo_data_patrol.py"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-data-patrol"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER",     valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST",    value = var.db_host },
+        { name = "DB_PORT",    value = tostring(var.db_port) },
+        { name = "DB_NAME",    value = var.db_name }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"    # Smaller than orchestrator (256 was too small)
+  memory                   = "1024"   # Basic monitoring task
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+# ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
 # ============================================================
 

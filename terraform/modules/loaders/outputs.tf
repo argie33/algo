@@ -75,3 +75,22 @@ output "algo_orchestrator_log_group_name" {
   description = "CloudWatch log group for algo orchestrator"
   value       = "/ecs/${var.project_name}-algo-orchestrator"
 }
+
+# ============================================================
+# Data Patrol Task Outputs
+# ============================================================
+
+output "data_patrol_task_definition_arn" {
+  description = "ARN of the data patrol ECS task definition (invoked by API)"
+  value       = aws_ecs_task_definition.data_patrol.arn
+}
+
+output "data_patrol_task_definition_family" {
+  description = "Family name of the data patrol ECS task definition"
+  value       = aws_ecs_task_definition.data_patrol.family
+}
+
+output "data_patrol_log_group_name" {
+  description = "CloudWatch log group for data patrol"
+  value       = "/ecs/${var.project_name}-data-patrol"
+}
