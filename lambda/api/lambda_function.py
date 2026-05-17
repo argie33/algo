@@ -492,6 +492,9 @@ class APIHandler:
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
             return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
+        # Handle POST /api/algo/pre-trade-impact
+        if method == 'POST' and path == '/api/algo/pre-trade-impact':
+            return self._analyze_pre_trade_impact(body)
         if path == '/api/algo/status':
             return self._get_algo_status()
         elif path == '/api/algo/trades':

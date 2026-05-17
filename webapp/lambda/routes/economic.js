@@ -593,8 +593,6 @@ router.get("/yield-curve-full", async (req, res) => {
       };
     }
 
-    console.log(`[OK] Yield curve data: ${Object.keys(currentCurve).length} maturities, spreads: ${Object.keys(treasurySpreads).filter(k => treasurySpreads[k] !== null).length}, isInverted: ${isInverted}`);
-
     return sendSuccess(res, {
       currentCurve,
       spreads: treasurySpreads,
