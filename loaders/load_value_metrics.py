@@ -11,18 +11,14 @@ Writes ratios to value_metrics and market_cap to key_metrics in one pass.
 Falls back to computing from SEC financial data when yfinance returns nothing.
 """
 
-import sys
-import psycopg2
-from pathlib import Path
-from config.env_loader import load_env
-load_env()
-
 import argparse
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional
+import psycopg2
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date
+from typing import Dict, List, Optional
 
 from utils.db_connection import get_db_connection
 import yfinance as yf

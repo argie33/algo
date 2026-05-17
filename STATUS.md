@@ -31,17 +31,18 @@
 
 ## HOW TO RUN LOADERS LOCALLY
 
-Before running any loader:
+**RECOMMENDED:** Use AWS Secrets Manager (same as production, set once)
+- See **LOCAL_CRED_SETUP.md** for 5-minute setup
+- Credentials stored in AWS, no files, no per-session env var setup
 
+**ALTERNATIVE:** Set environment variables each session
 ```bash
-# Set these in your terminal:
 export DB_PASSWORD=<your_password>
 export DB_HOST=localhost
 export DB_PORT=5432
 export DB_USER=stocks
 export DB_NAME=stocks
 
-# Then run all loaders:
 python3 run-all-loaders.py
 ```
 

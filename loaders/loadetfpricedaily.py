@@ -2,21 +2,26 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-# fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
+
 """
-ETF Daily Price Loader - Optimal Pattern.
+ETF Daily Price Loader - Loads ETF daily OHLCV data from Alpaca/yfinance.
 
-import sys
-from pathlib import Path
-
-Loads ETF daily OHLCV data from Alpaca/yfinance.
 Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 
 Run:
     python3 loadetfpricedaily.py [--symbols SPY,QQQ] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
 
+import argparse
+import logging
+import os
+from datetime import date, timedelta
+from typing import List, Optional
+
+from config.credential_helper import get_db_password, get_db_config
+from config.env_loader import load_env
+from utils.logging_setup import get_logger
+from utils.optimal_loader import OptimalLoader
 
 try:
     from config.credential_manager import get_credential_manager
@@ -24,17 +29,7 @@ try:
 except ImportError:
     credential_manager = None
 
-import argparse
-from config.credential_helper import get_db_password, get_db_config
-import logging
 logger = get_logger(__name__)
-import os
-import sys
-from config.env_loader import load_env
-from datetime import date, timedelta
-from typing import List, Optional
-
-from utils.optimal_loader import OptimalLoader
 
 
 

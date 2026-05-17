@@ -18,16 +18,14 @@ Sources:
 Run:
     python3 load_earnings_calendar.py [--symbols AAPL,MSFT] [--days-ahead 180]
 """
-import psycopg2
-from utils.logging_setup import get_logger
-
 import argparse
 import logging
 import os
-import sys
-from utils.db_connection import get_db_connection
+import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
+from utils.logging_setup import get_logger
+from utils.db_connection import get_db_connection
 from pathlib import Path
 
 try:

@@ -17,60 +17,12 @@ except ImportError:
     boto3 = None
 
 from utils.db_connection import get_db_connection
-import psycopg2
 from psycopg2.extras import execute_values
 import requests
 
 # ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s] %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("loadstocksymbols")
-
-# ─── Config ────────────────────────────────────────────────────────────────────
-DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-
-
-def get_db_cfg():
-    """Get database configuration - works in AWS and locally.
-
-    Priority:
-    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
-    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-
-    Returns tuple: (host, port, user, password, dbname)
-    """
-    aws_region = os.environ.get("AWS_REGION")
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # Try AWS Secrets Manager first
-    if db_secret_arn and aws_region:
-        try:
-            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-                SecretId=db_secret_arn
-            )["SecretString"]
-            sec = json.loads(secret_str)
-            logger.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
-            return (
-                sec["host"],
-                sec.get("port", "5432"),
-                sec["username"],
-                sec["password"],
-                sec["dbname"],
-            )
-        except Exception as e:
-            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
-
-    # Fall back to environment variables
-    logger.info("Using environment variables for database config")
-    return (
-        os.environ.get("DB_HOST", "localhost"),
-        os.environ.get("DB_PORT", "5432"),
-        os.environ.get("DB_USER", "stocks"),
-        os.environ.get("DB_PASSWORD", ""),
-        os.environ.get("DB_NAME", "stocks"),
-    )
-
-
-PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_cfg()
 
 # ─── Data Source URLs ──────────────────────────────────────────────────────────
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
@@ -483,9 +435,7 @@ def main():
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
 
-    conn = psycopg2.connect(
-        host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASSWORD, dbname=PG_DB
-    )
+    conn = get_db_connection()
     try:
         init_db(conn)
         insert_all(conn, all_records)

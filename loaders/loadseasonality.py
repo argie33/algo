@@ -5,17 +5,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
 Seasonality Loader — computes S&P 500 (SPY) monthly and day-of-week return
-import psycopg2
-
 statistics from the price_daily table and writes them into
 seasonality_monthly_stats and seasonality_day_of_week.
-
-The API reads these tables without a symbol filter, so these are market-level
-aggregates rather than per-symbol rows.
 
 Run:
     python3 loadseasonality.py
 """
+
+import logging
+import math
+import os
+import psycopg2
+from collections import defaultdict
+
+from config.credential_helper import get_db_password, get_db_config
 from utils.logging_setup import get_logger
 
 try:
@@ -24,10 +27,7 @@ try:
 except ImportError:
     credential_manager = None
 
-import logging
 logger = get_logger(__name__)
-from config.credential_helper import get_db_password, get_db_config
-import math
 import os
 import sys
 from config.env_loader import load_env

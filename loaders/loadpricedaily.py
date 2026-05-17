@@ -1,52 +1,43 @@
 #!/usr/bin/env python3
 import sys
-import psycopg2
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import sys
-from pathlib import Path
 
-# Phase 1: Data Integrity Integration - 2026-05-09
 """
 Daily Price Loader - Enhanced with Data Integrity Phase 1.
 
-Now includes:
-- Tick-level validation (OHLC logic, volume sanity, price sequences)
-- Complete provenance tracking (run_id, checksums, error logging)
-- Atomic watermark persistence (crash-safe, idempotent)
-
-Demonstrates the pattern for integrating:
-1. data_tick_validator - Validates every tick before insert
-2. data_provenance_tracker - Full audit trail for replay
-3. data_watermark_manager - Atomic "load only once"
+Includes tick-level validation (OHLC logic, volume sanity, price sequences),
+complete provenance tracking (run_id, checksums, error logging),
+and atomic watermark persistence (crash-safe, idempotent).
 
 Run:
     python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
 
 import argparse
-from config.credential_helper import get_db_password, get_db_config
-from utils.loader_helpers import get_active_symbols
 import logging
 import os
-import sys
-from config.env_loader import load_env
-from utils.db_connection import get_db_connection
+import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
 
+from config.credential_helper import get_db_password, get_db_config
+from config.env_loader import load_env
+from loaders.loader_validation import validate_price_row, count_validation_errors
+from utils.data_provenance_tracker import DataProvenanceTracker
+from utils.data_tick_validator import validate_price_tick
+from utils.data_watermark_manager import WatermarkManager
+from utils.db_connection import get_db_connection
+from utils.loader_helpers import get_active_symbols
+from utils.logging_setup import get_logger
+from utils.monitoring_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
+
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-from utils.data_tick_validator import validate_price_tick
-from utils.data_provenance_tracker import DataProvenanceTracker
-from utils.data_watermark_manager import WatermarkManager
-from utils.monitoring_context import TimeBlock
-from loaders.loader_validation import validate_price_row, count_validation_errors
 
 _credential_manager = credential_manager
 

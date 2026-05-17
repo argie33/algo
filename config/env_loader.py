@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """
-Environment variable validation and initialization.
+Environment initialization — NO file loading.
 
-CRITICAL: This does NOT load .env.local (removed for security).
 All credentials must come from:
-1. Environment variables (set before running code)
-2. AWS Secrets Manager (production Lambda/ECS)
+1. AWS Secrets Manager (recommended for local dev + production)
+2. Environment variables (set before running, for CI only)
 
-Before running code, set required environment variables:
-- Database: DB_PASSWORD, DB_HOST, DB_PORT, DB_USER, DB_NAME
-- Trading: APCA_API_KEY_ID, APCA_API_SECRET_KEY
-
-See CLAUDE.md for setup instructions.
+For local development: See LOCAL_CRED_SETUP.md
 """
 
 import logging
