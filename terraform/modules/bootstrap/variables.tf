@@ -11,7 +11,7 @@ variable "aws_region" {
 variable "terraform_state_bucket_name" {
   description = "S3 bucket name for Terraform state (must be globally unique)"
   type        = string
-  default     = "stocks-terraform-state"
+  default     = "algo-terraform-state-dev"
 
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.terraform_state_bucket_name)) && length(var.terraform_state_bucket_name) >= 3 && length(var.terraform_state_bucket_name) <= 63
@@ -22,7 +22,7 @@ variable "terraform_state_bucket_name" {
 variable "terraform_lock_table_name" {
   description = "DynamoDB table name for Terraform state locking"
   type        = string
-  default     = "stocks-terraform-locks"
+  default     = "algo-terraform-locks-dev"
 
   validation {
     condition     = can(regex("^[a-zA-Z0-9_.-]+$", var.terraform_lock_table_name)) && length(var.terraform_lock_table_name) >= 3 && length(var.terraform_lock_table_name) <= 255
