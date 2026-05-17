@@ -434,7 +434,7 @@ function NotificationsView() {
     () => api.get('/api/algo/notifications?include_seen=1'),
     { refetchInterval: 30000 }
   );
-  const items = data?.items || [];
+  const items = Array.isArray(data) ? data : (data?.items || []);
   return (
     <div className="card">
       <div className="card-head">

@@ -490,16 +490,6 @@ CREATE TABLE IF NOT EXISTS institutional_positioning (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Positioning metrics summary
-CREATE TABLE IF NOT EXISTS positioning_metrics (
-    symbol VARCHAR(20) PRIMARY KEY,
-    institutional_ownership DECIMAL(8, 4),
-    insider_ownership DECIMAL(8, 4),
-    short_interest_percent DECIMAL(8, 4),
-    shares_short_prior_month BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMMODITY & MARKET DATA
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1006,7 +996,8 @@ CREATE TABLE IF NOT EXISTS ttm_income_statement (
     date DATE,
     item_name VARCHAR(255),
     value DECIMAL(16, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
 -- TTM cash flow statement
@@ -1016,7 +1007,8 @@ CREATE TABLE IF NOT EXISTS ttm_cash_flow (
     date DATE,
     item_name VARCHAR(255),
     value DECIMAL(16, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -2493,7 +2485,7 @@ WHERE growth_score IS NOT NULL;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_symbol
 ON stock_scores (symbol)
-WHERE overall_score >= 0;
+WHERE composite_score >= 0;
 
 -- POSITION TRACKING INDEXES — Phase 3-7 position lifecycle
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_status

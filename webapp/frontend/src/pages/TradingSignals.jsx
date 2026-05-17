@@ -576,8 +576,9 @@ function RecentPerformance({ rows, timeframe }) {
       const promises = toFetch.map(r =>
         api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`)
            .then(res => {
-             const items = res?.data?.data?.items || res?.data?.items || [];
-             return { symbol: r.symbol, items: Array.isArray(items) ? items : [], entry: r };
+             let items = res?.data?.data || res?.data;
+             items = Array.isArray(items) ? items : (items?.items || []);
+             return { symbol: r.symbol, items, entry: r };
            })
            .catch(err => {
              console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
@@ -928,8 +929,9 @@ function PriceSparkline({ symbol }) {
     queryFn: () =>
       api.get(`/api/prices/history/${symbol}?timeframe=daily&limit=60`)
          .then(r => {
-           const items = r?.data?.data?.items || r?.data?.items || [];
-           return Array.isArray(items) ? items : [];
+           let items = r?.data?.data || r?.data;
+           items = Array.isArray(items) ? items : (items?.items || []);
+           return items;
          })
          .catch(err => {
            console.warn(`Failed to load sparkline for ${symbol}:`, err);

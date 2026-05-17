@@ -90,6 +90,12 @@ resource "aws_lambda_function" "api" {
       CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      # Data patrol task configuration (for /api/algo/patrol endpoint)
+      ECS_CLUSTER_ARN           = var.ecs_cluster_arn
+      PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn
+      PATROL_CONTAINER_NAME      = var.patrol_task_container_name
+      PATROL_SUBNET_IDS          = join(",", var.private_subnet_ids_for_patrol)
+      PATROL_SECURITY_GROUP_ID   = var.ecs_tasks_sg_id
     }
   }
 

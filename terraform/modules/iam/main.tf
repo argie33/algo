@@ -989,6 +989,34 @@ data "aws_iam_policy_document" "lambda_api" {
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
     ]
   }
+
+  # ECS (invoke data patrol task from /api/algo/patrol endpoint)
+  statement {
+    sid    = "InvokeDataPatrolTask"
+    effect = "Allow"
+
+    actions = [
+      "ecs:RunTask"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-data-patrol:*"
+    ]
+  }
+
+  # IAM PassRole (required to pass execution role to ECS task)
+  statement {
+    sid    = "PassRoleToECS"
+    effect = "Allow"
+
+    actions = [
+      "iam:PassRole"
+    ]
+
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-task-*"
+    ]
+  }
 }
 
 # ============================================================

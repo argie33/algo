@@ -689,6 +689,51 @@ class APIHandler:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
             return json_response(500, {'error': 'Failed to fetch notifications'})
 
+    def _trigger_data_patrol(self) -> Dict:
+        """Trigger async data patrol ECS task."""
+        try:
+            import boto3
+            ecs = boto3.client('ecs')
+
+            cluster_arn = os.getenv('ECS_CLUSTER_ARN', '')
+            task_def_arn = os.getenv('PATROL_TASK_DEFINITION_ARN', '')
+            container_name = os.getenv('PATROL_CONTAINER_NAME', 'algo-data-patrol')
+            subnet_ids = os.getenv('PATROL_SUBNET_IDS', '').split(',') if os.getenv('PATROL_SUBNET_IDS') else []
+            sg_id = os.getenv('PATROL_SECURITY_GROUP_ID', '')
+
+            if not cluster_arn or not task_def_arn:
+                logger.warning("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
+                return json_response(503, {'ok': False, 'error': 'Patrol task not available'})
+
+            response = ecs.run_task(
+                cluster=cluster_arn,
+                taskDefinition=task_def_arn,
+                launchType='FARGATE',
+                networkConfiguration={
+                    'awsvpcConfiguration': {
+                        'subnets': subnet_ids,
+                        'securityGroups': [sg_id] if sg_id else [],
+                        'assignPublicIp': 'DISABLED'
+                    }
+                } if subnet_ids and sg_id else None
+            )
+
+            if response['tasks']:
+                task_arn = response['tasks'][0]['taskArn']
+                logger.info(f"Triggered data patrol ECS task: {task_arn}")
+                return json_response(202, {
+                    'ok': True,
+                    'message': 'Data patrol triggered',
+                    'task_arn': task_arn,
+                    'task_id': task_arn.split('/')[-1]
+                })
+            else:
+                logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
+                return json_response(500, {'ok': False, 'error': 'Failed to trigger patrol task'})
+        except Exception as e:
+            logger.error(f"Error triggering data patrol: {e}", exc_info=True)
+            return json_response(500, {'ok': False, 'error': f'Failed to trigger patrol: {str(e)}'})
+
     def _get_patrol_log(self, limit: int = 50) -> Dict:
         """Get data patrol findings."""
         try:
