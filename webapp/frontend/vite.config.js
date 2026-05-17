@@ -18,14 +18,6 @@ export default defineConfig(({ mode }) => {
   // Vite proxy always needs the target URL for development
   const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
 
-    mode,
-    isDevelopment,
-    isProduction,
-    apiUrl: apiUrl || "(empty - using proxy)",
-    proxyTarget,
-    viteApiUrl: env.VITE_API_URL,
-  });
-
   return {
     plugins: [
       react({
