@@ -23,8 +23,7 @@ from typing import Dict, List, Optional
 import yfinance as yf
 
 try:
-    from config.credential_helper import get_db_password
-except ImportError:
+    except ImportError:
     def get_db_password():
         return os.getenv("DB_PASSWORD", "")
 

@@ -15,7 +15,6 @@ import os
 import sys
 from pathlib import Path
 
-from config.credential_helper import get_db_password
 import logging
 
 logger = logging.getLogger(__name__)

@@ -18,7 +18,6 @@ import os
 from datetime import date, timedelta
 from typing import List, Optional
 
-from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
 from utils.logging_setup import get_logger
 from utils.optimal_loader import OptimalLoader
@@ -73,8 +72,7 @@ class ETFPriceDailyLoader(OptimalLoader):
 def get_active_etf_symbols() -> List[str]:
     """Pull active ETF symbols from database or use defaults."""
     from utils.db_connection import get_db_connection
-    import psycopg2
-    conn = None
+        conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:

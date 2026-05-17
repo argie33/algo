@@ -9,6 +9,7 @@ correct handling (no position created, correct status logged, alert fired).
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
+from algo.algo_trade_executor import TradeExecutor
 
 
 @pytest.mark.edge_case
@@ -17,8 +18,6 @@ class TestOrderRejection:
 
     def test_order_rejected_no_position_created(self, test_config):
         """When Alpaca rejects order, no position record should exist."""
-        from algo.algo_trade_executor import TradeExecutor
-
         executor = TradeExecutor(test_config)
 
         # Mock Alpaca to reject the order

@@ -46,18 +46,7 @@ class QualityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute quality metrics from balance sheet and income statement."""
         try:
-            from utils.db_connection import get_db_connection
-        except ImportError:
-            return None
-
-        try:
-            conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-                port=int(os.getenv("DB_PORT", 5432)),
-                user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-                password=get_db_password(),
-                database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-            )
+            conn = self._connect()
             cur = conn.cursor()
 
             # Get latest income statement
@@ -80,7 +69,6 @@ class QualityMetricsLoader(OptimalLoader):
             balance_row = cur.fetchone()
 
             cur.close()
-            conn.close()
 
             # Require at least income statement; balance sheet is optional
             if not income_row:

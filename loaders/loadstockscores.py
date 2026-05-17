@@ -24,7 +24,6 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
-from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 from config.env_loader import load_env
 from datetime import date, timedelta

@@ -25,7 +25,6 @@ except ImportError:
 
 import argparse
 import logging
-import psycopg2
 logger = get_logger(__name__)
 import os
 from config.env_loader import load_env

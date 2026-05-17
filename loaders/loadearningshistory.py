@@ -23,7 +23,6 @@ except ImportError:
     credential_manager = None
 
 import argparse
-from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import logging
 logger = get_logger(__name__)

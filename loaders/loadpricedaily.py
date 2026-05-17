@@ -17,7 +17,6 @@ Run:
 import argparse
 import logging
 import os
-import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional
 

@@ -14,17 +14,9 @@ Run:
 """
 from utils.logging_setup import get_logger
 
-
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 import argparse
 import logging
 logger = get_logger(__name__)
-from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
 from config.env_loader import load_env

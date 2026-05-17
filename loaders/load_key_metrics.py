@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-from config.credential_helper import get_db_config
 
 Key Metrics Loader — market cap and insider/institution holdings from Finnhub.
 

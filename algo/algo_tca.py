@@ -6,7 +6,7 @@ except ImportError:
     DEFAULT_DB_USER = "postgres"
     DEFAULT_DB_NAME = "stocks"
 
-config.env_loader import load_env
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Transaction Cost Analysis (TCA) — Execution quality measurement.
