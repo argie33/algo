@@ -14,13 +14,6 @@ Run:
 """
 from utils.logging_setup import get_logger
 
-
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 import argparse
 import logging
 logger = get_logger(__name__)

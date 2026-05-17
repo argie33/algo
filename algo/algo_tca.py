@@ -1,20 +1,10 @@
-try:
-    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
-except ImportError:
-    DEFAULT_DB_HOST = "localhost"
-    DEFAULT_DB_PORT = 5432
-    DEFAULT_DB_USER = "postgres"
-    DEFAULT_DB_NAME = "stocks"
-
-from config.env_loader import load_env
-from config.credential_helper import get_db_password, get_db_config
 """
-Transaction Cost Analysis (TCA) — Execution quality measurement.
+Transaction Cost Analysis (TCA) - Execution quality measurement.
 
 Measures every fill against its signal price (arrival price) to quantify:
 - Slippage per trade (signal_price vs executed_price)
 - Fill rate (shares requested vs filled)
-- Execution latency (order send → fill confirmation)
+- Execution latency (order send to fill confirmation)
 - Cumulative cost of execution friction
 
 Alerts if slippage exceeds thresholds:
@@ -23,6 +13,18 @@ Alerts if slippage exceeds thresholds:
 
 This is what institutional traders use to validate their edge isn't eroded by fees/slippage.
 """
+
+try:
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "postgres"
+    DEFAULT_DB_NAME = "stocks"
+
+from config.env_loader import load_env
+from config.credential_helper import get_db_password, get_db_config
+import psycopg2
 
 try:
     from config.credential_manager import get_credential_manager
@@ -39,7 +41,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 class TCAEngine:
     """Transaction Cost Analysis for every trade execution."""
 
@@ -50,7 +51,7 @@ class TCAEngine:
 
         self.db_host = os.getenv('DB_HOST', DEFAULT_DB_HOST)
         self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = os.getenv('DB_USER', DEFAULT_DB_NAME)
+        self.db_user = os.getenv('DB_USER', DEFAULT_DB_USER)
         self.db_password = get_db_password()
         self.db_name = os.getenv('DB_NAME', DEFAULT_DB_NAME)
 
@@ -90,7 +91,7 @@ class TCAEngine:
             shares_requested: Target quantity
             shares_filled: Actual filled quantity
             side: BUY or SELL
-            execution_latency_ms: Order send → fill confirmation time in ms
+            execution_latency_ms: Order send to fill confirmation time in ms
 
         Returns:
             dict with tca_id, slippage_bps, fill_rate, etc.
@@ -317,4 +318,3 @@ class TCAEngine:
         except Exception as e:
             logger.info(f"TCA: monthly_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
-

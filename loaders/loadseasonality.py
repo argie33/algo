@@ -15,7 +15,6 @@ Run:
 import logging
 import math
 import os
-import psycopg2
 from collections import defaultdict
 from datetime import date as dtdate
 

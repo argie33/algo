@@ -17,6 +17,14 @@ import os
 import psycopg2
 import psycopg2.errors
 
+try:
+    from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME
+except ImportError:
+    DEFAULT_DB_HOST = "localhost"
+    DEFAULT_DB_PORT = 5432
+    DEFAULT_DB_USER = "postgres"
+    DEFAULT_DB_NAME = "stocks"
+
 from algo.algo_exit_engine import ExitEngine
 from utils.trade_status import TradeStatus, PositionStatus
 

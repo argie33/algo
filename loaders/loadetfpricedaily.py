@@ -66,7 +66,7 @@ class ETFPriceDailyLoader(OptimalLoader):
 def get_active_etf_symbols() -> List[str]:
     """Pull active ETF symbols from database or use defaults."""
     from utils.db_connection import get_db_connection
-        conn = None
+    conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:

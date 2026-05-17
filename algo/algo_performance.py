@@ -6,7 +6,7 @@ except ImportError:
     DEFAULT_DB_USER = "postgres"
     DEFAULT_DB_NAME = "stocks"
 
-from config.env_loader import load_env
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.

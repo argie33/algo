@@ -21,12 +21,6 @@ Single unified script that calculates ALL algo metrics daily in one efficient pa
 Runs as single atomic transaction. Idempotent design - safe to run multiple times per day.
 """
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 import os
 import logging
 from datetime import datetime, timedelta
