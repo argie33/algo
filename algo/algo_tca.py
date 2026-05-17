@@ -1,3 +1,4 @@
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Transaction Cost Analysis (TCA) — Execution quality measurement.
@@ -25,17 +26,11 @@ import psycopg2
 from datetime import date
 from typing import Optional
 import os
-from dotenv import load_dotenv
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class TCAEngine:

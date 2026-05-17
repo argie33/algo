@@ -9,7 +9,6 @@ Or import and call setup_test_db() from pytest fixtures.
 """
 
 import os
-import sys
 import psycopg2
 from pathlib import Path
 from datetime import date, timedelta, datetime
@@ -83,7 +82,6 @@ def init_schema():
     logger.info("Initializing schema...")
     try:
         # Import the SCHEMA from init_database directly
-        sys.path.insert(0, str(Path(__file__).parent.parent))
         from init_database import SCHEMA
 
         # Clean up Unicode characters from SCHEMA (for Windows console compatibility)

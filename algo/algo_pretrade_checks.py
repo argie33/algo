@@ -10,6 +10,7 @@ Validates:
 - Order size limits
 """
 
+from config.env_loader import load_env
 import logging
 from typing import Dict, Any, Tuple, Optional
 import psycopg2
@@ -23,13 +24,7 @@ except ImportError:
     credential_manager = None
 
 from pathlib import Path
-from dotenv import load_dotenv
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 logger = logging.getLogger(__name__)
 

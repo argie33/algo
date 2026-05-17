@@ -14,10 +14,10 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
 from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
@@ -26,11 +26,6 @@ import statistics
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""

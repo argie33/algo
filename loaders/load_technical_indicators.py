@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Load technical indicators into technical_data_daily from price_daily.
 
@@ -12,7 +10,6 @@ Warm-up: fetches 300 trading days of history before the watermark to seed indica
 """
 
 import os
-import sys
 import logging
 import argparse
 from pathlib import Path

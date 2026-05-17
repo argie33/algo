@@ -38,6 +38,7 @@ SIGNALS IMPLEMENTED:
       Detects breakout from a pivot high (Livermore line of least resistance).
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -49,7 +50,6 @@ except ImportError:
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 import logging
 from typing import Dict, List, Tuple, Optional, Any
@@ -65,11 +65,6 @@ except ImportError:
     def monitor_on_disconnect():
         pass
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""

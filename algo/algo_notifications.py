@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Trade & Risk Notifications - Alert on entries, exits, rejections, and risk events."""
 
+from config.env_loader import load_env
 import os
 import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Dict, List
-from dotenv import load_dotenv
 
 from algo.algo_alerts import AlertManager
 from algo.algo_config import DATABASE_CONFIG
@@ -18,9 +18,6 @@ try:
 except ImportError:
     psycopg2 = None
 
-env_file = Path(__file__).parent / ".env.local"
-if env_file.exists():
-    load_dotenv(env_file)
 
 logger = logging.getLogger(__name__)
 

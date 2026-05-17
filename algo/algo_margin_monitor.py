@@ -5,19 +5,14 @@ Tracks margin usage and enforces entry gates to prevent over-leverage.
 Default thresholds: Alert at 70%, Block entries at 80%.
 """
 
+from config.env_loader import load_env
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Dict, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class MarginMonitor:

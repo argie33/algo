@@ -4,7 +4,6 @@ Growth Metrics Loader - Optimal Pattern (Refactored)
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Computes multi-year growth metrics from annual financials:
 - Revenue Growth: 1Y, 3Y, 5Y YoY growth
@@ -32,16 +31,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = Path(__file__).parent / '.env.local'
-    if not _env_file.exists():
-        _env_file = Path(__file__).parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 from utils.optimal_loader import OptimalLoader
 

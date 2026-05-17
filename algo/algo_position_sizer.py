@@ -11,20 +11,15 @@ Rules:
 - Max positions: 12 concurrent
 """
 
+from config.env_loader import load_env
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
@@ -143,7 +138,7 @@ class PositionSizer:
     def get_current_drawdown(self):
         """Calculate current drawdown from peak.
 
-        B13: Fail-closed — if calculation fails, return high drawdown to halt trading.
+        B13: Fail-closed — if any data missing, assume worst case to protect capital.
         """
         try:
             self.cur.execute("""
@@ -155,12 +150,15 @@ class PositionSizer:
             """)
             result = self.cur.fetchone()
             if not result or not result[0] or not result[1]:
-                return 0.0
+                # Data missing: assume high drawdown to be conservative
+                logger.warning("Portfolio snapshot data incomplete; assuming 25% drawdown (fail-closed)")
+                return 25.0
 
             peak = float(result[0])
             current = float(result[1])
             if peak == 0:
-                return 0.0
+                logger.warning("Peak portfolio value is zero; assuming 25% drawdown (fail-closed)")
+                return 25.0
 
             drawdown_pct = ((peak - current) / peak) * 100
             return max(0, drawdown_pct)

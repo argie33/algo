@@ -5,7 +5,6 @@ Daily Buy/Sell Signals Loader - Optimal Pattern.
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Computes buy/sell trading signals from price_daily using technical indicators.
 Inherits watermarks, dedup, parallelism, and bulk COPY from OptimalLoader.

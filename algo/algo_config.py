@@ -6,6 +6,7 @@ Centralized configuration from database. Changes take effect immediately without
 Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
+from config.env_loader import load_env
 import os
 import logging
 
@@ -24,13 +25,7 @@ except ImportError:
     # Lambda: psycopg2 binary not available, will fail at runtime if DB needed
     psycopg2 = None
 from pathlib import Path
-from dotenv import load_dotenv
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 # Try to import credential manager, but gracefully handle CI/test environments
 # where AWS credentials aren't available

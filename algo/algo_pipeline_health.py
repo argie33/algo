@@ -18,6 +18,7 @@ USAGE:
   logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -30,7 +31,6 @@ import os
 import psycopg2
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import date as _date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -39,11 +39,6 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class HealthStatus(str, Enum):

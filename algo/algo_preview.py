@@ -10,19 +10,10 @@ Output (stdout):
 """
 
 import json
+from config.env_loader import load_env
 import os
 import sys
 from pathlib import Path
-
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = Path(__file__).parent / '.env.local'
-    if not _env_file.exists():  # fallback: root when running from subdirectory
-        _env_file = Path(__file__).parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 from config.credential_helper import get_db_password
 import logging

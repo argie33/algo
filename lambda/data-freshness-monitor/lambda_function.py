@@ -246,7 +246,6 @@ def lambda_handler(event, context):
 # For local testing
 if __name__ == '__main__':
     import sys
-    sys.path.insert(0, '/Users/arger/code/algo')
 
     result = lambda_handler({}, None)
     logger.info("\nResult:", result)

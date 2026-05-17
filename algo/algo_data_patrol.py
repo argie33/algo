@@ -37,6 +37,7 @@ USAGE:
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -52,18 +53,12 @@ import psycopg2
 import requests
 import time
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""

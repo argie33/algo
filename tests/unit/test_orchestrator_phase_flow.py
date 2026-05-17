@@ -6,10 +6,8 @@ Verify: Circuit breaker halt skips Phase 6 (entry) while Phase 4 (exits) still r
 import pytest
 from unittest.mock import patch, MagicMock, call
 from datetime import datetime, date
-import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from algo.algo_orchestrator import Orchestrator
 

@@ -12,10 +12,10 @@ Tier 5: Portfolio health (open positions, concentration, sector limits)
 Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 """
 
+from config.env_loader import load_env
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 from config.credential_helper import get_db_password, get_db_config
@@ -31,11 +31,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""

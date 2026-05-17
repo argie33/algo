@@ -5,7 +5,6 @@ Wraps the Lambda handler and serves it on localhost:3001
 """
 
 import os
-import sys
 import json
 import logging
 from flask import Flask, request, jsonify
@@ -26,7 +25,6 @@ else:
     logger.info(f"Warning: .env.local not found at {env_path}")
 
 # Add lambda directory to path so we can import the handler
-sys.path.insert(0, str(Path(__file__).parent / 'lambda' / 'api'))
 
 # Import the Lambda handler
 from lambda_function import APIHandler

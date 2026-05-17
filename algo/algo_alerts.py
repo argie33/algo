@@ -16,6 +16,7 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 import json
 import smtplib
@@ -24,7 +25,6 @@ from pathlib import Path
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from dotenv import load_dotenv
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -35,11 +35,6 @@ try:
 except ImportError:
     TWILIO_AVAILABLE = False
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class AlertManager:

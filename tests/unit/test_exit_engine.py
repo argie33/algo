@@ -14,10 +14,8 @@ import pytest
 from unittest.mock import MagicMock, patch, call
 from datetime import datetime, date as _date, timedelta
 import psycopg2
-import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from algo.algo_exit_engine import ExitEngine
 from utils.trade_status import TradeStatus, PositionStatus

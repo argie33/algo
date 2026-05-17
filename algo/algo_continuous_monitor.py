@@ -17,13 +17,13 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 import time
 import json
 import argparse
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date as _date
 from algo.algo_market_calendar import MarketCalendar
 from config.credential_helper import get_db_password, get_db_config
@@ -31,11 +31,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),

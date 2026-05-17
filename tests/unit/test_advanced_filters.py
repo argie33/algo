@@ -11,10 +11,8 @@ Tests the four hard-fail gates that block obvious mistakes:
 import pytest
 from unittest.mock import MagicMock, patch, call
 from datetime import datetime, date as _date, timedelta
-import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from algo.algo_advanced_filters import AdvancedFilters
 

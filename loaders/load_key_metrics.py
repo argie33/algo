@@ -2,7 +2,6 @@
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Key Metrics Loader — market cap and insider/institution holdings from Finnhub.
 

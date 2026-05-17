@@ -3,7 +3,6 @@
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Company Profile Loader — Sector, industry, and company info from yfinance.
 
@@ -32,16 +31,6 @@ try:
     credential_manager = get_credential_manager()
 except ImportError:
     credential_manager = None
-
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = Path(__file__).parent / '.env.local'
-    if not _env_file.exists():  # fallback: root when running from subdirectory
-        _env_file = Path(__file__).parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 from utils.optimal_loader import OptimalLoader
 

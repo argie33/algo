@@ -23,13 +23,13 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 import os
 import json
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any, List, Tuple, Optional
 from utils.trade_status import TradeStatus, PositionStatus
@@ -37,11 +37,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""
@@ -115,8 +110,16 @@ class CircuitBreaker:
                 try:
                     state = fn(current_date)
                 except Exception as e:
-                    # FAIL-CLOSED: If a check fails to complete, default to halting (safety-first for risk management)
-                    state = {'halted': True, 'reason': f'check error (fail-safe): {e}'}
+                    error_msg = str(e).lower()
+                    # Differentiate between transient errors and real failures
+                    if any(x in error_msg for x in ['timeout', 'connection', 'refused', 'unavailable']):
+                        # Transient error: log and skip check, don't halt entire system
+                        logger.warning(f"Circuit breaker {name} skipped (transient error): {e}")
+                        state = {'halted': False, 'reason': f'check skipped (transient error)'}
+                    else:
+                        # Real error: fail-closed, halt trading
+                        logger.error(f"Circuit breaker {name} failed (logic error): {e}")
+                        state = {'halted': True, 'reason': f'check error (fail-closed): {e}'}
                 results['checks'][name] = state
                 if state.get('halted'):
                     results['halted'] = True

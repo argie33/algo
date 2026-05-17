@@ -33,6 +33,7 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -46,18 +47,12 @@ import json
 import psycopg2
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 from typing import Dict, Tuple, Any, Optional
 from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""

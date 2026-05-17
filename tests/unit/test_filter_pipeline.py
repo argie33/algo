@@ -6,8 +6,6 @@ Tests the Tier 3-5 signal filtering logic.
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(__file__).replace('tests', ''))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config'))
 
 import unittest
 from unittest.mock import Mock, patch, MagicMock

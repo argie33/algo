@@ -36,13 +36,11 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
-import sys
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-sys.path.insert(0, str(Path(__file__).parent))
 from algo.algo_signals import SignalComputer
 import logging
 

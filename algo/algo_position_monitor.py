@@ -25,24 +25,19 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import os
 import json
 import psycopg2
 from config.credential_helper import get_db_password, get_db_config
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 import logging
 from utils.db_connection_pool import get_db_pool
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),

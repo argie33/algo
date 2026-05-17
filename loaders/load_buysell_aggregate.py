@@ -3,7 +3,6 @@
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily prices.
 
@@ -29,16 +28,6 @@ from config.env_loader import load_env
 from utils.loader_helpers import _resolve_timeframe
 from utils.loader_helpers import get_active_symbols
 from typing import List, Optional
-
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = Path(__file__).parent / '.env.local'
-    if not _env_file.exists():
-        _env_file = Path(__file__).parent.parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
 
 from utils.optimal_loader import OptimalLoader
 

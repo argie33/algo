@@ -2,7 +2,6 @@
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Phase 1: Data Integrity Integration - 2026-05-09
 """
@@ -61,10 +60,9 @@ class PriceDailyLoader(OptimalLoader):
         self.tracker = None
         self.watermark_mgr = None
         self.run_id = None
-        self._fallback_prices_cache = {}  # Pre-loaded prices for fallback (avoids per-symbol connections)
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch OHLCV via the data source router. Falls back to cached prices if APIs limited."""
+        """Fetch OHLCV via the data source router. Fail-closed on API errors (no price injection)."""
         end = date.today()
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -74,73 +72,14 @@ class PriceDailyLoader(OptimalLoader):
         if start > end:
             return None
 
-        # Try to fetch fresh data
+        # Try to fetch fresh data from live APIs
         rows = self._try_fetch(symbol, start, end)
         if rows:
             return rows
 
-        # If fetch failed (rate limited, API down, etc), fallback to yesterday's prices for today's date
-        # This keeps the algo trading even during API outages
-        if start == end and since is not None:
-            return self._fallback_to_yesterday(symbol, since, end)
-        return None
-
-    def _batch_load_fallback_prices(self, symbols: List[str]) -> None:
-        """Batch load yesterday's prices once to avoid per-symbol connections during rate limiting."""
-        if not symbols:
-            return
-        try:
-            conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", "5432")),
-                user=os.getenv("DB_USER", "stocks"),
-                password=get_db_password(),
-                database=os.getenv("DB_NAME", "stocks"),
-            )
-            try:
-                yesterday = date.today() - timedelta(days=1)
-                placeholders = ','.join(['%s'] * len(symbols))
-                with conn.cursor() as cur:
-                    cur.execute(f"""
-                        SELECT symbol, open, high, low, close, volume
-                        FROM price_daily
-                        WHERE symbol IN ({placeholders}) AND date = %s
-                    """, tuple(symbols) + (yesterday,))
-                    for row in cur.fetchall():
-                        sym, open_p, high, low, close, vol = row
-                        self._fallback_prices_cache[sym] = {
-                            'open': open_p,
-                            'high': high,
-                            'low': low,
-                            'close': close,
-                            'volume': vol,
-                        }
-            finally:
-                conn.close()
-        except Exception as e:
-            logger.debug(f"Could not batch load fallback prices: {e}")
-
-    def _fallback_to_yesterday(self, symbol: str, yesterday: date, today: date):
-        """Use yesterday's closing price as today's placeholder. Better than blocking trades."""
-        cached = self._fallback_prices_cache.get(symbol)
-        if cached:
-            logger.warning(f"[{symbol}] Using cached price from {yesterday} for {today} (API limited)")
-            if self.tracker:
-                self.tracker.record_error(
-                    symbol=symbol,
-                    error_type='API_LIMIT_HIT',
-                    error_message=f'Using fallback from {yesterday}',
-                    resolution='fallback',
-                )
-            return [{
-                'symbol': symbol,
-                'date': today,
-                'open': cached['open'],
-                'high': cached['high'],
-                'low': cached['low'],
-                'close': cached['close'],
-                'volume': int(cached['volume'] or 0),
-            }]
+        # If fetch failed (rate limited, API down, etc), return None and skip the symbol.
+        # DO NOT inject yesterday's prices as today's (violates no-mock-data principle).
+        # Better to miss one day of data than corrupt backtests with stale prices.
         return None
 
     def _try_fetch(self, symbol: str, start: date, end: date):

@@ -11,6 +11,7 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -23,7 +24,6 @@ import json
 import psycopg2
 import uuid
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date, timedelta
 import requests
 import time
@@ -39,11 +39,6 @@ from algo.algo_notifications import TradeNotificationService
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 def _redact_for_logs(message: str) -> str:

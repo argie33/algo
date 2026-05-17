@@ -1,3 +1,4 @@
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
@@ -25,17 +26,11 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 import os
-from dotenv import load_dotenv
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class LivePerformance:

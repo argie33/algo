@@ -1,3 +1,4 @@
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 """
 Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure
@@ -29,15 +30,9 @@ import logging
 from datetime import datetime, date
 from typing import Optional, Dict, Any
 from pathlib import Path
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Lazy-load DB config at runtime instead of module import time."""

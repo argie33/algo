@@ -51,6 +51,7 @@ After every phase, results are written to algo_audit_log so the dashboard
 can show exactly what happened and when.
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -66,7 +67,6 @@ import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
 import traceback
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
@@ -78,11 +78,6 @@ from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metri
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config() -> Dict[str, Any]:
     """Get DB config (lazy-loaded, uses centralized credential_helper)."""

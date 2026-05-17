@@ -12,10 +12,8 @@ Validates:
 import pytest
 from unittest.mock import MagicMock, patch, call
 import psycopg2
-import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from algo.algo_pretrade_checks import PreTradeChecks
 

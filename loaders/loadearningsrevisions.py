@@ -6,7 +6,6 @@ Tracks how analyst consensus estimates are changing over time.
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Fetches estimate trends and revision counts from DataSourceRouter.
 

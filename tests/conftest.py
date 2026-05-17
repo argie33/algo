@@ -23,7 +23,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Add root directory to path so tests can import algo modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load test env vars
 env_file = Path(__file__).parent.parent / '.env.test'
@@ -113,7 +112,6 @@ def seeded_test_db(request):
     If the database is not available (e.g., postgres not running in CI), skip the test.
     """
     import sys
-    sys.path.insert(0, str(Path(__file__).parent))
     from setup_test_db import setup_test_db
     try:
         setup_test_db()

@@ -3,7 +3,6 @@
 import sys
 from utils.logging_setup import get_logger
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 Balance Sheet Loader — annual and quarterly from SEC EDGAR.
 

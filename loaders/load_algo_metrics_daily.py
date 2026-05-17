@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
 Algo Metrics Daily Loader (ORCHESTRATOR)
@@ -29,7 +27,6 @@ except ImportError:
     credential_manager = None
 
 import os
-import sys
 import logging
 import psycopg2
 from datetime import datetime, timedelta

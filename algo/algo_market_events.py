@@ -16,6 +16,7 @@ try:
 except ImportError:
     credential_manager = None
 
+from config.env_loader import load_env
 import psycopg2
 import os
 from config.credential_helper import get_db_password, get_db_config
@@ -23,16 +24,10 @@ import requests
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
-from dotenv import load_dotenv
 import logging
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 
 class MarketEventHandler:

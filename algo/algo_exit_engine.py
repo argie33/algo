@@ -21,6 +21,7 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
+from config.env_loader import load_env
 from config.credential_helper import get_db_password, get_db_config
 
 try:
@@ -32,7 +33,6 @@ except ImportError:
 import os
 import psycopg2
 from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 try:
     from trade_performance_auditor import TradePerformanceAuditor
@@ -46,11 +46,6 @@ from typing import Dict, List, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-env_file = Path(__file__).parent / '.env.local'
-if not env_file.exists():  # fallback: root when running from subdirectory
-    env_file = Path(__file__).parent.parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
 
 def _get_db_config():
     """Get DB config (lazy-loaded to support testing without credentials)."""

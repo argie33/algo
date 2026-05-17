@@ -4,13 +4,11 @@ Avoids psycopg2 import issues by keeping database operations local.
 """
 
 import os
-import sys
 import json
 import logging
 from datetime import datetime, date as _date
 
 # Add repo root to path so we can import algo modules
-sys.path.insert(0, '/var/task')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
