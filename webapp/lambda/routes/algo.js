@@ -336,27 +336,29 @@ router.get('/trades', authenticateToken, async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 1000);  // Clamp to [1, 1000]
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
-    const result = await pool.query(`
-      SELECT
-        trade_id,
-        symbol,
-        signal_date,
-        trade_date,
-        entry_price,
-        entry_quantity,
-        status,
-        exit_date,
-        exit_price,
-        exit_r_multiple,
-        profit_loss_pct,
-        profit_loss_dollars,
-        trade_duration_days
-      FROM algo_trades
-      ORDER BY trade_date DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
-
-    const countResult = await pool.query('SELECT COUNT(*) as total FROM algo_trades');
+    // Parallelize data fetch and count query
+    const [result, countResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          trade_id,
+          symbol,
+          signal_date,
+          trade_date,
+          entry_price,
+          entry_quantity,
+          status,
+          exit_date,
+          exit_price,
+          exit_r_multiple,
+          profit_loss_pct,
+          profit_loss_dollars,
+          trade_duration_days
+        FROM algo_trades
+        ORDER BY trade_date DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      pool.query('SELECT COUNT(*) as total FROM algo_trades')
+    ]);
 
     return res.json({
       success: true,
@@ -436,50 +438,41 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
 // ============================================================
 router.get('/markets', async (req, res) => {
   try {
-    // Latest market exposure with full factor breakdown
-    const latestQuery = `
-      SELECT date, exposure_pct, raw_score, regime, distribution_days,
-             factors, halt_reasons, created_at
-      FROM market_exposure_daily
-      ORDER BY date DESC LIMIT 1
-    `;
     const pool = getPool();
-    const latestResult = await pool.query(latestQuery);
+
+    // Parallelize all 5 independent queries
+    const [latestResult, historyResult, healthResult, sectorsResult, sentimentResult] = await Promise.all([
+      pool.query(`
+        SELECT date, exposure_pct, raw_score, regime, distribution_days,
+               factors, halt_reasons, created_at
+        FROM market_exposure_daily
+        ORDER BY date DESC LIMIT 1
+      `),
+      pool.query(`
+        SELECT date, exposure_pct, regime, distribution_days
+        FROM market_exposure_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+        ORDER BY date ASC
+      `),
+      pool.query(`
+        SELECT date, market_trend, market_stage, distribution_days_4w, vix_level
+        FROM market_health_daily ORDER BY date DESC LIMIT 1
+      `),
+      pool.query(`
+        SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
+        FROM sector_ranking
+        WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
+          AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
+        ORDER BY current_rank ASC
+      `),
+      pool.query(`
+        SELECT date, bullish, bearish, neutral
+        FROM aaii_sentiment ORDER BY date DESC LIMIT 8
+      `)
+    ]);
+
     const latest = latestResult.rows[0] || null;
-
-    // Last 90 days for chart
-    const historyQuery = `
-      SELECT date, exposure_pct, regime, distribution_days
-      FROM market_exposure_daily
-      WHERE date >= CURRENT_DATE - INTERVAL '90 days'
-      ORDER BY date ASC
-    `;
-    const historyResult = await pool.query(historyQuery);
-
-    // Market health current state (fallback when exposure not computed)
-    const healthQuery = `
-      SELECT date, market_trend, market_stage, distribution_days_4w, vix_level
-      FROM market_health_daily ORDER BY date DESC LIMIT 1
-    `;
-    const healthResult = await pool.query(healthQuery);
     const health = healthResult.rows[0] || null;
-
-    // Sector ranking (latest)
-    const sectorsQuery = `
-      SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
-      FROM sector_ranking
-      WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
-        AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
-      ORDER BY current_rank ASC
-    `;
-    const sectorsResult = await pool.query(sectorsQuery);
-
-    // AAII sentiment latest
-    const sentimentQuery = `
-      SELECT date, bullish, bearish, neutral
-      FROM aaii_sentiment ORDER BY date DESC LIMIT 8
-    `;
-    const sentimentResult = await pool.query(sentimentQuery);
 
     // Determine active tier policy
     let policy = null;
@@ -1136,12 +1129,17 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       return sendError(res, 'symbol and (position_dollars or position_pct) required', 400);
     }
 
-    // Get current portfolio data — use actual column names from schema
-    const portfolioResult = await pool.query(`
-      SELECT total_portfolio_value, total_cash, position_count
-      FROM algo_portfolio_snapshots
-      ORDER BY snapshot_date DESC LIMIT 1
-    `);
+    // Parallelize initial portfolio and position count queries (independent of stock data)
+    const [portfolioResult, initialPosResult] = await Promise.all([
+      pool.query(`
+        SELECT total_portfolio_value, total_cash, position_count
+        FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+      `),
+      pool.query(`
+        SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'
+      `)
+    ]);
 
     if (!portfolioResult.rows.length) {
       return sendError(res, 'Portfolio snapshot not available', 404);
@@ -1151,6 +1149,7 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
     const totalValue = parseFloat(portfolio.total_portfolio_value || 0);
     const cashAvail = parseFloat(portfolio.total_cash || 0);
     const numPos = parseInt(portfolio.position_count || 0);
+    const openCount = parseInt(initialPosResult.rows[0]?.open_count || 0);
 
     // Calculate position size
     let posSize = position_dollars ? parseFloat(position_dollars) : (totalValue * parseFloat(position_pct || 0) / 100);
@@ -1186,12 +1185,6 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
 
     const sectorData = sectorResult.rows[0];
     const newSectorTotal = (parseFloat(sectorData.sector_invested || 0) + posSize) / totalValue * 100;
-
-    // Get current open positions
-    const posResult = await pool.query(`
-      SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'
-    `);
-    const openCount = parseInt(posResult.rows[0]?.open_count || 0);
 
     // Worst-case drawdown impact: 15% adverse move on the full position size
     const drawdownImpact = posPercent * 0.15 / 100;

@@ -1903,6 +1903,11 @@ CREATE INDEX IF NOT EXISTS idx_data_provenance_run_id ON data_provenance_log(run
 CREATE INDEX IF NOT EXISTS idx_data_provenance_symbol ON data_provenance_log(symbol);
 CREATE INDEX IF NOT EXISTS idx_data_provenance_loader ON data_provenance_log(loader_name);
 CREATE INDEX IF NOT EXISTS idx_data_errors_run_id ON data_provenance_errors(run_id);
+
+-- Indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_sector_ranking_date_desc ON sector_ranking(date_recorded DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_status_exit ON algo_trades(status, exit_date DESC);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_created ON data_patrol_log(created_at DESC);
 """
 
 def _run_migrations(conn, cur):

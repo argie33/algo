@@ -16,7 +16,7 @@ router.use(authenticateToken, requireAdmin);
 router.get("/trades", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let sql = "SELECT * FROM algo_audit_log";
@@ -61,7 +61,7 @@ router.get("/trades", async (req, res) => {
 router.get("/config", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
 
     const result = await query(
       "SELECT * FROM algo_config_audit ORDER BY changed_at DESC LIMIT $1 OFFSET $2",
@@ -88,7 +88,7 @@ router.get("/config", async (req, res) => {
 router.get("/safeguards", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);  // Ensure non-negative
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let sql = "SELECT * FROM safeguard_audit_log";

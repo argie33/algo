@@ -13,7 +13,7 @@ Quick reference for "where does this change go?"
 | **Add alert/monitoring** | `algo_alerts.py`, `algo_audit_log.py` | Test locally | Auto |
 | **Change REST API endpoint** | `webapp/lambda/routes/stocks.js` | Test: `npm run dev` | `gh workflow run deploy-webapp.yml` |
 | **Change frontend UI** | `webapp/frontend/src/pages/*.jsx` | Test: `npm run dev` | `gh workflow run deploy-webapp.yml` |
-| **Fix data loader** | `load<NAME>.py` (e.g., `loadpricedaily.py`) | Test: run loader locally | Auto (ECS task updates on next run) |
+| **Fix/add data loader** | `loaders/load*.py` + `terraform/modules/loaders/main.tf` (update loader_file_map) | Test: `python3 loaders/loadername.py` then `python3 run-all-loaders.py` | Auto (ECS task runs on schedule) |
 | **Add market calendar rule** | `algo_market_calendar.py` | Test locally | Auto |
 | **Add database audit field** | `algo_orchestrator.py` (Phase 7) or `utils/init_database.py` | Test locally | Auto (Lambda init on first run) |
 
