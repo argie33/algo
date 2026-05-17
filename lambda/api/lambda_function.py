@@ -452,7 +452,7 @@ class APIHandler:
                        entry_quantity, entry_reason, exit_price, exit_date, exit_time,
                        exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
                        status, swing_score, swing_grade, base_type, stage_phase,
-                       target_levels_hit, distribution_day_count, mfe_pct, mae_pct,
+                       mfe_pct, mae_pct,
                        EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date)::INTEGER as trade_duration_days,
                        created_at
                 FROM algo_trades

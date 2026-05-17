@@ -11,6 +11,15 @@ import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"Loaded environment from {env_path}")
+else:
+    print(f"Warning: .env.local not found at {env_path}")
 
 # Add lambda directory to path so we can import the handler
 sys.path.insert(0, str(Path(__file__).parent / 'lambda' / 'api'))
@@ -25,15 +34,20 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Set up environment variables for local development
+# Ensure database configuration is set
 if not os.getenv('DB_HOST'):
     os.environ['DB_HOST'] = 'localhost'
+if not os.getenv('DB_PORT'):
     os.environ['DB_PORT'] = '5432'
+if not os.getenv('DB_USER'):
     os.environ['DB_USER'] = 'postgres'
-    os.environ['DB_PASSWORD'] = os.getenv('DB_PASSWORD', '')  # Read from .env.local
+if not os.getenv('DB_NAME'):
     os.environ['DB_NAME'] = 'stocks'
+if not os.getenv('DB_PASSWORD'):
+    os.environ['DB_PASSWORD'] = ''
 
 logger.info(f"Database configuration: {os.environ.get('DB_HOST')}:{os.environ.get('DB_PORT')}/{os.environ.get('DB_NAME')}")
+logger.info(f"DB User: {os.environ.get('DB_USER')}")
 
 
 @app.route('/api/health', methods=['GET'])

@@ -828,6 +828,11 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
     const dryRun = req.body?.dry_run !== false;  // default to dry-run for safety
     const date = req.body?.date || null;
 
+    // Validate date format (YYYY-MM-DD) to prevent command injection
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return sendError(res, 'Invalid date format. Expected YYYY-MM-DD', 400);
+    }
+
     const args = ['algo_orchestrator.py'];
     if (date) args.push('--date', date);
     if (dryRun) args.push('--dry-run');
