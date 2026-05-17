@@ -975,8 +975,8 @@ class APIHandler:
                 SELECT sector, industry FROM company_profile WHERE symbol = %s
             """, (symbol,))
             profile = self.cur.fetchone()
-            sector = dict(profile)['sector'] if profile else 'Unknown'
-            industry = dict(profile)['industry'] if profile else 'Unknown'
+            sector = profile['sector'] if (profile and hasattr(profile, '__getitem__')) else 'Unknown'
+            industry = profile['industry'] if (profile and hasattr(profile, '__getitem__')) else 'Unknown'
 
             # Determine position size
             if position_dollars:
