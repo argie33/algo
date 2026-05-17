@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useMarketSentiment } from '../hooks/useDataApi';
 import {
@@ -80,6 +81,10 @@ export default function Sentiment() {
     () => api.get('/api/sentiment/data?limit=5000&page=1'),
     { staleTime: 300000, refetchInterval: 300000 }
   );
+
+  if (error) {
+    return <Alert severity="error" style={{ margin: '20px' }}>{error}</Alert>;
+  }
 
   const summaryQ = useApiQuery(
     ['sentiment-summary'],

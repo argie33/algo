@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
   RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity,
@@ -27,12 +28,12 @@ const STATUS_VARIANT = {
 };
 
 export default function ServiceHealth() {
-  const { data: dataStatus, loading: isLoading, refetch } = useApiQuery(
+  const { data: dataStatus, loading: isLoading, error: dsError, refetch } = useApiQuery(
     ['algo-data-status'],
     () => api.get('/api/algo/data-status'),
     { refetchInterval: 30000 }
   );
-  const { data: patrolLog } = useApiQuery(
+  const { data: patrolLog, error: plError } = useApiQuery(
     ['algo-patrol-log'],
     () => api.get('/api/algo/patrol-log?limit=50'),
     { refetchInterval: 60000 }
@@ -42,6 +43,10 @@ export default function ServiceHealth() {
     () => api.get('/api/algo/status'),
     { refetchInterval: 30000 }
   );
+
+  if (dsError || plError) {
+    return <Alert severity="error" style={{ margin: '20px' }}>{dsError || plError}</Alert>;
+  }
 
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };
   const sources = dataStatus?.sources || [];

@@ -10,6 +10,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
+import { Alert } from '@mui/material';
 import {
   RefreshCw, Search, ChevronDown, ChevronUp, Inbox, AlertCircle,
   Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle, Eye,
@@ -124,12 +125,12 @@ function TradesView() {
   const [symbolFilter, setSymbolFilter] = useState('');
   const [expandedKey, setExpandedKey] = useState(null);
 
-  const { data: positions, refetch: rp, loading: lp } = useApiQuery(
+  const { data: positions, refetch: rp, loading: lp, error: pe } = useApiQuery(
     ['algo-positions'],
     () => api.get('/api/algo/positions'),
     { refetchInterval: 30000 }
   );
-  const { data: trades, refetch: rt, loading: lt } = useApiQuery(
+  const { data: trades, refetch: rt, loading: lt, error: te } = useApiQuery(
     ['algo-trades'],
     () => api.get('/api/algo/trades?limit=200'),
     { refetchInterval: 60000 }
@@ -151,6 +152,10 @@ function TradesView() {
 
   const openPnL = openPositions.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0);
   const closedPnL = closedTrades.reduce((s, t) => s + Number(t.profit_loss_dollars || 0), 0);
+
+  if (pe || te) {
+    return <Alert severity="error" style={{ margin: '16px' }}>{pe || te}</Alert>;
+  }
 
   return (
     <div className="card">
@@ -348,6 +353,9 @@ function ActivityView() {
         </div>
       </div>
       <div className="card-body">
+        {logError && !(logError?.status === 403) && (
+          <Alert severity="error" style={{ marginBottom: '16px' }}>{logError}</Alert>
+        )}
         <div className="flex gap-3" style={{ marginBottom: 'var(--space-4)' }}>
           <select className="select" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180 }}>
             <option value="">All actions</option>
@@ -429,12 +437,17 @@ function ActivityRow({ item }) {
 
 // ─── NOTIFICATIONS VIEW ────────────────────────────────────────────────────
 function NotificationsView() {
-  const { data, loading: isLoading, refetch } = useApiQuery(
+  const { data, loading: isLoading, error: notifError, refetch } = useApiQuery(
     ['algo-notifications-all'],
     () => api.get('/api/algo/notifications?include_seen=1'),
     { refetchInterval: 30000 }
   );
   const items = Array.isArray(data) ? data : (data?.items || []);
+
+  if (notifError) {
+    return <Alert severity="error" style={{ margin: '16px' }}>{notifError}</Alert>;
+  }
+
   return (
     <div className="card">
       <div className="card-head">

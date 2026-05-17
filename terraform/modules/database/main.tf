@@ -157,6 +157,102 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 }
 
 # ============================================================
+# 4b. RDS Proxy IAM Role (Lambda Database Access)
+# ============================================================
+
+resource "aws_iam_role" "rds_proxy" {
+  count              = var.enable_rds_proxy ? 1 : 0
+  name               = "${var.project_name}-rds-proxy-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.rds_proxy_assume[0].json
+
+  tags = var.common_tags
+}
+
+data "aws_iam_policy_document" "rds_proxy_assume" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["rds.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role_policy" "rds_proxy_secrets" {
+  count  = var.enable_rds_proxy ? 1 : 0
+  name   = "${var.project_name}-rds-proxy-secrets"
+  role   = aws_iam_role.rds_proxy[0].id
+  policy = data.aws_iam_policy_document.rds_proxy_secrets[0].json
+}
+
+data "aws_iam_policy_document" "rds_proxy_secrets" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret"
+    ]
+
+    resources = [aws_secretsmanager_secret.rds_credentials.arn]
+  }
+}
+
+# ============================================================
+# 4c. RDS Proxy (Connection Pooling)
+# ============================================================
+
+resource "aws_db_proxy" "main" {
+  count                   = var.enable_rds_proxy ? 1 : 0
+  name                    = "${var.project_name}-proxy"
+  debug_logging           = false
+  engine_family           = "POSTGRESQL"
+  auth {
+    auth_scheme = "SECRETS"
+    secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
+    iam_auth    = "REQUIRED"
+  }
+
+  role_arn               = aws_iam_role.rds_proxy[0].arn
+  max_idle_connections   = 100
+  max_connections        = 200
+  connection_borrow_timeout = 120
+  idle_client_timeout    = 1800
+  init_query             = "SET SESSION idle_in_transaction_session_timeout = 1800000"
+  require_tls            = true
+  vpc_subnet_ids         = var.private_subnet_ids
+  vpc_security_group_ids = [var.rds_security_group_id]
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-proxy"
+  })
+
+  depends_on = [aws_db_instance.main]
+}
+
+resource "aws_db_proxy_target_group" "main" {
+  count           = var.enable_rds_proxy ? 1 : 0
+  name            = "${var.project_name}-target-group"
+  db_proxy_name   = aws_db_proxy.main[0].name
+  db_instance_identifiers = [aws_db_instance.main.identifier]
+
+  connection_pool_config {
+    connection_borrow_timeout = 120
+    connection_pool_ttl       = 1800
+    init_query                = "SET SESSION idle_in_transaction_session_timeout = 1800000"
+    max_connections           = 200
+    max_idle_connections      = 100
+  }
+}
+
+# ============================================================
 # 5. Secrets Manager - Database Credentials
 # ============================================================
 

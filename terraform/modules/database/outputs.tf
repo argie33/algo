@@ -92,8 +92,21 @@ output "rds_log_group_name" {
   value       = aws_cloudwatch_log_group.rds_postgresql.name
 }
 
-# RDS Proxy outputs - DISABLED
-# TODO: Re-enable when RDS Proxy is properly implemented
+# RDS Proxy - Connection Pooling
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint (use this for Lambda connections instead of direct RDS)"
+  value       = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : null
+}
+
+output "rds_proxy_arn" {
+  description = "RDS Proxy ARN"
+  value       = var.enable_rds_proxy ? aws_db_proxy.main[0].arn : null
+}
+
+output "rds_proxy_role_arn" {
+  description = "RDS Proxy IAM role ARN"
+  value       = var.enable_rds_proxy ? aws_iam_role.rds_proxy[0].arn : null
+}
 
 # Credential Rotation
 output "rds_rotation_lambda_arn" {
