@@ -322,13 +322,13 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     """Modify test collection based on markers."""
     if not config.getoption('--run-slow'):
-        skip_slow = pytest.mark.skip(reason='need --run-slow option to run')
+        skip_slow = pytest.mark.skip(reason='need --run-slow option to run (2026-11-17)')
         for item in items:
             if 'slow' in item.keywords:
                 item.add_marker(skip_slow)
 
     if not config.getoption('--run-db'):
-        skip_db = pytest.mark.skip(reason='need --run-db option to run')
+        skip_db = pytest.mark.skip(reason='need --run-db option to run (2026-11-17)')
         for item in items:
             if 'db' in item.keywords:
                 item.add_marker(skip_db)
