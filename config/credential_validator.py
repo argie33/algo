@@ -148,12 +148,6 @@ def assert_credentials(on_failure: str = "raise") -> bool:
     return is_valid
 
 
-def get_credential_issues() -> List[str]:
-    """Get list of credential issues for display/logging."""
-    _, messages = validate_credentials()
-    return messages
-
-
 if __name__ == "__main__":
     # Test the validator
     logging.basicConfig(
