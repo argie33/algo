@@ -154,12 +154,16 @@ class CircuitBreaker:
         self.cur.execute(
             """
             SELECT MAX(total_portfolio_value),
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1),
+                   COUNT(*) as snapshot_count
             FROM algo_portfolio_snapshots
             """
         )
         row = self.cur.fetchone()
-        if not row or not row[0] or not row[1]:
+        # Bootstrap path: if table is empty (first ever run), allow through
+        if not row or row[2] == 0:
+            return {'halted': False, 'reason': 'First run — no portfolio history yet'}
+        if not row[0] or not row[1]:
             return {'halted': True, 'reason': 'Portfolio history missing — fail-closed'}
         peak = float(row[0])
         cur_val = float(row[1])

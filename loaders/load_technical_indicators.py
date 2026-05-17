@@ -96,6 +96,70 @@ def calculate_atr(high, low, close, period=14):
     return pd.Series(tr).rolling(window=period, min_periods=1).mean().values
 
 
+def calculate_adx(high, low, close, period=14):
+    """Calculate ADX, +DI, -DI using Wilder's smoothing method."""
+    high = np.asarray(high, dtype=float)
+    low = np.asarray(low, dtype=float)
+    close = np.asarray(close, dtype=float)
+
+    # Calculate True Range
+    tr = np.zeros(len(close))
+    tr[0] = high[0] - low[0]
+    for i in range(1, len(close)):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i-1]), abs(low[i] - close[i-1]))
+
+    # Calculate Directional Movement
+    plus_dm = np.zeros(len(close))
+    minus_dm = np.zeros(len(close))
+    for i in range(1, len(close)):
+        up_move = high[i] - high[i-1]
+        down_move = low[i-1] - low[i]
+
+        if up_move > down_move and up_move > 0:
+            plus_dm[i] = up_move
+        else:
+            plus_dm[i] = 0
+
+        if down_move > up_move and down_move > 0:
+            minus_dm[i] = down_move
+        else:
+            minus_dm[i] = 0
+
+    # Wilder's smoothing for TR, +DM, -DM
+    def wilder_smooth(values, period):
+        smoothed = np.zeros(len(values))
+        if len(values) < period:
+            return smoothed
+        smoothed[period-1] = np.sum(values[:period])
+        for i in range(period, len(values)):
+            smoothed[i] = smoothed[i-1] - (smoothed[i-1] / period) + values[i]
+        return smoothed
+
+    tr_smooth = wilder_smooth(tr, period)
+    plus_dm_smooth = wilder_smooth(plus_dm, period)
+    minus_dm_smooth = wilder_smooth(minus_dm, period)
+
+    # Calculate +DI and -DI
+    plus_di = np.zeros(len(close))
+    minus_di = np.zeros(len(close))
+    for i in range(period-1, len(close)):
+        if tr_smooth[i] != 0:
+            plus_di[i] = 100 * (plus_dm_smooth[i] / tr_smooth[i])
+            minus_di[i] = 100 * (minus_dm_smooth[i] / tr_smooth[i])
+
+    # Calculate DX
+    di_sum = plus_di + minus_di
+    dx = np.zeros(len(close))
+    for i in range(len(close)):
+        if di_sum[i] != 0:
+            dx[i] = 100 * (abs(plus_di[i] - minus_di[i]) / di_sum[i])
+
+    # Wilder's smoothing for ADX
+    adx = wilder_smooth(dx, period)
+
+    return adx, plus_di, minus_di
+
+
 def calculate_roc(prices, period):
     prices = np.asarray(prices, dtype=float)
     roc = np.zeros(len(prices))
@@ -175,6 +239,7 @@ def process_symbol(symbol, watermark, conn_params):
         macd, macd_sig, macd_hist = calculate_macd(closes)
         atr_vals = calculate_atr(highs, lows, closes)
         mom = np.concatenate([[0.0], np.diff(closes)]) * 100
+        roc1 = calculate_roc(closes, 1)  # 1-period ROC for the 'roc' column
         roc10 = calculate_roc(closes, 10)
         roc20 = calculate_roc(closes, 20)
         roc60 = calculate_roc(closes, 60)
@@ -194,6 +259,9 @@ def process_symbol(symbol, watermark, conn_params):
         except Exception:
             # If SPY data unavailable, use neutral RS values
             mansfield_rs = np.full(len(closes), 100.0)
+
+        # Calculate ADX and directional indicators
+        adx_vals, plus_di_vals, minus_di_vals = calculate_adx(highs, lows, closes)
 
         # Only insert rows newer than watermark
         rows_to_insert = []
@@ -216,7 +284,7 @@ def process_symbol(symbol, watermark, conn_params):
                 safe_float(macd_sig[i], 0.0),
                 safe_float(macd_hist[i], 0.0),
                 safe_float(mom[i], 0.0),
-                safe_float(roc10[i], 0.0),
+                safe_float(roc1[i], 0.0),
                 safe_float(roc10[i], 0.0),
                 safe_float(roc20[i], 0.0),
                 safe_float(roc60[i], 0.0),
@@ -228,7 +296,9 @@ def process_symbol(symbol, watermark, conn_params):
                 safe_float(ema12[i], closes[i]),
                 safe_float(ema26[i], closes[i]),
                 safe_float(atr_vals[i], 0.0),
-                0.0, 0.0, 0.0,
+                safe_float(adx_vals[i], 0.0),
+                safe_float(plus_di_vals[i], 0.0),
+                safe_float(minus_di_vals[i], 0.0),
                 safe_float(mansfield_rs[i], 100.0),  # Mansfield RS defaults to neutral 100
             ))
 

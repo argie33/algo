@@ -163,28 +163,19 @@ class ExitEngine:
                 if fraction > 0:
                     logger.info(f"      (exit {int(fraction*100)}%)")
 
-                # If fraction=0, this is a stop-raise-only signal (no exit)
-                if fraction == 0:
-                    if new_stop:
-                        # Update stop only (no exit execution)
-                        self.cur.execute("""
-                            UPDATE algo_positions
-                            SET current_stop_price = %s, updated_at = NOW()
-                            WHERE trade_id = %s
-                        """, (new_stop, trade_id))
-                        self.conn.commit()
-                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-                        exits_executed += 1
-                    result = {'success': True}
-                else:
-                    result = self.executor.exit_trade(
-                        trade_id=trade_id,
-                        exit_price=cur_price,
-                        exit_reason=exit_signal['reason'],
-                        exit_fraction=fraction,  # Use fraction directly, no min() forcing
-                        exit_stage=stage,
-                        new_stop_price=new_stop,
-                    )
+                # Route through executor for all cases (stop-raise-only when fraction=0)
+                # This ensures audit logging and atomic updates for all position changes
+                result = self.executor.exit_trade(
+                    trade_id=trade_id,
+                    exit_price=cur_price if fraction > 0 else None,
+                    exit_reason=exit_signal['reason'],
+                    exit_fraction=fraction,  # 0 for stop-raise-only
+                    exit_stage=stage,
+                    new_stop_price=new_stop,
+                )
+                if fraction == 0 and result.get('success'):
+                    logger.info(f"      -> Stop raised to ${new_stop:.2f}")
+                    exits_executed += 1
 
                 if result.get('success'):
                     exits_executed += 1

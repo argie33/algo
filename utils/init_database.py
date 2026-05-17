@@ -352,17 +352,6 @@ CREATE TABLE IF NOT EXISTS growth_metrics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Stability metrics
-CREATE TABLE IF NOT EXISTS stability_metrics (
-    symbol VARCHAR(20) PRIMARY KEY,
-    volatility_30d DECIMAL(8, 4),
-    volatility_60d DECIMAL(8, 4),
-    volatility_252d DECIMAL(8, 4),
-    beta DECIMAL(8, 4),
-    debt_to_assets DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Value metrics
 CREATE TABLE IF NOT EXISTS value_metrics (
     symbol VARCHAR(20) PRIMARY KEY,
@@ -591,126 +580,6 @@ CREATE TABLE IF NOT EXISTS commodities (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Commodity prices and data (current snapshot)
-CREATE TABLE IF NOT EXISTS commodity_prices (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL UNIQUE,
-    name VARCHAR(255),
-    price DECIMAL(12, 4),
-    change_amount DECIMAL(12, 4),
-    change_percent DECIMAL(8, 4),
-    volume BIGINT,
-    high_52w DECIMAL(12, 4),
-    low_52w DECIMAL(12, 4),
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Commodity price history (OHLCV)
-CREATE TABLE IF NOT EXISTS commodity_price_history (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE,
-    open DECIMAL(12, 4),
-    high DECIMAL(12, 4),
-    low DECIMAL(12, 4),
-    close DECIMAL(12, 4),
-    volume BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
-);
-
--- Commodity categories (one row per symbol)
-CREATE TABLE IF NOT EXISTS commodity_categories (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL UNIQUE,
-    name VARCHAR(255),
-    category VARCHAR(100),
-    subcategory VARCHAR(100),
-    unit VARCHAR(50),
-    exchange VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- COT (Commitments of Traders) data
-CREATE TABLE IF NOT EXISTS cot_data (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    report_date DATE NOT NULL,
-    commercial_long BIGINT,
-    commercial_short BIGINT,
-    commercial_net BIGINT,
-    non_commercial_long BIGINT,
-    non_commercial_short BIGINT,
-    non_commercial_net BIGINT,
-    open_interest BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, report_date)
-);
-
--- Commodity seasonality patterns
-CREATE TABLE IF NOT EXISTS commodity_seasonality (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    month INTEGER NOT NULL,
-    avg_return DECIMAL(8, 4),
-    win_rate DECIMAL(8, 4),
-    volatility DECIMAL(8, 4),
-    years_data INTEGER,
-    UNIQUE(symbol, month)
-);
-
--- Commodity technical indicators
-CREATE TABLE IF NOT EXISTS commodity_technicals (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    rsi DECIMAL(8, 4),
-    macd DECIMAL(12, 4),
-    macd_signal DECIMAL(12, 4),
-    macd_hist DECIMAL(12, 4),
-    sma_20 DECIMAL(12, 4),
-    sma_50 DECIMAL(12, 4),
-    sma_200 DECIMAL(12, 4),
-    bb_upper DECIMAL(12, 4),
-    bb_lower DECIMAL(12, 4),
-    bb_pct DECIMAL(8, 4),
-    atr DECIMAL(12, 4),
-    signal VARCHAR(10),
-    UNIQUE(symbol, date)
-);
-
--- Commodity correlations
-CREATE TABLE IF NOT EXISTS commodity_correlations (
-    id SERIAL PRIMARY KEY,
-    symbol1 VARCHAR(20) NOT NULL,
-    symbol2 VARCHAR(20) NOT NULL,
-    correlation_30d DECIMAL(8, 4),
-    correlation_90d DECIMAL(8, 4),
-    correlation_1y DECIMAL(8, 4),
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol1, symbol2)
-);
-
--- Commodity macro drivers
-CREATE TABLE IF NOT EXISTS commodity_macro_drivers (
-    id SERIAL PRIMARY KEY,
-    series_id VARCHAR(50) NOT NULL,
-    series_name VARCHAR(255),
-    date DATE NOT NULL,
-    value DECIMAL(12, 4),
-    UNIQUE(series_id, date)
-);
-
--- Commodity economic event calendar
-CREATE TABLE IF NOT EXISTS commodity_events (
-    id SERIAL PRIMARY KEY,
-    event_name VARCHAR(255) NOT NULL,
-    event_date TIMESTAMP NOT NULL,
-    event_type VARCHAR(50),
-    description TEXT,
-    impact VARCHAR(20)
-);
-
 -- Market distribution days
 CREATE TABLE IF NOT EXISTS distribution_days (
     id SERIAL PRIMARY KEY,
@@ -759,52 +628,6 @@ CREATE TABLE IF NOT EXISTS fear_greed_index (
     date DATE UNIQUE,
     fear_greed_value DECIMAL(8, 4),
     fear_greed_label VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ════════════════════════════════════════════════════════════════════════════
--- OPTIONS DATA
--- ════════════════════════════════════════════════════════════════════════════
-
--- Options chains for stocks
-CREATE TABLE IF NOT EXISTS options_chains (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    contract_symbol VARCHAR(50),
-    option_type VARCHAR(10),
-    expiration_date DATE,
-    strike_price DECIMAL(12, 4),
-    bid DECIMAL(12, 4),
-    ask DECIMAL(12, 4),
-    last_price DECIMAL(12, 4),
-    volume BIGINT,
-    open_interest BIGINT,
-    data_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Options Greeks (Delta, Gamma, Theta, Vega, Rho)
-CREATE TABLE IF NOT EXISTS options_greeks (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    contract_symbol VARCHAR(50),
-    delta DECIMAL(8, 4),
-    gamma DECIMAL(8, 4),
-    theta DECIMAL(8, 4),
-    vega DECIMAL(8, 4),
-    rho DECIMAL(8, 4),
-    data_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Implied volatility history
-CREATE TABLE IF NOT EXISTS iv_history (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    date DATE,
-    iv_30d DECIMAL(8, 4),
-    iv_60d DECIMAL(8, 4),
-    iv_180d DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1000,15 +823,6 @@ CREATE TABLE IF NOT EXISTS earnings_estimate_revisions (
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- Momentum metrics for stocks
-CREATE TABLE IF NOT EXISTS momentum_metrics (
-    symbol VARCHAR(20) PRIMARY KEY,
-    momentum_1m DECIMAL(8, 4),
-    momentum_3m DECIMAL(8, 4),
-    momentum_6m DECIMAL(8, 4),
-    momentum_12m DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Beta and volatility validation
 CREATE TABLE IF NOT EXISTS beta_validation (
     id SERIAL PRIMARY KEY,

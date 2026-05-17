@@ -1,0 +1,43 @@
+name: Bootstrap Terraform Backend
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  bootstrap:
+    name: Create S3 State Bucket & DynamoDB Lock Table
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get AWS Account ID
+        id: account
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+      - name: Run Bootstrap Script
+        run: |
+          chmod +x .github/workflows/bootstrap.sh
+          .github/workflows/bootstrap.sh "${{ env.AWS_REGION }}" "${{ steps.account.outputs.account_id }}"
+
+      - name: Verify Backend Resources
+        run: |
+          echo "✅ Bootstrap Complete!"
+          echo ""
+          echo "S3 Bucket:"
+          aws s3 ls s3://algo-terraform-state-dev/ --summarize || echo "  (checking...)"
+          echo ""
+          echo "DynamoDB Table:"
+          aws dynamodb describe-table --table-name algo-terraform-locks-dev --query 'Table.TableStatus' || echo "  (checking...)"

@@ -1791,7 +1791,7 @@ class Orchestrator:
         try:
             conn = psycopg2.connect(**_get_db_config())
             cur = conn.cursor()
-            today = _date.today()
+            today = self.run_date
 
             # 1. Check required tables exist
             # Hard blocks: data required before trading

@@ -368,14 +368,19 @@ class FilterPipeline:
             final_trades = passed_all_tiers[:max_positions]
 
             # Calculate target prices for all final trades (R-multiple based)
+            # Read R-multiples from config
+            t1_r = float(self.config.get('t1_target_r_multiple', 1.5))
+            t2_r = float(self.config.get('t2_target_r_multiple', 3.0))
+            t3_r = float(self.config.get('t3_target_r_multiple', 4.0))
+
             for trade in final_trades:
                 entry = trade.get('entry_price', 0)
                 stop = trade.get('stop_loss_price', 0)
                 if entry > 0 and stop > 0 and stop < entry:
                     r = entry - stop  # Risk per share
-                    trade['target_1_price'] = round(entry + 1.5 * r, 2)
-                    trade['target_2_price'] = round(entry + 3.0 * r, 2)
-                    trade['target_3_price'] = round(entry + 4.0 * r, 2)
+                    trade['target_1_price'] = round(entry + t1_r * r, 2)
+                    trade['target_2_price'] = round(entry + t2_r * r, 2)
+                    trade['target_3_price'] = round(entry + t3_r * r, 2)
                 else:
                     trade['target_1_price'] = None
                     trade['target_2_price'] = None
@@ -1017,7 +1022,7 @@ class FilterPipeline:
             )
             row = self.cur.fetchone()
             sqs = float(row[0]) if row and row[0] is not None else 0
-            min_sqs = float(self.config.get('min_signal_quality_score', 40))
+            min_sqs = float(self.config.get('min_signal_quality_score', 60))
             if sqs < min_sqs:
                 return {'pass': False, 'reason': f'SQS {sqs:.0f} < {min_sqs:.0f}', 'sqs': sqs}
             return {'pass': True, 'reason': f'SQS {sqs:.0f}', 'sqs': sqs}

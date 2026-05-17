@@ -162,7 +162,9 @@ class QualityMetricsLoader(OptimalLoader):
             metrics['quick_ratio'] = None
 
         # Interest Coverage: EBIT / Interest Expense
-        # Approximated as Operating Income / 0 (no interest data), so set to None
+        # Note: Interest_expense is not available in the current SEC EDGAR data source.
+        # To implement interest coverage, add interest_expense column to annual_income_statement
+        # and update load_income_statement.py loader to fetch it from EDGAR.
         metrics['interest_coverage'] = None
 
         # Quality Score: Composite (0-100) based on profitability and financial health
