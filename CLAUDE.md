@@ -39,33 +39,38 @@
 
 ---
 
-## 🔐 CREDENTIAL MANAGEMENT
+## 🔐 CREDENTIAL MANAGEMENT (ENV VARS ONLY - NO FILES)
 
-- ✅ `.env.local` = Dev credentials (LOCAL ONLY, gitignored)
-- ❌ NEVER delete `.env.local` (breaks local dev)
-- ❌ NEVER commit `.env.local` (in .gitignore anyway)
-- 🔒 Production: AWS Secrets Manager only
-- See: CREDENTIAL_SETUP.md
+- ✅ Set environment variables before running code
+- ❌ NO .env.local files (removed intentionally for security)
+- ❌ NEVER commit credentials (don't use files, can't accidentally commit)
+- 🔒 Local: Environment variables (you set them)
+- 🔒 Production: AWS Secrets Manager only (Lambda/ECS)
 
 ---
 
-## 💻 LOCAL DEVELOPMENT (3 STEPS)
+## 💻 LOCAL DEVELOPMENT (4 STEPS)
 
 **Step 1:** PostgreSQL running on localhost:5432
 
-**Step 2:** Initialize database
+**Step 2:** Set environment variables (in your terminal):
+- For database: host, port, user, name, password
+- For trading: Alpaca API key and secret
+- See credential_helper.py for full list of variables
+
+**Step 3:** Initialize database
 ```bash
 python3 init_database.py
 ```
 
-**Step 3:** Load data
+**Step 4:** Load data (all 40 loaders, ~20 minutes)
 ```bash
 python3 run-all-loaders.py
 ```
 
-That's it — fully populated local database.
+That's it — fully populated database with 1.5M+ price records.
 
-**Test orchestrator:**
+**Test orchestrator (all 7 phases):**
 ```bash
 python3 algo/algo_orchestrator.py --mode paper --dry-run
 ```
