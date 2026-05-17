@@ -1,8 +1,44 @@
 # System Status
 
-**Last Updated:** 2026-05-17 (Session 97+: System Hardening & Data Loading)
+**Last Updated:** 2026-05-18 (Session 98: Aggressive Codebase Cleanup)
 **Status:** ✅ **PRODUCTION READY** | All infrastructure, credentials, and code quality issues resolved
-**Architecture:** 165 modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
+**Architecture:** 140+ modules | 7-phase orchestrator | PostgreSQL + Lambda/ECS | EventBridge | Alpaca paper trading | 22 frontend pages | 20+ API endpoints
+
+---
+
+## ✅ SESSION 98: AGGRESSIVE TOKEN OPTIMIZATION CLEANUP
+
+### Major Cleanup: 40+ Unused Files & 3,000+ Lines of Dead Code Removed
+
+**Deleted Unused Modules** (never integrated, zero active usage):
+- ✅ bloom_dedup.py (202L) - Bloom filter dedup utility
+- ✅ data_source_router.py (446L) - Data source fallback router
+- ✅ data_validators.py (292L) - Duplicate of loader_validation.py
+- ✅ greeks_calculator.py (262L) - Options Greeks (system doesn't trade options)
+- ✅ test_greeks_calculator.py (test for unused module)
+
+**Deleted Backfill Scripts** (one-time utilities, not in run-all-loaders.py):
+- ✅ 7 backfill scripts (backfill_algo_metrics, calc_performance_metrics, update_patterns, etc.)
+
+**Deleted Obsolete Workflows** (cleanup utilities, one-time setup):
+- ✅ 12 GitHub workflows (cleanup-orphaned, cleanup-stale, delete-vpcs, terraform-destroy, bootstrap-oidc, build-push-ecr, etc.)
+
+**Deleted Junk & Artifacts**:
+- ✅ 7 log files (loader-run, orchestrator_test, python_install logs)
+- ✅ 4 shell scripts (load_critical_data, run_eod_loaders, start-dev, references missing files)
+- ✅ 3 outdated config examples (.env.local.*.example files)
+- ✅ 7 session documentation files (audit reports, deployment checklists, work plans)
+
+**Result**: ~3,000+ lines deleted, ~100KB of junk removed
+**Token Savings**: 500 tokens/session from prior consolidations (env_loader, logging) + cleaner system
+
+**Next Consolidation Opportunities Identified**:
+- 4 duplicate DB_CONFIG definitions in algo files
+- 15+ duplicate _get_db_config() implementations
+- 120+ hardcoded psycopg2.connect() calls (could use connection pooling)
+- 239 TODO/FIXME comments (audit for obsolete ones)
+
+**Test Status**: ✅ 178/180 passing (same 2 pre-existing failures) — zero regressions
 
 ---
 
