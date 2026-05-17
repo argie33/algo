@@ -54,6 +54,14 @@ router.get("/", async (req, res) => {
           RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
         FROM sector_scores
       ),
+      sector_ranking_12w AS (
+        SELECT sector_name, rank_12w_ago
+        FROM sector_ranking
+        WHERE date_recorded = (
+          SELECT MAX(date_recorded) FROM sector_ranking
+          WHERE date_recorded <= CURRENT_DATE
+        )
+      ),
       sector_pe AS (
         SELECT
           cp.sector,
@@ -69,9 +77,10 @@ router.get("/", async (req, res) => {
           PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
         FROM sector_pe
       )
-      SELECT r.*, spe.avg_trailing_pe, spe.avg_forward_pe, spe.pe_percentile
+      SELECT r.*, spe.avg_trailing_pe, spe.avg_forward_pe, spe.pe_percentile, sr12.rank_12w_ago
       FROM ranked r
       LEFT JOIN sector_pe_ranked spe ON spe.sector = r.sector_name
+      LEFT JOIN sector_ranking_12w sr12 ON sr12.sector_name = r.sector_name
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]),
@@ -91,6 +100,7 @@ router.get("/", async (req, res) => {
       return {
         sector_name: row.sector_name,
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
+        rank_12w_ago: parseInt(row.rank_12w_ago) || null,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
         stock_count: parseInt(row.stock_count || 0),
         composite_score: composite,
