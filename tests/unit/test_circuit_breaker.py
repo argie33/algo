@@ -441,11 +441,12 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'cur') as mock_cur:
 
             # Sector TECH has 2+ positions and -15% 5-day return
-            mock_cur.fetchall.return_value = [
-                ('AAPL', 'TECH', 100.0, 5000.0),  # $5000 in tech
-                ('MSFT', 'TECH', 100.0, 5000.0),  # $5000 in tech (total $10k)
+            # First fetchall: get positions with sectors (symbol, sector)
+            # Second fetchall: get sector performance data (return_pct, date)
+            mock_cur.fetchall.side_effect = [
+                [('AAPL', 'TECH'), ('MSFT', 'TECH')],  # Positions query: 2 columns
+                [(-15.0, '2026-05-10'), (-0.5, '2026-05-09')],  # Sector perf query: 2 columns
             ]
-            mock_cur.fetchone.return_value = (-0.15,)  # -15% 5-day return
 
             result = cb._check_sector_concentration(date.today())
 
@@ -462,11 +463,11 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchall.return_value = [
-                ('AAPL', 'TECH', 100.0, 5000.0),
-                ('MSFT', 'TECH', 100.0, 5000.0),
+            # -5% is above -12% threshold, so no halt
+            mock_cur.fetchall.side_effect = [
+                [('AAPL', 'TECH'), ('MSFT', 'TECH')],
+                [(-5.0, '2026-05-10'), (0.2, '2026-05-09')],
             ]
-            mock_cur.fetchone.return_value = (-0.05,)  # -5% (below -12% halt threshold)
 
             result = cb._check_sector_concentration(date.today())
 
@@ -482,8 +483,9 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
+            # Only 1 position, no concentration
             mock_cur.fetchall.return_value = [
-                ('AAPL', 'TECH', 100.0, 5000.0),  # Only 1 position
+                ('AAPL', 'TECH'),  # Only 1 position
             ]
             mock_cur.fetchone.return_value = (-0.20,)  # Even -20%, no halt
 
@@ -501,8 +503,8 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            # SPY 2-day return -2.5% (below -2% halt threshold)
-            mock_cur.fetchone.return_value = (-0.025,)
+            # SPY prices: prior=102.56, latest=100.0 → change = (100-102.56)/102.56 = -2.5%
+            mock_cur.fetchall.return_value = [(100.0,), (102.56,)]
 
             result = cb._check_intraday_market_health(date.today())
 
@@ -518,7 +520,8 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'disconnect'), \
              patch.object(cb, 'cur') as mock_cur:
 
-            mock_cur.fetchone.return_value = (-0.01,)  # -1% (above -2% threshold)
+            # SPY prices: prior=101.01, latest=100.0 → change = (100-101.01)/101.01 = -1%
+            mock_cur.fetchall.return_value = [(100.0,), (101.01,)]
 
             result = cb._check_intraday_market_health(date.today())
 
@@ -535,10 +538,8 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'cur') as mock_cur:
 
             # 7 wins out of 20 trades = 35% win rate
-            mock_cur.fetchall.return_value = [
-                (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,),  # 7 winners
-                (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,), (-1.0,),  # 13 losers
-            ]
+            # The method calls fetchone() and expects (wins, losses, total)
+            mock_cur.fetchone.return_value = (7, 13, 20)
 
             result = cb._check_win_rate_floor(date.today())
 
@@ -598,7 +599,7 @@ class TestMissingCircuitBreakers:
              patch.object(cb, 'cur') as mock_cur:
 
             # Daily return +3% (beyond typical profit cap of 2%)
-            mock_cur.fetchone.return_value = (0.03,)
+            mock_cur.fetchone.return_value = (3.0,)
 
             result = cb._check_daily_profit_cap(date.today())
 
@@ -606,4 +607,5 @@ class TestMissingCircuitBreakers:
             # but expose 'exceed_profit_cap' flag for monitoring
             assert result['halted'] is False
             assert result.get('exceed_profit_cap') is True
-            assert 'drawdown' in result['halt_reasons'][0].lower()
+            assert result['value'] == 3.0
+            assert result['threshold'] == 2.0

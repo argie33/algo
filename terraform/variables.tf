@@ -724,6 +724,20 @@ variable "data_patrol_timeout_ms" {
 }
 
 # ============================================================
+# Frontend Configuration
+# ============================================================
+
+variable "frontend_origin" {
+  description = "Frontend origin URL for CORS (e.g., http://localhost:3000 or https://example.com)"
+  type        = string
+  default     = "http://localhost:3000"
+  validation {
+    condition     = can(regex("^https?://", var.frontend_origin))
+    error_message = "Frontend origin must start with http:// or https://"
+  }
+}
+
+# ============================================================
 # Tags
 # ============================================================
 

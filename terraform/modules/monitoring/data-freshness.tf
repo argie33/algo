@@ -165,7 +165,7 @@ resource "aws_cloudwatch_metric_alarm" "data_empty" {
 
   alarm_name          = "${var.project_name}-data-${each.value}-empty-${var.environment}"
   alarm_description   = "CRITICAL: ${each.value} table has 0 rows (data loading failed)"
-  comparison_operator = "LessThanOrEqualTo"
+  comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "DataLoader_${each.value}_RowCount"
   namespace           = "AlgoDataFreshness"
@@ -187,7 +187,7 @@ resource "aws_cloudwatch_metric_alarm" "data_stale_warning" {
 
   alarm_name          = "${var.project_name}-data-${each.value}-stale-warning-${var.environment}"
   alarm_description   = "WARNING: ${each.value} data is >3 days old (needs investigation)"
-  comparison_operator = "GreaterThanOrEqualTo"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "DataLoader_${each.value}_AgeDays"
   namespace           = "AlgoDataFreshness"
@@ -209,7 +209,7 @@ resource "aws_cloudwatch_metric_alarm" "data_stale_critical" {
 
   alarm_name          = "${var.project_name}-data-${each.value}-stale-critical-${var.environment}"
   alarm_description   = "CRITICAL: ${each.value} data is >7 days old (loader likely broken)"
-  comparison_operator = "GreaterThanOrEqualTo"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "DataLoader_${each.value}_AgeDays"
   namespace           = "AlgoDataFreshness"

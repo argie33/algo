@@ -269,7 +269,13 @@ module "monitoring" {
   api_gateway_name = module.services.api_gateway_id
 
   # Database configuration
-  rds_identifier = module.database.rds_identifier
+  rds_identifier         = module.database.rds_identifier
+  db_host               = module.database.rds_address
+  db_user               = module.database.rds_username
+  db_name               = module.database.rds_database_name
+  db_password           = var.rds_password
+  private_subnet_ids    = module.vpc.private_subnet_ids
+  rds_security_group_id = module.vpc.rds_security_group_id
 
   # Alarm configuration
   apigw_5xx_alarm_name         = "${var.project_name}-apigw-5xx-${var.environment}"
