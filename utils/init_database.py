@@ -911,7 +911,8 @@ CREATE TABLE IF NOT EXISTS industry_ranking (
     rank_1w_ago INTEGER,
     rank_4w_ago INTEGER,
     momentum_score DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(industry, date_recorded)
 );
 
 -- Industry performance data
