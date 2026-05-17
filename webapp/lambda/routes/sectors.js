@@ -120,7 +120,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /trends-batch - Get trend data for multiple sectors (comma-separated)
+// GET /trends-batch - Get daily sector price averages for the past N days (for relative performance charts)
 router.get("/trends-batch", async (req, res) => {
   try {
     const { sectors: sectorsList, days = 90 } = req.query;
@@ -128,35 +128,42 @@ router.get("/trends-batch", async (req, res) => {
       return sendError(res, 'sectors parameter required (comma-separated)', 400);
     }
 
-    const sectors = sectorsList.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+    // Parse sector names (preserve case, don't uppercase)
+    const sectors = sectorsList.split(',').map(s => s.trim()).filter(s => s.length > 0);
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     if (sectors.length === 0) {
       return sendSuccess(res, {});
     }
 
+    // Query daily average price per sector from price_daily + company_profile
     const placeholders = sectors.map((_, i) => `$${i + 1}`).join(',');
     const resultObj = await query(`
       SELECT
-        sr.date_recorded AS date,
-        sr.sector_name AS sector,
-        sr.current_rank,
-        sr.momentum_score,
-        sr.rank_1w_ago,
-        sr.rank_4w_ago
-      FROM sector_ranking sr
-      WHERE sr.sector_name IN (${placeholders})
-        AND sr.date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      ORDER BY sr.sector_name, sr.date_recorded DESC
+        cp.sector,
+        pd.date,
+        AVG(pd.close) AS avgPrice
+      FROM price_daily pd
+      JOIN company_profile cp ON cp.ticker = pd.symbol
+      WHERE cp.sector IN (${placeholders})
+        AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        AND pd.close > 0
+      GROUP BY cp.sector, pd.date
+      ORDER BY cp.sector, pd.date ASC
     `, sectors);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+
+    // Group by sector
     const grouped = {};
     result.forEach(row => {
       if (!grouped[row.sector]) {
         grouped[row.sector] = [];
       }
-      grouped[row.sector].push(row);
+      grouped[row.sector].push({
+        date: row.date,
+        avgPrice: parseFloat(row.avgprice),  // Note: pg returns lowercase column names
+      });
     });
 
     sendSuccess(res, grouped, 200);
@@ -166,33 +173,41 @@ router.get("/trends-batch", async (req, res) => {
   }
 });
 
-// GET /:sector/trend - Get historical trend data for a specific sector
+// GET /:sector/trend - Get historical daily prices for a specific sector
 router.get("/:sector/trend", async (req, res) => {
   try {
     const { sector } = req.params;
     const days = Math.min(parseInt(req.query.days) || 90, 365);
 
+    // Query daily average price for the sector
     const resultObj = await query(`
       SELECT
-        sr.date_recorded AS date,
-        sr.sector_name AS sector,
-        sr.current_rank,
-        sr.momentum_score,
-        sr.rank_1w_ago,
-        sr.rank_4w_ago
-      FROM sector_ranking sr
-      WHERE sr.sector_name = $1
-        AND sr.date_recorded >= CURRENT_DATE - INTERVAL '${days} days'
-      ORDER BY sr.date_recorded DESC
+        pd.date,
+        AVG(pd.close) AS avgPrice,
+        COUNT(DISTINCT pd.symbol) AS stockCount
+      FROM price_daily pd
+      JOIN company_profile cp ON cp.ticker = pd.symbol
+      WHERE cp.sector = $1
+        AND pd.date >= CURRENT_DATE - INTERVAL '${days} days'
+        AND pd.close > 0
+      GROUP BY pd.date
+      ORDER BY pd.date ASC
     `, [sector]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
     if (result.length === 0) {
-      return sendError(res, `No trend data for sector: ${sector}`, 404);
+      return sendError(res, `No price data for sector: ${sector}`, 404);
     }
 
-    sendSuccess(res, result, 200);
+    // Convert to required format with trendData wrapper
+    const trendData = result.map(row => ({
+      date: row.date,
+      avgPrice: parseFloat(row.avgprice),
+      dailyStrengthScore: 0,  // Placeholder; can compute from price momentum if needed
+    }));
+
+    sendSuccess(res, { sector, trendData }, 200);
   } catch (error) {
     console.error("Error fetching sector trend:", error);
     sendError(res, "Failed to fetch sector trend: " + error.message, 500);
