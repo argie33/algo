@@ -105,6 +105,121 @@ All deleted code is in git history. Restore via: `git log --oneline | grep -i "e
 
 ---
 
+## 📊 LOADER STRATEGY (Critical Governance)
+
+**PROBLEM STATEMENT:** Loaders are the foundation of the entire platform. Without clear strategy, they become a mess: duplicates, dead code, inconsistent patterns, orphan files, broken deployments. This section establishes the ONE RIGHT WAY.
+
+### What Are Loaders?
+
+Loaders fetch external data (prices, financials, earnings, etc.) and insert it into PostgreSQL. They are:
+- **Scheduled jobs** that run on a cron schedule (daily, weekly, or once)
+- **Data pipelines** with dependencies (prices → signals → metrics)
+- **Deployed to production** via AWS ECS Fargate tasks (Terraform-managed)
+- **Tested locally** on Windows using `python3 run-all-loaders.py`
+
+### Canonical Source of Truth
+
+**TERRAFORM IS AUTHORITATIVE.** The file `terraform/modules/loaders/main.tf` contains the complete list of loaders that exist in production. If a loader isn't there, it doesn't exist in production.
+
+Current state: **40 loaders defined in Terraform.**
+
+### Two Deployment Modes
+
+| Mode | Where | When | Who | How |
+|------|-------|------|-----|-----|
+| **Local** | Windows laptop, PostgreSQL localhost:5432 | Before pushing to main | Developer | `python3 run-all-loaders.py` |
+| **Production** | AWS ECS Fargate | On schedule (daily 4am ET, etc.) | EventBridge / Step Functions | Terraform triggers via `aws ecs run-task` |
+
+**Key rule:** Every loader MUST work identically in both modes. No "local-only" loaders, no "AWS-only" shortcuts.
+
+### The Right Loader Pattern
+
+All loaders MUST:
+
+1. **Inherit from DataLoader base class** (in `utils/optimal_loader.py`)
+   - Provides: watermark-based incremental loading, dedup, bulk COPY inserts, error isolation, parallelism
+   - Avoids: manual connection management, repetitive boilerplate
+
+2. **Follow this structure:**
+   ```python
+   class MyDataLoader(DataLoader):
+       table_name = "target_table"
+       primary_key = ("symbol", "date")
+       watermark_field = "date"
+       
+       def fetch_incremental(self, symbol, since):
+           # Fetch data newer than `since`
+           # Return list of dicts (rows) or None if no data
+           pass
+   
+   if __name__ == "__main__":
+       loader = MyDataLoader()
+       stats = loader.run(get_active_symbols())
+       loader.close()
+   ```
+
+3. **Avoid:**
+   - Manual connection/cursor management (DataLoader handles it)
+   - Hardcoded SQL inserts (DataLoader uses bulk COPY)
+   - Duplicate code across loaders (DataLoader is the abstraction)
+   - Per-symbol error handling (DataLoader isolates errors by default)
+
+### Loader Lifecycle Management
+
+**When adding a loader:**
+1. Create `loaders/load_yourname.py` using DataLoader pattern
+2. Add entry to `terraform/modules/loaders/main.tf` in `loader_file_map`
+3. Add cron schedule to `scheduled_loaders` map
+4. Test locally: `python3 loaders/load_yourname.py --symbols AAPL,MSFT`
+5. Test full pipeline: `python3 run-all-loaders.py`
+6. Commit + push; deployment is automatic
+
+**When modifying a loader:**
+1. ALWAYS test locally first: `python3 loaders/loadername.py`
+2. ALWAYS test full tier: `python3 run-all-loaders.py --tier N`
+3. Verify Terraform definition matches code
+4. Commit with clear message: "fix(loaders): X because Y"
+
+**When deleting a loader:**
+1. Remove from `terraform/modules/loaders/main.tf` completely
+2. Delete the .py file from `loaders/`
+3. Delete from `run-all-loaders.py` tiers if present
+4. Commit: "chore(loaders): delete X (no data source / dead code)"
+
+### Current State vs Ideal State
+
+**Current (MESSY):**
+- 40 files on disk + 40 loaders in Terraform (seems fine but...)
+- 8 orphan files NOT in Terraform (dead code sitting around)
+- 1 loader in Terraform but file doesn't exist
+- 4 files with syntax errors (blocking execution)
+- Mixed patterns: old manual code + new DataLoader
+- No clear governance (anyone can add loaders haphazardly)
+
+**Ideal (CLEAN):**
+- Exactly 40 loaders: same files on disk, same definitions in Terraform
+- Zero orphan files
+- Zero missing files
+- Zero syntax errors
+- ALL loaders use DataLoader base class
+- Clear governance: must go through review before adding
+
+**Plan:** Session by session, convert loaders to DataLoader pattern and delete orphans. When all 40 use the same pattern, the mess is gone.
+
+### Critical Rules (No Exceptions)
+
+1. **Never create a loader without updating Terraform.** If it's not in `terraform/modules/loaders/main.tf`, it's not production.
+
+2. **Never commit a broken loader.** Syntax errors, import errors, logic errors all block local testing and prevent deployment. Fix before pushing.
+
+3. **Never leave dead code.** If a loader isn't needed, delete it completely. Don't leave it "just in case."
+
+4. **Never add "experimental" loaders.** Every loader must load real data from a real source. No mock data, no "coming soon."
+
+5. **Never duplicate functionality.** If two loaders do similar work, consolidate them. Don't let mess grow.
+
+---
+
 ## 🔄 CLAUDE MECHANICAL STEERING RULES (Enforced Before Action)
 
 ### ⚠️ ABSOLUTE RULE: NO EXTRA DOCS

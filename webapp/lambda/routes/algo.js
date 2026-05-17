@@ -27,18 +27,35 @@ router.get('/status', async (req, res) => {
   try {
     const pool = getPool();
 
-    // Get latest portfolio snapshot
-    const snapshotResult = await pool.query(`
-      SELECT
-        snapshot_date,
-        total_portfolio_value,
-        position_count,
-        unrealized_pnl_pct,
-        daily_return_pct
-      FROM algo_portfolio_snapshots
-      ORDER BY snapshot_date DESC
-      LIMIT 1
-    `);
+    // Parallelize all 4 independent queries
+    const [snapshotResult, posResult, healthResult, configResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          snapshot_date,
+          total_portfolio_value,
+          position_count,
+          unrealized_pnl_pct,
+          daily_return_pct
+        FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC
+        LIMIT 1
+      `),
+      pool.query(`
+        SELECT COUNT(*) as open_count, SUM(position_value) as total_value
+        FROM algo_positions
+        WHERE status = 'open'
+      `),
+      pool.query(`
+        SELECT market_trend, market_stage, distribution_days_4w, vix_level
+        FROM market_health_daily
+        ORDER BY date DESC
+        LIMIT 1
+      `),
+      pool.query(`
+        SELECT key, value FROM algo_config
+        WHERE key IN ('enable_algo', 'execution_mode')
+      `)
+    ]);
 
     const snapshot = snapshotResult.rows[0] || {
       position_count: 0,
@@ -47,22 +64,7 @@ router.get('/status', async (req, res) => {
       total_portfolio_value: 0
     };
 
-    // Get active positions count
-    const posResult = await pool.query(`
-      SELECT COUNT(*) as open_count, SUM(position_value) as total_value
-      FROM algo_positions
-      WHERE status = 'open'
-    `);
-
     const positions = posResult.rows[0] || { open_count: 0, total_value: 0 };
-
-    // Get market health
-    const healthResult = await pool.query(`
-      SELECT market_trend, market_stage, distribution_days_4w, vix_level
-      FROM market_health_daily
-      ORDER BY date DESC
-      LIMIT 1
-    `);
 
     const health = healthResult.rows[0] || {
       market_trend: 'unknown',
@@ -70,12 +72,6 @@ router.get('/status', async (req, res) => {
       distribution_days_4w: 0,
       vix_level: 0
     };
-
-    // Get algo configuration
-    const configResult = await pool.query(`
-      SELECT key, value FROM algo_config
-      WHERE key IN ('enable_algo', 'execution_mode')
-    `);
 
     let algo_enabled = true;
     let execution_mode = 'paper';
@@ -2038,7 +2034,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
 router.get('/execution-quality', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const days = parseInt(req.query.days) || 30;
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);  // Clamp to [1, 365]
 
     const result = await pool.query(`
       SELECT
