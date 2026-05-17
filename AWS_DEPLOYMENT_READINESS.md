@@ -20,7 +20,7 @@ Before deploying to AWS, ensure these secrets are set in GitHub repository setti
 
 ### Database Credentials  
 - **RDS_PASSWORD** - Secure password for PostgreSQL database
-  - Example: `MySecurePassword123!`
+  - Generate a strong random password (20+ characters)
   - Will be used for both dev and prod environments
 
 ### Trading API Keys
