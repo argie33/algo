@@ -58,7 +58,7 @@ def _redact_for_logs(message: str) -> str:
     return message
 
 
-def _get_db_config():
+def _get_db_config() -> Dict[str, Any]:
     """Lazy-load DB config at runtime (uses centralized credential_helper)."""
     return get_db_config()
 
@@ -66,7 +66,7 @@ def _get_db_config():
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
         self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
@@ -112,11 +112,11 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
-    def connect(self):
+    def connect(self) -> None:
         self.conn = psycopg2.connect(**_get_db_config())
         self.cur = self.conn.cursor()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.cur:
             self.cur.close()
         if self.conn:
