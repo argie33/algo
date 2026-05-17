@@ -138,8 +138,9 @@ class Orchestrator:
             except Exception:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
     def cleanup(self) -> None:
         """Close the connection pool on shutdown."""
@@ -167,8 +168,9 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             self._put_conn(conn)
 
     def _increment_db_failure_counter(self) -> int:
@@ -196,8 +198,9 @@ class Orchestrator:
         try:
             if self.db_failure_counter_file.exists():
                 self.db_failure_counter_file.unlink()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.error(f"Unhandled exception: {e}")
 
     def _ensure_schema_initialized(self) -> None:
         """Initialize database schema if not already present. Idempotent."""
@@ -235,13 +238,15 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
@@ -424,8 +429,9 @@ class Orchestrator:
             try:
                 self.lock_file.unlink()
                 self._lock_acquired = False
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.error(f"Unhandled exception: {e}")
 
     def log_phase_start(self, phase_num: int, name: str) -> None:
         if self.verbose:
@@ -465,13 +471,15 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
     # ---------- Pipeline Health & Visibility ----------
 
@@ -607,13 +615,15 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
     def _interpret_waterfall(self, total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
         """Interpret the signal waterfall to help diagnose 'no trades' situations."""
@@ -850,13 +860,15 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
     def phase_2_circuit_breakers(self) -> bool:
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
@@ -876,8 +888,9 @@ class Orchestrator:
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     for name, state in result.get('checks', {}).items():
                         _m.put_circuit_breaker(name, bool(state.get('halted')))
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.error(f"Unhandled exception: {e}")
 
             # Check market circuit breakers (market-wide halts, L1/L2/L3)
             try:
@@ -1102,8 +1115,9 @@ class Orchestrator:
                             f"Phase 4: _position_recs is empty but {open_count} open positions exist "
                             "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
 
             executor = TradeExecutor(self.config)
             exit_count = 0
@@ -1139,8 +1153,9 @@ class Orchestrator:
                         finally:
                             try:
                                 conn_tmp.close()
-                            except Exception:
-                                pass
+                            except Exception as e:
+
+                                logger.error(f"Unhandled exception: {e}")
 
                         if cur_price <= 0:
                             logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
@@ -1179,8 +1194,9 @@ class Orchestrator:
                         finally:
                             try:
                                 conn.close()
-                            except Exception:
-                                pass
+                            except Exception as e:
+
+                                logger.error(f"Unhandled exception: {e}")
                         if cur_price > 0:
                             result = executor.exit_trade(
                                 trade_id=action['trade_id'],
@@ -1215,8 +1231,9 @@ class Orchestrator:
                         finally:
                             try:
                                 conn.close()
-                            except Exception:
-                                pass
+                            except Exception as e:
+
+                                logger.error(f"Unhandled exception: {e}")
                 except Exception as e:
                     errors += 1
                     logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
@@ -1265,13 +1282,15 @@ class Orchestrator:
                             if cur:
                                 try:
                                     cur.close()
-                                except Exception:
-                                    pass
+                                except Exception as e:
+
+                                    logger.error(f"Unhandled exception: {e}")
                             if conn:
                                 try:
                                     conn.close()
-                                except Exception:
-                                    pass
+                                except Exception as e:
+
+                                    logger.error(f"Unhandled exception: {e}")
                 except Exception as e:
                     errors += 1
                     logger.error(f"  Error on {rec.get('symbol')}: {e}")
@@ -1352,8 +1371,9 @@ class Orchestrator:
                 from algo.algo_metrics import MetricsPublisher
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.error(f"Unhandled exception: {e}")
             self.log_phase_result(5, 'signal_generation', 'halt', str(e))
             self._qualified_trades = []
             return True
@@ -1428,13 +1448,15 @@ class Orchestrator:
                 if cur:
                     try:
                         cur.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+
+                        logger.error(f"Unhandled exception: {e}")
                 if conn:
                     try:
                         conn.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+
+                        logger.error(f"Unhandled exception: {e}")
             max_positions = int(self.config.get('max_positions', 12))
             open_slots = max(0, max_positions - open_count)
 
@@ -1687,8 +1709,9 @@ class Orchestrator:
                             title='Database Circuit Breaker Activated',
                             message=f'DB unreachable for {failures} runs. System in degraded mode. No trading.'
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+
+                        logger.error(f"Unhandled exception: {e}")
                     # Still try to reconcile and alert
                     self.phase_7_reconcile()
                     return self._final_report()

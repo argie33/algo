@@ -139,8 +139,9 @@ class CircuitBreaker:
                     title='CIRCUIT BREAKER CHECK FAILED',
                     message=f'Circuit breaker logic crashed: {e}. Trading halted until resolved.'
                 )
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.error(f"Unhandled exception: {e}")
             return {
                 'halted': True,
                 'halt_reasons': [f'Circuit breaker check failed: {e}'],

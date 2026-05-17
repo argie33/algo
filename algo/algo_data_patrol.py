@@ -151,8 +151,9 @@ class DataPatrol:
                         'Patrol configuration snapshot', %s)
             """, (self._run_id, json.dumps(config)))
             self.conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.error(f"Unhandled exception: {e}")
 
     def log(self, name, severity, target, message, details=None):
         self.results.append({
@@ -172,7 +173,8 @@ class DataPatrol:
             try:
                 self.conn.rollback()
             except Exception as rb_e:
-                pass
+
+                logger.error(f"Unhandled exception: {rb_e}")
 
     # ============================================================
     # CHECKS
@@ -564,7 +566,10 @@ class DataPatrol:
                         'pct_diff': round(pct_diff, 2),
                         'our_date': str(row[1]),
                     })
-            except Exception:
+            except Exception as e:
+
+                logger.warning(f"Skipping due to: {e}")
+
                 continue
 
         if mismatches:
@@ -629,7 +634,10 @@ class DataPatrol:
                         'alpaca_close': alpaca_close, 'pct_diff': round(pct_diff, 2),
                         'our_date': str(row[1]),
                     })
-            except Exception:
+            except Exception as e:
+
+                logger.warning(f"Skipping due to: {e}")
+
                 continue
 
         if mismatches:
@@ -772,8 +780,9 @@ class DataPatrol:
                         self.log('db_constraints', ERROR, tbl,
                                  f'{n} rows with NULL key fields ({cond})',
                                  {'count': n, 'condition': cond})
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.error(f"Unhandled exception: {e}")
             self.log('db_constraints', INFO, 'all', 'Constraint check complete', None)
         except Exception as e:
             self.log('db_constraints', ERROR, 'all', f'Check failed: {e}', None)
@@ -1227,8 +1236,9 @@ class DataPatrol:
                             'Patrol execution time', %s)
                 """, (self._run_id, json.dumps({'seconds': round(elapsed_seconds, 2), 'status': 'SLOW' if elapsed_seconds > 120 else 'OK'})))
                 self.conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.error(f"Unhandled exception: {e}")
 
         return {
             'run_id': self._run_id,

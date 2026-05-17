@@ -21,8 +21,6 @@ import numpy as np
 import pandas as pd
 from loaders.loader_validation import validate_technical_row, count_validation_errors
 
-s [%(levelname)s] %(name)s: %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / '.env.local'
