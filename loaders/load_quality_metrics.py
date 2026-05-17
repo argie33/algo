@@ -54,7 +54,8 @@ class QualityMetricsLoader(OptimalLoader):
             income_row = cur.fetchone()
 
             cur.execute("""
-                SELECT total_assets, stockholders_equity, current_assets, total_liabilities
+                SELECT total_assets, stockholders_equity, current_assets, total_liabilities,
+                       current_liabilities, inventory
                 FROM annual_balance_sheet
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
