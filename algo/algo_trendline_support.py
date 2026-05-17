@@ -69,7 +69,7 @@ class TrendlineSupport:
             self.conn.close()
             self.cur = self.conn = None
 
-    def get_price_history(self, symbol: str, end_date: _date, days: int = 130) -> list:
+    def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list:
         """Get closing prices for the lookback period."""
         try:
             self.cur.execute(
@@ -87,7 +87,7 @@ class TrendlineSupport:
             logger.warning(f"Error fetching price history for {symbol}: {e}")
             return []
 
-    def find_support_line(self, symbol: str, eval_date: _date) -> Optional[Dict]:
+    def find_support_line(self, symbol: str, eval_date: date) -> Optional[Dict]:
         """
         Find 2-point rising support line.
 
@@ -189,7 +189,7 @@ class TrendlineSupport:
 
         return best_trendline
 
-    def validate_entry_near_trendline(self, symbol: str, eval_date: _date, entry_price: float) -> Dict:
+    def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> Dict:
         """
         Check if entry_price is near (above) the support trendline.
 
