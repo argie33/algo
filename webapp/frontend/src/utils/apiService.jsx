@@ -166,7 +166,32 @@ export const apiCall = async (
       throw error;
     }
 
-    const data = await response.json();
+    // Validate content-type before parsing JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      logger.warn('API response has non-JSON content-type', {
+        contentType,
+        url,
+        status: response.status,
+      });
+      throw new Error(
+        `Invalid response content-type: ${contentType || 'missing'}. Expected application/json`
+      );
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      logger.error('Failed to parse JSON response', parseError, {
+        url,
+        status: response.status,
+        contentType,
+      });
+      throw new Error(
+        `Failed to parse server response as JSON: ${parseError.message}`
+      );
+    }
 
     // Safely calculate data size without causing circular reference issues
     let dataSize = 0;
