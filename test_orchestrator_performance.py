@@ -81,7 +81,7 @@ def profile_orchestrator():
             print(f"  Signals generated: {len(result.get('signals', []))}")
 
         except Exception as e:
-            print(f"⚠️  Error running orchestrator: {str(e)}")
+            print(f"[WARN]  Error running orchestrator: {str(e)}")
             total_time = time.time() - phase_start
             print(f"  Failed after {total_time:.2f}s")
 
@@ -102,10 +102,10 @@ def profile_orchestrator():
 
         if total_time < TARGET_TIME:
             margin = TARGET_TIME - total_time
-            print(f"✅ PASS: Completes with {margin:.1f}s margin")
+            print(f"[OK] PASS: Completes with {margin:.1f}s margin")
         else:
             excess = total_time - TARGET_TIME
-            print(f"❌ FAIL: Exceeds target by {excess:.1f}s")
+            print(f"[FAIL] FAIL: Exceeds target by {excess:.1f}s")
             print(f"   Need to optimize by ~{excess:.1f}s")
 
         print()
@@ -136,7 +136,7 @@ def profile_orchestrator():
         return 0 if total_time < TARGET_TIME else 1
 
     except ImportError as e:
-        print(f"❌ Cannot import algo_orchestrator: {e}")
+        print(f"[FAIL] Cannot import algo_orchestrator: {e}")
         print()
         print("This is expected in local dev (uses AWS Lambda imports)")
         print("To test in Lambda, deploy and monitor CloudWatch Logs")

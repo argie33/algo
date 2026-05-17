@@ -1,5 +1,6 @@
 import axios from "axios";
 import { tokenManager } from "./tokenManager";
+import dataCache from "./dataCache";
 
 // Get API configuration
 export const getApiConfig = () => {
@@ -178,16 +179,51 @@ try {
 // Import from there if needed (currently only used by useApiQuery/useApiPaginatedQuery)
 
 // ============================================
+// ERROR HANDLING & CACHE HELPERS
+// ============================================
+
+// Helper to handle API errors with graceful degradation
+const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") => {
+  const status = error.response?.status;
+  const isNetworkError = !error.response;
+
+  let errorMessage = error.message;
+  if (status === 503) {
+    errorMessage = "API temporarily unavailable. Showing cached data if available.";
+  } else if (status === 429) {
+    errorMessage = "Too many requests. Please try again later.";
+  } else if (isNetworkError) {
+    errorMessage = "Network error. Showing cached data if available.";
+  }
+
+  console.warn(`[API] Error during ${action} (${status || 'network'}):`, errorMessage);
+
+  // Try to return cached data if available
+  if (cacheKey) {
+    const cached = await dataCache.get(cacheKey);
+    if (cached) {
+      console.debug(`[API] Using cached data for ${cacheKey}`);
+      return { success: true, data: cached, fromCache: true, error: errorMessage };
+    }
+  }
+
+  return { success: false, data: fallbackData, fromCache: false, error: errorMessage };
+};
+
+// ============================================
 // MARKET DATA FUNCTIONS
 // ============================================
 
 export const getMarketTechnicals = async () => {
   try {
     const response = await api.get("/api/market/technicals");
+    // Cache successful response
+    if (response.data?.success !== false) {
+      dataCache.set("market_technicals", response.data);
+    }
     return response.data;
   } catch (error) {
-    console.error("Error fetching market technicals:", error);
-    return { success: false, data: {}, error: error.message };
+    return handleApiError(error, "market_technicals", {}, "fetch market technicals");
   }
 };
 

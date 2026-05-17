@@ -71,23 +71,23 @@ for url, description, should_error in test_cases:
                         found_leaks.append(pattern)
 
                 if found_leaks:
-                    print(f"  ❌ ERROR LEAKAGE DETECTED:")
+                    print(f"  [FAIL] ERROR LEAKAGE DETECTED:")
                     for leak in found_leaks[:3]:  # Show first 3
                         print(f"     - Pattern matched: {leak}")
                     print(f"  Response preview: {error_body[:100]}")
                     failed_tests.append((url, found_leaks))
                 else:
-                    print(f"  ✅ Error message is sanitized")
+                    print(f"  [OK] Error message is sanitized")
 
             except Exception as e:
-                print(f"  ⚠️  Could not parse response: {str(e)[:50]}")
+                print(f"  [WARN]  Could not parse response: {str(e)[:50]}")
         else:
-            print(f"  ⚠️  Expected error but got {response.status_code}")
+            print(f"  [WARN]  Expected error but got {response.status_code}")
 
     except requests.exceptions.ConnectionError:
-        print(f"  ⚠️  Connection refused (is dev server running?)")
+        print(f"  [WARN]  Connection refused (is dev server running?)")
     except Exception as e:
-        print(f"  ⚠️  Error: {str(e)[:50]}")
+        print(f"  [WARN]  Error: {str(e)[:50]}")
 
     print()
 
@@ -98,18 +98,18 @@ print("=" * 80)
 print()
 
 if failed_tests:
-    print(f"❌ {len(failed_tests)} error(s) have leakage:")
+    print(f"[FAIL] {len(failed_tests)} error(s) have leakage:")
     for url, patterns in failed_tests:
         print(f"   - {url}")
         for p in patterns[:2]:
-            print(f"     → {p}")
+            print(f"     -> {p}")
 else:
-    print("✅ All error messages properly sanitized!")
+    print("[OK] All error messages properly sanitized!")
 
 print()
 print("Guidelines:")
-print("  ✅ = Safe error messages (generic, no details)")
-print("  ❌ = Leaking implementation details (fix required)")
+print("  [OK] = Safe error messages (generic, no details)")
+print("  [FAIL] = Leaking implementation details (fix required)")
 print()
 print("For local development: Errors may be more verbose. Production should sanitize.")
 print()

@@ -107,8 +107,8 @@ ALPACA_DATA_LIMITER = RateLimiter(calls_per_minute=180)   # 10% headroom
 # Alpha Vantage free tier: 5 req/min, 500/day
 ALPHA_VANTAGE_LIMITER = RateLimiter(calls_per_minute=4)   # 20% headroom
 
-# Yahoo Finance: undocumented, ~2000/hr; be conservative
-YFINANCE_LIMITER = RateLimiter(calls_per_minute=60)
+# Yahoo Finance: undocumented, ~2000/hr; be very conservative for bulk loads
+YFINANCE_LIMITER = RateLimiter(calls_per_minute=30)
 
 # Generic conservative fallback
 DEFAULT_LIMITER = RateLimiter(calls_per_minute=30)

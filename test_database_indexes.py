@@ -56,7 +56,7 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        print(f"❌ Cannot connect to database: {e}")
+        print(f"[FAIL] Cannot connect to database: {e}")
         print(f"   Host: {os.getenv('DB_HOST', 'localhost')}")
         print(f"   Port: {os.getenv('DB_PORT', 5432)}")
         print()
@@ -83,7 +83,7 @@ def check_indexes():
             """, (table,))
 
             if not cur.fetchone()[0]:
-                print(f"⚠️  Table not found: {table}")
+                print(f"[WARN]  Table not found: {table}")
                 continue
 
             # Get table size
@@ -103,7 +103,7 @@ def check_indexes():
 
                 if indexes:
                     for idx in indexes:
-                        print(f"   ✅ Index on {col_spec:25} ({idx[0]})")
+                        print(f"   [OK] Index on {col_spec:25} ({idx[0]})")
                 else:
                     # Composite indexes might not match the LIKE pattern
                     # Check if at least one index exists
@@ -113,9 +113,9 @@ def check_indexes():
                     """, (table,))
 
                     if cur.fetchone()[0] > 0:
-                        print(f"   ⚠️  No index on {col_spec:25} (may have indexes on other columns)")
+                        print(f"   [WARN]  No index on {col_spec:25} (may have indexes on other columns)")
                     else:
-                        print(f"   ❌ MISSING INDEX: {col_spec:25} - {query_pattern}")
+                        print(f"   [FAIL] MISSING INDEX: {col_spec:25} - {query_pattern}")
 
             print()
 

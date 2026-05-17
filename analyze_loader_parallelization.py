@@ -49,9 +49,9 @@ for loader, info in LOADER_DEPENDENCIES.items():
     source = info.get('source', 'unknown')
 
     if deps:
-        print(f"  {loader:30} → depends on {deps}")
+        print(f"  {loader:30} -> depends on {deps}")
     else:
-        print(f"  {loader:30} → independent (source: {source})")
+        print(f"  {loader:30} -> independent (source: {source})")
 
 print()
 print("=" * 80)
