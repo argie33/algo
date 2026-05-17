@@ -4,7 +4,6 @@ let query;
 try {
   ({ query } = require("../utils/database"));
 } catch (error) {
-  console.log("Database service not available in financials routes:", error.message);
   query = null;
 }
 
@@ -36,7 +35,6 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
 
     // Fallback to quarterly if annual is empty
     if ((!result.rows || result.rows.length === 0) && period === 'annual') {
-      console.log(`No annual data found, falling back to quarterly for ${upperSymbol}`);
       tableName = 'quarterly_balance_sheet';
       period = 'quarterly';
       result = await query(`
@@ -158,7 +156,6 @@ router.get("/:symbol/key-metrics", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
     const result = await query(`
       SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
              cp.exchange, cp.website, cp.employees, cp.currency_code,

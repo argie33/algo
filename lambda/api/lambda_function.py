@@ -859,6 +859,124 @@ class APIHandler:
             logger.error(f"Error fetching notifications: {e}", exc_info=True)
             return error_response(500, 'database_error', 'Failed to fetch notifications')
 
+    def _analyze_pre_trade_impact(self, body: Dict) -> Dict:
+        """Analyze impact of a potential trade on portfolio constraints."""
+        try:
+            symbol = body.get('symbol', '').upper()
+            entry_price = float(body.get('entry_price', 0)) if body.get('entry_price') else None
+            position_dollars = body.get('position_dollars')
+            position_pct = body.get('position_pct')
+
+            if not symbol:
+                return error_response(400, 'missing_symbol', 'symbol is required')
+
+            # Get current portfolio state
+            self.cur.execute("""
+                SELECT COUNT(*) AS position_count,
+                       SUM(CASE WHEN pd.quantity > 0 THEN pd.market_value ELSE 0 END) AS invested
+                FROM algo_positions pd
+            """)
+            portfolio_row = self.cur.fetchone()
+            current_positions = portfolio_row[0] if portfolio_row else 0
+            invested = float(portfolio_row[1]) if portfolio_row and portfolio_row[1] else 0.0
+
+            # Get portfolio value
+            self.cur.execute("""
+                SELECT equity FROM algo_portfolio_snapshot
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            snap = self.cur.fetchone()
+            portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
+
+            # Get sector and industry
+            self.cur.execute("""
+                SELECT sector, industry FROM company_profile WHERE symbol = %s
+            """, (symbol,))
+            profile = self.cur.fetchone()
+            sector = dict(profile)['sector'] if profile else 'Unknown'
+            industry = dict(profile)['industry'] if profile else 'Unknown'
+
+            # Determine position size
+            if position_dollars:
+                position_size_dollars = float(position_dollars)
+            elif position_pct:
+                position_size_dollars = portfolio_value * (float(position_pct) / 100)
+            else:
+                position_size_dollars = portfolio_value * 0.01  # default 1%
+
+            if not entry_price:
+                entry_price = position_size_dollars / 100  # assume 100 shares
+
+            shares = int(position_size_dollars / entry_price) if entry_price > 0 else 0
+            position_pct_calc = (position_size_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
+
+            # Check constraints
+            max_positions = 12
+            max_position_pct = 8.0
+            max_sector_pct = 30.0
+
+            position_limit_ok = current_positions < max_positions
+            position_size_ok = position_pct_calc <= max_position_pct
+            cash_available = portfolio_value - invested
+            cash_ok = cash_available >= position_size_dollars
+
+            # Get current sector exposure
+            self.cur.execute("""
+                SELECT SUM(CASE WHEN cp.sector = %s THEN pd.market_value ELSE 0 END) /
+                       NULLIF((SELECT SUM(market_value) FROM algo_positions), 0) * 100 AS sector_pct
+                FROM algo_positions pd
+                JOIN company_profile cp ON pd.symbol = cp.symbol
+            """, (sector,))
+            sector_row = self.cur.fetchone()
+            current_sector_pct = float(sector_row[0]) if sector_row and sector_row[0] else 0.0
+            new_sector_pct = current_sector_pct + position_pct_calc
+            sector_limit_ok = new_sector_pct <= max_sector_pct
+
+            # Worst-case drawdown impact (simplified)
+            max_acceptable_impact = 2.0
+            worst_case_impact = (position_pct_calc / 100) * 0.20  # assume 20% loss on new position
+            drawdown_risk_ok = (worst_case_impact * 100) <= max_acceptable_impact
+
+            all_ok = (position_limit_ok and position_size_ok and cash_ok and
+                     sector_limit_ok and drawdown_risk_ok)
+
+            return json_response(200, {
+                'symbol': symbol,
+                'entry_price': entry_price,
+                'position_size_dollars': position_size_dollars,
+                'position_size_percent': position_pct_calc,
+                'sector': sector,
+                'risk_score': min(100, sum([
+                    0 if position_limit_ok else 25,
+                    0 if position_size_ok else 25,
+                    0 if cash_ok else 25,
+                    0 if sector_limit_ok else 15,
+                    0 if drawdown_risk_ok else 10
+                ])) / 100,
+                'all_constraints_met': all_ok,
+                'recommendation': 'APPROVED' if all_ok else 'REJECTED',
+                'portfolio_impact': {
+                    'new_total_positions': current_positions + 1,
+                    'position_limit': max_positions,
+                    'position_limit_ok': position_limit_ok,
+                    'new_position_percent': position_pct_calc,
+                    'max_position_percent': max_position_pct,
+                    'position_size_ok': position_size_ok,
+                    'new_sector_percent': new_sector_pct,
+                    'max_sector_percent': max_sector_pct,
+                    'sector_limit_ok': sector_limit_ok,
+                    'worst_case_drawdown_impact': worst_case_impact,
+                    'max_acceptable_impact': max_acceptable_impact,
+                    'drawdown_risk_ok': drawdown_risk_ok,
+                    'cash_available': cash_available,
+                    'cash_required': position_size_dollars,
+                    'cash_ok': cash_ok
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error in pre-trade analysis: {e}", exc_info=True)
+            return error_response(500, 'analysis_error', 'Failed to analyze trade impact')
+
     def _trigger_data_patrol(self) -> Dict:
         """Trigger async data patrol ECS task."""
         try:
