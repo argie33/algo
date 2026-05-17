@@ -218,7 +218,6 @@ class EarningsCalendarLoader:
 
 def main():
     load_env()
-    load_env()
     parser = argparse.ArgumentParser(
         description="Load earnings calendar dates for signal blackout enforcement"
     )

@@ -6,7 +6,6 @@ except ImportError:
     DEFAULT_DB_USER = "postgres"
     DEFAULT_DB_NAME = "stocks"
 
-config.credential_helper import get_db_password, get_db_config
 """
 Optimal loader - the synthesis of every Tier 1 + Tier 2 optimization.
 
