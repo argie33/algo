@@ -24,12 +24,6 @@ from typing import List, Optional
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 from utils.optimal_loader import OptimalLoader
 
 

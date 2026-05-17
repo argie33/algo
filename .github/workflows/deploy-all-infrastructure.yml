@@ -261,10 +261,24 @@ jobs:
         id: outputs
         run: |
           set -e
-          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+          TF_OUT=$(terraform output -json 2>&1)
+          TF_EXIT=$?
 
-          echo "DEBUG: Terraform output JSON:"
-          echo "$TF_OUT" | head -50
+          if [ $TF_EXIT -ne 0 ]; then
+            echo "ERROR: terraform output failed with exit code $TF_EXIT"
+            echo "$TF_OUT"
+            exit 1
+          fi
+
+          echo "DEBUG: Full Terraform output JSON:"
+          echo "$TF_OUT" | jq '.'
+
+          echo ""
+          echo "DEBUG: Available output keys:"
+          echo "$TF_OUT" | jq 'keys'
+
+          echo ""
+          echo "DEBUG: Extracting values..."
 
           ECR=$(echo "$TF_OUT" | jq -r '.ecr_repository_url.value // "" ' 2>/dev/null || echo "")
           API=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"' 2>/dev/null || echo "stocks-api-dev")
@@ -273,7 +287,7 @@ jobs:
           CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""' 2>/dev/null || echo "")
           API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""' 2>/dev/null || echo "")
 
-          echo "DEBUG: Extracted values:"
+          echo "Extracted values:"
           echo "  ECR=${ECR:-(empty)}"
           echo "  API=${API:-(empty)}"
           echo "  ALGO=${ALGO:-(empty)}"

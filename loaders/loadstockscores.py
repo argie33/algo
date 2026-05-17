@@ -30,11 +30,6 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
 from utils.data_tick_validator import validate_score_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager

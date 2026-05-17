@@ -27,6 +27,7 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
+import psycopg2
 from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional

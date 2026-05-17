@@ -44,13 +44,7 @@ class SectorsLoader(OptimalLoader):
         from utils.db_connection import get_db_connection
         conn = None
         try:
-            conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-                port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-                user=os.getenv("DB_USER", DEFAULT_DB_NAME),
-                password=credential_manager.get_db_credentials()["password"],
-                database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
-            )
+            conn = get_db_connection()
             with conn.cursor() as cur:
                 cur.execute("""
                     WITH price_lookback AS (

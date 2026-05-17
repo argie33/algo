@@ -22,13 +22,6 @@ from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
-
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 try:
         from utils.loader_helpers import get_active_symbols
 except ImportError:

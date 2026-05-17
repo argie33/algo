@@ -29,12 +29,6 @@ from utils.logging_setup import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 logger = get_logger(__name__)
 log = logging.getLogger(__name__)
 

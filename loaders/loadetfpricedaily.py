@@ -22,12 +22,6 @@ from config.env_loader import load_env
 from utils.logging_setup import get_logger
 from utils.optimal_loader import OptimalLoader
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 logger = get_logger(__name__)
 
 
