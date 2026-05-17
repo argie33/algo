@@ -83,9 +83,9 @@ class QualityMetricsLoader(OptimalLoader):
         """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
         if balance:
-            total_assets, stockholders_equity, current_assets, total_liabilities = balance
+            total_assets, stockholders_equity, current_assets, total_liabilities, current_liabilities, inventory = balance
         else:
-            total_assets = stockholders_equity = current_assets = total_liabilities = None
+            total_assets = stockholders_equity = current_assets = total_liabilities = current_liabilities = inventory = None
 
         metrics = {"symbol": symbol}
 
@@ -119,18 +119,19 @@ class QualityMetricsLoader(OptimalLoader):
         else:
             metrics['debt_to_equity'] = None
 
-        # Current Ratio: Current Assets / Total Liabilities (approximation due to missing current_liabilities column)
-        # Note: This is an approximation using total_liabilities instead of current_liabilities
-        if total_liabilities and total_liabilities > 0 and current_assets is not None:
-            metrics['current_ratio'] = float(round(current_assets / total_liabilities, 2))
+        # Current Ratio: Current Assets / Current Liabilities
+        if current_liabilities and current_liabilities > 0 and current_assets is not None:
+            metrics['current_ratio'] = float(round(current_assets / current_liabilities, 2))
         else:
             metrics['current_ratio'] = None
 
-        # Quick Ratio: (Current Assets - Inventory) / Total Liabilities (approximation due to missing current_liabilities column)
-        # Note: Also approximated using 0.75 factor since inventory data is not available
-        if total_liabilities and total_liabilities > 0 and current_assets is not None:
-            quick_assets = float(current_assets) * 0.75
-            metrics['quick_ratio'] = float(round(quick_assets / float(total_liabilities), 2))
+        # Quick Ratio: (Current Assets - Inventory) / Current Liabilities
+        if current_liabilities and current_liabilities > 0 and current_assets is not None:
+            if inventory and inventory > 0:
+                quick_assets = float(current_assets) - float(inventory)
+            else:
+                quick_assets = float(current_assets)  # No inventory data, use all current assets
+            metrics['quick_ratio'] = float(round(quick_assets / float(current_liabilities), 2))
         else:
             metrics['quick_ratio'] = None
 
