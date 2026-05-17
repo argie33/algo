@@ -1844,6 +1844,62 @@ CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol ON stock_scores(symbol);
 CREATE INDEX IF NOT EXISTS idx_technical_data_daily_symbol_date ON technical_data_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- DATA PROVENANCE TRACKING - Audit trail for all loader runs
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Tracks each loader execution (groups all data loaded in one run)
+CREATE TABLE IF NOT EXISTS data_loader_runs (
+    run_id UUID PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    table_name VARCHAR(100) NOT NULL,
+    source_api VARCHAR(50),
+    parameters JSONB,
+    start_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_at TIMESTAMP,
+    success BOOLEAN,
+    duration_seconds INTEGER,
+    symbol_count INTEGER,
+    error_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Detailed provenance for each tick loaded
+CREATE TABLE IF NOT EXISTS data_provenance_log (
+    provenance_id UUID PRIMARY KEY,
+    run_id UUID REFERENCES data_loader_runs(run_id) ON DELETE CASCADE,
+    loader_name VARCHAR(100) NOT NULL,
+    table_name VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20),
+    tick_date DATE,
+    source_timestamp TIMESTAMP,
+    load_timestamp TIMESTAMP,
+    source_api VARCHAR(50),
+    data_checksum VARCHAR(64),
+    data_hash VARCHAR(64),
+    data_size_bytes INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Error log for loader runs
+CREATE TABLE IF NOT EXISTS data_provenance_errors (
+    id SERIAL PRIMARY KEY,
+    run_id UUID REFERENCES data_loader_runs(run_id) ON DELETE CASCADE,
+    loader_name VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20),
+    error_type VARCHAR(50),
+    error_message TEXT,
+    resolution VARCHAR(50),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for provenance queries
+CREATE INDEX IF NOT EXISTS idx_data_loader_runs_loader_date ON data_loader_runs(loader_name, start_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_provenance_run_id ON data_provenance_log(run_id);
+CREATE INDEX IF NOT EXISTS idx_data_provenance_symbol ON data_provenance_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_data_provenance_loader ON data_provenance_log(loader_name);
+CREATE INDEX IF NOT EXISTS idx_data_errors_run_id ON data_provenance_errors(run_id);
 """
 
 def _run_migrations(conn, cur):
