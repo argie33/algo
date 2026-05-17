@@ -35,6 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.env_loader import load_env
+from config.credential_helper import get_db_config
 load_env()
 import time
 import logging
