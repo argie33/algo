@@ -47,7 +47,7 @@ import psycopg2
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, date as _date
+from datetime import datetime, date, timedelta
 from typing import Dict, Tuple, Any, Optional
 from algo.algo_signals import SignalComputer
 

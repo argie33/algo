@@ -24,7 +24,7 @@ import psycopg2
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import requests
 import time
 from decimal import Decimal, ROUND_HALF_UP

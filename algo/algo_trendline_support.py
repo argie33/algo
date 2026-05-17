@@ -19,7 +19,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from config.credential_helper import get_db_password, get_db_config
-from datetime import datetime, timedelta, date as _date
+from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
 import logging
 import statistics
