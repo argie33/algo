@@ -9,7 +9,6 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 from config.env_loader import load_env
 import os
 import logging
-import psycopg2
 
 try:
     from utils.defaults import DB_HOST as DEFAULT_DB_HOST, DB_PORT as DEFAULT_DB_PORT, DB_USER as DEFAULT_DB_USER, DB_NAME as DEFAULT_DB_NAME

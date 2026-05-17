@@ -15,7 +15,6 @@ Monitors the 7 critical fixes deployed in production:
 from config.credential_helper import get_db_config
 import os
 import sys
-from utils.db_connection import get_db_connection
 import logging
 from datetime import datetime, timedelta, date as _date
 from pathlib import Path

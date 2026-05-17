@@ -31,7 +31,6 @@ except ImportError:
 
 import os
 import logging
-from utils.db_connection import get_db_connection
 from datetime import datetime, timedelta
 from pathlib import Path
 from config.env_loader import load_env

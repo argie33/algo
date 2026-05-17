@@ -46,7 +46,6 @@ except ImportError:
 import math
 
 from utils.db_connection import get_db_connection
-import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 

@@ -11,7 +11,6 @@ Validates:
 
 import pytest
 from unittest.mock import MagicMock, patch, call
-from utils.db_connection import get_db_connection
 import os
 import psycopg2
 import psycopg2.errors

@@ -4,7 +4,6 @@ Replaces bare except blocks with specific exception types and proper logging con
 """
 
 import logging
-from utils.db_connection import get_db_connection
 import psycopg2.errors
 from typing import Dict, Any, Optional, Callable, Tuple
 import traceback

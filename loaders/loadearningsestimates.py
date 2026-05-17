@@ -25,7 +25,6 @@ except ImportError:
 
 import logging
 import os
-from utils.db_connection import get_db_connection
 from datetime import date, timedelta
 from typing import Optional
 from pathlib import Path

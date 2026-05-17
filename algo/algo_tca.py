@@ -22,7 +22,6 @@ try:
 except ImportError:
     credential_manager = None
 
-from utils.db_connection import get_db_connection
 from datetime import date
 from typing import Optional
 import os

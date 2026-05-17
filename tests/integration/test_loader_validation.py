@@ -22,7 +22,6 @@ import os
 import sys
 from config.credential_helper import get_db_password, get_db_config
 import logging
-from utils.db_connection import get_db_connection
 from datetime import date, datetime, timedelta
 from pathlib import Path
 

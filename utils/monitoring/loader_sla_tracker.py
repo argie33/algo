@@ -19,7 +19,6 @@ Provides visibility into:
 """
 
 import logging
-from utils.db_connection import get_db_connection
 from datetime import datetime, date
 from typing import Optional, Dict, List
 import os

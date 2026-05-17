@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.env_loader import load_env
 load_env()
 import os
-from utils.db_connection import get_db_connection
 from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
 import logging

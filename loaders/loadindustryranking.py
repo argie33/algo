@@ -17,7 +17,6 @@ USAGE:
 """
 
 import os
-from utils.db_connection import get_db_connection
 from pathlib import Path
 from config.env_loader import load_env
 from datetime import datetime

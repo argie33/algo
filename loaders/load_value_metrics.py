@@ -20,7 +20,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Dict, List, Optional
 
-from utils.db_connection import get_db_connection
 import yfinance as yf
 
 try:

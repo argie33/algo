@@ -13,7 +13,6 @@ Validates:
 from config.env_loader import load_env
 import logging
 from typing import Dict, Any, Tuple, Optional
-from utils.db_connection import get_db_connection
 import os
 from config.credential_helper import get_db_password
 

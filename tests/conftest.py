@@ -11,7 +11,6 @@ Provides:
 import os
 import sys
 import pytest
-from utils.db_connection import get_db_connection
 import psycopg2.extras
 from pathlib import Path
 from datetime import datetime, date, timedelta

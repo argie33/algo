@@ -13,7 +13,6 @@ USAGE:
 """
 
 import pytest
-from utils.db_connection import get_db_connection
 from datetime import date as _date, timedelta
 
 

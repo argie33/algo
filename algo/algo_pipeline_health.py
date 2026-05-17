@@ -28,7 +28,6 @@ except ImportError:
     credential_manager = None
 
 import os
-from utils.db_connection import get_db_connection
 import logging
 from pathlib import Path
 from datetime import date as _date, datetime, timedelta, timezone

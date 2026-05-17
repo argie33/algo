@@ -27,7 +27,6 @@ from utils.monitoring.loader_validation import validate_price_row, count_validat
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
-from utils.db_connection import get_db_connection
 from utils.loader_helpers import get_active_symbols
 from utils.logging_setup import get_logger
 from utils.monitoring_context import TimeBlock

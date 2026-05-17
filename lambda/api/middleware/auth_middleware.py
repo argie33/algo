@@ -5,7 +5,6 @@ Validates API keys and enforces rate limiting on all API requests.
 
 import os
 import hashlib
-from utils.db_connection import get_db_connection
 import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 from functools import wraps

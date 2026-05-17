@@ -33,7 +33,6 @@ from pathlib import Path
 from config.env_loader import load_env
 from typing import Dict, List, Optional
 
-from utils.db_connection import get_db_connection
 import requests
 
 logging.basicConfig(

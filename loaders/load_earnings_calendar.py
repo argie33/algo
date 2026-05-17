@@ -25,7 +25,6 @@ import psycopg2
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 from utils.logging_setup import get_logger
-from utils.db_connection import get_db_connection
 
 try:
     from config.credential_manager import get_credential_manager
