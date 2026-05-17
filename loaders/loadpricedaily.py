@@ -333,8 +333,6 @@ def main():
 
     except Exception as e:
         logger.error(f"Loader failed with error: {e}")
-        # if loader.tracker:
-        #     loader.end_provenance_tracking(success=False)
         return 1
     finally:
         loader.close()
