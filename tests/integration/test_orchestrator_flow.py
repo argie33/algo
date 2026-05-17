@@ -57,7 +57,6 @@ class TestOrchestratorWithRealDatabase:
 
     def test_circuit_breaker_gates_entries(self, seeded_test_db, test_config):
         """Circuit breaker firing should skip entry but allow exits/monitoring."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -86,7 +85,6 @@ class TestOrchestratorWithRealDatabase:
 
     def test_all_phases_complete(self, seeded_test_db, test_config):
         """All 7 phases should attempt to execute in real mode."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -116,7 +114,6 @@ class TestOrchestratorErrorHandling:
 
     def test_db_connection_error_triggers_degraded_mode(self, test_config):
         """When DB is unavailable, orchestrator should enter degraded mode."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -142,7 +139,6 @@ class TestOrchestratorErrorHandling:
 
     def test_missing_lock_file_not_fatal(self, test_config):
         """Missing lock file directory should not crash orchestrator."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -172,7 +168,6 @@ class TestOrchestratorControlFlow:
 
     def test_orchestrator_returns_dict(self, test_config):
         """Orchestrator.run() should always return a dict."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -202,7 +197,6 @@ class TestOrchestratorControlFlow:
 
     def test_dry_run_mode_skips_trades(self, test_config):
         """In dry-run mode, no trades should be sent to Alpaca."""
-        from algo.algo_orchestrator import Orchestrator
 
         orch = Orchestrator(
             run_date=date.today(),
@@ -231,7 +225,6 @@ class TestOrchestratorPhaseFlow:
 
     def test_circuit_breaker_halt_skips_phase_6_entries(self, seeded_test_db, test_config):
         """When Phase 2 circuit breaker fires, Phase 6 entries should be skipped."""
-        from algo.algo_orchestrator import Orchestrator
         from unittest.mock import patch, call
 
         orch = Orchestrator(
@@ -261,7 +254,6 @@ class TestOrchestratorPhaseFlow:
 
     def test_circuit_breaker_halt_allows_phase_4_exits(self, seeded_test_db, test_config):
         """When Phase 2 circuit breaker fires, Phase 4 exits should still execute."""
-        from algo.algo_orchestrator import Orchestrator
         from algo.algo_exit_engine import ExitEngine
 
         orch = Orchestrator(

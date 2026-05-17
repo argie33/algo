@@ -54,7 +54,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-load_env()
 
 SCRIPT_NAME = "loadnaaim.py"
 logging.basicConfig(
@@ -160,7 +159,6 @@ def get_naaim_data():
             
             # Method 2: Try to find table elements manually
             try:
-                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(response.text, 'html.parser')
                 tables = soup.find_all('table')
                 logging.info(f"Found {len(tables)} table elements with BeautifulSoup")
@@ -276,6 +274,7 @@ def load_naaim_data(cur, conn):
 
 def main():
     load_env()
+    load_env()
     """Main synchronous function to run NAAIM data loading."""
     logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
     log_mem("startup")
@@ -350,6 +349,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in NAAIM loader: {e}")
-        import traceback
         logging.error(f"❌ Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

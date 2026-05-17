@@ -222,7 +222,6 @@ class PositionSizer:
         """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
         try:
             from algo.algo_signals import SignalComputer
-            from datetime import date as _date
             sc = SignalComputer(cur=self.cur)
             eval_date = signal_date if signal_date else _date.today()
             phase = sc.stage2_phase(symbol, eval_date)

@@ -17,8 +17,10 @@ import math
 import os
 import psycopg2
 from collections import defaultdict
+from datetime import date as dtdate
 
 from config.credential_helper import get_db_password, get_db_config
+from config.env_loader import load_env
 from utils.logging_setup import get_logger
 
 try:
@@ -28,12 +30,6 @@ except ImportError:
     credential_manager = None
 
 logger = get_logger(__name__)
-import os
-import sys
-from config.env_loader import load_env
-from collections import defaultdict
-
-
 log = logging.getLogger("loadseasonality")
 
 MONTH_NAMES = {
@@ -45,13 +41,12 @@ DOW_NAMES = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Frida
 
 
 def _connect():
-    from utils.db_connection import get_db_connection
     return psycopg2.connect(
-        host=os.getenv("DB_HOST", DEFAULT_DB_HOST),
-        port=int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
-        user=os.getenv("DB_USER", DEFAULT_DB_NAME),
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", 5432)),
+        user=os.getenv("DB_USER", "stocks"),
         password=get_db_password(),
-        database=os.getenv("DB_NAME", DEFAULT_DB_NAME),
+        database=os.getenv("DB_NAME", "stocks"),
     )
 
 
@@ -69,7 +64,6 @@ def _compute_monthly_stats(rows):
     monthly return: (last_close / first_close_prev_month - 1) * 100.
     Returns dict keyed by month 1-12.
     """
-    from datetime import date as dtdate
 
     # Build sorted (date, close) list
     prices = [(r[0], float(r[1])) for r in rows]

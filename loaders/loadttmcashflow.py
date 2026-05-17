@@ -2,8 +2,6 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import sys
-from pathlib import Path
 
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
@@ -29,7 +27,6 @@ logger = get_logger(__name__)
 from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
-import sys
 from config.env_loader import load_env
 from datetime import date
 from typing import List, Optional

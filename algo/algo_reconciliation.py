@@ -9,7 +9,6 @@ workflow or positions were closed in Alpaca but marked open in DB.
 """
 
 from config.env_loader import load_env
-load_env()
 
 try:
     from config.credential_manager import get_credential_manager

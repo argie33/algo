@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import sys
 """
 Algo Metrics Daily Loader (ORCHESTRATOR)
 
@@ -32,7 +31,6 @@ except ImportError:
 import os
 import logging
 from datetime import datetime, timedelta
-from pathlib import Path
 from config.env_loader import load_env
 
 logger = logging.getLogger(__name__)

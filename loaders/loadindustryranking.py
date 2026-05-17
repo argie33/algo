@@ -17,7 +17,6 @@ USAGE:
 """
 
 import os
-from pathlib import Path
 from config.env_loader import load_env
 from datetime import datetime
 import logging

@@ -294,6 +294,5 @@ if __name__ == "__main__":
                 pass  # Loop already closed by pyppeteer
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
-        import traceback
         logging.error(f"❌ Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

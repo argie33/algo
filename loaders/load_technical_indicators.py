@@ -14,7 +14,6 @@ Warm-up: fetches 300 trading days of history before the watermark to seed indica
 import os
 import logging
 import argparse
-from pathlib import Path
 from config.env_loader import load_env
 from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed

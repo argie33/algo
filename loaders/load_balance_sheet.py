@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-from pathlib import Path
 
 Balance Sheet Loader — annual and quarterly from SEC EDGAR.
 
@@ -23,8 +22,6 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
-import sys
-from pathlib import Path
 from datetime import date
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config

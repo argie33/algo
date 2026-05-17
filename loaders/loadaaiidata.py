@@ -33,7 +33,6 @@ Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
 from config.env_loader import load_env
-load_env()
 import time
 import logging
 import json
@@ -218,6 +217,7 @@ def load_sentiment_data(cur, conn):
         return 0, 0, [str(e)]
 
 if __name__ == "__main__":
+    load_env()
     try:
         logging.info(f"Starting {SCRIPT_NAME} execution")
         log_mem("startup")
@@ -278,6 +278,5 @@ if __name__ == "__main__":
         logging.info("All done.")
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")
-        import traceback
         logging.error(f"❌ Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

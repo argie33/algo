@@ -41,7 +41,6 @@ class TestDrawdownCircuitBreaker:
 
     def test_halt_at_threshold(self, test_config):
         """Drawdown 20% should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -64,7 +63,6 @@ class TestDailyLossCircuitBreaker:
 
     def test_no_halt_under_daily_loss(self, test_config):
         """Daily loss 1% should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -80,7 +78,6 @@ class TestDailyLossCircuitBreaker:
 
     def test_halt_on_daily_loss(self, test_config):
         """Daily loss 2%+ should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -101,7 +98,6 @@ class TestConsecutiveLossesCircuitBreaker:
 
     def test_two_consecutive_losses_ok(self, test_config):
         """2 consecutive losses should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -122,7 +118,6 @@ class TestConsecutiveLossesCircuitBreaker:
 
     def test_three_consecutive_losses_halt(self, test_config):
         """3 consecutive losses should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -148,7 +143,6 @@ class TestTotalRiskCircuitBreaker:
 
     def test_low_open_risk_ok(self, test_config):
         """2% open risk should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -165,7 +159,6 @@ class TestTotalRiskCircuitBreaker:
 
     def test_high_open_risk_halt(self, test_config):
         """5% open risk should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -187,7 +180,6 @@ class TestVIXCircuitBreaker:
 
     def test_low_vix_ok(self, test_config):
         """VIX 20 should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -203,7 +195,6 @@ class TestVIXCircuitBreaker:
 
     def test_high_vix_halt(self, test_config):
         """VIX 40 should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -224,7 +215,6 @@ class TestMarketStageCircuitBreaker:
 
     def test_uptrend_ok(self, test_config):
         """Market stage 1-2 (uptrend) should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -240,7 +230,6 @@ class TestMarketStageCircuitBreaker:
 
     def test_downtrend_halt(self, test_config):
         """Market stage 4 (downtrend) should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -261,7 +250,6 @@ class TestWeeklyLossCircuitBreaker:
 
     def test_low_weekly_loss_ok(self, test_config):
         """Weekly loss 3% should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -279,7 +267,6 @@ class TestWeeklyLossCircuitBreaker:
 
     def test_high_weekly_loss_halt(self, test_config):
         """Weekly loss 5%+ should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -302,7 +289,6 @@ class TestDataFreshnessCircuitBreaker:
 
     def test_fresh_data_ok(self, test_config):
         """Data from today should not halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -318,7 +304,6 @@ class TestDataFreshnessCircuitBreaker:
 
     def test_stale_data_halt(self, test_config):
         """Data > max_data_staleness_days (default 5) should halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -341,7 +326,6 @@ class TestAllCircuitBreakers:
 
     def test_all_clear_no_halt(self, test_config):
         """All CBs green should not halt trading."""
-        from algo.algo_circuit_breaker import CircuitBreaker
         from unittest.mock import MagicMock
 
         cb = CircuitBreaker(test_config)
@@ -366,7 +350,6 @@ class TestAllCircuitBreakers:
 
     def test_one_cb_fires_halt_trading(self, test_config):
         """Any CB firing should halt trading."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -392,7 +375,6 @@ class TestMissingCircuitBreakers:
 
     def test_drawdown_re_engagement_halted_below_threshold(self, test_config):
         """CB9: Drawdown re-engagement — drawdown still high → still halted."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -411,7 +393,6 @@ class TestMissingCircuitBreakers:
 
     def test_drawdown_re_engagement_above_recovery_threshold(self, test_config):
         """CB9: Drawdown recovered below recovery threshold → re-engage."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -429,7 +410,6 @@ class TestMissingCircuitBreakers:
 
     def test_sector_concentration_high_loss(self, test_config):
         """CB10: Sector concentration — sector with -12%+ in 5d → halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -449,7 +429,6 @@ class TestMissingCircuitBreakers:
 
     def test_sector_concentration_below_threshold(self, test_config):
         """CB10: Sector with -5% in 5d → no halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -469,7 +448,6 @@ class TestMissingCircuitBreakers:
 
     def test_sector_concentration_single_position(self, test_config):
         """CB10: Only 1 position in sector → no halt (no concentration risk)."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -489,7 +467,6 @@ class TestMissingCircuitBreakers:
 
     def test_intraday_market_health_spy_drop(self, test_config):
         """CB11: Intraday market health — SPY -2.5% in 2d → halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -506,7 +483,6 @@ class TestMissingCircuitBreakers:
 
     def test_intraday_market_health_slight_drop(self, test_config):
         """CB11: SPY -1% in 2d → no halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -523,7 +499,6 @@ class TestMissingCircuitBreakers:
 
     def test_win_rate_below_floor(self, test_config):
         """CB12: Win rate floor — 35% over 20 trades → halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -542,7 +517,6 @@ class TestMissingCircuitBreakers:
 
     def test_win_rate_above_floor(self, test_config):
         """CB12: Win rate 45% over 20 trades → no halt."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -563,7 +537,6 @@ class TestMissingCircuitBreakers:
 
     def test_win_rate_insufficient_trades(self, test_config):
         """CB12: Only 8 trades (< 10 minimum) → no halt (insufficient data)."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 
@@ -584,7 +557,6 @@ class TestMissingCircuitBreakers:
 
     def test_daily_profit_cap_soft_check(self, test_config):
         """CB13: Daily profit cap — +3% profit → soft check only (halted=False, exceed=True)."""
-        from algo.algo_circuit_breaker import CircuitBreaker
 
         cb = CircuitBreaker(test_config)
 

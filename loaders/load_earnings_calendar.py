@@ -35,7 +35,6 @@ except ImportError:
 from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
 
-load_env()
 
 logger = get_logger(__name__)
 
@@ -218,6 +217,7 @@ class EarningsCalendarLoader:
 
 
 def main():
+    load_env()
     load_env()
     parser = argparse.ArgumentParser(
         description="Load earnings calendar dates for signal blackout enforcement"

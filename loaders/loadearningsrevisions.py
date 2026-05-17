@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 Earnings Estimate Revisions Loader - Optimal Pattern
 
 Tracks how analyst consensus estimates are changing over time.
-from pathlib import Path
 
 Fetches estimate trends and revision counts from DataSourceRouter.
 

@@ -655,7 +655,6 @@ class CircuitBreaker:
             logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
         try:
-            from algo.algo_notifications import notify
             notify(
                 severity='critical',
                 title='Trading Halted by Circuit Breaker',

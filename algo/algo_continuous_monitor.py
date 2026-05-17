@@ -209,7 +209,6 @@ class ContinuousMonitor:
             logger.info(f"\n\nContinuous monitor stopped by user")
         except Exception as e:
             logger.info(f"\nFatal error: {e}")
-            import traceback
             traceback.print_exc()
 
 

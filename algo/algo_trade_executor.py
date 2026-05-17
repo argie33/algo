@@ -592,7 +592,6 @@ class TradeExecutor:
                     # Alert if slippage excessive
                     if 'alert' in tca_result:
                         try:
-                            from algo.algo_notifications import notify
                             alert_data = tca_result['alert']
                             notify(
                                 alert_data['severity'].lower(),
@@ -647,7 +646,6 @@ class TradeExecutor:
                         else:
                             logger.critical(f"DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
                         try:
-                            from algo.algo_notifications import notify
                             notify(
                                 'critical',
                                 title='ORPHANED ORDER PREVENTION TRIGGERED',
@@ -830,7 +828,6 @@ class TradeExecutor:
                 else:
                     # B7: Alert on exit order failure
                     try:
-                        from algo.algo_notifications import notify
                         notify(
                             'critical',
                             title=f'EXIT ORDER FAILED: {symbol}',
@@ -929,7 +926,6 @@ class TradeExecutor:
 
             # Audit log
             try:
-                import json
                 self.cur.execute(
                     """
                     INSERT INTO algo_audit_log (action_type, symbol, action_date,
@@ -1033,7 +1029,6 @@ class TradeExecutor:
                 from datetime import datetime, timedelta
                 if snapshot_date and (datetime.now().date() - snapshot_date).days > 1:
                     try:
-                        from algo.algo_notifications import notify
                         notify(
                             kind='portfolio_value_stale',
                             severity='warning',
@@ -1060,7 +1055,6 @@ class TradeExecutor:
 
         Falls back to simple limit order if bracket can't be sent (no stop).
         """
-        import logging
         logger = logging.getLogger('algo_trade_executor')
 
         if not self.alpaca_key or not self.alpaca_secret:
@@ -1219,7 +1213,6 @@ class TradeExecutor:
         if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
             return None  # Paper mode, no real order
 
-        import time
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -1260,7 +1253,6 @@ class TradeExecutor:
         if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
             return None  # Paper mode, no real order
 
-        import time
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -1293,7 +1285,6 @@ class TradeExecutor:
         For auto mode: sends market order and waits briefly for fill.
         For paper mode: returns synthetic fill at current price.
         """
-        import logging
         logger = logging.getLogger('algo_trade_executor')
 
         execution_mode = self.config.get('execution_mode', 'paper')

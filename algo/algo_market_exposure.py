@@ -898,7 +898,6 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            import json
             factors_json = json.dumps(result.get('factors', {}))
             halt_reasons_str = '; '.join(result.get('halt_reasons', []))
             self.cur.execute(

@@ -139,7 +139,6 @@ class PortfolioRisk:
         Returns:
             dict with CVaR dollar and %, or None if insufficient data
         """
-        import numpy as np
         conn = None
         cur = None
         try:
@@ -210,7 +209,6 @@ class PortfolioRisk:
         Returns:
             dict with stressed VaR, or None if insufficient data
         """
-        import numpy as np
         conn = None
         cur = None
         try:

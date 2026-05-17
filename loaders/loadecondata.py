@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import sys
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 Economic Data Loader — fetches FRED series via direct HTTP.
@@ -40,7 +39,6 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
-import sys
 from config.env_loader import load_env
 import time
 from datetime import date, timedelta

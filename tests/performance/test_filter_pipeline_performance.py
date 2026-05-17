@@ -90,7 +90,6 @@ class TestFilterPipelinePerformance:
 
     def test_signal_computation_scales_linearly(self):
         """Signal computation time should scale roughly linearly with symbol count."""
-        import time
 
         def process_symbols(count):
             """Process N symbols and return time taken."""
@@ -142,7 +141,6 @@ class TestFilterPipelinePerformance:
 
     def test_batch_operation_performance(self):
         """Batch operations should handle 500+ items without degradation."""
-        import time
 
         def batch_update(items):
             """Simulate batch database update."""

@@ -37,7 +37,6 @@ class TestSwingScore:
 
     def test_score_rewards_above_moving_averages(self):
         """Should give higher scores when price is above key moving averages."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -63,7 +62,6 @@ class TestSwingScore:
 
     def test_score_penalizes_overbought_rsi(self):
         """Should penalize RSI > 70 (overbought, exhaustion risk)."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -80,7 +78,6 @@ class TestSwingScore:
 
     def test_score_rewards_volume_confirmation(self):
         """Should reward trades with high volume confirmation."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -104,7 +101,6 @@ class TestSwingScore:
 
     def test_score_detects_stage_2_consolidation(self):
         """Should give high scores for Stage 2 consolidation pattern."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -124,7 +120,6 @@ class TestSwingScore:
 
     def test_score_flags_extension_risk(self):
         """Should penalize over-extended positions (>15% above 50-DMA)."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -150,7 +145,6 @@ class TestSwingScore:
 
     def test_score_composites_all_factors(self):
         """Should compute composite score from all technical factors."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)
@@ -175,7 +169,6 @@ class TestSwingScore:
 
     def test_score_normalization_bounds(self):
         """Should normalize score to consistent range (typically 0-100)."""
-        from algo.algo_swing_score import SwingTraderScore
 
         config = {}
         scorer = SwingTraderScore(config)

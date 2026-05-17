@@ -345,7 +345,6 @@ class AlgoConfig:
             t2 = float(self._config.get('t2_target_r_multiple', 3.0))
             t3 = float(self._config.get('t3_target_r_multiple', 4.0))
             if not (t1 < t2 < t3):
-                import logging
                 logging.getLogger(__name__).warning(
                     f'Config: R-multiple targets not ordered (t1={t1} t2={t2} t3={t3}). '
                     f'Expected t1 < t2 < t3.'

@@ -1273,8 +1273,6 @@ class APIHandler:
     def _trigger_data_patrol(self) -> Dict:
         """Trigger async data patrol ECS task."""
         try:
-            import boto3
-            from botocore.exceptions import ClientError
             ecs = boto3.client('ecs')
 
             cluster_arn = os.getenv('ECS_CLUSTER_ARN', '')

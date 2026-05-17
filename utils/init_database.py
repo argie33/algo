@@ -16,9 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.env_loader import load_env
-load_env()
 import os
-from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
 import logging
 
@@ -2176,10 +2174,10 @@ def init_database():
             pass
 
 def main():
+    load_env()
     """Public API for database initialization (called by orchestrator)."""
     return init_database()
 
 if __name__ == "__main__":
-    import sys
     success = init_database()
     sys.exit(0 if success else 1)

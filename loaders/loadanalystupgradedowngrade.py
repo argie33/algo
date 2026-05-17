@@ -17,14 +17,11 @@ from utils.logging_setup import get_logger
 import argparse
 import logging
 logger = get_logger(__name__)
-import sys
 import os
-from pathlib import Path
 from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
-load_env()
 
 try:
     from config.credential_manager import get_credential_manager
@@ -98,6 +95,7 @@ class AnalystRatingsLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     load_env()
     parser = argparse.ArgumentParser(description="Optimal analyst_ratings loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")

@@ -297,7 +297,6 @@ class DataSourceRouter:
 
     def _yf_balance_sheet(self, symbol: str, period: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:
@@ -315,7 +314,6 @@ class DataSourceRouter:
 
     def _yf_income(self, symbol: str, period: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:
@@ -333,7 +331,6 @@ class DataSourceRouter:
 
     def _yf_cash_flow(self, symbol: str, period: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:
@@ -360,7 +357,6 @@ class DataSourceRouter:
 
     def _yf_earnings(self, symbol: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:
@@ -388,7 +384,6 @@ class DataSourceRouter:
 
     def _fetch_yfinance_eps_revisions(self, symbol: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:
@@ -413,7 +408,6 @@ class DataSourceRouter:
 
     def _fetch_yfinance_eps_trend(self, symbol: str):
         try:
-            import yfinance as yf
         except ImportError:
             return None
         try:

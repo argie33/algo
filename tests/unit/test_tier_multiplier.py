@@ -31,7 +31,6 @@ class TestTierMultiplier:
 
     def test_caution_tier_0_75x_multiplier(self):
         """CAUTION tier applies 0.75x multiplier (75% position size)."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1000.0
@@ -43,7 +42,6 @@ class TestTierMultiplier:
 
     def test_pressure_tier_0_5x_multiplier(self):
         """PRESSURE tier applies 0.5x multiplier (50% position size)."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1000.0
@@ -55,7 +53,6 @@ class TestTierMultiplier:
 
     def test_halt_tier_0_0x_multiplier(self):
         """HALT tier applies 0.0x multiplier (no trading allowed)."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1000.0
@@ -65,7 +62,6 @@ class TestTierMultiplier:
 
     def test_unknown_tier_defaults_to_1_0x(self):
         """Unknown tier defaults to 1.0x multiplier."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1000.0
@@ -75,7 +71,6 @@ class TestTierMultiplier:
 
     def test_multiplier_with_zero_base_size(self):
         """Multiplier applied to zero base size returns zero."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 0.0
@@ -85,7 +80,6 @@ class TestTierMultiplier:
 
     def test_multiplier_with_decimal_base_size(self):
         """Multiplier handles decimal base sizes correctly."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1234.56
@@ -97,7 +91,6 @@ class TestTierMultiplier:
 
     def test_multiplier_cascade_risk_reduction(self):
         """Verify multiplier cascade reduces risk proportionally."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
         base_size = 1000.0
@@ -117,7 +110,6 @@ class TestTierMultiplier:
 
     def test_multiplier_applied_to_different_base_sizes(self):
         """Multiplier scales proportionally regardless of base size."""
-        from algo.algo_filter_pipeline import FilterPipeline
 
         pipeline = FilterPipeline()
 

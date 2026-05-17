@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 Earnings Estimates & Surprise Loader
 
 Populates earnings_surprise and earnings_estimates with surprise calculations
-from pathlib import Path
 
 from historical earnings data.
 
@@ -27,7 +26,6 @@ import logging
 import os
 from datetime import date, timedelta
 from typing import Optional
-from pathlib import Path
 from config.env_loader import load_env
 
 from utils.optimal_loader import OptimalLoader

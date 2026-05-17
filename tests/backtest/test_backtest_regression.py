@@ -146,7 +146,6 @@ class TestBacktestRobustness:
     def test_backtest_runs_without_error(self, test_config):
         """Basic sanity check: backtest starts and completes."""
         try:
-            from algo.algo_backtest import Backtester
             bt = Backtester(
                 start_date=date(2026, 1, 1),
                 end_date=date(2026, 1, 31),

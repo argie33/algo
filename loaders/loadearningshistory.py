@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import sys
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 Earnings History Loader - Optimal Pattern.
@@ -29,7 +28,6 @@ from utils.loader_helpers import get_active_symbols
 import logging
 logger = get_logger(__name__)
 import os
-import sys
 from config.env_loader import load_env
 from datetime import date
 from typing import List, Optional

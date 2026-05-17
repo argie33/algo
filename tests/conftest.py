@@ -20,10 +20,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Default database credentials
+DEFAULT_DB_HOST = 'localhost'
+DEFAULT_DB_USER = 'stocks'
+
 # Set test credentials before any tests run (required for credential_manager)
 os.environ.setdefault('APCA_API_KEY_ID', 'test-key-id')
 os.environ.setdefault('APCA_API_SECRET_KEY', 'test-secret-key')
-os.environ.setdefault('DB_USER', DEFAULT_DB_NAME)
+os.environ.setdefault('DB_USER', DEFAULT_DB_USER)
 os.environ.setdefault('DB_PASSWORD', 'test-password')  # Test DB password
 
 # Add root directory to path so tests can import algo modules
@@ -33,7 +37,7 @@ os.environ.setdefault('DB_PASSWORD', 'test-password')  # Test DB password
 TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST', DEFAULT_DB_HOST)
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
 TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME', 'stocks_test')
-TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_NAME)
+TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER', DEFAULT_DB_USER)
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD', '')
 
 
@@ -106,7 +110,6 @@ def seeded_test_db(request):
 
     If the database is not available (e.g., postgres not running in CI), skip the test.
     """
-    import sys
     from setup_test_db import setup_test_db
     try:
         setup_test_db()
@@ -269,7 +272,6 @@ def reset_imports():
     """Reset module imports between tests to avoid state pollution."""
     yield
     # Clean up module-level state if needed
-    import sys
     # Don't remove actual modules, just reset any singletons
     if 'algo.algo_config' in sys.modules:
         # Reset global config instance

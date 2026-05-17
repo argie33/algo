@@ -2,7 +2,6 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pathlib import Path
 
 """
 Loader SLA Tracker - Track loader success/failure and data freshness
@@ -24,7 +23,6 @@ from typing import Optional, Dict, List
 import os
 from config.credential_helper import get_db_password, get_db_config
 from algo.algo_sql_safety import assert_safe_table
-from pathlib import Path
 from config.env_loader import load_env
 
 try:

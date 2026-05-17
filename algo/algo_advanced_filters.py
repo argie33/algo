@@ -377,7 +377,6 @@ class AdvancedFilters:
             if self.cur.fetchone():
                 score += 1.0
         except Exception as e:
-            import logging
             logging.debug(f"Weekly alignment check failed for {symbol}: {e} (continuing without bonus)")
             # Continue without bonus — don't halt on weekly alignment check failure
 

@@ -18,14 +18,11 @@ import argparse
 import logging
 logger = get_logger(__name__)
 import os
-import sys
 from datetime import date
-from pathlib import Path
 from typing import List, Optional
 
 from config.credential_helper import get_db_password
 from config.env_loader import load_env
-load_env()
 from utils.loader_helpers import get_active_symbols
 
 try:
@@ -87,6 +84,7 @@ class CompanyProfileLoader(OptimalLoader):
 
 
 def main():
+    load_env()
     load_env()
     parser = argparse.ArgumentParser(description="Company profile loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")

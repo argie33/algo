@@ -56,7 +56,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.env_loader import load_env
-load_env()
 from config.credential_helper import get_db_password, get_db_config
 try:
     from config.credential_manager import get_credential_manager
@@ -65,13 +64,11 @@ except ImportError:
     credential_manager = None
 
 import os
-import sys
 import tempfile
 from utils.db_connection import get_db_connection
 import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
 import traceback
-from pathlib import Path
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
@@ -387,7 +384,6 @@ class Orchestrator:
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
-        import time
         import json
 
         if self.lock_file.exists():
@@ -452,7 +448,6 @@ class Orchestrator:
             logger.info(f"{'='*70}")
 
     def log_phase_result(self, phase_num: int, name: str, status: str, summary: str) -> None:
-        import json
         self.phase_results[phase_num] = {
             'name': name,
             'status': status,
@@ -896,7 +891,6 @@ class Orchestrator:
 
             # Publish per-breaker CloudWatch metrics (non-blocking)
             try:
-                from algo.algo_metrics import MetricsPublisher
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     for name, state in result.get('checks', {}).items():
                         _m.put_circuit_breaker(name, bool(state.get('halted')))
@@ -952,7 +946,6 @@ class Orchestrator:
 
             # Check for single-stock halts on open positions
             try:
-                from algo.algo_market_events import MarketEventHandler
                 meh = MarketEventHandler(self.config)
                 # Get open positions from position monitor
                 open_positions = monitor.get_open_positions() or []
@@ -1116,7 +1109,6 @@ class Orchestrator:
                 # Check whether there are actually open positions to distinguish
                 # "no positions" from "Phase 3 crashed with fail-open"
                 try:
-                    from utils.db_connection import get_db_connection
                     conn_chk = get_db_connection()
                     with conn_chk:
                         with conn_chk.cursor() as cur_chk:
@@ -1380,7 +1372,6 @@ class Orchestrator:
         except RuntimeError as e:
             logger.critical(f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}")
             try:
-                from algo.algo_metrics import MetricsPublisher
                 with MetricsPublisher(dry_run=self.dry_run) as _m:
                     _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
             except Exception as e:
@@ -1400,7 +1391,6 @@ class Orchestrator:
         if self._check_halt_flag():
             return False
         try:
-            from algo.algo_trade_executor import TradeExecutor
             executor = TradeExecutor(self.config)
             qualified = getattr(self, '_qualified_trades', [])
             constraints = getattr(self, '_exposure_constraints', None)
@@ -1492,7 +1482,6 @@ class Orchestrator:
 
             # Margin entry gate (Phase 6 - production safeguard)
             try:
-                from algo.algo_margin_monitor import MarginMonitor
                 mm = MarginMonitor()
                 can_enter, margin_reason = mm.can_enter_new_position()
                 if not can_enter:
@@ -2115,7 +2104,6 @@ class Orchestrator:
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:
-            from algo.algo_metrics import MetricsPublisher
             with MetricsPublisher(dry_run=self.dry_run) as m:
                 m.put_orchestrator_result(result['success'], self.phase_results)
 
@@ -2145,10 +2133,9 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-    from config.env_loader import load_env
+    load_env()
     load_env()
 
-    import logging
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"

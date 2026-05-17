@@ -21,7 +21,6 @@ import logging
 logger = get_logger(__name__)
 import os
 from datetime import date
-from pathlib import Path
 from config.env_loader import load_env
 from typing import List, Optional
 

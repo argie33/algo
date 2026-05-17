@@ -81,7 +81,6 @@ class DailyReconciliation:
                     notify('critical', title='Alpaca Connection Failed',
                            message='Daily reconciliation cannot proceed without Alpaca account data')
                 except Exception as e:
-                    import logging
                     logging.warning(f"Failed to send Alpaca failure notification: {e} (proceeding with reconciliation halt)")
                     # Note: notification failure doesn't block reconciliation halt, but we log it
                 return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
@@ -289,7 +288,6 @@ class DailyReconciliation:
                     db_qty = int(row[0] or 0)
                     if abs(db_qty - qty) > 0.1:  # Allow small rounding differences
                         try:
-                            from algo.algo_notifications import notify
                             notify(
                                 kind='position_drift',
                                 severity='critical',
@@ -344,7 +342,6 @@ class DailyReconciliation:
                         target_2 = avg_entry + (3 * r)  # 3R
                         target_3 = avg_entry + (4 * r)  # 4R
                 except Exception as e:
-                    import logging
                     logging.debug(f"Failed to calculate stop/targets for imported {sym}: {e}")
                     # Fall through to defaults below
 
@@ -419,7 +416,6 @@ class DailyReconciliation:
                 """, (PositionStatus.ORPHANED.value, sym, PositionStatus.OPEN.value))
                 # Alert: position missing from Alpaca
                 try:
-                    from algo.algo_notifications import notify
                     notify(
                         kind='position_drift',
                         severity='critical',
@@ -651,7 +647,6 @@ class DailyReconciliation:
             return None
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
 
     config = get_config()
     reconciliation = DailyReconciliation(config)

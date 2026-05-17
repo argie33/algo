@@ -44,7 +44,6 @@ def get_logger(name):
         logger.info("Message")
 
     Replaces the standard pattern:
-        import logging
         logging.basicConfig(...)
         logger = logging.getLogger(__name__)
     """

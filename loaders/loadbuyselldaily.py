@@ -21,9 +21,7 @@ Run:
 import argparse
 import logging
 import os
-import sys
 import psycopg2
-from pathlib import Path
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -188,7 +186,6 @@ class BuySellDailyLoader(OptimalLoader):
     @staticmethod
     def _compute_rsi(closes, period=14):
         """Compute Relative Strength Index."""
-        import numpy as np
         deltas = closes.diff()
         gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
         losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()

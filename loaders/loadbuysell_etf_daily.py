@@ -3,13 +3,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import sys
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 ETF Daily Buy/Sell Signals Loader - Optimal Pattern.
 
-import sys
-from pathlib import Path
 
 Computes buy/sell signals from ETF price data.
 Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
@@ -32,7 +29,6 @@ import logging
 import psycopg2
 logger = get_logger(__name__)
 import os
-import sys
 from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
@@ -123,7 +119,6 @@ class BuySellETFDailyLoader(OptimalLoader):
     @staticmethod
     def _generate_signal(row, symbol: str):
         """Generate buy/sell signal from indicators."""
-        import pandas as pd
         rsi = row.get("rsi")
         macd = row.get("macd")
         signal_line = row.get("signal_line")

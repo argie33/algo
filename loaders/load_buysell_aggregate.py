@@ -22,7 +22,6 @@ import logging
 logger = get_logger(__name__)
 import os
 from datetime import date, timedelta
-from pathlib import Path
 from config.credential_helper import get_db_password, get_db_config
 from config.env_loader import load_env
 from utils.loader_helpers import _resolve_timeframe
@@ -160,7 +159,6 @@ class BuySellAggregateLoader(OptimalLoader):
 
     @staticmethod
     def _compute_atr(highs, lows, closes, period=14):
-        import pandas as pd
         tr = pd.concat([
             highs - lows,
             (highs - closes.shift()).abs(),

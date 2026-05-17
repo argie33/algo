@@ -38,7 +38,6 @@ class TestSignalComputation:
 
     def test_signal_filters_out_of_trend(self):
         """Should filter signals when price breaks below key moving averages."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)
@@ -55,7 +54,6 @@ class TestSignalComputation:
 
     def test_signal_detects_stage_2_setup(self):
         """Should identify Stage 2 consolidation pattern."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)
@@ -75,7 +73,6 @@ class TestSignalComputation:
 
     def test_signal_detects_breakdown(self):
         """Should detect bearish breakdown below support."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)
@@ -94,7 +91,6 @@ class TestSignalComputation:
 
     def test_signal_validates_volume(self):
         """Should validate sufficient trading volume for signal quality."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)
@@ -120,7 +116,6 @@ class TestSignalComputation:
 
     def test_signal_ignores_gapped_up_moves(self):
         """Should be cautious of large gap-up moves (potential exhaustion)."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)
@@ -139,7 +134,6 @@ class TestSignalComputation:
 
     def test_signal_time_decay(self):
         """Should weight fresher signals higher than stale ones."""
-        from algo.algo_signals import SignalComputer
 
         config = {}
         computer = SignalComputer(config)

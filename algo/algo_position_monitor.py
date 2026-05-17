@@ -572,7 +572,6 @@ class PositionMonitor:
             """)
             positions = self.cur.fetchall()
 
-            import requests
             alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
             alpaca_key = credential_manager.get_alpaca_credentials()["key"]
             alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]

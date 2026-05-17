@@ -43,7 +43,6 @@ class TestOrderRejection:
 
     def test_order_cancelled_alert_sent(self, test_config):
         """When Alpaca cancels order, alert should be sent."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -73,7 +72,6 @@ class TestPartialFills:
 
     def test_partial_fill_quantity_adjusted(self, test_config):
         """When 60 of 100 shares fill, position qty should be 60."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -110,7 +108,6 @@ class TestNetworkTimeout:
 
     def test_order_timeout_no_position_created(self, test_config):
         """When order times out, no DB record should be created."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -135,7 +132,6 @@ class TestOrphanedOrderPrevention:
 
     def test_db_failure_cancels_alpaca_order(self, test_config):
         """If DB insert fails after Alpaca fill, order must be cancelled."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -179,7 +175,6 @@ class TestDuplicateEntry:
 
     def test_duplicate_symbol_rejected(self, test_config):
         """Cannot enter same symbol twice on same trading day."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -209,7 +204,6 @@ class TestBadData:
 
     def test_stop_above_entry_rejected(self, test_config):
         """Stop price >= entry price should be rejected."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -228,7 +222,6 @@ class TestBadData:
 
     def test_stop_within_1pct_rejected(self, test_config):
         """Stop within 1% of entry should be rejected."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -247,7 +240,6 @@ class TestBadData:
 
     def test_zero_entry_price_rejected(self, test_config):
         """Entry price <= 0 should be rejected."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
@@ -262,7 +254,6 @@ class TestBadData:
 
     def test_zero_shares_rejected(self, test_config):
         """Shares <= 0 should be rejected."""
-        from algo.algo_trade_executor import TradeExecutor
 
         executor = TradeExecutor(test_config)
 
