@@ -9,17 +9,13 @@ import json
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pathlib import Path
 
 # Set up logging FIRST (before any logger calls)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env.local
-env_path = Path(__file__).parent / '.env.local'
-if env_path.exists():    logger.info(f"Loaded environment from {env_path}")
-else:
-    logger.info(f"Warning: .env.local not found at {env_path}")
+# All credentials must come from environment variables (set before running)
+logger.info("Starting local API server - credentials from environment variables")
 
 # Add lambda directory to path so we can import the handler
 

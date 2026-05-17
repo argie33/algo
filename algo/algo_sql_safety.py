@@ -81,52 +81,6 @@ def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 
     return identifier
 
 
-def safe_select_count(
-    cur,
-    table: str,
-    where_clause: Optional[str] = None,
-    date_column: Optional[str] = None
-) -> Tuple[int, Optional[str]]:
-    """
-    Safely execute a COUNT query on a table with optional WHERE and MAX(date) calculation.
-
-    Args:
-        cur: psycopg2 cursor
-        table: Table name (validated against whitelist)
-        where_clause: Optional WHERE clause (parameterized separately if needed)
-        date_column: Optional column for MAX(date) calculation
-
-    Returns:
-        Tuple of (count, max_date_str) where max_date_str is ISO format or None
-    """
-    # Validate table name
-    table = validate_identifier(table, SAFE_TABLES, 'table')
-
-    # Validate date column if provided
-    if date_column:
-        date_column = validate_identifier(date_column, SAFE_COLUMNS, 'column')
-        if where_clause:
-            query = f"SELECT COUNT(*), MAX({date_column}::date) FROM {table} WHERE {where_clause}"
-        else:
-            query = f"SELECT COUNT(*), MAX({date_column}::date) FROM {table}"
-    else:
-        if where_clause:
-            query = f"SELECT COUNT(*) FROM {table} WHERE {where_clause}"
-        else:
-            query = f"SELECT COUNT(*) FROM {table}"
-
-    cur.execute(query)
-    row = cur.fetchone()
-
-    if not row:
-        return (0, None)
-
-    count = int(row[0] or 0)
-    max_date = str(row[1]) if date_column and row[1] else None
-
-    return (count, max_date)
-
-
 def assert_safe_table(table: str) -> str:
     """Assertion wrapper for table name validation."""
     return validate_identifier(table, SAFE_TABLES, 'table')

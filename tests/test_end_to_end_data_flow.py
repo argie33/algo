@@ -22,15 +22,11 @@ class TestDataFlowPathways:
 
     @pytest.fixture
     def db_connection(self):
-        """Connect to database."""
+        """Connect to database using environment variables."""
         try:
-            conn = psycopg2.connect(
-                host='localhost',
-                port=5432,
-                database='stocks',
-                user='stocks',
-                password=''
-            )
+            from config.credential_helper import get_db_config
+            config = get_db_config()
+            conn = psycopg2.connect(**config)
             conn.autocommit = True
             yield conn
             conn.close()

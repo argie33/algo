@@ -75,16 +75,3 @@ def get_logger(name: str, level: str | None = None) -> logging.Logger:
     logger.propagate = False
 
     return logger
-
-
-def configure_root_logger(level: str = "INFO") -> None:
-    """
-    Configure the root logger with JSON formatting.
-    Call once at application startup (orchestrator __main__).
-    """
-    root = logging.getLogger()
-    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(_JsonFormatter())
-        root.addHandler(handler)
-    root.setLevel(getattr(logging, level.upper(), logging.INFO))

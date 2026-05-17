@@ -131,15 +131,3 @@ class MarketRegimeDetector:
         }
 
         return weights_map.get(regime, DEFAULT_WEIGHTS)
-
-
-def get_dynamic_weights(eval_date: date, cur=None) -> Dict[str, float]:
-    """
-    Convenience function: detect regime and return appropriate weights.
-
-    Returns a dict with keys: momentum, growth, stability, value, positioning, quality
-    All values sum to 1.0.
-    """
-    detector = MarketRegimeDetector(cur=cur)
-    regime = detector.detect_regime(eval_date)
-    return detector.get_weights(regime)

@@ -178,28 +178,16 @@ resource "aws_lambda_permission" "api_gateway" {
 #   }
 # }
 
-# API route - Public access (no auth required)
-# NOTE: Cognito is disabled (cognito_enabled=false in tfvars)
-# The API Gateway authorization is intentionally set to NONE for public access
+# API route - $default
+# NOTE: AWS API Gateway v2 automatically creates the $default route when the HTTP API is created.
+# We do NOT manage it in Terraform to avoid 409 "Route already exists" conflicts.
+# AWS automatically routes requests to the Lambda integration we created above.
 #
-# IMPORTANT: AWS API Gateway v2 auto-creates $default route when HTTP API is created.
-# Terraform can create it, but conflicts occur if AWS recreates it during updates.
-# Lifecycle rule: ignore_all_changes prevents Terraform from fighting with AWS's auto-recreation.
-resource "aws_apigatewayv2_route" "api_default" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "$default"
-  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = "NONE"
-  authorizer_id      = null
-
-  lifecycle {
-    # AWS auto-recreates this route during updates, causing 409 conflicts.
-    # Ignore all changes after initial creation to let AWS manage it.
-    ignore_changes = all
-  }
-
-  depends_on = [aws_apigatewayv2_integration.api_lambda, aws_apigatewayv2_stage.api]
-}
+# If we need to update the route's configuration (authorization, targets, etc.) in the future,
+# we would need to either:
+# 1. Use AWS SDK outside of Terraform (scripts in the deployment workflow)
+# 2. Use a Terraform provider that supports importing auto-managed resources
+# 3. Implement custom Terraform logic to conditionally create/skip the route
 
 # Health check is unauthenticated so monitors and load balancers can reach it
 resource "aws_apigatewayv2_route" "health" {

@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-Environment initialization (NO .env file loading).
+Environment variable validation and initialization.
 
-IMPORTANT: This does NOT load .env.local files.
+CRITICAL: This file does NOT load .env.local or any .env files.
 All credentials must come from:
-1. Environment variables (set before running)
+1. Environment variables (set before running code)
 2. AWS Secrets Manager (production Lambda/ECS)
 
-This prevents accidental credential commits into git.
+Before running code, ensure required environment variables are set:
+- Database: DB_PASSWORD, DB_HOST, DB_PORT, DB_USER, DB_NAME
+- Trading: APCA_API_KEY_ID, APCA_API_SECRET_KEY
+- Logging: LOG_LEVEL (optional)
+
+See CLAUDE.md for setup instructions.
 """
 
 import logging
@@ -18,10 +23,10 @@ _env_initialized = False
 
 
 def load_env():
-    """Initialize environment - does NOT load .env files.
+    """Initialize environment (no .env file loading).
 
-    All credentials must be set explicitly via environment variables
-    or provided by AWS Secrets Manager in production.
+    This function does nothing except mark initialization complete.
+    All credentials must come from environment variables or AWS Secrets Manager.
     """
     global _env_initialized
 
@@ -29,7 +34,6 @@ def load_env():
         return
 
     # Just mark as initialized
-    # No .env.local loading - credentials come from env vars or Secrets Manager
+    # NO .env.local loading - that was the security hole
+    # Credentials MUST come from environment variables
     _env_initialized = True
-
-
