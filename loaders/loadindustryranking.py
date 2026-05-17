@@ -12,6 +12,11 @@ USAGE:
   python3 loadindustryranking.py
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
 import os
 import psycopg2
 from pathlib import Path

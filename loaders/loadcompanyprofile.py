@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 """
-import sys
-from utils.logging_setup import get_logger
-from pathlib import Path
-
 Company Profile Loader — Sector, industry, and company info from yfinance.
 
 Populates company_profile table with fundamental company data.
@@ -17,7 +13,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-
+from utils.logging_setup import get_logger
 import argparse
 import logging
 logger = get_logger(__name__)
@@ -29,6 +25,7 @@ from typing import List, Optional
 
 from config.credential_helper import get_db_password
 from config.env_loader import load_env
+load_env()
 from utils.loader_helpers import get_active_symbols
 
 try:

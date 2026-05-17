@@ -6,6 +6,11 @@ Provides reusable validation functions for all loaders to ensure data quality
 before INSERT into database. Prevents NaN, Inf, invalid types, and duplicates.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
 import logging
 import math
 import re

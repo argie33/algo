@@ -25,6 +25,8 @@ from config.credential_helper import get_db_password, get_db_config
 import logging
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import time
 from datetime import datetime
 from pathlib import Path

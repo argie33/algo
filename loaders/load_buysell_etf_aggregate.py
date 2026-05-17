@@ -21,6 +21,8 @@ import logging
 logger = get_logger(__name__)
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import date, timedelta
 from typing import List, Optional
 from config.credential_helper import get_db_password, get_db_config

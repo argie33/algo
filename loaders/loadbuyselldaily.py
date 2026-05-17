@@ -32,6 +32,8 @@ import logging
 logger = get_logger(__name__)
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import date, timedelta
 from pathlib import Path
 from config.env_loader import load_env

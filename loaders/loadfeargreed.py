@@ -29,6 +29,8 @@ Last Updated: 2026-01-28 - Data loss fix deployed and ready for ECS execution
 FIXED: Removed DROP TABLE vulnerability - data now safely preserved on crash
 """
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.env_loader import load_env
 import time
 import logging

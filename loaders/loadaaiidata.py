@@ -29,7 +29,11 @@ Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from config.env_loader import load_env
+load_env()
 import time
 import logging
 import json

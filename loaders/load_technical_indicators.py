@@ -9,6 +9,11 @@ Uses watermarks — only inserts rows newer than the existing max date per symbo
 Warm-up: fetches 300 trading days of history before the watermark to seed indicators.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
 import os
 import logging
 import argparse

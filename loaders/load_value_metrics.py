@@ -14,6 +14,8 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
