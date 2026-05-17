@@ -59,8 +59,6 @@ const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const strategiesRoutes = require("./routes/strategies");
 const tradesRoutes = require("./routes/trades");
-const rangeSignalsRoutes = require("./routes/rangeSignals");
-const meanReversionSignalsRoutes = require("./routes/meanReversionSignals");
 const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const pricesRoutes = require("./routes/prices");
@@ -764,9 +762,7 @@ app.use("/api/trades/manual", manualTradesRoutes);  // Mount more specific route
 app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
 app.use("/api/user", require("./routes/user"));
 
-// New strategy routes
-app.use("/api/signals/range", cacheMiddleware(60), rangeSignalsRoutes);
-app.use("/api/signals/mean-reversion", cacheMiddleware(60), meanReversionSignalsRoutes);
+// Research and backtest routes
 app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 app.use("/api/backtests", cacheMiddleware(120), backtestsRoutes);  // alias for frontend compatibility
 
