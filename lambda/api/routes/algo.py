@@ -470,7 +470,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             invested = float(portfolio_row.get('invested') or 0)
 
             cur.execute("""
-                SELECT equity FROM algo_portfolio_snapshot
+                SELECT equity FROM algo_portfolio_snapshots
                 ORDER BY created_at DESC LIMIT 1
             """)
             snap = cur.fetchone()
