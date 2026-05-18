@@ -117,7 +117,7 @@ jobs:
             --query 'taskArns[:3]' --output text 2>/dev/null | tr '\t' '\n' | while read ARN; do
             if [ -n "$ARN" ] && [ "$ARN" != "None" ]; then
               aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $ARN \
-                --query 'tasks[0].{StopCode:stopCode,ExitCode:containers[0].exitCode,Created:createdAt,Stopped:stoppedAt,Image:containers[0].image,Reason:stoppedReason}' \
+                --query 'tasks[0].{StopCode:stopCode,ExitCode:containers[0].exitCode,Created:createdAt,Stopped:stoppedAt,Image:containers[0].image,Reason:stoppedReason,Subnets:attachments[0].details[?name==`subnetId`].value,SecurityGroups:attachments[0].details[?name==`securityGroupId`].value}' \
                 --output json 2>/dev/null
             fi
           done
