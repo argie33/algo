@@ -7,7 +7,7 @@
 | Need | See |
 |------|-----|
 | **Deploy guide** | **DEPLOYMENT_GUIDE.md** |
-| **Status/next steps** | **STATUS.md** |
+| **Status/next steps** | **memory/status_current.md** (rotated weekly) |
 | **Local dev** | **See "Local Development" below** |
 | Test loaders | `python3 run-all-loaders.py` |
 | Troubleshoot | troubleshooting-guide.md |
@@ -91,9 +91,12 @@ python3 algo/algo_orchestrator.py --mode paper --dry-run
 
 **Token waste prevention (ENFORCED):**
 - Memory files: max 150 lines per file (if larger → split or archive)
-- Root .md files: NO session-specific docs (AWS_LOADER_*.md, CURRENT_SESSION_*.md deleted immediately)
-- STATUS.md: max 300 lines (current state + next steps only)
-- CLAUDE.md: max 200 lines (this file is kept lean)
+- Root .md files: **NO session-specific docs EVER** — will be rejected by git hooks
+  - ❌ AWS_TROUBLESHOOTING_*.md, AWS_LOADER_*.md
+  - ❌ EXECUTION_*.md, BLOCKERS_*.md, RUN_*.md, LOADED_*.md
+  - ❌ *_STATUS.md, *_SUMMARY.md, *_REPORT.md (except STATUS_CHECKLIST.md if referenced in CLAUDE.md)
+- Status info: Goes to memory/status_current.md (rotated, not root)
+- CLAUDE.md: max 150 lines (this file is kept lean)
 
 **Why:** 10K tokens per session = $0.01-0.02/session. Fix: lean context.
 

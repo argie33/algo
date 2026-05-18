@@ -137,12 +137,23 @@ aws-cli-*.zip
 DEPLOYMENT_IN_PROGRESS.md
 .watermarks/
 
-# Documentation sprawl prevention
-# (Session snapshots, dated audits, temporary docs)
+# Documentation sprawl prevention — ENFORCED
+# Session-specific docs NEVER belong in root. Use memory/ instead.
 SESSION_SUMMARY_*.md
 FINAL_*.md
 VERIFICATION_COMPLETE_*.md
 *_2026_*.md
+AWS_TROUBLESHOOTING_*.md
+AWS_LOADER_*.md
+EXECUTION_*.md
+BLOCKERS_*.md
+RUN_LOADERS_*.md
+LOADER_EXECUTION_*.md
+LOADER_TESTING_*.md
+*_SUMMARY.md
+*_REPORT.md
+*_PLAN.md
+CURRENT_SESSION_*.md
 ARCHIVE_SNAPSHOTS/
 SESSIONS_COMPLETED/
 DECISIONS_RATIONALE/
