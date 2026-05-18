@@ -243,15 +243,15 @@ const DeepValueStocks = () => {
           </Grid>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#e65100" }}>⚠️ Trap Detection (Trends YoY)</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#f97316" }}>⚠️ Trap Detection (Trends YoY)</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
             Are quality metrics improving (✓) or declining (✗)? Negative = potential value trap warning.
           </Typography>
           <Grid container spacing={1} sx={{ mb: 3 }}>
             {[
-              ["Op Margin Trend", stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "—", stock.op_margin_trend_pp >= 0 ? "#1b5e20" : stock.op_margin_trend_pp > -3 ? "#f57c00" : "#c62828"],
-              ["Gross Margin Trend", stock.gross_margin_trend_pp != null ? `${stock.gross_margin_trend_pp >= 0 ? "+" : ""}${stock.gross_margin_trend_pp.toFixed(2)}pp` : "—", stock.gross_margin_trend_pp >= 0 ? "#1b5e20" : stock.gross_margin_trend_pp > -3 ? "#f57c00" : "#c62828"],
-              ["ROE Trend", stock.roe_trend_pp != null ? `${stock.roe_trend_pp >= 0 ? "+" : ""}${stock.roe_trend_pp.toFixed(2)}pp` : "—", stock.roe_trend_pp >= 0 ? "#1b5e20" : stock.roe_trend_pp > -10 ? "#f57c00" : "#c62828"],
+              ["Op Margin Trend", stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "—", stock.op_margin_trend_pp >= 0 ? "#22c55e" : stock.op_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
+              ["Gross Margin Trend", stock.gross_margin_trend_pp != null ? `${stock.gross_margin_trend_pp >= 0 ? "+" : ""}${stock.gross_margin_trend_pp.toFixed(2)}pp` : "—", stock.gross_margin_trend_pp >= 0 ? "#22c55e" : stock.gross_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
+              ["ROE Trend", stock.roe_trend_pp != null ? `${stock.roe_trend_pp >= 0 ? "+" : ""}${stock.roe_trend_pp.toFixed(2)}pp` : "—", stock.roe_trend_pp >= 0 ? "#22c55e" : stock.roe_trend_pp > -10 ? "#f97316" : "#ef4444"],
             ].map(([label, val, color]) => (
               <Grid item xs={6} sm={4} key={label}>
                 <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -300,16 +300,16 @@ const DeepValueStocks = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>Opportunities Found</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: "#1b5e20" }}>{stocks.length}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: "#22c55e" }}>{stocks.length}</Typography>
               <Typography variant="caption" color="textSecondary">Tier 1 & 2 quality stocks</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: "#e3f2fd" }}>
+          <Card sx={{ backgroundColor: "rgba(99, 102, 241, 0.12)" }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>Avg Margin of Safety</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: "#0d47a1" }}>{avgMoS != null ? avgMoS.toFixed(0) + "%" : "—"}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: "#818cf8" }}>{avgMoS != null ? avgMoS.toFixed(0) + "%" : "—"}</Typography>
               <Typography variant="caption" color="textSecondary">DCF intrinsic value vs price</Typography>
             </CardContent>
           </Card>
@@ -318,7 +318,7 @@ const DeepValueStocks = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>Avg Drop from High</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: "#c62828" }}>{avgDrop != null ? avgDrop.toFixed(0) + "%" : "—"}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: "#ef4444" }}>{avgDrop != null ? avgDrop.toFixed(0) + "%" : "—"}</Typography>
               <Typography variant="caption" color="textSecondary">Fire sale magnitude (3y)</Typography>
             </CardContent>
           </Card>
@@ -327,7 +327,7 @@ const DeepValueStocks = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>Avg ROE</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: "#1b5e20" }}>{avgROE != null ? avgROE.toFixed(1) + "%" : "—"}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: "#22c55e" }}>{avgROE != null ? avgROE.toFixed(1) + "%" : "—"}</Typography>
               <Typography variant="caption" color="textSecondary">Elite quality metric</Typography>
             </CardContent>
           </Card>
@@ -447,10 +447,10 @@ const DeepValueStocks = () => {
                   <TableCell align="right" sx={{ fontWeight: 700, cursor: "pointer" }}>
                     <TableSortLabel active={sortBy === "drop_from_3y_high_pct"} direction={sortOrder === "asc" ? "asc" : "desc"} onClick={() => handleSort("drop_from_3y_high_pct")}>↓3y</TableSortLabel>
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, cursor: "pointer", backgroundColor: "#e3f2fd" }}>
+                  <TableCell align="right" sx={{ fontWeight: 700, cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }}>
                     <TableSortLabel active={sortBy === "intrinsic_value_per_share"} direction={sortOrder === "asc" ? "asc" : "desc"} onClick={() => handleSort("intrinsic_value_per_share")}>Intrinsic $</TableSortLabel>
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, cursor: "pointer", backgroundColor: "#e3f2fd" }}>
+                  <TableCell align="right" sx={{ fontWeight: 700, cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }}>
                     <TableSortLabel active={sortBy === "margin_of_safety_pct"} direction={sortOrder === "asc" ? "asc" : "desc"} onClick={() => handleSort("margin_of_safety_pct")}>MoS %</TableSortLabel>
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>RevYoY%</TableCell>
@@ -466,7 +466,7 @@ const DeepValueStocks = () => {
                     <TableRow
                       key={stock.symbol}
                       hover
-                      sx={{ cursor: "pointer", backgroundColor: globalIdx === 0 ? "#f0f4ff" : undefined }}
+                      sx={{ cursor: "pointer", backgroundColor: globalIdx === 0 ? "rgba(99, 102, 241, 0.08)" : undefined }}
                       onClick={() => { setSelectedStock(stock); setDetailOpen(true); }}
                     >
                       <TableCell sx={{
