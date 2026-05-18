@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_earnings(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/earnings/* endpoints. Returns upcoming/past earnings dates."""
         try:
             period = params.get('period', ['upcoming'])[0] if params else 'upcoming'

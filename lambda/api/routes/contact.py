@@ -47,7 +47,7 @@ def _handle_contact(self, path: str, method: str, params: Dict, body: Dict = Non
                     INSERT INTO contact_submissions (name, email, subject, message, status, submitted_at)
                     VALUES (%s, %s, %s, %s, 'new', NOW())
                 """, (contact.name, contact.email, contact.subject, contact.message))
-                self.conn.commit()
+                cur.connection.commit()
                 return json_response(200, {'status': 'submitted', 'message': 'Contact form submission received'})
             return error_response(404, 'not_found', f'No handler for {path}')
         except psycopg2.errors.UndefinedTable as e:

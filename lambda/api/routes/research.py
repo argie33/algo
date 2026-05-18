@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_research(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/research/* endpoints."""
         try:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):

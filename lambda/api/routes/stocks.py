@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_stocks(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/stocks and /api/stocks/* endpoints."""
         if path == '/api/stocks/deep-value':
             limit_str = params.get('limit', [None])[0] if params else None

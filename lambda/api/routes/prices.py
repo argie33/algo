@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_prices(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/prices/* endpoints."""
         match = re.match(r'/api/prices/history/([A-Z0-9.]+)', path)
         if match:

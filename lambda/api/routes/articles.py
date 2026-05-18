@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_articles(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/articles/* endpoints."""
         try:
             return json_response(501, {'status': 'not_implemented', 'message': 'Articles feature requires additional setup'})

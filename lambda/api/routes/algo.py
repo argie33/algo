@@ -23,7 +23,7 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
         # Handle PATCH /api/algo/notifications/{id}/read
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
@@ -37,7 +37,7 @@ def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
                     "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
                     (notif_id_int,)
                 )
-                self.conn.commit()
+                cur.connection.commit()
                 return json_response(200, {'status': 'updated'})
             except psycopg2.errors.UndefinedTable as e:
                 logger.error(f'Required table not found: {e}', extra={'operation': 'handle algo'})
@@ -59,7 +59,7 @@ def _handle_algo(self, path: str, method: str, params: Dict) -> Dict:
             notif_id = path.split('/notifications/')[-1]
             try:
                 cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
-                self.conn.commit()
+                cur.connection.commit()
                 return json_response(200, {'status': 'deleted'})
             except psycopg2.errors.UndefinedTable as e:
                 logger.error(f'Required table not found: {e}', extra={'operation': 'handle algo'})
