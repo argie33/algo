@@ -482,18 +482,17 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '24'
+          python-version: '3.11'
 
       - name: Package
-        working-directory: webapp/lambda
         run: |
-          npm ci --omit=dev
-          zip -r ../../api_lambda.zip . \
-            -x "*.git*" -x "node_modules/.cache/*" \
-            -x "tests/*" -x "coverage/*" \
-            -x "**/*.test.js" -x ".env*" -x "scripts/*"
+          mkdir -p api-pkg
+          cp -r lambda/api/. api-pkg/
+          pip install -r lambda/api/requirements.txt \
+            -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
+          cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
 
       - name: Deploy
         run: |
