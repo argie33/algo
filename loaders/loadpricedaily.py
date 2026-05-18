@@ -172,29 +172,42 @@ class PriceDailyLoader(OptimalLoader):
 
 
 def main():
-    load_env()
+    try:
+        load_env()
+        logger.info("[MAIN] Environment loaded successfully")
+    except Exception as e:
+        logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
+        return 1
+
     parser = argparse.ArgumentParser(description="Price Daily Loader - Phase 1 Data Integrity Enabled")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     default_parallelism = int(os.getenv("PARALLELISM", os.getenv("LOADER_PARALLELISM", "2")))
     parser.add_argument("--parallelism", type=int, default=default_parallelism, help="Concurrent workers")
     args = parser.parse_args()
 
-    if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(",")]
-    else:
-        symbols = get_active_symbols()
+    try:
+        if args.symbols:
+            symbols = [s.strip().upper() for s in args.symbols.split(",")]
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from CLI")
+        else:
+            symbols = get_active_symbols()
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
+    except Exception as e:
+        logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
+        return 1
 
     loader = PriceDailyLoader()
     try:
-
+        logger.info(f"[MAIN] Starting price loader (parallelism={args.parallelism})")
         # Run the loader with validation + provenance tracking
         with TimeBlock("loadpricedaily"):
             stats = loader.run(symbols, parallelism=args.parallelism)
 
+        logger.info(f"[MAIN] Loader completed: {stats}")
         return 0 if stats["symbols_failed"] == 0 else 1
 
     except Exception as e:
-        logger.error(f"Loader failed with error: {e}")
+        logger.error(f"[MAIN] Loader failed with error: {e}", exc_info=True)
         return 1
     finally:
         loader.close()

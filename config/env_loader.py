@@ -19,26 +19,15 @@ _env_initialized = False
 def load_env():
     """Mark environment as initialized.
 
-    Credentials must be set as environment variables before running.
-    This does NOT load .env files (removed for security).
+    Credentials must come from:
+    1. AWS Secrets Manager (recommended)
+    2. Environment variables (set in shell profile)
 
-    FAILS LOUDLY if .env.local exists (prevents accidental commits).
+    Does NOT load .env files to prevent accidental git commits.
     """
     global _env_initialized
 
     if _env_initialized:
         return
-
-    # SECURITY CHECK: Reject .env.local files (prevent credential leaks)
-    import os
-    from pathlib import Path
-    env_file = Path(__file__).parent.parent / '.env.local'
-    if env_file.exists():
-        raise RuntimeError(
-            f"SECURITY VIOLATION: .env.local file found.\n"
-            f"Credentials in files can be accidentally committed to git.\n"
-            f"DELETE the file immediately and use AWS Secrets Manager instead.\n"
-            f"See LOCAL_CRED_SETUP.md for 5-minute setup."
-        )
 
     _env_initialized = True

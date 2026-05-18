@@ -58,7 +58,7 @@ router.get("/", async (req, res) => {
         bsd.signal,
         bsd.strength,
         bsd.reason,
-        COALESCE(ss.security_name, ss.name, cp.name) as company_name,
+        COALESCE(ss.security_name) as company_name,
         tdd.rsi,
         tdd.atr,
         tdd.adx,
@@ -68,7 +68,6 @@ router.get("/", async (req, res) => {
         pd.volume
       FROM ${tableName} bsd
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON bsd.symbol = cp.symbol
       LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       ${whereClause}

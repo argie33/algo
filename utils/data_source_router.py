@@ -225,12 +225,16 @@ class DataSourceRouter:
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
         try:
             import yfinance as yf
-        except ImportError:
+            log.debug(f"[yfinance] yfinance imported successfully")
+        except ImportError as e:
+            log.error(f"[yfinance] Failed to import yfinance: {e}")
             return None
         YFINANCE_LIMITER.wait()
+        log.debug(f"[yfinance] Fetching {symbol} from {start} to {end}")
         # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
+            log.debug(f"[yfinance] Calling yf.download for {yf_symbol}")
             hist = yf.download(
                 yf_symbol,
                 start=start,
@@ -238,8 +242,11 @@ class DataSourceRouter:
                 auto_adjust=False,
                 progress=False,
             )
+            log.debug(f"[yfinance] yf.download returned, checking if empty")
             if hist is None or hist.empty:
+                log.warning(f"[yfinance] No data returned for {symbol}")
                 return None
+            log.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
             # Newer yfinance may return multi-level columns for single tickers;
             # flatten them so row["Open"] works regardless.
             if hasattr(hist.columns, 'levels'):

@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
   // In production: use explicit URL from VITE_API_URL environment variable
   const apiUrl = env.VITE_API_URL || ""; // Empty for dev, explicit for prod
   // Vite proxy always needs the target URL for development
-  const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
+  const proxyTarget = isDevelopment ? "http://localhost:5000" : "";
 
   return {
     plugins: [
