@@ -10,7 +10,6 @@ on:
       - 'algo_*.py'
       - 'lambda/**'
       - 'lambda_function.py'
-      - 'webapp/lambda/**'
       - 'webapp/frontend/src/**'
       - 'webapp/frontend/public/**'
       - 'webapp/frontend/package.json'
@@ -167,25 +166,21 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
         with:
-          node-version: '24'
+          python-version: '3.11'
 
       - name: Package API Lambda
-        working-directory: webapp/lambda
         run: |
-          # Production-only install into a temp dir, then zip
-          npm ci --omit=dev
-          zip -r ../../api_lambda.zip . \
-            -x "*.git*" \
-            -x "node_modules/.cache/*" \
-            -x "tests/*" \
-            -x "coverage/*" \
-            -x "**/*.test.js" \
-            -x ".env*" \
-            -x "scripts/*"
-          echo "Package size: $(du -sh ../../api_lambda.zip | cut -f1)"
+          mkdir -p api-pkg
+          cp lambda/api/lambda_function.py api-pkg/
+          pip install -r lambda/api/requirements.txt \
+            -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
+          cd api-pkg
+          zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*"
+          cd ..
+          echo "Package size: $(du -sh api_lambda.zip | cut -f1)"
 
       - name: Deploy API Lambda
         run: |
