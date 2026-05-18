@@ -44,14 +44,9 @@ locals {
   api_lambda_use_s3 = var.api_lambda_s3_bucket != ""
 }
 
-# For local fallback: archive local code (for dev/testing)
-# Note: path.module is terraform/modules/services, so ../../../ goes to repo root
-data "archive_file" "api_function_local" {
-  count       = local.api_lambda_use_s3 ? 0 : 1
-  type        = "zip"
-  output_path = "${path.module}/../../../${var.api_lambda_code_file}"
-  source_dir  = "${path.module}/../../../lambda/api"
-}
+# API Lambda code: pre-built ZIP by GitHub Actions workflow, or reference local file for Terraform-only runs
+# GitHub Actions builds lambda-api.zip in terraform/ directory before terraform apply
+# For local/manual Terraform runs, fallback to looking for pre-built ZIP at terraform root
 
 resource "aws_lambda_function" "api" {
   function_name = local.api_lambda_name
@@ -61,12 +56,12 @@ resource "aws_lambda_function" "api" {
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
 
-  # Use S3 package if available, otherwise local file
+  # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
   s3_key            = local.api_lambda_use_s3 ? var.api_lambda_s3_key : null
   s3_object_version = local.api_lambda_use_s3 && var.api_lambda_s3_object_version != "" ? var.api_lambda_s3_object_version : null
-  filename          = !local.api_lambda_use_s3 ? data.archive_file.api_function_local[0].output_path : null
-  source_code_hash  = !local.api_lambda_use_s3 ? data.archive_file.api_function_local[0].output_base64sha256 : null
+  filename          = !local.api_lambda_use_s3 ? "${path.module}/../../${var.api_lambda_code_file}" : null
+  source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.module}/../../${var.api_lambda_code_file}") : null
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage

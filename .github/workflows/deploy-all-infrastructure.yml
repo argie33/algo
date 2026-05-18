@@ -111,6 +111,32 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
+      - name: Build API Lambda (REST API)
+        run: |
+          # Build API Lambda ZIP before Terraform tries to deploy it.
+          # Terraform uses this pre-built ZIP instead of archive_file data source.
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/api
+          PKG_DIR=/tmp/api-lambda-pkg
+
+          mkdir -p $PKG_DIR
+
+          # Copy all API code (routes, utils, handlers)
+          cp -r $SOURCE_LAMBDA/* $PKG_DIR/
+
+          # Install dependencies into package directory
+          if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
+            python3.11 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+              -t $PKG_DIR/ \
+              --no-cache-dir --quiet
+          fi
+
+          # Create ZIP for deployment (name must match var.api_lambda_code_file default in Terraform)
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
+
+          echo "✅ API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -15
+
       - name: Build Data Freshness Monitor Lambda
         run: |
           # Build data-freshness-monitor Lambda ZIP before Terraform tries to deploy it.
