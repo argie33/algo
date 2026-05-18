@@ -139,6 +139,17 @@ jobs:
               continue
             fi
 
+            # Delete ENIs first (Fargate task ENIs linger after task stops)
+            for SN in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'Subnets[*].SubnetId' --output text 2>/dev/null || true); do
+              for ENI in $(aws ec2 describe-network-interfaces \
+                  --filters "Name=subnet-id,Values=$SN" \
+                  --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>/dev/null || true); do
+                aws ec2 delete-network-interface --network-interface-id "$ENI" 2>/dev/null \
+                  && echo "  Deleted ENI $ENI" || echo "  Skipped ENI $ENI (in use)"
+              done
+            done
+
             # Delete subnets (|| true prevents -e exit on dependency conflicts)
             for SN in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
                 --query 'Subnets[*].SubnetId' --output text 2>/dev/null || true); do
