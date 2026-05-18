@@ -49,17 +49,14 @@ data "archive_file" "api_function_local" {
   count       = local.api_lambda_use_s3 ? 0 : 1
   type        = "zip"
   output_path = "${path.module}/../../${var.api_lambda_code_file}"
-  source {
-    content  = "module.exports.handler = async (event) => { return { statusCode: 503, body: 'API Lambda stub - use S3 for production' }; };"
-    filename = "index.js"
-  }
+  source_dir  = "${path.module}/../../lambda/api"
 }
 
 resource "aws_lambda_function" "api" {
   function_name = local.api_lambda_name
   role          = var.api_lambda_role_arn
-  handler       = "index.handler"
-  runtime       = "nodejs20.x"
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.11"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
 
