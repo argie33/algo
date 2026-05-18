@@ -38,6 +38,7 @@ USAGE:
 """
 
 from config.credential_helper import get_db_config, get_db_password
+from config.credential_manager import get_credential_manager
 import os
 import json
 import argparse
@@ -566,8 +567,15 @@ class DataPatrol:
 
     def check_alpaca_cross_validate(self, top_n=10):
         """P6. Cross-validate top symbols vs Alpaca (uses existing free credentials)."""
-        key = credential_manager.get_alpaca_credentials()["key"]
-        secret = credential_manager.get_alpaca_credentials()["secret"]
+        try:
+            cm = get_credential_manager()
+            creds = cm.get_alpaca_credentials()
+            key = creds.get("key")
+            secret = creds.get("secret")
+        except Exception as e:
+            logger.debug(f"Alpaca credentials not available: {e}")
+            self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
+            return
         base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         if not key or not secret:
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
