@@ -91,7 +91,7 @@
 ---
 
 ### 6. `/api/sectors/trends-batch`
-**Frontend Page:** Sentiment.jsx, MetricsDashboard.jsx  
+**Frontend Page:** Sentiment.jsx  
 **Method:** GET  
 **Query Param:** `sectors={LIST}` (comma-separated)  
 **Required Columns Per Sector:**
@@ -134,7 +134,7 @@
 ---
 
 ### 9. `/api/algo/performance`
-**Frontend Page:** MetricsDashboard.jsx  
+**Frontend Page:** PerformanceMetrics.jsx  
 **Method:** GET  
 **Required Columns:**
 - `total_pnl` (float)

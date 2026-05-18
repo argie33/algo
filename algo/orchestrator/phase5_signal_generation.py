@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""
+Phase 5: SIGNAL GENERATION & RANKING
+
+Evaluates today's BUY signals through all 6 tiers:
+- Tier 1: Data quality
+- Tier 2: Market conditions
+- Tier 3: Trend template
+- Tier 4: Signal quality scores
+- Tier 5: Portfolio fit
+- Tier 6: Multi-factor advanced filters (momentum/quality/catalyst/risk)
+
+Ranks by composite score, takes top N up to max_positions cap minus
+current open positions.
+
+Includes signal waterfall report for visibility on rejections.
+
+FAIL-OPEN: log and proceed with whatever passed.
+"""
+
+import logging
+import traceback
+from datetime import date as _date
+from typing import Any, Callable, List, Dict
+
+from utils.db_connection import get_db_connection
+from algo.orchestrator.phase_result import PhaseResult
+from algo.algo_alerts import AlertManager
+from algo.algo_metrics import MetricsPublisher
+
+logger = logging.getLogger(__name__)
+
+
+def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
+    """Log signal count at each filter tier for visibility on rejections."""
+    try:
+        # Count total BUY signals for today
+        cur.execute(
+            "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'",
+            (run_date,)
+        )
+        total_signals = cur.fetchone()[0] or 0
+
+        # Count from trend_template_data where Stage 2 exists
+        # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
+        cur.execute(
+            """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
+               WHERE date = %s AND weinstein_stage = 2""",
+            (run_date,)
+        )
+        stage2_count = cur.fetchone()[0] or 0
+
+        # Count rejections at each tier from filter_rejection_log (if table exists)
+        tier_rejections = {}
+        try:
+            for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'], 1):
+                cur.execute(
+                    f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
+                    (run_date, tier_num)
+                )
+                rejected = cur.fetchone()[0] or 0
+                tier_rejections[tier_name] = rejected
+        except Exception:
+            # Table may not exist or columns different; skip
+            for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
+                tier_rejections[tier_name] = 0
+
+        # Note: final_count will be set by caller via _qualified_trades
+        if verbose or total_signals > 0:
+            logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
+            logger.info(f"    Total BUY signals:        {total_signals:4d}")
+            logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
+            logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
+            logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
+            logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
+            logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
+            logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
+            logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
+            interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, 0)
+            logger.info(f"  Interpretation: {interpretation}")
+
+    except Exception as e:
+        logger.warning(f"Signal waterfall report failed: {e}")
+
+
+def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
+    """Interpret the signal waterfall to help diagnose 'no trades' situations."""
+    if total == 0:
+        return "No BUY signals generated today. Check buy_sell_daily loader or market conditions."
+    if stage2 == 0:
+        return f"{total} signals exist but NONE are Stage 2. RSI<30 in Stage 2 stocks is rare. Check market stage."
+    if final > 0:
+        return f"[OK] {final} candidates qualified. Ready to execute."
+
+    # Find the biggest rejection point
+    max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
+    max_reject_count = tier_rejections.get(max_reject_tier, 0)
+    return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
+
+
+def run(
+    config: Any,
+    get_conn: Callable,
+    put_conn: Callable,
+    run_date: _date,
+    dry_run: bool,
+    alerts: AlertManager,
+    verbose: bool,
+    log_phase_result_fn: Callable,
+    exposure_constraints: Dict[str, Any],
+    check_halt_flag: Callable,
+) -> PhaseResult:
+    """Execute Phase 5: Signal Generation & Ranking.
+
+    Args:
+        config: Configuration object
+        get_conn: Function to get database connection
+        put_conn: Function to return database connection
+        run_date: Date for this run
+        dry_run: Whether running in dry-run mode
+        alerts: AlertManager instance
+        verbose: Whether to log verbose output
+        log_phase_result_fn: Function to log phase results
+        exposure_constraints: Exposure constraints from Phase 3b
+        check_halt_flag: Function to check halt flag
+
+    Returns:
+        PhaseResult with status 'ok', data containing qualified trades
+    """
+    if check_halt_flag():
+        return PhaseResult(5, 'signal_generation', 'halted', {}, True, 'Halt flag detected')
+
+    try:
+        from algo.algo_filter_pipeline import FilterPipeline
+
+        exposure_mult = 1.0
+        if exposure_constraints:
+            exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
+
+        pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
+        qualified = pipeline.evaluate_signals(run_date)
+
+        # Signal count waterfall report (for visibility on where signals die)
+        conn = None
+        cur = None
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            _report_signal_waterfall(cur, run_date, verbose)
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception as e:
+                    logger.error(f"Unhandled exception: {e}")
+            if conn:
+                try:
+                    put_conn(conn)
+                except Exception as e:
+                    logger.error(f"Unhandled exception: {e}")
+
+        log_phase_result_fn(
+            5, 'signal_generation', 'success',
+            f'{len(qualified)} qualified trades after all 6 tiers',
+        )
+
+        return PhaseResult(
+            5, 'signal_generation', 'ok',
+            {'qualified_trades': qualified, 'count': len(qualified)},
+            False, None
+        )
+
+    except RuntimeError as e:
+        logger.critical(f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}")
+        try:
+            with MetricsPublisher(dry_run=dry_run) as _m:
+                _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
+        except Exception as e:
+            logger.error(f"Unhandled exception: {e}")
+
+        log_phase_result_fn(5, 'signal_generation', 'halt', str(e))
+        return PhaseResult(5, 'signal_generation', 'halted', {}, True, str(e))
+
+    except Exception as e:
+        traceback.print_exc()
+        log_phase_result_fn(5, 'signal_generation', 'error', str(e))
+        return PhaseResult(5, 'signal_generation', 'ok', {'qualified_trades': []}, False, str(e))

@@ -30,7 +30,6 @@ const EconomicDashboard = React.lazy(() => import("./pages/EconomicDashboard"));
 const SectorAnalysis = React.lazy(() => import("./pages/SectorAnalysis"));
 const Sentiment = React.lazy(() => import("./pages/Sentiment"));
 const ScoresDashboard = React.lazy(() => import("./pages/ScoresDashboard"));
-const MetricsDashboard = React.lazy(() => import("./pages/MetricsDashboard"));
 const TradeTracker = React.lazy(() => import("./pages/TradeTracker"));
 const PortfolioDashboard = React.lazy(() => import("./pages/PortfolioDashboard"));
 const PerformanceMetrics = React.lazy(() => import("./pages/PerformanceMetrics"));
@@ -134,12 +133,6 @@ const menuItems = [
     text: "Backtest",
     icon: <TrendingUpIcon />,
     path: "/app/backtests",
-    category: "analysis",
-  },
-  {
-    text: "Metrics",
-    icon: <TrendingUpIcon />,
-    path: "/app/metrics",
     category: "analysis",
   },
   {
@@ -438,7 +431,6 @@ function App() {
         <Route path="/app/etf-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
         <Route path="/app/swing" element={<ErrorBoundary><SwingCandidates /></ErrorBoundary>} />
         <Route path="/app/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
-        <Route path="/app/metrics" element={<ErrorBoundary><MetricsDashboard /></ErrorBoundary>} />
         <Route path="/app/stock/:symbol" element={<ErrorBoundary><StockDetail /></ErrorBoundary>} />
 
         {/* Portfolio & Trading */}

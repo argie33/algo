@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""
+Phase 2: CIRCUIT BREAKERS
+
+Runs all kill-switch checks to prevent trading during adverse conditions:
+- Account circuit breakers (drawdown, daily loss, consecutive losses, total open risk, VIX, market stage, weekly loss)
+- Market circuit breakers (circuit breaker triggered)
+
+FAIL-CLOSED on any breaker firing.
+"""
+
+import logging
+import traceback
+from datetime import date as _date
+from typing import Any, Callable
+
+from algo.algo_metrics import MetricsPublisher
+from algo.orchestrator.phase_result import PhaseResult
+from algo.algo_alerts import AlertManager
+
+logger = logging.getLogger(__name__)
+
+
+def run(
+    config: Any,
+    get_conn: Callable,
+    put_conn: Callable,
+    run_date: _date,
+    dry_run: bool,
+    alerts: AlertManager,
+    verbose: bool,
+    log_phase_result_fn: Callable,
+) -> PhaseResult:
+    """Execute Phase 2: Circuit Breakers.
+
+    Args:
+        config: Configuration object
+        get_conn: Function to get database connection
+        put_conn: Function to return database connection
+        run_date: Date for this run
+        dry_run: Whether running in dry-run mode
+        alerts: AlertManager instance
+        verbose: Whether to log verbose output
+        log_phase_result_fn: Function to log phase results
+
+    Returns:
+        PhaseResult with status and data
+    """
+    try:
+        from algo.algo_circuit_breaker import CircuitBreaker
+        cb = CircuitBreaker(config)
+        result = cb.check_all(run_date)
+
+        if verbose:
+            for name, state in result['checks'].items():
+                flag = '[HALT]' if state.get('halted') else '[OK]  '
+                logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
+
+        # Publish per-breaker CloudWatch metrics (non-blocking)
+        try:
+            with MetricsPublisher(dry_run=dry_run) as _m:
+                for name, state in result.get('checks', {}).items():
+                    _m.put_circuit_breaker(name, bool(state.get('halted')))
+        except Exception as e:
+            logger.error(f"Unhandled exception: {e}")
+
+        try:
+            from algo.algo_market_events import MarketEventHandler
+            meh = MarketEventHandler(config)
+            cb_result = meh.check_market_circuit_breaker()
+            if cb_result and cb_result.get('triggered'):
+                halt_level = cb_result.get('level', '?')
+                halt_reason = cb_result.get('reason', 'circuit breaker triggered')
+                if verbose:
+                    logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                alerts.send_position_alert(
+                    'PORTFOLIO',
+                    'MARKET_CIRCUIT_BREAKER',
+                    f'Market circuit breaker L{halt_level} triggered: {halt_reason}',
+                    {'level': halt_level, 'reason': halt_reason}
+                )
+                log_phase_result_fn(2, 'market_circuit_breaker', 'halt',
+                                   f'L{halt_level} breaker active: {halt_reason}')
+                return PhaseResult(2, 'market_circuit_breaker', 'halted', {}, True, halt_reason)
+        except Exception as e:
+            log_phase_result_fn(2, 'market_circuit_breaker', 'warn', f'check failed: {e}')
+
+        if result['halted']:
+            halt_reasons = result.get("halt_reasons", ["unknown"])
+            alerts.send_position_alert(
+                'PORTFOLIO',
+                'ACCOUNT_CIRCUIT_BREAKER',
+                f'Account circuit breaker triggered: {"; ".join(halt_reasons)}',
+                {'halt_reasons': halt_reasons}
+            )
+            log_phase_result_fn(2, 'circuit_breakers', 'halt',
+                               f'Halted: {"; ".join(halt_reasons)}')
+            return PhaseResult(2, 'circuit_breakers', 'halted', {}, True,
+                             f'Halted: {"; ".join(halt_reasons)}')
+
+        log_phase_result_fn(2, 'circuit_breakers', 'success', 'all clear')
+        return PhaseResult(2, 'circuit_breakers', 'ok', {}, False, None)
+
+    except Exception as e:
+        traceback.print_exc()
+        log_phase_result_fn(2, 'circuit_breakers', 'error', str(e))
+        return PhaseResult(2, 'circuit_breakers', 'ok', {}, False, str(e))

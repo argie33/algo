@@ -1,7 +1,7 @@
 """
 Frontend-API Integration Tests
 
-Validates that all 22 frontend pages have working API endpoints.
+Validates that all 21 frontend pages have working API endpoints.
 Tests the data flow from API to frontend display.
 
 USAGE:
@@ -22,7 +22,7 @@ from datetime import date as _date
 class TestFrontendPages:
     """Validate all 22 frontend pages and their API integrations."""
 
-    # All 22 frontend pages in the app
+    # All 21 frontend pages in the app
     PAGES = [
         {'name': 'LoginPage', 'path': '/login', 'requires_auth': False},
         {'name': 'PerformanceMetrics', 'path': '/performance', 'endpoints': ['/api/algo/performance']},
@@ -38,7 +38,6 @@ class TestFrontendPages:
         {'name': 'MarketsHealth', 'path': '/market-health', 'endpoints': ['/api/market/health']},
         {'name': 'NotificationCenter', 'path': '/notifications', 'endpoints': ['/api/notifications']},
         {'name': 'ScoresDashboard', 'path': '/scores', 'endpoints': ['/api/scores']},
-        {'name': 'MetricsDashboard', 'path': '/metrics', 'endpoints': ['/api/metrics']},
         {'name': 'TradeTracker', 'path': '/trades', 'endpoints': ['/api/trades']},
         {'name': 'TradingSignals', 'path': '/signals', 'endpoints': ['/api/signals']},
         {'name': 'BacktestResults', 'path': '/backtest', 'endpoints': ['/api/backtest']},
@@ -66,8 +65,8 @@ class TestFrontendPages:
             pytest.skip(f"Database not available: {e}")
 
     def test_all_pages_exist(self):
-        """Verify all 22 frontend pages are defined."""
-        assert len(self.PAGES) == 22, f"Expected 22 pages, got {len(self.PAGES)}"
+        """Verify all 21 frontend pages are defined."""
+        assert len(self.PAGES) == 21, f"Expected 21 pages, got {len(self.PAGES)}"
 
     def test_page_names_unique(self):
         """Ensure no duplicate page names."""

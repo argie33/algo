@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+"""
+Phase 4: EXIT EXECUTION
+
+Applies exit decisions from Phase 3 (position monitor recommendations) and
+exposure policy actions, plus tiered targets/stops/time/Minervini-break logic
+from the exit engine.
+
+Execution order:
+1. Exposure-policy actions (force_exit, partial_exit, tighten_stop)
+2. Position monitor recommendations (EARLY_EXIT, RAISE_STOP)
+3. Exit engine tiered targets, stops, time, Minervini break
+
+FAIL-OPEN per position, but FAIL-CLOSED if >50% of trades fail in batch.
+"""
+
+import logging
+import traceback
+from datetime import date as _date
+from typing import Any, Callable, Dict, List
+
+from utils.db_connection import get_db_connection
+from utils.trade_status import PositionStatus
+from algo.orchestrator.phase_result import PhaseResult
+from algo.algo_alerts import AlertManager
+
+logger = logging.getLogger(__name__)
+
+
+def run(
+    config: Any,
+    get_conn: Callable,
+    put_conn: Callable,
+    run_date: _date,
+    dry_run: bool,
+    alerts: AlertManager,
+    verbose: bool,
+    log_phase_result_fn: Callable,
+    position_recs: List[Dict[str, Any]],
+    exposure_actions: List[Dict[str, Any]],
+    check_halt_flag: Callable,
+) -> PhaseResult:
+    """Execute Phase 4: Exit Execution.
+
+    Args:
+        config: Configuration object
+        get_conn: Function to get database connection
+        put_conn: Function to return database connection
+        run_date: Date for this run
+        dry_run: Whether running in dry-run mode
+        alerts: AlertManager instance
+        verbose: Whether to log verbose output
+        log_phase_result_fn: Function to log phase results
+        position_recs: Recommendations from phase_3_position_monitor
+        exposure_actions: Actions from phase_3b_exposure_policy
+        check_halt_flag: Function to check halt flag
+
+    Returns:
+        PhaseResult with status 'ok' or 'halted'
+    """
+    if check_halt_flag():
+        return PhaseResult(4, 'exit_execution', 'halted', {}, True, 'Halt flag detected')
+
+    try:
+        from algo.algo_trade_executor import TradeExecutor
+        from algo.algo_exit_engine import ExitEngine
+
+        # Detect Phase 3 crash: if position monitor errored, _position_recs is []
+        # but we may have real open positions. Log a critical alert so we know.
+        if position_recs is None:
+            logger.critical("Phase 4: position_recs not set — Phase 3 may not have run")
+        elif len(position_recs) == 0:
+            # "no positions" from "Phase 3 crashed with fail-open"
+            try:
+                conn_chk = get_db_connection()
+                with conn_chk:
+                    with conn_chk.cursor() as cur_chk:
+                        cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                        open_count = cur_chk.fetchone()[0]
+                if open_count > 0:
+                    logger.error(
+                        f"Phase 4: position_recs is empty but {open_count} open positions exist "
+                        "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
+                    )
+            except Exception as e:
+                logger.error(f"Unhandled exception: {e}")
+
+        executor = TradeExecutor(config)
+        exit_count = 0
+        stop_raises = 0
+        errors = 0
+
+        # 4a-prime. Apply exposure-policy actions FIRST (highest priority)
+        for action in exposure_actions:
+            try:
+                if dry_run:
+                    if verbose:
+                        logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
+                                   f"({action['reason']})")
+                    continue
+
+                if action['action'] == 'force_exit':
+                    # Fetch current price for accurate P&L
+                    cur_price = 0
+                    try:
+                        conn_tmp = get_db_connection()
+                        try:
+                            cur_tmp = conn_tmp.cursor()
+                            cur_tmp.execute(
+                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                (action['position_id'],),
+                            )
+                            row_tmp = cur_tmp.fetchone()
+                            cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
+                        finally:
+                            cur_tmp.close()
+                    except Exception as e:
+                        logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
+                    finally:
+                        try:
+                            conn_tmp.close()
+                        except Exception as e:
+                            logger.error(f"Unhandled exception: {e}")
+
+                    if cur_price <= 0:
+                        logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
+                        continue
+
+                    result = executor.exit_trade(
+                        trade_id=action['trade_id'],
+                        exit_price=cur_price,
+                        exit_reason=action['reason'],
+                        exit_fraction=1.0,
+                        exit_stage='exposure_force_exit',
+                    )
+                    if result.get('success'):
+                        exit_count += 1
+                        logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                    else:
+                        errors += 1
+
+                elif action['action'] == 'partial_exit':
+                    # Need current price — fetch
+                    cur_price = 0
+                    try:
+                        conn = get_db_connection()
+                        try:
+                            cur = conn.cursor()
+                            cur.execute(
+                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                (action['position_id'],),
+                            )
+                            row = cur.fetchone()
+                            cur_price = float(row[0]) if row and row[0] else 0
+                        finally:
+                            cur.close()
+                    except Exception as e:
+                        logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception as e:
+                            logger.error(f"Unhandled exception: {e}")
+                    if cur_price > 0:
+                        result = executor.exit_trade(
+                            trade_id=action['trade_id'],
+                            exit_price=cur_price,
+                            exit_reason=action['reason'],
+                            exit_fraction=action.get('exit_fraction', 0.5),
+                            exit_stage='exposure_partial',
+                            new_stop_price=action.get('new_stop'),
+                        )
+                        if result.get('success'):
+                            exit_count += 1
+                            logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
+
+                elif action['action'] == 'tighten_stop':
+                    try:
+                        conn = get_db_connection()
+                        try:
+                            cur = conn.cursor()
+                            cur.execute(
+                                "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                (action['new_stop'], action['position_id']),
+                            )
+                            conn.commit()
+                            stop_raises += 1
+                            if verbose:
+                                logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                        finally:
+                            cur.close()
+                    except Exception as e:
+                        errors += 1
+                        logger.error(f"  Tighten failed for {action['symbol']}: {e}")
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception as e:
+                            logger.error(f"Unhandled exception: {e}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
+
+        # 4a. Apply position monitor recommendations (early exits + stop raises)
+        for rec in position_recs:
+            try:
+                if dry_run:
+                    if verbose:
+                        logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
+                    continue
+
+                if rec['action'] == 'EARLY_EXIT':
+                    result = executor.exit_trade(
+                        trade_id=rec['trade_id'],
+                        exit_price=rec['current_price'],
+                        exit_reason=rec['action_reason'],
+                        exit_fraction=1.0,
+                        exit_stage='early_exit',
+                    )
+                    if result.get('success'):
+                        exit_count += 1
+                        if verbose:
+                            logger.info(f"  EARLY EXIT: {result['message']}")
+                    else:
+                        errors += 1
+                elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
+                    conn = None
+                    cur = None
+                    try:
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        cur.execute(
+                            "UPDATE algo_positions SET current_stop_price = %s "
+                            "WHERE position_id = %s AND status = %s",
+                            (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
+                        )
+                        conn.commit()
+                        stop_raises += 1
+                        if verbose:
+                            logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
+                    except Exception as e:
+                        errors += 1
+                        logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                    finally:
+                        if cur:
+                            try:
+                                cur.close()
+                            except Exception as e:
+                                logger.error(f"Unhandled exception: {e}")
+                        if conn:
+                            try:
+                                conn.close()
+                            except Exception as e:
+                                logger.error(f"Unhandled exception: {e}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"  Error on {rec.get('symbol')}: {e}")
+
+        # 4b. Exit engine — tiered targets, stops, time, Minervini break
+        if not dry_run:
+            engine = ExitEngine(config)
+            engine_exits = engine.check_and_execute_exits(run_date)
+            exit_count += engine_exits
+
+        log_phase_result_fn(
+            4, 'exit_execution', 'success',
+            f'{exit_count} exits, {stop_raises} stop-raises, {errors} errors',
+        )
+        return PhaseResult(
+            4, 'exit_execution', 'ok',
+            {'exits': exit_count, 'stop_raises': stop_raises, 'errors': errors},
+            False, None
+        )
+
+    except Exception as e:
+        traceback.print_exc()
+        log_phase_result_fn(4, 'exit_execution', 'error', str(e))
+        return PhaseResult(4, 'exit_execution', 'halted', {}, True, str(e))

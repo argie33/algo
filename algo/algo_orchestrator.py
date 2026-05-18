@@ -104,6 +104,7 @@ class Orchestrator:
         self._lock_acquired = False
         self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
+        self.skip_freshness = False  # Latent feature: skip data freshness checks
         self.alerts = AlertManager()
 
         # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
@@ -646,441 +647,63 @@ class Orchestrator:
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self) -> bool:
+        """Thin delegation to phase1_data_freshness module."""
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
-        logger.debug(f"Phase 1: Starting data freshness check for run_date={self.run_date}")
-        conn = None
-        cur = None
-        try:
-            try:
-                from algo.algo_pipeline_health import PipelineHealth
-                health = PipelineHealth()
-                health.connect()
-                status = health.get_pipeline_status()
-                health.log_health_check(status)
-                health.disconnect()
-                logger.debug(f"Phase 1: Pipeline health check complete - {status.healthy_count}/{status.total_count} healthy")
-
-                if self.verbose:
-                    logger.info(f"  [HEALTH] Pipeline: {status.healthy_count}/{status.total_count} tables healthy "
-                               f"({status.coverage_pct:.0f}%)")
-
-                # Log any critical alerts
-                for alert in status.critical_alerts:
-                    logger.error(f"  [CRITICAL] {alert}")
-                    self.log_phase_result(1, 'pipeline_health', 'halt', alert)
-                    return False
-
-                # Log warnings but don't fail
-                for warning in status.warnings:
-                    logger.warning(f"  [WARNING] {warning}")
-
-            except Exception as e:
-                logger.warning(f"  [WARN] Pipeline health check failed: {e}")
-                # Don't fail-close on health check error, let other checks handle it
-
-            conn = get_db_connection()
-            cur = conn.cursor()
-            logger.debug("Phase 1: Database connection established")
-
-            # In DEV mode, skip strict SLA/loader health checks
-            if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
-                logger.debug("Phase 1: Running in DEV mode - skipping strict SLA checks")
-                logger.info("  [DEV MODE] Skipping SLA and loader health checks")
-            else:
-                try:
-                    from utils.monitoring.loader_sla_tracker import get_tracker
-                    tracker = get_tracker()
-                    all_critical_ok, failures = tracker.check_critical_loaders()
-
-                    if not all_critical_ok:
-                        failure_msg = "; ".join(failures)
-                        self.log_phase_result(1, 'loader_sla_check', 'halt',
-                                              f'Critical loaders failed SLA: {failure_msg}')
-                        logger.critical(f"Algo halted: {failure_msg}")
-                        return False
-
-                    logger.info("  [OK] All critical loaders have fresh data")
-
-                except Exception as e:
-                    logger.warning(f"  [WARN] SLA check failed: {e}")
-                    # Don't fail-close on SLA check error, just warn
-
-                try:
-                    from algo.algo_loader_monitor import LoaderMonitor
-                    monitor = LoaderMonitor()
-                    monitor.connect()
-                    try:
-                        monitor.cur.execute("SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 50 LIMIT 5")
-                        critical_symbols = [row[0] for row in monitor.cur.fetchall()]
-                        if not critical_symbols:
-                            critical_symbols = None
-                        findings = monitor.audit_all(critical_symbols=critical_symbols)
-
-                        critical_findings = [f for f in findings if f[0] == 'CRITICAL']
-                        error_findings = [f for f in findings if f[0] == 'ERROR']
-
-                        if critical_findings or error_findings:
-                            self.alerts.send_loader_alert(findings)
-
-                        if critical_findings:
-                            messages = [f[2] for f in critical_findings]
-                            self.log_phase_result(1, 'loader_health', 'halt',
-                                                  f'Loader critical: {"; ".join(messages)}')
-                            return False
-
-                        # Fail-closed on ERROR if it's a data volume issue (ONLY for live trading on current date)
-                        volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
-                        if volume_error:
-                            from datetime import date
-                            is_live_trading = (self.run_date == date.today())
-                            for _, _, msg in volume_error:
-                                if '0 symbols' in msg and is_live_trading:  # Only fail on live trading
-                                    self.log_phase_result(1, 'loader_health', 'halt',
-                                                          f'No data loaded today: {msg}')
-                                    return False
-                                elif not is_live_trading and self.verbose:
-                                    logger.info(f"  [SKIP] Load volume check (historical run): {msg}")
-
-                        # Other errors are just warnings
-                        if error_findings and self.verbose:
-                            for sev, check, msg in error_findings:
-                                if 'low_daily_load_volume' not in check:
-                                    logger.warning(f"  [LOADER ERROR] {check}: {msg}")
-                    finally:
-                        monitor.disconnect()
-                except Exception as e:
-                    logger.warning(f"  [WARN] Loader health check failed: {e}")
-                    # Don't fail-close on monitor error, just warn
-            cur.execute(
-                """
-                SELECT
-                    (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY') AS spy_latest,
-                    (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
-                    (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
-                    (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
-                    (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
-                """
-            )
-            row = cur.fetchone()
-            if not row:
-                logger.error("DATA FRESHNESS: Critical query returned no results")
-                self.log_phase_result(1, 'data_freshness', 'error', 'Could not query data freshness')
-                return False
-
-            spy_date, mh_date, tt_date, sqs_date, buys_date = row
-            checks = {
-                'SPY price data': spy_date,
-                'Market health': mh_date,
-                'Trend template': tt_date,
-                'Signal quality scores': sqs_date,
-                'Buy/sell signals': buys_date,
-            }
-            table_keys = {
-                'SPY price data': 'price_daily',
-                'Market health': 'market_health_daily',
-                'Trend template': 'trend_template_data',
-                'Signal quality scores': 'signal_quality_scores',
-                'Buy/sell signals': 'buy_sell_daily',
-            }
-            # In DEV_MODE, be lenient about data staleness (allow up to 365 days old)
-            is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
-            max_stale = 365 if is_dev_mode else int(self.config.get('max_data_staleness_days', 3))
-            stale_items = []
-
-            try:
-                from algo.algo_metrics import MetricsPublisher
-                _metrics = MetricsPublisher(dry_run=self.dry_run)
-            except Exception:
-                _metrics = None
-
-            for name, d in checks.items():
-                if d is None and not is_dev_mode:
-                    # In DEV_MODE, allow missing data; in production fail
-                    stale_items.append(f"{name}: missing")
-                    if _metrics:
-                        _metrics.put_data_freshness(table_keys[name], 999)
-                elif d is not None:
-                    age = (self.run_date - d).days
-                    if _metrics:
-                        _metrics.put_data_freshness(table_keys[name], age)
-                    if age > max_stale and not is_dev_mode:
-                        stale_items.append(f"{name}: {age}d old")
-                    if self.verbose:
-                        flag = '[OK]' if age <= max_stale else '[STALE]'
-                        logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
-
-            if _metrics:
-                _metrics.flush()
-
-            if stale_items:
-                self.alerts.send_position_alert(
-                    'DATA',
-                    'STALE_DATA_HALT',
-                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
-                    {'stale_items': stale_items, 'max_age_days': max_stale}
-                )
-                self.log_phase_result(1, 'data_freshness', 'fail',
-                                      f'Stale: {"; ".join(stale_items)}')
-                return False
-
-            patrol_ok = self._check_data_patrol(cur)
-
-            if not patrol_ok:
-                return False
-
-            # Margin health check (Phase 1 - production safeguard)
-            try:
-                from algo.algo_margin_monitor import MarginMonitor
-                mm = MarginMonitor()
-                margin_info = mm.get_margin_usage()
-                if margin_info and margin_info['margin_usage_pct'] > 70:
-                    self.alerts.send_position_alert(
-                        'ACCOUNT',
-                        'MARGIN_ALERT',
-                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
-                        margin_info
-                    )
-                    if self.verbose:
-                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
-                elif self.verbose and margin_info:
-                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
-            except Exception as e:
-                logger.warning(f'Margin check failed: {e}')
-
-            # Pipeline health check: verify all required tables have recent data
-            self._check_pipeline_health(cur)
-
-            self.log_phase_result(1, 'data_freshness', 'success',
-                                  'All data fresh within window')
-            return True
-        except Exception as e:
-            self.log_phase_result(1, 'data_freshness', 'error', str(e))
-            return False
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
+        from algo.orchestrator.phase1_data_freshness import run as run_phase1
+        result = run_phase1(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result,
+            self.skip_freshness
+        )
+        return not result.halted
 
     def phase_2_circuit_breakers(self) -> bool:
+        """Thin delegation to phase2_circuit_breakers module."""
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
-        try:
-            from algo.algo_circuit_breaker import CircuitBreaker
-            cb = CircuitBreaker(self.config)
-            result = cb.check_all(self.run_date)
-
-            if self.verbose:
-                for name, state in result['checks'].items():
-                    flag = '[HALT]' if state.get('halted') else '[OK]  '
-                    logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
-
-            # Publish per-breaker CloudWatch metrics (non-blocking)
-            try:
-                with MetricsPublisher(dry_run=self.dry_run) as _m:
-                    for name, state in result.get('checks', {}).items():
-                        _m.put_circuit_breaker(name, bool(state.get('halted')))
-            except Exception as e:
-
-                logger.error(f"Unhandled exception: {e}")
-
-            try:
-                from algo.algo_market_events import MarketEventHandler
-                meh = MarketEventHandler(self.config)
-                cb_result = meh.check_market_circuit_breaker()
-                if cb_result and cb_result.get('triggered'):
-                    halt_level = cb_result.get('level', '?')
-                    halt_reason = cb_result.get('reason', 'circuit breaker triggered')
-                    if self.verbose:
-                        logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
-                    self.alerts.send_position_alert(
-                        'PORTFOLIO',
-                        'MARKET_CIRCUIT_BREAKER',
-                        f'Market circuit breaker L{halt_level} triggered: {halt_reason}',
-                        {'level': halt_level, 'reason': halt_reason}
-                    )
-                    self.log_phase_result(2, 'market_circuit_breaker', 'halt',
-                                        f'L{halt_level} breaker active: {halt_reason}')
-                    return False
-            except Exception as e:
-                self.log_phase_result(2, 'market_circuit_breaker', 'warn', f'check failed: {e}')
-
-            if result['halted']:
-                halt_reasons = result.get("halt_reasons", ["unknown"])
-                self.alerts.send_position_alert(
-                    'PORTFOLIO',
-                    'ACCOUNT_CIRCUIT_BREAKER',
-                    f'Account circuit breaker triggered: {"; ".join(halt_reasons)}',
-                    {'halt_reasons': halt_reasons}
-                )
-                self.log_phase_result(2, 'circuit_breakers', 'halt',
-                                      f'Halted: {"; ".join(halt_reasons)}')
-                return False
-            self.log_phase_result(2, 'circuit_breakers', 'success', 'all clear')
-            return True
-        except Exception as e:
-            traceback.print_exc()
-            self.log_phase_result(2, 'circuit_breakers', 'error', str(e))
-            return False
+        from algo.orchestrator.phase2_circuit_breakers import run as run_phase2
+        result = run_phase2(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result
+        )
+        return not result.halted
 
     def phase_3_position_monitor(self) -> List[Dict[str, Any]]:
+        """Thin delegation to phase3_position_monitor module."""
         self.log_phase_start(3, 'POSITION MONITOR')
-        try:
-            from algo.algo_position_monitor import PositionMonitor
-            from algo.algo_market_events import MarketEventHandler
-            monitor = PositionMonitor(self.config)
-
-            try:
-                meh = MarketEventHandler(self.config)
-                open_positions = monitor.get_open_positions() or []
-                halts_found = []
-                for pos in open_positions:
-                    halt_check = meh.check_single_stock_halt(pos.get('symbol') or pos.get('name', ''))
-                    if halt_check and halt_check.get('halted'):
-                        symbol = pos.get('symbol') or pos.get('name', '')
-                        halts_found.append(symbol)
-                        if self.verbose:
-                            logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
-                if halts_found:
-                    self.log_phase_result(3, 'single_stock_halts', 'warn',
-                                        f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
-            except Exception as e:
-                logger.warning(f"Halt check failed for position: {e}")
-                self.log_phase_result(3, 'halt_check_error', 'warn', f'Halt check failed: {str(e)[:100]}')
-
-            stale_result = monitor.check_stale_orders(self.run_date)
-            if stale_result['status'] == 'STALE_ORDERS_FOUND':
-                self.alerts.send_position_alert(
-                    'STALE_ORDERS',
-                    'STALE_ORDER_ALERT',
-                    f'{stale_result["count"]} orders pending >1 hour',
-                    {'orders': stale_result['count']}
-                )
-
-            recommendations = monitor.review_positions(self.run_date)
-
-            n_raise_stop = sum(1 for r in recommendations if r['action'] == 'RAISE_STOP')
-            n_early_exit = sum(1 for r in recommendations if r['action'] == 'EARLY_EXIT')
-            n_hold = sum(1 for r in recommendations if r['action'] == 'HOLD')
-            self.log_phase_result(
-                3, 'position_monitor', 'success',
-                f'{len(recommendations)} positions: {n_hold} hold, {n_raise_stop} raise-stop, {n_early_exit} early-exit',
-            )
-            self._position_recs = recommendations
-            return True
-        except Exception as e:
-            traceback.print_exc()
-            self.log_phase_result(3, 'position_monitor', 'error', str(e))
-            self._position_recs = []
-            return True   # fail-open
+        from algo.orchestrator.phase3_position_monitor import run as run_phase3
+        result = run_phase3(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result
+        )
+        self._position_recs = result.data.get('recommendations', [])
+        return True  # fail-open
 
     def phase_3a_reconciliation(self) -> Dict[str, Any]:
-        """Check that DB positions match Alpaca account holdings.
-
-        FAIL-OPEN: alerts on divergence but doesn't block trading.
-        """
+        """Thin delegation to phase3a_reconciliation module."""
         self.log_phase_start('3a', 'POSITION RECONCILIATION')
-        try:
-            from algo.algo_reconciliation import PositionReconciler
-            reconciler = PositionReconciler()
-            result = reconciler.reconcile()
-
-            if result.get('status') in ('skipped', 'error'):
-                self.log_phase_result('3a', 'reconciliation', 'alert',
-                                      result.get('reason', 'unknown issue'))
-            elif result.get('critical_count', 0) > 0:
-                self.alerts.send_position_alert(
-                    'RECONCILIATION',
-                    'CRITICAL',
-                    f'{result["critical_count"]} untracked Alpaca positions',
-                    result.get('issues', [])[:5]
-                )
-                self.log_phase_result('3a', 'reconciliation', 'alert',
-                                      f'Critical divergence: {result["critical_count"]} issues')
-            elif result.get('error_count', 0) > 0:
-                self.alerts.send_position_alert(
-                    'RECONCILIATION',
-                    'ERROR',
-                    f'{result["error_count"]} missing/closed positions in Alpaca',
-                    result.get('issues', [])[:5]
-                )
-                self.log_phase_result('3a', 'reconciliation', 'alert',
-                                      f'{result["error_count"]} position errors')
-            else:
-                self.log_phase_result('3a', 'reconciliation', 'success',
-                                      f'{result.get("db_positions", 0)} positions reconciled OK')
-            return True  # fail-open
-        except Exception as e:
-            traceback.print_exc()
-            self.log_phase_result('3a', 'reconciliation', 'error', str(e))
-            return True  # fail-open
+        from algo.orchestrator.phase3a_reconciliation import run as run_phase3a
+        result = run_phase3a(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result
+        )
+        return True  # fail-open
 
     def phase_3b_exposure_policy(self) -> Dict[str, Any]:
-        """Apply market exposure tier policy to existing positions.
-
-        Tighten stops on extended winners, force partial profits, and force-exit
-        losers when in CORRECTION tier — all per the active exposure regime.
-        """
+        """Thin delegation to phase3b_exposure_policy module."""
         self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
-        try:
-            # Refresh market exposure first
-            from algo.algo_market_exposure import MarketExposure
-            from algo.algo_market_exposure_policy import ExposurePolicy
-            me = MarketExposure()
-            exposure = me.compute(self.run_date)
-            logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
-            if exposure.get('halt_reasons'):
-                logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
-
-            policy = ExposurePolicy(self.config)
-            constraints = policy.get_entry_constraints(self.run_date)
-            self._exposure_constraints = constraints
-            if constraints:
-                logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
-                logger.info(f"    risk_mult={constraints['risk_multiplier']}, "
-                            f"max_new/day={constraints['max_new_positions_today']}, "
-                            f"min_grade={constraints['min_swing_grade']}, "
-                            f"halt_entries={constraints['halt_new_entries']}")
-
-            actions = policy.review_existing_positions(self.run_date)
-            self._exposure_actions = actions
-
-            if not actions:
-                logger.info(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
-                self.log_phase_result('3b', 'exposure_policy', 'success',
-                                      f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
-                return True
-
-            counts = {'tighten_stop': 0, 'partial_exit': 0, 'force_exit': 0}
-            for action in actions:
-                counts[action['action']] = counts.get(action['action'], 0) + 1
-
-            logger.info(f"\n  {len(actions)} exposure-policy actions:")
-            for a in actions:
-                logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
-                            f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
-
-            self.log_phase_result(
-                '3b', 'exposure_policy', 'success',
-                f"tier={constraints['tier_name']}, "
-                f"{counts.get('tighten_stop', 0)} tighten, "
-                f"{counts.get('partial_exit', 0)} partial, "
-                f"{counts.get('force_exit', 0)} force_exit"
-            )
-            return True
-        except Exception as e:
-            traceback.print_exc()
-            self.log_phase_result('3b', 'exposure_policy', 'error', str(e))
-            self._exposure_actions = []
-            self._exposure_constraints = None
-            return True  # fail-open
+        from algo.orchestrator.phase3b_exposure_policy import run as run_phase3b
+        result = run_phase3b(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result
+        )
+        self._exposure_constraints = result.data.get('constraints')
+        self._exposure_actions = result.data.get('actions', [])
+        return True  # fail-open
 
     def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         self.log_phase_start(4, 'EXIT EXECUTION')
@@ -1997,50 +1620,6 @@ class Orchestrator:
             if conn:
                 conn.close()
 
-    def _is_market_open_or_imminent(self, window_min: int = 30) -> bool:
-        """Return True if US equity market is open right now OR opens within
-        `window_min` minutes. Queries Alpaca's /v2/clock — authoritative for
-        holidays, half-days, etc. In auto mode, fails closed (returns False) on
-        API failure so we don't trade when market status is unknown."""
-        try:
-            import requests
-            if credential_manager is None:
-                return False  # Fail-closed: can't get credentials
-            key = credential_manager.get_alpaca_credentials()["key"]
-            secret = credential_manager.get_alpaca_credentials()["secret"]
-            base = os.getenv('APCA_API_BASE_URL')
-            if not base:
-                raise ValueError("APCA_API_BASE_URL environment variable not set — refusing to trade without explicit endpoint configuration")
-            if not key or not secret:
-                mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
-                if mode == 'auto':
-                    return False  # Auto mode: fail-closed if can't verify market hours
-                return True  # Paper mode: permit
-            r = requests.get(
-                f'{base}/v2/clock',
-                headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
-                timeout=5,
-            )
-            r.raise_for_status()
-            clock = r.json()
-            if clock.get('is_open'):
-                return True
-            # Imminent open?
-            from datetime import datetime, timezone
-            next_open_str = clock.get('next_open')  # ISO 8601 with TZ
-            if not next_open_str:
-                return False
-            next_open = datetime.fromisoformat(next_open_str.replace('Z', '+00:00'))
-            now = datetime.now(timezone.utc)
-            mins_to_open = (next_open - now).total_seconds() / 60.0
-            return 0 <= mins_to_open <= window_min
-        except Exception as e:
-            mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
-            if mode == 'auto':
-                logger.error(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
-                return False
-            logger.error(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
-            return True
 
     def _pid_alive(self, pid):
         """Check if a PID is still running (cross-platform)."""
