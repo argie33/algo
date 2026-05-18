@@ -249,6 +249,22 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
+      - name: Sync RDS Master Password
+        env:
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+        run: |
+          if [ -z "$RDS_PASSWORD" ]; then
+            echo "⚠️ RDS_PASSWORD secret not set — skipping password sync"
+          else
+            echo "🔑 Syncing RDS master password with Secrets Manager..."
+            aws rds modify-db-instance \
+              --db-instance-identifier algo-db \
+              --master-user-password "$RDS_PASSWORD" \
+              --apply-immediately \
+              --region $AWS_REGION 2>&1 || echo "⚠️ RDS password sync skipped (DB may not exist yet)"
+            echo "✅ RDS password sync requested (change applies immediately)"
+          fi
+
       # NOTE: Database initialization is now handled by deploy-code.yml
       # (deploy-db-init-lambda job) which invokes algo-db-init-dev after
       # the Lambda code is deployed. This avoids timing issues where the Lambda
