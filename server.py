@@ -43,9 +43,10 @@ def get_fresh_handler():
 @app.route('/api/<path:route>', methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'])
 def handle_api(route):
     """Route all /api/* requests through the Lambda handler with fresh imports."""
+    import sys
     # Build the path
     path = f'/api/{route}'
-    print(f'DEBUG: handle_api called with route={route}, path={path}', flush=True)
+    print(f'\n=== API Request: {path} ===', file=sys.stderr, flush=True)
 
     # Build query string
     query_string = request.query_string.decode('utf-8') if request.query_string else ''
@@ -72,12 +73,9 @@ def handle_api(route):
     # Call the Lambda handler with fresh imports
     try:
         lambda_handler = get_fresh_handler()
-        print(f'DEBUG: Calling lambda_handler for {path}', flush=True)
+        print(f'Handler loaded, calling...', file=sys.stderr, flush=True)
         response = lambda_handler(event, None)
-
-        print(f'DEBUG: Response statusCode={response.get("statusCode")}', flush=True)
-        if response.get('statusCode') != 200:
-            print(f'DEBUG: Response body={response.get("body")[:200]}', flush=True)
+        print(f'Response received: statusCode={response.get("statusCode")}', file=sys.stderr, flush=True)
 
         status_code = response.get('statusCode', 500)
         headers = response.get('headers', {})

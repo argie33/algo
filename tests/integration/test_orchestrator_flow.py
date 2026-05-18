@@ -1,4 +1,4 @@
-"""
+﻿"""
 Integration tests: Full orchestrator pipeline against real database.
 
 Tests the entire orchestrator from start to finish:
@@ -237,7 +237,7 @@ class TestOrchestratorPhaseFlow:
 
         try:
             # Mock circuit breaker to return halted=True
-            with patch('algo.algo_circuit_breaker.CircuitBreaker.evaluate', return_value=False), \
+            with patch('algo.algo_circuit_breaker.CircuitBreaker.check_all', return_value={'halted': True, 'halt_reasons': ['test'], 'checks': {}}), \
                  patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order') as mock_trade:
 
                 result = orch.run()
@@ -266,7 +266,7 @@ class TestOrchestratorPhaseFlow:
 
         try:
             # Mock circuit breaker to return halted=True, but allow exits to run
-            with patch('algo.algo_circuit_breaker.CircuitBreaker.evaluate', return_value=False), \
+            with patch('algo.algo_circuit_breaker.CircuitBreaker.check_all', return_value={'halted': True, 'halt_reasons': ['test'], 'checks': {}}), \
                  patch('algo.algo_exit_engine.ExitEngine.check_exits') as mock_exits, \
                  patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'):
 
@@ -281,5 +281,6 @@ class TestOrchestratorPhaseFlow:
         finally:
             if lock_path.exists():
                 lock_path.unlink()
+
 
 

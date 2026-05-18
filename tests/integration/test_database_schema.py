@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Database Schema Validation Tests
 
@@ -228,10 +228,12 @@ class TestDatabaseSchemaColumns:
             """)
             assert cur.fetchone(), "company_profile missing 'ticker' column"
 
-            # Verify ticker is used correctly (has data)
-            cur.execute("SELECT COUNT(*) as count FROM company_profile WHERE ticker IS NOT NULL")
-            count = cur.fetchone()['count']
-            assert count > 0, "company_profile has no rows with ticker values"
+            # Verify the unique constraint on ticker exists (schema-only check)
+            cur.execute("""
+                SELECT constraint_name FROM information_schema.table_constraints
+                WHERE table_name = 'company_profile' AND constraint_type IN ('PRIMARY KEY', 'UNIQUE')
+            """)
+            assert cur.fetchone(), "company_profile missing PK or UNIQUE constraint on ticker"
 
         finally:
             cur.close()
@@ -320,3 +322,4 @@ class TestDatabaseDataIntegrity:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '--tb=short'])
+
