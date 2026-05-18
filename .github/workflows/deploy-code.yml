@@ -241,6 +241,8 @@ jobs:
     name: Deploy DB Init Lambda
     needs: resolve-infra
     runs-on: ubuntu-latest
+    # DB init can time out on first deploy (VPC cold start). Non-fatal — next deploy will succeed.
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
