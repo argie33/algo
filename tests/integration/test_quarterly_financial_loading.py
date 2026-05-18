@@ -42,7 +42,7 @@ class TestQuarterlyIncomeStatement:
 
             # Verify key columns exist
             column_names = {col[0] for col in columns}
-            required_columns = {'symbol', 'fiscal_year', 'fiscal_period', 'revenue', 'net_income'}
+            required_columns = {'symbol', 'fiscal_year', 'fiscal_quarter', 'revenue', 'net_income'}
             missing = required_columns - column_names
 
             assert not missing, f"Missing columns: {missing}"
@@ -51,7 +51,7 @@ class TestQuarterlyIncomeStatement:
             conn.close()
 
     def test_quarterly_income_statement_unique_constraint(self, seeded_test_db):
-        """Verify (symbol, fiscal_year, fiscal_period) uniqueness constraint."""
+        """Verify (symbol, fiscal_year, fiscal_quarter) uniqueness constraint."""
         conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
         cur = conn.cursor()
 
@@ -59,26 +59,26 @@ class TestQuarterlyIncomeStatement:
             # Try inserting duplicate
             symbol = 'TEST_QTR'
             fiscal_year = 2025
-            fiscal_period = 1
+            fiscal_quarter = 1
 
             # First insert
             cur.execute("""
                 INSERT INTO quarterly_income_statement
-                (symbol, fiscal_year, fiscal_period, revenue, net_income, earnings_per_share)
+                (symbol, fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (symbol, fiscal_year, fiscal_period, 1000000.0, 100000.0, 1.50))
+            """, (symbol, fiscal_year, fiscal_quarter, 1000000.0, 100000.0, 1.50))
             conn.commit()
 
             # Second insert (should fail on conflict)
             with pytest.raises(psycopg2.IntegrityError):
                 cur.execute("""
                     INSERT INTO quarterly_income_statement
-                    (symbol, fiscal_year, fiscal_period, revenue, net_income, earnings_per_share)
+                    (symbol, fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (symbol, fiscal_year, fiscal_period, 2000000.0, 200000.0, 2.50))
+                """, (symbol, fiscal_year, fiscal_quarter, 2000000.0, 200000.0, 2.50))
                 conn.commit()
         finally:
-            cur.rollback()
+            conn.rollback()
             cur.close()
             conn.close()
 
@@ -105,7 +105,7 @@ class TestQuarterlyBalanceSheet:
 
             # Verify key columns exist
             column_names = {col[0] for col in columns}
-            required_columns = {'symbol', 'fiscal_year', 'fiscal_period', 'total_assets', 'stockholders_equity'}
+            required_columns = {'symbol', 'fiscal_year', 'fiscal_quarter', 'total_assets', 'stockholders_equity'}
             missing = required_columns - column_names
 
             assert not missing, f"Missing columns: {missing}"
@@ -136,7 +136,7 @@ class TestQuarterlyCashFlow:
 
             # Verify key columns exist
             column_names = {col[0] for col in columns}
-            required_columns = {'symbol', 'fiscal_year', 'fiscal_period', 'operating_cash_flow', 'free_cash_flow'}
+            required_columns = {'symbol', 'fiscal_year', 'fiscal_quarter', 'operating_cash_flow', 'free_cash_flow'}
             missing = required_columns - column_names
 
             assert not missing, f"Missing columns: {missing}"
@@ -215,16 +215,16 @@ class TestQuarterlyDataIntegration:
             # Insert test quarterly data
             cur.execute("""
                 INSERT INTO quarterly_income_statement
-                (symbol, fiscal_year, fiscal_period, revenue, net_income, earnings_per_share)
+                (symbol, fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, fiscal_year, fiscal_period) DO NOTHING
+                ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO NOTHING
             """, ('TESTQ1', 2025, 1, 1000000.0, 100000.0, 1.50))
 
             cur.execute("""
                 INSERT INTO quarterly_income_statement
-                (symbol, fiscal_year, fiscal_period, revenue, net_income, earnings_per_share)
+                (symbol, fiscal_year, fiscal_quarter, revenue, net_income, earnings_per_share)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, fiscal_year, fiscal_period) DO NOTHING
+                ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO NOTHING
             """, ('TESTQ1', 2025, 2, 1100000.0, 110000.0, 1.65))
 
             conn.commit()
