@@ -134,21 +134,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/market/correlation':
                 return json_response(501, {'status': 'not_implemented', 'message': 'Correlation matrix requires additional computation'})
             return error_response(404, 'not_found', f'No market handler for {path}')
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'handle market'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'handle market'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'handle market'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch market data')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'handle market')
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
         """Get fear/greed index history."""
         try:
@@ -161,21 +149,9 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
             """, (cutoff_date,))
             history = cur.fetchall()
             return list_response([dict(h) for h in history] if history else [])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get fear greed history'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get fear greed history'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get fear greed history'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch sentiment history')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get fear greed history')
 def _get_market_latest(cur) -> Dict:
         """Get latest market data including indices, breadth, and sentiment."""
         try:
