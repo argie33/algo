@@ -2225,6 +2225,13 @@ END $$;
 ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mfe_pct DECIMAL(8, 4);
 ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mae_pct DECIMAL(8, 4);
 
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
+ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
 -- ════════════════════════════════════════════════════════════════════════════

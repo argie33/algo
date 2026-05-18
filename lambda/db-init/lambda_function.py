@@ -102,7 +102,7 @@ def lambda_handler(event, context):
                 'body': json.dumps('Missing required database credentials')
             }
 
-        logger.info(f"DB Init Lambda v2 — Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
+        logger.info(f"DB Init Lambda v3 — Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
         conn = psycopg2.connect(
             host=creds['host'],
             port=creds['port'],
