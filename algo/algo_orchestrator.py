@@ -67,6 +67,8 @@ from config.credential_helper import (
 
 import os
 import tempfile
+import time
+import json
 from utils.db_connection import get_db_connection
 import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
@@ -2079,6 +2081,7 @@ class Orchestrator:
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:
+            from algo.algo_metrics import MetricsPublisher
             with MetricsPublisher(dry_run=self.dry_run) as m:
                 m.put_orchestrator_result(result['success'], self.phase_results)
 

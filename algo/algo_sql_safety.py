@@ -115,3 +115,27 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
 
     query = query_template.format(**safe_kwargs)
     cur.execute(query)
+
+
+def safe_select_count(cur, table: str, date_column: Optional[str] = None) -> Tuple[int, Optional[str]]:
+    """
+    Count rows in table and get max date if date_column specified.
+
+    Args:
+        cur: Database cursor
+        table: Validated table name
+        date_column: Optional date column name to get MAX(date_column)
+
+    Returns:
+        (row_count, max_date_as_string)
+    """
+    table_safe = assert_safe_table(table)
+    if date_column:
+        col_safe = assert_safe_column(date_column)
+        cur.execute(f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}")
+        count, max_date = cur.fetchone()
+        return int(count or 0), max_date
+    else:
+        cur.execute(f"SELECT COUNT(*) FROM {table_safe}")
+        count = cur.fetchone()[0]
+        return int(count or 0), None

@@ -45,13 +45,13 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     db_password = os.getenv("DB_PASSWORD")
     if not db_password and not is_aws:
         errors.append(
-            "❌ DB_PASSWORD not set. Set DB_PASSWORD environment variable "
+            "[ERROR] DB_PASSWORD not set. Set DB_PASSWORD environment variable "
             "for local development or in AWS Secrets Manager for production."
         )
     elif not db_password and is_aws:
         # Production: must come from Secrets Manager
         errors.append(
-            "❌ DB_PASSWORD not set. In AWS, use AWS Secrets Manager "
+            "[ERROR] DB_PASSWORD not set. In AWS, use AWS Secrets Manager "
             "(db/password secret) or set DB_PASSWORD environment variable."
         )
 
@@ -62,13 +62,13 @@ def validate_credentials() -> Tuple[bool, List[str]]:
 
     if not db_host or db_host == "localhost" and not os.getenv("DB_HOST"):
         warnings.append(
-            "⚠️  DB_HOST not set, using 'localhost'. "
+            "[WARN] DB_HOST not set, using 'localhost'. "
             "For production, set DB_HOST explicitly."
         )
 
     if db_user == "stocks" and not os.getenv("DB_USER"):
         warnings.append(
-            "⚠️  DB_USER not set, using default 'stocks'. "
+            "[WARN] DB_USER not set, using default 'stocks'. "
             "For security, consider explicit DB_USER."
         )
 
@@ -79,7 +79,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
 
     if not alpaca_key or not alpaca_secret:
         warnings.append(
-            "⚠️  Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set. "
+            "[WARN] Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set. "
             "Paper trading mode will work, but live trading disabled."
         )
 
@@ -89,14 +89,14 @@ def validate_credentials() -> Tuple[bool, List[str]]:
         smtp_user = os.getenv("ALERT_SMTP_USER")
         if not smtp_password or not smtp_user:
             errors.append(
-                "❌ ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
+                "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
                 "Set these credentials or set ALERT_ENABLED=false."
             )
 
     twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
     if os.getenv("ALERT_SMS_ENABLED") == "true" and not twilio_token:
         errors.append(
-            "❌ ALERT_SMS_ENABLED=true but TWILIO_AUTH_TOKEN missing. "
+            "[ERROR] ALERT_SMS_ENABLED=true but TWILIO_AUTH_TOKEN missing. "
             "Set it or disable SMS alerts."
         )
 
@@ -123,19 +123,19 @@ def assert_credentials(on_failure: str = "raise") -> bool:
     is_valid, messages = validate_credentials()
 
     if is_valid:
-        log.info("✓ All required credentials validated")
+        log.info("[OK] All required credentials validated")
         return True
 
     # Print messages
     for msg in messages:
-        if "❌" in msg:
+        if "[ERROR]" in msg:
             log.error(msg)
         else:
             log.warning(msg)
 
     if on_failure == "raise":
         raise CredentialValidationError(
-            f"Credential validation failed. {len([m for m in messages if '❌' in m])} critical issues."
+            f"Credential validation failed. {len([m for m in messages if '[ERROR]' in m])} critical issues."
         )
     elif on_failure == "exit":
         sys.exit(1)
@@ -163,8 +163,8 @@ if __name__ == "__main__":
 
     logger.info("-" * 60)
     if is_valid:
-        logger.info("✓ All credentials valid")
+        logger.info("[OK] All credentials valid")
         sys.exit(0)
     else:
-        logger.info("✗ Credential validation failed")
+        logger.info("[FAIL] Credential validation failed")
         sys.exit(1)
