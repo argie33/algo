@@ -59,30 +59,6 @@ async function validateJwtToken(token) {
   }
 }
 
-/**
- * Get API key for a user and provider (not implemented - stub for compatibility)
- */
-async function getApiKey(userId, provider) {
-  return null;
-}
-
-/**
- * Store API key (not implemented - stub for compatibility)
- */
-async function storeApiKey(userId, provider, apiKey) {
-  return { success: true };
-}
-
-/**
- * Get decrypted API key (not implemented - stub for compatibility)
- */
-async function getDecryptedApiKey(userId, provider) {
-  return null;
-}
-
 module.exports = {
   validateJwtToken,
-  getApiKey,
-  storeApiKey,
-  getDecryptedApiKey,
 };

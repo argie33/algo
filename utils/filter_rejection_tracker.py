@@ -24,13 +24,8 @@ from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date
 import logging
-logger = logging.getLogger(__name__)
 from typing import Dict, List, Optional
 
-
-logging.basicConfig(
-    format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
-)
 log = logging.getLogger(__name__)
 
 

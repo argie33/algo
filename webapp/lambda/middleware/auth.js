@@ -218,40 +218,6 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-// Middleware to require API key for specific provider
-const requireApiKey = (provider) => {
-  return async (req, res, next) => {
-    try {
-      if (!req.user || !req.token) {
-        return res.unauthorized(
-          "User must be authenticated to access API configuration",
-          {
-            code: "AUTH_REQUIRED",
-          }
-        );
-      }
-
-      const { getApiKey } = require("../utils/apiKeyService");
-      const apiKey = await getApiKey(req.token, provider);
-
-      if (!apiKey) {
-        return sendError(res, `${provider} API configuration is required for this operation`, 400);
-      }
-
-      // Add API key to request for use in route handlers
-      req.apiKey = apiKey;
-      req.provider = provider;
-
-      next();
-    } catch (error) {
-      if (process.env.NODE_ENV !== 'test') {
-        console.error("API key requirement error:", error);
-      }
-      return sendError(res, "Could not validate API configuration", 500, { code: "API_CONFIG_VALIDATION_FAILED" });
-    }
-  };
-};
-
 // Middleware to validate session health
 const validateSession = async (req, res, next) => {
   try {
@@ -408,7 +374,6 @@ module.exports = {
   requireRole,
   requireAdmin,
   optionalAuth,
-  requireApiKey,
   validateSession,
   rateLimitByUser,
   rateLimitAuth,

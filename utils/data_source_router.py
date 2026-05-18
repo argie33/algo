@@ -38,8 +38,6 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 
 from algo.algo_retry import retry, YFINANCE_LIMITER
 
-logger = logging.getLogger(__name__)
-
 log = logging.getLogger(__name__)
 
 

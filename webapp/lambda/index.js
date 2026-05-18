@@ -185,15 +185,19 @@ app.use((req, res, next) => {
 app.options(/.*/, (req, res) => {
   const origin = req.headers.origin;
 
-  // List of explicitly allowed origins
+  // List of explicitly allowed origins (production only - no localhost)
+  const isProduction = process.env.NODE_ENV === "production";
   const allowedOrigins = [
     process.env.CLOUDFRONT_DOMAIN,
     process.env.API_GATEWAY_URL,
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    process.env.FRONTEND_URL
+    process.env.FRONTEND_URL,
+    // Development localhost - NEVER in production
+    ...(isProduction ? [] : [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5173",
+    ])
   ].filter(Boolean);
 
   let allowedOrigin = null;
@@ -224,20 +228,23 @@ app.use(
       // In test environment, allow additional test domains for CORS testing
       const isTestEnv = process.env.NODE_ENV === "test";
 
-      // FIXED: Tighten CORS configuration - only essential development ports
+      // FIXED: Tighten CORS configuration - production safe
+      const isProduction = process.env.NODE_ENV === "production";
       const baseAllowedOrigins = [
         // CloudFront & AWS Endpoints - must be set via environment variables
         process.env.CLOUDFRONT_DOMAIN,
         process.env.API_GATEWAY_URL,
 
-        // Local development - MINIMAL set of ports
-        "http://localhost:3000",         // Primary dev port
-        "http://localhost:5173",         // Vite dev server
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-
         // Custom frontend URL from environment
-        process.env.FRONTEND_URL
+        process.env.FRONTEND_URL,
+
+        // Local development ONLY - NEVER in production
+        ...(isProduction ? [] : [
+          "http://localhost:3000",         // Primary dev port
+          "http://localhost:5173",         // Vite dev server
+          "http://127.0.0.1:3000",
+          "http://127.0.0.1:5173",
+        ])
       ].filter(Boolean); // Remove undefined/null values
 
       // Test-only origins for CORS testing (test environment only)

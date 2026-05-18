@@ -14,8 +14,6 @@ import sys
 import logging
 from typing import List, Tuple
 
-logger = logging.getLogger(__name__)
-
 log = logging.getLogger(__name__)
 
 
