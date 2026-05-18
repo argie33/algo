@@ -118,11 +118,11 @@ const DeepValueStocks = () => {
   };
 
   const scoreColor = (score) => {
-    if (score >= 80) return "#1b5e20";
-    if (score >= 70) return "#2e7d32";
-    if (score >= 60) return "#558b2f";
-    if (score >= 50) return "#9ccc65";
-    return "#f44336";
+    if (score >= 80) return "rgba(34, 197, 94, 0.20)";
+    if (score >= 70) return "rgba(34, 197, 94, 0.15)";
+    if (score >= 60) return "rgba(161, 217, 34, 0.15)";
+    if (score >= 50) return "rgba(245, 158, 11, 0.15)";
+    return "rgba(239, 68, 68, 0.15)";
   };
 
   const qualityBadge = (tier) => {
