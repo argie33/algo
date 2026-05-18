@@ -57,6 +57,16 @@ class AlertManager:
             except Exception as e:
                 logger.warning(f"Twilio init failed: {e}")
 
+        # Warn if alerts are not configured for production
+        if not (self.email_to or self.webhook_url or self.twilio_client):
+            logger.warning(
+                "[ALERT CONFIG] No alert channels configured. "
+                "Set ALERT_EMAIL_TO, ALERT_SMTP_USER, and ALERT_SMTP_PASSWORD for email alerts, "
+                "or ALERT_WEBHOOK_URL for Slack/Teams, "
+                "or Twilio credentials for SMS alerts. "
+                "Without alerts, trading issues will not be notified."
+            )
+
     def _load_smtp_password(self) -> str:
         """Load SMTP password from credential_manager or env var."""
         try:

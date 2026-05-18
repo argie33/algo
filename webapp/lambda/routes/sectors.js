@@ -55,12 +55,8 @@ router.get("/", async (req, res) => {
         FROM sector_scores
       ),
       sector_ranking_12w AS (
-        SELECT sector_name, rank_12w_ago
-        FROM sector_ranking
-        WHERE date_recorded = (
-          SELECT MAX(date_recorded) FROM sector_ranking
-          WHERE date_recorded <= CURRENT_DATE
-        )
+        SELECT sector_name, NULL::INTEGER as rank_12w_ago
+        FROM sector_scores
       ),
       sector_pe AS (
         SELECT

@@ -100,22 +100,6 @@ describe('Economic Modeling Integration Tests', () => {
     }, { timeout: 5000 });
   });
 
-  test.skip('displays sectoral analysis from backend', async () => {
-    // TODO: Re-enable when backend sectoral analysis is implemented
-    renderWithRouter(<EconomicModeling />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading economic data/i)).not.toBeInTheDocument();
-    }, { timeout: 10000 });
-
-    // Check for sector-related content
-    await waitFor(() => {
-      const sectorElements = screen.queryAllByText(/sector|industry/i);
-      expect(sectorElements.length).toBeGreaterThan(0);
-    }, { timeout: 5000 });
-  });
-
   test.skip('handles API errors gracefully', async () => {
     // Skip this test - it interferes with the real API calls
     // Mock a failure scenario by breaking the API

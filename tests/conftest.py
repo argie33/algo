@@ -105,25 +105,26 @@ def test_db():
 
 @pytest.fixture(scope="session")
 def seeded_test_db(request):
-    """Set up stocks_test database with schema and seed data.
+    """Use stocks_test database for integration tests.
 
-    This fixture runs once per session and sets up the complete test environment:
-    - Creates stocks_test database if it doesn't exist
-    - Initializes the schema
-    - Seeds minimal realistic test data (prices, signals, positions, trades)
-
-    Use this fixture in integration tests that need a real database with data.
-    Tests connect to the database directly; this fixture ensures it's set up.
-
+    This fixture verifies the test database is available.
     If the database is not available (e.g., postgres not running in CI), skip the test.
     """
-    from setup_test_db import setup_test_db
+    if not TEST_DB_PASSWORD:
+        pytest.skip("DB_PASSWORD not set - skipping database integration tests. See LOCAL_CRED_SETUP.md")
+
     try:
-        setup_test_db()
-        logger.info("\n[OK] Test database setup complete")
+        conn = psycopg2.connect(
+            host=TEST_DB_HOST,
+            port=TEST_DB_PORT,
+            database=TEST_DB_NAME,
+            user=TEST_DB_USER,
+            password=TEST_DB_PASSWORD,
+        )
+        conn.close()
+        logger.info("\n[OK] Test database available")
     except Exception as e:
-        logger.info(f"\n[FAIL] Test database setup failed: {e}")
-        # Skip the test instead of failing if the database is not available
+        logger.info(f"\n[SKIP] Test database not available: {e}")
         pytest.skip(f"Test database not available: {e}", allow_module_level=False)
 
     yield  # Tests run here
