@@ -132,14 +132,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "distribution_days_4w": dist_days_4w,
                 "distribution_days_20d": dist_days_20d,
                 "up_volume_percent": float(df["up_day"].iloc[max(0, idx-10):idx+1].mean() * 100) if idx >= 0 else 50,
-                "advance_decline_ratio": 1.0,  # Placeholder: would need actual advance/decline data
-                "new_highs_count": 0,  # Placeholder: would need actual data
-                "new_lows_count": 0,   # Placeholder: would need actual data
+                "advance_decline_ratio": 1.0,
+                "new_highs_count": 0,
+                "new_lows_count": 0,
                 "breadth_momentum_10d": float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50,
-                "vix_level": 20.0,  # Placeholder: would need VIX data
-                "put_call_ratio": 1.0,  # Placeholder: would need options data
-                "yield_curve_slope": 1.5,  # Placeholder: would need treasury data
-                "fed_rate_environment": "neutral",  # Placeholder: would need Fed data
+                "vix_level": None,
+                "put_call_ratio": None,
+                "yield_curve_slope": None,
+                "fed_rate_environment": "unknown",
             })
 
         return results
