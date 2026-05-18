@@ -47,7 +47,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     COALESCE(td.ema_21, 0) as ema_21,
                     COALESCE(td.ema_26, 0) as ema_26,
                     COALESCE(td.mansfield_rs, 0) as mansfield_rs,
-                    COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
+                    COALESCE(tt.weinstein_stage::TEXT, 'unknown') as market_stage,
                     COALESCE(tt.trend_direction, 'unknown') as trend,
                     ss.security_name, cp.sector, cp.industry,
                     COALESCE(swg.score, 0) AS swing_score,
