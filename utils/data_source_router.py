@@ -217,6 +217,9 @@ class DataSourceRouter:
             if e.response.status_code == 429:
                 # Rate limited — re-raise so @retry decorator can backoff exponentially
                 raise Exception(f"Alpaca rate limited: {e}")
+            if e.response.status_code in (401, 403):
+                # Authorization failure — no subscription for data API, skip without retrying
+                return None
             raise
 
     @retry(max_attempts=4, base_delay=0.5, exceptions=(Exception,))
