@@ -256,13 +256,38 @@ jobs:
           if [ -z "$RDS_PASSWORD" ]; then
             echo "⚠️ RDS_PASSWORD secret not set — skipping password sync"
           else
-            echo "🔑 Syncing RDS master password with Secrets Manager..."
+            echo "🔑 Syncing RDS master password..."
             aws rds modify-db-instance \
               --db-instance-identifier algo-db \
               --master-user-password "$RDS_PASSWORD" \
               --apply-immediately \
-              --region $AWS_REGION 2>&1 || echo "⚠️ RDS password sync skipped (DB may not exist yet)"
-            echo "✅ RDS password sync requested (change applies immediately)"
+              --region $AWS_REGION > /dev/null 2>&1 || echo "⚠️ RDS password sync skipped (DB may not exist yet)"
+            echo "Waiting 45s for RDS to accept new password..."
+            sleep 45
+
+            echo "Updating Secrets Manager with new password..."
+            SECRET_ARN=$(aws secretsmanager describe-secret \
+              --secret-id algo-db-credentials-dev \
+              --query 'ARN' --output text --region $AWS_REGION 2>/dev/null || echo "")
+            if [ -n "$SECRET_ARN" ] && [ "$SECRET_ARN" != "None" ]; then
+              SECRET_VAL=$(aws secretsmanager get-secret-value \
+                --secret-id "$SECRET_ARN" \
+                --query 'SecretString' --output text --region $AWS_REGION)
+              UPDATED=$(echo "$SECRET_VAL" | python3 -c "
+import json, sys
+s = json.load(sys.stdin)
+s['password'] = '$RDS_PASSWORD'
+print(json.dumps(s))
+")
+              aws secretsmanager put-secret-value \
+                --secret-id "$SECRET_ARN" \
+                --secret-string "$UPDATED" \
+                --region $AWS_REGION > /dev/null
+              echo "✅ Secrets Manager updated with new password"
+            else
+              echo "⚠️ Secret algo-db-credentials-dev not found — skipping Secrets Manager update"
+            fi
+            echo "✅ RDS password sync complete"
           fi
 
       # NOTE: Database initialization is now handled by deploy-code.yml
