@@ -2558,3 +2558,23 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_economic_data_series_date
 ON economic_data (series_id, date DESC)
 WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
   AND value IS NOT NULL;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SCHEMA MIGRATIONS — Ensure live tables have all required columns
+-- ════════════════════════════════════════════════════════════════════════════
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS strategy_name VARCHAR(200);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS total_return DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS annual_return DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS max_drawdown DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS sharpe_ratio DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS sortino_ratio DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS win_rate DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS profit_factor DECIMAL(8,4);
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_trades INTEGER;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_winning_trades INTEGER;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_losing_trades INTEGER;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS quantity DECIMAL(12,2);
+ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS profit_loss_percent DECIMAL(8,4);

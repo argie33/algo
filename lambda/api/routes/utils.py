@@ -86,7 +86,7 @@ def handle_db_error(error, logger, operation):
         return error_response(503, 'service_unavailable', 'Database unavailable')
     elif isinstance(error, psycopg2.DatabaseError):
         logger.error(f'Database error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
-        return error_response(500, 'internal_error', f'DBerr:{type(error).__name__}:{str(error)[:300]}')
+        return error_response(500, 'internal_error', 'Database query failed')
     else:
         logger.error(f'Unexpected error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
         return error_response(500, 'internal_error', 'Internal server error')
