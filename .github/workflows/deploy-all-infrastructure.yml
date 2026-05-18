@@ -131,6 +131,7 @@ jobs:
           fi
 
           # Create ZIP for deployment (name must match var.api_lambda_code_file default in Terraform)
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_api.zip
           cd $PKG_DIR
           zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
 
@@ -158,6 +159,7 @@ jobs:
             --no-cache-dir --quiet
 
           # Create ZIP in the location where Terraform expects it
+          rm -f $TERRAFORM_LAMBDA/lambda_function.zip
           cd $PKG_DIR
           zip -r $TERRAFORM_LAMBDA/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
 
