@@ -24,6 +24,9 @@ import os
 from datetime import date, timedelta
 from typing import List, Optional
 
+import numpy as np
+import pandas as pd
+
 from config.env_loader import load_env
 from utils.logging_setup import get_logger
 from utils.loader_helpers import get_active_symbols
@@ -133,13 +136,6 @@ class BuySellDailyLoader(OptimalLoader):
     def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None) -> Optional[List[dict]]:
         """Compute Minervini breakout buy/sell signals from price data."""
         if len(price_rows) < 50:
-            return []
-
-        try:
-            import pandas as pd
-            import numpy as np
-        except ImportError:
-            log.error("pandas/numpy not available")
             return []
 
         if trend_data is None:
