@@ -460,49 +460,6 @@ app.get("/api/test", (req, res) => {
   return sendSuccess(res, { message: "API test endpoint works!" });
 });
 
-// DEBUG endpoint - shows current error context (dev mode only)
-app.get("/api/debug/test-error", (req, res) => {
-  if (process.env.NODE_ENV !== 'development') {
-    return sendError(res, "Debug endpoints only available in development mode", 403);
-  }
-
-  try {
-    // FIXED: Use whitelist validation instead of string interpolation
-    const allowedTables = [
-      'stock_scores', 'algo_positions', 'algo_portfolio_snapshots',
-      'algo_trades', 'buy_sell_daily', 'technical_data_daily',
-      'signal_quality_scores', 'market_health_daily', 'price_daily'
-    ];
-
-    const tableName = req.query.table || 'stock_scores';
-
-    // Validate table name against whitelist
-    if (!allowedTables.includes(tableName.toLowerCase())) {
-      return sendError(res, `Invalid table name. Allowed tables: ${allowedTables.join(', ')}`, 400);
-    }
-
-    // Use parameterized query with validated table name
-    const testQuery = `SELECT COUNT(*) FROM ${tableName}`;
-
-    query(testQuery).then(() => {
-      return sendSuccess(res, { message: `Table "${tableName}" is accessible` });
-    }).catch((err) => {
-      const details = {
-        code: err.code,
-        detail: err.detail,
-        hint: err.hint,
-        table: tableName,
-        recommendation: err.code === '42P01'
-          ? `Table "${tableName}" does not exist - needs to be created`
-          : 'Check database logs for details'
-      };
-      return sendError(res, err.message, 500, details);
-    });
-  } catch (err) {
-    return sendError(res, err.message, 500);
-  }
-});
-
 // Canonical API Routes - all under /api prefix
 app.use("/api/audit", auditRoutes);
 app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);
@@ -791,18 +748,6 @@ app.get("/", (req, res) => {
 // Create HTTP server (WebSocket removed)
 const server = createServer(app);
 
-
-// DEBUG endpoint for stock_scores table
-app.get("/api/debug/stock-scores-count", async (req, res) => {
-  try {
-    const { query: dbQuery } = require("./utils/database");
-    const result = await dbQuery("SELECT COUNT(*) as count FROM stock_scores");
-    const count = result?.rows[0]?.count || 0;
-    return sendSuccess(res, { stock_scores_count: count, rows_sample: 0 });
-  } catch (error) {
-    return sendError(res, error.message, 500);
-  }
-});
 
 // Error handling middleware (should be last)
 app.use(errorHandler);
