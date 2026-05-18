@@ -1,9 +1,5 @@
-# TRIGGER: 20260501_120000 - Phase 1 prerequisite loader - stock_symbols must be populated first
-# FIX: Simplified workflow - use += to append env vars instead of complex filtering
 #!/usr/bin/env python3
 # Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
-# Trigger: 20260128_193000 - Deploy to AWS ECS with crash-safe loader
-sys.path.insert(0, str(Path(__file__).parent.parent))
 import csv
 import json
 import logging
@@ -11,6 +7,8 @@ import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     import boto3
