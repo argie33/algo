@@ -56,5 +56,6 @@ VITE_ENABLE_MOCK_DATA=true
 
 fs.writeFileSync(envPath, envContent);
 
+console.log(
   `🎉 ${environment.charAt(0).toUpperCase() + environment.slice(1)} environment configured!`
 );

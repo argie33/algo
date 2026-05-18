@@ -102,8 +102,7 @@ router.get("/calendar", async (req, res) => {
 
 router.get("/sp500-trend", async (req, res) => {
   try {
-    const result = await query(
-      console.log(`SELECT COUNT(DISTINCT symbol) as stock_count FROM earnings_history
+    const result = await query(`SELECT COUNT(DISTINCT symbol) as stock_count FROM earnings_history
        WHERE quarter::date >= (CURRENT_DATE - INTERVAL '3 months')::date`);
     return sendSuccess(res, {
       stocks_reporting: parseInt(result.rows[0]?.stock_count || 0),

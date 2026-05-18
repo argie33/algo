@@ -557,11 +557,6 @@ class AlpacaService {
         limit = 100,
       } = options;
 
-        timeframe,
-        start: start.split("T")[0],
-        limit,
-      });
-
       const bars = await this.client.getBars(symbol, {
         timeframe: timeframe,
         start: start,
@@ -611,7 +606,7 @@ class AlpacaService {
 
       const clock = await this.client.getClock();
 
-        console.log(` Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
+      console.log(` Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
 
       return {
         timestamp: clock.timestamp,
@@ -872,8 +867,7 @@ class AlpacaService {
       };
     } catch (error) {
       console.error("Error fetching position:", error.message);
-      throw new Error(
-        console.log(`Failed to fetch position for ${symbol}: ${error.message}`);
+      throw new Error(`Failed to fetch position for ${symbol}: ${error.message}`);
     }
   }
 
@@ -924,8 +918,7 @@ class AlpacaService {
       };
     } catch (error) {
       console.error("Error fetching last trade:", error.message);
-      throw new Error(
-        console.log(`Failed to fetch last trade for ${symbol}: ${error.message}`);
+      throw new Error(`Failed to fetch last trade for ${symbol}: ${error.message}`);
     }
   }
 

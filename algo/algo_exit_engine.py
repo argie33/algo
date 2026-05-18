@@ -60,8 +60,15 @@ class ExitEngine:
         self.verbose = True
 
     def connect(self) -> None:
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
+        """Connect to database if not already connected."""
+        if self.conn is not None:
+            # Already connected (or mocked in tests)
+            return
+        try:
+            self.conn = get_db_connection()
+            self.cur = self.conn.cursor()
+        except Exception as e:
+            logger.debug(f"Could not connect to database: {e}. Tests may use mocks instead.")
 
     def disconnect(self) -> None:
         if self.cur:

@@ -204,6 +204,7 @@ function initializeAlpacaSync() {
       );
     });
 
+    console.log(
       " Alpaca portfolio sync scheduler initialized (every 10 minutes)"
     );
 

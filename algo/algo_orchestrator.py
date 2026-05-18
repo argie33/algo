@@ -79,6 +79,7 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from utils.trade_status import PositionStatus
 import logging
 from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
+from config.env_loader import load_env
 
 logger = logging.getLogger(__name__)
 
@@ -2130,7 +2131,6 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-    load_env()
     load_env()
 
     logging.basicConfig(

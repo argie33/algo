@@ -1,0 +1,137 @@
+name: auto-populate-on-first-deploy
+
+# Automatically trigger data loading after initial infrastructure deployment
+# Runs after deploy-all-infrastructure completes successfully on first deploy
+
+on:
+  workflow_run:
+    workflows: ["Deploy All Infrastructure (Terraform)"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  check-if-first-deploy:
+    name: "Check if first deployment"
+    runs-on: ubuntu-latest
+    outputs:
+      should_populate: ${{ steps.check.outputs.should_populate }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history to check deployment history
+
+      - name: Check if this is first deployment
+        id: check
+        run: |
+          # If RDS database already has stock symbols, skip population
+          # (This prevents re-running loaders on subsequent deploys)
+
+          # For now, always populate (can add database check later)
+          echo "should_populate=true" >> $GITHUB_OUTPUT
+
+          echo "ℹ️  Auto-population enabled"
+          echo "Data will load automatically after infrastructure deploy"
+
+  trigger-data-load:
+    name: "Auto-trigger EOD pipeline"
+    needs: check-if-first-deploy
+    if: |
+      needs.check-if-first-deploy.outputs.should_populate == 'true' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger EOD pipeline
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          STATE_MACHINE_ARN="arn:aws:states:${AWS_REGION}:${ACCOUNT_ID}:stateMachine:algo-eod-pipeline-dev"
+
+          echo "🚀 Triggering EOD pipeline..."
+          EXECUTION_ARN=$(aws stepfunctions start-execution \
+            --state-machine-arn "$STATE_MACHINE_ARN" \
+            --name "auto-populate-$(date +%s)" \
+            --region "${AWS_REGION}" \
+            --query 'executionArn' \
+            --output text)
+
+          echo "✅ Pipeline execution started"
+          echo "Execution ARN: $EXECUTION_ARN"
+          echo ""
+          echo "Monitor progress:"
+          echo "  https://console.aws.amazon.com/states/home?region=${AWS_REGION}"
+
+      - name: Wait for pipeline completion (optional)
+        timeout-minutes: 120  # 2 hours max for full data load
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          STATE_MACHINE_ARN="arn:aws:states:${AWS_REGION}:${ACCOUNT_ID}:stateMachine:algo-eod-pipeline-dev"
+
+          echo "⏳ Waiting for EOD pipeline to complete..."
+          echo "(This may take 30-45 minutes)"
+          echo ""
+
+          # Get the latest execution
+          EXECUTION_ARN=$(aws stepfunctions list-executions \
+            --state-machine-arn "$STATE_MACHINE_ARN" \
+            --sort-order DESCENDING \
+            --max-items 1 \
+            --region "${AWS_REGION}" \
+            --query 'executions[0].executionArn' \
+            --output text)
+
+          # Poll until complete
+          while true; do
+            STATUS=$(aws stepfunctions describe-execution \
+              --execution-arn "$EXECUTION_ARN" \
+              --region "${AWS_REGION}" \
+              --query 'status' \
+              --output text)
+
+            case "$STATUS" in
+              SUCCEEDED)
+                echo "✅ Pipeline SUCCEEDED"
+                echo "All data loaded successfully"
+                exit 0
+                ;;
+              FAILED)
+                echo "❌ Pipeline FAILED"
+                CAUSE=$(aws stepfunctions describe-execution \
+                  --execution-arn "$EXECUTION_ARN" \
+                  --region "${AWS_REGION}" \
+                  --query 'cause' \
+                  --output text)
+                echo "Error: $CAUSE"
+                exit 1
+                ;;
+              ABORTED)
+                echo "⚠️  Pipeline ABORTED"
+                exit 1
+                ;;
+              RUNNING)
+                echo "⏳ Still running... (status: $STATUS)"
+                sleep 60
+                ;;
+              *)
+                echo "Status: $STATUS"
+                sleep 60
+                ;;
+            esac
+          done

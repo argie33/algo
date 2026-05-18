@@ -50,8 +50,7 @@ router.get("/submissions", requireAuth, requireAdmin, async (req, res) => {
     // For now, we'll allow access - implement auth as needed
 
     // Check if contact_submissions table exists
-    const tableExists = await query(
-      console.log(`SELECT EXISTS (
+    const tableExists = await query(`SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
         AND table_name = 'contact_submissions'
@@ -65,8 +64,7 @@ router.get("/submissions", requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
-    const result = await query(
-      console.log(`SELECT id, name, email, subject, message, status, submitted_at, reviewed_at
+    const result = await query(`SELECT id, name, email, subject, message, status, submitted_at, reviewed_at
        FROM contact_submissions
        ORDER BY submitted_at DESC
        LIMIT 100`);

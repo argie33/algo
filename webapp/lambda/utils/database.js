@@ -61,7 +61,8 @@ async function getDbConfig() {
             secret = JSON.parse(result.SecretString);
           } catch (parseError) {
             throw new Error(
-              `Secret parsing failed: ${parseError.message}`;
+              `Secret parsing failed: ${parseError.message}`
+            );
           }
         } else if (result.SecretString === undefined && result.SecretBinary) {
           try {
