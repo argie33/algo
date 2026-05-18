@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/signals/* endpoints."""
-        if path == '/api/signals/stocks':
+        if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=50000, default=50000)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
