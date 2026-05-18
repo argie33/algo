@@ -473,7 +473,7 @@ const DeepValueStocks = () => {
                         fontWeight: 700, fontSize: "1.05em", color: globalIdx === 0 ? "#6366f1" : "inherit",
                         position: "sticky", left: 0, backgroundColor: idx % 2 === 0 ? (globalIdx === 0 ? "rgba(99, 102, 241, 0.08)" : "#141720") : "#0f1219", zIndex: 1
                       }}>
-                        {globalIdx === 0 && <TrendingUp sx={{ fontSize: 14, mr: 0.5, verticalAlign: "middle", color: "#4caf50" }} />}
+                        {globalIdx === 0 && <TrendingUp sx={{ fontSize: 14, mr: 0.5, verticalAlign: "middle", color: "#22c55e" }} />}
                         {stock.symbol}
                       </TableCell>
                       <TableCell sx={{ fontSize: "0.85rem" }}>
