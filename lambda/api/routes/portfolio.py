@@ -36,7 +36,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 row = cur.fetchone()
                 total_invested = float(row['total_invested'] or 0) if row else 0
                 position_count = int(row['position_count'] or 0) if row else 0
-                # Get latest account value from snapshots for real exposure calc
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
                     ORDER BY snapshot_date DESC LIMIT 1

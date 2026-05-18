@@ -112,7 +112,6 @@ def _get_system_health(cur) -> Dict:
         try:
             health_data = {'status': 'healthy', 'components': {}}
 
-            # Check database connectivity
             try:
                 cur.execute("SELECT 1")
                 health_data['components']['database'] = 'ok'
@@ -135,7 +134,6 @@ def _get_system_health(cur) -> Dict:
                 health_data['components']['database'] = 'error'
                 health_data['status'] = 'degraded'
 
-            # Check data freshness
             cur.execute("SELECT MAX(date) FROM price_daily")
             last_price_date = cur.fetchone()[0]
             if last_price_date:
@@ -148,7 +146,6 @@ def _get_system_health(cur) -> Dict:
                 health_data['components']['data_freshness'] = 'no_data'
                 health_data['status'] = 'unhealthy'
 
-            # Check table counts
             table_counts = {}
             for table in ['stock_symbols', 'price_daily', 'algo_trades', 'algo_positions']:
                 try:
@@ -185,7 +182,6 @@ def _get_database_stats(cur) -> Dict:
         try:
             stats = {}
 
-            # Get table sizes
             cur.execute("""
                 SELECT
                     schemaname,
@@ -203,11 +199,9 @@ def _get_database_stats(cur) -> Dict:
 
             stats['largest_tables'] = tables
 
-            # Get connection info
             cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
             stats['active_connections'] = cur.fetchone()[0]
 
-            # Get index usage
             cur.execute("""
                 SELECT COUNT(*) FROM pg_stat_user_indexes WHERE idx_scan = 0
             """)
@@ -235,7 +229,6 @@ def _get_data_quality(cur) -> Dict:
         try:
             quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
 
-            # Check for null prices
             cur.execute("""
                 SELECT COUNT(*) FROM price_daily
                 WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
@@ -243,7 +236,6 @@ def _get_data_quality(cur) -> Dict:
             null_prices = cur.fetchone()[0]
             quality['checks']['null_prices'] = {'count': null_prices, 'status': 'ok' if null_prices == 0 else 'warning'}
 
-            # Check for duplicate prices
             cur.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT symbol, date, COUNT(*)
@@ -254,7 +246,6 @@ def _get_data_quality(cur) -> Dict:
             duplicate_prices = cur.fetchone()[0]
             quality['checks']['duplicate_prices'] = {'count': duplicate_prices, 'status': 'ok' if duplicate_prices == 0 else 'warning'}
 
-            # Check price logical consistency (high >= low >= close)
             cur.execute("""
                 SELECT COUNT(*) FROM price_daily
                 WHERE high < low OR close > high OR close < low

@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
-        # Handle PATCH /api/algo/notifications/{id}/read
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
             try:
@@ -38,7 +37,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             except Exception as e:
                 logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to update notification')
-        # Handle DELETE /api/algo/notifications/{id}
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             try:
@@ -60,11 +58,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             except Exception as e:
                 logger.error(f'Unexpected error: {e}', extra={'operation': 'handle algo', 'error_type': type(e).__name__})
                 return error_response(500, 'internal_error', 'Failed to delete notification')
-        # Handle POST /api/algo/patrol
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
             return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
-        # Handle POST /api/algo/pre-trade-impact
         if method == 'POST' and path == '/api/algo/pre-trade-impact':
             return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
@@ -553,7 +549,6 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             if not symbol:
                 return error_response(400, 'bad_request', 'symbol is required')
 
-            # Get current portfolio state
             cur.execute("""
                 SELECT COUNT(*) AS position_count,
                        SUM(CASE WHEN pd.quantity > 0 THEN pd.market_value ELSE 0 END) AS invested
@@ -563,7 +558,6 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             current_positions = portfolio_row[0] if portfolio_row else 0
             invested = float(portfolio_row[1]) if portfolio_row and portfolio_row[1] else 0.0
 
-            # Get portfolio value
             cur.execute("""
                 SELECT equity FROM algo_portfolio_snapshot
                 ORDER BY created_at DESC LIMIT 1
@@ -571,7 +565,6 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             snap = cur.fetchone()
             portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
 
-            # Get sector and industry
             cur.execute("""
                 SELECT sector, industry FROM company_profile WHERE symbol = %s
             """, (symbol,))
@@ -593,7 +586,6 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             shares = int(position_size_dollars / entry_price) if entry_price > 0 else 0
             position_pct_calc = (position_size_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
 
-            # Check constraints
             max_positions = 12
             max_position_pct = 8.0
             max_sector_pct = 30.0
@@ -603,7 +595,6 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             cash_available = portfolio_value - invested
             cash_ok = cash_available >= position_size_dollars
 
-            # Get current sector exposure
             cur.execute("""
                 SELECT SUM(CASE WHEN cp.sector = %s THEN pd.market_value ELSE 0 END) /
                        NULLIF((SELECT SUM(market_value) FROM algo_positions), 0) * 100 AS sector_pct
@@ -740,7 +731,6 @@ def _trigger_data_patrol(cur) -> Dict:
 def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
         try:
-            # Get total count for pagination metadata
             cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
             total = cur.fetchone()['total']
 
@@ -992,7 +982,6 @@ def _get_rejection_funnel(cur) -> Dict:
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
-            # Get latest market exposure data
             cur.execute("""
                 SELECT id, date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
@@ -1002,7 +991,6 @@ def _get_markets(cur) -> Dict:
             latest = cur.fetchone()
             current = dict(latest) if latest else None
 
-            # Get 60-day exposure history for chart
             cur.execute("""
                 SELECT date, exposure_pct, regime, distribution_days
                 FROM market_exposure_daily
@@ -1234,14 +1222,12 @@ def _get_algo_config_key(cur, key: str) -> Dict:
 def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
         try:
-            # Get total count
             if action_type:
                 cur.execute("SELECT COUNT(*) as total FROM algo_audit_log WHERE action_type = %s", (action_type,))
             else:
                 cur.execute("SELECT COUNT(*) as total FROM algo_audit_log")
             total = cur.fetchone()['total']
 
-            # Get paginated results
             if action_type:
                 cur.execute("""
                     SELECT id, action_type, symbol, action_date, details, actor, status, error_message

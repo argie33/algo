@@ -15,7 +15,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             industry_name = parts[3] if len(parts) > 3 else None
 
             if industry_name and industry_name != 'trend':
-                # Return data for specific industry
                 days_str = params.get('days', [None])[0] if params else None
                 days = safe_days(days_str, max_val=365, default=90)
                 cur.execute("""

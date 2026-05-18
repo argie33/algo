@@ -11,7 +11,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/VIX':
-                # Return VIX data from market_health_daily
                 cur.execute("""
                     SELECT date, vix_level as vix
                     FROM market_health_daily
@@ -79,7 +78,6 @@ def _get_leading_indicators(cur) -> Dict:
         yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS', 'HOUST'}
 
         try:
-            # Get latest values for all indicators
             cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
@@ -93,7 +91,6 @@ def _get_leading_indicators(cur) -> Dict:
             latest_rows = {row['series_id']: (float(row['value']) if row['value'] else None, row['date'])
                           for row in cur.fetchall()}
 
-            # Get history for each indicator (last 12-24 months)
             cur.execute("""
                 SELECT series_id, date, value
                 FROM economic_data
@@ -185,7 +182,6 @@ def _get_leading_indicators(cur) -> Dict:
 def _get_yield_curve_full(cur) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
-            # Get latest yield curve data (full curve by maturity)
             cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
@@ -200,7 +196,6 @@ def _get_yield_curve_full(cur) -> Dict:
             """)
             latest_rows = cur.fetchall()
 
-            # Get history for spreads and T10Y2Y
             cur.execute("""
                 SELECT series_id, date, value
                 FROM economic_data
@@ -216,7 +211,6 @@ def _get_yield_curve_full(cur) -> Dict:
             is_inverted = False
             history = {}
 
-            # Process latest data
             for row in latest_rows:
                 sid = row['series_id']
                 val = float(row['value']) if row['value'] else None
@@ -246,7 +240,6 @@ def _get_yield_curve_full(cur) -> Dict:
                     spreads['T10Y3M'] = val / 100 if val else None
                 elif sid == 'T10Y2Y':
                     spreads['T10Y2Y'] = val / 100 if val else None
-                    # Check if inverted (10Y-2Y spread < 0)
                     is_inverted = (val < 0) if val else False
 
             # Add history for spreads

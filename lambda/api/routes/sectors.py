@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
         try:
-            # Handle /api/sectors/trends-batch?sectors=X,Y,Z&days=90
             if path == '/api/sectors/trends-batch' or path.startswith('/api/sectors/trends-batch?'):
                 sectors_str = params.get('sectors', [None])[0] if params else None
                 days_str = params.get('days', [None])[0] if params else None
@@ -43,7 +42,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             sector_name = parts[3] if len(parts) > 3 else None
 
             if sector_name and sector_name not in ('performance', 'trends-batch'):
-                # Return trend data for specific sector with technical indicators
                 if path.endswith('/trend') or path.endswith('/trend/'):
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
@@ -76,7 +74,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     trend_data = [dict(r) for r in rows] if rows else []
                     return json_response(200, {'trendData': trend_data})
                 else:
-                    # Return sector performance data
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
                     cur.execute("""

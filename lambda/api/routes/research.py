@@ -29,7 +29,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 except ValueError:
                     return error_response(400, 'bad_request', 'Run ID must be numeric')
 
-                # Get backtest run details
                 cur.execute("""
                     SELECT run_id, strategy_name, date_start, date_end,
                            total_return_pct, sharpe_annualized, max_drawdown_pct, win_rate,
@@ -42,7 +41,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 if not backtest:
                     return error_response(404, 'not_found', f'Backtest run {run_id} not found')
 
-                # Get trades for this backtest
                 limit_str = params.get('limit', [None])[0] if params else None
                 offset_str = params.get('offset', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
