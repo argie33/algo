@@ -7,6 +7,10 @@ on:
         description: 'Loader to test (default: stock_symbols)'
         required: false
         default: 'stock_symbols'
+      timeout_seconds:
+        description: 'Max wait time for ECS task (seconds, default: 3600)'
+        required: false
+        default: '3600'
 
 permissions:
   id-token: write
@@ -19,6 +23,7 @@ jobs:
   test-loader:
     name: Run Loader & Capture Logs
     runs-on: ubuntu-latest
+    timeout-minutes: 70
 
     steps:
       - uses: actions/checkout@v4
@@ -93,9 +98,10 @@ jobs:
           TASK_ARN="${{ steps.task.outputs.task_arn }}"
           LOADER=${{ github.event.inputs.loader_name }}
 
-          echo "Waiting for task to complete..."
+          TIMEOUT=${{ github.event.inputs.timeout_seconds || '3600' }}
+          echo "Waiting for task to complete (timeout: ${TIMEOUT}s)..."
           ELAPSED=0
-          while [ $ELAPSED -lt 600 ]; do
+          while [ $ELAPSED -lt $TIMEOUT ]; do
             STATUS=$(aws ecs describe-tasks \
               --cluster algo-cluster \
               --tasks "$TASK_ARN" \
@@ -126,8 +132,8 @@ jobs:
             ELAPSED=$((ELAPSED + 5))
           done
 
-          if [ $ELAPSED -ge 600 ]; then
-            echo "❌ Task timeout after 600 seconds"
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "❌ Task timeout after ${TIMEOUT} seconds"
             exit 1
           fi
 
