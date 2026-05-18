@@ -10,12 +10,12 @@ Push to `main` → auto-deploys via GitHub Actions. Watch: https://github.com/ar
 4. **Dependencies used or deleted** — show WHERE and WHY before adding
 5. **Test expiration dates** — `@pytest.mark.skip(reason="... (2026-06-15)")` or delete when expired
 6. **No mock endpoints** — real data or delete completely
-7. **No .env files, hardcoded secrets, or .env.local** — use AWS Secrets Manager (see LOCAL_CRED_SETUP.md)
+7. **No .env files, hardcoded secrets, or .env.local** — use AWS Secrets Manager; set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` as env vars locally
 
 ## Local Dev (4 Steps)
 
 1. PostgreSQL on localhost:5432
-2. Set env vars: database host/port/user/pass, Alpaca API key/secret (see credential_helper.py)
+2. Set env vars: `DB_HOST=localhost DB_PORT=5432 DB_NAME=stocks DB_USER=stocks DB_PASSWORD="" ALPACA_API_KEY=... ALPACA_SECRET_KEY=...`
 3. `python3 init_database.py`
 4. `python3 run-all-loaders.py`
 
