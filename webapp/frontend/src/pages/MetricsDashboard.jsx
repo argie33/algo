@@ -71,11 +71,11 @@ const MetricsDashboard = () => {
   }, [allStocks]);
 
   const getMetricColor = (metric) => {
-    if (metric >= 0.8) return "#4caf50";
-    if (metric >= 0.7) return "#8bc34a";
-    if (metric >= 0.6) return "#ffeb3b";
-    if (metric >= 0.5) return "#ff9800";
-    return "#f44336";
+    if (metric >= 0.8) return "#22c55e";
+    if (metric >= 0.7) return "#a1d922";
+    if (metric >= 0.6) return "#f59e0b";
+    if (metric >= 0.5) return "#f97316";
+    return "#ef4444";
   };
 
   const getMetricClass = (metric) => {
@@ -391,7 +391,7 @@ const MetricsDashboard = () => {
                   padding: '0.5rem 0.75rem',
                   borderRadius: '4px',
                   backgroundColor: getMetricColor(item.v),
-                  color: item.v >= 0.6 ? '#000' : '#fff',
+                  color: '#fff',
                   fontWeight: 600,
                   fontSize: '0.85rem'
                 }}
