@@ -489,10 +489,10 @@ const DeepValueStocks = () => {
                         {stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"}
                       </TableCell>
                       <TableCell align="right" sx={{ fontSize: "0.8rem" }}>{fmt(stock.trailing_pe)}</TableCell>
-                      <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.roe_pct != null && stock.roe_pct > 25 ? "#1b5e20" : "inherit", fontWeight: stock.roe_pct > 25 ? 700 : 400 }}>
+                      <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.roe_pct != null && stock.roe_pct > 25 ? "#22c55e" : "inherit", fontWeight: stock.roe_pct > 25 ? 700 : 400 }}>
                         {fmtPct(stock.roe_pct)}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.op_margin_pct != null && stock.op_margin_pct > 15 ? "#1b5e20" : "inherit", fontWeight: stock.op_margin_pct > 15 ? 700 : 400 }}>
+                      <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.op_margin_pct != null && stock.op_margin_pct > 15 ? "#22c55e" : "inherit", fontWeight: stock.op_margin_pct > 15 ? 700 : 400 }}>
                         {fmtPct(stock.op_margin_pct)}
                       </TableCell>
                       <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.drop_from_52w_high_pct >= 30 ? "#c62828" : "inherit", fontWeight: stock.drop_from_52w_high_pct >= 25 ? 700 : 400 }}>
