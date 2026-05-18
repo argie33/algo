@@ -15,6 +15,7 @@ orchestrator_dry_run   = false
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
+alpaca_paper_trading   = false  # REAL TRADING - set to true for paper trading during testing
 
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
 # For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
