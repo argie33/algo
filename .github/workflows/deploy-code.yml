@@ -221,8 +221,9 @@ jobs:
           mkdir -p db-init-pkg
           # Handler
           cp lambda/db-init/lambda_function.py db-init-pkg/
-          # Schema SQL
-          cp lambda/db-init/schema.sql db-init-pkg/ 2>/dev/null || true
+          # Schema SQL — prefer explicit lambda/db-init/schema.sql, fall back to Terraform init.sql
+          cp lambda/db-init/schema.sql db-init-pkg/ 2>/dev/null || \
+            cp terraform/modules/database/init.sql db-init-pkg/schema.sql
           # Required modules
           cp credential_manager.py db-init-pkg/ || true
           cp init_database.py db-init-pkg/ || true
@@ -288,7 +289,7 @@ jobs:
           aws lambda invoke \
             --function-name "$FUNC_NAME" \
             --region $AWS_REGION \
-            --payload '{}' \
+            --payload "$(echo -n '{}' | base64)" \
             /tmp/db-init-response.json 2>&1
 
           echo "DB Init response:"
