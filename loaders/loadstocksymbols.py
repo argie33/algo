@@ -358,16 +358,16 @@ def insert_all(conn, records):
     logger.info("Inserting %d stock records", len(records))
     sql = """
       INSERT INTO stock_symbols (
-        symbol, name, exchange
+        symbol, security_name, exchange
       ) VALUES %s
       ON CONFLICT (symbol) DO UPDATE SET
-        name = EXCLUDED.name,
+        security_name = EXCLUDED.security_name,
         exchange = EXCLUDED.exchange;
     """
     values = [
         (
             r["symbol"],
-            r["security_name"],  # map to 'name' column
+            r["security_name"],
             r["exchange"],
         )
         for r in records
@@ -381,10 +381,10 @@ def insert_etfs(conn, records):
     logger.info("Inserting %d ETF records", len(records))
     sql = """
       INSERT INTO stock_symbols (
-        symbol, name, exchange
+        symbol, security_name, exchange
       ) VALUES %s
       ON CONFLICT (symbol) DO UPDATE SET
-        name = EXCLUDED.name,
+        security_name = EXCLUDED.security_name,
         exchange = EXCLUDED.exchange;
     """
     values = [
