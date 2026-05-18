@@ -894,7 +894,7 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date, exposure_pct, raw_score, regime, halt_reasons
+                SELECT id, date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -903,7 +903,7 @@ def _get_markets(cur) -> Dict:
             current = dict(latest) if latest else None
 
             cur.execute("""
-                SELECT date, exposure_pct, regime
+                SELECT date, market_exposure_pct, exposure_tier
                 FROM market_exposure_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY date ASC
@@ -1013,20 +1013,20 @@ def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
             cur.execute("""
-                SELECT date, exposure_pct, raw_score, regime, factors, halt_reasons
+                SELECT date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
             """)
             row = cur.fetchone()
             if not row:
-                return json_response(200, {'current_exposure': None, 'regime': None})
+                return json_response(200, {'current_exposure': None, 'exposure_tier': None})
             return json_response(200, {
-                'current_exposure': float(row['exposure_pct'] or 0),
-                'raw_score': float(row['raw_score'] or 0),
-                'regime': row.get('regime', 'unknown'),
-                'factors': row.get('factors'),
-                'halt_reasons': row.get('halt_reasons'),
+                'current_exposure': float(row['market_exposure_pct'] or 0),
+                'long_exposure': float(row['long_exposure_pct'] or 0),
+                'short_exposure': float(row['short_exposure_pct'] or 0),
+                'exposure_tier': row.get('exposure_tier', 'unknown'),
+                'is_entry_allowed': row.get('is_entry_allowed', False),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except psycopg2.errors.UndefinedTable as e:
