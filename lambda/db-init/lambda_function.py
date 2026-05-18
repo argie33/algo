@@ -23,8 +23,11 @@ def get_credentials():
         client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
         response = client.get_secret_value(SecretId=secret_arn)
         secret = json.loads(response['SecretString'])
+        raw_host = os.environ.get('DB_ENDPOINT') or secret.get('host', '')
+        # Strip port if host is in host:port format (Terraform rds_endpoint includes port)
+        host = raw_host.split(':')[0] if ':' in raw_host else raw_host
         return {
-            'host': os.environ.get('DB_ENDPOINT') or secret.get('host'),
+            'host': host,
             'port': int(secret.get('port', DEFAULT_DB_PORT)),
             'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
             'user': secret.get('username'),

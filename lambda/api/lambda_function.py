@@ -31,6 +31,9 @@ def get_db_connection():
         db_user = os.getenv('DB_USER', 'stocks')
         db_password = os.getenv('DB_PASSWORD')
 
+        # Strip port if DB_ENDPOINT is in host:port format (Terraform rds_endpoint output includes port)
+        db_host = db_endpoint.split(':')[0] if ':' in db_endpoint else db_endpoint
+
         if db_secret_arn and not db_password:
             import boto3
             secrets = boto3.client('secretsmanager', region_name='us-east-1')
@@ -44,7 +47,7 @@ def get_db_connection():
             return None
 
         _db_conn = psycopg2.connect(
-            host=db_endpoint,
+            host=db_host,
             port=5432,
             database=db_name,
             user=db_user,
