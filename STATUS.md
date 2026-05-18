@@ -1,8 +1,8 @@
 # System Status - Execution Phase
 
-**Last Updated:** 2026-05-18 01:05 UTC  
-**Goal:** All things working locally and in AWS  
-**Status:** ⚠️ **PARTIAL** — Frontend live, API broken, local development needs setup
+**Last Updated:** 2026-05-18 03:45 UTC  
+**Goal:** All things working locally and in AWS, ready to test with Friday data  
+**Status:** 🔧 **IN PROGRESS** — Fixing API Gateway routing, loaders ready for testing
 
 ---
 
@@ -34,24 +34,21 @@
 
 ## BLOCKERS
 
-### 🔴 CRITICAL: API Gateway Returns 404
+### 🟡 FIXED: API Gateway Returns 404
 
-**Problem:** All API endpoints returning 404 Not Found
+**Problem:** API Gateway was returning 404 Not Found  
 
-**Symptoms:**
-- Health endpoint: `https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/prod/health` → 404
-- No Lambda is responding
+**Root Cause:** Missing explicit `$default` route in Terraform configuration. AWS HTTP API v2 requires explicit route definitions.
 
-**Root Cause:** Likely one of:
-1. Lambda function not deployed to API Gateway
-2. Lambda IAM role missing API Gateway permissions
-3. API Gateway routes not configured
-4. Lambda code has deployment issues
+**Fix Applied:** 
+- ✅ Added explicit `$default` route to `terraform/modules/services/main.tf`
+- ✅ Route catches all requests not matching specific routes
+- ✅ Routes to API Lambda integration
 
-**Action Required:**
-1. Check AWS console → API Gateway → Look for routes
-2. Check AWS console → Lambda → Verify functions deployed
-3. Check CloudWatch logs for Lambda errors
+**Status:** Ready to deploy
+```bash
+git push origin main  # Triggers automatic deployment
+```
 
 ---
 
@@ -102,32 +99,70 @@
 
 ## NEXT STEPS
 
-**Priority 1: Fix API Gateway (AWS Issue)**
-1. Check AWS console for Lambda function deployment
-2. Verify API Gateway routes are configured
-3. Check CloudWatch logs for errors
-4. Re-deploy if needed
+**Priority 1: Deploy API Gateway Fix (TODAY)**
+```bash
+git push origin main
+# Triggers: terraform-apply → Lambda rebuild → API update
+# Watch: https://github.com/argie33/algo/actions
+# Time: 5-10 minutes
+```
 
-**Priority 2: Setup Local Development**
-1. Install PostgreSQL (https://www.postgresql.org/download/windows/)
-2. Run: `setup-everything.ps1 -DbSecret '<password>'`
-3. Verify all tests pass
+**Priority 2: Verify Deployment**
+```bash
+# Run diagnostic script
+./test-aws-loaders.sh
 
-**Priority 3: Configure AWS Credentials (for verification)**
-1. Get AWS Access Key from account
-2. Run: `aws configure`
-3. Run: `verify-aws.ps1` to confirm
+# Expected output:
+# ✅ API Endpoint responding with 200
+# ✅ ECS Cluster ready
+# ✅ RDS database accessible
+```
+
+**Priority 3: Test Loaders**
+```bash
+# Trigger a test loader
+./trigger-loader-ecs.sh stock_symbols
+
+# Watch CloudWatch
+aws logs tail /ecs/algo-stock-symbols-loader --follow
+
+# Check if it succeeds
+```
+
+**Priority 4: Test Orchestrator with Friday Data**
+```bash
+# Run locally with a specific date
+./run-orchestrator-test.sh 2026-05-16
+
+# Check if trades triggered
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME
+> SELECT * FROM trades WHERE DATE(created_at) = '2026-05-16';
+```
+
+**See:** LOADER_TESTING_GUIDE.md for detailed instructions
 
 ---
 
-## CODE VIOLATIONS FIXED (2026-05-18)
+## RECENT CHANGES
 
-✅ Removed unintegrated `lambda/api/` code (Rule #3)  
-✅ Removed credentials from settings.json (Rule #7)  
-✅ Restored CSRF protection in Lambda  
-✅ Deleted temporary/untracked files  
-✅ Created automated setup/verification scripts
+### 2026-05-18 Loader Fixes
+✅ Fixed API Gateway $default route (was causing 404)  
+✅ Added `build-lambda-zip.sh` for local Lambda building  
+✅ Added `test-aws-loaders.sh` for AWS diagnostics  
+✅ Added `run-orchestrator-test.sh` for local testing  
+✅ Added `trigger-loader-ecs.sh` for manual loader triggering  
+✅ Created LOADER_TESTING_GUIDE.md with comprehensive documentation  
+
+### What These Enable
+- 🚀 Manual control over loader triggering in AWS
+- 📋 Easy verification of AWS setup
+- 📅 Test with specific dates (Friday data) via `--run-date`
+- 📊 Monitor CloudWatch logs easily
+- ✅ Local orchestrator testing
 
 ---
 
-**See EXECUTION_READY_REPORT.md for detailed setup instructions.**
+**For detailed setup & testing instructions, see:**
+- **LOADER_TESTING_GUIDE.md** — Testing loaders & Friday data
+- **DEPLOYMENT_GUIDE.md** — Automatic deployment via GitHub Actions
+- **troubleshooting-guide.md** — Common issues & solutions
