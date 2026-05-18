@@ -45,6 +45,7 @@ import { useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import AuthModal from "./components/auth/AuthModal";
 import ErrorBoundary from "./components/ErrorBoundary";
+import APIHealthCheck from "./components/APIHealthCheck";
 
 // Marketing pages - Only keep main pages and their dropdown pages
 const Home = React.lazy(() => import("./pages/marketing/Home"));
@@ -414,7 +415,9 @@ function App() {
 
   // App pages layout (with drawer navigation)
   return (
-    <AppLayout>
+    <ErrorBoundary>
+      <APIHealthCheck>
+        <AppLayout>
       <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
         <Routes>
         {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
@@ -456,6 +459,8 @@ function App() {
       {/* Authentication Modal */}
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </AppLayout>
+      </APIHealthCheck>
+    </ErrorBoundary>
   );
 }
 
