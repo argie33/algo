@@ -43,7 +43,7 @@ function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        backgroundColor: '#f5f5f5',
+        backgroundColor: 'var(--bg)',
       }}
     >
       <Container maxWidth="sm">
