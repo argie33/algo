@@ -261,8 +261,10 @@ jobs:
               --zip-file fileb://db_init_lambda.zip \
               --region $AWS_REGION
             aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
+            # Update role, VPC config, and env vars to match API Lambda
             aws lambda update-function-configuration \
               --function-name "$FUNC_NAME" \
+              --role "$ROLE_ARN" \
               --vpc-config "$VPC_JSON" \
               --environment "$ENV_JSON" \
               --region $AWS_REGION || echo "⚠️ Config update failed (non-fatal)"
@@ -332,10 +334,17 @@ jobs:
       - name: Sync to S3
         run: |
           BUCKET="${{ needs.resolve-infra.outputs.frontend_bucket }}"
-          if [ -z "$BUCKET" ]; then
+          # Fall back to AWS CLI discovery if output was masked or empty
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "***" ]; then
+            BUCKET=$(aws s3api list-buckets \
+              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
+              --output text 2>/dev/null || echo "")
+          fi
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
             echo "ERROR: frontend bucket not resolved"
             exit 1
           fi
+          echo "Using bucket: $BUCKET"
 
           # Long-lived assets (hashed filenames) get max cache
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
@@ -352,12 +361,21 @@ jobs:
           echo "✅ Frontend synced to s3://${BUCKET}/"
 
       - name: Invalidate CloudFront
-        if: ${{ needs.resolve-infra.outputs.cloudfront_id != '' }}
         run: |
           CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
-          INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id "$CF_ID" \
-            --paths "/*" \
-            --query 'Invalidation.Id' \
-            --output text)
-          echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
+          # Fall back to discovery if output was masked
+          if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
+            CF_ID=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].Id' \
+              --output text 2>/dev/null || echo "")
+          fi
+          if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
+            INVALIDATION_ID=$(aws cloudfront create-invalidation \
+              --distribution-id "$CF_ID" \
+              --paths "/*" \
+              --query 'Invalidation.Id' \
+              --output text)
+            echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
+          else
+            echo "⚠️ No CloudFront distribution found to invalidate"
+          fi
