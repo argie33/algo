@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - '*.py'
+      - 'loaders/**'
+      - 'utils/**'
+      - 'config/**'
+      - 'algo/**'
       - 'requirements.txt'
       - 'Dockerfile'
       - 'entrypoint.sh'
