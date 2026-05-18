@@ -91,7 +91,6 @@ jobs:
           # Get the latest execution
           EXECUTION_ARN=$(aws stepfunctions list-executions \
             --state-machine-arn "$STATE_MACHINE_ARN" \
-            --sort-order DESCENDING \
             --max-items 1 \
             --region "${AWS_REGION}" \
             --query 'executions[0].executionArn' \
