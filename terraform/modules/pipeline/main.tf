@@ -552,13 +552,12 @@ resource "aws_cloudwatch_event_target" "eod_pipeline" {
 resource "aws_cloudwatch_event_target" "algo_orchestrator" {
   rule      = aws_cloudwatch_event_rule.algo_orchestrator_daily.name
   target_id = "AlgoOrchestratorLambda"
-  arn       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-orchestrator-${var.environment}"
+  arn       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-algo-${var.environment}"
   role_arn  = aws_iam_role.eventbridge_lambda.arn
 
   input = jsonencode({
-    mode     = "paper"
-    dry_run  = false
-    run_date = null # Use current date
+    source   = "eventbridge-scheduler"
+    run_date = "now"
   })
 }
 
