@@ -41,32 +41,36 @@ jobs:
       - name: Get network configuration
         id: network
         run: |
-          # Use ManagedBy=Terraform to pick the Terraform VPC, not orphaned duplicates
-          VPC_ID=$(aws ec2 describe-vpcs \
-            --filters "Name=tag:Name,Values=algo-vpc" "Name=tag:ManagedBy,Values=Terraform" \
+          # Derive VPC from the RDS subnet group — this is authoritative:
+          # ECS tasks must run in the same VPC as the RDS they connect to.
+          # Multiple 'algo-vpc' tagged VPCs exist (Terraform drift history),
+          # so VPC tag alone is ambiguous.
+          VPC_ID=$(aws rds describe-db-subnet-groups \
+            --db-subnet-group-name algo-db-subnet-group \
             --region ${{ env.AWS_REGION }} \
-            --query 'Vpcs[0].VpcId' \
+            --query 'DBSubnetGroups[0].VpcId' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$VPC_ID" ] || [ "$VPC_ID" = "None" ]; then
-            echo "ERROR: Could not find VPC"
+            echo "ERROR: Could not determine VPC from RDS subnet group"
             exit 1
           fi
-          echo "✓ VPC: $VPC_ID"
+          echo "✓ VPC (from RDS subnet group): $VPC_ID"
 
-          SUBNET=$(aws ec2 describe-subnets \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Tier,Values=Private" \
+          # Pick one of the RDS subnets for ECS task placement
+          SUBNET=$(aws rds describe-db-subnet-groups \
+            --db-subnet-group-name algo-db-subnet-group \
             --region ${{ env.AWS_REGION }} \
-            --query 'Subnets[0].SubnetId' \
+            --query 'DBSubnetGroups[0].Subnets[0].SubnetIdentifier' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
-            echo "ERROR: Could not find private subnet"
+            echo "ERROR: Could not find subnet from RDS subnet group"
             exit 1
           fi
-          echo "✓ Subnet: $SUBNET"
+          echo "✓ Subnet (from RDS subnet group): $SUBNET"
 
-          # Filter by group-name (unique within VPC) not tag:Name (may match duplicate tags)
+          # Find ECS tasks SG in the same VPC as the RDS
           SG=$(aws ec2 describe-security-groups \
             --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
             --region ${{ env.AWS_REGION }} \
@@ -74,7 +78,7 @@ jobs:
             --output text 2>/dev/null || echo "")
 
           if [ -z "$SG" ] || [ "$SG" = "None" ]; then
-            echo "ERROR: Could not find ECS tasks security group (algo-ecs-tasks-sg)"
+            echo "ERROR: Could not find ECS tasks security group (algo-ecs-tasks-sg) in VPC $VPC_ID"
             exit 1
           fi
           echo "✓ Security Group: $SG"
