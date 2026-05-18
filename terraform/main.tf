@@ -187,6 +187,7 @@ module "services" {
   rds_database_name              = module.database.rds_database_name
   rds_credentials_secret_arn     = module.database.rds_credentials_secret_arn
   algo_secrets_arn               = module.database.algo_secrets_arn
+  psycopg2_layer_arn             = module.database.psycopg2_layer_arn
   frontend_bucket_name           = module.storage.frontend_bucket_name
   code_bucket_name               = module.storage.code_bucket_name
   data_loading_bucket_name       = module.storage.data_loading_bucket_name
