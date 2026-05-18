@@ -19,13 +19,13 @@ from pathlib import Path
 from typing import Dict, Tuple, List
 
 def check_mark(msg: str):
-    return f"✓ {msg}"
+    return f"[OK] {msg}"
 
 def error_mark(msg: str):
-    return f"✗ {msg}"
+    return f"[ERROR] {msg}"
 
 def warn_mark(msg: str):
-    return f"⚠ {msg}"
+    return f"[WARN] {msg}"
 
 class CredentialAudit:
     def __init__(self):
@@ -258,19 +258,19 @@ class CredentialAudit:
         print("=" * 70)
 
         if self.successes:
-            print(f"\n✓ PASSED ({len(self.successes)}):")
+            print(f"\n[OK] PASSED ({len(self.successes)}):")
             for msg in self.successes:
-                print(f"  • {msg}")
+                print(f"  - {msg}")
 
         if self.warnings:
-            print(f"\n⚠ WARNINGS ({len(self.warnings)}):")
+            print(f"\n[WARN] WARNINGS ({len(self.warnings)}):")
             for msg in self.warnings:
-                print(f"  • {msg}")
+                print(f"  - {msg}")
 
         if self.errors:
-            print(f"\n✗ ERRORS ({len(self.errors)}):")
+            print(f"\n[ERROR] ERRORS ({len(self.errors)}):")
             for msg in self.errors:
-                print(f"  • {msg}")
+                print(f"  - {msg}")
             print("\n" + "=" * 70)
             print("RECOMMENDATIONS:")
             print("=" * 70)
@@ -285,7 +285,7 @@ class CredentialAudit:
             sys.exit(1)
         else:
             print("\n" + "=" * 70)
-            print("✓ ALL CHECKS PASSED")
+            print("[OK] ALL CHECKS PASSED")
             print("=" * 70)
             sys.exit(0)
 
