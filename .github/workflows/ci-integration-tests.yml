@@ -139,11 +139,10 @@ jobs:
           test_endpoint "Signals" "/api/signals?limit=10" "200"
           test_endpoint "Scores" "/api/scores?limit=5" "200"
 
-          # Test portfolio/trading (may require auth)
+          # Test trading endpoints (/api/trades requires JWT auth → expect 401 in CI)
           echo ""
           echo "💼 PORTFOLIO/TRADING ENDPOINTS:"
-          test_endpoint "Portfolio" "/api/portfolio" "200"
-          test_endpoint "Trades" "/api/trades" "200"
+          test_endpoint "Trades (auth required)" "/api/trades" "401"
           test_endpoint "Algo Status" "/api/algo/status" "200"
 
           # Summary

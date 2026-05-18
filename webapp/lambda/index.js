@@ -477,6 +477,9 @@ app.get("/api/test", (req, res) => {
   return sendSuccess(res, { message: "API test endpoint works!" });
 });
 
+// Root-level health check alias (AWS ALB / CI expect /health without /api prefix)
+app.use("/health", healthRoutes);
+
 // Canonical API Routes - all under /api prefix
 app.use("/api/audit", auditRoutes);
 app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);

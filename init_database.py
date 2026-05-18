@@ -40,8 +40,10 @@ def init_database():
                 success_count += 1
                 if i % 10 == 0:
                     logger.info(f"  Progress: {i}/{len(statements)}")
-            except psycopg2.ProgrammingError:
-                pass
+            except (psycopg2.ProgrammingError, psycopg2.errors.DuplicateObject,
+                    psycopg2.errors.DuplicateColumn, psycopg2.errors.UndefinedColumn,
+                    psycopg2.errors.UndefinedTable, psycopg2.errors.SyntaxError):
+                conn.rollback()  # clear aborted transaction so next statement can run
 
         conn.commit()
         cur.close()

@@ -50,10 +50,11 @@ router.get('/', async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        km.market_cap,
         ss.is_sp500
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       WHERE ${whereClause}
       ORDER BY ss.symbol
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
