@@ -31,35 +31,42 @@ router.get('/history/:symbol', async (req, res) => {
       return sendError(res, 'Missing symbol parameter', 400);
     }
 
-    // Map timeframe to table
-    const tableMap = {
+    // ETF prices are in etf_price_daily/weekly/monthly; stock prices in price_daily/weekly/monthly
+    // UNION both so SPY/QQQ/etc. work transparently alongside stock symbols
+    const etfTableMap = {
+      'daily': 'etf_price_daily',
+      'weekly': 'etf_price_weekly',
+      'monthly': 'etf_price_monthly'
+    };
+    const stockTableMap = {
       'daily': 'price_daily',
       'weekly': 'price_weekly',
       'monthly': 'price_monthly'
     };
-    const table = tableMap[timeframe] || 'price_daily';
+    const stockTable = stockTableMap[timeframe] || 'price_daily';
+    const etfTable = etfTableMap[timeframe] || 'etf_price_daily';
 
     const pool = getPool();
 
-    // Get price data
-    const result = await pool.query(`
-      SELECT
-        date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        adj_close
-      FROM ${table}
-      WHERE symbol = $1
+    const priceQuery = `
+      SELECT date, open, high, low, close, volume, adj_close
+      FROM ${stockTable} WHERE symbol = $1
+      UNION ALL
+      SELECT date, open, high, low, close, volume, adj_close
+      FROM ${etfTable} WHERE symbol = $1
       ORDER BY date DESC
       LIMIT $2 OFFSET $3
-    `, [symbol.toUpperCase(), limit, offset]);
+    `;
 
-    // Get total count
+    // Get price data
+    const result = await pool.query(priceQuery, [symbol.toUpperCase(), limit, offset]);
+
+    // Get total count across both tables
     const countResult = await pool.query(`
-      SELECT COUNT(*) as total FROM ${table} WHERE symbol = $1
+      SELECT (
+        (SELECT COUNT(*) FROM ${stockTable} WHERE symbol = $1) +
+        (SELECT COUNT(*) FROM ${etfTable} WHERE symbol = $1)
+      ) as total
     `, [symbol.toUpperCase()]);
 
     const data = result.rows.map(row => ({
