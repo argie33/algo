@@ -116,8 +116,8 @@ router.get('/', async (req, res) => {
         console.error('Stack:', err.stack);
       }
     } else {
-      if (!sources.includes('alpaca')) console.log('⏭️  Alpaca not in requested sources');
-      if (!AlpacaService) console.log('⏭️  AlpacaService not loaded');
+      if (!sources.includes('alpaca')) logger.debug('Alpaca not in requested sources');
+      if (!AlpacaService) logger.debug('AlpacaService not loaded');
     }
 
     // 2. Get database trades (from trades table)

@@ -16,9 +16,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Auto-load .env.local for local development
+# Auto-load .env.local for local development ONLY
+# Production MUST use AWS Secrets Manager or explicit environment variables
 def _load_env_local():
-    """Load .env.local file if it exists (for local dev convenience)."""
+    """Load .env.local file only in local development (never in CI/Lambda/Prod).
+
+    This is ONLY for local convenience. Production environments MUST NOT rely on .env files.
+    Use AWS Secrets Manager or explicit environment variables instead.
+    """
+    # Only load .env.local in local development mode
+    # Skip if running in: Lambda (AWS_LAMBDA_FUNCTION_NAME), CI (CI=true), or explicit env override
+    if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or \
+       os.environ.get('CI') or \
+       os.environ.get('DISABLE_ENV_LOCAL_LOADING'):
+        return  # Skip .env.local in production environments
+
     env_local_paths = [
         Path.cwd() / ".env.local",  # Current directory
         Path(__file__).parent.parent / ".env.local",  # Project root
@@ -36,7 +48,7 @@ def _load_env_local():
                             value = value.strip().strip('"').strip("'")
                             if key and key not in os.environ:
                                 os.environ[key] = value
-                logger.debug(f"Loaded .env.local from {env_path}")
+                logger.debug(f"Loaded .env.local from {env_path} (LOCAL DEV ONLY)")
                 break
             except Exception as e:
                 logger.debug(f"Failed to load {env_path}: {e}")

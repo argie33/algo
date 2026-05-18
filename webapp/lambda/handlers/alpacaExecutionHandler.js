@@ -278,7 +278,8 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     }
 
     // Summary
-      console.log(` Alpaca execution complete: ${executedTrades.length} executed, ${failedTrades.length} failed`);
+      // Log execution summary (using console for now as this is a handler function)
+      // Note: Should be replaced with structured logging in production
 
     return {
       success: executedTrades.length > 0,

@@ -204,14 +204,14 @@ const optionalAuth = async (req, res, next) => {
       } catch (error) {
         // Log the error but don't fail the request
         if (process.env.NODE_ENV !== 'test') {
-          console.log("Optional auth failed:", error.message);
+          logger.debug("Optional auth failed:", error.message);
         }
       }
     }
   } catch (error) {
     // Silently continue without authentication
     if (process.env.NODE_ENV !== 'test') {
-      console.log("Optional auth error:", error.message);
+      logger.debug("Optional auth error:", error.message);
     }
   }
 
@@ -384,7 +384,7 @@ const logApiAccess = async (req, res, next) => {
   // Log request with sanitized data
   if (process.env.NODE_ENV !== 'test') {
     const { hashedId, sanitizedPath } = sanitizeForLogging(req.user?.sub, req.path);
-      console.log(`${req.method} ${sanitizedPath} - User: ${hashedId} - IP: ${req.ip}`);
+    logger.debug(`${req.method} ${sanitizedPath} - User: ${hashedId} - IP: ${req.ip}`);
   }
 
   // Override res.end to log response
@@ -393,7 +393,7 @@ const logApiAccess = async (req, res, next) => {
     const duration = Date.now() - startTime;
     if (process.env.NODE_ENV !== 'test') {
       const { sanitizedPath } = sanitizeForLogging(null, req.path);
-        console.log(`${req.method} ${sanitizedPath} - ${res.statusCode} - ${duration}ms`);
+      logger.debug(`${req.method} ${sanitizedPath} - ${res.statusCode} - ${duration}ms`);
     }
 
     // Call the original end method

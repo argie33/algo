@@ -1,10 +1,20 @@
-﻿// Load environment variables ONCE at startup from .env.local (local dev only)
-// Production: No .env file needed - uses AWS environment variables or Secrets Manager
+﻿// Load environment variables ONCE at startup from .env.local (LOCAL DEVELOPMENT ONLY)
+// Production (Lambda/CI): NEVER load from .env files - uses AWS environment variables or Secrets Manager
 const path = require("path");
 const fs = require("fs");
 
-const envPath = path.resolve(__dirname, "../../.env.local");
-const envResult = require("dotenv").config({ path: envPath });
+// Only load .env.local in local development (never in Lambda/CI)
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
+  const envPath = path.resolve(__dirname, "../../.env.local");
+  try {
+    const envResult = require("dotenv").config({ path: envPath });
+    if (envResult.parsed) {
+      console.log(`[Startup] Loaded .env.local from ${envPath} (local development)`);
+    }
+  } catch (e) {
+    console.debug(`[Startup] .env.local not found or not readable (normal in production)`);
+  }
+}
 
 // Financial Dashboard API - Lambda Function
 // Updated: 2026-05-09 - Fixed CORS configuration + auth flow
