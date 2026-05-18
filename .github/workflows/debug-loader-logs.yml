@@ -1,0 +1,127 @@
+name: Debug Loader CloudWatch Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      loader_name:
+        description: 'Loader name (e.g. stock_prices_daily)'
+        required: true
+        default: 'stock_prices_daily'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: algo-cluster
+
+jobs:
+  debug-logs:
+    name: "Read CloudWatch logs for ${{ inputs.loader_name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get network config and start loader with wait
+        id: run_loader
+        run: |
+          LOADER="${{ inputs.loader_name }}"
+          LOG_GROUP="/ecs/algo-${LOADER}-loader"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=algo-vpc" \
+            --query 'Vpcs[0].VpcId' --output text 2>/dev/null)
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query 'Subnets[0].SubnetId' --output text 2>/dev/null)
+          SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks" \
+            --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || \
+            aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null)
+
+          echo "VPC=$VPC_ID SUBNET=$SUBNET SG=$SG"
+
+          TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix "algo-${LOADER}-loader" \
+            --sort DESC \
+            --query 'taskDefinitionArns[0]' --output text 2>/dev/null)
+          echo "Task def: $TASK_DEF"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text 2>/dev/null)
+          echo "Task ARN: $TASK_ARN"
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "log_group=$LOG_GROUP" >> $GITHUB_OUTPUT
+
+          # Wait up to 15 min for completion
+          echo "Waiting for task to complete..."
+          for i in $(seq 1 60); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' --output text 2>/dev/null)
+            STOP_CODE=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].stopCode' --output text 2>/dev/null)
+            STOP_REASON=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].stoppedReason' --output text 2>/dev/null)
+            EXIT_CODE=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].containers[0].exitCode' --output text 2>/dev/null)
+            echo "[$i/60] status=$STATUS stopCode=$STOP_CODE exitCode=$EXIT_CODE reason=$STOP_REASON"
+            if [ "$STATUS" = "STOPPED" ]; then
+              echo "Task stopped: exitCode=$EXIT_CODE stopCode=$STOP_CODE reason=$STOP_REASON"
+              break
+            fi
+            sleep 15
+          done
+
+      - name: Read CloudWatch logs
+        if: always()
+        run: |
+          LOG_GROUP="${{ steps.run_loader.outputs.log_group }}"
+          TASK_ARN="${{ steps.run_loader.outputs.task_arn }}"
+          TASK_ID=$(echo "$TASK_ARN" | awk -F'/' '{print $NF}')
+          CONTAINER="algo-${{ inputs.loader_name }}"
+          LOG_STREAM="ecs/${CONTAINER}/${TASK_ID}"
+
+          echo "=== CloudWatch Logs ==="
+          echo "Log group: $LOG_GROUP"
+          echo "Log stream: $LOG_STREAM"
+          echo ""
+
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_STREAM" \
+            --limit 200 \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "Could not read logs (stream may not exist yet)"
+
+      - name: Check recent stopped tasks
+        if: always()
+        run: |
+          echo "=== Recent stopped tasks for ${{ inputs.loader_name }} ==="
+          aws ecs list-tasks \
+            --cluster $ECS_CLUSTER \
+            --family "algo-${{ inputs.loader_name }}-loader" \
+            --desired-status STOPPED \
+            --query 'taskArns' --output text 2>/dev/null | head -5 || echo "none"
