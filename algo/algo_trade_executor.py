@@ -19,7 +19,7 @@ from config.credential_helper import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
-
+from config.credential_manager import get_alpaca_credentials
 
 import os
 import json
@@ -60,8 +60,9 @@ class TradeExecutor:
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
-        self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
+        alpaca_creds = get_alpaca_credentials()
+        self.alpaca_key = alpaca_creds.get("key") or os.getenv("APCA_API_KEY_ID")
+        self.alpaca_secret = alpaca_creds.get("secret") or os.getenv("APCA_API_SECRET_KEY")
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         self.conn = None
         self.cur = None

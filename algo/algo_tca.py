@@ -43,16 +43,24 @@ class TCAEngine:
         self.config = config
         self.conn = None
         self.cur = None
-
-        self.db_host = get_db_config()['host']
-        self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = get_db_config()['user']
-        self.db_password = get_db_password()
-        self.db_name = get_db_config()['database']
+        # Lazy-load DB config when connect() is called, not at init time
+        self.db_host = None
+        self.db_port = None
+        self.db_user = None
+        self.db_password = None
+        self.db_name = None
 
     def connect(self):
         """Connect to database."""
         try:
+            # Lazy-load DB config on first connection
+            if self.db_host is None:
+                self.db_host = get_db_config()['host']
+                self.db_port = int(os.getenv('DB_PORT', 5432))
+                self.db_user = get_db_config()['user']
+                self.db_password = get_db_password()
+                self.db_name = get_db_config()['database']
+
             self.conn = psycopg2.connect(
                 host=self.db_host,
                 port=self.db_port,

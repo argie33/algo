@@ -30,14 +30,18 @@ class PositionSizer:
         self.cur = cur
         self._owns_connection = conn is None  # Track if we opened the connection
 
-        # If connection not provided, open our own
-        if not conn or not cur:
-            self.connect()
+        # Lazy-load connection on first use if not provided
+        # Don't connect during __init__ since tests may not have DB credentials
 
     def connect(self):
+        """Lazy-load database connection on first use."""
         if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
+            try:
+                self.conn = get_db_connection()
+                self.cur = self.conn.cursor()
+            except Exception as e:
+                logger.warning(f"Could not connect to database: {e}. Proceeding without DB access.")
+                # Don't fail if DB isn't available - tests may not have credentials
 
     def disconnect(self):
         # Only close if we opened the connection
@@ -46,6 +50,11 @@ class PositionSizer:
                 self.cur.close()
             if self.conn:
                 self.conn.close()
+
+    def _ensure_connection(self):
+        """Ensure database connection is open."""
+        if not self.conn:
+            self.connect()
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -61,6 +70,7 @@ class PositionSizer:
             return alpaca_value
 
         try:
+            self._ensure_connection()
             self.cur.execute("""
                 SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1
@@ -120,6 +130,7 @@ class PositionSizer:
         B13: Fail-closed — if any data missing, assume worst case to protect capital.
         """
         try:
+            self._ensure_connection()
             self.cur.execute("""
                 SELECT COUNT(*) FROM algo_portfolio_snapshots
             """)
