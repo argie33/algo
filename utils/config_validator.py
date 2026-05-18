@@ -6,13 +6,10 @@ logger = logging.getLogger(__name__)
 
 
 def validate_at_startup():
-    """Validate required configuration at startup.
-
-    Currently a no-op stub. Can be extended to validate:
-    - Database connectivity
-    - Required environment variables
-    - Table existence
-    - Data freshness requirements
-    """
-    logger.debug("Config validation skipped (stub)")
-    pass
+    """Validate required configuration at startup."""
+    from config.credential_validator import assert_credentials
+    try:
+        assert_credentials(mode='warn')
+        logger.debug("Startup validation: OK")
+    except Exception as e:
+        logger.warning(f"Startup validation warning: {e}")

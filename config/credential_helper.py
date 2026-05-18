@@ -4,7 +4,7 @@ Unified credential handling with proper fallbacks.
 
 Supports multiple environments:
 - CI (GitHub Actions): Uses DB_PASSWORD env variable
-- Local dev: Uses credential_manager (AWS Secrets Manager wrapper)
+- Local dev: Uses .env.local (auto-loaded) or credential_manager (AWS Secrets Manager wrapper)
 - Testing: Uses defaults
 - Lambda: Uses DATABASE_SECRET_ARN for Secrets Manager
 """
@@ -12,8 +12,36 @@ Supports multiple environments:
 import os
 import logging
 from typing import Dict, Optional
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Auto-load .env.local for local development
+def _load_env_local():
+    """Load .env.local file if it exists (for local dev convenience)."""
+    env_local_paths = [
+        Path.cwd() / ".env.local",  # Current directory
+        Path(__file__).parent.parent / ".env.local",  # Project root
+    ]
+
+    for env_path in env_local_paths:
+        if env_path.exists():
+            try:
+                with open(env_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            key, _, value = line.partition("=")
+                            key = key.strip()
+                            value = value.strip().strip('"').strip("'")
+                            if key and key not in os.environ:
+                                os.environ[key] = value
+                logger.debug(f"Loaded .env.local from {env_path}")
+                break
+            except Exception as e:
+                logger.debug(f"Failed to load {env_path}: {e}")
+
+_load_env_local()
 
 _CACHED_CREDS: Optional[Dict] = None
 

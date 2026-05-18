@@ -332,21 +332,6 @@ def main():
     loader = BuySellDailyLoader()
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
-
-        try:
-            from utils.monitoring.loader_sla_tracker import get_tracker
-            tracker = get_tracker()
-            latest_date = date.today() if stats["rows_inserted"] > 0 else None
-            tracker.update_sla_status(
-                loader_name="Buy Sell Daily",
-                table_name="buy_sell_daily",
-                latest_data_date=latest_date,
-                row_count_today=stats["rows_inserted"],
-                status="OK" if stats["symbols_failed"] == 0 else "PARTIAL",
-            )
-        except Exception as e:
-            log.warning(f"Failed to record SLA status: {e}")
-
     finally:
         loader.close()
 

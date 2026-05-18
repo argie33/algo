@@ -272,24 +272,6 @@ def run(
             logger.info("  [DEV MODE] Skipping SLA and loader health checks")
         else:
             try:
-                from utils.monitoring.loader_sla_tracker import get_tracker
-                tracker = get_tracker()
-                all_critical_ok, failures = tracker.check_critical_loaders()
-
-                if not all_critical_ok:
-                    failure_msg = "; ".join(failures)
-                    log_phase_result_fn(1, 'loader_sla_check', 'halt',
-                                       f'Critical loaders failed SLA: {failure_msg}')
-                    logger.critical(f"Algo halted: {failure_msg}")
-                    return PhaseResult(1, 'loader_sla_check', 'halted', {}, True, failure_msg)
-
-                logger.info("  [OK] All critical loaders have fresh data")
-
-            except Exception as e:
-                logger.warning(f"  [WARN] SLA check failed: {e}")
-                # Don't fail-close on SLA check error, just warn
-
-            try:
                 from algo.algo_loader_monitor import LoaderMonitor
                 monitor = LoaderMonitor()
                 monitor.connect()

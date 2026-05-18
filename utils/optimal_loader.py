@@ -125,15 +125,8 @@ class OptimalLoader(ABC):
         return self._router
 
     def _get_dedup(self):
-        if self._dedup is not None:
-            return self._dedup
-        try:
-            from utils.bloom_dedup import LoadDedup
-            self._dedup = LoadDedup(namespace=self.table_name)
-        except Exception as e:
-            log.debug("Dedup unavailable (%s) �� using DB-only dedup", e)
-            self._dedup = False  # sentinel for "tried and failed"
-        return self._dedup if self._dedup else None
+        self._dedup = False
+        return None
 
     def _get_watermark(self):
         if self._watermark is not None:
