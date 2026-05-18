@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
 
 logger = logging.getLogger(__name__)
 
@@ -89,21 +89,9 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             """, tuple(params))
             signals = cur.fetchall()
             return json_response(200, {'items': [dict(s) for s in signals]})
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found (signals): {e}', extra={'operation': 'fetch stock signals'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found (signals): {e}', extra={'operation': 'fetch stock signals'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error (signals): {e}', extra={'operation': 'fetch stock signals'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error (signals): {e}', extra={'operation': 'fetch stock signals', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (signals): {e}', extra={'operation': 'fetch stock signals', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch signals')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'fetch stock signals')
 
 def _get_signals_etf(cur, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
@@ -131,19 +119,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
             """, (limit,))
             signals = cur.fetchall()
             return list_response([dict(s) for s in signals])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found (ETF signals): {e}', extra={'operation': 'fetch ETF signals'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found (ETF signals): {e}', extra={'operation': 'fetch ETF signals'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error (ETF signals): {e}', extra={'operation': 'fetch ETF signals'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error (ETF signals): {e}', extra={'operation': 'fetch ETF signals', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (ETF signals): {e}', extra={'operation': 'fetch ETF signals', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch ETF signals')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'fetch ETF signals')
 

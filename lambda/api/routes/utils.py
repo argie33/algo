@@ -32,6 +32,16 @@ def safe_days(days_str, max_val=365, default=30):
         return default
 
 
+def safe_page(page_str, default=1):
+    """Parse and validate page parameter."""
+    if not page_str:
+        return default
+    try:
+        return max(1, int(page_str))
+    except (ValueError, TypeError):
+        return default
+
+
 def error_response(code, typ, msg):
     """Standardized error response."""
     return {"statusCode": code, "errorType": typ, "message": msg}
