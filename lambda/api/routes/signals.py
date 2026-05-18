@@ -99,7 +99,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
             cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
-                    bsd.strength, bsd.reason,
+                    bsd.strength, NULL as reason,
                     COALESCE(td.close, 0) as close,
                     COALESCE(td.rsi, 0) as rsi,
                     COALESCE(td.sma_50, 0) as sma_50,
