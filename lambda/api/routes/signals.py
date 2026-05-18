@@ -99,7 +99,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     bsd.strength, NULL as reason,
                     COALESCE(td.close, 0) as close,
-                    COALESCE(td.rsi, 0) as rsi,
+                    COALESCE(td.rsi_14, 0) as rsi,
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
                     COALESCE(tt.weinstein_stage::TEXT, 'unknown') as market_stage,
