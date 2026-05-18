@@ -170,3 +170,9 @@ webapp/frontend/src/tests/e2e/visual-regression.visual.spec.js-snapshots/
 webapp/frontend/src/tests/screenshots/
 webapp/frontend/app-screenshot.png
 webapp/frontend/public/images/image1.png
+
+.pytest_cache/
+
+*.pyc
+
+*.pyo
