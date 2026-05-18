@@ -367,11 +367,12 @@ jobs:
 
       - name: Install & Build
         working-directory: webapp/frontend
-        env:
-          VITE_API_URL: ${{ secrets.API_GATEWAY_URL }}
         run: |
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION --query "UserPools[?Name=='stocks-trading-pool-dev'].Id | [0]" --output text 2>/dev/null || echo "")
+          CLIENT_ID=$([ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ] && aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" --region $AWS_REGION --query "UserPoolClients[?ClientName=='stocks-web-app-dev'].ClientId | [0]" --output text 2>/dev/null || echo "")
+          [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ] && echo "Cognito: pool=$POOL_ID client=$CLIENT_ID" || echo "Cognito pool not found"
           npm install
-          npm run build
+          VITE_API_URL="${{ secrets.API_GATEWAY_URL }}" VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" VITE_AWS_REGION="$AWS_REGION" npm run build
 
       - name: Sync to S3
         run: |
