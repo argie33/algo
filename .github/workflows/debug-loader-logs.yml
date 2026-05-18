@@ -7,6 +7,10 @@ on:
         description: 'Loader name (e.g. stock_prices_daily)'
         required: true
         default: 'stock_prices_daily'
+      status_only:
+        description: 'Skip CloudWatch logs, only check task status'
+        required: false
+        default: 'false'
 
 permissions:
   id-token: write
@@ -33,6 +37,7 @@ jobs:
 
       - name: Read recent CloudWatch logs
         id: read_logs
+        if: inputs.status_only != 'true'
         run: |
           LOADER="${{ inputs.loader_name }}"
           LOG_GROUP="/ecs/algo-${LOADER}-loader"
@@ -83,6 +88,19 @@ jobs:
       - name: Check running tasks
         if: always()
         run: |
+          echo "=== ALL recently stopped tasks (newest 3) ==="
+          aws ecs list-tasks \
+            --cluster $ECS_CLUSTER \
+            --family "algo-${{ inputs.loader_name }}-loader" \
+            --desired-status STOPPED \
+            --query 'taskArns[:3]' --output text 2>/dev/null | tr '\t' '\n' | while read ARN; do
+            if [ -n "$ARN" ] && [ "$ARN" != "None" ]; then
+              aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $ARN \
+                --query 'tasks[0].{StopCode:stopCode,ExitCode:containers[0].exitCode,Created:createdAt,Stopped:stoppedAt,Image:containers[0].image,Reason:stoppedReason}' \
+                --output json 2>/dev/null
+            fi
+          done
+          echo ""
           echo "=== Currently running tasks for ${{ inputs.loader_name }} ==="
           RUNNING=$(aws ecs list-tasks \
             --cluster $ECS_CLUSTER \
