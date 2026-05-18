@@ -7,7 +7,7 @@
 
 cd /app
 
-# Log function that writes to both stdout and stderr
+# Log function that writes to both stdout and stderr for CloudWatch capture
 log_msg() {
     local msg="$1"
     echo "[ENTRYPOINT] $msg"
