@@ -28,7 +28,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         if path == '/api/stocks/deep-value':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_deep_value_stocks(limit)
+            return _get_deep_value_stocks(cur, limit)
         elif path == '/api/stocks' or path == '/api/stocks/list':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
@@ -103,7 +103,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         else:
             return error_response(404, 'not_found', f'No stocks handler for {path}')
 
-def _get_deep_value_stocks(self, limit: int = 600) -> Dict:
+def _validate_symbol(symbol: str) -> bool:
+    """Validate symbol format: 1-20 chars, alphanumeric/dash/dot."""
+    return bool(re.match(r'^[A-Z0-9.\-]{1,20}$', symbol))
+
+def json_response(code, data):
+    """Return JSON response."""
+    return {"statusCode": code, "data": data}
+
+def _get_deep_value_stocks(cur, limit: int = 600) -> Dict:
         """Get deep value stock screener data from normalized metric tables."""
         try:
             cur.execute("""

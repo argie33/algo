@@ -31,11 +31,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_price_history(symbol, timeframe, limit)
+            return _get_price_history(cur, symbol, timeframe, limit)
         else:
             return error_response(404, 'not_found', f'Invalid prices endpoint: {path}')
 
-def _get_price_history(self, symbol: str, timeframe: str = 'daily', limit: int = 60) -> Dict:
+def _validate_symbol(symbol: str) -> bool:
+    """Validate symbol format: 1-20 chars, alphanumeric/dash/dot."""
+    return bool(re.match(r'^[A-Z0-9.\-]{1,20}$', symbol))
+
+def _get_price_history(cur, symbol: str, timeframe: str = 'daily', limit: int = 60) -> Dict:
         """Get price history for a symbol."""
         if not _validate_symbol(symbol):
             return error_response(400, 'bad_request', 'Symbol format invalid (1-20 chars, letters/numbers/dash/dot)')
