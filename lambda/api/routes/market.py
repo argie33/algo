@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +122,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 """)
                 rows = cur.fetchall()
                 if rows:
-                    current = rows[0][1]  # naaim_number_mean from most recent row
-                    history = [{'date': dict(r)['date'], 'naaim_number_mean': dict(r)['naaim_number_mean']} for r in rows]
+                    current = dict(rows[0]).get('naaim_number_mean')
+                    history = [{'date': str(dict(r)['date']), 'naaim_number_mean': dict(r)['naaim_number_mean']} for r in rows]
                     return json_response(200, {'current': current, 'history': history})
                 else:
                     return json_response(200, {'current': None, 'history': []})

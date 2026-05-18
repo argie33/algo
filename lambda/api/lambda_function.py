@@ -115,6 +115,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'database_unavailable'})
             }
 
+        # Reset any failed transaction state from a previous Lambda invocation
+        try:
+            conn.rollback()
+        except Exception:
+            _db_conn = None
+            conn = get_db_connection()
+            if not conn:
+                return {
+                    'statusCode': 503,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'database_unavailable'})
+                }
+
         cur = conn.cursor()
 
         # Parse params and body
@@ -131,14 +144,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cur.close()
 
         # Ensure response has proper format
+        def _json_default(obj):
+            import datetime
+            if isinstance(obj, (datetime.date, datetime.datetime)):
+                return obj.isoformat()
+            if hasattr(obj, '__float__'):
+                return float(obj)
+            return str(obj)
+
         if isinstance(response, dict):
             status = response.get('statusCode', 200)
             headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
             if 'body' in response:
-                body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'])
+                body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'], default=_json_default)
             else:
                 # Route handlers return data dicts directly (no body key) — wrap them
-                body = json.dumps({k: v for k, v in response.items() if k != 'statusCode'})
+                body = json.dumps({k: v for k, v in response.items() if k != 'statusCode'}, default=_json_default)
             return {'statusCode': status, 'headers': headers, 'body': body}
 
         return {
