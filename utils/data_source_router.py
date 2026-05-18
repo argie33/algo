@@ -6,15 +6,10 @@ with health-check based fallback. Tracks per-source success rate so
 unhealthy sources are temporarily skipped.
 
 Sources by data type (in priority order):
-    OHLCV:        Alpaca → Polygon → yfinance
-    Fundamentals: SEC EDGAR → Polygon → yfinance
+    OHLCV:        yfinance (sole source — Alpaca data subscription required for alternative)
+    Fundamentals: SEC EDGAR → yfinance
     Economic:     FRED (only)
-    Earnings:     Alpaca → Polygon → yfinance
-
-Why this matters:
-    Loaders today hard-code yfinance. When yfinance breaks (weekly), all
-    loaders break. With this router, a yfinance outage degrades to fallback
-    automatically — same data, different source.
+    Earnings:     yfinance → SEC EDGAR
 
 Health tracking:
     Each source has a rolling success rate. If success rate drops below
@@ -41,7 +36,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from algo.algo_retry import retry, ALPACA_DATA_LIMITER, YFINANCE_LIMITER
+from algo.algo_retry import retry, YFINANCE_LIMITER
 
 logger = logging.getLogger(__name__)
 
@@ -156,81 +151,9 @@ class DataSourceRouter:
     ) -> Optional[Any]:
         """Daily OHLCV bars. Returns DataFrame-shaped data or None."""
         sources = [
-            ("alpaca", lambda: self._fetch_alpaca_ohlcv(symbol, start, end)),
             ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end)),
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
-
-    @retry(max_attempts=3, base_delay=1.0, exceptions=(Exception,))
-    def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
-        api_key = os.getenv("APCA_API_KEY_ID")
-        api_secret = os.getenv("APCA_API_SECRET_KEY")
-        if not api_key or not api_secret:
-            log.debug("Alpaca credentials not configured, skipping")
-            return None
-
-        import requests
-        ALPACA_DATA_LIMITER.wait()
-        url = "https://data.alpaca.markets/v2/stocks/bars"
-        try:
-            resp = requests.get(
-                url,
-                params={
-                    "symbols": symbol,
-                    "timeframe": "1Day",
-                    "start": start.isoformat(),
-                    "end": end.isoformat(),
-                    "limit": 10000,
-                    "adjustment": "raw",
-                },
-                headers={
-                    "APCA-API-KEY-ID": api_key,
-                    "APCA-API-SECRET-KEY": api_secret,
-                },
-                timeout=30,
-            )
-
-            if resp.status_code == 429:
-                retry_after = resp.headers.get('Retry-After', '60')
-                wait_time = float(retry_after) if retry_after.replace('.', '', 1).isdigit() else 60.0
-                log.warning(f"Alpaca rate limited for {symbol}. Waiting {wait_time}s before retry.")
-                time.sleep(wait_time)
-                raise Exception(f"Rate limited (429): Retry-After {wait_time}s")
-
-            if resp.status_code in (401, 403):
-                log.warning(f"Alpaca auth failed (code={resp.status_code}) for {symbol}: {resp.text[:200]}")
-                return None
-
-            resp.raise_for_status()
-            data = resp.json()
-            bars = data.get("bars", {}).get(symbol, [])
-            if not bars:
-                return None
-            return [
-                {
-                    "symbol": symbol,
-                    "date": bar["t"][:10],
-                    "open": bar["o"],
-                    "high": bar["h"],
-                    "low": bar["l"],
-                    "close": bar["c"],
-                    "volume": int(bar["v"]),
-                }
-                for bar in bars
-            ]
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 429:
-                raise Exception(f"Alpaca rate limited: {e}")
-            if e.response.status_code in (401, 403):
-                log.debug(f"Alpaca auth failed (skipping): {e.response.text[:200]}")
-                return None
-            raise
-        except requests.exceptions.Timeout:
-            log.warning(f"Alpaca timeout for {symbol}")
-            raise Exception(f"Alpaca timeout: {symbol}")
-        except Exception as e:
-            log.warning(f"Alpaca fetch failed for {symbol}: {e}")
-            raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
