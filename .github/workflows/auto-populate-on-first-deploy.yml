@@ -47,6 +47,8 @@ jobs:
       needs.check-if-first-deploy.outputs.should_populate == 'true' &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      execution-arn: ${{ steps.trigger.outputs.execution-arn }}
 
     steps:
       - name: Checkout code
@@ -60,6 +62,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Trigger EOD pipeline
+        id: trigger
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           STATE_MACHINE_ARN="arn:aws:states:${AWS_REGION}:${ACCOUNT_ID}:stateMachine:algo-eod-pipeline-dev"
@@ -78,23 +81,18 @@ jobs:
           echo "Monitor progress:"
           echo "  https://console.aws.amazon.com/states/home?region=${AWS_REGION}"
 
+          # Output the ARN for the next step
+          echo "execution-arn=$EXECUTION_ARN" >> $GITHUB_OUTPUT
+
       - name: Wait for pipeline completion (optional)
         timeout-minutes: 120  # 2 hours max for full data load
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          STATE_MACHINE_ARN="arn:aws:states:${AWS_REGION}:${ACCOUNT_ID}:stateMachine:algo-eod-pipeline-dev"
+          EXECUTION_ARN="${{ steps.trigger.outputs.execution-arn }}"
 
           echo "⏳ Waiting for EOD pipeline to complete..."
           echo "(This may take 30-45 minutes)"
           echo ""
-
-          # Get the latest execution
-          EXECUTION_ARN=$(aws stepfunctions list-executions \
-            --state-machine-arn "$STATE_MACHINE_ARN" \
-            --max-items 1 \
-            --region "${AWS_REGION}" \
-            --query 'executions[0].executionArn' \
-            --output text)
+          echo "Using execution: $EXECUTION_ARN"
 
           # Poll until complete
           while true; do
