@@ -34,6 +34,7 @@ from utils.data_tick_validator import validate_score_tick
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_watermark_manager import WatermarkManager
 from utils.monitoring.loader_validation import validate_score_row, count_validation_errors
+from loaders.technical_indicators import compute_rsi
 
 
 
@@ -94,7 +95,7 @@ class StockScoresLoader(OptimalLoader):
         value_metrics = self._fetch_value_metrics(symbol)
 
         # Technical analysis scores
-        rsi = self._compute_rsi(df["close"], 14)
+        rsi = compute_rsi(df["close"], 14)
         momentum_raw = self._compute_momentum(df["close"], 20)
 
         # Volatility/Stability score (lower volatility = higher stability)
@@ -185,16 +186,6 @@ class StockScoresLoader(OptimalLoader):
             "updated_at": str(date.today()),
         }
         return [score_row]  # Return single-item list as before
-
-    @staticmethod
-    def _compute_rsi(closes, period=14):
-        """Compute Relative Strength Index."""
-        deltas = closes.diff()
-        gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
-        losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses.replace(0, 1e-10)  # Guard against division by zero
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
 
     @staticmethod
     def _compute_momentum(closes, period=20):

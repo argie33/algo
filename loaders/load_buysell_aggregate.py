@@ -28,6 +28,7 @@ from utils.loader_helpers import get_active_symbols
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
+from loaders.technical_indicators import compute_rsi, compute_macd
 
 
 log = logging.getLogger(__name__)
@@ -130,8 +131,8 @@ class BuySellAggregateLoader(OptimalLoader):
         if len(bars) < self._min_bars:
             return None
 
-        bars["rsi"] = self._compute_rsi(bars["close"], 14)
-        macd, signal_line = self._compute_macd(bars["close"])
+        bars["rsi"] = compute_rsi(bars["close"], 14)
+        macd, signal_line = compute_macd(bars["close"])
         bars["macd"] = macd
         bars["signal_line"] = signal_line
         if self._has_atr:
@@ -143,18 +144,6 @@ class BuySellAggregateLoader(OptimalLoader):
             if sig:
                 signals.append(sig)
         return signals or None
-
-    @staticmethod
-    def _compute_rsi(closes, period=14):
-        deltas = closes.diff()
-        gains = deltas.where(deltas > 0, 0).rolling(window=period).mean()
-        losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        return 100 - (100 / (1 + gains / losses))
-
-    @staticmethod
-    def _compute_macd(closes, fast=12, slow=26, signal=9):
-        macd = closes.ewm(span=fast).mean() - closes.ewm(span=slow).mean()
-        return macd, macd.ewm(span=signal).mean()
 
     @staticmethod
     def _compute_atr(highs, lows, closes, period=14):

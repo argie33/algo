@@ -31,6 +31,7 @@ from config.env_loader import load_env
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from loaders.technical_indicators import compute_rsi, compute_macd
 
 logger = get_logger(__name__)
 log = logging.getLogger(__name__)
@@ -154,8 +155,8 @@ class BuySellDailyLoader(OptimalLoader):
         if len(df) < 50:
             return []
 
-        df["rsi"] = self._compute_rsi(df["close"], 14)
-        macd, signal_line = self._compute_macd(df["close"])
+        df["rsi"] = compute_rsi(df["close"], 14)
+        macd, signal_line = compute_macd(df["close"])
         df["macd"] = macd
         df["signal_line"] = signal_line
         df["sma_50"] = df["close"].rolling(50).mean()
@@ -170,25 +171,6 @@ class BuySellDailyLoader(OptimalLoader):
                 signals.append(sig)
 
         return signals
-
-    @staticmethod
-    def _compute_rsi(closes, period=14):
-        """Compute Relative Strength Index."""
-        deltas = closes.diff()
-        gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
-        losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses.replace(0, np.nan)
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
-
-    @staticmethod
-    def _compute_macd(closes, fast=12, slow=26, signal=9):
-        """Compute MACD."""
-        ema_fast = closes.ewm(span=fast).mean()
-        ema_slow = closes.ewm(span=slow).mean()
-        macd = ema_fast - ema_slow
-        signal_line = macd.ewm(span=signal).mean()
-        return macd, signal_line
 
     def _generate_signal_row(self, df, row_idx: int, symbol: str, trend_data: dict) -> Optional[dict]:
         """Generate Minervini-style breakout buy/sell signal for one price row.

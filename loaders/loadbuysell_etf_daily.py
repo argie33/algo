@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from utils.optimal_loader import OptimalLoader
+from loaders.technical_indicators import compute_rsi, compute_macd
 
 
 
@@ -78,8 +79,8 @@ class BuySellETFDailyLoader(OptimalLoader):
         if len(df) < 20:
             return None
 
-        df["rsi"] = self._compute_rsi(df["close"], 14)
-        df["macd"], df["signal_line"] = self._compute_macd(df["close"])
+        df["rsi"] = compute_rsi(df["close"], 14)
+        df["macd"], df["signal_line"] = compute_macd(df["close"])
 
         signals = []
         for idx, row in df.iterrows():
@@ -92,24 +93,6 @@ class BuySellETFDailyLoader(OptimalLoader):
 
         return signals if signals else None
 
-    @staticmethod
-    def _compute_rsi(closes, period=14):
-        """Compute Relative Strength Index."""
-        deltas = closes.diff()
-        gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
-        losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-        rs = gains / losses
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
-
-    @staticmethod
-    def _compute_macd(closes, fast=12, slow=26, signal=9):
-        """Compute MACD."""
-        ema_fast = closes.ewm(span=fast).mean()
-        ema_slow = closes.ewm(span=slow).mean()
-        macd = ema_fast - ema_slow
-        signal_line = macd.ewm(span=signal).mean()
-        return macd, signal_line
 
     @staticmethod
     def _generate_signal(row, symbol: str):
