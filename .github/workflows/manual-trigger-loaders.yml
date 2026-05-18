@@ -43,19 +43,56 @@ jobs:
       - name: Get network configuration
         id: network
         run: |
-          cd terraform
-          SUBNET=$(terraform output -json 2>/dev/null | jq -r '.private_subnet_ids.value[0]' || echo "")
-          SG=$(terraform output -json 2>/dev/null | jq -r '.ecs_tasks_security_group_id.value' || echo "")
+          # Get VPC
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=algo-vpc-dev" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Vpcs[0].VpcId' \
+            --output text 2>/dev/null || echo "")
 
-          if [ -z "$SUBNET" ] || [ -z "$SG" ]; then
-            echo "ERROR: Could not retrieve network config from Terraform"
+          if [ -z "$VPC_ID" ] || [ "$VPC_ID" = "None" ]; then
+            echo "ERROR: Could not find VPC"
             exit 1
           fi
+          echo "✓ VPC: $VPC_ID"
+
+          # Get private subnet
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Subnets[0].SubnetId' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
+            echo "ERROR: Could not find subnet"
+            exit 1
+          fi
+          echo "✓ Subnet: $SUBNET"
+
+          # Get ECS tasks security group
+          SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$SG" ] || [ "$SG" = "None" ]; then
+            # Fallback: get any security group from VPC
+            SG=$(aws ec2 describe-security-groups \
+              --filters "Name=vpc-id,Values=$VPC_ID" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'SecurityGroups[0].GroupId' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$SG" ] || [ "$SG" = "None" ]; then
+            echo "ERROR: Could not find security group"
+            exit 1
+          fi
+          echo "✓ Security Group: $SG"
 
           echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
           echo "sg=$SG" >> $GITHUB_OUTPUT
-          echo "✓ Subnet: $SUBNET"
-          echo "✓ Security Group: $SG"
 
       - name: Trigger Tier 0 (Stock Symbols)
         if: inputs.tier == 'all' || inputs.tier == 'tier-0'
