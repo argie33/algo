@@ -153,17 +153,17 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s"
     )
 
-    logger.info("\nValidating credentials...")
-    logger.info("-" * 60)
+    log.info("\nValidating credentials...")
+    log.info("-" * 60)
     is_valid, messages = validate_credentials()
 
     for msg in messages:
-        logger.info(msg)
+        log.info(msg)
 
-    logger.info("-" * 60)
+    log.info("-" * 60)
     if is_valid:
-        logger.info("[OK] All credentials valid")
+        log.info("[OK] All credentials valid")
         sys.exit(0)
     else:
-        logger.info("[FAIL] Credential validation failed")
+        log.info("[FAIL] Credential validation failed")
         sys.exit(1)
