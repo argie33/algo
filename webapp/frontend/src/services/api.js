@@ -60,13 +60,12 @@ const _checkApiHealth = async () => {
   return apiHealthy;
 };
 
-// Log config in development only
-if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-  if (!currentConfig.apiUrl || currentConfig.apiUrl === "" || currentConfig.apiUrl.includes("localhost")) {
-    console.warn(
-      "[API CONFIG] Using fallback API URL:",
-      currentConfig.baseURL +
-        "\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
+// Log config in development only (suppressed in production)
+if (typeof window !== "undefined" && window.location?.hostname === "localhost") {
+  if (!currentConfig.apiUrl || currentConfig.apiUrl === "") {
+    console.debug(
+      "[DEV] API using local proxy:",
+      currentConfig.baseURL || "(relative path)"
     );
   }
 }

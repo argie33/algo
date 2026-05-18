@@ -399,7 +399,7 @@ function IndexCell({ idx }) {
       )}
       {series.length >= 2 && (
         <div style={{ marginTop: 8, height: 30 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={series}>
               <defs>
                 <linearGradient id={`ig-${idx.symbol}`} x1="0" y1="0" x2="0" y2="1">
@@ -597,7 +597,7 @@ function ExposureHistory({ markets }) {
       </div>
       <div className="card-body" style={{ padding: 'var(--space-4)' }}>
         <div style={{ height: 320 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
@@ -644,7 +644,7 @@ function BreadthCard({ markets }) {
       </div>
       <div className="card-body">
         <div style={{ height: 200 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={56}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis dataKey="name" tick={{ fill: C.textFaint, fontSize: 11 }} />
@@ -703,7 +703,7 @@ function NewHighsLowsCard({ markets }) {
       </div>
       <div className="card-body">
         <div style={{ height: 200 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis dataKey="name" tick={{ fill: C.textFaint, fontSize: 11 }} />
@@ -754,7 +754,7 @@ function SentimentCard({ markets, sentiment }) {
       </div>
       <div className="card-body">
         <div style={{ height: 200 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={d => String(d).slice(5)} />
@@ -875,7 +875,7 @@ function InternalsCard({ data }) {
         </div>
         {mcclellan.length > 1 && (
           <div style={{ height: 140 }}>
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1170,7 +1170,7 @@ function SectorRotationMap({ markets, onSelect }) {
       </div>
       <div className="card-body">
         <div style={{ height: 360, position: 'relative' }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 24 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis type="number" dataKey="rsRank" domain={[0, 100]}
@@ -1256,7 +1256,7 @@ function SectorRotationSignalCard() {
       </div>
       <div className="card-body">
         <div style={{ height: 200 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={items.map(d => ({
               date: fmtDate(d.date),
               fullDate: d.date,
@@ -1360,7 +1360,7 @@ function YieldCurveCard() {
           padding: isInverted ? 'var(--space-2)' : 0,
         }}>
           <div style={{ height: 220 }}>
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={curve} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
                 <XAxis dataKey="maturity" tick={{ fill: C.textFaint, fontSize: 11 }} />
@@ -1469,7 +1469,7 @@ function VolTermStructureCard() {
       </div>
       <div className="card-body">
         <div style={{ height: 200 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis dataKey="label" tick={{ fill: C.textFaint, fontSize: 11 }} />
@@ -1656,7 +1656,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
                 </div>
                 {fg.length > 1 && (
                   <div style={{ height: 60, marginTop: 'var(--space-3)' }}>
-                    <ResponsiveContainer>
+                    <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={fg} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="fgGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1695,7 +1695,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
                   </div>
                 </div>
                 <div style={{ height: 100 }}>
-                  <ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={aaiiSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
                       <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 10 }} tickFormatter={d => String(d).slice(5)} />

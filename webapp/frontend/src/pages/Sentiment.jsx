@@ -1421,7 +1421,7 @@ function ContrarianCard({ title, desc, rows, tone, setSel }) {
 // ─── new: divergence timeline (universe-wide rolling avg of bull−bear) ─
 function DivergenceTimeline({ rows }) {
   const series = useMemo(() => {
-    if (!rows || rows.length === 0) return [];
+    if (!Array.isArray(rows) || rows.length === 0) return [];
     // Aggregate per date: average of (bull% - bear%) across all symbols
     const byDate = new Map();
     rows.forEach((r) => {
