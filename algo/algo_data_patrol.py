@@ -186,7 +186,19 @@ class DataPatrol:
                     empty_severity = sev_on_stale if sev_on_stale in (INFO, WARN) else CRIT
                     self.log('staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
-                latest = datetime.strptime(latest_str, '%Y-%m-%d').date()
+                # Handle both date and datetime formats
+                try:
+                    latest = datetime.strptime(latest_str.split()[0] if latest_str else '', '%Y-%m-%d').date()
+                except (ValueError, IndexError, AttributeError):
+                    try:
+                        latest = datetime.fromisoformat(latest_str.replace('Z', '+00:00')).date()
+                    except (ValueError, AttributeError):
+                        latest = None
+
+                if not latest:
+                    self.log('staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
+                    continue
+
                 age = (today - latest).days
                 if age > max_days:
                     self.log('staleness', sev_on_stale, tbl,
@@ -772,7 +784,17 @@ class DataPatrol:
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
                 count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
-                latest = datetime.strptime(latest_str, '%Y-%m-%d').date() if latest_str else None
+                # Handle both date and datetime formats
+                latest = None
+                if latest_str:
+                    try:
+                        latest = datetime.strptime(latest_str.split()[0], '%Y-%m-%d').date()
+                    except (ValueError, IndexError, AttributeError):
+                        try:
+                            latest = datetime.fromisoformat(latest_str.replace('Z', '+00:00')).date()
+                        except (ValueError, AttributeError):
+                            latest = None
+
                 if not latest:
                     self.log('earnings_staleness', WARN, tbl, f'{tbl} is empty', {'count': 0})
                 else:
@@ -836,7 +858,17 @@ class DataPatrol:
             try:
                 tbl_safe = assert_safe_table(tbl)
                 count, latest_str = safe_select_count(self.cur, tbl_safe, date_column='date')
-                latest = datetime.strptime(latest_str, '%Y-%m-%d').date() if latest_str else None
+                # Handle both date and datetime formats
+                latest = None
+                if latest_str:
+                    try:
+                        latest = datetime.strptime(latest_str.split()[0], '%Y-%m-%d').date()
+                    except (ValueError, IndexError, AttributeError):
+                        try:
+                            latest = datetime.fromisoformat(latest_str.replace('Z', '+00:00')).date()
+                        except (ValueError, AttributeError):
+                            latest = None
+
                 if not latest:
                     self.log('etf_signals', WARN, tbl, f'{tbl} is empty', {})
                 else:
