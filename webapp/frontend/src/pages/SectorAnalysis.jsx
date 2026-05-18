@@ -6,7 +6,7 @@
  * Pure JSX + theme.css classes. Recharts only.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -1357,6 +1357,14 @@ function IndustriesView({ industries, isLoading, error }) {
 // ─── Page root ─────────────────────────────────────────────────────────────
 export default function SectorAnalysis() {
   const [tab, setTab] = useState('sectors');
+
+  // Trigger resize after mount to force charts to remeasure
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const sectorsQ = useSectors();
   const industriesQ = useIndustries();

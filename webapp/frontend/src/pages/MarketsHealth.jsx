@@ -110,6 +110,14 @@ export default function MarketsHealth() {
   const navigate = useNavigate();
   const [ts, setTs] = useState(new Date());
 
+  // Trigger resize after mount to force charts to remeasure
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   const { data: marketsData, loading: marketsLoading, error: mkError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
