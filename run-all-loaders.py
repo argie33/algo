@@ -134,9 +134,11 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
         # Set PYTHONPATH to include root directory so loaders can import utils, config, and other modules
         env = os.environ.copy()
         env['PYTHONPATH'] = os.getcwd()
-        # Increase timeout for data-heavy loaders (loadpricedaily needs ~15-20 min for 10k symbols)
+        # Increase timeout for data-heavy loaders (loadpricedaily ~30+ min for 500+ stocks with yfinance rate limit)
+        # LOCAL: Set high timeout (2 hours) to run overnight. AWS: Uses chunked strategy with Step Functions
         # price/scores/income/balance/cashflow loaders are heavy; others are lighter
-        loader_timeout = 1800 if any(x in loader.lower() for x in ['price', 'scores', 'income', 'balance', 'cashflow', 'financial']) else 900
+        heavy_loaders = ['price', 'scores', 'income', 'balance', 'cashflow', 'financial']
+        loader_timeout = 7200 if any(x in loader.lower() for x in heavy_loaders) else 1800  # 2h for heavy, 30m for others
         result = subprocess.run(
             ['python3', loader_path] + args,
             capture_output=True,
