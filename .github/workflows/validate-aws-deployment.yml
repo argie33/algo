@@ -52,8 +52,26 @@ jobs:
             --output text)
           echo "✓ API Lambda status: $API_STATUS"
 
+          # Wait up to 3 minutes for Lambdas to finish updating
+          for i in $(seq 1 18); do
+            if [ "$ALGO_STATUS" = "Successful" ] && [ "$API_STATUS" = "Successful" ]; then
+              break
+            fi
+            echo "⏳ Lambdas updating, waiting 10s... (attempt $i/18)"
+            sleep 10
+            ALGO_STATUS=$(aws lambda get-function-configuration \
+              --function-name algo-algo-dev \
+              --region ${{ env.AWS_REGION }} \
+              --query 'LastUpdateStatus' --output text 2>/dev/null || echo "Unknown")
+            API_STATUS=$(aws lambda get-function-configuration \
+              --function-name algo-api-dev \
+              --region ${{ env.AWS_REGION }} \
+              --query 'LastUpdateStatus' --output text 2>/dev/null || echo "Unknown")
+            echo "  Algo: $ALGO_STATUS, API: $API_STATUS"
+          done
+
           if [ "$ALGO_STATUS" != "Successful" ] || [ "$API_STATUS" != "Successful" ]; then
-            echo "❌ Lambda functions not in Successful state"
+            echo "❌ Lambda functions not in Successful state after 3 minutes"
             exit 1
           fi
 
