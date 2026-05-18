@@ -35,7 +35,6 @@ CloudWatch Insights queries:
 """
 
 import json
-from utils.logging_setup import get_logger
 import logging
 import sys
 import uuid

@@ -12,7 +12,7 @@ Sources: yfinance Ticker.info, local stock_symbols table.
 Run:
     python3 loadcompanyprofile.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 import argparse
 import logging

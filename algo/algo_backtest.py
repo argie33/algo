@@ -28,7 +28,6 @@ from config.credential_helper import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
-from utils.logging_setup import get_logger
 
 import os
 import sys

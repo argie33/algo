@@ -9,7 +9,7 @@ Price Aggregate Loader — weekly and monthly OHLCV bars derived from daily pric
 Timeframe determined by LOADER_TYPE env var (stock_prices_weekly / stock_prices_monthly)
 or --timeframe CLI flag for manual runs.
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

@@ -18,7 +18,7 @@ Now includes:
 Run:
     python3 loadstockscores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 import argparse
 import logging

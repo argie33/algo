@@ -16,17 +16,14 @@ Flags stored in database (easy to toggle without deploy):
 """
 
 from config.env_loader import load_env
-from config.credential_helper import get_db_config
-from utils.logging_setup import get_logger
+from config.credential_helper import get_db_config, get_db_password
 import logging
 import os
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_password, get_db_config
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from pathlib import Path
-
 from utils.structured_logger import get_logger
 
 logger = logging.getLogger(__name__)

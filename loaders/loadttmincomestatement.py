@@ -11,7 +11,7 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadttmincomestatement.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 import argparse
 import logging

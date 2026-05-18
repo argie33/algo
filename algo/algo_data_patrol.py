@@ -37,8 +37,6 @@ USAGE:
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
-from utils.logging_setup import get_logger
-
 from config.credential_helper import get_db_config, get_db_password
 import os
 import json

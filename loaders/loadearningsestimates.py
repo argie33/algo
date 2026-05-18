@@ -13,7 +13,7 @@ from historical earnings data.
 Run:
     python3 loadearningsestimates.py
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 import logging
 import os

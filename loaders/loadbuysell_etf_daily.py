@@ -13,7 +13,7 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadbuysell_etf_daily.py [--symbols SPY,QQQ] [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 
 try:

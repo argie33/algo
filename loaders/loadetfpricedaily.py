@@ -20,7 +20,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from config.env_loader import load_env
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 from utils.optimal_loader import OptimalLoader
 
 logger = get_logger(__name__)

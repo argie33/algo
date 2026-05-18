@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 from config.env_loader import load_env
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 

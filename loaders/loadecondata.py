@@ -26,7 +26,7 @@ Economic Dashboard series (economic.js /api/economic/leading-indicators):
 Run:
     python3 loadecondata.py [--parallelism 8]
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

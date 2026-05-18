@@ -16,7 +16,7 @@ Computes fundamental quality metrics from annual financials:
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 import argparse
 import logging

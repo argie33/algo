@@ -16,8 +16,6 @@ USAGE:
   python3 algo_loader_monitor.py --check-freshness
 """
 
-from utils.logging_setup import get_logger
-
 from config.credential_helper import get_db_config
 import os
 from utils.db_connection import get_db_connection

@@ -9,7 +9,7 @@ Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily price
 Timeframe determined by LOADER_TYPE env var (signals_weekly / signals_monthly)
 or --timeframe CLI flag for manual runs.
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

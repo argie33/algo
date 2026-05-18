@@ -9,7 +9,7 @@ ETF Buy/Sell Signal Aggregate Loader — weekly and monthly signals from ETF pri
 Timeframe determined by LOADER_TYPE env var (signals_etf_weekly / signals_etf_monthly)
 or --timeframe CLI flag for manual runs.
 """
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 try:
     from config.credential_manager import get_credential_manager

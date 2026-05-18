@@ -113,6 +113,7 @@ override.tf.json
 *_override.tf.json
 tfplan
 *.tfplan
+terraform/plan_output.txt
 
 # Serverless Framework
 .serverless/

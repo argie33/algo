@@ -20,7 +20,7 @@ from datetime import date as dtdate
 
 from config.env_loader import load_env
 from utils.db_connection import get_db_connection
-from utils.logging_setup import get_logger
+from utils.structured_logger import get_logger
 
 try:
     from config.credential_manager import get_credential_manager
