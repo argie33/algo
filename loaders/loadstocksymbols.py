@@ -3,6 +3,7 @@
 #!/usr/bin/env python3
 # Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
 # Trigger: 20260128_193000 - Deploy to AWS ECS with crash-safe loader
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import csv
 import json
 import logging
