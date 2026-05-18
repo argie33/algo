@@ -55,6 +55,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.11"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
+  layers        = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null

@@ -111,6 +111,12 @@ variable "algo_secrets_arn" {
   type        = string
 }
 
+variable "psycopg2_layer_arn" {
+  description = "ARN of psycopg2 Lambda layer for database connectivity"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Storage Configuration
 # ============================================================

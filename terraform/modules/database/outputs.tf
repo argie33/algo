@@ -124,6 +124,12 @@ output "rds_rotation_log_group" {
   value       = aws_cloudwatch_log_group.rds_rotation.name
 }
 
+# Lambda Layer for psycopg2
+output "psycopg2_layer_arn" {
+  description = "ARN of psycopg2 Lambda layer for database connections"
+  value       = try(aws_lambda_layer_version.psycopg2[0].arn, "")
+}
+
 # Watermark Store
 output "watermark_table_name" {
   description = "DynamoDB table name for watermarks"

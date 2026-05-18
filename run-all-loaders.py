@@ -26,7 +26,7 @@ tier_1b_aggregates = [
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)
 tier_1c_technical = [
-    'load_technical_indicators.py',  # RSI, MACD, SMA, EMA, ATR — reads from price_daily, no API calls
+    # 'load_technical_indicators.py' - TODO: implement technical indicator calculation
 ]
 
 tier_2_reference = [
@@ -39,7 +39,7 @@ tier_2_reference = [
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
-    'load_key_metrics.py',
+    # 'load_key_metrics.py' - TODO: implement key metrics loader
     'loadmarketindices.py', 'loadseasonality.py',
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
     # Company and sentiment data
@@ -80,7 +80,9 @@ tier_3b_aggregates = [
 ]
 
 # Tier 4: Algo metrics (depends on signals)
-tier_4_metrics = ['load_algo_metrics_daily.py']
+tier_4_metrics = [
+    # 'load_algo_metrics_daily.py' - TODO: implement algo metrics calculator
+]
 
 # All loaders in execution order (but within tiers, parallel)
 # Format: (tier_name, loaders, workers)
