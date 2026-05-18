@@ -139,12 +139,25 @@ locals {
     "financials_quarterly_income"   = "load_income_statement.py"
     "financials_quarterly_balance"  = "load_balance_sheet.py"
     "financials_quarterly_cashflow" = "load_cash_flow.py"
+    "financials_ttm_income"         = "loadttmincomestatement.py"
+    "financials_ttm_cashflow"       = "loadttmcashflow.py"
     "key_metrics"                   = "load_key_metrics.py"
     "growth_metrics"                = "load_growth_metrics.py"
     "quality_metrics"               = "load_quality_metrics.py"
+    "value_metrics"                 = "load_value_metrics.py"
     "earnings_history"              = "loadearningshistory.py"
+    "earnings_revisions"            = "loadearningsrevisions.py"
+    "earnings_surprise"             = "loadearningsestimates.py"
+    "market_indices"                = "loadmarketindices.py"
+    "seasonality"                   = "loadseasonality.py"
+    "econ_data"                     = "loadecondata.py"
+    "aaiidata"                      = "loadaaiidata.py"
+    "naaim_data"                    = "loadnaaim.py"
+    "feargreed"                     = "loadfeargreed.py"
     "earnings_calendar"             = "load_earnings_calendar.py"
     "company_profile"               = "loadcompanyprofile.py"
+    "analyst_sentiment"             = "loadanalystsentiment.py"
+    "analyst_upgrades_downgrades"   = "loadanalystupgradedowngrade.py"
     "sectors"                       = "loadsectors.py"
     "industry_ranking"              = "loadindustryranking.py"
     "trend_template_data"           = "load_trend_template_data.py"
@@ -234,6 +247,16 @@ locals {
       description = "Key metrics (market cap, insider/institution holdings) - Sunday 11pm ET"
     }
 
+    # TTM loaders depend on quarterly data — run 2 hours after quarterly to avoid race condition
+    "financials_ttm_income" = {
+      schedule    = "cron(0 6 ? * MON *)"
+      description = "TTM income statements - Monday 1am ET (after quarterly finishes)"
+    }
+    "financials_ttm_cashflow" = {
+      schedule    = "cron(0 6 ? * MON *)"
+      description = "TTM cash flow - Monday 1am ET (after quarterly finishes)"
+    }
+
     # Computed metrics — run daily after market close (4pm ET) so issues can be fixed before next trading day
     # 21:00 UTC = 5pm EDT / 6pm EST (safe margin after 4pm market close)
     "growth_metrics" = {
@@ -244,17 +267,43 @@ locals {
       schedule    = "cron(5 21 ? * MON-FRI *)"
       description = "Quality metrics (ROE, margins, D/E) - Daily 5:05pm ET (after market close)"
     }
+    "value_metrics" = {
+      schedule    = "cron(10 21 ? * MON-FRI *)"
+      description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:10pm ET (after market close)"
+    }
 
     # Earnings — run Sunday night only (data changes quarterly)
     "earnings_history" = {
       schedule    = "cron(0 4 ? * MON *)"
       description = "Earnings history - Sunday 11pm ET"
     }
+    "earnings_revisions" = {
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings revisions - Sunday 11pm ET (parallel)"
+    }
+    "earnings_surprise" = {
+      schedule    = "cron(0 4 ? * MON *)"
+      description = "Earnings surprise - Sunday 11pm ET (parallel)"
+    }
+
+    # Seasonality — weekly recompute Sunday night (uses price_daily history, SPY-based)
+    "seasonality" = {
+      schedule    = "cron(0 5 ? * MON *)"
+      description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
+    }
 
     # Company and analyst data (11:30am ET) — yfinance API calls, run weekly Sunday
     "company_profile" = {
       schedule    = "cron(30 4 ? * MON *)"
       description = "Company profile (sector, industry, name) - Sunday 11:30pm ET"
+    }
+    "analyst_sentiment" = {
+      schedule    = "cron(40 4 ? * MON *)"
+      description = "Analyst recommendations - Sunday 11:40pm ET"
+    }
+    "analyst_upgrades_downgrades" = {
+      schedule    = "cron(50 4 ? * MON *)"
+      description = "Analyst upgrades/downgrades - Sunday 11:50pm ET"
     }
     "sectors" = {
       schedule    = "cron(0 6 ? * MON *)"
@@ -318,22 +367,37 @@ locals {
     "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Key metrics (market cap, insider holdings) — I/O bound, rate-limited by Finnhub (free tier ~60/min)
     "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
-    # Computed metrics (growth, quality) — CPU bound, process 10K symbols, need parallelism
+    # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
     "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
     "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Earnings data (11:00am ET) — I/O bound
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
 
-    # Company data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
-    "company_profile" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "sectors"         = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
-    "industry_ranking" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "sectors"                     = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+
+    # Market & economic data — small datasets, single-threaded fine
+    "market_indices" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "econ_data"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Stock scores (compute-heavy scoring) — run via Step Functions EOD pipeline
     "stock_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }

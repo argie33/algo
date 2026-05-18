@@ -75,5 +75,7 @@ VITE_ENABLE_MOCK_DATA=false
 
 fs.writeFileSync(envPath, envContent);
 
-console.log(`🎉 ${environment.charAt(0).toUpperCase() + environment.slice(1)} environment configured!`);
-console.log("⚠️  Make sure your API Gateway URL and environment are correct before deploying!");
+  `🎉 ${environment.charAt(0).toUpperCase() + environment.slice(1)} environment configured!`
+);
+  "⚠️  Make sure your API Gateway URL and environment are correct before deploying!"
+);
