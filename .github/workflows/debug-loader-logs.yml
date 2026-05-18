@@ -65,23 +65,45 @@ jobs:
             --output json 2>/dev/null
 
           echo ""
-          echo "=== RDS SG ingress rules ==="
-          RDS_SG=$(aws ec2 describe-security-groups \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-rds-sg" \
-            --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null)
-          echo "RDS SG: $RDS_SG"
-          if [ -n "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
-            aws ec2 describe-security-groups --group-ids $RDS_SG \
-              --query 'SecurityGroups[0].IpPermissions[*].{FromPort:FromPort,ToPort:ToPort,Groups:UserIdGroupPairs[*].GroupId}' \
+          echo "=== RDS instance current state + attached SG IDs ==="
+          RDS_INFO=$(aws rds describe-db-instances \
+            --db-instance-identifier algo-db \
+            --query 'DBInstances[0].{Status:DBInstanceStatus,AZ:AvailabilityZone,MultiAZ:MultiAZ,Endpoint:Endpoint.Address,Port:Endpoint.Port,SubnetGroup:DBSubnetGroup.DBSubnetGroupName,SubnetIds:DBSubnetGroup.Subnets[*].SubnetIdentifier,SGIds:VpcSecurityGroups[*].VpcSecurityGroupId}' \
+            --output json 2>/dev/null)
+          echo "$RDS_INFO"
+
+          # Extract the actual SG(s) attached to the RDS instance
+          RDS_SGS=$(echo "$RDS_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(sg) for sg in d.get('SGIds',[])]" 2>/dev/null)
+          echo ""
+          echo "=== Inbound rules of each SG currently attached to RDS ==="
+          for SG_ID in $RDS_SGS; do
+            echo "--- SG: $SG_ID ---"
+            aws ec2 describe-security-groups --group-ids "$SG_ID" \
+              --query 'SecurityGroups[0].{Name:GroupName,Inbound:IpPermissions[*].{Proto:IpProtocol,From:FromPort,To:ToPort,Sources:UserIdGroupPairs[*].GroupId,CidrSources:IpRanges[*].CidrIp}}' \
               --output json 2>/dev/null
+          done
+
+          echo ""
+          echo "=== NACL for ECS task subnet (subnet-02192047f0db772fe) ==="
+          NACL_ID=$(aws ec2 describe-network-acls \
+            --filters "Name=association.subnet-id,Values=subnet-02192047f0db772fe" \
+            --query 'NetworkAcls[0].NetworkAclId' --output text 2>/dev/null)
+          echo "NACL: $NACL_ID"
+          if [ -n "$NACL_ID" ] && [ "$NACL_ID" != "None" ]; then
+            aws ec2 describe-network-acls --network-acl-ids "$NACL_ID" \
+              --query 'NetworkAcls[0].Entries[*].{RuleNum:RuleNumber,Proto:Protocol,Action:RuleAction,Egress:Egress,CidrBlock:CidrBlock,PortFrom:PortRange.From,PortTo:PortRange.To}' \
+              --output table 2>/dev/null
           fi
 
           echo ""
-          echo "=== RDS instance current state ==="
-          aws rds describe-db-instances \
-            --db-instance-identifier algo-db \
-            --query 'DBInstances[0].{Status:DBInstanceStatus,AZ:AvailabilityZone,MultiAZ:MultiAZ,Endpoint:Endpoint.Address,Port:Endpoint.Port,IP:Endpoint.HostedZoneId,SubnetGroup:DBSubnetGroup.DBSubnetGroupName,SubnetIds:DBSubnetGroup.Subnets[*].SubnetIdentifier,SGIds:VpcSecurityGroups[*].VpcSecurityGroupId}' \
-            --output json 2>/dev/null
+          echo "=== NACL for Terraform private subnets (subnet-0988e8d04bba87486, subnet-0ccb7db133dd4071e) ==="
+          for SUBNET in subnet-0988e8d04bba87486 subnet-0ccb7db133dd4071e; do
+            echo "-- Subnet: $SUBNET --"
+            TF_NACL=$(aws ec2 describe-network-acls \
+              --filters "Name=association.subnet-id,Values=$SUBNET" \
+              --query 'NetworkAcls[0].NetworkAclId' --output text 2>/dev/null)
+            echo "NACL: $TF_NACL"
+          done
 
           echo ""
           echo "=== ENIs in subnet-02192047f0db772fe (ECS task subnet) ==="
