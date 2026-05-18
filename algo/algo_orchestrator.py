@@ -933,6 +933,7 @@ class Orchestrator:
         self.log_phase_start(3, 'POSITION MONITOR')
         try:
             from algo.algo_position_monitor import PositionMonitor
+            from algo.algo_market_events import MarketEventHandler
             monitor = PositionMonitor(self.config)
 
             try:
