@@ -35,6 +35,47 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Diagnose VPC network resources
+        if: inputs.status_only != 'true'
+        run: |
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=algo-vpc" \
+            --query 'Vpcs[0].VpcId' --output text 2>/dev/null)
+          echo "VPC: $VPC_ID"
+
+          echo ""
+          echo "=== All subnets tagged Tier=Private ==="
+          aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Tier,Values=Private" \
+            --query 'Subnets[*].{SubnetId:SubnetId,CidrBlock:CidrBlock,AZ:AvailabilityZone,MapPublicIp:MapPublicIpOnLaunch}' \
+            --output table 2>/dev/null
+
+          echo ""
+          echo "=== All SGs tagged Name=algo-ecs-tasks-sg ==="
+          aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks-sg" \
+            --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Description:Description}' \
+            --output table 2>/dev/null
+
+          echo ""
+          echo "=== SG by group-name=algo-ecs-tasks-sg (what workflow now uses) ==="
+          aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
+            --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Egress:IpPermissionsEgress[*].IpProtocol}' \
+            --output json 2>/dev/null
+
+          echo ""
+          echo "=== RDS SG ingress rules ==="
+          RDS_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-rds-sg" \
+            --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null)
+          echo "RDS SG: $RDS_SG"
+          if [ -n "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
+            aws ec2 describe-security-groups --group-ids $RDS_SG \
+              --query 'SecurityGroups[0].IpPermissions[*].{FromPort:FromPort,ToPort:ToPort,Groups:UserIdGroupPairs[*].GroupId}' \
+              --output json 2>/dev/null
+          fi
+
       - name: Read recent CloudWatch logs
         id: read_logs
         if: inputs.status_only != 'true'

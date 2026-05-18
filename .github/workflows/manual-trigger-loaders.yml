@@ -65,8 +65,9 @@ jobs:
           fi
           echo "✓ Subnet: $SUBNET"
 
+          # Filter by group-name (unique within VPC) not tag:Name (may match duplicate tags)
           SG=$(aws ec2 describe-security-groups \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks-sg" \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
             --region ${{ env.AWS_REGION }} \
             --query 'SecurityGroups[0].GroupId' \
             --output text 2>/dev/null || echo "")
