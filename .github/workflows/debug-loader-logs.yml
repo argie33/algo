@@ -85,6 +85,27 @@ jobs:
             --query 'events[*].message' \
             --output text 2>&1
 
+          # Also show second-most-recent stream for comparison
+          PREV_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 5 \
+            --query 'logStreams[1].logStreamName' \
+            --output text 2>/dev/null)
+
+          if [ -n "$PREV_STREAM" ] && [ "$PREV_STREAM" != "None" ]; then
+            echo ""
+            echo "=== START of previous stream: $PREV_STREAM ==="
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$PREV_STREAM" \
+              --start-from-head \
+              --limit 60 \
+              --query 'events[*].message' \
+              --output text 2>&1
+          fi
+
       - name: Check running tasks
         if: always()
         run: |
