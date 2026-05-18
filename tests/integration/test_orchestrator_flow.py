@@ -267,16 +267,12 @@ class TestOrchestratorPhaseFlow:
         try:
             # Mock circuit breaker to return halted=True, but allow exits to run
             with patch('algo.algo_circuit_breaker.CircuitBreaker.check_all', return_value={'halted': True, 'halt_reasons': ['test'], 'checks': {}}), \
-                 patch('algo.algo_exit_engine.ExitEngine.check_exits') as mock_exits, \
                  patch('algo.algo_trade_executor.TradeExecutor._send_alpaca_order'):
 
                 result = orch.run()
 
                 # Orchestrator should complete even with breaker active
                 assert result is not None
-
-                # Phase 4 (exit execution) should still be attempted
-                # (it may find no exits, but the phase should run)
 
         finally:
             if lock_path.exists():
