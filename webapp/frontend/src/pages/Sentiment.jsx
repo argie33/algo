@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -75,6 +75,14 @@ export default function Sentiment() {
   const [filterSentiment, setFilterSentiment] = useState('all');
   const [sortBy, setSortBy] = useState('composite');
   const [selectedSymbol, setSelectedSymbol] = useState(null);
+
+  // Trigger resize after mount to force charts to remeasure
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const { data, loading: isLoading, error, refetch } = useApiQuery(
     ['sentiment-stocks'],

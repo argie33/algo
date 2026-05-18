@@ -406,7 +406,7 @@ function IndexCell({ idx }) {
         </div>
       )}
       {series.length >= 2 && (
-        <div style={{ marginTop: 8, height: 30 }}>
+        <div style={{ marginTop: 8, height: 30, width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={series}>
               <defs>

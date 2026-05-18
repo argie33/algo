@@ -86,6 +86,14 @@ export default function TradingSignals() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [freshness, setFreshness] = useState('—');
 
+  // Trigger resize after mount to force charts to remeasure
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
   const { data, loading: isLoading, refetch, isFetching } = useApiQuery(

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   RefreshCw, TrendingUp, TrendingDown, Minus, Activity,
   AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home,
@@ -59,6 +59,14 @@ function deriveRegime(indicators, yieldData, recessionProb) {
 
 export default function EconomicDashboard() {
   const [tab, setTab] = useState('overview');
+
+  // Trigger resize after mount to force charts to remeasure
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const leadQ  = useApiQuery(['economic-leading'],   () => api.get('/api/economic/leading-indicators'), { refetchInterval: 120000 });
   const yldQ   = useApiQuery(['economic-yield'],     () => api.get('/api/economic/yield-curve-full'),   { refetchInterval: 120000 });

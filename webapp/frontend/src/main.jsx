@@ -23,6 +23,16 @@ const logger = createComponentLogger("Main");
 const _originalConsoleError = console.error;
 const _originalConsoleWarn = console.warn;
 
+// Filter out non-critical recharts measurement warnings
+console.warn = function (...args) {
+  const msg = String(args[0] || '');
+  // Suppress recharts dimension warnings (non-critical, charts render fine)
+  if (msg.includes('width(-1)') || msg.includes('height(-1)')) {
+    return;
+  }
+  _originalConsoleWarn.apply(console, args);
+};
+
 // RESTORED: Professional error service integration for window errors
 window.addEventListener(
   "error",
