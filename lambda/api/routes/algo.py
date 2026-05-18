@@ -920,16 +920,16 @@ def _get_markets(cur) -> Dict:
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
         except psycopg2.errors.UndefinedColumn as e:
             logger.error(f'Column not found: {e}', extra={'operation': 'get markets'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+            return json_response(503, {'error': 'undefined_column', 'message': str(e)[:200]})
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get markets'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
+            return json_response(503, {'error': 'database_error', 'message': str(e)[:200]})
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch markets data')
+            return json_response(500, {'error': 'unexpected_error', 'message': str(e)[:200]})
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""

@@ -234,21 +234,26 @@ jobs:
           fi
 
           # Import API Gateway $default route (AWS auto-creates it; Terraform CREATE causes 409 conflict)
+          # Use variable to hold literal '$default' — avoid shell expansion of $default as a variable
+          DEFAULT_ROUTE_KEY='$default'
           echo ""
-          echo "Querying AWS for API Gateway $default route..."
+          echo "Querying AWS for API Gateway ${DEFAULT_ROUTE_KEY} route..."
           ENVIRONMENT=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          echo "  Project: ${PROJECT_NAME}, Environment: ${ENVIRONMENT}"
           API_ID=$(aws apigatewayv2 get-apis \
-            --query "Items[?Name=='${PROJECT_NAME}-api-${ENVIRONMENT}'].ApiId" \
+            --query "Items[?Name=='${PROJECT_NAME}-api-${ENVIRONMENT}'].ApiId | [0]" \
             --output text --region $AWS_REGION 2>/dev/null || echo "")
+          echo "  API Gateway ID: ${API_ID:-(not found)}"
           if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
             DEFAULT_ROUTE_ID=$(aws apigatewayv2 get-routes \
               --api-id "$API_ID" \
-              --query "Items[?RouteKey=='\$default'].RouteId" \
+              --query "Items[?RouteKey=='${DEFAULT_ROUTE_KEY}'].RouteId | [0]" \
               --output text --region $AWS_REGION 2>/dev/null || echo "")
+            echo "  ${DEFAULT_ROUTE_KEY} route ID: ${DEFAULT_ROUTE_ID:-(not found)}"
             if [ -n "$DEFAULT_ROUTE_ID" ] && [ "$DEFAULT_ROUTE_ID" != "None" ]; then
               import_if_missing "module.services.aws_apigatewayv2_route.api_default" "${API_ID}/${DEFAULT_ROUTE_ID}"
             else
-              echo "ℹ️  No existing $default route found — Terraform will create it"
+              echo "ℹ️  No existing ${DEFAULT_ROUTE_KEY} route found — Terraform will create it"
             fi
           else
             echo "⚠️  API Gateway not found yet — will be created by Terraform"

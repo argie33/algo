@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from routes import (algo, financials, earnings, signals, prices, stocks,
                      sectors, industries, market, economic, sentiment,
                      scores, research, audit, trades, admin)
+from routes.utils import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -24,5 +25,5 @@ def route_request(cur, path, method, params, body=None):
                 return handler.handle(cur, path, method, params, body)
             except Exception as e:
                 logger.error(f"Error: {e}", exc_info=True)
-                return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
-    return {"statusCode": 404, "errorType": "not_found", "message": "No handler"}
+                return error_response(500, "error", "Handler error")
+    return error_response(404, "not_found", "No handler")
