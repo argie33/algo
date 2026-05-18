@@ -1,9 +1,0 @@
-{
-  "rawPath": "/api/stocks",
-  "requestContext": {
-    "http": {
-      "method": "GET"
-    }
-  },
-  "rawQueryString": "limit=5"
-}
