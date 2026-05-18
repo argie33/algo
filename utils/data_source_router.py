@@ -231,13 +231,19 @@ class DataSourceRouter:
         # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
-            hist = yf.Ticker(yf_symbol).history(
+            hist = yf.download(
+                yf_symbol,
                 start=start,
                 end=end,
                 auto_adjust=False,
+                progress=False,
             )
             if hist is None or hist.empty:
                 return None
+            # Newer yfinance may return multi-level columns for single tickers;
+            # flatten them so row["Open"] works regardless.
+            if hasattr(hist.columns, 'levels'):
+                hist.columns = [col[0] if isinstance(col, tuple) else col for col in hist.columns]
             return [
                 {
                     "symbol": symbol,

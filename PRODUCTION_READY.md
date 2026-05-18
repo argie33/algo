@@ -1,34 +1,31 @@
 # Production Ready: Complete Validation Guide
 
-**Status:** ✅ READY FOR LIVE TRADING  
-**Validation Date:** 2026-05-18  
-**Confidence:** VERY HIGH
+**Status:** ⚠️ READY FOR STAGING (Orchestrator Validation Pending)  
+**Last Updated:** 2026-05-18  
+**Confidence:** HIGH (code ready, need to run real validation)
 
 ---
 
 ## Quick Summary
 
-Your algorithm is **production-hardened and fully validated**:
+System components are production-ready:
 - ✅ 180 unit tests pass
-- ✅ 33 data loaders integrated
-- ✅ Paper trading simulation: 18 trades, 44.4% win rate (vs backtest 42.7%)
-- ✅ All 12 validation gates passed
-- ✅ Zero unhandled exceptions
+- ✅ 33 data loaders integrated  
+- ✅ Zero unhandled exceptions in core code
+- ⏳ Orchestrator dry-run validation (run: `python3 algo/algo_orchestrator.py --dry-run`)
 
-**Recommendation:** Deploy to live trading with 10% capital allocation.
+**Recommendation:** Run orchestrator dry-run validation, then deploy to staging with paper trading credentials.
 
 ---
 
 ## Proof of Readiness
 
-Run the paper trading simulator to verify everything works:
+Test the orchestrator in dry-run mode to verify everything works:
 ```bash
-python paper_trading_simulator.py
+python3 algo/algo_orchestrator.py --dry-run
 ```
 
-Expected result: All 12 validation gates PASS, system ready for live trading.
-
-See `PAPER_TRADING_PROOF.md` for detailed results.
+This runs all 7 orchestrator phases (data freshness, circuit breakers, position monitoring, exit execution, signal generation, entry execution, reconciliation) without executing actual trades.
 
 ---
 
@@ -92,40 +89,15 @@ See `API_CONTRACT.md` for REST API endpoints, authentication, and response forma
 
 ---
 
-## Paper Trading Results
-
-**30-day simulation (2026-04-18 to 2026-05-18):**
-
-```
-Trades Closed:        18
-Win Rate:             44.4%  (vs backtest 42.7%, variance +1.7%)
-Average Win:          +3.76%
-Average Loss:         -3.18%
-
-Portfolio:
-  Starting:           $100,000
-  Ending:             $100,162
-  Total Return:       +0.16%
-  Max Drawdown:       0.07%
-
-Signals Generated:    2,568
-Circuit Breaker Fires: 0
-Unhandled Exceptions: 0
-```
-
-All 12 validation gates: **PASSED ✅**
-
-See `PAPER_TRADING_PROOF.md` for detailed breakdown.
-
 ---
 
 ## Deployment Steps
 
-### Step 1: Paper Trading Validation (Optional but Recommended)
+### Step 1: Orchestrator Validation (Recommended)
 ```bash
-python paper_trading_simulator.py
+python3 algo/algo_orchestrator.py --dry-run
 ```
-Verify all 12 gates pass (takes ~30 seconds).
+Test all 7 orchestrator phases without executing trades.
 
 ### Step 2: Deploy to Production
 Same code, just switch credentials:
@@ -212,8 +184,6 @@ A: Daily (5 min): check audit log. Weekly (30 min): review trades. Monthly (1 ho
 | CLAUDE.md | Project rules and requirements |
 | LOCAL_CRED_SETUP.md | How to set up local environment |
 | API_CONTRACT.md | REST API documentation |
-| PAPER_TRADING_PROOF.md | Paper trading validation results |
-| paper_trading_simulator.py | Run to verify everything works |
 | algo/algo_orchestrator.py | Main daily execution (7 phases) |
 | algo/algo_config.py | Configuration & parameters |
 | run-all-loaders.py | Load all market data (33 loaders) |
@@ -224,11 +194,11 @@ A: Daily (5 min): check audit log. Weekly (30 min): review trades. Monthly (1 ho
 ## Next Actions
 
 1. ✅ **Code Complete & Tested** - Done (180 tests pass)
-2. ✅ **Paper Trading Validated** - Done (all 12 gates pass)
-3. 📋 **Deploy to Live** - Your decision
+2. ⏳ **Run Orchestrator Dry-Run** - `python3 algo/algo_orchestrator.py --dry-run`
+3. 📋 **Deploy to Staging** - Use Alpaca paper trading credentials
 4. 📊 **Monitor & Optimize** - Quarterly reviews
 
-**Recommendation:** Deploy with 10% capital. Ramp gradually. Monitor daily. Optimize quarterly.
+**Recommendation:** Run dry-run validation, deploy to staging with paper trading, monitor for 1-2 weeks, then deploy to live with 10% capital.
 
 ---
 
@@ -256,19 +226,19 @@ Monthly:
 
 ---
 
-## Confidence Assessment
+## Validation Checklist
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
 | Code Quality | ✅ VERY HIGH | 180/180 tests pass |
 | Data Pipeline | ✅ VERY HIGH | 33 loaders integrated, patrolled |
-| Trading Logic | ✅ VERY HIGH | Backtest validated, paper trading confirmed |
+| Trading Logic | ⏳ HIGH | Unit tests pass, need orchestrator dry-run |
 | Risk Management | ✅ VERY HIGH | 13 circuit breakers tested |
 | Operations | ✅ HIGH | Monitoring in place, error handling proven |
-| Overall | ✅ VERY HIGH | Ready for live trading |
+| Overall | ⏳ HIGH | Code ready, awaiting orchestrator validation |
 
 ---
 
-**Status:** PRODUCTION READY ✅  
-**Recommendation:** DEPLOY WITH 10% CAPITAL  
-**Next Review:** After first 20 live trades
+**Status:** READY FOR STAGING ⏳  
+**Recommendation:** Run orchestrator dry-run, deploy to Alpaca paper trading  
+**Next Review:** After 1-2 weeks of paper trading validation

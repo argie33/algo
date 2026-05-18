@@ -19,13 +19,13 @@ Push to `main` → auto-deploys via GitHub Actions. Watch: https://github.com/ar
 3. `python3 init_database.py`
 4. `python3 run-all-loaders.py`
 
-Test: `python3 algo/algo_orchestrator.py --mode paper --dry-run`
+Test: `python3 algo/algo_orchestrator.py --dry-run`
 
 ## Core Architecture
 
 ### Orchestration Engine
 - `algo.algo_orchestrator.Orchestrator` → 7-phase execution: validate → load → signal → filter → position → execute → reconcile
-- Entry: `python3 algo/algo_orchestrator.py --mode paper --backtest --date YYYY-MM-DD`
+- Entry: `python3 algo/algo_orchestrator.py` (live trading) or `--dry-run` (plan without trades)
 
 ### Signal & Filtering Pipeline
 - `algo.algo_signals.SignalCalculator` → All 50+ technical indicators, momentum, mean-reversion signals
