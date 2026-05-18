@@ -706,6 +706,23 @@ class Orchestrator:
         return True  # fail-open
 
     def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
+        """Thin delegation to phase4_exit_execution module."""
+        self.log_phase_start(4, 'EXIT EXECUTION')
+        if self._check_halt_flag():
+            return False
+        from algo.orchestrator.phase4_exit_execution import run as run_phase4
+        result = run_phase4(
+            self.config, self._get_conn, self._put_conn,
+            self.run_date, self.dry_run, self.alerts,
+            self.verbose, self.log_phase_result,
+            getattr(self, '_position_recs', []),
+            getattr(self, '_exposure_actions', []),
+            self._check_halt_flag
+        )
+        return not result.halted
+
+    def _phase_4_exit_execution_old(self) -> List[Dict[str, Any]]:
+        """Old implementation - kept for reference only."""
         self.log_phase_start(4, 'EXIT EXECUTION')
         if self._check_halt_flag():
             return False
