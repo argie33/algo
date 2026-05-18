@@ -233,11 +233,26 @@ jobs:
             echo "⚠️  Terraform VPC not found (will be created)"
           fi
 
-      - name: Note on API Gateway Route
-        run: |
-          echo "ℹ️  API Gateway $default route is managed with ignore_all_changes lifecycle rule"
-          echo "   This prevents 409 conflicts when AWS auto-recreates the route"
-          echo "   Terraform creates it once, then ignores AWS changes"
+          # Import API Gateway $default route (AWS auto-creates it; Terraform CREATE causes 409 conflict)
+          echo ""
+          echo "Querying AWS for API Gateway $default route..."
+          ENVIRONMENT=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${PROJECT_NAME}-api-${ENVIRONMENT}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            DEFAULT_ROUTE_ID=$(aws apigatewayv2 get-routes \
+              --api-id "$API_ID" \
+              --query "Items[?RouteKey=='\$default'].RouteId" \
+              --output text --region $AWS_REGION 2>/dev/null || echo "")
+            if [ -n "$DEFAULT_ROUTE_ID" ] && [ "$DEFAULT_ROUTE_ID" != "None" ]; then
+              import_if_missing "module.services.aws_apigatewayv2_route.api_default" "${API_ID}/${DEFAULT_ROUTE_ID}"
+            else
+              echo "ℹ️  No existing $default route found — Terraform will create it"
+            fi
+          else
+            echo "⚠️  API Gateway not found yet — will be created by Terraform"
+          fi
 
       - name: Terraform Plan
         run: |
