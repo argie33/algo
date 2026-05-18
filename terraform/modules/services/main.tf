@@ -45,11 +45,12 @@ locals {
 }
 
 # For local fallback: archive local code (for dev/testing)
+# Note: path.module is terraform/modules/services, so ../../../ goes to repo root
 data "archive_file" "api_function_local" {
   count       = local.api_lambda_use_s3 ? 0 : 1
   type        = "zip"
-  output_path = "${path.module}/../../${var.api_lambda_code_file}"
-  source_dir  = "${path.module}/../../lambda/api"
+  output_path = "${path.module}/../../../${var.api_lambda_code_file}"
+  source_dir  = "${path.module}/../../../lambda/api"
 }
 
 resource "aws_lambda_function" "api" {
