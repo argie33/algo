@@ -27,3 +27,7 @@
 node_modules/ -text
 __pycache__ -text
 *.pyc -text
+
+# Shell scripts - enforce LF line endings for Linux containers
+*.sh text eol=lf
+entrypoint.sh text eol=lf
