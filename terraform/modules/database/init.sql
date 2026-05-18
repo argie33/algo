@@ -322,9 +322,11 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     value_score DECIMAL(8, 2),
     momentum_score DECIMAL(8, 2),
     positioning_score DECIMAL(8, 2),
+    data_completeness DECIMAL(4, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness DECIMAL(4, 2);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- USER MANAGEMENT & SYSTEM TABLES
@@ -420,8 +422,13 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
 -- Data loader run tracking for provenance
 CREATE TABLE IF NOT EXISTS data_loader_runs (
     id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100),
     loader_name VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255),
+    source_api VARCHAR(255),
+    parameters JSONB,
     run_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    start_at TIMESTAMP,
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed')),
     records_loaded INTEGER DEFAULT 0,
     records_updated INTEGER DEFAULT 0,
@@ -432,6 +439,11 @@ CREATE TABLE IF NOT EXISTS data_loader_runs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(loader_name, run_date)
 );
+ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS run_id VARCHAR(100);
+ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS table_name VARCHAR(255);
+ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS source_api VARCHAR(255);
+ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS parameters JSONB;
+ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS start_at TIMESTAMP;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMPANY & FUNDAMENTAL DATA
@@ -2578,3 +2590,19 @@ ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_losing_trades INTEGER;
 ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS quantity DECIMAL(12,2);
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS profit_loss_percent DECIMAL(8,4);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- LOADER WATERMARKS — Track incremental load progress per symbol
+-- ════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS loader_watermarks (
+    loader VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    granularity VARCHAR(20) NOT NULL DEFAULT 'symbol',
+    watermark TEXT,
+    rows_loaded INTEGER DEFAULT 0,
+    last_run_at TIMESTAMPTZ,
+    last_success_at TIMESTAMPTZ,
+    error_count INTEGER DEFAULT 0,
+    last_error TEXT,
+    UNIQUE (loader, symbol, granularity)
+);
