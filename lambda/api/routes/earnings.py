@@ -14,11 +14,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         if symbol:
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=20)
             cur.execute("""
-                SELECT symbol, report_date, fiscal_period, eps_actual, eps_estimate,
-                       eps_surprise, revenue_actual, revenue_estimate, revenue_surprise
+                SELECT symbol,
+                       earnings_date AS report_date,
+                       CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
+                       eps_actual, eps_estimate,
+                       eps_surprise_pct AS eps_surprise,
+                       revenue_actual, revenue_estimate,
+                       revenue_surprise_pct AS revenue_surprise
                 FROM earnings_history
                 WHERE symbol = %s
-                ORDER BY report_date DESC
+                ORDER BY earnings_date DESC
                 LIMIT %s
             """, (symbol.upper(), limit))
             rows = cur.fetchall()
@@ -26,9 +31,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
         cur.execute("""
-            SELECT symbol, report_date, fiscal_period, eps_actual, eps_estimate, eps_surprise
+            SELECT symbol,
+                   earnings_date AS report_date,
+                   CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
+                   eps_actual, eps_estimate,
+                   eps_surprise_pct AS eps_surprise
             FROM earnings_history
-            ORDER BY report_date DESC
+            ORDER BY earnings_date DESC
             LIMIT %s
         """, (limit,))
         rows = cur.fetchall()

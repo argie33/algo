@@ -2089,6 +2089,7 @@ ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10)
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
+ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_quality_score DECIMAL(8, 4);
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
 ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
@@ -2220,6 +2221,9 @@ DO $$ BEGIN
         ALTER TABLE buy_sell_monthly ADD CONSTRAINT buy_sell_monthly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
     END IF;
 END $$;
+
+ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mfe_pct DECIMAL(8, 4);
+ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mae_pct DECIMAL(8, 4);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)

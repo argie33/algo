@@ -21,12 +21,28 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
         if endpoint == 'key-metrics':
             cur.execute("""
-                SELECT km.symbol, km.date, km.pe_ratio, km.price_to_book, km.price_to_sales,
-                       km.ev_to_ebitda, km.debt_to_equity, km.return_on_equity, km.return_on_assets,
-                       km.profit_margin, km.current_ratio, km.quick_ratio
-                FROM key_metrics km
-                WHERE km.symbol = %s
-                ORDER BY km.date DESC
+                SELECT
+                    vm.symbol,
+                    CURRENT_DATE AS date,
+                    vm.pe_ratio,
+                    vm.pb_ratio AS price_to_book,
+                    vm.ps_ratio AS price_to_sales,
+                    vm.peg_ratio,
+                    vm.dividend_yield,
+                    vm.fcf_yield,
+                    qm.debt_to_equity,
+                    qm.roe AS return_on_equity,
+                    qm.roa AS return_on_assets,
+                    qm.net_margin AS profit_margin,
+                    qm.current_ratio,
+                    qm.quick_ratio,
+                    km.market_cap,
+                    km.held_percent_insiders,
+                    km.held_percent_institutions
+                FROM value_metrics vm
+                LEFT JOIN quality_metrics qm ON vm.symbol = qm.symbol
+                LEFT JOIN key_metrics km ON vm.symbol = km.symbol
+                WHERE vm.symbol = %s
                 LIMIT %s
             """, (sym, limit))
             rows = cur.fetchall()
