@@ -20,9 +20,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Default database credentials
-DEFAULT_DB_HOST = 'localhost'
-DEFAULT_DB_USER = 'stocks'
+# Default database credentials - require explicit env vars for safety
+DEFAULT_DB_HOST = os.getenv('DB_HOST')  # None if not set - integration tests will skip
+DEFAULT_DB_USER = os.getenv('DB_USER', 'stocks')  # DB_USER has a default, DB_HOST does not
 
 os.environ.setdefault('APCA_API_KEY_ID', 'test-key-id')
 os.environ.setdefault('APCA_API_SECRET_KEY', 'test-secret-key')
