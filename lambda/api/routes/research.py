@@ -59,7 +59,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 cur.execute("""
                     SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
                 """, (run_id_int,))
-                total_trades_count = cur.fetchone()[0]
+                total_trades_count = next(iter(dict(cur.fetchone() or {}).values()), 0)
 
                 # Build response
                 run_dict = dict(backtest)

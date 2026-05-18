@@ -25,7 +25,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 """, (limit, offset))
                 audits = cur.fetchall()
                 cur.execute("SELECT COUNT(*) FROM algo_audit_log")
-                total = cur.fetchone()[0]
+                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 return json_response(200, {
                     'data': [dict(a) for a in audits] if audits else [],
                     'pagination': {'total': total}
@@ -45,7 +45,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
                 """)
-                total = cur.fetchone()[0]
+                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 return json_response(200, {
                     'data': [dict(a) for a in audits] if audits else [],
                     'pagination': {'total': total}
@@ -65,7 +65,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
-                total = cur.fetchone()[0]
+                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 return json_response(200, {
                     'data': [dict(a) for a in audits] if audits else [],
                     'pagination': {'total': total}
@@ -85,7 +85,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
-                total = cur.fetchone()[0]
+                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 return json_response(200, {
                     'data': [dict(a) for a in audits] if audits else [],
                     'pagination': {'total': total}

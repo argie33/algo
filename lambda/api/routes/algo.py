@@ -458,9 +458,9 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                        SUM(CASE WHEN pd.quantity > 0 THEN pd.market_value ELSE 0 END) AS invested
                 FROM algo_positions pd
             """)
-            portfolio_row = cur.fetchone()
-            current_positions = portfolio_row[0] if portfolio_row else 0
-            invested = float(portfolio_row[1]) if portfolio_row and portfolio_row[1] else 0.0
+            portfolio_row = dict(cur.fetchone() or {})
+            current_positions = portfolio_row.get('position_count', 0)
+            invested = float(portfolio_row.get('invested') or 0)
 
             cur.execute("""
                 SELECT equity FROM algo_portfolio_snapshot
@@ -505,8 +505,8 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 FROM algo_positions pd
                 JOIN company_profile cp ON pd.symbol = cp.symbol
             """, (sector,))
-            sector_row = cur.fetchone()
-            current_sector_pct = float(sector_row[0]) if sector_row and sector_row[0] else 0.0
+            sector_row = dict(cur.fetchone() or {})
+            current_sector_pct = float(sector_row.get('sector_pct') or 0)
             new_sector_pct = current_sector_pct + position_pct_calc
             sector_limit_ok = new_sector_pct <= max_sector_pct
 

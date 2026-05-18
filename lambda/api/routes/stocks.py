@@ -72,7 +72,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
             WHERE {where_sql}
         """, query_params)
-        total = cur.fetchone()[0]
+        total = dict(cur.fetchone()).get('count', 0)
 
         return json_response(200, {
             'items': [dict(r) for r in rows],

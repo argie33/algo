@@ -87,7 +87,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
                 industries_data = cur.fetchall()
                 cur.execute("""SELECT COUNT(DISTINCT industry) FROM company_profile WHERE industry IS NOT NULL""")
-                total = cur.fetchone()[0]
+                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
 
                 industries = []
                 for row in industries_data:

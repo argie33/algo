@@ -144,8 +144,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 """, (limit, offset))
 
                 sectors_data = cur.fetchall()
-                cur.execute("""SELECT COUNT(DISTINCT sector) FROM company_profile WHERE sector IS NOT NULL""")
-                total = cur.fetchone()[0]
+                cur.execute("""SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL""")
+                total = dict(cur.fetchone()).get('cnt', 0)
 
                 sectors = []
                 for row in sectors_data:
