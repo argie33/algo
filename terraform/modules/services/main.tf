@@ -171,10 +171,14 @@ resource "aws_lambda_permission" "api_gateway" {
 #   }
 # }
 
-# API route - $default
-# NOTE: AWS API Gateway v2 automatically creates the $default route when the HTTP API is created.
-# Terraform CANNOT manage this route — any attempt to create it will fail with 409 Conflict.
-# AWS automatically routes requests to the Lambda integration we created above.
+# API route - $default (catch-all for all requests not matching specific routes)
+# Routes ALL requests to the Lambda integration unless overridden by specific route definitions
+resource "aws_apigatewayv2_route" "default" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
 
 # Health check is unauthenticated so monitors and load balancers can reach it
 resource "aws_apigatewayv2_route" "health" {
