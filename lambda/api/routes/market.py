@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -27,7 +30,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         """Handle /api/market/* endpoints."""
         try:
             if path == '/api/market/indices':
-                return _get_markets()
+                return _get_markets(cur)
             elif path == '/api/market/breadth':
                 cur.execute("""
                     SELECT date,
@@ -117,7 +120,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return list_response([dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
-                return _get_fear_greed_history(range_days)
+                return _get_fear_greed_history(cur, cur, range_days)
             elif path == '/api/market/status':
                 cur.execute("""
                     SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -144,7 +147,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 else:
                     return json_response(200, {'current': None, 'history': []})
             elif path == '/api/market/latest':
-                return _get_market_latest()
+                return _get_market_latest(cur)
             elif path == '/api/market/cap-distribution':
                 return json_response(501, {'status': 'not_implemented', 'message': 'Market cap distribution requires data aggregation'})
             elif path == '/api/market/correlation':
@@ -165,7 +168,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'handle market', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market data')
-def _get_fear_greed_history(self, days: int = 30) -> Dict:
+def _get_fear_greed_history(cur, days: int = 30) -> Dict:
         """Get fear/greed index history."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -192,7 +195,7 @@ def _get_fear_greed_history(self, days: int = 30) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get fear greed history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sentiment history')
-def _get_market_latest(self) -> Dict:
+def _get_market_latest(cur) -> Dict:
         """Get latest market data including indices, breadth, and sentiment."""
         try:
             cur.execute("""

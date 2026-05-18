@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -82,75 +85,75 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
         # Handle POST /api/algo/pre-trade-impact
         if method == 'POST' and path == '/api/algo/pre-trade-impact':
-            return _analyze_pre_trade_impact(body)
+            return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
-            return _get_algo_status()
+            return _get_algo_status(cur)
         elif path == '/api/algo/trades':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_algo_trades(limit)
+            return _get_algo_trades(cur, limit)
         elif path == '/api/algo/positions':
-            return _get_algo_positions()
+            return _get_algo_positions(cur)
         elif path == '/api/algo/performance':
-            return _get_algo_performance()
+            return _get_algo_performance(cur)
         elif path == '/api/algo/circuit-breakers':
-            return _get_circuit_breakers()
+            return _get_circuit_breakers(cur)
         elif path == '/api/algo/equity-curve':
             days_str = params.get('limit', [None])[0] if params else None
             days = _safe_days(days_str, max_val=365, default=180)
-            return _get_equity_curve(days)
+            return _get_equity_curve(cur, days)
         elif path == '/api/algo/data-status':
-            return _get_data_status()
+            return _get_data_status(cur)
         elif path == '/api/algo/notifications':
-            return _get_notifications(params)
+            return _get_notifications(cur, params)
         elif path == '/api/algo/patrol-log':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
             offset_str = params.get('offset', [None])[0] if params else None
             offset = _safe_offset(offset_str)
-            return _get_patrol_log(limit, offset)
+            return _get_patrol_log(cur, limit, offset)
         elif path == '/api/algo/sector-rotation':
             days_str = params.get('limit', [None])[0] if params else None
             days = _safe_days(days_str, max_val=365, default=180)
-            return _get_sector_rotation(days)
+            return _get_sector_rotation(cur, days)
         elif path == '/api/algo/sector-breadth':
-            return _get_sector_breadth()
+            return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_swing_scores(limit)
+            return _get_swing_scores(cur, limit)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
             days = _safe_days(days_str, max_val=365, default=30)
-            return _get_swing_scores_history(days)
+            return _get_swing_scores_history(cur, days)
         elif path == '/api/algo/rejection-funnel':
-            return _get_rejection_funnel()
+            return _get_rejection_funnel(cur)
         elif path == '/api/algo/markets':
-            return _get_markets()
+            return _get_markets(cur)
         elif path == '/api/algo/evaluate':
-            return _get_algo_evaluate()
+            return _get_algo_evaluate(cur)
         elif path == '/api/algo/data-quality':
-            return _get_data_quality()
+            return _get_data_quality(cur)
         elif path == '/api/algo/exposure-policy':
-            return _get_exposure_policy()
+            return _get_exposure_policy(cur)
         elif path == '/api/algo/sector-stage2':
-            return _get_sector_stage2()
+            return _get_sector_stage2(cur)
         elif path == '/api/algo/config':
-            return _get_algo_config()
+            return _get_algo_config(cur)
         elif path.startswith('/api/algo/config/'):
             key = path[len('/api/algo/config/'):]
-            return _get_algo_config_key(key)
+            return _get_algo_config_key(cur, key)
         elif path == '/api/algo/audit-log':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
             offset_str = params.get('offset', [None])[0] if params else None
             offset = _safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
-            return _get_algo_audit_log(limit, offset, action_type)
+            return _get_algo_audit_log(cur, limit, offset, action_type)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
-def _get_algo_status(self) -> Dict:
+def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status."""
         try:
             cur.execute("""
@@ -192,7 +195,7 @@ def _get_algo_status(self) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo status', 'error_type': type(e).__name__, 'traceback': __import__('traceback').format_exc()})
             return error_response(500, 'internal_error', 'Failed to fetch algo status')
 
-def _get_algo_trades(self, limit: int = 200) -> Dict:
+def _get_algo_trades(cur, limit: int = 200) -> Dict:
         """Get recent trades with all fields for frontend."""
         try:
             cur.execute("""
@@ -227,7 +230,7 @@ def _get_algo_trades(self, limit: int = 200) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo trades', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch trades')
 
-def _get_algo_positions(self) -> Dict:
+def _get_algo_positions(cur) -> Dict:
         """Get current open positions with all tracking fields."""
         try:
             cur.execute("""
@@ -261,7 +264,7 @@ def _get_algo_positions(self) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'fetch algo positions', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch positions')
 
-def _get_algo_performance(self) -> Dict:
+def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
         try:
             import numpy as np
@@ -378,7 +381,7 @@ def _get_algo_performance(self) -> Dict:
             logger.error(f'Unexpected error during performance calculation: {e}', extra={'operation': 'calculate performance', 'error_type': type(e).__name__, 'exc_info': True})
             return error_response(500, 'internal_error', 'Failed to calculate performance metrics')
 
-def _get_circuit_breakers(self) -> Dict:
+def _get_circuit_breakers(cur) -> Dict:
         """Get circuit breaker status from most recent orchestrator run."""
         try:
             # Most recent circuit breaker check (halt or all-clear)
@@ -446,7 +449,7 @@ def _get_circuit_breakers(self) -> Dict:
             logger.error(f'Unexpected error (circuit breakers): {e}', extra={'operation': 'fetch circuit breakers', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch circuit breaker status')
 
-def _get_equity_curve(self, days: int = 180) -> Dict:
+def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -476,7 +479,7 @@ def _get_equity_curve(self, days: int = 180) -> Dict:
             logger.error(f'Unexpected error (equity curve): {e}', extra={'operation': 'fetch equity curve', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
-def _get_data_status(self) -> Dict:
+def _get_data_status(cur) -> Dict:
         """Get data freshness status."""
         try:
             cur.execute("""
@@ -506,7 +509,7 @@ def _get_data_status(self) -> Dict:
             logger.error(f'Unexpected error (data status): {e}', extra={'operation': 'fetch data status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch data status')
 
-def _get_notifications(self, params: Dict = None) -> Dict:
+def _get_notifications(cur, params: Dict = None) -> Dict:
         """Get recent notifications with optional filtering."""
         try:
             params = params or {}
@@ -558,7 +561,7 @@ def _get_notifications(self, params: Dict = None) -> Dict:
             logger.error(f'Unexpected error (notifications): {e}', extra={'operation': 'fetch notifications', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch notifications')
 
-def _analyze_pre_trade_impact(self, body: Dict) -> Dict:
+def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
         try:
             symbol = body.get('symbol', '').upper()
@@ -687,7 +690,7 @@ def _analyze_pre_trade_impact(self, body: Dict) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to analyze trade impact')
-def _trigger_data_patrol(self) -> Dict:
+def _trigger_data_patrol(cur) -> Dict:
         """Trigger async data patrol ECS task."""
         try:
             ecs = boto3.client('ecs')
@@ -753,7 +756,7 @@ def _trigger_data_patrol(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to trigger data patrol')
-def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
+def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
         try:
             # Get total count for pagination metadata
@@ -783,7 +786,7 @@ def _get_patrol_log(self, limit: int = 50, offset: int = 0) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch patrol log')
-def _get_sector_rotation(self, days: int = 180) -> Dict:
+def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -856,7 +859,7 @@ def _get_sector_rotation(self, days: int = 180) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
-def _get_sector_breadth(self) -> Dict:
+def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
         try:
             cur.execute("""
@@ -910,7 +913,7 @@ def _get_sector_breadth(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
-def _get_swing_scores(self, limit: int = 100) -> Dict:
+def _get_swing_scores(cur, limit: int = 100) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
             cur.execute("""
@@ -941,7 +944,7 @@ def _get_swing_scores(self, limit: int = 100) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores')
-def _get_swing_scores_history(self, days: int = 30) -> Dict:
+def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -971,7 +974,7 @@ def _get_swing_scores_history(self, days: int = 30) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
-def _get_rejection_funnel(self) -> Dict:
+def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel."""
         try:
             cur.execute("""
@@ -1005,7 +1008,7 @@ def _get_rejection_funnel(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
-def _get_markets(self) -> Dict:
+def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             # Get latest market exposure data
@@ -1048,7 +1051,7 @@ def _get_markets(self) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch markets data')
 
-def _get_algo_evaluate(self) -> Dict:
+def _get_algo_evaluate(cur) -> Dict:
         """Get latest signal evaluation summary from swing_trader_scores."""
         try:
             cur.execute("""
@@ -1085,7 +1088,7 @@ def _get_algo_evaluate(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
-def _get_data_quality(self) -> Dict:
+def _get_data_quality(cur) -> Dict:
         """Get data quality summary from latest data_patrol_log run."""
         try:
             cur.execute("""
@@ -1126,7 +1129,7 @@ def _get_data_quality(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to check data quality')
-def _get_exposure_policy(self) -> Dict:
+def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
             cur.execute("""
@@ -1162,7 +1165,7 @@ def _get_exposure_policy(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
-def _get_sector_stage2(self) -> Dict:
+def _get_sector_stage2(cur) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""
         try:
             cur.execute("""
@@ -1205,7 +1208,7 @@ def _get_sector_stage2(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector stage 2')
-def _get_algo_config(self) -> Dict:
+def _get_algo_config(cur) -> Dict:
         """Return all algo configuration rows."""
         try:
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
@@ -1226,7 +1229,7 @@ def _get_algo_config(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch algo config')
-def _get_algo_config_key(self, key: str) -> Dict:
+def _get_algo_config_key(cur, key: str) -> Dict:
         """Return a single algo config key."""
         try:
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
@@ -1247,7 +1250,7 @@ def _get_algo_config_key(self, key: str) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch config key')
-def _get_algo_audit_log(self, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
+def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
         try:
             # Get total count

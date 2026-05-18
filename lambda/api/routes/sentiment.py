@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -90,7 +93,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path.startswith('/api/sentiment/social/insights/'):
                 return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
             elif path == '/api/sentiment/vix':
-                return _get_vix_data()
+                return _get_vix_data(cur)
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'handle sentiment'})
@@ -111,7 +114,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return error_response(500, 'internal_error', 'Failed to fetch sentiment data')
 
 
-def _get_vix_data(self) -> Dict:
+def _get_vix_data(cur) -> Dict:
         """Get latest VIX data and historical trend."""
         try:
             cur.execute("""

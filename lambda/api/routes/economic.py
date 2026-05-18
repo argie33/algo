@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -38,11 +41,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 rows = cur.fetchall()
                 return list_response([dict(r) for r in rows] if rows else [])
             elif path == '/api/economic/leading-indicators':
-                return _get_leading_indicators()
+                return _get_leading_indicators(cur)
             elif path == '/api/economic/indicators':
-                return _get_leading_indicators()
+                return _get_leading_indicators(cur)
             elif path == '/api/economic/yield-curve-full':
-                return _get_yield_curve_full()
+                return _get_yield_curve_full(cur)
             elif path == '/api/economic/calendar':
                 cur.execute("""
                     SELECT event_date AS date, event_name, country, importance,
@@ -56,7 +59,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return list_response([dict(e) for e in events] if events else [])
             elif path == '/api/economic':
                 # Combine all economic data
-                return _get_leading_indicators()
+                return _get_leading_indicators(cur)
             return error_response(404, 'not_found', f'No economic handler for {path}')
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'handle economic'})
@@ -73,7 +76,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch economic data')
-def _get_leading_indicators(self) -> Dict:
+def _get_leading_indicators(cur) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
         indicator_map = {
@@ -135,7 +138,7 @@ def _get_leading_indicators(self) -> Dict:
                 if series_id not in latest_rows:
                     continue
 
-                value, date = latest_rows[series_id]
+                value, dt = latest_rows[series_id]
                 history = sorted(history_by_series.get(series_id, []), key=lambda x: x['date'])
 
                 # For level series, compute YoY % change so the frontend gets a meaningful rate
@@ -176,7 +179,7 @@ def _get_leading_indicators(self) -> Dict:
                     'name': name,
                     'series_id': series_id,
                     'rawValue': display_value,
-                    'date': str(date),
+                    'date': str(dt),
                     'history': history,
                     'trend': trend
                 })
@@ -198,7 +201,7 @@ def _get_leading_indicators(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch leading indicators')
-def _get_yield_curve_full(self) -> Dict:
+def _get_yield_curve_full(cur) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
             # Get latest yield curve data (full curve by maturity)

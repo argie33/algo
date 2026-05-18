@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -30,15 +33,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
             symbol_filter = params.get('symbol', [None])[0] if params else None
-            return _get_signals_stocks(limit, timeframe, symbol_filter)
+            return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == '/api/signals/etf':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = _safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_signals_etf(limit)
+            return _get_signals_etf(cur, limit)
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')
 
-def _get_signals_stocks(self, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
+def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with technical enrichment from normalized tables."""
         try:
             where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND bsd.signal IN ('BUY', 'SELL')"
@@ -121,7 +124,7 @@ def _get_signals_stocks(self, limit: int = 500, timeframe: str = 'daily', symbol
             logger.error(f'Unexpected error (signals): {e}', extra={'operation': 'fetch stock signals', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch signals')
 
-def _get_signals_etf(self, limit: int = 500) -> Dict:
+def _get_signals_etf(cur, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
         try:
             cur.execute("""

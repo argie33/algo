@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -27,13 +30,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
             if path == '/api/admin/loader-status':
-                return _get_loader_status()
+                return _get_loader_status(cur)
             elif path == '/api/admin/system-health':
-                return _get_system_health()
+                return _get_system_health(cur)
             elif path == '/api/admin/database-stats':
-                return _get_database_stats()
+                return _get_database_stats(cur)
             elif path == '/api/admin/data-quality':
-                return _get_data_quality()
+                return _get_data_quality(cur)
             return error_response(404, 'not_found', f'No admin handler for {path}')
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'handle admin'})
@@ -50,7 +53,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Admin handler error')
-def _get_loader_status(self) -> Dict:
+def _get_loader_status(cur) -> Dict:
         """Get status of all data loaders from data_loader_runs table."""
         try:
             cur.execute("""
@@ -123,7 +126,7 @@ def _get_loader_status(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch loader status')
-def _get_system_health(self) -> Dict:
+def _get_system_health(cur) -> Dict:
         """Get overall system health status."""
         try:
             health_data = {'status': 'healthy', 'components': {}}
@@ -196,7 +199,7 @@ def _get_system_health(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get system health')
-def _get_database_stats(self) -> Dict:
+def _get_database_stats(cur) -> Dict:
         """Get database statistics."""
         try:
             stats = {}
@@ -246,7 +249,7 @@ def _get_database_stats(self) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to get database stats')
-def _get_data_quality(self) -> Dict:
+def _get_data_quality(cur) -> Dict:
         """Get data quality metrics."""
         try:
             quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}

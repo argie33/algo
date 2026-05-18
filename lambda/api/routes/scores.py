@@ -15,6 +15,9 @@ def success_response(data):
 def list_response(items, total=None):
     return {"statusCode": 200, "items": items, "total": total or len(items)}
 
+def json_response(code, data):
+    return {"statusCode": code, **data}
+
 def _safe_limit(limit_str, max_val=50000, default=500):
     if not limit_str:
         return default
@@ -42,11 +45,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             if sort_order not in ['asc', 'desc']:
                 return error_response(400, 'bad_request', 'Sort order must be "asc" or "desc"')
 
-            return _get_stock_scores(limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
+            return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
         else:
             return error_response(404, 'not_found', f'No scores handler for {path}')
 
-def _get_stock_scores(self, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
+def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
