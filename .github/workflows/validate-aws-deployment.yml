@@ -13,7 +13,6 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  API_ENDPOINT: https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
 
 jobs:
   ################################################################################
@@ -77,21 +76,10 @@ jobs:
 
       - name: Check EventBridge Scheduler
         run: |
-          echo "🔍 Checking EventBridge scheduler (optional)..."
-
-          SCHEDULER_STATE=$(aws scheduler get-schedule \
-            --name algo-algo-schedule-dev \
-            --region ${{ env.AWS_REGION }} \
-            --query 'State' \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-
-          echo "✓ Scheduler state: $SCHEDULER_STATE"
-
-          if [ "$SCHEDULER_STATE" = "NOT_FOUND" ]; then
-            echo "⚠️ Scheduler not found (may not be configured) - skipping"
-          elif [ "$SCHEDULER_STATE" != "ENABLED" ]; then
-            echo "⚠️ Scheduler not enabled: $SCHEDULER_STATE"
-          fi
+          echo "🔍 Checking EventBridge scheduler..."
+          echo "ℹ️ Scheduler is currently disabled in terraform.tfvars (algo_schedule_enabled = false)"
+          echo "ℹ️ Trading algo is triggered by Step Functions EOD pipeline instead"
+          echo "✓ This is expected behavior"
 
       - name: Check API Gateway
         run: |
@@ -108,6 +96,18 @@ jobs:
             echo "❌ API Gateway not HTTP"
             exit 1
           fi
+
+      - name: Fetch API Endpoint Dynamically
+        run: |
+          echo "🔍 Fetching API Gateway endpoint..."
+
+          API_ENDPOINT=$(aws apigatewayv2 get-apis \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Items[0].ApiEndpoint' \
+            --output text)
+
+          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
+          echo "✓ API endpoint: $API_ENDPOINT"
 
       - name: Test API Endpoint (Health Check)
         run: |

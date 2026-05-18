@@ -196,7 +196,7 @@ resource "aws_iam_role_policy" "batch_job_policy" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:*"
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
       },
       {
         Sid    = "AllowCloudWatchLogs"
