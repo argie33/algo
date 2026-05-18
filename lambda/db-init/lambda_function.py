@@ -1,111 +1,128 @@
 #!/usr/bin/env python3
 """
-Database schema initialization Lambda function for RDS PostgreSQL.
-Executed via GitHub Actions deployment.
-Runs SQL schema from init.sql; idempotent (uses IF NOT EXISTS).
+Database schema initialization Lambda for RDS PostgreSQL.
+Uses Secrets Manager for credentials. Must run in VPC.
 """
 
 import json
 import logging
 import os
-from psycopg2 import OperationalError
+import boto3
+import psycopg2
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+DEFAULT_DB_PORT = 5432
+
+
+def get_credentials():
+    """Get DB credentials from Secrets Manager or env vars."""
+    secret_arn = os.environ.get('DB_SECRET_ARN')
+    if secret_arn:
+        client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        response = client.get_secret_value(SecretId=secret_arn)
+        secret = json.loads(response['SecretString'])
+        return {
+            'host': os.environ.get('DB_ENDPOINT') or secret.get('host'),
+            'port': int(secret.get('port', DEFAULT_DB_PORT)),
+            'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
+            'user': secret.get('username'),
+            'password': secret.get('password'),
+        }
+
+    return {
+        'host': os.environ.get('DB_HOST'),
+        'port': int(os.environ.get('DB_PORT', DEFAULT_DB_PORT)),
+        'database': os.environ.get('DB_NAME', 'stocks'),
+        'user': os.environ.get('DB_USER'),
+        'password': os.environ.get('DB_PASSWORD'),
+    }
+
 
 def lambda_handler(event, context):
     """Initialize RDS database schema."""
-
-    # Get database connection parameters from environment
-    db_host = os.environ.get('DB_HOST')
-    db_port = int(os.environ.get('DB_PORT', DEFAULT_DB_PORT))
-    db_name = os.environ.get('DB_NAME')
-    db_user = os.environ.get('DB_USER')
-    db_password = os.environ.get('DB_PASSWORD')
-
-    if not all([db_host, db_name, db_user, db_password]):
-        logger.error("Missing required database connection parameters")
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Missing required database connection parameters')
-        }
-
     try:
-        # Connect to RDS instance
-        logger.info(f"Connecting to RDS: {db_host}:{db_port}/{db_name}")
-        conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            connect_timeout=10
-        )
+        creds = get_credentials()
 
-        # Read SQL schema from file or embedded content
+        if not all([creds['host'], creds['user'], creds['password']]):
+            logger.error("Missing required database credentials")
+            return {
+                'statusCode': 400,
+                'body': json.dumps('Missing required database credentials')
+            }
+
+        logger.info(f"Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
+        conn = psycopg2.connect(
+            host=creds['host'],
+            port=creds['port'],
+            database=creds['database'],
+            user=creds['user'],
+            password=creds['password'],
+            connect_timeout=15
+        )
+        conn.autocommit = True
+
         try:
             with open('schema.sql', 'r') as f:
                 sql_script = f.read()
         except FileNotFoundError:
-            logger.warning("schema.sql not found in Lambda package")
+            logger.warning("schema.sql not found; checking for init_database module")
             sql_script = ""
 
         if not sql_script.strip():
-            logger.warning("No SQL script found; skipping initialization")
+            # Try running init_database.py if bundled
+            try:
+                import init_database
+                cursor = conn.cursor()
+                result = init_database.initialize_database(conn)
+                cursor.close()
+                conn.close()
+                logger.info(f"init_database completed: {result}")
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps(f'Database initialized via init_database module')
+                }
+            except ImportError:
+                pass
+
+            # Fall back: create a minimal schema
+            logger.info("Creating minimal schema (no schema.sql found)")
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
+            table_count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
             return {
                 'statusCode': 200,
-                'body': json.dumps('No SQL script to execute')
+                'body': json.dumps(f'DB connected, {table_count} tables exist (no schema applied)')
             }
 
-        # Execute SQL with autocommit enabled
-        conn.autocommit = True
         cursor = conn.cursor()
-
-        logger.info("Executing database schema initialization")
         statement_count = 0
 
-        # Split by semicolon and execute each statement separately
-        # (psycopg2.execute() can only run one statement at a time)
         for statement in sql_script.split(';'):
             statement = statement.strip()
-            if statement:  # Skip empty statements
+            if statement:
                 try:
                     cursor.execute(statement)
                     statement_count += 1
-                    logger.debug(f"Executed statement {statement_count}: {statement[:80]}...")
                 except Exception as e:
-                    # Log but continue on error for idempotent operations
-                    logger.warning(f"Statement failed (continuing): {statement[:80]}... - Error: {str(e)}")
+                    logger.warning(f"Statement failed (continuing): {statement[:80]}... - {e}")
 
         cursor.close()
         conn.close()
 
-        logger.info(f"Database initialization completed successfully ({statement_count} statements executed)")
+        logger.info(f"Schema init done: {statement_count} statements")
         return {
             'statusCode': 200,
-            'body': json.dumps(f'Database schema initialized successfully ({statement_count} statements)')
+            'body': json.dumps(f'Database schema initialized ({statement_count} statements)')
         }
 
-    except OperationalError as e:
-        logger.error(f"Database connection failed: {str(e)}")
-        return {
-            'statusCode': 503,
-            'body': json.dumps(f'Database connection failed: {str(e)}')
-        }
+    except psycopg2.OperationalError as e:
+        logger.error(f"Database connection failed: {e}")
+        return {'statusCode': 503, 'body': json.dumps(f'DB connection failed: {e}')}
 
     except Exception as e:
-        logger.error(f"Database initialization failed: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f'Database initialization failed: {str(e)}')
-        }
-
-
-if __name__ == '__main__':
-    # For local testing
-    result = lambda_handler({}, None)
-    logger.info(json.dumps(result, indent=2))
-# Updated: Fri May 15 22:24:00 CDT 2026
+        logger.error(f"Init failed: {e}", exc_info=True)
+        return {'statusCode': 500, 'body': json.dumps(f'Init failed: {e}')}

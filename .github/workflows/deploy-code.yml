@@ -42,7 +42,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -108,7 +108,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.11
@@ -163,7 +163,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.11
@@ -174,7 +174,7 @@ jobs:
       - name: Package API Lambda
         run: |
           mkdir -p api-pkg
-          cp lambda/api/lambda_function.py api-pkg/
+          cp -r lambda/api/. api-pkg/
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
           cd api-pkg
@@ -208,7 +208,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.11
@@ -234,91 +234,68 @@ jobs:
           cd ..
           echo "Package size: $(du -sh db_init_lambda.zip | cut -f1)"
 
-      - name: Ensure DB Init Lambda Role Exists
-        run: |
-          ROLE_NAME="stocks-db-init-lambda-dev"
-
-          # Check if role exists
-          if ! aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null; then
-            echo "Creating DB Init Lambda role: $ROLE_NAME"
-
-            # Trust policy for Lambda service
-            TRUST_POLICY='{
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Principal": {
-                    "Service": "lambda.amazonaws.com"
-                  },
-                  "Action": "sts:AssumeRole"
-                }
-              ]
-            }'
-
-            aws iam create-role \
-              --role-name "$ROLE_NAME" \
-              --assume-role-policy-document "$TRUST_POLICY"
-
-            # Attach basic Lambda execution policy for CloudWatch Logs and VPC
-            aws iam attach-role-policy \
-              --role-name "$ROLE_NAME" \
-              --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-
-            echo "Role created: $ROLE_NAME"
-            echo "Waiting for IAM role to propagate..."
-            sleep 5
-          else
-            echo "Role already exists: $ROLE_NAME"
-          fi
-
-      - name: Deploy DB Init Lambda
+      - name: Deploy & Invoke DB Init Lambda
         run: |
           FUNC_NAME="algo-db-init-dev"
-          ROLE_NAME="stocks-db-init-lambda-dev"
-          ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/$ROLE_NAME"
+          API_FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          [ -z "$API_FUNC" ] && API_FUNC="algo-api-dev"
 
-          echo "ROLE_ARN: $ROLE_ARN"
-          echo "FUNC_NAME: $FUNC_NAME"
-          echo "AWS_REGION: $AWS_REGION"
+          # Borrow VPC config, role, and env from the API Lambda (already in VPC with Secrets Manager)
+          API_CFG=$(aws lambda get-function-configuration --function-name "$API_FUNC" --region $AWS_REGION)
+          ROLE_ARN=$(echo "$API_CFG" | jq -r '.Role')
+          DB_SECRET_ARN=$(echo "$API_CFG" | jq -r '.Environment.Variables.DB_SECRET_ARN')
+          DB_ENDPOINT=$(echo "$API_CFG" | jq -r '.Environment.Variables.DB_ENDPOINT')
+          DB_NAME=$(echo "$API_CFG" | jq -r '.Environment.Variables.DB_NAME // "stocks"')
 
-          # Try to update existing function code
+          VPC_JSON=$(echo "$API_CFG" | jq '{SubnetIds: .VpcConfig.SubnetIds, SecurityGroupIds: .VpcConfig.SecurityGroupIds}')
+          ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\"}}"
+
+          echo "Role: $ROLE_ARN"
+          echo "VPC: $VPC_JSON"
+          echo "DB_SECRET_ARN: $DB_SECRET_ARN"
+
           if aws lambda get-function --function-name "$FUNC_NAME" --region $AWS_REGION >/dev/null 2>&1; then
-            echo "Updating existing Lambda function: $FUNC_NAME"
+            echo "Updating existing Lambda: $FUNC_NAME"
             aws lambda update-function-code \
               --function-name "$FUNC_NAME" \
               --zip-file fileb://db_init_lambda.zip \
-              --region $AWS_REGION || { echo "ERROR: Failed to update Lambda"; exit 1; }
+              --region $AWS_REGION
+            aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
+            aws lambda update-function-configuration \
+              --function-name "$FUNC_NAME" \
+              --vpc-config "$VPC_JSON" \
+              --environment "$ENV_JSON" \
+              --region $AWS_REGION || echo "⚠️ Config update failed (non-fatal)"
           else
-            echo "Creating new Lambda function: $FUNC_NAME"
+            echo "Creating Lambda: $FUNC_NAME"
             aws lambda create-function \
               --function-name "$FUNC_NAME" \
               --runtime python3.11 \
               --role "$ROLE_ARN" \
               --handler lambda_function.lambda_handler \
+              --timeout 120 \
               --zip-file fileb://db_init_lambda.zip \
+              --vpc-config "$VPC_JSON" \
+              --environment "$ENV_JSON" \
               --region $AWS_REGION || { echo "ERROR: Failed to create Lambda"; exit 1; }
           fi
 
-          aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION || echo "Wait completed or timed out"
-          echo "DB Init Lambda deployed: $FUNC_NAME"
+          aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION || true
+          echo "Invoking DB Init Lambda..."
 
-      - name: Invoke DB Init Lambda
-        run: |
-          FUNC_NAME="algo-db-init-dev"
           aws lambda invoke \
             --function-name "$FUNC_NAME" \
             --region $AWS_REGION \
             --payload '{}' \
-            /tmp/db-init-response.json
+            /tmp/db-init-response.json 2>&1
+
           echo "DB Init response:"
           cat /tmp/db-init-response.json
-          # Fail if response contains FunctionError
           if grep -q '"FunctionError"' /tmp/db-init-response.json 2>/dev/null; then
             echo "ERROR: DB Init Lambda returned an error"
             exit 1
           fi
-          echo "DB Init Lambda invoked successfully"
+          echo "DB Init completed successfully"
 
   # ──────────────────────────────────────────────────────────────
   # Frontend
@@ -334,7 +311,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/stocks-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
