@@ -53,8 +53,40 @@ class PriceAggregateLoader(OptimalLoader):
         start = (end - timedelta(days=5 * 365)) if since is None else (since + timedelta(days=1))
         if start >= end:
             return None
-        rows = self.router.fetch_ohlcv(symbol, start, end)
+        # FIX: Read from price_daily (RDS) instead of re-fetching from API
+        rows = self._fetch_price_daily(symbol, start, end)
         return self._aggregate(rows) if rows else None
+
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> Optional[List[dict]]:
+        """Read daily prices from RDS (not API) to avoid double-fetching."""
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT date, open, high, low, close, volume FROM price_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start.isoformat(), end.isoformat()),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                return None
+            return [
+                {
+                    "date": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
+                    "open": float(r[1]) if r[1] is not None else None,
+                    "high": float(r[2]) if r[2] is not None else None,
+                    "low": float(r[3]) if r[3] is not None else None,
+                    "close": float(r[4]) if r[4] is not None else None,
+                    "volume": int(r[5]) if r[5] is not None else None,
+                    "symbol": symbol,
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Error reading price_daily for {symbol}: {e}")
+            return None
+        finally:
+            cur.close()
 
     def _aggregate(self, rows: List[dict]) -> List[dict]:
         buckets = {}
