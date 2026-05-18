@@ -713,6 +713,12 @@ app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 // Swing trading algo routes
 app.use("/api/algo", require("./routes/algo"));
 
+// Stock market data routes
+app.use("/api/stocks", cacheMiddleware(60), require("./routes/stocks"));
+app.use("/api/prices", cacheMiddleware(60), require("./routes/prices"));
+app.use("/api/financials", cacheMiddleware(120), require("./routes/financials"));
+app.use("/api/earnings", cacheMiddleware(60), require("./routes/earnings"));
+
 // API info endpoint
 app.get("/api", (req, res) => {
   return sendSuccess(res, {

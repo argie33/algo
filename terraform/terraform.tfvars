@@ -3,6 +3,8 @@ aws_region   = "us-east-1"
 project_name = "algo"
 # CORS origin for frontend (set to CloudFront domain in production, localhost in dev)
 frontend_origin = "http://localhost:3000"
+# Frontend deployment
+cloudfront_enabled = true  # Enable S3 + CloudFront distribution for frontend assets
 # DISABLED: Step Functions EOD pipeline (4:05pm ET) is the only orchestrator trigger.
 # Direct EventBridge rule at 5:30pm ET was causing double execution (one silently blocked by file lock).
 algo_schedule_enabled = false
