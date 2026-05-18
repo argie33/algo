@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
-"""Initialize database schema by executing terraform/modules/database/init.sql."""
+"""Initialize database schema by running terraform/modules/database/init.sql via psql."""
 import os
 import sys
 import logging
-import psycopg2
+import subprocess
 
 logger = logging.getLogger(__name__)
-
-
-def _get_conn():
-    return psycopg2.connect(
-        host=os.environ.get('DB_HOST', 'localhost'),
-        port=int(os.environ.get('DB_PORT', 5432)),
-        dbname=os.environ.get('DB_NAME', 'stocks'),
-        user=os.environ.get('DB_USER', 'stocks'),
-        password=os.environ.get('DB_PASSWORD', ''),
-    )
 
 
 def _find_sql():
@@ -31,25 +21,24 @@ def _find_sql():
 
 
 def initialize_database(conn=None):
-    """Run init.sql against the configured database. Returns row counts summary."""
+    """Run init.sql via psql. conn arg is accepted for API compatibility but ignored."""
     sql_path = _find_sql()
     if not sql_path:
-        raise FileNotFoundError("init.sql not found")
+        raise FileNotFoundError("init.sql not found in expected locations")
 
-    with open(sql_path, 'r', encoding='utf-8') as f:
-        sql = f.read()
+    host = os.environ.get('DB_HOST', 'localhost')
+    port = os.environ.get('DB_PORT', '5432')
+    dbname = os.environ.get('DB_NAME', 'stocks')
+    user = os.environ.get('DB_USER', 'stocks')
+    password = os.environ.get('DB_PASSWORD', '')
 
-    close_after = conn is None
-    if conn is None:
-        conn = _get_conn()
-    try:
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        return {'status': 'ok', 'sql_path': sql_path}
-    finally:
-        if close_after:
-            conn.close()
+    env = {**os.environ, 'PGPASSWORD': password}
+    cmd = ['psql', '-h', host, '-p', port, '-U', user, '-d', dbname, '-f', sql_path,
+           '-v', 'ON_ERROR_STOP=0']
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        raise RuntimeError(f"psql failed (rc={result.returncode}): {result.stderr[:500]}")
+    return {'status': 'ok', 'sql_path': sql_path}
 
 
 def main():
