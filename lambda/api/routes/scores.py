@@ -84,18 +84,13 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
-                LEFT JOIN (
-                    SELECT symbol,
-                           MAX(CASE WHEN rn = 1 THEN close END) AS current_close,
-                           MAX(CASE WHEN rn = 2 THEN close END) AS prev_close
-                    FROM (
-                        SELECT symbol, close,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM price_daily
-                    ) ranked
-                    WHERE rn <= 2
-                    GROUP BY symbol
-                ) pd ON pd.symbol = sc.symbol
+                LEFT JOIN LATERAL (
+                    SELECT
+                        (SELECT close FROM price_daily p1
+                         WHERE p1.symbol = sc.symbol ORDER BY p1.date DESC LIMIT 1) AS current_close,
+                        (SELECT close FROM price_daily p2
+                         WHERE p2.symbol = sc.symbol ORDER BY p2.date DESC LIMIT 1 OFFSET 1) AS prev_close
+                ) pd ON true
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
