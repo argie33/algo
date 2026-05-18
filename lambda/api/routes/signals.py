@@ -104,7 +104,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
                     COALESCE(td.rsi, 0) as rsi,
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(tt.weinstein_stage, 'unknown') as market_stage,
+                    COALESCE(tt.weinstein_stage::TEXT, 'unknown') as market_stage,
                     COALESCE(cp.short_name, cp.long_name, bsd.symbol) as company_name
                 FROM buy_sell_daily_etf bsd
                 LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
