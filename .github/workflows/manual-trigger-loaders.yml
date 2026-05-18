@@ -1,0 +1,174 @@
+name: Manual Trigger Loaders (Test Data Loading)
+
+# Manually triggered workflow to load data into AWS RDS
+# Useful for testing against Friday data without waiting for scheduled times
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Which loader tier to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - tier-0
+          - tier-1-prices
+          - tier-2-reference
+          - tier-3-metrics
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  trigger-loaders:
+    name: "Trigger Loaders (Tier: ${{ inputs.tier }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3 hour timeout for all loaders
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get network configuration
+        id: network
+        run: |
+          cd terraform
+          SUBNET=$(terraform output -json 2>/dev/null | jq -r '.private_subnet_ids.value[0]' || echo "")
+          SG=$(terraform output -json 2>/dev/null | jq -r '.ecs_tasks_security_group_id.value' || echo "")
+
+          if [ -z "$SUBNET" ] || [ -z "$SG" ]; then
+            echo "ERROR: Could not retrieve network config from Terraform"
+            exit 1
+          fi
+
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+          echo "sg=$SG" >> $GITHUB_OUTPUT
+          echo "✓ Subnet: $SUBNET"
+          echo "✓ Security Group: $SG"
+
+      - name: Trigger Tier 0 (Stock Symbols)
+        if: inputs.tier == 'all' || inputs.tier == 'tier-0'
+        run: |
+          echo "🔄 Triggering Tier 0: Stock Symbols..."
+
+          TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix "algo-stock_symbols-loader" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinitionArns[0]' --output text)
+
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            echo "❌ Task definition not found"
+            exit 1
+          fi
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster algo-dev \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.sg }}],assignPublicIp=DISABLED}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "✓ Task started: $TASK_ARN"
+          echo "  Monitoring CloudWatch logs..."
+          aws logs tail "/ecs/algo-stock_symbols-loader" --follow --region ${{ env.AWS_REGION }} --max-items 100 &
+
+          # Wait for task to complete (max 5 minutes)
+          TASK_ID=$(echo $TASK_ARN | cut -d'/' -f3)
+          for i in {1..60}; do
+            STATUS=$(aws ecs describe-tasks --cluster algo-dev --tasks "$TASK_ARN" --region ${{ env.AWS_REGION }} --query 'tasks[0].lastStatus' --output text)
+            if [ "$STATUS" = "STOPPED" ]; then
+              echo "✓ Task completed with status: $STATUS"
+              break
+            fi
+            if [ $((i % 10)) -eq 0 ]; then
+              echo "  ⏳ Still running... (${i}0s elapsed)"
+            fi
+            sleep 5
+          done
+
+      - name: Trigger Tier 1 (Price Data)
+        if: inputs.tier == 'all' || inputs.tier == 'tier-1-prices'
+        run: |
+          echo "🔄 Triggering Tier 1: Price Data (6 loaders in parallel)..."
+
+          LOADERS=("stock_prices_daily" "stock_prices_weekly" "stock_prices_monthly" "etf_prices_daily" "etf_prices_weekly" "etf_prices_monthly")
+
+          for LOADER in "${LOADERS[@]}"; do
+            TASK_DEF=$(aws ecs list-task-definitions \
+              --family-prefix "algo-${LOADER}-loader" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'taskDefinitionArns[0]' --output text)
+
+            if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+              echo "⚠️  Task definition not found: $LOADER"
+              continue
+            fi
+
+            TASK_ARN=$(aws ecs run-task \
+              --cluster algo-dev \
+              --task-definition "$TASK_DEF" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.sg }}],assignPublicIp=DISABLED}" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0].taskArn' --output text 2>/dev/null || echo "")
+
+            if [ -z "$TASK_ARN" ]; then
+              echo "❌ Failed to start: $LOADER"
+            else
+              echo "✓ Started: $LOADER"
+            fi
+          done
+
+          echo "⏳ Waiting for Tier 1 tasks (15 minutes max)..."
+          sleep 900
+
+      - name: Verify Data Loaded
+        run: |
+          echo "📊 Checking if data was loaded into RDS..."
+
+          # Try to connect via API
+          API_URL="https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
+
+          echo "Testing API health..."
+          curl -s -f "$API_URL/api/health" > /dev/null && echo "✓ API is responding" || echo "⚠️  API not responding yet"
+
+          echo ""
+          echo "Expected next steps:"
+          echo "1. Monitor CloudWatch logs for loader execution:"
+          echo "   aws logs tail /ecs/algo-stock_symbols-loader --follow --region us-east-1"
+          echo ""
+          echo "2. Check data was loaded:"
+          echo "   curl $API_URL/api/stocks?limit=1"
+          echo ""
+          echo "3. Once data is loaded, run orchestrator:"
+          echo "   aws ecs run-task --cluster algo-dev --task-definition algo-algo-orchestrator --launch-type FARGATE ..."
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "  LOADER EXECUTION SUMMARY"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Tier requested: ${{ inputs.tier }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Cluster: algo-dev"
+          echo ""
+          echo "✓ Loaders triggered"
+          echo ""
+          echo "Next: Check CloudWatch logs for success"
+          echo "  https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/ecs/algo-stock_symbols-loader"
+          echo ""
