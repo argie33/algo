@@ -108,3 +108,9 @@ variable "algo_secrets_arn" {
   description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
   type        = string
 }
+
+variable "alpaca_paper_trading" {
+  description = "Enable Alpaca paper trading mode (true for testing, false for live)"
+  type        = bool
+  default     = true
+}

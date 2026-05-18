@@ -148,26 +148,27 @@ module "batch" {
 module "loaders" {
   source = "./modules/loaders"
 
-  project_name            = var.project_name
-  environment             = var.environment
-  aws_region              = var.aws_region
-  aws_account_id          = data.aws_caller_identity.current.account_id
-  ecs_cluster_name        = module.compute.ecs_cluster_name
-  ecs_cluster_arn         = module.compute.ecs_cluster_arn
-  task_execution_role_arn = module.iam.ecs_task_execution_role_arn
-  task_role_arn           = module.iam.ecs_task_role_arn
-  private_subnet_ids      = module.vpc.private_subnet_ids
-  ecs_tasks_sg_id         = module.vpc.ecs_tasks_security_group_id
-  db_secret_arn           = module.database.rds_credentials_secret_arn
-  db_host                 = module.database.rds_address
-  db_port                 = 5432
-  db_name                 = var.rds_db_name
-  ecr_repository_uri      = module.compute.ecr_repository_url
-  vpc_id                  = module.vpc.vpc_id
-  common_tags             = local.common_tags
-  sns_alert_topic_arn     = coalesce(module.services.sns_alerts_topic_arn, "")
-  fred_api_key            = var.fred_api_key
-  algo_secrets_arn        = module.database.algo_secrets_arn
+  project_name                     = var.project_name
+  environment                      = var.environment
+  aws_region                       = var.aws_region
+  aws_account_id                   = data.aws_caller_identity.current.account_id
+  ecs_cluster_name                 = module.compute.ecs_cluster_name
+  ecs_cluster_arn                  = module.compute.ecs_cluster_arn
+  task_execution_role_arn          = module.iam.ecs_task_execution_role_arn
+  task_role_arn                    = module.iam.ecs_task_role_arn
+  private_subnet_ids               = module.vpc.private_subnet_ids
+  ecs_tasks_sg_id                  = module.vpc.ecs_tasks_security_group_id
+  db_secret_arn                    = module.database.rds_credentials_secret_arn
+  db_host                          = module.database.rds_address
+  db_port                          = 5432
+  db_name                          = var.rds_db_name
+  ecr_repository_uri               = module.compute.ecr_repository_url
+  vpc_id                           = module.vpc.vpc_id
+  common_tags                      = local.common_tags
+  sns_alert_topic_arn              = coalesce(module.services.sns_alerts_topic_arn, "")
+  fred_api_key                     = var.fred_api_key
+  algo_secrets_arn                 = module.database.algo_secrets_arn
+  alpaca_paper_trading = var.alpaca_paper_trading
 }
 
 module "services" {
