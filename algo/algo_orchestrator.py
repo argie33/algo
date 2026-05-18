@@ -91,7 +91,7 @@ class Orchestrator:
 
     HALT_FLAG_PATH = str(Path(tempfile.gettempdir()) / 'algo_orchestrator_halt')
 
-    def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True, init_db: bool = True) -> None:
+    def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
         from algo.algo_config import get_config
         self.config = config or get_config()
         self.run_date = run_date or _date.today()
@@ -121,9 +121,7 @@ class Orchestrator:
                 logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
                 self.db_pool = None
 
-        if init_db:
-            self._ensure_schema_initialized()
-            self._initialize_feature_flags()
+        self._initialize_feature_flags()
 
     def _get_conn(self, max_retries: int = 3) -> psycopg2.extensions.connection:
         """Get database connection from pool with exponential backoff retry.
@@ -216,52 +214,6 @@ class Orchestrator:
         except Exception as e:
 
             logger.error(f"Unhandled exception: {e}")
-
-    def _ensure_schema_initialized(self) -> None:
-        """Initialize database schema if not already present. Idempotent."""
-        conn = None
-        cur = None
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            cur.execute("""
-                SELECT COUNT(*) FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name IN ('stock_symbols', 'algo_positions', 'algo_trades')
-            """)
-            result = cur.fetchone()
-            table_count = result[0] if result else 0
-
-            if table_count >= 3:
-                if self.verbose:
-                    logger.info("  [SCHEMA] Database schema already initialized")
-                return
-
-            if self.verbose:
-                logger.info("  [SCHEMA] Initializing database schema...")
-
-            import init_database
-            init_database.main()
-
-            if self.verbose:
-                logger.info("  [SCHEMA] Database schema initialized successfully")
-        except Exception as e:
-            if self.verbose:
-                logger.error(f"  [WARN] Schema initialization check failed: {e}")
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
 
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
