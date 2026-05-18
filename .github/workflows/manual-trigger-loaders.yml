@@ -41,8 +41,9 @@ jobs:
       - name: Get network configuration
         id: network
         run: |
+          # Use ManagedBy=Terraform to pick the Terraform VPC, not orphaned duplicates
           VPC_ID=$(aws ec2 describe-vpcs \
-            --filters "Name=tag:Name,Values=algo-vpc" \
+            --filters "Name=tag:Name,Values=algo-vpc" "Name=tag:ManagedBy,Values=Terraform" \
             --region ${{ env.AWS_REGION }} \
             --query 'Vpcs[0].VpcId' \
             --output text 2>/dev/null || echo "")

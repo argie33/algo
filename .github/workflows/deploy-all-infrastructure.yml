@@ -209,28 +209,28 @@ jobs:
           # Import S3 backend bucket dynamically
           import_if_missing module.bootstrap.aws_s3_bucket.terraform_state "$STATE_BUCKET"
 
-          # Import RDS Security Group Rules (query from AWS)
+          # Import Terraform-managed VPC (ManagedBy=Terraform tag distinguishes it from orphaned VPCs)
           echo ""
-          echo "Querying AWS for RDS security group and related SG rules..."
-          RDS_SG=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=${PROJECT_NAME}-rds" \
-            --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          echo "Querying AWS for Terraform-managed VPC..."
+          TF_VPC=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=${PROJECT_NAME}-vpc" "Name=tag:ManagedBy,Values=Terraform" \
+            --query 'Vpcs[0].VpcId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$TF_VPC" ] && [ "$TF_VPC" != "None" ]; then
+            echo "Found Terraform VPC: $TF_VPC"
+            import_if_missing "module.vpc.aws_vpc.main" "$TF_VPC"
 
-          if [ -n "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
-            echo "Found RDS SG: $RDS_SG"
-
-            # Query existing ingress rules from this SG
-            aws ec2 describe-security-group-rules \
-              --filters "Name=group-id,Values=$RDS_SG" "Name=is-egress,Values=false" \
-              --query 'SecurityGroupRules[*].[SecurityGroupRuleId,GroupId,IpProtocol,FromPort]' \
-              --output text --region $AWS_REGION 2>/dev/null | while read -r rule_id rule_sg proto port; do
-              if [ -n "$rule_id" ] && [ "$rule_id" != "None" ]; then
-                # Import rule (using simplified approach - let terraform handle the rest)
-                import_if_missing "module.vpc.aws_security_group_rule.rds_${rule_id}" "$rule_id"
+            # Import ECS tasks, API Lambda, Algo Lambda, and RDS security groups
+            for SG_SUFFIX in ecs-tasks-sg api-lambda-sg algo-lambda-sg rds-sg; do
+              SG_ID=$(aws ec2 describe-security-groups \
+                --filters "Name=vpc-id,Values=$TF_VPC" "Name=group-name,Values=${PROJECT_NAME}-${SG_SUFFIX}" \
+                --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+              if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+                TF_RESOURCE="module.vpc.aws_security_group.$(echo $SG_SUFFIX | sed 's/-sg//' | tr '-' '_')"
+                import_if_missing "$TF_RESOURCE" "$SG_ID"
               fi
-            done || echo "⚠️  Could not query RDS SG rules (SG may not exist yet)"
+            done
           else
-            echo "⚠️  RDS security group not found (will be created by Terraform)"
+            echo "⚠️  Terraform VPC not found (will be created)"
           fi
 
       - name: Note on API Gateway Route
