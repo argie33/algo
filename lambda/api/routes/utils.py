@@ -50,3 +50,33 @@ def list_response(items, total=None):
 def json_response(code, data):
     """Standardized JSON response."""
     return {"statusCode": code, **data}
+
+
+def handle_db_error(error, logger, operation):
+    """Unified database error handler for all route handlers.
+
+    Args:
+        error: The exception caught
+        logger: Logger instance
+        operation: Operation name for logging context
+
+    Returns:
+        Appropriate error_response tuple based on error type
+    """
+    import psycopg2
+
+    if isinstance(error, psycopg2.errors.UndefinedTable):
+        logger.error(f'Required table not found: {error}', extra={'operation': operation})
+        return error_response(503, 'service_unavailable', 'Data pipeline loading')
+    elif isinstance(error, psycopg2.errors.UndefinedColumn):
+        logger.error(f'Column not found: {error}', extra={'operation': operation})
+        return error_response(503, 'service_unavailable', 'Data schema mismatch')
+    elif isinstance(error, psycopg2.OperationalError):
+        logger.error(f'Database connection error: {error}', extra={'operation': operation})
+        return error_response(503, 'service_unavailable', 'Database unavailable')
+    elif isinstance(error, psycopg2.DatabaseError):
+        logger.error(f'Database error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
+        return error_response(500, 'internal_error', 'Database query failed')
+    else:
+        logger.error(f'Unexpected error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
+        return error_response(500, 'internal_error', 'Internal server error')
