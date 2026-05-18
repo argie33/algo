@@ -13,6 +13,13 @@ const router = express.Router();
 // Protect all audit endpoints with auth + admin role
 router.use(authenticateToken, requireAdmin);
 
+// GET /api/audit - Audit API root
+router.get("/", (req, res) => {
+  return sendSuccess(res, {
+    message: "Audit API - available endpoints: /trades, /config-changes, /safeguard-activations"
+  });
+});
+
 // GET /api/audit/trades - Trading audit log
 router.get("/trades", async (req, res) => {
   try {

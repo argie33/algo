@@ -55,14 +55,6 @@ async function fetchIndustries(req, res) {
           RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
         FROM industry_scores
       ),
-      industry_ranking_12w AS (
-        SELECT industry, rank_12w_ago
-        FROM industry_ranking
-        WHERE date_recorded = (
-          SELECT MAX(date_recorded) FROM industry_ranking
-          WHERE date_recorded <= CURRENT_DATE
-        )
-      ),
       industry_pe AS (
         SELECT
           cp.industry,
@@ -78,10 +70,9 @@ async function fetchIndustries(req, res) {
           PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
         FROM industry_pe
       )
-      SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile, ir12.rank_12w_ago
+      SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile, NULL::integer as rank_12w_ago
       FROM ranked r
       LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
-      LEFT JOIN industry_ranking_12w ir12 ON ir12.industry = r.industry
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]),

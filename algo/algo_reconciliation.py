@@ -11,7 +11,6 @@ workflow or positions were closed in Alpaca but marked open in DB.
 from config.credential_helper import (
     get_db_password,
     get_db_config,
-    DEFAULT_DB_HOST,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,

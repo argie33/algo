@@ -106,6 +106,7 @@ async function getDbConfig() {
         };
 
         console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+        console.log(`SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`);
         return dbConfig;
       } catch (secretError) {
         console.warn(
@@ -157,6 +158,7 @@ async function getDbConfig() {
       };
 
       console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+      console.log(`SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`);
       return dbConfig;
     }
 
