@@ -87,12 +87,21 @@ python3 algo/algo_orchestrator.py --mode paper --dry-run
 
 ---
 
+## 💾 MEMORY & CONTEXT RULES
+
+**Token waste prevention (ENFORCED):**
+- Memory files: max 150 lines per file (if larger → split or archive)
+- Root .md files: NO session-specific docs (AWS_LOADER_*.md, CURRENT_SESSION_*.md deleted immediately)
+- STATUS.md: max 300 lines (current state + next steps only)
+- CLAUDE.md: max 200 lines (this file is kept lean)
+
+**Why:** 10K tokens per session = $0.01-0.02/session. Fix: lean context.
+
+---
+
 ## 📚 REFERENCE
 
-- **Rules & Constraints:** See memory/ (referenced in git commits)
-- **Code Governance:** [[code-governance-rules]]
-- **Enforcement:** [[claude-enforcement-checklist]] (I run this before every change)
-- **Token Strategy:** [[token-optimization-2026-05-17]]
+- **Enforcement Rules:** See memory/enforcement_rules.md
 - **Infrastructure:** Terraform IaC only, no CloudFormation
 - **Tests:** 309+ passing
 

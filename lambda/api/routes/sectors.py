@@ -3,25 +3,9 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, safe_limit, safe_days
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
@@ -30,7 +14,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             if path == '/api/sectors/trends-batch' or path.startswith('/api/sectors/trends-batch?'):
                 sectors_str = params.get('sectors', [None])[0] if params else None
                 days_str = params.get('days', [None])[0] if params else None
-                days = _safe_days(days_str, max_val=365, default=90)
+                days = safe_days(days_str, max_val=365, default=90)
 
                 if not sectors_str:
                     return error_response(400, 'bad_request', 'sectors parameter required (comma-separated)')
@@ -62,7 +46,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 # Return trend data for specific sector with technical indicators
                 if path.endswith('/trend') or path.endswith('/trend/'):
                     days_str = params.get('days', [None])[0] if params else None
-                    days = _safe_days(days_str, max_val=365, default=90)
+                    days = safe_days(days_str, max_val=365, default=90)
                     cur.execute("""
                         WITH sector_prices AS (
                             SELECT
@@ -94,7 +78,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 else:
                     # Return sector performance data
                     days_str = params.get('days', [None])[0] if params else None
-                    days = _safe_days(days_str, max_val=365, default=90)
+                    days = safe_days(days_str, max_val=365, default=90)
                     cur.execute("""
                         SELECT date, sector, return_pct
                         FROM sector_performance
@@ -105,7 +89,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     return list_response([dict(r) for r in rows])
             elif path in ('/api/sectors', '/api/sectors/performance'):
                 limit_str = params.get('limit', [None])[0] if params else None
-                limit = _safe_limit(limit_str, max_val=50000, default=50000)
+                limit = safe_limit(limit_str, max_val=50000, default=50000)
                 page_str = params.get('page', [None])[0] if params else None
                 page = _safe_page(page_str, default=1)
                 offset = (page - 1) * limit
@@ -203,7 +187,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 parts = path.split('/')
                 sector_name = parts[3] if len(parts) > 3 else None
                 days_str = params.get('days', [None])[0] if params else None
-                days = _safe_days(days_str, max_val=365, default=90)
+                days = safe_days(days_str, max_val=365, default=90)
                 if not sector_name:
                     return error_response(400, 'bad_request', 'Sector name required')
                 cur.execute("""

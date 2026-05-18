@@ -3,40 +3,21 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, json_response, safe_limit
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def json_response(code, data):
-    return {"statusCode": code, **data}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/signals/* endpoints."""
         if path == '/api/signals/stocks':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             timeframe = params.get('timeframe', ['daily'])[0] if params else 'daily'
             symbol_filter = params.get('symbol', [None])[0] if params else None
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == '/api/signals/etf':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             return _get_signals_etf(cur, limit)
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')

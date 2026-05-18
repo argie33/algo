@@ -747,7 +747,6 @@ app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
 app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);  // Mount more specific route first
 app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
-app.use("/api/user", require("./routes/user"));
 
 // Research and backtest routes
 app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
@@ -762,9 +761,6 @@ app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 
 // Swing trading algo routes
 app.use("/api/algo", require("./routes/algo"));
-
-// User settings routes
-app.use("/api/settings", require("./routes/settings"));
 
 // Notifications and Metrics routes
 app.use("/api/notifications", notificationsRoutes);

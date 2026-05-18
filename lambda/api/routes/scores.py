@@ -3,36 +3,17 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def json_response(code, data):
-    return {"statusCode": code, **data}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/scores/* endpoints."""
         if path == '/api/scores/stockscores' or path.startswith('/api/scores/stockscores?'):
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             offset_str = params.get('offset', [None])[0] if params else None
-            offset = _safe_offset(offset_str)
+            offset = safe_offset(offset_str)
             sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
             sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
             sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'

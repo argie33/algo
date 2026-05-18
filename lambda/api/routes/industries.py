@@ -3,25 +3,9 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, safe_limit, safe_days
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/industries and /api/industries/{name} - return ranking data."""
@@ -33,7 +17,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             if industry_name and industry_name != 'trend':
                 # Return data for specific industry
                 days_str = params.get('days', [None])[0] if params else None
-                days = _safe_days(days_str, max_val=365, default=90)
+                days = safe_days(days_str, max_val=365, default=90)
                 cur.execute("""
                     SELECT date, industry, return_pct
                     FROM industry_performance
@@ -44,7 +28,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return list_response([dict(r) for r in rows])
             else:
                 limit_str = params.get('limit', [None])[0] if params else None
-                limit = _safe_limit(limit_str, max_val=50000, default=50000)
+                limit = safe_limit(limit_str, max_val=50000, default=50000)
                 page_str = params.get('page', [None])[0] if params else None
                 page = _safe_page(page_str, default=1)
                 offset = (page - 1) * limit

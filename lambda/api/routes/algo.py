@@ -3,28 +3,9 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def json_response(code, data):
-    return {"statusCode": code, **data}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
@@ -90,7 +71,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             return _get_algo_trades(cur, limit)
         elif path == '/api/algo/positions':
             return _get_algo_positions(cur)
@@ -100,7 +81,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return _get_circuit_breakers(cur)
         elif path == '/api/algo/equity-curve':
             days_str = params.get('limit', [None])[0] if params else None
-            days = _safe_days(days_str, max_val=365, default=180)
+            days = safe_days(days_str, max_val=365, default=180)
             return _get_equity_curve(cur, days)
         elif path == '/api/algo/data-status':
             return _get_data_status(cur)
@@ -108,23 +89,23 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return _get_notifications(cur, params)
         elif path == '/api/algo/patrol-log':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             offset_str = params.get('offset', [None])[0] if params else None
-            offset = _safe_offset(offset_str)
+            offset = safe_offset(offset_str)
             return _get_patrol_log(cur, limit, offset)
         elif path == '/api/algo/sector-rotation':
             days_str = params.get('limit', [None])[0] if params else None
-            days = _safe_days(days_str, max_val=365, default=180)
+            days = safe_days(days_str, max_val=365, default=180)
             return _get_sector_rotation(cur, days)
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             return _get_swing_scores(cur, limit)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
-            days = _safe_days(days_str, max_val=365, default=30)
+            days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
         elif path == '/api/algo/rejection-funnel':
             return _get_rejection_funnel(cur)
@@ -145,9 +126,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return _get_algo_config_key(cur, key)
         elif path == '/api/algo/audit-log':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
             offset_str = params.get('offset', [None])[0] if params else None
-            offset = _safe_offset(offset_str)
+            offset = safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
             return _get_algo_audit_log(cur, limit, offset, action_type)
         else:

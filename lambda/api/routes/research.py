@@ -3,32 +3,16 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
+from .utils import error_response, success_response, list_response, safe_limit, safe_offset
 
 logger = logging.getLogger(__name__)
-
-def error_response(code, typ, msg):
-    return {"statusCode": code, "errorType": typ, "message": msg}
-
-def success_response(data):
-    return {"statusCode": 200, "data": data}
-
-def list_response(items, total=None):
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
-
-def _safe_limit(limit_str, max_val=50000, default=500):
-    if not limit_str:
-        return default
-    try:
-        return min(int(limit_str), max_val)
-    except:
-        return default
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/research/* endpoints."""
         try:
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit_str = params.get('limit', [None])[0] if params else None
-                limit = _safe_limit(limit_str, max_val=50000, default=50000)
+                limit = safe_limit(limit_str, max_val=50000, default=50000)
                 cur.execute("""
                     SELECT run_id, strategy_name, date_start, date_end, total_return_pct,
                            sharpe_annualized AS sharpe, max_drawdown_pct, win_rate, total_trades
@@ -61,8 +45,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 # Get trades for this backtest
                 limit_str = params.get('limit', [None])[0] if params else None
                 offset_str = params.get('offset', [None])[0] if params else None
-                limit = _safe_limit(limit_str, max_val=50000, default=50000)
-                offset = _safe_offset(offset_str)
+                limit = safe_limit(limit_str, max_val=50000, default=50000)
+                offset = safe_offset(offset_str)
 
                 cur.execute("""
                     SELECT trade_id, symbol, signal_date, entry_date, entry_price, entry_quantity,
