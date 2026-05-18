@@ -263,8 +263,10 @@ class OptimalLoader(ABC):
 
         rows = self.fetch_incremental(symbol, previous_date)
         if not rows:
+            log.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
             self._stats["symbols_skipped_by_watermark"] += 1
             return 0
+        log.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows")
         self._stats["rows_fetched"] += len(rows)
         if self.router and self.router.last_source:
             src = self.router.last_source
