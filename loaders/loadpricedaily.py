@@ -68,10 +68,22 @@ class PriceDailyLoader(OptimalLoader):
         try:
             return self.router.fetch_ohlcv(symbol, start, end)
         except Exception as e:
-            if "rate" in str(e).lower() or "429" in str(e) or "too many" in str(e).lower():
+            error_str = str(e).lower()
+            # Rate limit errors - don't re-raise, just return None
+            if "rate" in error_str or "429" in error_str or "too many" in error_str:
                 logger.debug(f"[{symbol}] Rate limited: {e}")
-                return None  # Trigger fallback
-            raise  # Re-raise other errors
+                return None
+            # Network errors in AWS - queue for retry instead of failing
+            if "json" in error_str or "parse" in error_str or "connection" in error_str:
+                logger.warning(f"[{symbol}] Transient network error: {e}, will retry")
+                return None
+            # Auth errors - log but don't crash
+            if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
+                logger.warning(f"[{symbol}] Auth error: {e}")
+                return None
+            # Other errors - log and re-raise
+            logger.error(f"[{symbol}] Unexpected error: {e}")
+            raise
 
     def transform(self, rows):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""

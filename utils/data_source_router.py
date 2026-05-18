@@ -259,20 +259,34 @@ class DataSourceRouter:
                 log.debug(f"[yfinance] No data returned for {symbol}")
                 return None
             log.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
+
+            # Fix: yfinance returns MultiIndex DataFrame when symbol provided as string
+            # Flatten column names from (Price, Ticker) to just Price
             if hasattr(hist.columns, 'levels'):
-                hist.columns = [col[0] if isinstance(col, tuple) else col for col in hist.columns]
-            return [
-                {
-                    "symbol": symbol,
-                    "date": idx.date().isoformat(),
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
-                    "volume": int(row["Volume"]),
-                }
-                for idx, row in hist.iterrows()
-            ]
+                # MultiIndex columns: get level 0 (the price type)
+                hist.columns = hist.columns.get_level_values(0)
+
+            rows = []
+            for idx, row in hist.iterrows():
+                try:
+                    rows.append({
+                        "symbol": symbol,
+                        "date": idx.date().isoformat() if hasattr(idx, 'date') else str(idx)[:10],
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row["Volume"]),
+                    })
+                except (KeyError, TypeError, ValueError) as e:
+                    log.debug(f"[yfinance] Skipped invalid row {idx}: {e}")
+                    continue
+
+            if not rows:
+                log.warning(f"[yfinance] No valid rows for {symbol} after parsing")
+                return None
+
+            return rows
         except TimeoutError as e:
             log.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
             raise Exception(f"yfinance timeout: {e}")
