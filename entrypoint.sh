@@ -29,4 +29,8 @@ fi
 
 # Run the loader with any additional arguments
 echo "Starting loader: $LOADER_FILE (parallelism: ${LOADER_PARALLELISM:-auto})"
+echo "Environment variables: DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_NAME=$DB_NAME LOADER_PARALLELISM=$LOADER_PARALLELISM"
 python3 "loaders/$LOADER_FILE" "$@"
+EXIT_CODE=$?
+echo "Loader exited with code: $EXIT_CODE"
+exit $EXIT_CODE
