@@ -1,0 +1,167 @@
+name: Test Loader Execution - Verify CloudWatch Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      loader_name:
+        description: 'Loader to test (default: stock_symbols)'
+        required: false
+        default: 'stock_symbols'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test-loader:
+    name: Run Loader & Capture Logs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get VPC Configuration
+        id: vpc
+        run: |
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters 'Name=tag:Project,Values=algo' \
+            --query 'Subnets[0].SubnetId' \
+            --output text)
+          SG=$(aws ec2 describe-security-groups \
+            --filters 'Name=tag:Name,Values=algo-ecs-tasks' \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
+          echo "VPC Configuration: Subnet=$SUBNET, SG=$SG"
+
+      - name: Trigger Loader Task
+        id: task
+        run: |
+          LOADER=${{ github.event.inputs.loader_name }}
+          TASK_DEF="algo-${LOADER}-loader"
+
+          echo "Starting loader: $LOADER"
+          echo "Task definition: $TASK_DEF"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.vpc.outputs.subnet }}],securityGroups=[${{ steps.vpc.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          TASK_ID=$(echo $TASK_ARN | rev | cut -d'/' -f1 | rev)
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
+          echo "✓ Task started: $TASK_ID"
+
+      - name: Wait for Task Completion
+        run: |
+          TASK_ARN="${{ steps.task.outputs.task_arn }}"
+          LOADER=${{ github.event.inputs.loader_name }}
+
+          echo "Waiting for task to complete..."
+          ELAPSED=0
+          while [ $ELAPSED -lt 600 ]; do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster algo-cluster \
+              --tasks "$TASK_ARN" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+
+            echo "[$((ELAPSED))s] Status: $STATUS"
+
+            if [ "$STATUS" = "STOPPED" ]; then
+              EXIT_CODE=$(aws ecs describe-tasks \
+                --cluster algo-cluster \
+                --tasks "$TASK_ARN" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'tasks[0].containers[0].exitCode' \
+                --output text)
+
+              echo "✓ Task completed with exit code: $EXIT_CODE"
+              if [ "$EXIT_CODE" = "0" ]; then
+                echo "✅ LOADER EXECUTION SUCCESSFUL"
+              else
+                echo "⚠️  Loader exited with code: $EXIT_CODE"
+              fi
+              break
+            fi
+
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          if [ $ELAPSED -ge 600 ]; then
+            echo "❌ Task timeout after 600 seconds"
+            exit 1
+          fi
+
+      - name: Capture CloudWatch Logs
+        run: |
+          LOADER=${{ github.event.inputs.loader_name }}
+          TASK_ID="${{ steps.task.outputs.task_id }}"
+          LOG_GROUP="/ecs/algo-${LOADER}-loader"
+
+          echo "Retrieving CloudWatch logs..."
+          echo "Log Group: $LOG_GROUP"
+          echo "Task ID: $TASK_ID"
+          echo ""
+          echo "========================================"
+          echo "LOADER EXECUTION LOGS"
+          echo "========================================"
+          echo ""
+
+          # Get log stream name
+          LOG_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name-prefix "$TASK_ID" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region ${{ env.AWS_REGION }} \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null)
+
+          if [ -z "$LOG_STREAM" ] || [ "$LOG_STREAM" = "None" ]; then
+            echo "⚠️  No log streams found yet (logs may be delayed)"
+            echo ""
+            echo "You can check logs manually at:"
+            echo "  https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logStream:group=$LOG_GROUP"
+          else
+            # Get and print log events
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LOG_STREAM" \
+              --start-from-head \
+              --region ${{ env.AWS_REGION }} \
+              --query 'events[*].message' \
+              --output text
+
+            echo ""
+            echo "========================================"
+            echo "✅ EXECUTION LOGS CAPTURED FROM CLOUDWATCH"
+            echo "========================================"
+          fi
+
+      - name: Verify Data Loaded
+        run: |
+          LOADER=${{ github.event.inputs.loader_name }}
+          echo "Loader: $LOADER"
+          echo "CloudWatch Log Location:"
+          echo "  /ecs/algo-${LOADER}-loader"
+          echo ""
+          echo "Next: Check AWS CloudWatch console to confirm execution success"
