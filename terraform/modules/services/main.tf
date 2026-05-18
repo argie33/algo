@@ -172,9 +172,13 @@ resource "aws_lambda_permission" "api_gateway" {
 # }
 
 # API route - $default (catch-all for all requests)
-# AWS HTTP API automatically creates and manages the $default route.
-# With auto_deploy enabled on the stage, the integration will be automatically
-# routed to by the $default route, so we don't need to explicitly create it.
+# This is the default route that catches all requests not matching specific routes
+resource "aws_apigatewayv2_route" "default" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
 
 # Health check is unauthenticated so monitors and load balancers can reach it
 resource "aws_apigatewayv2_route" "health" {
