@@ -411,6 +411,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.11"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
+  layers        = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
 
   # Use S3 package if available, otherwise local file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
