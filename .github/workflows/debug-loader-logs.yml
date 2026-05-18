@@ -38,10 +38,24 @@ jobs:
       - name: Diagnose VPC network resources
         if: inputs.status_only != 'true'
         run: |
+          echo "=== ALL VPCs tagged Name=algo-vpc (expect exactly 1) ==="
+          aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=algo-vpc" \
+            --query 'Vpcs[*].{VpcId:VpcId,CidrBlock:CidrBlock,State:State}' \
+            --output table 2>/dev/null
+
           VPC_ID=$(aws ec2 describe-vpcs \
             --filters "Name=tag:Name,Values=algo-vpc" \
             --query 'Vpcs[0].VpcId' --output text 2>/dev/null)
-          echo "VPC: $VPC_ID"
+          echo "First VPC found (used by workflow): $VPC_ID"
+
+          echo ""
+          echo "=== VPC of Terraform-state subnets (subnet-0988e8d04bba87486, subnet-0ccb7db133dd4071e) ==="
+          for SN in subnet-0988e8d04bba87486 subnet-0ccb7db133dd4071e; do
+            aws ec2 describe-subnets --subnet-ids "$SN" \
+              --query 'Subnets[0].{SubnetId:SubnetId,VpcId:VpcId,CidrBlock:CidrBlock,AZ:AvailabilityZone}' \
+              --output json 2>/dev/null || echo "$SN: not found"
+          done
 
           echo ""
           echo "=== All subnets tagged Tier=Private ==="
