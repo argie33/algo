@@ -25,6 +25,7 @@ tier_1b_aggregates = [
 ]
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)
+# Note: Technical indicators computed from price data in orchestrator, not separate loaders
 tier_1c_technical = [
 ]
 
@@ -78,6 +79,7 @@ tier_3b_aggregates = [
 ]
 
 # Tier 4: Algo metrics (depends on signals)
+# Note: Algo metrics are computed by orchestrator, not loaded from external sources
 tier_4_metrics = [
 ]
 
