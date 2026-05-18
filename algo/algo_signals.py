@@ -58,15 +58,6 @@ from typing import Dict, List, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-try:
-    from algo.algo_connection_monitor import on_connect as monitor_on_connect, on_disconnect as monitor_on_disconnect
-except ImportError:
-    # If monitor not available, provide no-op functions
-    def monitor_on_connect():
-        pass
-    def monitor_on_disconnect():
-        pass
-
 
 class SignalComputer:
     """Best-of-canon signal computations for swing trading."""
@@ -83,7 +74,6 @@ class SignalComputer:
             self._owned = get_db_connection()
             self.cur = self._owned.cursor()
             self._nesting_level = 1
-            monitor_on_connect()
         else:
             self._nesting_level += 1
 
@@ -94,8 +84,7 @@ class SignalComputer:
             self.cur = None
             self._owned = None
             self._nesting_level = 0
-            self._price_cache = {}  # Clear cache on disconnect
-            monitor_on_disconnect()
+            self._price_cache = {}
         elif self._nesting_level > 1:
             self._nesting_level -= 1
 

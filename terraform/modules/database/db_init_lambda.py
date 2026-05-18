@@ -8,7 +8,6 @@ Runs SQL schema from init.sql; idempotent (uses IF NOT EXISTS).
 import json
 import logging
 import os
-from psycopg2 import OperationalError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -16,6 +15,8 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     """Initialize RDS database schema."""
+    import psycopg2
+    from psycopg2 import OperationalError
 
     # Get database connection parameters
     db_host = os.environ.get('DB_HOST')

@@ -55,20 +55,19 @@ def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
 
 def update_rds_password(host: str, port: int, username: str, current_password: str, new_password: str) -> bool:
     """Connect to RDS and update the master user password."""
+    import psycopg2
     try:
         conn = psycopg2.connect(
             host=host,
             port=port,
             user=username,
             password=current_password,
-            database=DEFAULT_DB_USER
+            database='postgres'
         )
         cur = conn.cursor()
 
-        # Update the password using ALTER USER
-        # Escape single quotes in password by doubling them
-        escaped_password = new_password.replace("'", "''")
-        cur.execute(f"ALTER USER {username} WITH PASSWORD '{escaped_password}'")
+        # Update the password using ALTER USER with parameterized query
+        cur.execute(f"ALTER USER {username} WITH PASSWORD %s", (new_password,))
 
         conn.commit()
         cur.close()
@@ -117,6 +116,8 @@ def handler(event, context):
         "SecretVersion": "..."
     }
     """
+    import psycopg2
+
     secret_id = event['SecretId']
     client_request_token = event['ClientRequestToken']
     step = event['Step']
@@ -176,7 +177,7 @@ def handler(event, context):
                     port=int(pending_secret.get('port', 5432)),
                     user=pending_secret['username'],
                     password=pending_secret['password'],
-                    database=DEFAULT_DB_USER
+                    database='postgres'
                 )
                 conn.close()
                 logger.info("Verified new credentials work on RDS")
