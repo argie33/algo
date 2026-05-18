@@ -28,19 +28,19 @@ def _get_loader_status(cur) -> Dict:
             cur.execute("""
                 SELECT
                     loader_name,
-                    start_at,
-                    symbol_count,
+                    run_date AS start_at,
+                    records_loaded AS symbol_count,
                     duration_seconds,
-                    success,
-                    error_count,
-                    table_name
+                    (status = 'completed') AS success,
+                    0 AS error_count,
+                    '' AS table_name
                 FROM data_loader_runs
-                WHERE (loader_name, start_at) IN (
-                    SELECT loader_name, MAX(start_at)
+                WHERE (loader_name, run_date) IN (
+                    SELECT loader_name, MAX(run_date)
                     FROM data_loader_runs
                     GROUP BY loader_name
                 )
-                ORDER BY start_at DESC, loader_name
+                ORDER BY run_date DESC, loader_name
             """)
             rows = cur.fetchall()
 
@@ -145,7 +145,8 @@ def _get_database_stats(cur) -> Dict:
 
             tables = []
             for row in cur.fetchall():
-                tables.append({'name': row[1], 'size': row[2]})
+                row_d = dict(row)
+                tables.append({'name': row_d.get('tablename', ''), 'size': row_d.get('size', '')})
 
             stats['largest_tables'] = tables
 
