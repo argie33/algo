@@ -156,15 +156,17 @@ class DataSourceRouter:
     ) -> Optional[Any]:
         """Daily OHLCV bars. Returns DataFrame-shaped data or None."""
         sources = [
+            ("alpaca", lambda: self._fetch_alpaca_ohlcv(symbol, start, end)),
             ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end)),
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
 
-    @retry(max_attempts=5, base_delay=1.0, exceptions=(Exception,))
+    @retry(max_attempts=3, base_delay=1.0, exceptions=(Exception,))
     def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
         api_key = os.getenv("APCA_API_KEY_ID")
         api_secret = os.getenv("APCA_API_SECRET_KEY")
         if not api_key or not api_secret:
+            log.debug("Alpaca credentials not configured, skipping")
             return None
 
         import requests
@@ -185,7 +187,7 @@ class DataSourceRouter:
                     "APCA-API-KEY-ID": api_key,
                     "APCA-API-SECRET-KEY": api_secret,
                 },
-                timeout=15,
+                timeout=30,
             )
 
             if resp.status_code == 429:
@@ -194,6 +196,10 @@ class DataSourceRouter:
                 log.warning(f"Alpaca rate limited for {symbol}. Waiting {wait_time}s before retry.")
                 time.sleep(wait_time)
                 raise Exception(f"Rate limited (429): Retry-After {wait_time}s")
+
+            if resp.status_code in (401, 403):
+                log.warning(f"Alpaca auth failed (code={resp.status_code}) for {symbol}: {resp.text[:200]}")
+                return None
 
             resp.raise_for_status()
             data = resp.json()
@@ -214,14 +220,19 @@ class DataSourceRouter:
             ]
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
-                # Rate limited — re-raise so @retry decorator can backoff exponentially
                 raise Exception(f"Alpaca rate limited: {e}")
             if e.response.status_code in (401, 403):
-                # Authorization failure — no subscription for data API, skip without retrying
+                log.debug(f"Alpaca auth failed (skipping): {e.response.text[:200]}")
                 return None
             raise
+        except requests.exceptions.Timeout:
+            log.warning(f"Alpaca timeout for {symbol}")
+            raise Exception(f"Alpaca timeout: {symbol}")
+        except Exception as e:
+            log.warning(f"Alpaca fetch failed for {symbol}: {e}")
+            raise
 
-    @retry(max_attempts=4, base_delay=0.5, exceptions=(Exception,))
+    @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
         try:
             import yfinance as yf
@@ -231,24 +242,23 @@ class DataSourceRouter:
             return None
         YFINANCE_LIMITER.wait()
         log.debug(f"[yfinance] Fetching {symbol} from {start} to {end}")
-        # yfinance uses dashes for class shares (BRK.B -> BRK-B)
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
-            log.debug(f"[yfinance] Calling yf.download for {yf_symbol}")
-            hist = yf.download(
-                yf_symbol,
-                start=start,
-                end=end,
-                auto_adjust=False,
-                progress=False,
-            )
-            log.debug(f"[yfinance] yf.download returned, checking if empty")
+            def do_download():
+                return yf.download(
+                    yf_symbol,
+                    start=start,
+                    end=end,
+                    auto_adjust=False,
+                    progress=False,
+                )
+            log.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 60s timeout")
+            hist = _call_with_timeout(do_download, timeout_sec=60)
+
             if hist is None or hist.empty:
-                log.warning(f"[yfinance] No data returned for {symbol}")
+                log.debug(f"[yfinance] No data returned for {symbol}")
                 return None
             log.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
-            # Newer yfinance may return multi-level columns for single tickers;
-            # flatten them so row["Open"] works regardless.
             if hasattr(hist.columns, 'levels'):
                 hist.columns = [col[0] if isinstance(col, tuple) else col for col in hist.columns]
             return [
@@ -263,11 +273,14 @@ class DataSourceRouter:
                 }
                 for idx, row in hist.iterrows()
             ]
+        except TimeoutError as e:
+            log.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
+            raise Exception(f"yfinance timeout: {e}")
         except Exception as e:
-            # yfinance raises various exceptions on rate limiting or network errors
-            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout"]):
-                log.warning(f"yfinance rate limited or timeout for {symbol}: {e}")
-                raise Exception(f"yfinance rate limited or unavailable: {e}")
+            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
+                log.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
+                raise Exception(f"yfinance rate limited: {e}")
+            log.error(f"yfinance error for {symbol}: {e}")
             raise
 
     # ============== FUNDAMENTALS ==============
