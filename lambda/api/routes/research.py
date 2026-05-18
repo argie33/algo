@@ -77,7 +77,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return error_response(404, 'not_found', f'No research handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle research')
+            logger.error(f'Research error detail: {type(e).__name__}: {e}')
+            return error_response(503, 'service_unavailable', f'ResearchErr:{type(e).__name__}:{str(e)[:200]}')
             return error_response(500, 'internal_error', 'Failed to fetch backtest results')
 
 

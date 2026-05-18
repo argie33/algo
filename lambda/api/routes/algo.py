@@ -203,7 +203,7 @@ def _get_algo_performance(cur) -> Dict:
                 SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price,
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
                        exit_r_multiple,
-                       EXTRACT(DAY FROM COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
+                       (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
                 FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date DESC LIMIT 1000
             """)
             trades = [dict(row) for row in cur.fetchall()]
