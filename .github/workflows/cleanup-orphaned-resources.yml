@@ -1,12 +1,22 @@
 name: Cleanup Orphaned AWS Resources
 
-# One-time cleanup of resources not tracked by Terraform:
+# Cleanup of resources not tracked by Terraform:
 # - 3 orphaned API Gateways (no Lambda integration or dead function)
 # - 2 orphaned CloudFront distributions (wrong bucket or duplicate)
+# - 2 orphaned VPCs (Terraform state resets created duplicates of algo-vpc)
 # Run manually when needed.
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (list resources, do not delete)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   id-token: write
@@ -103,10 +113,75 @@ jobs:
               || echo "Failed to delete $dist_id"
           done
 
+      - name: Delete orphaned VPCs
+        run: |
+          # Authoritative VPC: the one containing RDS (algo-db-subnet-group)
+          KEEP_VPC=$(aws rds describe-db-subnet-groups \
+            --db-subnet-group-name algo-db-subnet-group \
+            --query 'DBSubnetGroups[0].VpcId' --output text 2>/dev/null || echo "")
+          echo "Keeping VPC (has RDS): $KEEP_VPC"
+
+          ALL_VPCS=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=algo-vpc" \
+            --query 'Vpcs[*].VpcId' --output text 2>/dev/null || echo "")
+
+          for VPC_ID in $ALL_VPCS; do
+            if [ "$VPC_ID" = "$KEEP_VPC" ]; then
+              echo "KEEP $VPC_ID (active RDS VPC)"
+              continue
+            fi
+            echo "ORPHAN $VPC_ID — will delete all resources inside"
+
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "  [DRY RUN] Would delete subnets, route tables, IGWs, SGs, VPC for $VPC_ID"
+              aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'Subnets[*].SubnetId' --output text 2>/dev/null
+              continue
+            fi
+
+            # Delete subnets
+            for SN in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'Subnets[*].SubnetId' --output text 2>/dev/null); do
+              aws ec2 delete-subnet --subnet-id "$SN" 2>/dev/null && echo "  Deleted subnet $SN"
+            done
+
+            # Detach and delete internet gateways
+            for IGW in $(aws ec2 describe-internet-gateways \
+                --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+                --query 'InternetGateways[*].InternetGatewayId' --output text 2>/dev/null); do
+              aws ec2 detach-internet-gateway --internet-gateway-id "$IGW" --vpc-id "$VPC_ID" 2>/dev/null
+              aws ec2 delete-internet-gateway --internet-gateway-id "$IGW" 2>/dev/null && echo "  Deleted IGW $IGW"
+            done
+
+            # Delete non-main route tables
+            for RT in $(aws ec2 describe-route-tables \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'RouteTables[?Associations[?Main==`false`] || !Associations].RouteTableId' \
+                --output text 2>/dev/null); do
+              aws ec2 delete-route-table --route-table-id "$RT" 2>/dev/null && echo "  Deleted route table $RT"
+            done
+
+            # Delete non-default security groups
+            for SG in $(aws ec2 describe-security-groups \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'SecurityGroups[?GroupName!=`default`].GroupId' \
+                --output text 2>/dev/null); do
+              aws ec2 delete-security-group --group-id "$SG" 2>/dev/null && echo "  Deleted SG $SG"
+            done
+
+            # Delete VPC itself
+            aws ec2 delete-vpc --vpc-id "$VPC_ID" 2>/dev/null \
+              && echo "  ✓ Deleted VPC $VPC_ID" \
+              || echo "  ❌ Failed to delete VPC $VPC_ID (may still have dependencies)"
+          done
+
       - name: Summary
         if: always()
         run: |
-          echo "## Cleanup Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Cleanup Complete (dry_run=${{ inputs.dry_run }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Remaining VPCs tagged algo-vpc" >> "$GITHUB_STEP_SUMMARY"
+          aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo-vpc" \
+            --query 'Vpcs[*].{VpcId:VpcId,State:State}' --output table >> "$GITHUB_STEP_SUMMARY" || true
           echo "### Remaining API Gateways" >> "$GITHUB_STEP_SUMMARY"
           aws apigatewayv2 get-apis --region "$AWS_REGION" \
             --query "Items[*].[ApiId,Name]" --output table >> "$GITHUB_STEP_SUMMARY" || true
