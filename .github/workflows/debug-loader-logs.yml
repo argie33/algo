@@ -62,11 +62,21 @@ jobs:
           fi
 
           echo ""
-          echo "=== Most recent stream: $LATEST_STREAM ==="
+          echo "=== START of most recent stream: $LATEST_STREAM ==="
           aws logs get-log-events \
             --log-group-name "$LOG_GROUP" \
             --log-stream-name "$LATEST_STREAM" \
-            --limit 500 \
+            --start-from-head \
+            --limit 100 \
+            --query 'events[*].message' \
+            --output text 2>&1
+
+          echo ""
+          echo "=== END of most recent stream ==="
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LATEST_STREAM" \
+            --limit 100 \
             --query 'events[*].message' \
             --output text 2>&1
 
