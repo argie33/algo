@@ -59,19 +59,29 @@ def get_db_connection():
 
 
 def parse_query_params(event: Dict) -> Dict:
-    """Parse query parameters from event."""
+    """Parse query parameters from API Gateway v1 or v2 events."""
     params = {}
+    # Try v1 format first (REST API)
     if 'queryStringParameters' in event and event['queryStringParameters']:
         for k, v in event['queryStringParameters'].items():
             params[k] = [v] if v else []
+    # If no v1 params, try v2 format (HTTP API with rawQueryString)
+    elif 'rawQueryString' in event and event['rawQueryString']:
+        for param in event['rawQueryString'].split('&'):
+            if '=' in param:
+                k, v = param.split('=', 1)
+                params[k] = params.get(k, []) + [v]
+            else:
+                params[param] = ['']
     return params
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle API Gateway requests by routing to extracted handler modules."""
+    """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     try:
-        path = event.get('path', '/')
-        method = event.get('httpMethod', 'GET')
+        # API Gateway v2 (HTTP API) uses rawPath and requestContext.http.method
+        path = event.get('rawPath', event.get('path', '/'))
+        method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
 
         # Health check
