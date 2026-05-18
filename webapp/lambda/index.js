@@ -807,41 +807,9 @@ app.get("/api/debug/stock-scores-count", async (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// 404 handler for API routes (use regex instead of /api/*)
-app.all(/^\/api\/.*/, (req, res) => {
-  return sendError(res, `API endpoint ${req.originalUrl} does not exist`, 404);
-});
-
-// CRITICAL: Block /api/* from reaching static file middleware
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    // Don't let /api/* requests fall through to static files
-    // If we reach here, the route wasn't handled, so return 404
-    return sendError(res, `API endpoint ${req.path} does not exist`, 404);
-  }
-  next();
-});
-
-// Serve unified frontend static files
-const mainBuildPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(mainBuildPath, {
-  maxAge: '1d',
-  etag: false
-}));
-
-// SPA fallback for frontend routes (use regex instead of '*')
-app.get(/.*/, (req, res) => {
-  // CRITICAL: Do NOT serve SPA for /api/* paths - these should 404 via the handler above
-  if (req.path.startsWith('/api')) {
-    return sendError(res, `API endpoint ${req.path} does not exist`, 404);
-  }
-
-  const indexPath = path.join(mainBuildPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    return sendError(res, "Frontend not built. Run 'npm run build' in frontend directory.", 404);
-  }
+// 404 handler for all unmatched routes
+app.all('*', (req, res) => {
+  return sendError(res, `Endpoint ${req.originalUrl} does not exist (API only, no web UI)`, 404);
 });
 
 // AWS Lambda / EC2 handler - listen directly on existing server (supports both HTTP and WebSocket)
