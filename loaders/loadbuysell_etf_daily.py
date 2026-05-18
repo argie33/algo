@@ -31,6 +31,9 @@ from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
+import numpy as np
+import pandas as pd
+
 from utils.optimal_loader import OptimalLoader
 
 
@@ -61,12 +64,6 @@ class BuySellETFDailyLoader(OptimalLoader):
     def _compute_signals(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 20:
-            return []
-
-        try:
-            import pandas as pd
-            import numpy as np
-        except ImportError:
             return []
 
         df = pd.DataFrame(price_rows)
