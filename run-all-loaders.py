@@ -94,6 +94,7 @@ tier_3b_aggregates = [
 # Tier 4: Signal quality scores and algo metrics (depends on signals)
 tier_4_metrics = [
     'load_signal_quality_scores.py',
+    'load_swing_trader_scores.py',
 ]
 
 # All loaders in execution order (but within tiers, parallel)
