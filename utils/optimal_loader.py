@@ -185,7 +185,22 @@ class OptimalLoader(ABC):
         conn = self._connect()
         cur = conn.cursor()
         try:
-            columns = list(rows[0].keys())
+            # Filter to columns that exist in the target table — prevents failures when
+            # a loader produces extra fields before a schema migration has run.
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = %s",
+                (self.table_name,),
+            )
+            existing_cols = {row[0] for row in cur.fetchall()}
+            all_data_cols = list(rows[0].keys())
+            skipped = [c for c in all_data_cols if c not in existing_cols]
+            if skipped:
+                log.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
+            columns = [c for c in all_data_cols if c in existing_cols]
+            if not columns:
+                raise ValueError(f"No valid columns to write for {self.table_name}")
+
             staging = f"_stage_{self.table_name}_{int(time.time() * 1000)}"
 
             cur.execute(
