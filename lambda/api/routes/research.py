@@ -14,8 +14,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
                 cur.execute("""
-                    SELECT run_id, strategy_name, date_start, date_end, total_return_pct,
-                           sharpe_annualized AS sharpe, max_drawdown_pct, win_rate, total_trades
+                    SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
+                           total_return AS total_return_pct, sharpe_ratio AS sharpe,
+                           max_drawdown AS max_drawdown_pct, win_rate, num_trades AS total_trades
                     FROM backtest_runs
                     ORDER BY created_at DESC
                     LIMIT %s
@@ -30,10 +31,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     return error_response(400, 'bad_request', 'Run ID must be numeric')
 
                 cur.execute("""
-                    SELECT run_id, strategy_name, date_start, date_end,
-                           total_return_pct, sharpe_annualized, max_drawdown_pct, win_rate,
-                           total_trades, best_trade_pct, worst_trade_pct, avg_trade_pct,
-                           consecutive_wins, consecutive_losses, created_at, notes
+                    SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
+                           total_return AS total_return_pct, sharpe_ratio AS sharpe_annualized,
+                           max_drawdown AS max_drawdown_pct, win_rate,
+                           num_trades AS total_trades,
+                           NULL AS best_trade_pct, NULL AS worst_trade_pct, NULL AS avg_trade_pct,
+                           NULL AS consecutive_wins, NULL AS consecutive_losses,
+                           created_at, NULL AS notes
                     FROM backtest_runs
                     WHERE run_id = %s
                 """, (run_id_int,))
@@ -47,8 +51,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 offset = safe_offset(offset_str)
 
                 cur.execute("""
-                    SELECT trade_id, symbol, signal_date, entry_date, entry_price, entry_quantity,
-                           exit_date, exit_price, profit_loss_pct, mfe_pct, mae_pct
+                    SELECT trade_id, symbol, NULL AS signal_date, entry_date, entry_price,
+                           quantity AS entry_quantity, exit_date, exit_price,
+                           profit_loss_percent AS profit_loss_pct,
+                           NULL AS mfe_pct, NULL AS mae_pct
                     FROM backtest_trades
                     WHERE run_id = %s
                     ORDER BY entry_date DESC
