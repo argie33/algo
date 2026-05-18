@@ -191,6 +191,7 @@ module "services" {
   code_bucket_name               = module.storage.code_bucket_name
   data_loading_bucket_name       = module.storage.data_loading_bucket_name
   lambda_artifacts_bucket_name   = module.storage.lambda_artifacts_bucket_name
+  api_lambda_s3_bucket           = module.storage.lambda_artifacts_bucket_name
   api_lambda_memory              = var.api_lambda_memory
   api_lambda_timeout             = var.api_lambda_timeout
   api_lambda_ephemeral_storage   = var.api_lambda_ephemeral_storage
