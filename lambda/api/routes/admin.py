@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
 
 logger = logging.getLogger(__name__)
 
@@ -19,21 +19,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/admin/data-quality':
                 return _get_data_quality(cur)
             return error_response(404, 'not_found', f'No admin handler for {path}')
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'handle admin'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'handle admin'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'handle admin'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle admin', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Admin handler error')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'handle admin')
 def _get_loader_status(cur) -> Dict:
         """Get status of all data loaders from data_loader_runs table."""
         try:
@@ -92,21 +80,9 @@ def _get_loader_status(cur) -> Dict:
                     'failed': len([l for l in loaders if l['status'] == 'failed']),
                 }
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get loader status'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get loader status'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get loader status'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get loader status', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch loader status')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get loader status')
 def _get_system_health(cur) -> Dict:
         """Get overall system health status."""
         try:
@@ -115,22 +91,8 @@ def _get_system_health(cur) -> Dict:
             try:
                 cur.execute("SELECT 1")
                 health_data['components']['database'] = 'ok'
-            except psycopg2.errors.UndefinedTable as e:
-                logger.error(f'Required table not found: {e}', extra={'operation': 'get system health'})
-                return error_response(503, 'service_unavailable', 'Data pipeline loading')
-            except psycopg2.errors.UndefinedColumn as e:
-                logger.error(f'Column not found: {e}', extra={'operation': 'get system health'})
-                return error_response(503, 'service_unavailable', 'Data schema mismatch')
-            except psycopg2.OperationalError as e:
-                logger.error(f'Database connection error: {e}', extra={'operation': 'get system health'})
-                return error_response(503, 'service_unavailable', 'Database unavailable')
-            except psycopg2.DatabaseError as e:
-                logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
-                return error_response(500, 'internal_error', 'Database query failed')
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
-                return error_response(500, 'internal_error', 'Failed to fetch data')
-                logger.error(f"Database health check failed: {e}")
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 health_data['components']['database'] = 'error'
                 health_data['status'] = 'degraded'
 
@@ -162,21 +124,9 @@ def _get_system_health(cur) -> Dict:
             health_data['tables'] = table_counts
             health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, health_data)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get system health'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get system health'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get system health'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get system health', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to get system health')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get system health')
 def _get_database_stats(cur) -> Dict:
         """Get database statistics."""
         try:
@@ -209,21 +159,9 @@ def _get_database_stats(cur) -> Dict:
 
             stats['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, stats)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get database stats'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get database stats'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get database stats'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get database stats', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to get database stats')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get database stats')
 def _get_data_quality(cur) -> Dict:
         """Get data quality metrics."""
         try:
@@ -257,18 +195,6 @@ def _get_data_quality(cur) -> Dict:
             quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
 
             return json_response(200, quality)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to get data quality metrics')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get data quality')

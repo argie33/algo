@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +41,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 # Combine all economic data
                 return _get_leading_indicators(cur)
             return error_response(404, 'not_found', f'No economic handler for {path}')
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'handle economic'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'handle economic'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'handle economic'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'handle economic', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch economic data')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'handle economic')
 def _get_leading_indicators(cur) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
@@ -164,21 +152,9 @@ def _get_leading_indicators(cur) -> Dict:
 
             return json_response(200, {'indicators': indicators})
 
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get leading indicators'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get leading indicators'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get leading indicators'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get leading indicators', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch leading indicators')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get leading indicators')
 def _get_yield_curve_full(cur) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
