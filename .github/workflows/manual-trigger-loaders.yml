@@ -45,7 +45,7 @@ jobs:
         run: |
           # Get VPC
           VPC_ID=$(aws ec2 describe-vpcs \
-            --filters "Name=tag:Name,Values=algo-vpc-dev" \
+            --filters "Name=tag:Name,Values=algo-vpc" \
             --region ${{ env.AWS_REGION }} \
             --query 'Vpcs[0].VpcId' \
             --output text 2>/dev/null || echo "")
