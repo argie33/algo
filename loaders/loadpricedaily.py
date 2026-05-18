@@ -4,14 +4,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Daily Price Loader - Enhanced with Data Integrity Phase 1.
+Price Loader - Multi-timeframe (daily, weekly, monthly) with native yfinance intervals.
 
-Includes tick-level validation (OHLC logic, volume sanity, price sequences),
-complete provenance tracking (run_id, checksums, error logging),
-and atomic watermark persistence (crash-safe, idempotent).
+Consolidated: Previously split across loadpricedaily.py, load_price_aggregate.py,
+loadetfpricedaily.py, and load_etf_price_aggregate.py. Now one parametrized loader.
+
+Uses native yfinance intervals (1d, 1wk, 1mo) instead of local aggregation.
 
 Run:
-    python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 8]
+    python3 loadpricedaily.py --interval 1d [--symbols AAPL,MSFT] [--asset-class stock]
+    python3 loadpricedaily.py --interval 1wk [--symbols AAPL,MSFT]
+    python3 loadpricedaily.py --interval 1mo [--symbols AAPL,MSFT]
+    python3 loadpricedaily.py --interval 1d --symbols SPY,QQQ --asset-class etf
 """
 
 import argparse
@@ -34,19 +38,42 @@ from utils.optimal_loader import OptimalLoader
 logger = get_logger(__name__)
 
 
-class PriceDailyLoader(OptimalLoader):
-    table_name = "price_daily"
-    primary_key = ("symbol", "date")
-    watermark_field = "date"
+class PriceLoader(OptimalLoader):
+    """Multi-timeframe price loader. Replaces 4 separate loaders."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, interval: str = "1d", asset_class: str = "stock", *args, **kwargs):
+        """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
+        assert interval in ("1d", "1wk", "1mo"), f"Invalid interval: {interval}"
+        assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
+
+        self.interval = interval
+        self.asset_class = asset_class
+
+        # Map interval + asset_class to table name
+        if asset_class == "etf":
+            if interval == "1d":
+                self.table_name = "etf_price_daily"
+            elif interval == "1wk":
+                self.table_name = "etf_price_weekly"
+            else:  # 1mo
+                self.table_name = "etf_price_monthly"
+        else:  # stock
+            if interval == "1d":
+                self.table_name = "price_daily"
+            elif interval == "1wk":
+                self.table_name = "price_weekly"
+            else:  # 1mo
+                self.table_name = "price_monthly"
+
+        self.primary_key = ("symbol", "date")
+        self.watermark_field = "date"
         super().__init__(*args, **kwargs)
         self.tracker = None
         self.watermark_mgr = None
         self.run_id = None
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch OHLCV via the data source router. Fail-closed on API errors (no price injection)."""
+        """Fetch OHLCV from yfinance at specified interval."""
         end = date.today()
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -64,9 +91,9 @@ class PriceDailyLoader(OptimalLoader):
         return None
 
     def _try_fetch(self, symbol: str, start: date, end: date):
-        """Try to fetch data from live APIs. Returns None on rate limit/error (triggers fallback)."""
+        """Try to fetch data from yfinance at specified interval."""
         try:
-            return self.router.fetch_ohlcv(symbol, start, end)
+            return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
         except Exception as e:
             error_str = str(e).lower()
             # Rate limit errors - don't re-raise, just return None
@@ -191,8 +218,12 @@ def main():
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
         return 1
 
-    parser = argparse.ArgumentParser(description="Price Daily Loader - Phase 1 Data Integrity Enabled")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser = argparse.ArgumentParser(description="Price Loader - Multi-timeframe (1d/1wk/1mo)")
+    parser.add_argument("--interval", choices=["1d", "1wk", "1mo"], default="1d",
+                        help="Timeframe: 1d (daily), 1wk (weekly), 1mo (monthly)")
+    parser.add_argument("--asset-class", choices=["stock", "etf"], default="stock",
+                        help="Asset class: stock or etf")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all active.")
     default_parallelism = int(os.getenv("PARALLELISM", os.getenv("LOADER_PARALLELISM", "2")))
     parser.add_argument("--parallelism", type=int, default=default_parallelism, help="Concurrent workers")
     args = parser.parse_args()
@@ -208,10 +239,9 @@ def main():
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         return 1
 
-    loader = PriceDailyLoader()
+    loader = PriceLoader(interval=args.interval, asset_class=args.asset_class)
     try:
-        logger.info(f"[MAIN] Starting price loader (parallelism={args.parallelism})")
-        # Run the loader with validation + provenance tracking
+        logger.info(f"[MAIN] Starting price loader: interval={args.interval}, asset_class={args.asset_class}, parallelism={args.parallelism}")
         with TimeBlock("loadpricedaily"):
             stats = loader.run(symbols, parallelism=args.parallelism)
 

@@ -21,7 +21,7 @@ def route_request(cur, path, method, params, body=None):
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
-                return handler.handle(cur, path, method, params)
+                return handler.handle(cur, path, method, params, body)
             except Exception as e:
                 logger.error(f"Error: {e}", exc_info=True)
                 return {"statusCode": 500, "errorType": "error", "message": "Handler error"}

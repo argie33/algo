@@ -405,7 +405,7 @@ def _get_notifications(cur, params: Dict = None) -> Dict:
             severity = params.get('severity', [None])[0] if params.get('severity') else None
             unread = params.get('unread', [None])[0] if params.get('unread') else None
             limit_str = params.get('limit', [None])[0] if params.get('limit') else None
-            limit = _safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
 
             where_clauses = []
             where_params = []
@@ -894,7 +894,7 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
+                SELECT id, date, exposure_pct, raw_score, regime, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -903,7 +903,7 @@ def _get_markets(cur) -> Dict:
             current = dict(latest) if latest else None
 
             cur.execute("""
-                SELECT date, exposure_pct, regime, distribution_days
+                SELECT date, exposure_pct, regime
                 FROM market_exposure_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY date ASC
@@ -1013,7 +1013,7 @@ def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
             cur.execute("""
-                SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
+                SELECT date, exposure_pct, raw_score, regime, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -1025,7 +1025,6 @@ def _get_exposure_policy(cur) -> Dict:
                 'current_exposure': float(row['exposure_pct'] or 0),
                 'raw_score': float(row['raw_score'] or 0),
                 'regime': row.get('regime', 'unknown'),
-                'distribution_days': int(row.get('distribution_days', 0)),
                 'factors': row.get('factors'),
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
