@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -q pytest pytest-cov pytest-mock
-          pip install -q psycopg2-binary python-dotenv
+          pip install -q psycopg2-binary python-dotenv requests
 
       - name: Create test databases
         run: |
