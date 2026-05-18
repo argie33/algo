@@ -77,6 +77,8 @@ router.get("/", async (req, res) => {
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
+    const page = Math.floor(offset / limit) + 1;
+
     return sendSuccess(res, {
       signals: result,
       pagination: {
