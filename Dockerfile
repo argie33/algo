@@ -18,7 +18,6 @@ COPY config/ ./config/
 COPY algo/ ./algo/
 COPY entrypoint.sh ./
 COPY run-all-loaders.py ./
-COPY init_database.py ./
 
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
