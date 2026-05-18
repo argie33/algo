@@ -219,19 +219,13 @@ jobs:
             exit 0
           fi
 
-          # Merge credentials into existing env vars (preserve all current vars)
+          # Merge credentials into existing env vars — jq handles special chars safely
           CURRENT_VARS=$(aws lambda get-function-configuration \
             --function-name "$FUNC" --region $AWS_REGION \
             --query 'Environment.Variables' --output json)
-          # Write merge script to avoid shell-quoting issues with special chars in passwords
-          cat > /tmp/merge_env.py << 'PYEOF'
-import json, sys
-current = json.loads(sys.argv[1]) if sys.argv[1] != 'null' else {}
-current['DB_USER'] = sys.argv[2]
-current['DB_PASSWORD'] = sys.argv[3]
-print(json.dumps({'Variables': current}))
-PYEOF
-          NEW_VARS=$(python3 /tmp/merge_env.py "$CURRENT_VARS" "$DB_USER" "$DB_PASSWORD")
+          NEW_VARS=$(echo "$CURRENT_VARS" | jq \
+            --arg u "$DB_USER" --arg p "$DB_PASSWORD" \
+            '. + {DB_USER: $u, DB_PASSWORD: $p} | {Variables: .}')
 
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
