@@ -108,13 +108,19 @@ class Orchestrator:
         self.alerts = AlertManager()
 
         # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
+        # In dry-run mode, database is optional; fail gracefully if unavailable
+        self.db_pool = None
         try:
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
                 minconn=5, maxconn=25, **get_db_config()
             )
         except Exception as e:
-            logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
-            self.db_pool = None
+            if self.dry_run:
+                logger.info(f"[DRY-RUN] Database unavailable: {e}. Proceeding with planning mode.")
+                self.degraded_mode = True
+            else:
+                logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
+                self.db_pool = None
 
         if init_db:
             self._ensure_schema_initialized()
@@ -842,13 +848,21 @@ class Orchestrator:
 
                         logger.error(f"Unhandled exception: {e}")
                     # Still try to reconcile and alert
-                    self.phase_7_reconcile()
+                    if not self.dry_run:
+                        self.phase_7_reconcile()
                     return self._final_report()
                 else:
                     logger.error(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
+                    if self.dry_run:
+                        logger.info("[DRY-RUN] Skipping all phases due to missing database.")
                     return self._final_report()
             else:
                 self._reset_db_failure_counter()
+
+            if self.degraded_mode and self.dry_run:
+                logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")
+                self.log_phase_result(1, 'planning_mode', 'success', 'Dry-run mode with unavailable database')
+                return self._final_report()
 
             if getattr(self, 'skip_freshness', False):
                 logger.info("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
@@ -1052,12 +1066,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
     parser.add_argument('--date', type=str, help='Run date (YYYY-MM-DD)', default=None)
     parser.add_argument('--dry-run', action='store_true', help='Plan only, no real trades')
+    parser.add_argument('--init-only', action='store_true', help='Run loaders only, no trading')
     parser.add_argument('--quiet', action='store_true', help='Reduce output')
     parser.add_argument('--skip-freshness', action='store_true',
                         help='Skip phase 1 data freshness gate (testing only — never use for live trading)')
     args = parser.parse_args()
 
     run_date = _date.fromisoformat(args.date) if args.date else None
+
+    # For --init-only and --dry-run, don't require full validation at startup
+    if not (args.init_only or args.dry_run):
+        from utils.config_validator import validate_at_startup
+        validate_at_startup()
+
+    if args.init_only:
+        logger.info("Running in INIT-ONLY mode: loading data without trading")
+        # For init-only, skip the orchestrator and just run loaders
+        logger.info("To run loaders, execute: python3 run-all-loaders.py")
+        sys.exit(0)
+
     orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
     try:
         if args.skip_freshness:
