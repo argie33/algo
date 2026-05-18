@@ -20,6 +20,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
 from config.credential_helper import get_db_config, get_db_password
+from config.credential_manager import get_credential_manager
 import os
 import json
 
@@ -559,8 +560,19 @@ class PositionMonitor:
             positions = self.cur.fetchall()
 
             alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
-            alpaca_key = credential_manager.get_alpaca_credentials()["key"]
-            alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
+            try:
+                cm = get_credential_manager()
+                creds = cm.get_alpaca_credentials()
+                alpaca_key = creds.get("key")
+                alpaca_secret = creds.get("secret")
+            except Exception as e:
+                logger.warning(f"Could not retrieve Alpaca credentials: {e}. Skipping Alpaca sync.")
+                alpaca_key = None
+                alpaca_secret = None
+
+            if not alpaca_key or not alpaca_secret:
+                logger.warning("Alpaca credentials not available, skipping position sync")
+                return adjustments
 
             for pos_id, symbol, db_qty, db_stop, entry_price in positions:
                 try:
