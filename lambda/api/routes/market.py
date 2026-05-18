@@ -191,21 +191,9 @@ def _get_market_latest(cur) -> Dict:
                 result['prices'] = [dict(p) for p in recent_prices]
 
             return json_response(200, result if result else {})
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get market latest'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get market latest'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get market latest'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch market latest')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get market latest')
 
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
@@ -248,9 +236,5 @@ def _get_markets(cur) -> Dict:
                 'history': history,
             }
             return json_response(200, result)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}')
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}')
-            return error_response(500, 'internal_error', 'Failed to fetch market indices')
+        except (psycopg2.errors.UndefinedTable, Exception) as e:
+            return handle_db_error(e, logger, 'get market indices')
