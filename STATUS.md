@@ -118,9 +118,9 @@ Most failures are due to missing/unavailable external data sources:
    - Impact: Missing sentiment, seasonality, alternative metrics
    - Status: Optional enhancement data
 
-3. **Database Authentication Late in Run**
-   - Issue: Password lost mid-execution (PostgreSQL session timeout?)
-   - Impact: Later loaders couldn't connect
+3. **Database Connection Late in Run**
+   - Issue: Auth session lost mid-execution (PostgreSQL session timeout?)
+   - Impact: Later loaders couldn't connect after tier 2b
    - Status: May resolve with connection pooling improvements
 
 **Core Systems Working:**
@@ -159,7 +159,7 @@ Most failures are due to missing/unavailable external data sources:
 
 **Solution:** Use automated setup script:
 ```powershell
-! powershell -ExecutionPolicy Bypass -File setup-everything.ps1 -DbSecret '<your_db_password>'
+! powershell -ExecutionPolicy Bypass -File setup-everything.ps1 -DbSecret '<secure_secret>'
 ```
 
 **This script will:**
@@ -179,7 +179,7 @@ Most failures are due to missing/unavailable external data sources:
 
 **Setup everything locally:** (requires PostgreSQL installed first)
 ```powershell
-! powershell -ExecutionPolicy Bypass -File setup-everything.ps1 -DbSecret '<your_secure_password>'
+! powershell -ExecutionPolicy Bypass -File setup-everything.ps1 -DbSecret '<secure_secret>'
 ```
 
 ---
