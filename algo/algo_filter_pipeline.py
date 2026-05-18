@@ -27,11 +27,14 @@ from algo.algo_earnings_blackout import EarningsBlackout
 from algo.algo_trendline_support import TrendlineSupport
 from utils.trade_status import PositionStatus
 from utils.feature_flags import get_flags
+from algo.filters.filter_tiers_1_2 import FilterTiers12Mixin
+from algo.filters.filter_tier3_trend import FilterTier3Mixin
+from algo.filters.filter_tiers_4_5 import FilterTiers45Mixin
 import logging
 
 logger = logging.getLogger(__name__)
 
-class FilterPipeline:
+class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     """5-tier filtering and signal evaluation."""
 
     def __init__(self, exposure_risk_multiplier=1.0):
@@ -48,6 +51,7 @@ class FilterPipeline:
         self._snapshot_eval_date = None  # Immutable snapshot of eval_date for this run
         self._last_stop_method = None
         self._last_stop_reasoning = None
+        self._swing = None  # CRITICAL BUG FIX: SwingTraderScore instance, lazy-init (was using hasattr)
 
     def connect(self) -> None:
         self.conn = get_db_connection()
