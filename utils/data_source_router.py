@@ -156,7 +156,6 @@ class DataSourceRouter:
     ) -> Optional[Any]:
         """Daily OHLCV bars. Returns DataFrame-shaped data or None."""
         sources = [
-            ("alpaca", lambda: self._fetch_alpaca_ohlcv(symbol, start, end)),
             ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end)),
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
