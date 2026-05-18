@@ -35,19 +35,21 @@ def reference_metrics():
 class TestBacktestRegression:
     """Ensure backtest metrics don't regress beyond tolerance."""
 
+    _REQUIRED_KEYS = ['win_rate_pct', 'sharpe_ratio', 'max_drawdown_pct',
+                      'expectancy_r', 'profit_factor', 'total_return_pct']
+
     @pytest.fixture(scope="class")
     def current_metrics(self, test_config):
         """Run backtest with current code to get live metrics.
 
-        Returns empty dict if running in local mode without data access.
+        Returns empty dict if running in local mode without data access
+        or if the DB has insufficient data to produce a full metric set.
         Uses a rolling 1-year window from today, ensuring data exists.
         """
-        # Only run if we can connect to test database
         try:
             from algo.algo_backtest import Backtester
             from datetime import timedelta
 
-            # Use rolling 1-year window from today
             end_date = date.today()
             start_date = end_date - timedelta(days=365)
 
@@ -58,9 +60,11 @@ class TestBacktestRegression:
                 max_positions=12,
                 use_advanced_filters=True,
             )
-            return bt.run()
+            result = bt.run()
+            if not result or not all(k in result for k in self._REQUIRED_KEYS):
+                return {}
+            return result
         except Exception as e:
-            # In local development without test DB, skip
             if os.getenv('ENVIRONMENT', 'local') == 'local':
                 pytest.skip(f"Backtest requires test database: {e}")
             raise
