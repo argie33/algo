@@ -468,6 +468,14 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name      = "FRED_API_KEY"
           valueFrom = "${var.algo_secrets_arn}:FRED_API_KEY::"
+        },
+        {
+          name      = "APCA_API_KEY_ID"
+          valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::"
+        },
+        {
+          name      = "APCA_API_SECRET_KEY"
+          valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::"
         }
       ]
 
@@ -600,7 +608,9 @@ resource "aws_ecs_task_definition" "continuous_monitor" {
 
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" },
+        { name = "APCA_API_KEY_ID", valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::" },
+        { name = "APCA_API_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::" }
       ]
 
       environment = [
