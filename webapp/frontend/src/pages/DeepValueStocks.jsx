@@ -172,12 +172,12 @@ const DeepValueStocks = () => {
           </Grid>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#1565c0" }}>📊 DCF / Intrinsic Value (Earnings Power Value)</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#6366f1" }}>📊 DCF / Intrinsic Value (Earnings Power Value)</Typography>
           <Grid container spacing={1} sx={{ mb: 3 }}>
             {[
               ["Current Price", stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"],
               ["Intrinsic Value (EPV)", stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"],
-              ["Margin of Safety", stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—", stock.margin_of_safety_pct >= 30 ? "#1b5e20" : stock.margin_of_safety_pct >= 0 ? "#558b2f" : "#c62828"],
+              ["Margin of Safety", stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—", stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444"],
             ].map(([label, val, color]) => (
               <Grid item xs={6} sm={4} key={label}>
                 <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -187,14 +187,14 @@ const DeepValueStocks = () => {
           </Grid>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#c62828" }}>🔥 Price Action / Fire Sale</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#ef4444" }}>🔥 Price Action / Fire Sale</Typography>
           <Grid container spacing={1} sx={{ mb: 3 }}>
             {[
               ["52-Week High", stock.high_52w != null ? `$${stock.high_52w.toFixed(2)}` : "—"],
               ["3-Year High", stock.high_3y != null ? `$${stock.high_3y.toFixed(2)}` : "—"],
               ["52-Week Low", stock.low_52w != null ? `$${stock.low_52w.toFixed(2)}` : "—"],
-              ["Drop from 52w High", fmtPct(stock.drop_from_52w_high_pct), stock.drop_from_52w_high_pct >= 30 ? "#c62828" : "inherit"],
-              ["Drop from 3y High", fmtPct(stock.drop_from_3y_high_pct), stock.drop_from_3y_high_pct >= 40 ? "#c62828" : "inherit"],
+              ["Drop from 52w High", fmtPct(stock.drop_from_52w_high_pct), stock.drop_from_52w_high_pct >= 30 ? "#ef4444" : "inherit"],
+              ["Drop from 3y High", fmtPct(stock.drop_from_3y_high_pct), stock.drop_from_3y_high_pct >= 40 ? "#ef4444" : "inherit"],
               ["Disc vs Sector P/E", fmtDiscount(stock.discount_vs_sector_pe_pct)],
               ["Disc vs Market P/E", fmtDiscount(stock.discount_vs_market_pe_pct)],
             ].map(([label, val, color]) => (
@@ -206,16 +206,16 @@ const DeepValueStocks = () => {
           </Grid>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#1b5e20" }}>💎 Quality & Profitability</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#22c55e" }}>💎 Quality & Profitability</Typography>
           <Grid container spacing={1} sx={{ mb: 3 }}>
             {[
-              ["ROE", fmtPct(stock.roe_pct), stock.roe_pct >= 35 ? "#1b5e20" : "inherit"],
+              ["ROE", fmtPct(stock.roe_pct), stock.roe_pct >= 35 ? "#22c55e" : "inherit"],
               ["ROA", fmtPct(stock.roa_pct)],
-              ["Gross Margin", fmtPct(stock.gross_margin_pct), stock.gross_margin_pct >= 50 ? "#1b5e20" : "inherit"],
-              ["Operating Margin", fmtPct(stock.op_margin_pct), stock.op_margin_pct >= 20 ? "#1b5e20" : "inherit"],
+              ["Gross Margin", fmtPct(stock.gross_margin_pct), stock.gross_margin_pct >= 50 ? "#22c55e" : "inherit"],
+              ["Operating Margin", fmtPct(stock.op_margin_pct), stock.op_margin_pct >= 20 ? "#22c55e" : "inherit"],
               ["Net Margin", fmtPct(stock.net_margin_pct)],
-              ["Debt / Equity", fmt(stock.debt_to_equity), stock.debt_to_equity < 0.5 ? "#1b5e20" : "inherit"],
-              ["Current Ratio", fmt(stock.current_ratio), stock.current_ratio > 2 ? "#1b5e20" : "inherit"],
+              ["Debt / Equity", fmt(stock.debt_to_equity), stock.debt_to_equity < 0.5 ? "#22c55e" : "inherit"],
+              ["Current Ratio", fmt(stock.current_ratio), stock.current_ratio > 2 ? "#22c55e" : "inherit"],
             ].map(([label, val, color]) => (
               <Grid item xs={6} sm={4} key={label}>
                 <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -225,15 +225,15 @@ const DeepValueStocks = () => {
           </Grid>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#2e7d32" }}>📈 Growth Engine</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#22c55e" }}>📈 Growth Engine</Typography>
           <Grid container spacing={1} sx={{ mb: 3 }}>
             {[
-              ["Revenue 3Y CAGR", fmtPct(stock.revenue_growth_3y_pct), stock.revenue_growth_3y_pct >= 10 ? "#1b5e20" : "inherit"],
-              ["EPS 3Y CAGR", fmtPct(stock.eps_growth_3y_pct), stock.eps_growth_3y_pct >= 15 ? "#1b5e20" : "inherit"],
-              ["Revenue YoY", fmtPct(stock.revenue_growth_yoy_pct), stock.revenue_growth_yoy_pct >= 5 ? "#558b2f" : stock.revenue_growth_yoy_pct < 0 ? "#c62828" : "inherit"],
-              ["FCF YoY", fmtPct(stock.fcf_growth_yoy_pct), stock.fcf_growth_yoy_pct >= 0 ? "#558b2f" : "#c62828"],
+              ["Revenue 3Y CAGR", fmtPct(stock.revenue_growth_3y_pct), stock.revenue_growth_3y_pct >= 10 ? "#22c55e" : "inherit"],
+              ["EPS 3Y CAGR", fmtPct(stock.eps_growth_3y_pct), stock.eps_growth_3y_pct >= 15 ? "#22c55e" : "inherit"],
+              ["Revenue YoY", fmtPct(stock.revenue_growth_yoy_pct), stock.revenue_growth_yoy_pct >= 5 ? "#a1d922" : stock.revenue_growth_yoy_pct < 0 ? "#ef4444" : "inherit"],
+              ["FCF YoY", fmtPct(stock.fcf_growth_yoy_pct), stock.fcf_growth_yoy_pct >= 0 ? "#a1d922" : "#ef4444"],
               ["Sustainable Growth", fmtPct(stock.sustainable_growth_pct)],
-              ["PEG Ratio", fmt(stock.peg_ratio), stock.peg_ratio < 1 && stock.peg_ratio > 0 ? "#1b5e20" : "inherit"],
+              ["PEG Ratio", fmt(stock.peg_ratio), stock.peg_ratio < 1 && stock.peg_ratio > 0 ? "#22c55e" : "inherit"],
             ].map(([label, val, color]) => (
               <Grid item xs={6} sm={4} key={label}>
                 <Typography variant="caption" color="text.secondary">{label}</Typography>

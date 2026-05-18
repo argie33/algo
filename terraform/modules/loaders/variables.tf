@@ -114,3 +114,4 @@ variable "alpaca_paper_trading" {
   type        = bool
   default     = true
 }
+
