@@ -9,6 +9,7 @@ const express = require('express');
 const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 // Alpaca API service
@@ -315,7 +316,7 @@ router.get('/summary', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching trade summary:', error);
+    logger.error('Error fetching trade summary:', { error: error.message });
     return sendError(res, 'Failed to fetch trade summary', 500);
   }
 });

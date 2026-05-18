@@ -11,6 +11,7 @@
 const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -45,7 +46,7 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching balance sheet:', error);
+    logger.error('Error fetching balance sheet:', { error: error.message });
     return sendError(res, `Failed to fetch balance sheet: ${error.message}`, 500);
   }
 });
@@ -81,7 +82,7 @@ router.get('/:ticker/income-statement', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching income statement:', error);
+    logger.error('Error fetching income statement:', { error: error.message });
     return sendError(res, `Failed to fetch income statement: ${error.message}`, 500);
   }
 });
@@ -117,7 +118,7 @@ router.get('/:ticker/cash-flow', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching cash flow:', error);
+    logger.error('Error fetching cash flow:', { error: error.message });
     return sendError(res, `Failed to fetch cash flow: ${error.message}`, 500);
   }
 });
@@ -158,7 +159,7 @@ router.get('/:ticker/key-metrics', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching key metrics:', error);
+    logger.error('Error fetching key metrics:', { error: error.message });
     return sendError(res, `Failed to fetch key metrics: ${error.message}`, 500);
   }
 });

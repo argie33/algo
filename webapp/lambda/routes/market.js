@@ -12,6 +12,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
 

@@ -9,6 +9,7 @@
 const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -78,7 +79,7 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching stocks:', error);
+    logger.error('Error fetching stocks:', { error: error.message });
     return sendError(res, `Failed to fetch stocks: ${error.message}`, 500);
   }
 });
@@ -116,7 +117,7 @@ router.get('/deep-value', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching deep-value stocks:', error);
+    logger.error('Error fetching deep-value stocks:', { error: error.message });
     return sendError(res, `Failed to fetch deep-value stocks: ${error.message}`, 500);
   }
 });

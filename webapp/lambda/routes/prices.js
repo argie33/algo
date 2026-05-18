@@ -8,6 +8,7 @@
 const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -91,7 +92,7 @@ router.get('/history/:symbol', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching price history:', error);
+    logger.error('Error fetching price history:', { error: error.message });
     return sendError(res, `Failed to fetch price history: ${error.message}`, 500);
   }
 });

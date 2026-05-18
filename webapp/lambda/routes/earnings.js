@@ -8,6 +8,7 @@
 const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching earnings calendar:', error);
+    logger.error('Error fetching earnings calendar:', { error: error.message });
     return sendError(res, `Failed to fetch earnings calendar: ${error.message}`, 500);
   }
 });

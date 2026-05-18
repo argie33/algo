@@ -39,6 +39,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const paginationConfig = require('../config/pagination');
 
 // Helper function to check database availability before making queries

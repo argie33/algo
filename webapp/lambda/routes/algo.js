@@ -15,6 +15,7 @@ const { getPool } = require('../utils/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const paginationConfig = require('../config/pagination');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -104,7 +105,7 @@ router.get('/status', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/status:', error);
+    logger.error('Error in /algo/status:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -189,7 +190,7 @@ router.get('/evaluate', async (req, res) => {
       top_qualified: qualified
     });
   } catch (error) {
-    console.error('Error in /algo/evaluate:', error);
+    logger.error('Error in /algo/evaluate:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -312,7 +313,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/positions:', error);
+    logger.error('Error in /algo/positions:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -366,7 +367,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/trades:', error);
+    logger.error('Error in /algo/trades:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -404,7 +405,7 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
 
     return sendSuccess(res, { data: config });
   } catch (error) {
-    console.error('Error in /algo/config:', error);
+    logger.error('Error in /algo/config:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -509,7 +510,7 @@ router.get('/markets', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/markets:', error);
+    logger.error('Error in /algo/markets:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -574,7 +575,7 @@ router.get('/swing-scores', async (req, res) => {
       })
     });
   } catch (error) {
-    console.error('Error in /algo/swing-scores:', error);
+    logger.error('Error in /algo/swing-scores:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -616,7 +617,7 @@ router.get('/swing-scores-history', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/swing-scores-history:', error);
+    logger.error('Error in /algo/swing-scores-history:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -702,7 +703,7 @@ router.get('/data-status', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/data-status:', error);
+    logger.error('Error in /algo/data-status:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -760,7 +761,7 @@ router.get('/exposure-policy', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/exposure-policy:', error);
+    logger.error('Error in /algo/exposure-policy:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -825,7 +826,7 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
       output: result.output.join('')
     });
   } catch (error) {
-    console.error('Error in /algo/run:', error);
+    logger.error('Error in /algo/run:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -871,7 +872,7 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
       output: result.output.join('')
     });
   } catch (error) {
-    console.error('Error in /algo/patrol:', error);
+    logger.error('Error in /algo/patrol:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -911,7 +912,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/patrol-log:', error);
+    logger.error('Error in /algo/patrol-log:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1168,7 +1169,7 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       recommendation: allOk ? 'READY TO TRADE' : 'CONSTRAINTS VIOLATED'
     });
   } catch (error) {
-    console.error('Pre-trade simulation error:', error);
+    logger.error('Pre-trade simulation error:', { error: error.message });
     return sendError(res, error.message);
   }
 });
@@ -1318,7 +1319,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/performance:', error);
+    logger.error('Error in /algo/performance:', { error: error.message });
     return sendError(res, error.message);
   }
 });
@@ -1350,7 +1351,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/equity-curve:', error);
+    logger.error('Error in /algo/equity-curve:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1393,7 +1394,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/audit-log:', error);
+    logger.error('Error in /algo/audit-log:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1419,7 +1420,7 @@ router.get('/trade/:tradeId', async (req, res) => {
     }
     return sendSuccess(res, { data: result.rows[0] });
   } catch (error) {
-    console.error('Error in /algo/trade/:id:', error);
+    logger.error('Error in /algo/trade/:id:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1565,7 +1566,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/circuit-breakers:', error);
+    logger.error('Error in /algo/circuit-breakers:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1607,7 +1608,7 @@ router.get('/sector-breadth', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/sector-breadth:', error);
+    logger.error('Error in /algo/sector-breadth:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1653,7 +1654,7 @@ router.get('/sector-stage2', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error in /algo/sector-stage2:', error);
+    logger.error('Error in /algo/sector-stage2:', { error: error.message });
     return sendError(res, error.message, 500);
   }
 });
@@ -1732,7 +1733,7 @@ router.get('/data-quality', async (req, res) => {
 
     return sendSuccess(res, { data: { status: overall_status, checks } });
   } catch (error) {
-    console.error('Error in /algo/data-quality:', error);
+    logger.error('Error in /algo/data-quality:', { error: error.message });
     return sendSuccess(res, { data: { status: 'unknown', checks: [], error: error.message } });
   }
 });
@@ -1783,7 +1784,7 @@ router.get('/rejection-funnel', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /algo/rejection-funnel:', error);
+    logger.error('Error in /algo/rejection-funnel:', { error: error.message });
     return sendSuccess(res, { data: { total_signals: 0, tiers: [], error: error.message } });
   }
 });
@@ -1827,7 +1828,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
       approval_required: pending_orders.length > 0
     });
   } catch (error) {
-    console.error('Error in /algo/orders/pending:', error);
+    logger.error('Error in /algo/orders/pending:', { error: error.message });
     return sendSuccess(res, {
       pending_orders: [],
       approval_required: false,
@@ -1874,7 +1875,7 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
 
     return sendSuccess(res, { metrics });
   } catch (error) {
-    console.error('Error in /algo/execution-quality:', error);
+    logger.error('Error in /algo/execution-quality:', { error: error.message });
     return sendSuccess(res, { metrics: {}, error: error.message });
   }
 });

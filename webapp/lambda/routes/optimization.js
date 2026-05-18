@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
+const logger = require('../utils/logger');
 const router = express.Router();
 
 // GET /api/optimization/analysis - Real portfolio optimization data from DB

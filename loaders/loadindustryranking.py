@@ -32,7 +32,10 @@ def compute_industry_ranking():
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            # Compute 4-week momentum per industry, rank them
+            # Delete old ranking for today
+            cur.execute("DELETE FROM industry_ranking WHERE date_recorded = CURRENT_DATE")
+
+            # Compute 4-week momentum per industry, rank them, insert new ranking
             cur.execute("""
                 WITH recent_prices AS (
                     SELECT symbol, close,
@@ -68,17 +71,12 @@ def compute_industry_ranking():
                     SELECT industry,
                            momentum_score,
                            date_recorded,
-                           RANK() OVER (ORDER BY momentum_score DESC) AS current_rank,
-                           LAG(RANK() OVER (ORDER BY momentum_score DESC))
-                                OVER (ORDER BY industry) AS rank_4w_ago
+                           RANK() OVER (ORDER BY momentum_score DESC) AS current_rank
                     FROM industry_momentum
                 )
-                DELETE FROM industry_ranking
-                WHERE date_recorded = CURRENT_DATE;
-
-                INSERT INTO industry_ranking (industry, current_rank, rank_4w_ago, momentum_score, date_recorded)
-                SELECT industry, current_rank, rank_4w_ago, momentum_score, date_recorded
-                FROM ranked;
+                INSERT INTO industry_ranking (industry, current_rank, momentum_score, date_recorded)
+                SELECT industry, current_rank, momentum_score, date_recorded
+                FROM ranked
             """)
             conn.commit()
             logger.info("Industry ranking computed successfully")

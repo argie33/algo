@@ -6,6 +6,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const paginationConfig = require("../config/pagination");
 const router = express.Router();

@@ -8,6 +8,7 @@
 
 const express = require('express');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 const { query } = require('../utils/database');
@@ -149,7 +150,7 @@ async function getPerformanceMetrics(req, res) {
 
     return sendSuccess(res, response);
   } catch (error) {
-    console.error('Error fetching performance metrics:', error);
+    logger.error('Error fetching performance metrics:', { error: error.message });
     return sendError(res, 'Failed to fetch performance metrics', 500, error.message);
   }
 }
@@ -187,7 +188,7 @@ async function getRecentTrades(req, res) {
 
     return sendSuccess(res, trades);
   } catch (error) {
-    console.error('Error fetching recent trades:', error);
+    logger.error('Error fetching recent trades:', { error: error.message });
     return sendError(res, 'Failed to fetch recent trades', 500, { details: error.message });
   }
 }
