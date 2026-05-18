@@ -164,6 +164,40 @@ function sanitizeArray(arr, schema) {
   });
 }
 
+/**
+ * Parse and validate pagination parameters from query string
+ * Prevents DOS attacks via oversized requests
+ */
+function parseLimit(queryLimit, defaultLimit = 500, maxLimit = 50000) {
+  try {
+    const parsed = parseInt(queryLimit, 10);
+    if (isNaN(parsed) || parsed < 1) return defaultLimit;
+    return Math.min(parsed, maxLimit);
+  } catch {
+    return defaultLimit;
+  }
+}
+
+function parseOffset(queryOffset, maxOffset = 1000000) {
+  try {
+    const parsed = parseInt(queryOffset, 10);
+    if (isNaN(parsed) || parsed < 0) return 0;
+    return Math.min(parsed, maxOffset);
+  } catch {
+    return 0;
+  }
+}
+
+function parsePageNum(queryPage, defaultPage = 1) {
+  try {
+    const parsed = parseInt(queryPage, 10);
+    if (isNaN(parsed) || parsed < 1) return defaultPage;
+    return parsed;
+  } catch {
+    return defaultPage;
+  }
+}
+
 module.exports = {
   validationRules,
   validateField,
@@ -172,4 +206,7 @@ module.exports = {
   sanitizeValue,
   sanitizeObject,
   sanitizeArray,
+  parseLimit,
+  parseOffset,
+  parsePageNum,
 };
