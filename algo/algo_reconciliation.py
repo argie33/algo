@@ -15,6 +15,7 @@ from config.credential_helper import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
+from config.credential_manager import get_credential_manager
 import os
 import json
 from utils.db_connection import get_db_connection
@@ -42,7 +43,8 @@ class PositionReconciler:
         self.cur = None
         try:
             from alpaca_trade_api import REST
-            creds = credential_manager.get_alpaca_credentials()
+            cm = get_credential_manager()
+            creds = cm.get_alpaca_credentials()
             self.trading_client = REST(
                 api_key=creds["key"],
                 secret_key=creds["secret"],

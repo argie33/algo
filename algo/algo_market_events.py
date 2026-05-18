@@ -11,6 +11,7 @@ Implements fail-safe protocols that override strategy logic.
 """
 
 from config.credential_helper import get_db_config, get_db_password
+from config.credential_manager import get_credential_manager
 import os
 
 import requests
@@ -27,8 +28,14 @@ class MarketEventHandler:
     def __init__(self, config):
         self.config = config
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
-        self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
-        self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
+        try:
+            cm = get_credential_manager()
+            self.alpaca_key = cm.get_alpaca_credentials()["key"]
+            self.alpaca_secret = cm.get_alpaca_credentials()["secret"]
+        except Exception as e:
+            logger.warning(f"Alpaca credentials not available: {e}")
+            self.alpaca_key = None
+            self.alpaca_secret = None
 
         self.db_host = get_db_config()['host']
         self.db_port = int(os.getenv('DB_PORT', 5432))
