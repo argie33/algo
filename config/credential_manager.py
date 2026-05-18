@@ -144,8 +144,12 @@ class CredentialManager:
                 if client:
                     response = client.get_secret_value(SecretId=secret_arn)
                     creds = _json.loads(response.get('SecretString', '{}'))
+                    # DB_HOST is required - no localhost fallback
+                    db_host = creds.get('host') or os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT')
+                    if not db_host:
+                        raise ValueError("DB_HOST not set in Secrets Manager or environment")
                     return {
-                        'host': creds.get('host') or os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT', 'localhost'),
+                        'host': db_host,
                         'port': int(creds.get('port') or os.getenv('DB_PORT', '5432')),
                         'user': creds.get('username', 'stocks'),
                         'password': creds.get('password', ''),
@@ -154,8 +158,13 @@ class CredentialManager:
             except Exception as e:
                 log.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
 
+        # DB_HOST is required - no localhost fallback for safety
+        db_host = os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT')
+        if not db_host:
+            raise ValueError("DB_HOST not set in environment. Set DB_HOST before using credential manager.")
+
         return {
-            'host': os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT', 'localhost'),
+            'host': db_host,
             'port': int(os.getenv('DB_PORT', '5432')),
             'user': self.get_password('db/username', default='stocks'),
             'password': self.get_password('db/password'),  # REQUIRED - no default

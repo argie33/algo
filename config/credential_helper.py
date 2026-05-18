@@ -45,11 +45,12 @@ _load_env_local()
 
 _CACHED_CREDS: Optional[Dict] = None
 
-# Default database configuration
-DEFAULT_DB_HOST = "localhost"
-DEFAULT_DB_PORT = "5432"
-DEFAULT_DB_USER = "stocks"
-DEFAULT_DB_NAME = "stocks"
+# Database configuration - all from environment, no silent defaults for safety
+# These MUST be explicitly set before credential_helper is used
+DEFAULT_DB_PORT = "5432"  # Port has a sensible default
+DEFAULT_DB_USER = "stocks"  # User has a sensible default
+DEFAULT_DB_NAME = "stocks"  # Database name has a sensible default
+# NOTE: DB_HOST does NOT have a default - must be explicitly set per CLAUDE.md rules
 
 
 def get_db_password() -> str:
@@ -97,14 +98,25 @@ def get_db_config() -> Dict[str, any]:
 
     Returns:
         dict: Database configuration with host, port, user, password, database
+
+    Raises:
+        ValueError: If DB_HOST is not explicitly set
     """
     global _CACHED_CREDS
 
     if _CACHED_CREDS:
         return _CACHED_CREDS
 
+    # DB_HOST is REQUIRED - no default to localhost for safety
+    db_host = os.getenv("DB_HOST")
+    if not db_host:
+        raise ValueError(
+            "DB_HOST environment variable is required but not set. "
+            "Please set DB_HOST to your database hostname before using credential_helper."
+        )
+
     config = {
-        "host": os.getenv("DB_HOST", DEFAULT_DB_HOST),
+        "host": db_host,
         "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
         "user": os.getenv("DB_USER", DEFAULT_DB_USER),
         "password": get_db_password(),

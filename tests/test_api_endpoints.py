@@ -13,10 +13,12 @@ Run: python3 tests/test_api_endpoints.py
 import requests
 import json
 import sys
+import os
+import logging
 from datetime import datetime
 
-# Base URL - adjust for environment
-BASE_URL = "http://localhost:3001"
+# Base URL from environment, default to localhost:4000 for local development
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:4000")
 
 # API endpoints to test with expected structures
 ENDPOINTS = {
@@ -80,7 +82,7 @@ def verify_endpoint(url, method="GET"):
             "status": 0,
             "success": False,
             "has_body": False,
-            "error": "Connection refused (is server running on localhost:3001?)"
+            "error": f"Connection refused (is server running on {BASE_URL}?)"
         }
     except requests.exceptions.Timeout:
         return {
@@ -103,6 +105,7 @@ def verify_endpoint(url, method="GET"):
 
 def main():
     """Run all tests"""
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     logger = logging.getLogger(__name__)
     logger.info(f"API ENDPOINT VERIFICATION TEST SUITE")
     logger.info(f"Server: {BASE_URL}")

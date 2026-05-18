@@ -55,16 +55,17 @@ def validate_credentials() -> Tuple[bool, List[str]]:
             "(db/password secret) or set DB_PASSWORD environment variable."
         )
 
-    # === IMPORTANT: Database credentials ===
-    db_host = os.getenv("DB_HOST", "localhost")
+    # === CRITICAL: Database hostname ===
+    # DB_HOST MUST be explicitly set - no defaults to localhost
+    db_host = os.getenv("DB_HOST")
+    if not db_host:
+        errors.append(
+            "[ERROR] DB_HOST not set. Set DB_HOST environment variable "
+            "to your database hostname (e.g., localhost for local dev, RDS endpoint for prod)."
+        )
+
     db_user = os.getenv("DB_USER", "stocks")
     db_name = os.getenv("DB_NAME", "stocks")
-
-    if not db_host or db_host == "localhost" and not os.getenv("DB_HOST"):
-        warnings.append(
-            "[WARN] DB_HOST not set, using 'localhost'. "
-            "For production, set DB_HOST explicitly."
-        )
 
     if db_user == "stocks" and not os.getenv("DB_USER"):
         warnings.append(
