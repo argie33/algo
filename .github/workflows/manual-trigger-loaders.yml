@@ -54,33 +54,25 @@ jobs:
           echo "✓ VPC: $VPC_ID"
 
           SUBNET=$(aws ec2 describe-subnets \
-            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Tier,Values=Private" \
             --region ${{ env.AWS_REGION }} \
             --query 'Subnets[0].SubnetId' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
-            echo "ERROR: Could not find subnet"
+            echo "ERROR: Could not find private subnet"
             exit 1
           fi
           echo "✓ Subnet: $SUBNET"
 
           SG=$(aws ec2 describe-security-groups \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks" \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=algo-ecs-tasks-sg" \
             --region ${{ env.AWS_REGION }} \
             --query 'SecurityGroups[0].GroupId' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$SG" ] || [ "$SG" = "None" ]; then
-            SG=$(aws ec2 describe-security-groups \
-              --filters "Name=vpc-id,Values=$VPC_ID" \
-              --region ${{ env.AWS_REGION }} \
-              --query 'SecurityGroups[0].GroupId' \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          if [ -z "$SG" ] || [ "$SG" = "None" ]; then
-            echo "ERROR: Could not find security group"
+            echo "ERROR: Could not find ECS tasks security group (algo-ecs-tasks-sg)"
             exit 1
           fi
           echo "✓ Security Group: $SG"
