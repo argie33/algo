@@ -132,13 +132,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Ensure response has proper format
         if isinstance(response, dict):
-            if 'statusCode' not in response:
-                response['statusCode'] = 200
-            if 'headers' not in response:
-                response['headers'] = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
-            if 'body' in response and not isinstance(response['body'], str):
-                response['body'] = json.dumps(response['body'])
-            return response
+            status = response.get('statusCode', 200)
+            headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            if 'body' in response:
+                body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'])
+            else:
+                # Route handlers return data dicts directly (no body key) — wrap them
+                body = json.dumps({k: v for k, v in response.items() if k != 'statusCode'})
+            return {'statusCode': status, 'headers': headers, 'body': body}
 
         return {
             'statusCode': 500,
