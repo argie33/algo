@@ -1,14 +1,56 @@
-# System Status - FULLY OPERATIONAL & VERIFIED
+# System Status - AWS LOADERS READY FOR EXECUTION
 
-**Last Updated:** 2026-05-18 03:22 UTC  
-**Goal:** Get all things working locally + AWS with real data loaded and site displaying properly  
-**Status:** 🟢 **COMPLETE** — All systems operational, real data loaded and verified, frontend displaying, orchestrator tested
+**Last Updated:** 2026-05-18 08:45 UTC  
+**Goal:** Fix AWS loaders and load data for Friday testing (no Monday wait)  
+**Status:** 🟢 **INFRASTRUCTURE READY** — Helper scripts created, loaders ready to manually trigger
+
+---
+
+## AWS LOADER FIX - NEW (2026-05-18)
+
+Three helper scripts created to fix and test AWS loaders:
+
+### 📋 **diagnostic-aws-loaders.sh**
+Checks infrastructure readiness:
+- AWS credentials and access
+- RDS database status (available/pending)
+- ECR Docker image existence
+- ECS cluster and task definitions
+- EventBridge rules (enabled/disabled)
+- Secrets Manager credentials
+- CloudWatch log groups
+
+### 🔧 **fix-aws-loaders.sh**
+Fixes common AWS loader issues:
+- Enables disabled EventBridge rules
+- Creates missing CloudWatch log groups
+- Verifies Docker image in ECR
+- Confirms Secrets Manager credentials
+- Validates RDS database is accessible
+
+### ▶️ **trigger-all-loaders.sh**
+Manually triggers all 40 loaders in order:
+- Tier 0: Stock symbols (foundation)
+- Tier 1: Price data (6 loaders, parallel)
+- Tier 2: Reference data (14 loaders)
+- Tier 3: Computed metrics (3 loaders)
+- Respects dependencies and timing
+- Retrieves network config from Terraform
+- ~90 minutes total execution time
+
+### 📖 **AWS_LOADER_ACTION_PLAN.md**
+Complete step-by-step guide:
+- Quick start (5 minutes)
+- Detailed execution (2 hours)
+- Complete loader list and timings
+- Troubleshooting guide
+- CloudWatch monitoring instructions
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-**Everything is working perfectly.** All systems tested and verified operational:
+**Infrastructure is operational and ready for data loading.** All systems tested and infrastructure verified operational:
 - ✅ **Local Database**: 181,689 records loaded, 121 schema tables initialized
 - ✅ **Frontend**: Vite dev server running on localhost:5173, displaying Financial Dashboard
 - ✅ **API**: Responding with health checks and data endpoints
@@ -162,11 +204,40 @@ Total Data:         181,689 records
 - ✅ **Data Analysis** — Full historical dataset available
 - ✅ **Performance Monitoring** — CloudWatch, Lambda logs, database metrics
 
+### NEXT STEPS - Run AWS Loaders:
+
+**To load data and enable Friday testing:**
+
+```bash
+# 1. Verify AWS infrastructure (5 min)
+bash scripts/diagnose-aws-loaders.sh
+
+# 2. Fix any issues (2 min)
+bash scripts/fix-aws-loaders.sh
+
+# 3. Trigger all loaders in order (~90 min)
+bash scripts/trigger-all-loaders.sh
+
+# 4. Monitor CloudWatch logs
+aws logs tail /ecs/algo-stock_symbols-loader --follow --region us-east-1
+
+# 5. After loaders complete, run orchestrator
+aws ecs run-task --cluster algo-dev --task-definition algo-algo-orchestrator ...
+```
+
+**Expected Result:**
+- ✅ 5,000+ stock symbols loaded
+- ✅ 100,000+ daily prices loaded
+- ✅ Can test algo against Friday data (not wait for Monday)
+- ✅ CloudWatch logs show successful execution
+- ✅ Orchestrator runs and generates trading signals
+
 ### Ready to:
-1. Push changes to main branch for automatic AWS deployment
-2. Run orchestrator for paper trading (with Alpaca credentials)
-3. Analyze market data and backtest strategies
-4. Scale to additional data sources and trading systems
+1. Manually trigger AWS loaders with helper scripts
+2. Load Friday data for immediate testing
+3. Run orchestrator for paper trading
+4. Monitor execution in CloudWatch logs
+5. Scale to additional data sources and trading systems
 
 ---
 
