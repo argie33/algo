@@ -270,7 +270,7 @@ jobs:
           echo ""
 
           FAILED=0
-          for loader in load*.py; do
+          for loader in loaders/load*.py; do
             if python3 -m py_compile "$loader" 2>/dev/null; then
               echo "✅ $loader"
             else
