@@ -57,14 +57,10 @@ jobs:
 
       - name: Initialize database schema
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: stocks
-          DB_PASSWORD: ''
-          DB_NAME: stocks
+          PGPASSWORD: ''
         run: |
           echo "📝 Initializing database schema..."
-          python3 utils/init_database.py
+          psql -h localhost -U stocks -d stocks -f terraform/modules/database/init.sql
 
       - name: Verify schema
         env:
@@ -89,17 +85,19 @@ jobs:
 
       - name: Start API server
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: stocks
-          POSTGRES_PASSWORD: ''
-          POSTGRES_DB: stocks
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_PASSWORD: ''
+          DB_NAME: stocks
+          DB_SSL: 'false'
           ALPACA_PAPER_TRADING: 'true'
+          CI: 'true'
         run: |
           cd webapp/lambda
           npm start &
           echo $! > server.pid
-          sleep 3
+          sleep 5
 
       - name: Test API endpoints
         run: |
@@ -207,29 +205,25 @@ jobs:
 
       - name: Initialize database schema
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: stocks
-          DB_PASSWORD: ''
-          DB_NAME: stocks
+          PGPASSWORD: ''
         run: |
           echo "📝 Initializing database schema..."
-          python3 utils/init_database.py
+          psql -h localhost -U stocks -d stocks -f terraform/modules/database/init.sql
 
       - name: Run algo (dry run mode)
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: stocks
-          POSTGRES_PASSWORD: ''
-          POSTGRES_DB: stocks
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: stocks
+          DB_PASSWORD: ''
+          DB_NAME: stocks
           ALPACA_PAPER_TRADING: 'true'
           DRY_RUN: 'true'
         run: |
           echo "🤖 Testing Algo Orchestrator (7-Phase)..."
           echo ""
 
-          python3 algo_run_daily.py --dry-run 2>&1 | tee algo_test.log
+          python3 algo/algo_orchestrator.py --dry-run 2>&1 | tee algo_test.log
 
           echo ""
           echo "✅ Algo orchestrator completed without errors"
