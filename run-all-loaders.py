@@ -86,14 +86,14 @@ tier_4_metrics = ['load_algo_metrics_daily.py']
 # Format: (tier_name, loaders, workers)
 tiers = [
     ('Tier 0: Stock symbols', tier_0, 1),
-    ('Tier 1: Price data (parallel)', tier_1_prices, 4),  # Rate-limited by Alpaca
+    ('Tier 1: Price data (parallel)', tier_1_prices, 2),  # Reduced: 4→2 to avoid Alpaca rate limits
     ('Tier 1b: Price aggregates (weekly/monthly)', tier_1b_aggregates, 2),
     ('Tier 1c: Technical indicators (RSI, MACD, SMA, EMA, etc.)', tier_1c_technical, 2),
-    ('Tier 2: Reference data (parallel)', tier_2_reference, 4),  # External APIs, can parallelize
+    ('Tier 2: Reference data (parallel)', tier_2_reference, 2),  # Reduced: 4→2 to avoid API timeouts
     ('Tier 2c: TTM aggregates (from quarterly)', tier_2c_ttm, 2),
-    ('Tier 2b: Computed metrics (quality/growth/value)', tier_2b_metrics, 4),  # CPU-bound
+    ('Tier 2b: Computed metrics (quality/growth/value)', tier_2b_metrics, 4),  # CPU-bound, keep at 4
     ('Tier 2d: Stock scores (depends on tier 2b metrics)', tier_2d_scores, 4),
-    ('Tier 3: Trading signals (parallel)', tier_3_signals, 4),  # CPU-bound
+    ('Tier 3: Trading signals (parallel)', tier_3_signals, 4),  # CPU-bound, keep at 4
     ('Tier 3b: Signal aggregates (weekly/monthly)', tier_3b_aggregates, 2),
     ('Tier 4: Algo metrics', tier_4_metrics, 1),
 ]

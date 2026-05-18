@@ -126,9 +126,9 @@ const DeepValueStocks = () => {
   };
 
   const qualityBadge = (tier) => {
-    if (tier === "tier1") return { label: "Tier 1", color: "#1b5e20", bg: "#c8e6c9" };
-    if (tier === "tier2") return { label: "Tier 2", color: "#2e7d32", bg: "#e8f5e9" };
-    return { label: "Other", color: "#999", bg: "#f5f5f5" };
+    if (tier === "tier1") return { label: "Tier 1", color: "#22c55e", bg: "rgba(34, 197, 94, 0.16)" };
+    if (tier === "tier2") return { label: "Tier 2", color: "#22c55e", bg: "rgba(34, 197, 94, 0.12)" };
+    return { label: "Other", color: "#b8c0d9", bg: "rgba(184, 192, 217, 0.12)" };
   };
 
   const StockDetailDialog = ({ stock, open, onClose }) => {
@@ -470,8 +470,8 @@ const DeepValueStocks = () => {
                       onClick={() => { setSelectedStock(stock); setDetailOpen(true); }}
                     >
                       <TableCell sx={{
-                        fontWeight: 700, fontSize: "1.05em", color: globalIdx === 0 ? "#1976d2" : "inherit",
-                        position: "sticky", left: 0, backgroundColor: idx % 2 === 0 ? (globalIdx === 0 ? "#f0f4ff" : "#fff") : "#fafafa", zIndex: 1
+                        fontWeight: 700, fontSize: "1.05em", color: globalIdx === 0 ? "#6366f1" : "inherit",
+                        position: "sticky", left: 0, backgroundColor: idx % 2 === 0 ? (globalIdx === 0 ? "rgba(99, 102, 241, 0.08)" : "#141720") : "#0f1219", zIndex: 1
                       }}>
                         {globalIdx === 0 && <TrendingUp sx={{ fontSize: 14, mr: 0.5, verticalAlign: "middle", color: "#4caf50" }} />}
                         {stock.symbol}
@@ -501,10 +501,10 @@ const DeepValueStocks = () => {
                       <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.drop_from_3y_high_pct >= 50 ? "#c62828" : "inherit", fontWeight: stock.drop_from_3y_high_pct >= 40 ? 700 : 400 }}>
                         {fmtDiscount(stock.drop_from_3y_high_pct)}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontSize: "0.8rem", fontWeight: 700, backgroundColor: "#e3f2fd", color: "#0d47a1" }}>
+                      <TableCell align="right" sx={{ fontSize: "0.8rem", fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: "#818cf8" }}>
                         {stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontSize: "0.85rem", fontWeight: 700, backgroundColor: "#e3f2fd", color: stock.margin_of_safety_pct >= 30 ? "#1b5e20" : stock.margin_of_safety_pct >= 0 ? "#558b2f" : "#c62828" }}>
+                      <TableCell align="right" sx={{ fontSize: "0.85rem", fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444" }}>
                         {stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—"}
                       </TableCell>
                       <TableCell align="right" sx={{ fontSize: "0.8rem", color: stock.revenue_growth_yoy_pct >= 0 ? "#1b5e20" : "#c62828", fontWeight: 600 }}>
@@ -569,8 +569,8 @@ const DeepValueStocks = () => {
               • Liquidity (10%) — Current ratio strength
             </Typography>
 
-            <Box sx={{ p: 2, backgroundColor: "#fff3e0", borderRadius: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: "#e65100" }}>
+            <Box sx={{ p: 2, backgroundColor: "rgba(245, 158, 11, 0.16)", borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "#f59e0b" }}>
                 🎯 Result: A stock qualifies as a "generational opportunity" only when EXCEPTIONAL QUALITY meets ANOMALY PRICING.
                 This combination is rare — perhaps 5-30 stocks across the entire market at any moment. These are where generational wealth compounds.
               </Typography>
