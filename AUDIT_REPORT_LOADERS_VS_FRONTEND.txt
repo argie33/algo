@@ -1,0 +1,221 @@
+================================================================================
+DATA PIPELINE AUDIT: LOADERS vs FRONTEND QUERIES
+================================================================================
+Date: 2026-05-18
+Audit Scope: All loaders in /loaders/*.py matched against all routes in webapp/lambda/routes/*.js
+
+================================================================================
+TASK 1: LOADER-TO-TABLE MAPPING
+================================================================================
+
+LOADERS THAT GENERATE TABLES USED BY FRONTEND (17 tables):
+  loadaaiidata.py                    -> aaii_sentiment                      [USED by /api/sentiment]
+  loadanalystsentiment.py            -> analyst_sentiment_analysis          [USED by /api/sentiment]
+  loadanalystupgradedowngrade.py     -> analyst_upgrade_downgrade           [USED by /api/sentiment]
+  loadbuyselldaily.py                -> buy_sell_daily                      [USED by /api/algo, /api/market]
+  loadcompanyprofile.py              -> company_profile                     [USED by /api/industries, /api/sectors, /api/stocks]
+  load_earnings_calendar.py          -> earnings_calendar                   [USED by /api/earnings]
+  loadecondata.py                    -> economic_data                       [USED by /api/economic]
+  loadfeargreed.py                   -> fear_greed_index                    [USED by /api/sentiment]
+  load_value_metrics.py              -> key_metrics                         [USED by /api/market, /api/financials]
+  loadnaaim.py                       -> naaim                               [USED by /api/sentiment]
+  loadpricedaily.py                  -> price_daily                         [USED by /api/market, /api/sectors, /api/industries]
+  loadseasonality.py                 -> seasonality_day_of_week             [USED by /api/market]
+  loadseasonality.py                 -> seasonality_monthly_stats           [USED by /api/market]
+  loadsectors.py                     -> sector_performance                  [USED by /api/sectors]
+  loadstockscores.py                 -> stock_scores                        [USED by /api/scores, /api/market]
+  loadstocksymbols.py                -> stock_symbols                       [USED by /api/status, /api/stocks]
+  load_value_metrics.py              -> value_metrics                       [USED by /api/optimization, /api/industries, /api/sectors]
+
+LOADERS THAT GENERATE TABLES NOT USED BY FRONTEND (24 tables):
+  [Financial statements - likely orchestrator-only]
+  load_balance_sheet.py              -> annual_balance_sheet
+  load_balance_sheet.py              -> quarterly_balance_sheet
+  load_cash_flow.py                  -> annual_cash_flow
+  load_cash_flow.py                  -> quarterly_cash_flow
+  load_income_statement.py           -> annual_income_statement
+  load_income_statement.py           -> quarterly_income_statement
+  loadearningsestimates.py           -> earnings_estimates
+  loadearningshistory.py             -> earnings_history
+  loadearningsrevisions.py           -> earnings_estimate_revisions
+
+  [Quality metrics - likely orchestrator-only]
+  load_growth_metrics.py             -> growth_metrics
+  load_quality_metrics.py            -> quality_metrics
+
+  [Aggregated prices - likely orchestrator-only]
+  load_price_aggregate.py            -> price_weekly
+  load_price_aggregate.py            -> price_monthly
+  loadetfpricedaily.py               -> etf_price_daily
+  load_etf_price_aggregate.py        -> etf_price_weekly
+  load_etf_price_aggregate.py        -> etf_price_monthly
+
+  [Buy/Sell aggregates]
+  loadbuysell_etf_daily.py           -> buy_sell_daily_etf
+  load_buysell_aggregate.py          -> buy_sell_weekly
+  load_buysell_aggregate.py          -> buy_sell_monthly
+  load_buysell_etf_aggregate.py      -> buy_sell_weekly_etf
+  load_buysell_etf_aggregate.py      -> buy_sell_monthly_etf
+
+  [TTM metrics]
+  loadttmcashflow.py                 -> ttm_cash_flow
+  loadttmincomestatement.py          -> ttm_income_statement
+
+  [ETF symbols]
+  loadstocksymbols.py                -> etf_symbols
+
+================================================================================
+TASK 2: FRONTEND TABLE QUERIES
+================================================================================
+
+TABLES QUERIED BY FRONTEND (34 unique tables across all routes):
+
+Frontend-queried tables WITH loaders:
+  aaii_sentiment                     [from loadaaiidata.py]
+  analyst_sentiment_analysis         [from loadanalystsentiment.py]
+  analyst_upgrade_downgrade          [from loadanalystupgradedowngrade.py]
+  buy_sell_daily                     [from loadbuyselldaily.py]
+  company_profile                    [from loadcompanyprofile.py]
+  earnings_calendar                  [from load_earnings_calendar.py]
+  economic_data                      [from loadecondata.py]
+  fear_greed_index                   [from loadfeargreed.py]
+  key_metrics                        [from load_value_metrics.py]
+  naaim                              [from loadnaaim.py]
+  price_daily                        [from loadpricedaily.py]
+  seasonality_day_of_week            [from loadseasonality.py]
+  seasonality_monthly_stats          [from loadseasonality.py]
+  sector_performance                 [from loadsectors.py]
+  stock_scores                       [from loadstockscores.py]
+  stock_symbols                      [from loadstocksymbols.py]
+  value_metrics                      [from load_value_metrics.py]
+
+Frontend-queried tables WITHOUT loaders (17 tables - CRITICAL GAP):
+  data_completeness_scores           [No loader found]
+  data_loader_status                 [No loader found]
+  data_patrol_log                    [No loader found]
+  economic_calendar                  [No loader found]
+  filter_rejection_log               [No loader found]
+  industry_scores                    [No loader found]
+  loader_sla_status                  [No loader found]
+  market_exposure_daily              [No loader found]
+  market_health_daily                [No loader found]
+  order_execution_log                [No loader found]
+  sector_ranking                     [No loader found - used by algo_advanced_filters.py]
+  sector_rotation_signal             [No loader found]
+  sector_scores                      [No loader found]
+  signal_quality_scores              [No loader found - used by algo_data_patrol.py]
+  swing_trader_scores                [No loader found]
+  technical_data_daily               [No loader found - used by algo_advanced_filters.py]
+  trend_template_data                [No loader found - used by algo_data_patrol.py]
+
+================================================================================
+TASK 3: DEPENDENCY MATRIX
+================================================================================
+
+SUMMARY STATISTICS:
+  Total loaders: 33
+  Total loader-generated tables: 41
+  Frontend queries unique tables: 34
+
+  Loader tables used by frontend: 17 (41.5%)
+  Loader tables unused by frontend: 24 (58.5%)
+
+  Frontend table coverage:
+    Tables with loaders: 17 (50%)
+    Tables without loaders: 17 (50%)  <- CRITICAL DATA GAP
+
+CATEGORIZATION OF UNUSED LOADER TABLES:
+
+1. Financial Statements (6 tables) - Likely orchestrator signals only
+   - annual_balance_sheet, quarterly_balance_sheet
+   - annual_cash_flow, quarterly_cash_flow
+   - annual_income_statement, quarterly_income_statement
+
+2. Earnings Data (3 tables) - Likely orchestrator signals only
+   - earnings_estimates, earnings_history, earnings_estimate_revisions
+
+3. Quality & Growth Metrics (2 tables) - Likely orchestrator signals only
+   - growth_metrics, quality_metrics
+
+4. Aggregated Time Series (5 tables) - Weekly/Monthly aggregates
+   - price_weekly, price_monthly
+   - etf_price_weekly, etf_price_monthly, etf_price_daily
+
+5. Buy/Sell Aggregates (5 tables) - Aggregated buy/sell signals
+   - buy_sell_weekly, buy_sell_monthly, buy_sell_daily_etf
+   - buy_sell_weekly_etf, buy_sell_monthly_etf
+
+6. TTM Metrics (2 tables) - Trailing Twelve Months financials
+   - ttm_cash_flow, ttm_income_statement
+
+7. Symbols (1 table) - Likely for reference only
+   - etf_symbols
+
+================================================================================
+CRITICAL FINDINGS: MISSING LOADERS
+================================================================================
+
+17 tables are queried by the frontend but have NO corresponding loaders.
+These tables appear to be populated OUTSIDE the loader framework:
+
+Category 1: ORCHESTRATOR-GENERATED (marked as CRITICAL in data_patrol.py):
+  - technical_data_daily     (7-day freshness requirement)
+  - trend_template_data      (7-day freshness requirement, WARN if stale)
+  - signal_quality_scores    (7-day freshness requirement, ERROR if stale)
+  - sector_ranking           (10-day freshness requirement)
+
+Category 2: MARKET MONITORING:
+  - market_exposure_daily    (tracked in data_patrol.py)
+  - market_health_daily      (tracked in data_patrol.py)
+
+Category 3: DATA QUALITY METRICS:
+  - data_completeness_scores (tracked in data_patrol.py)
+  - data_loader_status       (tracked in data_patrol.py)
+  - data_patrol_log          (maintained by algo_data_patrol.py)
+  - filter_rejection_log     (tracked in data_patrol.py)
+  - signal_quality_scores    (duplicate of above, tracked in data_patrol.py)
+
+Category 4: OPERATIONAL LOGS:
+  - order_execution_log      (populated by trade execution module)
+  - loader_sla_status        (SLA tracking)
+
+Category 5: UNKNOWN/NOT FOUND:
+  - economic_calendar        (queried but source unknown)
+  - industry_scores          (queried but source unknown)
+  - sector_rotation_signal   (queried by /api/algo routes)
+  - sector_scores            (queried by /api/sectors routes)
+  - swing_trader_scores      (queried by /api/optimization routes)
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+IMMEDIATE ACTIONS:
+1. Create loaders for Category 5 (Unknown/Not Found) tables:
+   - economic_calendar (should scrape from Federal Reserve or similar)
+   - industry_scores (should be computed from stock_scores grouped by industry)
+   - sector_rotation_signal (should be computed from sector performance data)
+   - sector_scores (should be computed from stock_scores grouped by sector)
+   - swing_trader_scores (source and computation unknown - needs clarification)
+
+2. For Category 1-4 tables (Orchestrator and operational):
+   - Document WHERE each table is populated (should be integration point, not manual SQL)
+   - Create standalone loaders or integrate into orchestration pipeline
+   - Add to run-all-loaders.py if not already integrated
+
+3. Audit Frontend Usage:
+   - Many tables (24) are generated by loaders but never queried
+   - Consider removing these loaders per CLAUDE.md rule: "No one-time scripts — delete backfills"
+   - Exception: Keep if they're used by orchestrator.py (check algo_orchestrator.py)
+
+================================================================================
+FILE LOCATIONS
+================================================================================
+
+Loader files: C:\Users\arger\code\algo\loaders\*.py
+Frontend routes: C:\Users\arger\code\algo\webapp\lambda\routes\*.js
+Orchestrator: C:\Users\arger\code\algo\algo\algo_orchestrator.py
+Data patrol: C:\Users\arger\code\algo\algo\algo_data_patrol.py
+Advanced filters: C:\Users\arger\code\algo\algo\algo_advanced_filters.py
+
+================================================================================
