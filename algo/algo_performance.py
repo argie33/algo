@@ -84,7 +84,6 @@ class LivePerformance:
         conn = None
         cur = None
         try:
-            # Create fresh connection for this metric
             conn = psycopg2.connect(
                 host=self.db_host,
                 port=self.db_port,
@@ -155,7 +154,6 @@ class LivePerformance:
         conn = None
         cur = None
         try:
-            # Create fresh connection for this metric
             conn = psycopg2.connect(
                 host=self.db_host,
                 port=self.db_port,
@@ -270,7 +268,6 @@ class LivePerformance:
         conn = None
         cur = None
         try:
-            # Create fresh connection for this metric
             conn = psycopg2.connect(
                 host=self.db_host,
                 port=self.db_port,
@@ -280,7 +277,6 @@ class LivePerformance:
             )
             cur = conn.cursor()
 
-            # Get portfolio values over the last 252 days
             cur.execute(
                 """
                 SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
@@ -536,7 +532,6 @@ class LivePerformance:
                     logger.warning(f"  Performance warning: {result['warning']}")
 
             # Upsert into database with fresh connection (insert or replace if already exists for this date)
-            # Convert numpy scalars to Python floats to prevent "schema 'np'" errors in psycopg2
             conn = None
             cur = None
             try:
@@ -549,7 +544,6 @@ class LivePerformance:
                 )
                 cur = conn.cursor()
 
-                # Convert all values to Python native types (float, int, etc.) to avoid numpy type issues
                 sharpe_val = float(sharpe) if sharpe is not None else None
                 sortino_val = float(sortino) if sortino is not None else None
                 calmar_val = float(calmar) if calmar is not None else None

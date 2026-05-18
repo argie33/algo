@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
 import csv
 import json
 import logging
@@ -139,7 +138,6 @@ def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in PATTERNS)
 
 
-# ─── Parsers ──────────────────────────────────────────────────────────────────
 def parse_nasdaq(text: str):
     rows = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")

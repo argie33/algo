@@ -76,7 +76,6 @@ class PositionReconciler:
             logger.info("POSITION RECONCILIATION")
             logger.info("="*70)
 
-            # Get DB positions
             self.cur.execute("""
                 SELECT symbol, quantity, position_id
                 FROM algo_positions
@@ -86,7 +85,6 @@ class PositionReconciler:
             db_positions = {row[0]: {'qty': row[1], 'position_id': row[2]}
                             for row in self.cur.fetchall()}
 
-            # Get Alpaca positions
             try:
                 alpaca_positions = {pos.symbol: int(pos.qty) for pos in self.trading_client.get_all_positions()}
             except Exception as e:
@@ -95,7 +93,6 @@ class PositionReconciler:
 
             issues = []
 
-            # Check 1: DB positions not in Alpaca (likely closed without updating DB)
             for symbol, db_info in db_positions.items():
                 if symbol not in alpaca_positions:
                     issues.append({
@@ -118,7 +115,6 @@ class PositionReconciler:
                 else:
                     logger.info(f"  [OK] {symbol}: {db_info['qty']} shares")
 
-            # Check 2: Alpaca positions not in DB (likely filled outside our workflow)
             for symbol, alpaca_qty in alpaca_positions.items():
                 if symbol not in db_positions:
                     issues.append({

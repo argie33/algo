@@ -125,7 +125,6 @@ class TestDataFreshness(unittest.TestCase):
         today = date.today()
         last_price_date = today - timedelta(days=1)
 
-        # Check if data is fresh (< 1 day old)
         days_old = (today - last_price_date).days
         is_fresh = days_old <= 1
 

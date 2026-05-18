@@ -62,7 +62,6 @@ Provide your review in markdown format.
 def main():
     logger.info("🤖 Running Gemini AI Code Review...")
 
-    # Get PR changes
     diff = get_pr_changes()
     if not diff:
         logger.info("❌ No changes found")

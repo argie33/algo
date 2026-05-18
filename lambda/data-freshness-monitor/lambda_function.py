@@ -186,7 +186,6 @@ def lambda_handler(event, context):
         # Publish custom metrics to CloudWatch
         publish_custom_metrics(table_data)
 
-        # Check for health issues
         issues = check_data_health(table_data)
 
         # Build response

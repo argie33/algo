@@ -99,7 +99,6 @@ class DailyReconciliation:
                 if analytics['expectancy']['alert']:
                     logger.info(f"   [FAIL] {analytics['expectancy']['alert']}")
 
-            # 2. Get open positions from database
             self.cur.execute("""
                 SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
                 FROM algo_positions
@@ -139,7 +138,6 @@ class DailyReconciliation:
 
             avg_position_size = (total_position_value / len(positions)) if positions else 0.0
 
-            # 4. Get previous snapshot for daily return
             self.cur.execute("""
                 SELECT total_portfolio_value FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1
@@ -150,7 +148,6 @@ class DailyReconciliation:
             daily_return = total_equity - prev_value
             daily_return_pct = (daily_return / prev_value * 100) if prev_value > 0 else 0
 
-            # 5. Get market health (use most recent available, not exact date)
             self.cur.execute("""
                 SELECT market_trend, distribution_days_4w
                 FROM market_health_daily
@@ -162,8 +159,6 @@ class DailyReconciliation:
             market_trend = market[0] if market else 'unknown'
             dist_days = market[1] if market else 0
 
-            # 6. Create portfolio snapshot
-            # Check if snapshot already exists for this date
             self.cur.execute("SELECT snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (reconcile_date,))
             existing_snapshot = self.cur.fetchone()
             if existing_snapshot:
@@ -249,7 +244,6 @@ class DailyReconciliation:
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
-        # Get current symbols in our DB
         self.cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
         our_symbols = {row[0] for row in self.cur.fetchall()}
 
@@ -262,7 +256,6 @@ class DailyReconciliation:
             alpaca_symbols[sym] = qty
 
             if sym in our_symbols:
-                # Check for quantity drift
                 self.cur.execute(
                     "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = %s",
                     (sym, PositionStatus.OPEN.value)
@@ -559,7 +552,6 @@ class DailyReconciliation:
                     entry_price = float(entry_price)
                     exit_price = float(exit_price or entry_price)
 
-                    # Get all prices from entry to exit
                     self.cur.execute("""
                         SELECT high, low FROM price_daily
                         WHERE symbol = %s AND date >= %s AND date <= %s
@@ -581,7 +573,6 @@ class DailyReconciliation:
                     max_price = max(highs)
                     mfe_pct = ((max_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
 
-                    # Update trade
                     self.cur.execute("""
                         UPDATE algo_trades
                         SET mae_pct = %s, mfe_pct = %s, updated_at = CURRENT_TIMESTAMP

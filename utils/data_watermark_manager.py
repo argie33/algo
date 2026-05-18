@@ -155,7 +155,6 @@ class WatermarkManager:
             try:
                 # Insert data
                 cur.execute("INSERT INTO price_daily VALUES (...)")
-                # Update watermark atomically
                 if wm.advance_watermark(new_watermark=today, symbol='AAPL', in_transaction=True):
                     db_conn.commit()  # All or nothing
                 else:

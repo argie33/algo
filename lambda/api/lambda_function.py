@@ -106,7 +106,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             }
 
-        # Get database connection for route handlers
         conn = get_db_connection()
         if not conn:
             return {
@@ -130,7 +129,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         cur = conn.cursor()
 
-        # Parse params and body
         params = parse_query_params(event)
         body = None
         if event.get('body'):

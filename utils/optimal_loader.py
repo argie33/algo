@@ -225,7 +225,6 @@ class OptimalLoader(ABC):
 
             cur.execute(f"DROP TABLE {staging}")
 
-            # M4 FIX: Update watermark atomically in the same transaction
             if symbol and new_watermark:
                 if watermark_mgr:
                     # Use WatermarkManager for atomic DB-backed watermark
@@ -300,7 +299,6 @@ class OptimalLoader(ABC):
             chunk_wm = new_wm if is_final_chunk else None
             inserted += self._bulk_insert(chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm)
 
-        # Update bloom filter post-insert
         if dedup and self.primary_key:
             for row in rows:
                 key = ":".join(str(row.get(c, "")) for c in self.primary_key)

@@ -277,7 +277,6 @@ class AdvancedFilters:
         if self._signals is None:
             self._signals = SignalComputer(cur=self.cur)
 
-        # Get percentile ranking of stock vs SPY (0-100 scale)
         rs_percentile = self._signals._rs_percentile_vs_spy(symbol, signal_date, lookback=60)
         if rs_percentile is None:
             return 0.0, None
@@ -682,7 +681,6 @@ if __name__ == "__main__":
         ('NATR', 'Consumer Defensive', 'Packaged Foods'),
         ('NBHC', 'Financial Services', 'Banks - Regional'),
     ]:
-        # Get entry price
         f.cur.execute(
             "SELECT entry_price FROM buy_sell_daily WHERE symbol=%s AND date='2026-04-24' AND signal='BUY'",
             (sym,),

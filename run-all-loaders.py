@@ -26,7 +26,6 @@ tier_1b_aggregates = [
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)
 tier_1c_technical = [
-    # 'load_technical_indicators.py' - TODO: implement technical indicator calculation
 ]
 
 tier_2_reference = [
@@ -39,7 +38,6 @@ tier_2_reference = [
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
-    # 'load_key_metrics.py' - TODO: implement key metrics loader
     'loadmarketindices.py', 'loadseasonality.py',
     'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
     # Company and sentiment data
@@ -81,7 +79,6 @@ tier_3b_aggregates = [
 
 # Tier 4: Algo metrics (depends on signals)
 tier_4_metrics = [
-    # 'load_algo_metrics_daily.py' - TODO: implement algo metrics calculator
 ]
 
 # All loaders in execution order (but within tiers, parallel)
@@ -133,11 +130,9 @@ def run_loader(loader_spec) -> Tuple[str, bool, bool, str]:
         return (loader_name, False, False, "not found")
 
     try:
-        # Set PYTHONPATH to include root directory so loaders can import utils, config, and other modules
         env = os.environ.copy()
         env['PYTHONPATH'] = os.getcwd()
         # Increase timeout for data-heavy loaders (loadpricedaily ~30+ min for 500+ stocks with yfinance rate limit)
-        # LOCAL: Set high timeout (2 hours) to run overnight. AWS: Uses chunked strategy with Step Functions
         # price/scores/income/balance/cashflow loaders are heavy; others are lighter
         heavy_loaders = ['price', 'scores', 'income', 'balance', 'cashflow', 'financial']
         loader_timeout = 7200 if any(x in loader.lower() for x in heavy_loaders) else 1800  # 2h for heavy, 30m for others
@@ -190,7 +185,6 @@ def run_tier(tier_name: str, loaders: List[str], workers: int = 1) -> None:
             if completed % 10 == 0:
                 logger.info(f"    {completed}/{len(loaders)} complete")
 
-# Execute tiers sequentially (respecting data dependencies)
 for tier_name, loaders, workers in tiers:
     run_tier(tier_name, loaders, workers)
 

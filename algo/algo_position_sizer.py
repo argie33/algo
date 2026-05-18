@@ -79,7 +79,6 @@ class PositionSizer:
             if result and result[0]:
                 snapshot_value = float(result[0])
                 snapshot_date = result[1]
-                # Check snapshot age — warn if > 2 trading days old
                 from datetime import date as _date
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days > 2:
@@ -163,7 +162,6 @@ class PositionSizer:
             return max(0, drawdown_pct)
         except Exception as e:
             logger.error(f"Could not calculate drawdown: {e}")
-            # B13: Return extreme drawdown to force trading halt
             return 25.0
 
     def get_risk_adjustment(self):
@@ -199,7 +197,6 @@ class PositionSizer:
                 return float(row[0]) / 100.0
         except Exception as e:
             logger.warning(f"Could not fetch market exposure: {e}")
-            # B13: Return conservative multiplier (50% exposure) on error
             return 0.5
         return 1.0  # neutral if not computed yet
 
@@ -267,7 +264,6 @@ class PositionSizer:
             return result[0] if result else 0
         except Exception as e:
             logger.error(f"WARNING: Could not fetch position count: {e}")
-            # B13: Return max_positions to block new entries (not 999 which is confusing)
             return int(self.config.get('max_positions', 12))
 
     def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None):
@@ -290,7 +286,6 @@ class PositionSizer:
             active_positions = self.get_position_count()
             active_position_value = self.get_active_positions_value()
 
-            # Check max positions
             max_positions = self.config.get('max_positions', 12)
             if active_positions >= max_positions:
                 return {
@@ -301,7 +296,6 @@ class PositionSizer:
                     'reason': f'{active_positions} open positions >= {max_positions} max'
                 }
 
-            # Check if drawdown halt is active
             if risk_adjustment == 0:
                 return {
                     'shares': 0,
@@ -357,7 +351,6 @@ class PositionSizer:
                     'reason': f'Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}',
                 }
 
-            # Check max position size
             position_value = shares * entry_price
             max_position_pct = self.config.get('max_position_size_pct', 8.0) / 100
             max_position_value = portfolio_value * max_position_pct

@@ -120,7 +120,6 @@ class TestFrontendPages:
         """Verify authentication infrastructure exists."""
         cur = db_connection.cursor()
 
-        # Check that we can query settings and user tables
         try:
             cur.execute("SELECT COUNT(*) FROM feature_flags")
             assert True, "Feature flags table exists"
@@ -133,7 +132,6 @@ class TestFrontendPages:
         if not frontend_dir.exists():
             pytest.skip("Frontend source not found")
 
-        # Check for common credential patterns in JS files
         for js_file in frontend_dir.rglob("*.jsx"):
             try:
                 content = js_file.read_text(encoding='utf-8', errors='ignore')

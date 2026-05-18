@@ -51,12 +51,10 @@ class LiquidityChecks:
         try:
             self.connect()
 
-            # Check 1: Average Daily Volume (ADV)
             adv_passed, adv_reason = self._check_adv(symbol, signal_date)
             if not adv_passed:
                 return False, f"ADV check failed: {adv_reason}"
 
-            # Check 2: Dollar volume at entry price
             dollar_vol_passed, dollar_reason = self._check_dollar_volume(
                 symbol, entry_price, signal_date
             )

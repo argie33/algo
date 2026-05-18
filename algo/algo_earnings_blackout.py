@@ -38,7 +38,6 @@ class EarningsBlackout:
             conn = get_db_connection()
             cur = conn.cursor()
 
-            # Check if earnings exists within the blackout window
             cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s

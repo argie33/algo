@@ -56,7 +56,6 @@ class EarningsHistoryLoader(OptimalLoader):
             ed = row.get("earnings_date")
             if ed is None:
                 return False
-            # Handle both date objects and numeric timestamps
             if isinstance(ed, date):
                 return ed.year > 1990
             return int(ed) > 1990

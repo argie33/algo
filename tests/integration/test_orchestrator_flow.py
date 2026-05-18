@@ -29,7 +29,6 @@ class TestOrchestratorWithRealDatabase:
 
     def test_full_pipeline_dry_run(self, seeded_test_db, test_config):
         """Full orchestrator pipeline in dry-run should complete all 7 phases."""
-        # Create orchestrator in dry-run mode
         orch = Orchestrator(
             run_date=date.today(),
             dry_run=True,

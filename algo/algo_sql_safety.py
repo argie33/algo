@@ -73,7 +73,6 @@ def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', identifier):
         raise ValueError(f"Invalid {identifier_type} format: {identifier}")
 
-    # Check whitelist
     if identifier not in whitelist:
         raise ValueError(f"Unknown {identifier_type} '{identifier}' (not in whitelist)")
 

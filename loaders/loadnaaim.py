@@ -125,13 +125,11 @@ def get_naaim_data():
                 logging.info(f"Found {len(dfs)} tables with pandas read_html")
                 
                 if dfs:
-                    # Get the first dataframe (NAAIM data table)
                     data = dfs[0]
                     logging.info(f"Found table with shape: {data.shape}")
                     logging.info(f"Table columns: {list(data.columns)}")
                     logging.info(f"First few rows: {data.head()}")
                     
-                    # Check if this looks like NAAIM data
                     if len(data.columns) >= 7:  # Expected columns
                         # Assign meaningful column names
                         data.columns = ['Date', 'NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
@@ -139,12 +137,10 @@ def get_naaim_data():
                         # Clean the data
                         data = data.where(pd.notnull(data), None)
                         
-                        # Convert date column to proper format
                         data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
                         data = data.dropna(subset=['Date'])  # Drop rows where date conversion failed
                         data['Date'] = data['Date'].dt.strftime('%Y-%m-%d')
                         
-                        # Convert numeric columns
                         numeric_columns = ['NAAIM Number Mean/Average', 'Bearish', 'Quart1', 'Quart2', 'Quart3', 'Bullish', 'Deviation']
                         for col in numeric_columns:
                             if col in data.columns:
@@ -180,7 +176,6 @@ def get_naaim_data():
                     largest_table = max(tables, key=lambda t: len(t.find_all('tr')))
                     logging.info(f"Attempting to parse largest table with {len(largest_table.find_all('tr'))} rows")
                     
-                    # Convert to DataFrame
                     rows = []
                     for tr in largest_table.find_all('tr'):
                         row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
@@ -192,7 +187,6 @@ def get_naaim_data():
                         logging.info(f"Parsed table with shape: {data.shape}")
                         logging.info(f"Columns: {list(data.columns)}")
                         
-                        # Check if this looks like NAAIM data
                         if len(data.columns) >= 7:
                             # Clean and process the data
                             data = data.where(pd.notnull(data), None)
@@ -203,7 +197,6 @@ def get_naaim_data():
                             data = data.dropna(subset=[date_col])
                             data[date_col] = data[date_col].dt.strftime('%Y-%m-%d')
                             
-                            # Convert numeric columns
                             for col in data.columns[1:]:  # Skip date column
                                 data[col] = pd.to_numeric(data[col], errors='coerce')
                             
@@ -241,7 +234,6 @@ def load_naaim_data(cur, conn):
             logging.warning("No NAAIM data downloaded")
             return 0, 0, []
         
-        # Convert DataFrame to list of tuples for batch insert
         rows = []
         for _, row in df.iterrows():
             try:

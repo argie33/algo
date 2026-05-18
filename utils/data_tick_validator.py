@@ -174,7 +174,6 @@ class TickValidator:
         if min(prices) < 0.001:
             self.errors.append(f"price < $0.001: {min(prices)}")
 
-        # Check for unrealistic spreads (bid-ask too wide)
         spread_pct = ((high - low) / low * 100) if low > 0 else 0
         if spread_pct > 50:
             # More than 50% spread = likely bad data
@@ -309,7 +308,6 @@ def validate_score_tick(
     """
     errors = []
 
-    # Check required fields
     if not symbol:
         errors.append("MISSING_SYMBOL")
     if score_date is None:

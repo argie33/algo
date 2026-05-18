@@ -175,7 +175,6 @@ class EconDataLoader(OptimalLoader):
 
     def __init__(self):
         super().__init__()
-        # Get FRED API key from credential manager (tries AWS Secrets Manager first, then env vars)
         if credential_manager:
             try:
                 self._api_key = credential_manager.get_secret("FRED_API_KEY", default="")
@@ -211,7 +210,6 @@ def main():
     parser.add_argument("--parallelism", type=int, default=4)
     args = parser.parse_args()
 
-    # Get FRED API key from credential manager or environment
     api_key = None
     if credential_manager:
         try:

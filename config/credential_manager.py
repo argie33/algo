@@ -83,7 +83,6 @@ class CredentialManager:
         4. Default value (if provided)
         5. Raise ValueError (if required and not found)
         """
-        # Check cache first
         if secret_name in self._cache:
             return self._cache[secret_name]
 
@@ -95,7 +94,6 @@ class CredentialManager:
                 return secret
 
         # Fall back to environment variable
-        # Convert 'db/password' → 'DB_PASSWORD'
         env_var = secret_name.upper().replace('/', '_')
         secret = os.getenv(env_var)
 

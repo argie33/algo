@@ -19,7 +19,6 @@ import logging
 from datetime import datetime, timedelta, date as _date
 from pathlib import Path
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'

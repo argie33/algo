@@ -134,7 +134,6 @@ class IncomeStatementLoader(OptimalLoader):
                 if db_field in self._schema_cols:
                     if db_field not in row:  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
                         row[db_field] = value
-            # Convert fiscal_quarter from string "Q1".."Q4" to integer 1..4
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 row["fiscal_quarter"] = self._QUARTER_MAP.get(row["fiscal_quarter"])
             transformed.append(row)

@@ -109,7 +109,6 @@ class MarketEventHandler:
             dict with level, % down, timestamp if triggered, else None
         """
         try:
-            # Get SPY (S&P 500 proxy) current vs. open
             url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
             headers = {
                 'APCA-API-KEY-ID': self.alpaca_key,
@@ -124,7 +123,6 @@ class MarketEventHandler:
             if not current_price:
                 return None
 
-            # Get SPY open price
             url_bars = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
             resp_bars = requests.get(url_bars, headers=headers, timeout=5)
             if resp_bars.status_code != 200:
@@ -399,19 +397,16 @@ class MarketEventHandler:
             'alerts': [],
         }
 
-        # Check early close
         early_close = self.check_early_close()
         result['checks']['early_close'] = early_close
         if early_close:
             result['alerts'].append('MARKET CLOSES EARLY AT 13:00 ET')
 
-        # Check circuit breaker
         cb = self.check_market_circuit_breaker()
         result['checks']['circuit_breaker'] = cb
         if cb:
             result['alerts'].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
 
-        # Check after-hours window
         after_hours = self.check_after_hours_window()
         result['checks']['after_hours_window'] = after_hours
 

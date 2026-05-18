@@ -18,7 +18,6 @@ def lambda_handler(event, context):
     import psycopg2
     from psycopg2 import OperationalError
 
-    # Get database connection parameters
     db_host = os.environ.get('DB_HOST')
     db_port = int(os.environ.get('DB_PORT', 5432))
     db_name = os.environ.get('DB_NAME')
@@ -53,7 +52,6 @@ def lambda_handler(event, context):
                 'body': json.dumps('No SQL script to execute')
             }
 
-        # Execute SQL with autocommit enabled
         conn.autocommit = True
         cursor = conn.cursor()
 

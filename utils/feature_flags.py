@@ -128,7 +128,6 @@ class FeatureFlags:
         try:
             self.connect()
 
-            # Check cache with TTL (refresh every 30 seconds)
             from datetime import datetime as dt
             now = dt.now()
             cache_expired = (
@@ -159,7 +158,6 @@ class FeatureFlags:
                     if not enabled:
                         self._cache[flag_name] = False
                         return False
-                    # Parse value back to bool if it was boolean
                     if isinstance(value, str):
                         if value.lower() in ('true', 'false'):
                             value = value.lower() == 'true'
@@ -278,7 +276,6 @@ def initialize_safe_defaults():
 
         initialized_count = 0
         for flag_name, (flag_type, default_value, description) in DEFAULT_FEATURE_FLAGS.items():
-            # Check if flag already exists
             with flags.conn.cursor() as cur:
                 cur.execute("""
                     SELECT value FROM feature_flags WHERE flag_name = %s

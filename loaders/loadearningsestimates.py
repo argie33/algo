@@ -39,7 +39,6 @@ class EarningsEstimatesLoader(OptimalLoader):
         try:
             self.connect()
 
-            # Get historical earnings data
             query = """
                 SELECT symbol, earnings_date, actual_eps, expected_eps
                 FROM earnings_history
@@ -125,7 +124,6 @@ class EarningsEstimatesLoader(OptimalLoader):
         try:
             self.connect()
 
-            # Get all symbols with earnings history
             self.cur.execute("""
                 SELECT DISTINCT symbol FROM earnings_history
                 WHERE earnings_date IS NOT NULL

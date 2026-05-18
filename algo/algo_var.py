@@ -518,7 +518,6 @@ class PortfolioRisk:
                 conn = get_db_connection()
                 cur = conn.cursor()
 
-                # Convert numpy scalars to Python floats to prevent "schema 'np'" errors
                 var_pct_val = float(var_metrics['var_pct']) if var_metrics else None
                 cvar_pct_val = float(cvar_metrics['cvar_pct']) if cvar_metrics else None
                 stressed_var_pct_val = float(stressed_var['stressed_var_pct']) if stressed_var else None

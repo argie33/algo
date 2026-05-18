@@ -138,7 +138,6 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
     try:
         conn = get_db_conn()
         with conn.cursor() as cur:
-            # Get current market cap (required for PE calculation)
             cur.execute("""
                 SELECT market_cap FROM key_metrics WHERE symbol = %s LIMIT 1
             """, (symbol,))
@@ -148,7 +147,6 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
             if not mkt_cap:
                 return None
 
-            # Get consensus forward EPS estimate
             cur.execute("""
                 SELECT consensus_eps FROM earnings_estimates
                 WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1

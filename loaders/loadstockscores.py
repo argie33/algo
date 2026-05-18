@@ -121,7 +121,6 @@ class StockScoresLoader(OptimalLoader):
         momentum_score = max(0, min(100, momentum_score))
 
         # Price momentum: positive for uptrends, negative for downtrends
-        # Convert to 0-100 scale where 50 is neutral
         momentum_pct = float(momentum_raw.iloc[valid_idx]) if not pd.isna(momentum_raw.iloc[valid_idx]) else 50.0
 
         # Trend score: average return over last 5, 10, 20 days
@@ -365,7 +364,6 @@ class StockScoresLoader(OptimalLoader):
         today = str(date.today())
         final_validated = []
         for row in validated:
-            # PHASE 1: Validate every score
             # score_date not stored in stock_scores schema — pass today's date for validation only
             is_valid, errors = validate_score_tick(
                 symbol=row.get('symbol'),
@@ -443,7 +441,6 @@ class StockScoresLoader(OptimalLoader):
             conn = self._connect()
             cur = conn.cursor()
 
-            # Get all symbols in stock_scores
             cur.execute("SELECT symbol FROM stock_scores ORDER BY symbol")
             symbols = [r[0] for r in cur.fetchall()]
             logging.info(f"Computing RS percentiles for {len(symbols)} symbols...")
@@ -528,7 +525,6 @@ class StockScoresLoader(OptimalLoader):
                 percentile = (rank / max(1, n - 1)) * 100 if n > 1 else 50
                 percentile_ranks[symbol] = int(round(percentile))
 
-            # Update stock_scores with percentile ranks
             update_count = 0
             for symbol, percentile in percentile_ranks.items():
                 cur.execute(

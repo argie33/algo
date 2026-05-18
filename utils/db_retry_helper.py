@@ -62,12 +62,10 @@ class OptimisticLockRetry:
                 row = cursor.fetchone()
                 current_qty = row[0]
 
-                # Update conditionally
                 cursor.execute(
                     "UPDATE positions SET quantity=%s WHERE id=%s AND quantity=%s",
                     (new_qty, pos_id, current_qty)
                 )
-                # Return success indicator
                 return cursor.rowcount > 0
 
             success = OptimisticLockRetry.retry_on_race_condition(

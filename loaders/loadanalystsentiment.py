@@ -67,7 +67,6 @@ class AnalystSentimentLoader(OptimalLoader):
 
                 sentiment_by_date[rec_date]['total'] += 1
 
-            # Convert to result format
             results = []
             for rec_date, counts in sentiment_by_date.items():
                 results.append({

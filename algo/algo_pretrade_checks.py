@@ -67,7 +67,6 @@ class PreTradeChecks:
             - If passed: (True, None)
             - If failed: (False, "reason for failure")
         """
-        # Check 1: Buying power (position size <= portfolio_value * max_position_pct)
         max_position_pct = float(self.config.get('max_position_size_pct', 10.0)) / 100.0
         max_position_value = portfolio_value * max_position_pct
 
@@ -75,7 +74,6 @@ class PreTradeChecks:
             return (False, f"Position ${position_value:.2f} exceeds max "
                           f"${max_position_value:.2f} ({max_position_pct*100:.1f}% of portfolio)")
 
-        # Check 2: Duplicate position prevention
         try:
             self.connect()
             if self.conn:
@@ -92,12 +90,10 @@ class PreTradeChecks:
             logger.warning(f"Failed to check for duplicate position: {e}")
             # Continue anyway - DB error shouldn't block trade
 
-        # Check 3: Minimum order size
         min_order_size = float(self.config.get('min_order_size_dollars', 100.0))
         if position_value < min_order_size:
             return (False, f"Position value ${position_value:.2f} below minimum ${min_order_size:.2f}")
 
-        # Check 4: Symbol validity (must exist in stock_symbols)
         try:
             if self.conn:
                 cur = self.conn.cursor()

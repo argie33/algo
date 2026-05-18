@@ -160,7 +160,6 @@ class SignalComputer:
         """
         self.connect()
         try:
-            # Get last ~250 trading days of price + MA data in one fetch
             self.cur.execute(
                 """
                 WITH recent AS (
@@ -673,7 +672,6 @@ class SignalComputer:
                 setup_type = 'buy' if setup_count > 0 else None
 
             completed_9_today = setup_count == 9
-            # Check if a 9 fired in last 5 bars
             last_9_date = None
             for offset in range(0, min(5, len(sell_count_history))):
                 idx = -1 - offset
@@ -886,7 +884,6 @@ class SignalComputer:
                 else:
                     break
 
-            # Get 50-DMA
             self.cur.execute(
                 "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
                 (symbol, eval_date),
@@ -1059,7 +1056,6 @@ class SignalComputer:
                 full_low = min(lows)
                 # Low must be roughly in middle third
                 mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
-                # Handle: last 5-15 bars show shallow pullback (<10%) from recent high
                 handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
                 recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else 0
                 handle_present = 5 < recent_dip < 12
@@ -1154,7 +1150,6 @@ class SignalComputer:
             base = self.classify_base_type(symbol, eval_date)
             base_type = base.get('type', 'no_base')
 
-            # Get ATR if not supplied
             if atr is None:
                 self.cur.execute(
                     "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s "
@@ -1256,7 +1251,6 @@ class SignalComputer:
                     method = 'saucer_base_low'
                     reasoning = f'Saucer: 1% below saucer low ${saucer_low:.2f}'
 
-            # Check 3WT and HTF as overlays
             twt = self.three_weeks_tight(symbol, eval_date)
             if twt.get('is_3wt') and method == 'fallback_8pct':
                 # 3WT: stop below the 3-week range low
@@ -1673,7 +1667,6 @@ class SignalComputer:
                 if prev_close is not None and close < prev_close:
                     max_down_vol = max(max_down_vol, float(vol) if vol else 0)
 
-            # Check today: is it an up day with volume >= max down-day volume?
             if rows:
                 today_date, today_close, today_prev, today_vol, today_rn = rows[0]
                 today_vol = float(today_vol) if today_vol else 0

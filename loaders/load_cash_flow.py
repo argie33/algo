@@ -127,7 +127,6 @@ class CashFlowLoader(OptimalLoader):
                     capex = value
                 elif db_field in self._schema_cols:
                     row[db_field] = value
-            # Convert fiscal_quarter from string "Q1".."Q4" to integer 1..4
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
             # Calculate free_cash_flow if we have operating_cash_flow and capex

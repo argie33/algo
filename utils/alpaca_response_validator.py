@@ -49,7 +49,6 @@ class AlpacaResponseValidator:
         order_class = data.get('order_class', 'simple')
         legs = data.get('legs', [])
 
-        # Validate required fields
         if not order_id:
             errors.append('Missing or empty order ID')
         elif not isinstance(order_id, str):
@@ -61,7 +60,6 @@ class AlpacaResponseValidator:
                            'filled', 'partially_filled', 'pending_cancel', 'cancelled', 'rejected'):
             errors.append(f'Invalid status value: {status}')
 
-        # Validate filled price (optional, only if filled)
         if filled_avg_price is not None:
             try:
                 filled_float = float(filled_avg_price)
@@ -72,7 +70,6 @@ class AlpacaResponseValidator:
                 errors.append(f'Filled price not numeric: {filled_avg_price}')
                 filled_avg_price = None
 
-        # Validate bracket legs if order_class is bracket
         if order_class == 'bracket':
             if not isinstance(legs, list):
                 errors.append(f'Legs must be list, got {type(legs).__name__}')
@@ -119,11 +116,9 @@ class AlpacaResponseValidator:
         filled_avg_price = data.get('filled_avg_price')
         qty = data.get('qty')
 
-        # Validate status
         if not status:
             errors.append('Missing or empty status')
 
-        # Validate quantities (must be non-negative integers if present)
         if filled_qty is not None:
             try:
                 filled_qty = int(filled_qty)
@@ -142,7 +137,6 @@ class AlpacaResponseValidator:
                 errors.append(f'Qty not integer: {qty}')
                 qty = None
 
-        # Validate filled price (optional)
         if filled_avg_price is not None:
             try:
                 filled_avg_price = float(filled_avg_price)

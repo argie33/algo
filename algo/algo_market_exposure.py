@@ -588,7 +588,6 @@ class MarketExposure:
 
     def _ad_line(self, eval_date):
         """A/D line: cumulative advancers - decliners. Confirms or diverges from index."""
-        # Get last 20 days of A/D and SPY
         self.cur.execute(
             """
             WITH ad AS (

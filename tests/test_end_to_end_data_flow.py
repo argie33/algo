@@ -36,7 +36,6 @@ class TestDataFlowPathways:
         """Validate: loader → price_daily → /api/stocks"""
         cur = db_connection.cursor()
 
-        # 1. Check loader populated price_daily
         cur.execute("""
             SELECT COUNT(*), MAX(date) FROM price_daily
         """)
@@ -45,7 +44,6 @@ class TestDataFlowPathways:
         assert latest_date and (_date.today() - latest_date).days < 5, \
             f"Price data too old: {latest_date}"
 
-        # 2. Check price data is valid
         cur.execute("""
             SELECT COUNT(*) FROM price_daily
             WHERE close <= 0 OR open <= 0 OR high < low OR close > 1000000
@@ -53,7 +51,6 @@ class TestDataFlowPathways:
         anomalies = cur.fetchone()[0]
         assert anomalies < 100, f"Found {anomalies} price data anomalies"
 
-        # 3. Check latest prices accessible
         cur.execute("""
             SELECT COUNT(DISTINCT symbol) FROM price_daily
             WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -65,7 +62,6 @@ class TestDataFlowPathways:
         """Validate: loader → buy_sell_daily → /api/signals"""
         cur = db_connection.cursor()
 
-        # 1. Check loader populated buy_sell_daily
         cur.execute("""
             SELECT COUNT(*), MAX(date) FROM buy_sell_daily
         """)
@@ -74,7 +70,6 @@ class TestDataFlowPathways:
         assert latest_date and (_date.today() - latest_date).days < 5, \
             f"Signal data too old: {latest_date}"
 
-        # 2. Check signal values are valid
         cur.execute("""
             SELECT COUNT(DISTINCT signal) FROM buy_sell_daily
             WHERE signal IN ('BUY', 'SELL', 'HOLD')
@@ -82,7 +77,6 @@ class TestDataFlowPathways:
         valid_signals = cur.fetchone()[0]
         assert valid_signals > 0, "No valid signals found"
 
-        # 3. Check signals have proper strength values
         cur.execute("""
             SELECT COUNT(*) FROM buy_sell_daily
             WHERE strength < 0 OR strength > 100
@@ -94,7 +88,6 @@ class TestDataFlowPathways:
         """Validate: loader → stock_scores → /api/scores"""
         cur = db_connection.cursor()
 
-        # 1. Check loader populated stock_scores
         cur.execute("""
             SELECT COUNT(*), MAX(updated_at::DATE) FROM stock_scores
         """)
@@ -103,7 +96,6 @@ class TestDataFlowPathways:
         assert latest_date and (_date.today() - latest_date).days < 5, \
             f"Score data too old: {latest_date}"
 
-        # 2. Check score values are in valid ranges
         cur.execute("""
             SELECT COUNT(*) FROM stock_scores
             WHERE (composite_score < 0 OR composite_score > 100)
@@ -114,7 +106,6 @@ class TestDataFlowPathways:
         anomalies = cur.fetchone()[0]
         assert anomalies == 0, f"Found {anomalies} score values out of range"
 
-        # 3. Check multiple score types present
         cur.execute("""
             SELECT COUNT(*) FROM stock_scores
             WHERE composite_score IS NOT NULL
@@ -128,7 +119,6 @@ class TestDataFlowPathways:
         """Validate: loader → economic_data → /api/economic"""
         cur = db_connection.cursor()
 
-        # 1. Check loader populated economic_data
         cur.execute("""
             SELECT COUNT(*), MAX(date) FROM economic_data
         """)
@@ -137,14 +127,12 @@ class TestDataFlowPathways:
         assert latest_date and (_date.today() - latest_date).days < 10, \
             f"Economic data too old: {latest_date}"
 
-        # 2. Check economic indicators are present
         cur.execute("""
             SELECT COUNT(DISTINCT series_id) FROM economic_data
         """)
         indicators = cur.fetchone()[0]
         assert indicators > 5, f"Not enough economic indicators: {indicators}"
 
-        # 3. Check data values are reasonable
         cur.execute("""
             SELECT COUNT(*) FROM economic_data
             WHERE value IS NULL
@@ -156,7 +144,6 @@ class TestDataFlowPathways:
         """Validate: loader → market_health_daily → /api/market/health"""
         cur = db_connection.cursor()
 
-        # 1. Check loader populated market_health_daily
         cur.execute("""
             SELECT COUNT(*), MAX(date) FROM market_health_daily
         """)
@@ -165,7 +152,6 @@ class TestDataFlowPathways:
         assert latest_date and (_date.today() - latest_date).days < 5, \
             f"Market health data too old: {latest_date}"
 
-        # 2. Check market indicators are present
         cur.execute("""
             SELECT COUNT(*) FROM market_health_daily
             WHERE vix_level IS NOT NULL OR advance_decline_ratio IS NOT NULL
@@ -212,7 +198,6 @@ class TestDataFlowPathways:
         """Validate all data flows are current (not stale)."""
         cur = db_connection.cursor()
 
-        # Get latest dates for all flows
         cur.execute("""
             SELECT
                 (SELECT MAX(date) FROM price_daily)::DATE as price_latest,
@@ -235,12 +220,10 @@ class TestDataFlowPathways:
         cur = db_connection.cursor()
 
         # Critical path: must have symbols → prices → signals → scores
-        # Step 1: Check symbols exist
         cur.execute("SELECT COUNT(*) FROM stock_symbols")
         symbols = cur.fetchone()[0]
         assert symbols > 100, f"Not enough symbols: {symbols}"
 
-        # Step 2: Check those symbols have current prices
         cur.execute("""
             SELECT COUNT(DISTINCT symbol) FROM price_daily
             WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -249,7 +232,6 @@ class TestDataFlowPathways:
         priced_symbols = cur.fetchone()[0]
         assert priced_symbols > 100, f"Not enough priced symbols: {priced_symbols}"
 
-        # Step 3: Check those symbols have buy/sell signals
         cur.execute("""
             SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily
             WHERE date = (SELECT MAX(date) FROM buy_sell_daily)
@@ -258,7 +240,6 @@ class TestDataFlowPathways:
         signal_symbols = cur.fetchone()[0]
         assert signal_symbols > 0, f"Not enough signaled symbols: {signal_symbols}"
 
-        # Step 4: Check those symbols have scores
         cur.execute("""
             SELECT COUNT(DISTINCT symbol) FROM stock_scores
             WHERE symbol IN (SELECT symbol FROM stock_symbols LIMIT 1000)

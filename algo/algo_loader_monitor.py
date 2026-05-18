@@ -184,7 +184,6 @@ class LoaderMonitor:
         """
         self.findings = []
 
-        # 1. Check critical symbols
         if critical_symbols:
             missing, stale = self.check_symbols_have_data(critical_symbols)
 
@@ -206,7 +205,6 @@ class LoaderMonitor:
                     )
                 )
 
-        # 2. Check daily load volume
         today_count, status = self.check_daily_load_volume()
         if status == "LOW":
             self.findings.append(
@@ -227,7 +225,6 @@ class LoaderMonitor:
         else:
             logger.info(f"[OK] Daily load volume OK: {today_count} symbols")
 
-        # 3. Check universe coverage
         coverage_pct = self.check_universe_coverage()
         if coverage_pct < 95:
             self.findings.append(

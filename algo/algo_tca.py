@@ -142,7 +142,6 @@ class TCAEngine:
                 'execution_latency_ms': execution_latency_ms,
             }
 
-            # Check slippage thresholds and alert if needed
             alert = self._check_slippage_alert(symbol, slippage_bps, side)
             if alert:
                 result['alert'] = alert
@@ -235,7 +234,6 @@ class TCAEngine:
             )
             high_slippage_count = self.cur.fetchone()[0]
 
-            # Get worst symbol
             self.cur.execute(
                 """
                 SELECT symbol, ABS(slippage_bps) FROM algo_tca

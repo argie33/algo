@@ -440,7 +440,6 @@ class ExitEngine:
         cur_close = float(rows[0][0])
         recent_high = max(float(r[1]) if r[1] is not None else float(r[0]) for r in rows[:5])
 
-        # Check if pullback is meaningful: 2-3% decline
         pullback_pct = ((recent_high - cur_close) / recent_high * 100.0) if recent_high > 0 else 0
         if pullback_pct >= 2.0:
             return True
@@ -489,7 +488,6 @@ class ExitEngine:
         if self.cur is None or days_held < window_days:
             return False
         try:
-            # Check if any high in first 3 weeks gave 20%+ gain
             self.cur.execute(
                 """
                 SELECT MAX(high) FROM price_daily

@@ -103,7 +103,6 @@ class Orchestrator:
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
 
-        # Initialize connection pool for better performance
         # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
         try:
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
@@ -261,7 +260,6 @@ class Orchestrator:
             from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
             # Ensure table exists
             create_feature_flags_table()
-            # Initialize safe defaults
             initialize_safe_defaults()
         except Exception as e:
             if self.verbose:
@@ -280,7 +278,6 @@ class Orchestrator:
             return True
 
         try:
-            # Get LATEST patrol run ID first
             cur.execute("""
                 SELECT patrol_run_id FROM data_patrol_log
                 ORDER BY created_at DESC LIMIT 1
@@ -404,7 +401,6 @@ class Orchestrator:
                             else:
                                 logger.warning(f"Lock timeout: PID {old_pid} lock age {lock_age:.0f}s > {lock_timeout_seconds}s limit — forcing acquisition")
                     except (json.JSONDecodeError, ValueError):
-                        # Handle old lock format (just PID)
                         old_pid = int(lock_content)
                         if self._pid_alive(old_pid):
                             logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
@@ -652,7 +648,6 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            # Check overall pipeline health first
             try:
                 from algo.algo_pipeline_health import PipelineHealth
                 health = PipelineHealth()
@@ -689,7 +684,6 @@ class Orchestrator:
                 logger.debug("Phase 1: Running in DEV mode - skipping strict SLA checks")
                 logger.info("  [DEV MODE] Skipping SLA and loader health checks")
             else:
-                # Check critical loader SLA status first — fail-closed if data didn't load
                 try:
                     from utils.monitoring.loader_sla_tracker import get_tracker
                     tracker = get_tracker()
@@ -708,7 +702,6 @@ class Orchestrator:
                     logger.warning(f"  [WARN] SLA check failed: {e}")
                     # Don't fail-close on SLA check error, just warn
 
-                # Check loader health via monitor — fail-closed if critical data missing
                 try:
                     from algo.algo_loader_monitor import LoaderMonitor
                     monitor = LoaderMonitor()
@@ -720,7 +713,6 @@ class Orchestrator:
                             critical_symbols = None
                         findings = monitor.audit_all(critical_symbols=critical_symbols)
 
-                        # Check for CRITICAL findings (missing symbols, low volume)
                         critical_findings = [f for f in findings if f[0] == 'CRITICAL']
                         error_findings = [f for f in findings if f[0] == 'ERROR']
 
@@ -896,7 +888,6 @@ class Orchestrator:
 
                 logger.error(f"Unhandled exception: {e}")
 
-            # Check market circuit breakers (market-wide halts, L1/L2/L3)
             try:
                 from algo.algo_market_events import MarketEventHandler
                 meh = MarketEventHandler(self.config)
@@ -942,10 +933,8 @@ class Orchestrator:
             from algo.algo_position_monitor import PositionMonitor
             monitor = PositionMonitor(self.config)
 
-            # Check for single-stock halts on open positions
             try:
                 meh = MarketEventHandler(self.config)
-                # Get open positions from position monitor
                 open_positions = monitor.get_open_positions() or []
                 halts_found = []
                 for pos in open_positions:
@@ -962,7 +951,6 @@ class Orchestrator:
                 logger.warning(f"Halt check failed for position: {e}")
                 self.log_phase_result(3, 'halt_check_error', 'warn', f'Halt check failed: {str(e)[:100]}')
 
-            # Check for stale orders first
             stale_result = monitor.check_stale_orders(self.run_date)
             if stale_result['status'] == 'STALE_ORDERS_FOUND':
                 self.alerts.send_position_alert(
@@ -1104,7 +1092,6 @@ class Orchestrator:
             if position_recs is None:
                 logger.critical("Phase 4: _position_recs not set — Phase 3 may not have run")
             elif len(position_recs) == 0:
-                # Check whether there are actually open positions to distinguish
                 # "no positions" from "Phase 3 crashed with fail-open"
                 try:
                     conn_chk = get_db_connection()
@@ -1509,7 +1496,6 @@ class Orchestrator:
                     setup = (trade.get('swing_components', {}) or {}).get('setup_quality', {}).get('detail', {})
                     trend_d = (trade.get('swing_components', {}) or {}).get('trend_quality', {}).get('detail', {})
 
-                    # Get stop method from pipeline if available
                     stop_method = getattr(trade, 'stop_method', None) or 'base_type_stop'
                     stop_reasoning = getattr(trade, 'stop_reasoning', None)
 
@@ -1662,7 +1648,6 @@ class Orchestrator:
                     "Set ORCHESTRATOR_DRY_RUN=true or disable DEV_MODE before running live trading."
                 )
 
-        # Check market calendar
         if not MarketCalendar.is_trading_day(self.run_date):
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
             logger.info(f"\n⏸️  Market closed: {status['reason']}")
@@ -1685,7 +1670,6 @@ class Orchestrator:
                 logger.error(f"  [WARN] Data patrol failed: {e}")
 
 
-            # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
                 if failures >= 3:
@@ -1864,7 +1848,6 @@ class Orchestrator:
                     logger.info(f"  [TEST MODE] Using latest available data ({latest_date}) instead of run_date ({today})")
                     today = latest_date
 
-            # 1. Check required tables exist
             # Hard blocks: data required before trading
             required_hard = [
                 ('price_daily', 'Price data'),
@@ -1889,7 +1872,6 @@ class Orchestrator:
                 else:
                     logger.debug(f"  [OK] {table}: {count} rows for {today}")
 
-            # Check soft requirements (don't block, just warn)
             for table, description in required_soft:
                 assert_safe_table(table)
                 if table == 'algo_risk_daily':
@@ -1908,7 +1890,6 @@ class Orchestrator:
                 else:
                     logger.debug(f"  [OK] {table}: {count} rows for today")
 
-            # 2. Check price freshness
             cur.execute(
                 "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
                 (today,)
@@ -1923,7 +1904,6 @@ class Orchestrator:
             else:
                 issues.append("No price data found")
 
-            # 3. Check signal data completeness
             cur.execute(
                 "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
                 (today,)
@@ -1932,7 +1912,6 @@ class Orchestrator:
             if null_count > 0:
                 issues.append(f"Signal data has {null_count} critical NULLs")
 
-            # 4. Check symbol coverage (>80% of active symbols should have data)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                 (today,)
@@ -1949,7 +1928,6 @@ class Orchestrator:
                 elif coverage < 95:
                     warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
 
-            # 5. Check technical data freshness
             cur.execute(
                 "SELECT MAX(created_at) FROM technical_data_daily WHERE date = %s",
                 (today,)
@@ -1962,7 +1940,6 @@ class Orchestrator:
             else:
                 issues.append("No technical data found")
 
-            # 6. M3 FIX: Check multiple metric types for completeness before trading
             # Expand from H6 stock_scores check to include quality_metrics and value_metrics
 
             # 6a. Quality metrics (momentum, volatility, RSI, etc.)
@@ -2139,7 +2116,6 @@ if __name__ == "__main__":
     )
 
     from utils.config_validator import validate_at_startup
-    # Validate environment (no .env.local - credentials come from env vars or AWS Secrets Manager)
     validate_at_startup()
 
     import argparse

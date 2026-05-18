@@ -125,7 +125,6 @@ class FilterPipeline:
             signals = self.cur.fetchall()
             logger.info(f"Found {len(signals)} BUY signals to evaluate\n")
 
-            # Initialize advanced filters and pre-load market context once
             if self.advanced is None:
                 self.advanced = AdvancedFilters(self.config, cur=self.cur)
             ctx = self.advanced.load_market_context(eval_date)
@@ -149,18 +148,14 @@ class FilterPipeline:
                 'no_entry_price': 0,
             }
 
-            # NEW: Initialize rejection tracker (Phase 3 integration)
             tracker = RejectionTracker()
 
-            # Initialize earnings blackout and trendline checks
             earnings_blackout = EarningsBlackout(self.config)
             trendline = TrendlineSupport(cur=self.cur)
 
-            # Get current date for signal freshness check (use TODAY, not eval_date, which may be historical)
             today = _date.today()
 
             for symbol, signal_date, _signal in signals:
-                # Check earnings blackout FIRST (fail-closed on earnings risk)
                 blackout_check = earnings_blackout.run(symbol, signal_date)
                 if not blackout_check['pass']:
                     logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
@@ -232,7 +227,6 @@ class FilterPipeline:
                     tracker.log_pre_tier_rejection(eval_date, symbol, f"no_entry_price: No market close for {entry_date}")
                     continue
 
-                # Validate entry near trendline support (optional confluence check)
                 trendline_check = trendline.validate_entry_near_trendline(symbol, signal_date, float(entry_price))
                 if not trendline_check['near_trendline']:
                     logger.info(f"  WARN {symbol}: {trendline_check['reason']}")
@@ -539,7 +533,6 @@ class FilterPipeline:
                         'completeness_pct': completeness,
                     }
 
-            # Check price freshness as fallback (if completeness data not ready yet)
             self.cur.execute(
                 "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                 (symbol,),
@@ -787,7 +780,6 @@ class FilterPipeline:
         52-week high. If RS-line is weak/broken, it's a warning even if price looks good.
         """
         try:
-            # Get stock and SPY prices for RS-line calculation
             self.cur.execute(
                 """
                 SELECT s.close, spy.close
@@ -832,7 +824,6 @@ class FilterPipeline:
         Weekly chart shows the longer-term trend.
         """
         try:
-            # Check if there's a recent SELL signal on weekly chart (last 20 trading days)
             self.cur.execute(
                 """
                 SELECT signal FROM buy_sell_weekly
@@ -850,7 +841,6 @@ class FilterPipeline:
                         'reason': 'Weekly chart in SELL mode (avoid entries in Stage 3/4)',
                     }
 
-            # Check weekly price relative to 30-week SMA (Stage 2 should be above it)
             self.cur.execute(
                 """
                 SELECT pw.close,
@@ -885,7 +875,6 @@ class FilterPipeline:
         try:
             slope_days = int(self.config.get('min_rs_line_slope_days', 10))
 
-            # Get stock and SPY prices for RS-line calculation (enough for slope)
             self.cur.execute(
                 """
                 SELECT s.close, spy.close, s.date
@@ -1020,7 +1009,6 @@ class FilterPipeline:
         try:
             # Production safeguards (Phase 1)
             if signal_date:
-                # Check liquidity
                 try:
                     from algo.algo_liquidity_checks import LiquidityChecks
                     lq = LiquidityChecks(self.config)
@@ -1102,7 +1090,6 @@ class FilterPipeline:
             sizer = PositionSizer(self.config)
             result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price, signal_date)
 
-            # Check sizing result status
             if result['status'] != 'ok':
                 return {
                     'pass': False,

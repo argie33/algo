@@ -130,7 +130,6 @@ class PositionMonitor:
         self.connect()
         recs = []
         try:
-            # Check sector concentration first
             conc = self.check_sector_concentration(current_date)
             if conc['status'] == 'HIGH_CONCENTRATION':
                 logger.info(f"  [WARNING]  Portfolio concentration risk detected")
@@ -183,7 +182,6 @@ class PositionMonitor:
         entry_price = float(entry_price)
         init_stop = float(init_stop)
 
-        # B15: Validate core prices before all calculations
         if entry_price <= 0:
             logger.error(f"ERROR: Invalid entry price {entry_price} for {symbol} — cannot monitor")
             return None
@@ -203,7 +201,6 @@ class PositionMonitor:
         if cur_price is None:
             cur_price = float(db_current_price) if db_current_price else entry_price
 
-        # B14: Validate current price is positive
         if cur_price is None or cur_price <= 0:
             logger.warning(f"WARNING: Invalid current price {cur_price} for {symbol}, using entry price {entry_price}")
             cur_price = entry_price
@@ -223,7 +220,6 @@ class PositionMonitor:
             cur_price, atr, sma_50, target_hits, t1_price, t2_price,
         )
 
-        # B16: Validate stop price is below current price (can't sell above market)
         if proposed_stop > cur_price:
             logger.error(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
             proposed_stop = cur_price - 0.01  # Clamp to 1c below market
@@ -554,7 +550,6 @@ class PositionMonitor:
         adjustments = []
         self.connect()
         try:
-            # Get all open positions
             self.cur.execute("""
                 SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
                        ap.avg_entry_price AS entry_price
@@ -569,7 +564,6 @@ class PositionMonitor:
 
             for pos_id, symbol, db_qty, db_stop, entry_price in positions:
                 try:
-                    # Get current position from Alpaca
                     url = f"{alpaca_base_url}/v2/positions/{symbol}"
                     headers = {
                         'APCA-API-KEY-ID': alpaca_key,

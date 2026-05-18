@@ -191,12 +191,10 @@ class CircuitBreaker:
         if dd < threshold:
             return {'halted': False, 'reason': 'Not in drawdown halt'}
 
-        # We ARE in drawdown halt. Check if we can resume.
         recovery_threshold = float(self.config.get('re_engage_recovery_pct', 8.0))
         min_days_elapsed = int(self.config.get('re_engage_min_days', 5))
         require_ftd = bool(self.config.get('require_ftd_to_re_engage', True))
 
-        # Check 1: Has portfolio recovered to within recovery_threshold of peak?
         recovery_pct = (peak - cur_val) / peak * 100.0  # Current distance from peak
         if recovery_pct > recovery_threshold:
             return {
@@ -204,7 +202,6 @@ class CircuitBreaker:
                 'reason': f'Drawdown {dd:.1f}%, need recovery to {recovery_threshold:.1f}% to resume (currently {recovery_pct:.1f}%)',
             }
 
-        # Check 2: Has enough time elapsed since halt?
         # Find the date of the latest drawdown halt event
         days_elapsed = 0
         self.cur.execute(
@@ -224,7 +221,6 @@ class CircuitBreaker:
                     'reason': f'Halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume',
                 }
 
-        # Check 3: Require Follow-Through Day signal (optional)
         if require_ftd:
             # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
             # For now, simplified check: market is in Stage 2
@@ -435,9 +431,7 @@ class CircuitBreaker:
         if not row:
             return {'halted': True, 'reason': 'Market health data missing — fail-closed'}
 
-        # H7 FIX: Check data freshness (must be from today or yesterday)
         data_date = row[0]
-        # Convert datetime to date if needed
         if isinstance(data_date, datetime):
             data_date = data_date.date()
         days_stale = (current_date - data_date).days
@@ -548,7 +542,6 @@ class CircuitBreaker:
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
         """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
         try:
-            # Get open positions with their sectors via company_profile
             self.cur.execute(
                 """
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector

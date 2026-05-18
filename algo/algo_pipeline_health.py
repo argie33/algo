@@ -167,11 +167,9 @@ class PipelineHealth:
         )
 
         try:
-            # Validate table and column names to prevent SQL injection
             safe_table = assert_safe_table(table_name)
             safe_date_col = assert_safe_column(date_column)
 
-            # Get row count
             self.cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
             result = self.cur.fetchone()
             health.row_count = result[0] if result else 0
@@ -181,7 +179,6 @@ class PipelineHealth:
                 health.error_message = "Table is empty"
                 return health
 
-            # Get latest date
             self.cur.execute(f"SELECT MAX({safe_date_col})::DATE FROM {safe_table}")
             result = self.cur.fetchone()
             latest_date = result[0] if result else None
@@ -222,7 +219,6 @@ class PipelineHealth:
 
         status = PipelineStatus()
 
-        # Check each critical table
         for table_name, config in self.CRITICAL_TABLES.items():
             try:
                 health = self.check_table_health(

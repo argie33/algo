@@ -27,10 +27,8 @@ def is_valid_float(value: Any, allow_none: bool = False, min_val: Optional[float
 
     try:
         f = float(value)
-        # Check for NaN and Inf
         if math.isnan(f) or math.isinf(f):
             return False
-        # Check bounds if specified
         if min_val is not None and f < min_val:
             return False
         if max_val is not None and f > max_val:
@@ -47,7 +45,6 @@ def is_valid_int(value: Any, allow_none: bool = False, min_val: Optional[int] = 
 
     try:
         i = int(value)
-        # Check bounds if specified
         if min_val is not None and i < min_val:
             return False
         if max_val is not None and i > max_val:
@@ -83,28 +80,23 @@ def validate_price_row(row: Dict[str, Any], allow_missing_fields: bool = False) 
     """
     required_fields = ['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']
 
-    # Check required fields
     if not allow_missing_fields:
         for field in required_fields:
             if field not in row or row[field] is None:
                 return False, f"Missing required field: {field}"
 
-    # Validate symbol
     if not is_valid_symbol(row.get('symbol')):
         return False, f"Invalid symbol: {row.get('symbol')}"
 
-    # Validate date
     if not is_valid_date(row.get('date')):
         return False, f"Invalid date: {row.get('date')}"
 
-    # Validate prices (must be positive)
     for price_field in ['open', 'high', 'low', 'close']:
         if price_field not in row or row[price_field] is None:
             return False, f"Missing {price_field} price"
         if not is_valid_float(row[price_field], min_val=0.01):
             return False, f"Invalid {price_field} price: {row[price_field]}"
 
-    # Validate OHLC relationships
     o, h, l, c = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
 
     if h < l:
@@ -114,7 +106,6 @@ def validate_price_row(row: Dict[str, Any], allow_missing_fields: bool = False) 
     if l > o or l > c:
         return False, f"Low {l} must be <= Open {o} and Close {c}"
 
-    # Validate volume
     if 'volume' in row and row['volume'] is not None:
         if not is_valid_int(row['volume'], min_val=0):
             return False, f"Invalid volume: {row['volume']}"
@@ -130,12 +121,10 @@ def validate_technical_row(row: Dict[str, Any]) -> Tuple[bool, str]:
     """
     required_fields = ['symbol', 'date']
 
-    # Check required fields
     for field in required_fields:
         if field not in row or row[field] is None:
             return False, f"Missing required field: {field}"
 
-    # Validate symbol and date
     if not is_valid_symbol(row.get('symbol')):
         return False, f"Invalid symbol: {row.get('symbol')}"
     if not is_valid_date(row.get('date')):
@@ -166,12 +155,10 @@ def validate_score_row(row: Dict[str, Any]) -> Tuple[bool, str]:
     """
     required_fields = ['symbol']
 
-    # Check required fields
     for field in required_fields:
         if field not in row or row[field] is None:
             return False, f"Missing required field: {field}"
 
-    # Validate symbol
     if not is_valid_symbol(row.get('symbol')):
         return False, f"Invalid symbol: {row.get('symbol')}"
 
@@ -199,12 +186,10 @@ def validate_fundamental_row(row: Dict[str, Any], fields_to_check: List[str]) ->
     """
     required_fields = ['ticker', 'symbol']
 
-    # Check at least one identifier exists
     symbol = row.get('symbol') or row.get('ticker')
     if not symbol or not is_valid_symbol(symbol):
         return False, f"Invalid symbol/ticker: {symbol}"
 
-    # Validate numeric fields
     for field in fields_to_check:
         if field in row and row[field] is not None:
             if not is_valid_float(row[field]):

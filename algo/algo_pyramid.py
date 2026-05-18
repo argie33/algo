@@ -261,7 +261,6 @@ class PyramidEngine:
         from algo.algo_trade_executor import TradeExecutor
         r = recommendation
 
-        # Get portfolio value for PreTradeChecks
         self.connect()
         try:
             self.cur.execute("SELECT SUM(current_value) FROM portfolio WHERE status = 'active'")
@@ -273,7 +272,6 @@ class PyramidEngine:
         finally:
             self.disconnect()
 
-        # Run PreTradeChecks before sending order
         pretrade_checks = PreTradeChecks(self.config)
         position_value = r['add_size_shares'] * r['add_price']
         checks_passed, check_reason = pretrade_checks.run_all(
@@ -304,7 +302,6 @@ class PyramidEngine:
 
         self.connect()
         try:
-            # Update position quantity + stop price (if tighter)
             self.cur.execute(
                 """UPDATE algo_positions
                    SET quantity = quantity + %s,

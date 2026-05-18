@@ -131,14 +131,12 @@ class TradeExecutor:
         if not entry_date:
             entry_date = datetime.now().date()
 
-        # PHASE 1 FIX: Validate that entry_date is not before signal_date
         if entry_date < signal_date:
             return {
                 'success': False, 'trade_id': '', 'status': 'invalid',
                 'message': f'Invalid: entry_date {entry_date} must be >= signal_date {signal_date}'
             }
 
-        # Validate prices
         if not entry_price or entry_price <= 0:
             return {
                 'success': False, 'trade_id': '', 'status': 'invalid',
@@ -178,7 +176,6 @@ class TradeExecutor:
             }
 
         # P2 FIX: IDEMPOTENCY CHECK - Prevent duplicate positions on same symbol
-        # Check if this symbol already has an open position
         self.connect()
         try:
             self.cur.execute(
@@ -244,7 +241,6 @@ class TradeExecutor:
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
 
-            # ---- CRITICAL IDEMPOTENCY CHECK: Check if this exact trade already exists ----
             self.cur.execute(
                 "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
                 (idempotency_key,)
@@ -257,7 +253,6 @@ class TradeExecutor:
                     'message': f'Trade already exists for {symbol} on {signal_date} (idempotent duplicate)'
                 }
 
-            # ---- Check if we already have an open position for this symbol ----
             self.cur.execute(
                 "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                 (symbol, PositionStatus.OPEN.value),
@@ -268,7 +263,6 @@ class TradeExecutor:
                     'message': f'Already have open position in {symbol}'
                 }
 
-            # ---- Check for open/pending trades on this signal_date ----
             self.cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
@@ -289,7 +283,6 @@ class TradeExecutor:
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
-            # Check for PENDING trades first (count towards re-entry limit)
             self.cur.execute(
                 """
                 SELECT COUNT(*) FROM algo_trades
@@ -404,7 +397,6 @@ class TradeExecutor:
                         'message': f'Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) — order cancelled and rejected'
                     }
 
-                # Validate filled status — only mark as filled if Alpaca confirmed
                 if order_status not in ('filled', 'partially_filled'):
                     # Order pending, rejected, or cancelled — don't create position yet
                     if order_status in ('rejected', 'cancelled', 'expired'):
@@ -523,7 +515,6 @@ class TradeExecutor:
                             'success': False, 'trade_id': trade_id, 'status': verified_status or 'unknown',
                             'message': f'Order status changed from {order_status} to {verified_status} — position not created'
                         }
-                    # Update order_status with verified status (may have changed from pending to filled)
                     order_status = verified_status
 
                 position_id = f'POS-{trade_id}'
@@ -741,7 +732,6 @@ class TradeExecutor:
 
         self.connect()
         try:
-            # IDEMPOTENCY: Check if trade is already closed (prevent duplicate exits)
             self.cur.execute(
                 """
                 SELECT status FROM algo_trades WHERE trade_id = %s
@@ -778,7 +768,6 @@ class TradeExecutor:
             current_qty = int(current_qty) if current_qty else 0
             target_hits = int(target_hits) if target_hits else 0
 
-            # IDEMPOTENCY: Check if position is already closed
             if position_status == 'closed':
                 return {
                     'success': False,
@@ -853,7 +842,6 @@ class TradeExecutor:
             if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:  # NaN check
                 pnl_pct = 0.0
 
-            # Update the trade record with actual fill price
             if full_exit:
                 self.cur.execute(
                     """
@@ -889,7 +877,6 @@ class TradeExecutor:
                     ),
                 )
 
-            # Update the position with retry logic for race condition safety
             # B8: Use Decimal for precision with fractional shares
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
@@ -1102,7 +1089,6 @@ class TradeExecutor:
 
                 logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
 
-                # Validate response using dedicated validator
                 validation = validator.validate_order_response(data)
                 if not validation['valid']:
                     error_msg = f"Invalid response: {', '.join(validation['errors'])}"

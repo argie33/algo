@@ -238,7 +238,6 @@ class DataProvenanceTracker:
             return None
 
         with self.db_conn.cursor() as cur:
-            # Get the loader run metadata
             cur.execute(
                 """
                 SELECT run_id, loader_name, table_name, source_api, parameters, start_at
@@ -249,7 +248,6 @@ class DataProvenanceTracker:
             )
             run = cur.fetchone()
 
-            # Get all ticks from this run
             cur.execute(
                 """
                 SELECT provenance_id, run_id, loader_name, table_name, symbol, tick_date,
@@ -262,7 +260,6 @@ class DataProvenanceTracker:
             )
             ticks = cur.fetchall()
 
-            # Get all errors from this run
             cur.execute(
                 """
                 SELECT run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at

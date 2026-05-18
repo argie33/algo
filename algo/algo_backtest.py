@@ -45,7 +45,6 @@ from utils.structured_logger import get_logger
 logger = get_logger(__name__)
 
 
-# Get DB password from environment first, fall back to credential manager if needed
 db_password = os.getenv("DB_PASSWORD")
 if not db_password:
     try:
@@ -142,7 +141,6 @@ class Backtester:
         """
         cur = self.conn.cursor()
 
-        # Get 20-day momentum for all stocks as of this date
         query = """
             WITH price_window AS (
                 SELECT symbol, close, date,
@@ -220,7 +218,6 @@ class Backtester:
             if symbol in self.positions:
                 continue
 
-            # Get price for this date
             if symbol not in price_data:
                 continue
 
@@ -276,10 +273,8 @@ class Backtester:
 
             # Simulate trading for each day
             for i, trade_date in enumerate(trading_dates):
-                # Update existing positions
                 self._update_positions(trade_date, price_data)
 
-                # Get signals and execute entries
                 signals = self._get_signals_for_date(trade_date)
                 self._execute_entries(trade_date, signals, price_data)
 
@@ -427,7 +422,6 @@ class Backtester:
         try:
             cur = self.conn.cursor()
 
-            # Generate run_name if not provided
             if not run_name:
                 run_name = f"{strategy_name}_{self.start_date}_to_{self.end_date}"
 

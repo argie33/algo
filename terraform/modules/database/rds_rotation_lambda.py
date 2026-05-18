@@ -66,7 +66,6 @@ def update_rds_password(host: str, port: int, username: str, current_password: s
         )
         cur = conn.cursor()
 
-        # Update the password using ALTER USER with parameterized query
         cur.execute(f"ALTER USER {username} WITH PASSWORD %s", (new_password,))
 
         conn.commit()
@@ -126,34 +125,26 @@ def handler(event, context):
     logger.info(f"Rotation step: {step} for secret {secret_id}")
 
     try:
-        # Step 1: Create new secret version with rotated password
         if step == "create":
             logger.info(f"Creating new secret version for {secret_id}")
 
-            # Get current secret
             current_secret = get_secret_dict(secret_id, "AWSCURRENT")
 
-            # Generate new password
             new_password = generate_password()
 
-            # Create new secret version (marked as AWSPENDING)
             new_secret = current_secret.copy()
             new_secret['password'] = new_password
 
             version_id = set_secret_version(secret_id, new_secret)
             logger.info(f"Created new secret version {version_id}")
 
-        # Step 2: Set the new password in RDS
         elif step == "set":
             logger.info(f"Setting new password in RDS for {secret_id}")
 
-            # Get the AWSPENDING (new) secret
             pending_secret = get_secret_dict(secret_id, "AWSPENDING")
 
-            # Get the AWSCURRENT (old) secret to connect with
             current_secret = get_secret_dict(secret_id, "AWSCURRENT")
 
-            # Update RDS password
             update_rds_password(
                 host=current_secret['host'],
                 port=int(current_secret.get('port', 5432)),

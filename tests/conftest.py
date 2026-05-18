@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_DB_HOST = 'localhost'
 DEFAULT_DB_USER = 'stocks'
 
-# Set test credentials before any tests run (required for credential_manager)
 os.environ.setdefault('APCA_API_KEY_ID', 'test-key-id')
 os.environ.setdefault('APCA_API_SECRET_KEY', 'test-secret-key')
 os.environ.setdefault('DB_USER', DEFAULT_DB_USER)

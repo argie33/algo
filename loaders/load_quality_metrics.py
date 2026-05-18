@@ -43,7 +43,6 @@ class QualityMetricsLoader(OptimalLoader):
             conn = self._connect()
             cur = conn.cursor()
 
-            # Get latest income statement
             cur.execute("""
                 SELECT revenue, operating_income, net_income
                 FROM annual_income_statement
@@ -101,13 +100,11 @@ class QualityMetricsLoader(OptimalLoader):
         else:
             metrics['net_margin'] = None
 
-        # ROE: Return on Equity = Net Income / Shareholders' Equity
         if stockholders_equity and stockholders_equity > 0 and net_income is not None:
             metrics['roe'] = float(round((net_income / stockholders_equity) * 100, 2))
         else:
             metrics['roe'] = None
 
-        # ROA: Return on Assets = Net Income / Total Assets
         if total_assets and total_assets > 0 and net_income is not None:
             metrics['roa'] = float(round((net_income / total_assets) * 100, 2))
         else:

@@ -236,7 +236,6 @@ class DataPatrol:
         rather than flagging the same penny stocks repeatedly.
         """
         try:
-            # Get today's zero-volume symbols
             self.cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -246,7 +245,6 @@ class DataPatrol:
             today_zero_symbols = {row[0] for row in self.cur.fetchall()}
             today_zero_count = len(today_zero_symbols)
 
-            # Get yesterday's zero-volume symbols (baseline)
             self.cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
@@ -565,7 +563,6 @@ class DataPatrol:
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
             return
 
-        # Get top N symbols by recent volume from our DB
         try:
             self.cur.execute("""
                 SELECT symbol FROM price_daily
@@ -584,7 +581,6 @@ class DataPatrol:
         mismatches = []
         for sym in symbols:
             try:
-                # Get latest bar from Alpaca
                 resp = requests.get(
                     f'{data_base}/v2/stocks/{sym}/bars/latest',
                     headers=headers, timeout=5,
@@ -990,7 +986,6 @@ class DataPatrol:
         Catches missing price data for executed trades (DB corruption or loader failure).
         """
         try:
-            # Get all filled trades from past 60 days (use created_at as fill_date fallback)
             self.cur.execute("""
                 SELECT t.trade_id, t.symbol, t.created_at::date as fill_date, COUNT(p.date) as price_count
                 FROM algo_trades t
@@ -1086,7 +1081,6 @@ class DataPatrol:
             try:
                 # key_metrics uses 'ticker' instead of 'symbol'
                 sym_col = 'ticker' if tbl == 'key_metrics' else 'symbol'
-                # Validate identifiers for safety
                 safe_tbl = assert_safe_table(tbl)
                 safe_col = assert_safe_column(col)
                 safe_sym_col = assert_safe_column(sym_col)

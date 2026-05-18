@@ -111,7 +111,6 @@ async def get_fear_greed_data():
         try:
             logging.info(f"HTTP attempt {attempt}/{MAX_RETRIES}")
 
-            # Create a session with retries
             session = requests.Session()
             retry = Retry(
                 total=3,
@@ -123,7 +122,6 @@ async def get_fear_greed_data():
             session.mount('http://', adapter)
             session.mount('https://', adapter)
 
-            # Set headers to avoid being blocked
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -169,7 +167,6 @@ async def load_fear_greed_data(cur, conn):
             logging.warning("No Fear & Greed data scraped")
             return 0, 0, []
         
-        # Convert data to list of tuples for batch insert and deduplicate by date
         rows_dict = {}  # Use dict to deduplicate by date
         for item in data_array:
             try:
@@ -183,7 +180,6 @@ async def load_fear_greed_data(cur, conn):
                 logging.warning(f"Failed to process item {item}: {e}")
                 continue
 
-        # Convert back to list
         rows = list(rows_dict.values())
 
         if not rows:
@@ -281,7 +277,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Handle event loop properly for Python 3.10+
         import platform
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

@@ -22,7 +22,6 @@ class TestFilterPipelinePerformance:
         config = {'max_positions': 20, 'max_sector_exposure_pct': 30}
         pipeline = FilterPipeline(config)
 
-        # Generate 1000 mock symbols
         symbols = []
         for i in range(1000):
             symbols.append({
@@ -56,7 +55,6 @@ class TestFilterPipelinePerformance:
         """Filter pipeline should use reasonable memory for large datasets."""
         import sys
 
-        # Create large dataset
         test_data = []
         for i in range(1000):
             test_data.append({

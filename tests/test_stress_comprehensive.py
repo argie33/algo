@@ -146,7 +146,6 @@ class TestDataPipelineStress:
 
     def test_concurrent_loader_race_conditions(self, test_cursor):
         """Verify no race conditions from concurrent loader execution."""
-        # Check for data integrity issues that occur with concurrent writes
         test_cursor.execute("""
             SELECT COUNT(*) as duplicates FROM (
                 SELECT symbol, date, COUNT(*) as cnt
@@ -266,7 +265,6 @@ class TestOrchestratorStability:
 
     def test_orchestrator_no_data_deadlocks(self, test_cursor):
         """Verify no table locks or deadlocks in orchestrator tables."""
-        # Check that key tables are accessible and responsive
         tables = [
             'algo_positions',
             'algo_trades',

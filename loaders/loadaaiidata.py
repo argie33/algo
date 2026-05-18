@@ -108,7 +108,6 @@ def get_aaii_sentiment_data():
             response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
             response.raise_for_status()
             
-            # Check the content-type header for debugging
             content_type = response.headers.get("Content-Type", "")
             content_length = response.headers.get("Content-Length", "unknown")
             logging.info(f"Response received - Content-Type: {content_type}, Content-Length: {content_length}")
@@ -119,7 +118,6 @@ def get_aaii_sentiment_data():
                 logging.error(f"Response preview: {response.content[:500]}")
                 raise ValueError("Server returned HTML instead of an Excel file. Check the URL or headers.")
             
-            # Validate file size
             if len(response.content) < 1000:  # Excel files should be larger than 1KB
                 logging.error(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
                 raise ValueError(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
@@ -151,7 +149,6 @@ def get_aaii_sentiment_data():
                 df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
                 df[col] = pd.to_numeric(df[col], errors="coerce")
             
-            # Convert the Date column to datetime and then to string in YYYY-MM-DD format
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
             df = df.dropna(subset=["Date"])  # Drop rows where date conversion failed
             df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
@@ -188,7 +185,6 @@ def load_sentiment_data(cur, conn):
             logging.warning("No sentiment data downloaded")
             return 0, 0, []
         
-        # Convert DataFrame to list of tuples for batch insert
         rows = []
         for _, row in df.iterrows():
             rows.append([

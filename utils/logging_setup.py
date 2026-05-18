@@ -51,5 +51,4 @@ def get_logger(name):
     return logging.getLogger(name)
 
 
-# Setup on import
 setup_logging()

@@ -117,7 +117,6 @@ class MarketCalendar:
                     'is_open': False,
                 }
 
-        # Check time
         market_open = time(9, 30)
         market_close = time(16, 0)
         is_early_close = check_date in EARLY_CLOSES

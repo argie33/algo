@@ -132,7 +132,6 @@ class TestDataQuality:
         """Verify stock scores are in valid ranges."""
         cur = db_connection.cursor()
         try:
-            # Check composite_score values are in valid range (should be 0-100)
             cur.execute("""
                 SELECT COUNT(*) as anomalies
                 FROM stock_scores
@@ -198,7 +197,6 @@ class TestDataConsistency:
             result = cur.fetchone()
             orphan_count = result[0] if result else 0
 
-            # Get total count to calculate percentage
             cur.execute("SELECT COUNT(*) FROM price_daily")
             total_result = cur.fetchone()
             total = total_result[0] if total_result else 1

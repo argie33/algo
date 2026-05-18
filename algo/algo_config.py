@@ -44,7 +44,6 @@ def validate_environment():
     return True
 
 
-# Validate on import
 try:
     validate_environment()
 except Exception as e:
@@ -172,7 +171,6 @@ class AlgoConfig:
         'earnings_blackout_days_before': ('7', 'int', 'Days before earnings to block entries'),
         'earnings_blackout_days_after': ('3', 'int', 'Days after earnings to block entries'),
 
-        # Liquidity Checks
         'min_daily_volume_shares': ('500000', 'int', 'Minimum daily volume shares'),
         'max_spread_pct': ('0.5', 'float', 'Maximum bid-ask spread %'),
         'min_market_cap_millions': ('300.0', 'float', 'Minimum market cap $M'),
@@ -235,7 +233,6 @@ class AlgoConfig:
                         self._config[key] = self._parse_value(value, dtype)
                     except ValueError as e:
                         logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
-            # Validate R-multiple ordering after full config load
             self._validate_r_multiple_ordering()
         except Exception as e:
             logger.warning(f"Warning: Could not load config from DB: {e}")
@@ -339,7 +336,6 @@ class AlgoConfig:
         conn = None
         cur = None
         try:
-            # Validate before storing
             self._validate_value(key, str(value), value_type)
 
             conn = get_db_connection()
@@ -357,7 +353,6 @@ class AlgoConfig:
 
             conn.commit()
 
-            # Update in-memory config
             self._config[key] = self._parse_value(str(value), value_type)
 
             return True

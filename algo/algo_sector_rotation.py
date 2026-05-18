@@ -82,7 +82,6 @@ class SectorRotationDetector:
         self.connect()
 
         try:
-            # Get latest sector ranking for all sectors
             self.cur.execute(
                 """
                 SELECT sector_name, current_rank, momentum_score,

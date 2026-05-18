@@ -273,7 +273,6 @@ class TestGreeksCalculator(unittest.TestCase):
             option_type='put'
         )
 
-        # Put-Call Parity: C - P = S - K*e^(-rT)
         expected_diff = 100 - 100 * math.exp(-0.05 * 0.25)
         actual_diff = call['theoretical_value'] - put['theoretical_value']
 
@@ -328,7 +327,6 @@ class TestGreeksCalculator(unittest.TestCase):
 
     def test_iv_rank_calculation(self):
         """Test IV percentile rank calculation"""
-        # Create at least 30 data points for meaningful IV rank
         iv_history = [0.15 + i * 0.001 for i in range(40)]
         current_iv = 0.24
 

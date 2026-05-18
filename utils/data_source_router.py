@@ -189,7 +189,6 @@ class DataSourceRouter:
                 timeout=15,
             )
 
-            # Handle rate limit response (429) with Retry-After header
             if resp.status_code == 429:
                 retry_after = resp.headers.get('Retry-After', '60')
                 wait_time = float(retry_after) if retry_after.replace('.', '', 1).isdigit() else 60.0

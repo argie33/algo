@@ -70,7 +70,6 @@ class LoaderHealthTracker:
         Returns dict with latest_date, row_count, age_days, status.
         """
         try:
-            # Check if table exists
             assert_safe_table(table_name)
             self.cur.execute("""
                 SELECT EXISTS (
@@ -90,7 +89,6 @@ class LoaderHealthTracker:
                     'error_message': f'Table {table_name} does not exist'
                 }
 
-            # Get row count and latest date
             # Try common date column names
             date_columns = ['date', 'created_at', 'updated_at', 'last_run', 'action_date', 'earnings_date']
             latest_date = None

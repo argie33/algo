@@ -514,7 +514,6 @@ class SwingTraderScore:
             else:
                 rs_pts = 0
 
-        # Return blend: 21d (1m), 63d (3m), 126d (6m)
         r1 = self._signals._period_return(symbol, eval_date, 21) or 0
         r3 = self._signals._period_return(symbol, eval_date, 63) or 0
         r6 = self._signals._period_return(symbol, eval_date, 126) or 0
@@ -1021,7 +1020,6 @@ if __name__ == "__main__":
     eval_date = _date(2026, 4, 24)
     logger.info(f"SWING TRADER SCORES — {eval_date}")
 
-    # Get sector/industry from company_profile
     candidates = ('AROC', 'CASS', 'CVV', 'EW', 'FSTR', 'LRCX', 'NATR', 'NBHC', 'NGS', 'SMTC', 'SRCE', 'CTS')
     for sym in candidates:
         s.cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))

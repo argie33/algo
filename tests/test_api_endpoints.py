@@ -19,7 +19,6 @@ from datetime import datetime
 BASE_URL = "http://localhost:3001"
 
 # API endpoints to test with expected structures
-# Updated to match actual endpoints in Lambda (deleted pages/endpoints removed)
 ENDPOINTS = {
     # Core health & status
     "/api/health": "GET",
