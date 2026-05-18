@@ -273,12 +273,7 @@ jobs:
               SECRET_VAL=$(aws secretsmanager get-secret-value \
                 --secret-id "$SECRET_ARN" \
                 --query 'SecretString' --output text --region $AWS_REGION)
-              UPDATED=$(echo "$SECRET_VAL" | python3 -c "
-import json, sys
-s = json.load(sys.stdin)
-s['password'] = '$RDS_PASSWORD'
-print(json.dumps(s))
-")
+              UPDATED=$(echo "$SECRET_VAL" | jq --arg pw "$RDS_PASSWORD" '.password = $pw')
               aws secretsmanager put-secret-value \
                 --secret-id "$SECRET_ARN" \
                 --secret-string "$UPDATED" \
