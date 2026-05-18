@@ -23,11 +23,11 @@ def _safe_limit(limit_str, max_val=50000, default=500):
     except:
         return default
 
-def _handle_contact(self, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
-        """Handle /api/contact and /api/contact/submissions."""
-        try:
-            if path == '/api/contact/submissions':
-                cur.execute("""
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+    """Handle /api/contact and /api/contact/submissions."""
+    try:
+        if path == '/api/contact/submissions':
+            cur.execute("""
                     SELECT id, name, email, subject, message, status, submitted_at
                     FROM contact_submissions
                     ORDER BY submitted_at DESC
