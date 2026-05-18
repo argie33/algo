@@ -14,14 +14,20 @@ logger = logging.getLogger(__name__)
 tier_0 = ['loadstocksymbols.py']
 
 # Tier 1: Price data (depends on symbols, can run in parallel with tier 2)
+# REFACTORED: Consolidated 4 loaders (loadpricedaily, load_price_aggregate, loadetfpricedaily, load_etf_price_aggregate)
+# into 1 parametrized loader using native yfinance intervals (1d/1wk/1mo) instead of local aggregation
 tier_1_prices = [
-    'loadpricedaily.py', 'loadetfpricedaily.py',
+    ('loadpricedaily.py', ['--interval', '1d']),  # Daily stock prices from yfinance
+    ('loadpricedaily.py', ['--interval', '1d', '--asset-class', 'etf']),  # Daily ETF prices
 ]
 
 # Tier 1b: Price aggregates (depends on tier 1, run after daily prices)
+# Now uses native yfinance intervals instead of client-side aggregation
 tier_1b_aggregates = [
-    'load_price_aggregate.py',  # Generates weekly and monthly from daily
-    'load_etf_price_aggregate.py',  # Generates weekly and monthly ETF prices
+    ('loadpricedaily.py', ['--interval', '1wk']),  # Weekly stock prices (native API call)
+    ('loadpricedaily.py', ['--interval', '1mo']),  # Monthly stock prices (native API call)
+    ('loadpricedaily.py', ['--interval', '1wk', '--asset-class', 'etf']),  # Weekly ETF prices
+    ('loadpricedaily.py', ['--interval', '1mo', '--asset-class', 'etf']),  # Monthly ETF prices
 ]
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)

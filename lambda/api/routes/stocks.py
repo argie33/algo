@@ -14,8 +14,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         if symbol and path == f'/api/stocks/{symbol}':
             cur.execute("""
                 SELECT ss.symbol, ss.security_name as company_name,
-                       cp.sector, cp.industry, cp.market_cap, cp.description,
-                       cp.website, cp.employees, cp.country, cp.exchange
+                       cp.sector, cp.industry, cp.website, cp.employees, cp.exchange
                 FROM stock_symbols ss
                 LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
                 WHERE ss.symbol = %s
