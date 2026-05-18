@@ -894,7 +894,7 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date, exposure_pct, raw_score, regime, factors, halt_reasons
+                SELECT id, date, exposure_pct, raw_score, regime, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
