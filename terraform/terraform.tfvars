@@ -20,3 +20,6 @@ alpaca_paper_trading   = false  # REAL TRADING - set to true for paper trading d
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
 # For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
 # Or create terraform.tfvars.local (gitignored) with: rds_password = "..."
+
+# Dev cost savings: shorter backup retention (30d default is overkill in dev)
+rds_backup_retention_period = 7

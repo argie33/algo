@@ -63,6 +63,7 @@ module "database" {
   db_master_password              = var.rds_password
   rds_db_name                     = var.rds_db_name
   db_multi_az                     = var.rds_multi_az
+  enable_rds_proxy                = false
   enable_rds_kms_encryption       = var.environment == "prod"
   rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
   enable_rds_alarms               = var.enable_rds_alarms
