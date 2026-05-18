@@ -120,7 +120,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return list_response([dict(s) for s in sentiment] if sentiment else [])
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
-                return _get_fear_greed_history(cur, cur, range_days)
+                return _get_fear_greed_history(cur, range_days)
             elif path == '/api/market/status':
                 cur.execute("""
                     SELECT date, market_trend, market_stage, advance_decline_ratio,
