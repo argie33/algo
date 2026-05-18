@@ -141,6 +141,16 @@ jobs:
           echo "Log Group: $LOG_GROUP"
           echo "Task ID: $TASK_ID"
           echo ""
+
+          # First, list all available log streams to debug
+          echo "Available log streams in $LOG_GROUP:"
+          aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'logStreams[*].logStreamName' \
+            --output text || echo "Could not list log streams"
+          echo ""
+
           echo "========================================"
           echo "LOADER EXECUTION LOGS"
           echo "========================================"
@@ -149,7 +159,6 @@ jobs:
           # Get log stream name
           LOG_STREAM=$(aws logs describe-log-streams \
             --log-group-name "$LOG_GROUP" \
-            --log-stream-name-prefix "$TASK_ID" \
             --order-by LastEventTime \
             --descending \
             --max-items 1 \
@@ -158,11 +167,13 @@ jobs:
             --output text 2>/dev/null)
 
           if [ -z "$LOG_STREAM" ] || [ "$LOG_STREAM" = "None" ]; then
-            echo "⚠️  No log streams found yet (logs may be delayed)"
+            echo "⚠️  No log streams found"
             echo ""
             echo "You can check logs manually at:"
             echo "  https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logStream:group=$LOG_GROUP"
           else
+            echo "Found log stream: $LOG_STREAM"
+            echo ""
             # Get and print log events
             aws logs get-log-events \
               --log-group-name "$LOG_GROUP" \
