@@ -51,21 +51,16 @@ tier_2_reference = [
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
-    'loadmarketindices.py', 'loadseasonality.py',
-    'loadecondata.py', 'loadaaiidata.py', 'loadfeargreed.py',
-    # Company and sentiment data
-    'loadcompanyprofile.py', 'loadanalystsentiment.py', 'loadanalystupgradedowngrade.py',
+    # Company profile and analyst data
+    'loadcompanyprofile.py', 'loadanalystupgradedowngrade.py',
     # Calendar data
     'load_earnings_calendar.py',
     # Sector and industry data
-    'loadsectors.py', 'loadindustryranking.py', 'loadnaaim.py',
+    'loadsectors.py', 'loadindustryranking.py',
 ]
 
-# Tier 2c: TTM aggregates (depends on quarterly financials from tier 2)
-tier_2c_ttm = [
-    'loadttmincomestatement.py',  # Sums 4 most recent quarters
-    'loadttmcashflow.py',         # Sums 4 most recent quarters
-]
+# Tier 2c: TTM aggregates - REMOVED (consolidated into quarterly reports, not needed separately)
+tier_2c_ttm = []
 
 # Tier 2b: Computed metrics (depends on tier 2 financials)
 tier_2b_metrics = [
@@ -80,14 +75,20 @@ tier_2d_scores = [
 ]
 
 # Tier 3: Technical signals (depends on prices)
+# REFACTORED: Consolidated 4 loaders (loadbuyselldaily, loadbuysell_etf_daily, load_buysell_aggregate, load_buysell_etf_aggregate)
+# into 1 parametrized loader using --timeframe (daily/weekly/monthly) and --asset-class (stock/etf) parameters
 tier_3_signals = [
-    'loadbuyselldaily.py', 'loadbuysell_etf_daily.py',
+    ('loadbuyselldaily.py', ['--timeframe', 'daily']),  # Daily stock signals
+    ('loadbuyselldaily.py', ['--timeframe', 'daily', '--asset-class', 'etf']),  # Daily ETF signals
 ]
 
-# Tier 3b: Signal aggregates (depends on tier 3)
+# Tier 3b: Signal aggregates (depends on tier 3, run after daily signals)
+# Now uses parametrized loaders with native timeframe support
 tier_3b_aggregates = [
-    'load_buysell_aggregate.py',  # Generates weekly and monthly signals
-    'load_buysell_etf_aggregate.py',  # Generates weekly and monthly ETF signals
+    ('loadbuyselldaily.py', ['--timeframe', 'weekly']),  # Weekly stock signals
+    ('loadbuyselldaily.py', ['--timeframe', 'monthly']),  # Monthly stock signals
+    ('loadbuyselldaily.py', ['--timeframe', 'weekly', '--asset-class', 'etf']),  # Weekly ETF signals
+    ('loadbuyselldaily.py', ['--timeframe', 'monthly', '--asset-class', 'etf']),  # Monthly ETF signals
 ]
 
 # Tier 4: Signal quality scores and algo metrics (depends on signals)

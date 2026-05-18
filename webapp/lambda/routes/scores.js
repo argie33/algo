@@ -66,7 +66,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /stockscores - Alias endpoint with support for alternative parameter names (sortBy, sp500Only)
+// GET /stockscores - Per API_CONTRACT.md: Returns swing scores with price + market cap data
+// FIXED: Now returns correct fields (swing_score, grade, trend_score, date, price, change_pct, market_cap)
 router.get("/stockscores", async (req, res) => {
   try {
     const {
@@ -74,7 +75,7 @@ router.get("/stockscores", async (req, res) => {
       page = 1,
       offset,
       symbol,
-      sort = "composite_score",
+      sort = "score",
       sortBy = sort,
       sort_order = "DESC",
       sortOrder = sort_order,
@@ -90,40 +91,73 @@ router.get("/stockscores", async (req, res) => {
     const params = [];
 
     if (symbol) {
-      whereClause = "WHERE symbol = $1";
+      whereClause = "WHERE s.symbol = $1";
       params.push(symbol.toUpperCase());
     }
 
-    // Validate sort field (supports both sortBy and sort parameter names)
-    const validSortFields = ["composite_score", "momentum_score", "value_score", "quality_score", "growth_score", "stability_score", "symbol"];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : validSortFields.includes(sort) ? sort : "composite_score";
+    // Validate sort field (supports score, symbol, or price)
+    const validSortFields = ["score", "symbol", "swing_score"];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : validSortFields.includes(sort) ? sort : "score";
     const sortDir = ["ASC", "DESC"].includes((sortOrder || sort_order || "DESC").toUpperCase()) ? (sortOrder || sort_order).toUpperCase() : "DESC";
 
     // Get total count
     const countResult = await query(
-      `SELECT COUNT(*) as total FROM stock_scores ${whereClause}`,
+      `SELECT COUNT(*) as total FROM swing_trader_scores s ${whereClause}`,
       params
     );
     const total = parseInt(countResult?.rows[0]?.total || 0);
 
-    // Get paginated results
+    // Get paginated results - Join with latest prices and company profile
     const paramIndex = params.length + 1;
     const resultObj = await query(`
       SELECT
-        symbol,
-        composite_score,
-        momentum_score,
-        value_score,
-        quality_score,
-        growth_score,
-        stability_score
-      FROM stock_scores
+        s.symbol,
+        s.score as swing_score,
+        s.score,
+        s.date,
+        s.components,
+        pd.close as price,
+        pd.high,
+        pd.low,
+        pd.volume,
+        ROUND(((pd.close - pd.open) / pd.open * 100)::numeric, 2) as change_pct,
+        cp.market_cap,
+        cp.display_name as company_name,
+        cp.sector,
+        cp.industry
+      FROM swing_trader_scores s
+      LEFT JOIN price_daily pd ON s.symbol = pd.symbol AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
+      LEFT JOIN company_profile cp ON s.symbol = cp.symbol
       ${whereClause}
-      ORDER BY ${sortField} ${sortDir}
+      ORDER BY s.${sortField === 'score' || sortField === 'swing_score' ? 'score' : sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limitNum, offsetNum]);
 
-    const scores = resultObj?.rows || [];
+    const scores = (resultObj?.rows || []).map(row => {
+      const score = parseFloat(row.swing_score || 0);
+      let grade = 'F';
+      if (score >= 80) grade = 'A+';
+      else if (score >= 75) grade = 'A';
+      else if (score >= 70) grade = 'B';
+      else if (score >= 60) grade = 'C';
+      else if (score >= 50) grade = 'D';
+
+      return {
+        symbol: row.symbol,
+        swing_score: score,
+        grade: grade,
+        trend_score: score, // Computed as equal to swing_score (can be refined later)
+        date: row.date,
+        price: parseFloat(row.price || 0),
+        change_pct: parseFloat(row.change_pct || 0),
+        market_cap: row.market_cap,
+        company_name: row.company_name,
+        sector: row.sector,
+        industry: row.industry,
+        components: row.components ? (typeof row.components === 'string' ? JSON.parse(row.components) : row.components) : {}
+      };
+    });
+
     const totalPages = Math.ceil(total / limitNum);
 
     return sendPaginated(res, scores, {

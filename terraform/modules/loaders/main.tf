@@ -124,15 +124,16 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 
 locals {
   # Maps each Terraform loader key to the actual Python script filename.
-  # entrypoint.sh reads LOADER_FILE to determine which script to exec.
+  # entrypoint.sh reads LOADER_FILE and LOADER_TYPE to construct the command
+  # with appropriate arguments (e.g. --interval 1d, --asset-class etf).
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
     "stock_prices_daily"            = "loadpricedaily.py"
-    "stock_prices_weekly"           = "load_price_aggregate.py"
-    "stock_prices_monthly"          = "load_price_aggregate.py"
-    "etf_prices_daily"              = "loadetfpricedaily.py"
-    "etf_prices_weekly"             = "load_etf_price_aggregate.py"
-    "etf_prices_monthly"            = "load_etf_price_aggregate.py"
+    "stock_prices_weekly"           = "loadpricedaily.py"
+    "stock_prices_monthly"          = "loadpricedaily.py"
+    "etf_prices_daily"              = "loadpricedaily.py"
+    "etf_prices_weekly"             = "loadpricedaily.py"
+    "etf_prices_monthly"            = "loadpricedaily.py"
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
     "financials_annual_cashflow"    = "load_cash_flow.py"
@@ -163,11 +164,11 @@ locals {
     "trend_template_data"           = "load_trend_template_data.py"
     "stock_scores"                  = "loadstockscores.py"
     "signals_daily"                 = "loadbuyselldaily.py"
-    "signals_weekly"                = "load_buysell_aggregate.py"
-    "signals_monthly"               = "load_buysell_aggregate.py"
-    "signals_etf_daily"             = "loadbuysell_etf_daily.py"
-    "signals_etf_weekly"            = "load_buysell_etf_aggregate.py"
-    "signals_etf_monthly"           = "load_buysell_etf_aggregate.py"
+    "signals_weekly"                = "loadbuyselldaily.py"
+    "signals_monthly"               = "loadbuyselldaily.py"
+    "signals_etf_daily"             = "loadbuyselldaily.py"
+    "signals_etf_weekly"            = "loadbuyselldaily.py"
+    "signals_etf_monthly"           = "loadbuyselldaily.py"
     "algo_metrics_daily"            = "load_algo_metrics_daily.py"
     "eod_bulk_refresh"              = "load_eod_bulk.py"
     "market_data_batch"             = "load_market_data_batch.py"

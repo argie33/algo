@@ -4,25 +4,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Daily Buy/Sell Signals Loader - Optimal Pattern.
+Buy/Sell Signals Loader - Multi-timeframe (daily/weekly/monthly) with stock/ETF support.
 
-Computes buy/sell trading signals from price_daily using technical indicators.
-Inherits watermarks, dedup, parallelism, and bulk COPY from OptimalLoader.
+Consolidated: Previously split across loadbuyselldaily.py, loadbuysell_etf_daily.py,
+load_buysell_aggregate.py, and load_buysell_etf_aggregate.py. Now one parametrized loader.
 
-Data source:
-    Reads price history from the local `price_daily` table (already populated
-    by `loadpricedaily.py`). This avoids hammering Yahoo Finance / Alpaca for
-    data we already have. If price_daily lacks coverage, run loadpricedaily.py
-    first.
+Computes buy/sell trading signals from price_daily (or etf_price_daily) using technical indicators.
+Reads local price tables (populated by loadpricedaily.py) to avoid re-fetching from APIs.
 
 Run:
-    python3 loadbuyselldaily.py [--symbols AAPL,MSFT] [--parallelism 8]
+    python3 loadbuyselldaily.py --timeframe daily [--symbols AAPL,MSFT] [--asset-class stock]
+    python3 loadbuyselldaily.py --timeframe weekly [--symbols AAPL,MSFT]
+    python3 loadbuyselldaily.py --timeframe daily --symbols SPY,QQQ --asset-class etf
 """
 import argparse
 import logging
 import os
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -37,10 +36,65 @@ logger = get_logger(__name__)
 log = logging.getLogger(__name__)
 
 
-class BuySellDailyLoader(OptimalLoader):
-    table_name = "buy_sell_daily"
-    primary_key = ("symbol", "date")
-    watermark_field = "date"
+# Config for different timeframes
+_TIMEFRAME_CONFIG = {
+    "daily": {
+        "resample_rule": None,  # No resampling for daily
+        "min_daily_rows": 50,
+        "min_bars": 50,
+        "lookback_days": 300,
+        "has_atr": True,
+    },
+    "weekly": {
+        "resample_rule": "W",
+        "min_daily_rows": 50,
+        "min_bars": 15,
+        "lookback_days": 400,
+        "has_atr": True,
+    },
+    "monthly": {
+        "resample_rule": "MS",
+        "min_daily_rows": 100,
+        "min_bars": 12,
+        "lookback_days": 800,
+        "has_atr": False,
+    },
+}
+
+
+class BuySellSignalsLoader(OptimalLoader):
+    """Multi-timeframe buy/sell signals loader. Consolidates 4 separate loaders."""
+
+    def __init__(self, timeframe: str = "daily", asset_class: str = "stock", *args, **kwargs):
+        """Initialize with timeframe (daily/weekly/monthly) and asset_class (stock/etf)."""
+        assert timeframe in ("daily", "weekly", "monthly"), f"Invalid timeframe: {timeframe}"
+        assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
+
+        self.timeframe = timeframe
+        self.asset_class = asset_class
+        self.cfg = _TIMEFRAME_CONFIG[timeframe]
+
+        # Map timeframe + asset_class to table names
+        if asset_class == "etf":
+            self.price_table = "etf_price_daily"
+            if timeframe == "daily":
+                self.table_name = "buy_sell_daily_etf"
+            elif timeframe == "weekly":
+                self.table_name = "buy_sell_weekly_etf"
+            else:  # monthly
+                self.table_name = "buy_sell_monthly_etf"
+        else:  # stock
+            self.price_table = "price_daily"
+            if timeframe == "daily":
+                self.table_name = "buy_sell_daily"
+            elif timeframe == "weekly":
+                self.table_name = "buy_sell_weekly"
+            else:  # monthly
+                self.table_name = "buy_sell_monthly"
+
+        self.primary_key = ("symbol", "date")
+        self.watermark_field = "date"
+        super().__init__(*args, **kwargs)
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Pull price rows from the local `price_daily` table.
@@ -301,7 +355,11 @@ class BuySellDailyLoader(OptimalLoader):
 
 def main():
     load_env()
-    parser = argparse.ArgumentParser(description="Optimal buy_sell_daily loader")
+    parser = argparse.ArgumentParser(description="Buy/Sell signals loader - Multi-timeframe (daily/weekly/monthly)")
+    parser.add_argument("--timeframe", choices=["daily", "weekly", "monthly"], default="daily",
+                        help="Timeframe: daily, weekly, or monthly")
+    parser.add_argument("--asset-class", choices=["stock", "etf"], default="stock",
+                        help="Asset class: stock or etf")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stock_symbols table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers (compute-intensive)")
     args = parser.parse_args()
@@ -311,7 +369,7 @@ def main():
     else:
         symbols = get_active_symbols()
 
-    loader = BuySellDailyLoader()
+    loader = BuySellSignalsLoader(timeframe=args.timeframe, asset_class=args.asset_class)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
     finally:

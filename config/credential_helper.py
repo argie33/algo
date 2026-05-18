@@ -78,7 +78,7 @@ def get_db_password() -> str:
     """
     # 1. Try environment variable first (CI/Lambda)
     password = os.getenv("DB_PASSWORD")
-    if password:
+    if password is not None:
         return password
 
     # 2. Try credential_manager (local dev with AWS access)

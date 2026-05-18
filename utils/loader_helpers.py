@@ -17,10 +17,9 @@ from pathlib import Path
 def get_active_symbols() -> List[str]:
     """Get list of active stock symbols from database.
 
-    Used by: load_balance_sheet.py, load_buysell_aggregate.py, load_buysell_etf_aggregate.py,
-             load_cash_flow.py, load_etf_price_aggregate.py, load_income_statement.py,
-             load_key_metrics.py, load_market_data_batch.py, load_price_aggregate.py,
-             load_quality_metrics.py, load_technical_indicators.py, and 8 others
+    Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
+             load_income_statement.py, load_key_metrics.py, loadpricedaily.py,
+             load_quality_metrics.py, and others
 
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
     """
@@ -36,12 +35,9 @@ def get_active_symbols() -> List[str]:
 
 
 def _resolve_timeframe(cli_arg: str = None) -> str:
-    """Resolve timeframe from CLI arg or environment variable for aggregate loaders.
+    """Resolve timeframe from CLI arg or environment variable.
 
-    Used by: load_buysell_aggregate.py, load_buysell_etf_aggregate.py,
-             load_etf_price_aggregate.py, load_price_aggregate.py
-
-    Originally defined identically in 4 different files. Consolidated 2026-05-18.
+    Used by: loadbuyselldaily.py, loadpricedaily.py
 
     Priority:
     1. CLI argument (if provided)

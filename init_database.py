@@ -20,6 +20,7 @@ def init_database():
             host=db_host, port=db_port, database=db_name,
             user=db_user, password=db_password, connect_timeout=10
         )
+        conn.autocommit = True
         cur = conn.cursor()
 
         schema_path = Path(__file__).parent / 'terraform' / 'modules' / 'database' / 'init.sql'
@@ -27,7 +28,7 @@ def init_database():
             logger.error(f"✗ Schema file not found: {schema_path}")
             return False
 
-        with open(schema_path, 'r') as f:
+        with open(schema_path, 'r', encoding='utf-8') as f:
             schema_sql = f.read()
 
         statements = [s.strip() for s in schema_sql.split(';') if s.strip()]
@@ -43,9 +44,8 @@ def init_database():
             except (psycopg2.ProgrammingError, psycopg2.errors.DuplicateObject,
                     psycopg2.errors.DuplicateColumn, psycopg2.errors.UndefinedColumn,
                     psycopg2.errors.UndefinedTable, psycopg2.errors.SyntaxError):
-                conn.rollback()  # clear aborted transaction so next statement can run
+                pass
 
-        conn.commit()
         cur.close()
         conn.close()
 

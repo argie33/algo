@@ -44,22 +44,22 @@ def safe_page(page_str, default=1):
 
 def error_response(code, typ, msg):
     """Standardized error response."""
-    return {"statusCode": code, "errorType": typ, "message": msg}
+    return {"statusCode": code, "success": False, "errorType": typ, "message": msg}
 
 
 def success_response(data):
     """Standardized success response."""
-    return {"statusCode": 200, "data": data}
+    return {"statusCode": 200, "success": True, "data": data}
 
 
 def list_response(items, total=None):
     """Standardized list response."""
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
+    return {"statusCode": 200, "success": True, "items": items, "total": total or len(items)}
 
 
 def json_response(code, data):
     """Standardized JSON response."""
-    return {"statusCode": code, **data}
+    return {"statusCode": code, "success": code < 400, **data}
 
 
 def handle_db_error(error, logger, operation):

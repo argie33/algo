@@ -153,8 +153,21 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end}]")
 
+    def fetch_ohlcv_interval(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+        interval: str = "1d",
+    ) -> Optional[Any]:
+        """OHLCV bars at a specified yfinance interval (1d/1wk/1mo)."""
+        sources = [
+            ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end, interval=interval)),
+        ]
+        return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end} {interval}]")
+
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date):
+    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
         try:
             import yfinance as yf
             log.debug(f"[yfinance] yfinance imported successfully")
@@ -162,7 +175,7 @@ class DataSourceRouter:
             log.error(f"[yfinance] Failed to import yfinance: {e}")
             return None
         YFINANCE_LIMITER.wait()
-        log.debug(f"[yfinance] Fetching {symbol} from {start} to {end}")
+        log.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
             def do_download():
@@ -170,6 +183,7 @@ class DataSourceRouter:
                     yf_symbol,
                     start=start,
                     end=end,
+                    interval=interval,
                     auto_adjust=False,
                     progress=False,
                 )
