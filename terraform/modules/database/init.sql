@@ -112,6 +112,27 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     UNIQUE(symbol, quarter)
 );
 
+-- Earnings calendar (upcoming earnings announcements)
+CREATE TABLE IF NOT EXISTS earnings_calendar (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    earnings_date DATE NOT NULL,
+    announce_time VARCHAR(50),
+    eps_estimate DECIMAL(12, 4),
+    actual_eps DECIMAL(12, 4),
+    revenue_estimate DECIMAL(16, 2),
+    actual_revenue DECIMAL(16, 2),
+    fiscal_period VARCHAR(20),
+    company_name VARCHAR(255),
+    status VARCHAR(50),
+    surprise_pct DECIMAL(8, 2),
+    fiscal_quarter INTEGER,
+    fiscal_year INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, earnings_date)
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- ANALYST DATA
 -- ════════════════════════════════════════════════════════════════════════════

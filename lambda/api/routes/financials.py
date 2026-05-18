@@ -49,7 +49,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'income-statement':
-            table = 'income_statement_quarterly' if period == 'quarterly' else 'income_statement_annual'
+            table = 'quarterly_income_statement' if period == 'quarterly' else 'annual_income_statement'
             cur.execute(f"""
                 SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
             """, (sym, limit))
@@ -57,7 +57,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
-            table = 'balance_sheet_quarterly' if period == 'quarterly' else 'balance_sheet_annual'
+            table = 'quarterly_balance_sheet' if period == 'quarterly' else 'annual_balance_sheet'
             cur.execute(f"""
                 SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
             """, (sym, limit))
@@ -65,7 +65,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'cash-flow':
-            table = 'cash_flow_quarterly' if period == 'quarterly' else 'cash_flow_annual'
+            table = 'quarterly_cash_flow' if period == 'quarterly' else 'annual_cash_flow'
             cur.execute(f"""
                 SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
             """, (sym, limit))

@@ -29,9 +29,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
             cur.execute("""
                 SELECT ss.symbol, ss.security_name as company_name,
-                       cp.sector, cp.industry, cp.market_cap
+                       cp.sector, cp.industry, km.market_cap
                 FROM stock_symbols ss
                 LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+                LEFT JOIN key_metrics km ON ss.symbol = km.symbol
                 WHERE ss.symbol NOT LIKE '^%%'
                 ORDER BY ss.symbol
                 LIMIT %s
