@@ -183,8 +183,22 @@ def _get_algo_positions(cur) -> Dict:
 
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
+        import math
+
+        def _mean(xs): return sum(xs) / len(xs) if xs else 0.0
+        def _std(xs):
+            if len(xs) < 2: return 0.0
+            m = _mean(xs); return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs))
+        def _cumprod_max_dd(returns):
+            cum, peak, max_dd = 1.0, 1.0, 0.0
+            for r in returns:
+                cum *= (1 + r)
+                if cum > peak: peak = cum
+                dd = (cum - peak) / peak
+                if dd < max_dd: max_dd = dd
+            return max_dd
+
         try:
-            import numpy as np
             cur.execute("""
                 SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price,
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
@@ -202,12 +216,13 @@ def _get_algo_performance(cur) -> Dict:
             pnls_pcts = [float(t['profit_loss_pct'] or 0) for t in trades]
             holding_days = [float(t['holding_days'] or 0) for t in trades if t['holding_days']]
             r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
-            winning, losing = sum(1 for p in pnls_dollars if p > 0), sum(1 for p in pnls_dollars if p < 0)
+            winning = sum(1 for p in pnls_dollars if p > 0)
+            losing = sum(1 for p in pnls_dollars if p < 0)
             total = len(trades)
-            wins_sum, losses_sum = sum(p for p in pnls_dollars if p > 0), abs(sum(p for p in pnls_dollars if p < 0))
+            wins_sum = sum(p for p in pnls_dollars if p > 0)
+            losses_sum = abs(sum(p for p in pnls_dollars if p < 0))
             profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
 
-            # Compute Sharpe and Sortino from daily portfolio returns (not per-trade returns)
             sharpe, sortino, max_dd = 0.0, 0.0, 0.0
             try:
                 cur.execute("""
@@ -217,30 +232,24 @@ def _get_algo_performance(cur) -> Dict:
                 """)
                 snapshots = [dict(row) for row in cur.fetchall()]
                 if len(snapshots) > 1:
-                    portfolio_values = np.array([float(s['total_portfolio_value'] or 0) for s in snapshots])
-                    portfolio_returns = np.diff(portfolio_values) / portfolio_values[:-1]
-                    if len(portfolio_returns) > 0:
-                        mean_ret = float(np.mean(portfolio_returns))
-                        std_ret = float(np.std(portfolio_returns))
-                        sharpe = (mean_ret / std_ret * np.sqrt(252)) if std_ret > 0 else 0.0
-                        downside = np.array([r for r in portfolio_returns if r < 0])
-                        downside_vol = float(np.std(downside)) if len(downside) > 0 else 0.0
-                        sortino = (mean_ret / downside_vol * np.sqrt(252)) if downside_vol > 0 else 0.0
-                        cumulative = np.cumprod(1 + portfolio_returns)
-                        running_max = np.maximum.accumulate(cumulative)
-                        max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
+                    vals = [float(s['total_portfolio_value'] or 0) for s in snapshots]
+                    returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
+                    if returns:
+                        mean_r = _mean(returns)
+                        std_r = _std(returns)
+                        sharpe = (mean_r / std_r * math.sqrt(252)) if std_r > 0 else 0.0
+                        downside = [r for r in returns if r < 0]
+                        dv = _std(downside) if downside else 0.0
+                        sortino = (mean_r / dv * math.sqrt(252)) if dv > 0 else 0.0
+                        max_dd = _cumprod_max_dd(returns)
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                return handle_db_error(e, logger, 'get algo performance')
-            # Fallback max_dd from cumulative trade returns if snapshots unavailable
-            if max_dd == 0.0 and len(pnls_pcts) > 0:
-                daily_returns = np.array(pnls_pcts) / 100.0
-                cumulative = np.cumprod(1 + daily_returns)
-                running_max = np.maximum.accumulate(cumulative)
-                max_dd = float(np.min((cumulative - running_max) / running_max)) if len(cumulative) > 0 else 0.0
-            else:
-                daily_returns = np.array(pnls_pcts) / 100.0
+                logger.warning(f'Portfolio snapshots unavailable: {e}')
+            if max_dd == 0.0 and pnls_pcts:
+                max_dd = _cumprod_max_dd([p / 100.0 for p in pnls_pcts])
             win_rate_pct = round((winning / total * 100) if total > 0 else 0.0, 2)
+            wins_p = [p for p in pnls_pcts if p > 0]
+            losses_p = [p for p in pnls_pcts if p < 0]
             return json_response(200, {
                 'total_trades': total,
                 'winning_trades': winning,
@@ -251,11 +260,11 @@ def _get_algo_performance(cur) -> Dict:
                 'total_pnl_dollars': round(sum(pnls_dollars), 2),
                 'total_pnl_pct': round(sum(pnls_pcts), 2),
                 'total_return_pct': round(sum(pnls_pcts), 2),
-                'avg_trade_pct': round(float(np.mean(pnls_pcts)) if pnls_pcts else 0.0, 2),
-                'avg_win_pct': round(float(np.mean([p for p in pnls_pcts if p > 0])) if any(p > 0 for p in pnls_pcts) else 0.0, 2),
-                'avg_loss_pct': round(float(np.mean([p for p in pnls_pcts if p < 0])) if any(p < 0 for p in pnls_pcts) else 0.0, 2),
-                'best_trade_pct': round(float(np.max(pnls_pcts)) if pnls_pcts else 0.0, 2),
-                'worst_trade_pct': round(float(np.min(pnls_pcts)) if pnls_pcts else 0.0, 2),
+                'avg_trade_pct': round(_mean(pnls_pcts), 2),
+                'avg_win_pct': round(_mean(wins_p), 2),
+                'avg_loss_pct': round(_mean(losses_p), 2),
+                'best_trade_pct': round(max(pnls_pcts), 2) if pnls_pcts else 0.0,
+                'worst_trade_pct': round(min(pnls_pcts), 2) if pnls_pcts else 0.0,
                 'sharpe_annualized': round(sharpe, 2),
                 'sharpe_ratio': round(sharpe, 2),
                 'sortino_annualized': round(sortino, 2),
@@ -263,11 +272,11 @@ def _get_algo_performance(cur) -> Dict:
                 'max_drawdown_pct': round(max_dd * 100, 2),
                 'calmar_ratio': round(sum(pnls_pcts) / 100 / abs(max_dd) if max_dd < 0 else 0.0, 2),
                 'expectancy_r': round((wins_sum - losses_sum) / total if total > 0 else 0.0, 2),
-                'avg_hold_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
-                'avg_holding_days': round(float(np.mean(holding_days)) if holding_days else 0.0, 1),
-                'avg_r_multiple': round(float(np.mean(r_multiples)) if r_multiples else 0.0, 2),
-                'avg_win_r': round(float(np.mean([r for r in r_multiples if r > 0])) if any(r > 0 for r in r_multiples) else 0.0, 2),
-                'avg_loss_r': round(float(np.mean([r for r in r_multiples if r < 0])) if any(r < 0 for r in r_multiples) else 0.0, 2),
+                'avg_hold_days': round(_mean(holding_days), 1),
+                'avg_holding_days': round(_mean(holding_days), 1),
+                'avg_r_multiple': round(_mean(r_multiples), 2),
+                'avg_win_r': round(_mean([r for r in r_multiples if r > 0]), 2),
+                'avg_loss_r': round(_mean([r for r in r_multiples if r < 0]), 2),
                 'portfolio_snapshots': 0
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
