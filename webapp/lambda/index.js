@@ -32,31 +32,23 @@ const responseNormalizer = require("./middleware/responseNormalizer");
 const { cacheMiddleware } = require("./middleware/cacheMiddleware");
 const { sendSuccess, sendError } = require("./utils/apiResponse");
 const auditRoutes = require("./routes/audit");
-const contactRoutes = require("./routes/contact");
 const commoditiesRoutes = require("./routes/commodities");
 const diagnosticsRoutes = require("./routes/diagnostics");
-const earningsRoutes = require("./routes/earnings");
 const economicRoutes = require("./routes/economic");
-const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
 const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
 const optimizationRoutes = require("./routes/optimization");
-const portfolioRoutes = require("./routes/portfolio");
 const scoresRoutes = require("./routes/scores");
 const sectorsRoutes = require("./routes/sectors");
 const sentimentRoutes = require("./routes/sentiment");
 const signalsRoutes = require("./routes/signals");
-const stocksRoutes = require("./routes/stocks");
 const strategiesRoutes = require("./routes/strategies");
 const tradesRoutes = require("./routes/trades");
 const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
-const pricesRoutes = require("./routes/prices");
 const performanceRoutes = require("./routes/performance");
-const notificationsRoutes = require("./routes/notifications");
-const metricsRoutes = require("./routes/metrics");
 
 const app = express();
 
@@ -514,16 +506,12 @@ app.get("/api/debug/test-error", (req, res) => {
 // Canonical API Routes - all under /api prefix
 app.use("/api/audit", auditRoutes);
 app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);
-app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
-app.use("/api/earnings", cacheMiddleware(90), earningsRoutes);
 app.use("/api/economic", cacheMiddleware(120), economicRoutes);
-app.use("/api/financials", cacheMiddleware(90), financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/industries", cacheMiddleware(120), industriesRoutes);
 app.use("/api/market", cacheMiddleware(60), marketRoutes);
 app.use("/api/optimization", optimizationRoutes);
-app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
@@ -743,7 +731,6 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
 });
 // Cache signals endpoint: 15 second TTL (short cache for data freshness)
 app.use("/api/signals", cacheMiddleware(15), signalsRoutes);
-app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
 app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);  // Mount more specific route first
 app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
@@ -752,19 +739,12 @@ app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
 app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 app.use("/api/backtests", cacheMiddleware(120), backtestsRoutes);  // alias for frontend compatibility
 
-// Status and price routes
+// Status and performance routes
 app.use("/api/status", cacheMiddleware(30), statusRoutes);
-app.use("/api/prices", cacheMiddleware(30), pricesRoutes);
-
-// Performance metrics routes
 app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 
 // Swing trading algo routes
 app.use("/api/algo", require("./routes/algo"));
-
-// Notifications and Metrics routes
-app.use("/api/notifications", notificationsRoutes);
-app.use("/api/metrics", metricsRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
@@ -774,15 +754,11 @@ app.get("/api", (req, res) => {
     status: "operational",
     endpoints: {
       algo: "/api/algo",
-      contact: "/api/contact",
       economic: "/api/economic",
-      financials: "/api/financials",
       health: "/api/health",
       market: "/api/market",
-      portfolio: "/api/portfolio",
       sectors: "/api/sectors",
       signals: "/api/signals",
-      stocks: "/api/stocks",
       trades: "/api/trades"
     }
   });
