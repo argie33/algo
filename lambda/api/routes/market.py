@@ -249,3 +249,46 @@ def _get_market_latest(cur) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get market latest', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch market latest')
+
+def _parse_range_param(params: Dict, default: int = 30) -> int:
+    try:
+        return int((params.get('range', [None])[0] or params.get('days', [default])[0]))
+    except:
+        return default
+
+def _get_markets(cur) -> Dict:
+        try:
+            cur.execute("""
+                SELECT symbol, date, open, high, low, close, volume
+                FROM market_indices
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            latest = cur.fetchall()
+
+            cur.execute("""
+                SELECT symbol, date, close
+                FROM market_indices
+                WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+                ORDER BY symbol, date DESC
+            """)
+            history_rows = cur.fetchall()
+
+            history = {}
+            for row in history_rows:
+                sym = row['symbol']
+                if sym not in history:
+                    history[sym] = []
+                history[sym].append({'date': str(row['date']), 'close': float(row['close']) if row['close'] else None})
+
+            result = {
+                'indices': [dict(r) for r in latest] if latest else [],
+                'history': history,
+            }
+            return json_response(200, result)
+        except psycopg2.errors.UndefinedTable as e:
+            logger.error(f'Required table not found: {e}')
+            return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        except Exception as e:
+            logger.error(f'Unexpected error: {e}')
+            return error_response(500, 'internal_error', 'Failed to fetch market indices')
