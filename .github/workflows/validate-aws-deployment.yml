@@ -203,10 +203,11 @@ jobs:
         run: |
           echo "🧪 Testing API Lambda directly (invoke)..."
 
+          PAYLOAD=$(echo -n '{"rawPath":"/api/health","requestContext":{"http":{"method":"GET"}}}' | base64)
           aws lambda invoke \
             --function-name algo-api-dev \
             --region ${{ env.AWS_REGION }} \
-            --payload '{"rawPath":"/api/health","requestContext":{"http":{"method":"GET"}}}' \
+            --payload "$PAYLOAD" \
             /tmp/api-lambda-response.json 2>&1
 
           echo "Direct Lambda invoke response:"
