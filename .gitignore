@@ -176,3 +176,55 @@ webapp/frontend/public/images/image1.png
 *.pyc
 
 *.pyo
+
+# Configuration bloat prevention
+# Only keep canonical configs - duplicates are wasteful
+webapp/frontend/playwright.*.config.js
+!webapp/frontend/playwright.config.js
+webapp/lambda/jest.*.config.js
+!webapp/lambda/jest.config.js
+
+# One-time setup/debug/experimental scripts — NEVER commit
+*.bat
+*.ps1
+!scripts/**/*.bat
+!scripts/**/*.ps1
+setup*.sh
+verify*.sh
+check*.sh
+debug*.sh
+fix*.sh
+bootstrap*.sh
+test-*.js
+test-*.py
+*-test.js
+*-test.py
+check_*.js
+debug_*.js
+
+# One-time utility scripts (belong in scripts/, not root)
+*trigger*.sh
+*load*.sh
+*sync*.sh
+*verify*.sh
+*diagnose*.sh
+
+# Schema/mapping files (generated, not source)
+schema*.json
+*mapping*.json
+
+# Experimental/demo content
+demo*.js
+demo*.py
+example*.js
+example*.py
+*draft*.js
+*draft*.py
+*wip*.js
+*wip*.py
+
+# Ensure no quick test files commit
+quick*.py
+quick*.js
+temp*.py
+temp*.js

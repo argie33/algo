@@ -20,10 +20,3 @@ Push to `main` → auto-deploys via GitHub Actions. Watch: https://github.com/ar
 4. `python3 run-all-loaders.py`
 
 Test: `python3 algo/algo_orchestrator.py --mode paper --dry-run`
-
-## Context Rules
-
-- No session-specific .md files in root (EXECUTION_*.md, *_STATUS.md, etc.)
-- Memory files: ≤50 lines each, enforcement-only
-- No comments that restate code
-- No bloated docstrings
