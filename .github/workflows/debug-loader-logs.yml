@@ -76,6 +76,32 @@ jobs:
               --output json 2>/dev/null
           fi
 
+          echo ""
+          echo "=== RDS instance current state ==="
+          aws rds describe-db-instances \
+            --db-instance-identifier algo-db \
+            --query 'DBInstances[0].{Status:DBInstanceStatus,AZ:AvailabilityZone,MultiAZ:MultiAZ,Endpoint:Endpoint.Address,Port:Endpoint.Port,IP:Endpoint.HostedZoneId,SubnetGroup:DBSubnetGroup.DBSubnetGroupName,SubnetIds:DBSubnetGroup.Subnets[*].SubnetIdentifier,SGIds:VpcSecurityGroups[*].VpcSecurityGroupId}' \
+            --output json 2>/dev/null
+
+          echo ""
+          echo "=== ENIs in subnet-02192047f0db772fe (ECS task subnet) ==="
+          aws ec2 describe-network-interfaces \
+            --filters "Name=subnet-id,Values=subnet-02192047f0db772fe" \
+            --query 'NetworkInterfaces[*].{ID:NetworkInterfaceId,PrivateIP:PrivateIpAddress,Status:Status,Desc:Description,Type:InterfaceType}' \
+            --output table 2>/dev/null | head -30
+
+          echo ""
+          echo "=== Route table for subnet-02192047f0db772fe ==="
+          RT=$(aws ec2 describe-route-tables \
+            --filters "Name=association.subnet-id,Values=subnet-02192047f0db772fe" \
+            --query 'RouteTables[0].RouteTableId' --output text 2>/dev/null)
+          echo "Route table: $RT"
+          if [ -n "$RT" ] && [ "$RT" != "None" ]; then
+            aws ec2 describe-route-tables --route-table-ids $RT \
+              --query 'RouteTables[0].Routes[*].{Dest:DestinationCidrBlock,State:State,Target:GatewayId,NatGW:NatGatewayId,LocalGW:LocalGatewayId}' \
+              --output table 2>/dev/null
+          fi
+
       - name: Read recent CloudWatch logs
         id: read_logs
         if: inputs.status_only != 'true'
