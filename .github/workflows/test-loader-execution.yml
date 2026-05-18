@@ -142,6 +142,10 @@ jobs:
           echo "Task ID: $TASK_ID"
           echo ""
 
+          # Wait a bit for logs to be available (race condition fix)
+          echo "Waiting for logs to be available..."
+          sleep 2
+
           # First, list all available log streams to debug
           echo "Available log streams in $LOG_GROUP:"
           aws logs describe-log-streams \
@@ -156,38 +160,46 @@ jobs:
           echo "========================================"
           echo ""
 
-          # Get log stream name
-          LOG_STREAM=$(aws logs describe-log-streams \
-            --log-group-name "$LOG_GROUP" \
-            --order-by LastEventTime \
-            --descending \
-            --max-items 1 \
-            --region ${{ env.AWS_REGION }} \
-            --query 'logStreams[0].logStreamName' \
-            --output text 2>/dev/null)
-
-          if [ -z "$LOG_STREAM" ] || [ "$LOG_STREAM" = "None" ]; then
-            echo "⚠️  No log streams found"
-            echo ""
-            echo "You can check logs manually at:"
-            echo "  https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logStream:group=$LOG_GROUP"
-          else
-            echo "Found log stream: $LOG_STREAM"
-            echo ""
-            # Get and print log events
-            aws logs get-log-events \
+          # Get log stream name - try multiple times with retries
+          for attempt in 1 2 3; do
+            LOG_STREAM=$(aws logs describe-log-streams \
               --log-group-name "$LOG_GROUP" \
-              --log-stream-name "$LOG_STREAM" \
-              --start-from-head \
+              --order-by LastEventTime \
+              --descending \
+              --max-items 1 \
               --region ${{ env.AWS_REGION }} \
-              --query 'events[*].message' \
-              --output text
+              --query 'logStreams[0].logStreamName' \
+              --output text 2>/dev/null)
 
-            echo ""
-            echo "========================================"
-            echo "✅ EXECUTION LOGS CAPTURED FROM CLOUDWATCH"
-            echo "========================================"
-          fi
+            if [ -n "$LOG_STREAM" ] && [ "$LOG_STREAM" != "None" ]; then
+              echo "Found log stream on attempt $attempt: $LOG_STREAM"
+              echo ""
+
+              # Try to get logs with retries
+              for log_attempt in 1 2 3; do
+                if aws logs get-log-events \
+                  --log-group-name "$LOG_GROUP" \
+                  --log-stream-name "$LOG_STREAM" \
+                  --start-from-head \
+                  --region ${{ env.AWS_REGION }} \
+                  --query 'events[*].message' \
+                  --output text 2>/dev/null; then
+                  echo ""
+                  echo "========================================"
+                  echo "✅ EXECUTION LOGS CAPTURED FROM CLOUDWATCH"
+                  echo "========================================"
+                  exit 0
+                fi
+                [ $log_attempt -lt 3 ] && sleep 1
+              done
+            fi
+            [ $attempt -lt 3 ] && sleep 1
+          done
+
+          echo "⚠️  Could not retrieve logs after retries"
+          echo ""
+          echo "You can check logs manually at:"
+          echo "  https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logStream:group=$LOG_GROUP"
 
       - name: Verify Data Loaded
         run: |
