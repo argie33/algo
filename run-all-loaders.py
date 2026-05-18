@@ -25,8 +25,14 @@ tier_1b_aggregates = [
 ]
 
 # Tier 1c: Technical indicators (depends on tier 1 prices)
-# Note: Technical indicators computed from price data in orchestrator, not separate loaders
 tier_1c_technical = [
+    'load_technical_data_daily.py',
+    'load_market_health_daily.py',
+]
+
+# Tier 1d: Trend template (depends on tier 1c technical)
+tier_1d_trend = [
+    'load_trend_criteria_data.py',
 ]
 
 tier_2_reference = [
@@ -78,9 +84,9 @@ tier_3b_aggregates = [
     'load_buysell_etf_aggregate.py',  # Generates weekly and monthly ETF signals
 ]
 
-# Tier 4: Algo metrics (depends on signals)
-# Note: Algo metrics are computed by orchestrator, not loaded from external sources
+# Tier 4: Signal quality scores and algo metrics (depends on signals)
 tier_4_metrics = [
+    'load_signal_quality_scores.py',
 ]
 
 # All loaders in execution order (but within tiers, parallel)
@@ -90,18 +96,19 @@ tiers = [
     ('Tier 1: Price data (parallel)', tier_1_prices, 2),  # Reduced: 4→2 to avoid Alpaca rate limits
     ('Tier 1b: Price aggregates (weekly/monthly)', tier_1b_aggregates, 2),
     ('Tier 1c: Technical indicators (RSI, MACD, SMA, EMA, etc.)', tier_1c_technical, 2),
+    ('Tier 1d: Trend template data (depends on tier 1c)', tier_1d_trend, 2),
     ('Tier 2: Reference data (parallel)', tier_2_reference, 2),  # Reduced: 4→2 to avoid API timeouts
     ('Tier 2c: TTM aggregates (from quarterly)', tier_2c_ttm, 2),
     ('Tier 2b: Computed metrics (quality/growth/value)', tier_2b_metrics, 4),  # CPU-bound, keep at 4
     ('Tier 2d: Stock scores (depends on tier 2b metrics)', tier_2d_scores, 4),
     ('Tier 3: Trading signals (parallel)', tier_3_signals, 4),  # CPU-bound, keep at 4
     ('Tier 3b: Signal aggregates (weekly/monthly)', tier_3b_aggregates, 2),
-    ('Tier 4: Algo metrics', tier_4_metrics, 1),
+    ('Tier 4: Signal quality scores and metrics', tier_4_metrics, 4),
 ]
 
-all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_1c_technical + tier_2_reference + tier_2c_ttm + tier_2b_metrics + tier_2d_scores + tier_3_signals + tier_3b_aggregates + tier_4_metrics
+all_loaders = tier_0 + tier_1_prices + tier_1b_aggregates + tier_1c_technical + tier_1d_trend + tier_2_reference + tier_2c_ttm + tier_2b_metrics + tier_2d_scores + tier_3_signals + tier_3b_aggregates + tier_4_metrics
 logger.info(f"\n{'='*70}")
-logger.info(f"Running {len(all_loaders)} loaders across 10 dependency tiers")
+logger.info(f"Running {len(all_loaders)} loaders across 12 dependency tiers")
 logger.info(f"{'='*70}\n")
 
 failed = []

@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Signal Quality Scores Loader — Signal strength confirmation from multiple sources.
+
+Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.
+Required by Phase 1 data freshness check as tier-2 gate for filtering.
+
+Run: python3 load_signal_quality_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from datetime import date, timedelta
+from typing import List, Optional
+
+import pandas as pd
+
+from config.env_loader import load_env
+from utils.structured_logger import get_logger
+from utils.loader_helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
+logger = get_logger(__name__)
+
+
+class SignalQualityScoresLoader(OptimalLoader):
+    table_name = "signal_quality_scores"
+    primary_key = ("symbol", "date")
+    watermark_field = "date"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Compute signal quality scores from buy/sell signals and technical confirmation."""
+        end = date.today()
+        if since is None:
+            start = end - timedelta(days=5 * 365)
+        else:
+            start = since - timedelta(days=100)
+
+        buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
+        if not buy_sell_rows:
+            return []
+
+        technical_rows = self._fetch_technical_data(symbol, start, end)
+        trend_rows = self._fetch_trend_data(symbol, start, end)
+
+        scores = self._compute_quality_scores(symbol, buy_sell_rows, technical_rows, trend_rows)
+        if not scores:
+            return []
+
+        if since is not None:
+            since_str = since.isoformat()
+            scores = [s for s in scores if s["date"] > since_str]
+
+        return scores
+
+    def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> List[dict]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT date, signal_type FROM buy_sell_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start, end),
+            )
+            return [{"date": r[0].isoformat(), "signal_type": r[1]} for r in cur.fetchall()]
+        finally:
+            cur.close()
+
+    def _fetch_technical_data(self, symbol: str, start: date, end: date) -> List[dict]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT date, rsi_14, macd, macd_signal FROM technical_data_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start, end),
+            )
+            return [
+                {
+                    "date": r[0].isoformat(),
+                    "rsi_14": float(r[1]) if r[1] is not None else None,
+                    "macd": float(r[2]) if r[2] is not None else None,
+                    "macd_signal": float(r[3]) if r[3] is not None else None,
+                }
+                for r in cur.fetchall()
+            ]
+        finally:
+            cur.close()
+
+    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> List[dict]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT date, minervini_score, weinstein_stage FROM trend_template_data "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start, end),
+            )
+            return [
+                {
+                    "date": r[0].isoformat(),
+                    "minervini_score": float(r[1]) if r[1] is not None else 0,
+                    "weinstein_stage": r[2],
+                }
+                for r in cur.fetchall()
+            ]
+        finally:
+            cur.close()
+
+    def _compute_quality_scores(self, symbol: str, buy_sell_rows: List[dict],
+                                technical_rows: List[dict], trend_rows: List[dict]) -> List[dict]:
+        if not buy_sell_rows:
+            return []
+
+        bs_df = pd.DataFrame(buy_sell_rows)
+        bs_df["date"] = pd.to_datetime(bs_df["date"])
+
+        tech_df = pd.DataFrame(technical_rows)
+        tech_df["date"] = pd.to_datetime(tech_df["date"])
+
+        trend_df = pd.DataFrame(trend_rows)
+        trend_df["date"] = pd.to_datetime(trend_df["date"])
+
+        merged = bs_df.merge(tech_df, on="date", how="left").merge(trend_df, on="date", how="left")
+
+        results = []
+        for _, row in merged.iterrows():
+            score = 40
+            signal_type = row["signal_type"]
+
+            if signal_type == "BUY":
+                rsi = row.get("rsi_14")
+                macd = row.get("macd")
+                macd_signal = row.get("macd_signal")
+                minervini = row.get("minervini_score", 0)
+
+                if rsi and 40 < rsi < 80:
+                    score += 10
+                if macd is not None and macd_signal is not None and macd > macd_signal:
+                    score += 10
+                if minervini and minervini >= 3:
+                    score += 15
+
+                score = min(100, score)
+
+            elif signal_type == "SELL":
+                rsi = row.get("rsi_14")
+                macd = row.get("macd")
+                macd_signal = row.get("macd_signal")
+
+                if rsi and 20 < rsi < 60:
+                    score += 10
+                if macd is not None and macd_signal is not None and macd < macd_signal:
+                    score += 10
+
+                score = min(100, score)
+
+            results.append({
+                "symbol": symbol,
+                "date": row["date"].date().isoformat(),
+                "signal_type": signal_type,
+                "quality_score": float(score),
+            })
+
+        return results
+
+
+if __name__ == "__main__":
+    load_env()
+    import argparse
+    parser = argparse.ArgumentParser(description="Load signal quality scores")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
+    args = parser.parse_args()
+
+    symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
+    loader = SignalQualityScoresLoader()
+    loader.run(symbols, parallelism=args.parallelism)
