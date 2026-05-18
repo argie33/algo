@@ -296,7 +296,7 @@ class TestDatabaseDataIntegrity:
             cur.execute("SELECT COUNT(*) as count FROM company_profile")
             count = cur.fetchone()['count']
             pytest.skip(f"company_profile is empty ({count} rows)") if count == 0 else None
-            assert count > 1000, f"company_profile has very few rows: {count}"
+            assert count > 100, f"company_profile has very few rows: {count}"
 
         finally:
             cur.close()

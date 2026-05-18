@@ -11,6 +11,7 @@ Run with: pytest tests/test_api_contract_compliance.py -v
 import pytest
 import json
 from datetime import datetime, timedelta
+from decimal import Decimal
 from utils.db_connection import get_db_connection
 
 
@@ -42,11 +43,11 @@ class TestAPIContractCompliance:
             cur.execute("""
                 SELECT
                     ss.symbol, ss.composite_score,
-                    cp.market_cap, pd.close as price,
+                    km.market_cap, pd.close as price,
                     pd.date
                 FROM stock_scores ss
-                LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL 1 DAY
-                LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+                LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL '1 day'
+                LEFT JOIN key_metrics km ON ss.symbol = km.symbol
                 LIMIT 10
             """)
             rows = cur.fetchall()
@@ -56,7 +57,7 @@ class TestAPIContractCompliance:
                 for row in rows:
                     row_dict = dict(zip([desc[0] for desc in cur.description], row))
                     assert row_dict['symbol'] is not None, "symbol cannot be null"
-                    assert isinstance(row_dict['composite_score'], (int, float)), "composite_score must be numeric"
+                    assert isinstance(row_dict['composite_score'], (int, float, Decimal)), "composite_score must be numeric"
                     if row_dict['composite_score'] is not None:
                         assert 0 <= row_dict['composite_score'] <= 100, f"composite_score out of range: {row_dict['composite_score']}"
 
@@ -77,10 +78,11 @@ class TestAPIContractCompliance:
                 SELECT
                     cp.symbol, cp.display_name as company_name, pd.close as price,
                     vm.pe_ratio, vm.pb_ratio,
-                    cp.market_cap, cp.sector, cp.industry
+                    km.market_cap, cp.sector, cp.industry
                 FROM company_profile cp
-                LEFT JOIN price_daily pd ON cp.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL 1 DAY
+                LEFT JOIN price_daily pd ON cp.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL '1 day'
                 LEFT JOIN value_metrics vm ON cp.symbol = vm.symbol
+                LEFT JOIN key_metrics km ON cp.symbol = km.symbol
                 LIMIT 10
             """)
             rows = cur.fetchall()
@@ -176,7 +178,7 @@ class TestAPIContractCompliance:
             # Verify sector_ranking exists and has data
             cur.execute("""
                 SELECT
-                    sector, current_rank, momentum_score
+                    sector_name, current_rank, momentum_score
                 FROM sector_ranking
                 ORDER BY date_recorded DESC
                 LIMIT 10
@@ -188,7 +190,7 @@ class TestAPIContractCompliance:
 
             for row in rows:
                 row_dict = dict(zip([desc[0] for desc in cur.description], row))
-                assert row_dict['sector'] is not None, "sector cannot be null"
+                assert row_dict['sector_name'] is not None, "sector_name cannot be null"
 
         finally:
             cur.close()
