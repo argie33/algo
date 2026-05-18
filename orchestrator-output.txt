@@ -1,0 +1,3 @@
+usage: algo_orchestrator.py [-h] [--date DATE] [--dry-run] [--quiet]
+                            [--skip-freshness]
+algo_orchestrator.py: error: unrecognized arguments: --mode paper
