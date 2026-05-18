@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+"""
+Buy/Sell Signal Aggregate Loader — weekly and monthly signals from daily prices.
+
+Timeframe determined by LOADER_TYPE env var (signals_weekly / signals_monthly)
+or --timeframe CLI flag for manual runs.
+"""
+from utils.logging_setup import get_logger
+
+try:
+    from config.credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
+
+import argparse
+import logging
+logger = get_logger(__name__)
+import os
+from datetime import date, timedelta
+from config.env_loader import load_env
+from utils.loader_helpers import _resolve_timeframe
+from utils.loader_helpers import get_active_symbols
+from typing import List, Optional
+
+from utils.optimal_loader import OptimalLoader
+
+
+log = logging.getLogger(__name__)
+
+_TIMEFRAME_CONFIG = {
+    "weekly": {
+        "table_name": "buy_sell_weekly",
+        "timeframe_value": "Weekly",
+        "resample_rule": "W",
+        "min_daily_rows": 50,
+        "min_bars": 15,
+        "lookback_days": 400,
+        "has_atr": True,
+    },
+    "monthly": {
+        "table_name": "buy_sell_monthly",
+        "timeframe_value": "Monthly",
+        "resample_rule": "MS",
+        "min_daily_rows": 100,
+        "min_bars": 12,
+        "lookback_days": 800,
+        "has_atr": False,
+    },
+}
+
+
+
+class BuySellAggregateLoader(OptimalLoader):
+    primary_key = ("symbol", "date")
+    watermark_field = "date"
+
+    def __init__(self, timeframe: str):
+        assert timeframe in ("weekly", "monthly")
+        cfg = _TIMEFRAME_CONFIG[timeframe]
+        self.timeframe = timeframe
+        self.table_name = cfg["table_name"]
+        self.timeframe_value = cfg["timeframe_value"]
+        self._resample_rule = cfg["resample_rule"]
+        self._min_daily_rows = cfg["min_daily_rows"]
+        self._min_bars = cfg["min_bars"]
+        self._lookback_days = cfg["lookback_days"]
+        self._has_atr = cfg["has_atr"]
+        super().__init__()
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        end = date.today()
+        start = (end - timedelta(days=5 * 365)) if since is None else (since - timedelta(days=self._lookback_days))
+        rows = self._fetch_price_daily(symbol, start, end)
+        if not rows:
+            return None
+        signals = self._compute_signals(symbol, rows)
+        if not signals:
+            return None
+        if since is not None:
+            since_str = since.isoformat()
+            signals = [s for s in signals if s["date"] > since_str]
+        return signals or None
+
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT date, open, high, low, close, volume FROM price_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start, end),
+            )
+            return [
+                {
+                    "date": r[0].isoformat() if r[0] else None,
+                    "open": float(r[1]) if r[1] is not None else None,
+                    "high": float(r[2]) if r[2] is not None else None,
+                    "low": float(r[3]) if r[3] is not None else None,
+                    "close": float(r[4]) if r[4] is not None else None,
+                    "volume": int(r[5]) if r[5] is not None else None,
+                }
+                for r in cur.fetchall()
+            ]
+        finally:
+            cur.close()
+
+    def _compute_signals(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
+        if len(price_rows) < self._min_daily_rows:
+            return None
+        try:
+            import pandas as pd
+        except ImportError:
+            return None
+
+        df = pd.DataFrame(price_rows)
+        for col in ("close", "high", "low", "open", "volume"):
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.dropna(subset=["close"])
+
+        bars = df.set_index("date").resample(self._resample_rule).agg({
+            "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum",
+        }).dropna(subset=["close"])
+
+        if len(bars) < self._min_bars:
+            return None
+
+        bars["rsi"] = self._compute_rsi(bars["close"], 14)
+        macd, signal_line = self._compute_macd(bars["close"])
+        bars["macd"] = macd
+        bars["signal_line"] = signal_line
+        if self._has_atr:
+            bars["atr"] = self._compute_atr(bars["high"], bars["low"], bars["close"], 14)
+
+        signals = []
+        for idx, row in bars.iterrows():
+            sig = self._generate_signal_row(row, symbol, idx.date(), pd)
+            if sig:
+                signals.append(sig)
+        return signals or None
+
+    @staticmethod
+    def _compute_rsi(closes, period=14):
+        deltas = closes.diff()
+        gains = deltas.where(deltas > 0, 0).rolling(window=period).mean()
+        losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
+        return 100 - (100 / (1 + gains / losses))
+
+    @staticmethod
+    def _compute_macd(closes, fast=12, slow=26, signal=9):
+        macd = closes.ewm(span=fast).mean() - closes.ewm(span=slow).mean()
+        return macd, macd.ewm(span=signal).mean()
+
+    @staticmethod
+    def _compute_atr(highs, lows, closes, period=14):
+        tr = pd.concat([
+            highs - lows,
+            (highs - closes.shift()).abs(),
+            (lows - closes.shift()).abs(),
+        ], axis=1).max(axis=1)
+        return tr.rolling(window=period).mean()
+
+    def _generate_signal_row(self, row, symbol: str, idx_date, pd):
+        rsi = row.get("rsi")
+        macd = row.get("macd")
+        signal_line = row.get("signal_line")
+        if pd.isna(rsi) or pd.isna(macd) or pd.isna(signal_line):
+            return None
+
+        signal_str = None
+        reason = None
+        strength = None
+
+        # Combined RSI + MACD signals for actionable trading setup
+        if rsi < 45 and macd > signal_line:
+            signal_str = "BUY"
+            reason = "Weak trend + bullish MACD"
+            strength = rsi
+        elif rsi < 35:
+            signal_str = "BUY"
+            reason = f"RSI weak ({rsi:.0f})"
+            strength = rsi
+        elif rsi > 55 and macd < signal_line:
+            signal_str = "SELL"
+            reason = "Strong trend + bearish MACD"
+            strength = 100 - rsi
+        elif rsi > 65:
+            signal_str = "SELL"
+            reason = f"RSI strong ({rsi:.0f})"
+            strength = 100 - rsi
+        else:
+            return None
+
+        return {
+            "symbol": symbol,
+            "date": idx_date.isoformat(),
+            "signal": signal_str,
+            "strength": float(strength) if strength is not None else None,
+            "reason": reason,
+        }
+
+    def transform(self, rows):
+        return rows
+
+    def _validate_row(self, row: dict) -> bool:
+        if not super()._validate_row(row):
+            return False
+        return row.get("signal") in ("BUY", "SELL")
+
+
+
+def main():
+    load_env()
+    parser = argparse.ArgumentParser(description="Buy/sell aggregate loader (weekly/monthly)")
+    parser.add_argument("--timeframe", choices=["weekly", "monthly"],
+                        help="Signal timeframe (defaults to LOADER_TYPE env var)")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
+    parser.add_argument("--parallelism", type=int, default=8)
+    args = parser.parse_args()
+
+    timeframe = _resolve_timeframe(args.timeframe)
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+
+    loader = BuySellAggregateLoader(timeframe)
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
