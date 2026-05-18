@@ -262,12 +262,13 @@ jobs:
               --zip-file fileb://db_init_lambda.zip \
               --region $AWS_REGION
             aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
-            # Update role, VPC config, and env vars to match API Lambda
+            # Update role, VPC config, timeout, and env vars to match API Lambda
             aws lambda update-function-configuration \
               --function-name "$FUNC_NAME" \
               --role "$ROLE_ARN" \
               --vpc-config "$VPC_JSON" \
               --environment "$ENV_JSON" \
+              --timeout 300 \
               --region $AWS_REGION || echo "⚠️ Config update failed (non-fatal)"
           else
             echo "Creating Lambda: $FUNC_NAME"
