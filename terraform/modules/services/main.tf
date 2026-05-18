@@ -148,29 +148,24 @@ resource "aws_lambda_permission" "api_gateway" {
 }
 
 # ============================================================
-# Cognito JWT Authorizer (DISABLED - Public API Access Only)
+# Cognito JWT Authorizer - Enforces Authentication at API Boundary
 # ============================================================
-# Authorizer disabled since cognito_enabled=false in terraform.tfvars
-# The API uses public access (NONE authorization) instead of JWT auth
-#
-# NOTE: If Cognito auth is needed in the future:
-# 1. Set cognito_enabled=true in terraform.tfvars
-# 2. Uncomment the authorizer resource below
-# 3. Update the api_default route to reference the authorizer
-#
-# resource "aws_apigatewayv2_authorizer" "cognito" {
-#   count           = var.cognito_enabled ? 1 : 0
-#   api_id          = aws_apigatewayv2_api.main.id
-#   authorizer_type = "JWT"
-#   name            = "${var.project_name}-cognito-authorizer-${var.environment}"
-#
-#   identity_sources = ["$request.header.Authorization"]
-#
-#   jwt_configuration {
-#     audience = [var.cognito_client_id]
-#     issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${var.cognito_user_pool_id}"
-#   }
-# }
+# All routes require valid Cognito JWT token (except /health which is public)
+# This ensures authentication is enforced at the API Gateway level, not in Lambda
+
+resource "aws_apigatewayv2_authorizer" "cognito" {
+  count           = var.cognito_enabled ? 1 : 0
+  api_id          = aws_apigatewayv2_api.main.id
+  authorizer_type = "JWT"
+  name            = "${var.project_name}-cognito-authorizer-${var.environment}"
+
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    audience = [var.cognito_client_id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${var.cognito_user_pool_id}"
+  }
+}
 
 # API route - $default (catch-all for all requests)
 # AWS HTTP API automatically creates and manages the $default route.
@@ -183,6 +178,16 @@ resource "aws_apigatewayv2_route" "health" {
   route_key          = "GET /health"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
   authorization_type = "NONE"
+}
+
+# Default route - requires Cognito JWT authentication for all other endpoints
+# When cognito_enabled=true, all non-health routes require valid JWT token
+resource "aws_apigatewayv2_route" "api_default" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
+  authorizer_id      = var.cognito_enabled ? aws_apigatewayv2_authorizer.cognito[0].id : null
 }
 
 resource "aws_apigatewayv2_stage" "api" {

@@ -9,7 +9,7 @@ cloudfront_enabled = true  # Enable S3 + CloudFront distribution for frontend as
 # Direct EventBridge rule at 5:30pm ET was causing double execution (one silently blocked by file lock).
 algo_schedule_enabled = false
 # algo_schedule_expression  = "cron(30 21 ? * MON-FRI *)"  # 5:30pm ET (21:30 UTC)
-cognito_enabled = false # Public API access (no authentication required) — API Gateway route auth disabled
+cognito_enabled = true # API Gateway requires Cognito JWT authentication on all routes except /health
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode         = "auto"
