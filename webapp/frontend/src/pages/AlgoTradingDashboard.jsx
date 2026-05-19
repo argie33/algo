@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
-import { DataStateManager, ErrorAlert } from '../components/DataStateManager';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartTooltip, ResponsiveContainer,
@@ -108,21 +107,21 @@ function AlgoTradingDashboard() {
   // One hook per endpoint — React Query deduplicates and caches
   const { data: status,      isLoading: loading, error: err0,  refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
   const { data: markets,     isLoading: mLoading, error: err1, refetch: r1  } = useApiQuery(['algo','markets'],       () => api.get('/api/algo/markets'), qOpts);
-  const { items: scores,     isLoading: sLoading, error: err2, refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
-  const { items: positions,  isLoading: pLoading, error: err3, refetch: r3  } = useApiPaginatedQuery(['algo','positions'], () => api.get('/api/algo/positions'), qOpts);
-  const { items: trades,     isLoading: tLoading, error: err4, refetch: r4  } = useApiPaginatedQuery(['algo','trades'],    () => api.get('/api/algo/trades?limit=200'), qOpts);
-  const { data: config,      isLoading: cLoading, error: err5, refetch: r5  } = useApiQuery(['algo','config'],        () => api.get('/api/algo/config'), qOpts);
-  const { data: dataStatus,  isLoading: dLoading, error: err6, refetch: r6  } = useApiQuery(['algo','data-status'],   () => api.get('/api/algo/data-status'), qOpts);
-  const { data: policy,      isLoading: poLoading,error: err7, refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
-  const { data: evaluated,   isLoading: evLoading,error: err8, refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
-  const { items: patrolLog,  isLoading: paLoading,error: err9, refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
-  const { items: notifications,isLoading: nLoading,error: err10,refetch: r10 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
-  const { data: circuitBreakers,isLoading: cbLoading,error: err11,refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
-  const { data: dataQuality,  isLoading: dqLoading,error: err12,refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
-  const { data: rejectionFunnel,isLoading: rfLoading,error: err13,refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
-  const { data: performance,   isLoading: pfLoading,error: err14,refetch: r14 } = useApiQuery(['algo','performance'],   () => api.get('/api/algo/performance'), qOpts);
-  const { items: equityCurve,  isLoading: ecLoading,error: err15,refetch: r15 } = useApiPaginatedQuery(['algo','equity'], () => api.get('/api/algo/equity-curve?limit=180'), qOpts);
-  const { items: auditLog,     isLoading: alLoading,error: err16,refetch: r16 } = useApiPaginatedQuery(['algo','audit'],  () => api.get('/api/algo/audit-log?limit=300'), adminOpts);
+  const { items: scores,     isLoading: _sLoading, error: err2, refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
+  const { items: positions,  isLoading: _pLoading, error: err3, refetch: r3  } = useApiPaginatedQuery(['algo','positions'], () => api.get('/api/algo/positions'), qOpts);
+  const { items: trades,     isLoading: _tLoading, error: err4, refetch: r4  } = useApiPaginatedQuery(['algo','trades'],    () => api.get('/api/algo/trades?limit=200'), qOpts);
+  const { data: config,      isLoading: _cLoading, error: err5, refetch: r5  } = useApiQuery(['algo','config'],        () => api.get('/api/algo/config'), qOpts);
+  const { data: dataStatus,  isLoading: _dLoading, error: err6, refetch: r6  } = useApiQuery(['algo','data-status'],   () => api.get('/api/algo/data-status'), qOpts);
+  const { data: policy,      isLoading: _poLoading,error: err7, refetch: r7  } = useApiQuery(['algo','policy'],        () => api.get('/api/algo/exposure-policy'), qOpts);
+  const { data: evaluated,   isLoading: _evLoading,error: err8, refetch: r8  } = useApiQuery(['algo','evaluate'],      () => api.get('/api/algo/evaluate'), qOpts);
+  const { items: patrolLog,  isLoading: _paLoading,error: err9, refetch: r9  } = useApiPaginatedQuery(['algo','patrol'],    () => api.get('/api/algo/patrol-log?limit=30&min_severity=info'), adminOpts);
+  const { items: notifications,isLoading: _nLoading,error: err10,refetch: r10 } = useApiPaginatedQuery(['algo','notifs'],    () => api.get('/api/algo/notifications'), qOpts);
+  const { data: circuitBreakers,isLoading: _cbLoading,error: err11,refetch: r11 } = useApiQuery(['algo','circuit'],       () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,  isLoading: _dqLoading,error: err12,refetch: r12 } = useApiQuery(['algo','dq'],            () => api.get('/api/algo/data-quality'), qOpts);
+  const { data: rejectionFunnel,isLoading: _rfLoading,error: err13,refetch: r13 } = useApiQuery(['algo','funnel'],        () => api.get('/api/algo/rejection-funnel'), qOpts);
+  const { data: performance,   isLoading: _pfLoading,error: err14,refetch: r14 } = useApiQuery(['algo','performance'],   () => api.get('/api/algo/performance'), qOpts);
+  const { items: equityCurve,  isLoading: _ecLoading,error: err15,refetch: r15 } = useApiPaginatedQuery(['algo','equity'], () => api.get('/api/algo/equity-curve?limit=180'), qOpts);
+  const { items: auditLog,     isLoading: _alLoading,error: err16,refetch: r16 } = useApiPaginatedQuery(['algo','audit'],  () => api.get('/api/algo/audit-log?limit=300'), adminOpts);
 
   const refetchAll = useCallback(() => {
     [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
@@ -434,7 +433,7 @@ function MarketsTab({ markets }) {
               </thead>
               <tbody>
                 {(markets.sectors || []).map(s => {
-                  const w1Delta = s.rank_1w_ago ? s.rank_1w_ago - s.rank : 0;
+                  const _w1Delta = s.rank_1w_ago ? s.rank_1w_ago - s.rank : 0;
                   const w4Delta = s.rank_4w_ago ? s.rank_4w_ago - s.rank : 0;
                   return (
                     <tr key={s.name}>
@@ -644,7 +643,7 @@ const ScoreCell = ({ value, max }) => {
   );
 };
 
-const ScoreDetailExpanded = ({ details, symbol }) => {
+const ScoreDetailExpanded = ({ details, _symbol }) => {
   if (!details) return null;
   const ent = Object.entries(details);
   return (
@@ -822,7 +821,7 @@ function TradesTab({ trades }) {
 // ============================================================================
 // PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
-function PipelineTab({ policy, markets, dataQuality, rejectionFunnel, circuitBreakers }) {
+function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBreakers }) {
   const loaders = dataQuality?.checks || [];
   const funnelTiers = rejectionFunnel?.tiers || [];
   const overallStatus = dataQuality?.status || 'unknown';

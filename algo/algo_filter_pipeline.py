@@ -273,9 +273,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         advanced_passed += 1
 
                         # NEW: compute the SWING-SPECIFIC score (research-weighted)
+                        # NOTE: SwingTraderScore uses its own connection, not shared cursor,
+                        # to prevent transaction errors from cascading across signals
                         try:
                             if self._swing is None:
-                                self._swing = SwingTraderScore(cur=self.cur)
+                                self._swing = SwingTraderScore(cur=None)  # Use own connection
                             swing = self._swing.compute(
                                 symbol, signal_date,
                                 sector=sector_info['sector'], industry=sector_info['industry'],

@@ -7,26 +7,15 @@ import {
   Tab,
   Card,
   CardContent,
-  CardHeader,
   TextField,
   Button,
   Alert,
   Switch,
   FormControlLabel,
   CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
 } from "@mui/material";
-import { Settings as SettingsIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { Settings as SettingsIcon } from "@mui/icons-material";
 import api, { getSettings, updateSettings } from "../services/api";
 
 function TabPanel(props) {
@@ -50,8 +39,8 @@ const Settings = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState({});
-  const [apiKeys, setApiKeys] = useState({});
-  const [showAddKeyDialog, setShowAddKeyDialog] = useState(false);
+  const [_apiKeys, setApiKeys] = useState({});
+  const [_showAddKeyDialog, setShowAddKeyDialog] = useState(false);
   const [newApiKey, setNewApiKey] = useState({
     provider: "alpaca",
     keyId: "",
@@ -94,7 +83,7 @@ const Settings = () => {
     }
   };
 
-  const handleAddApiKey = async () => {
+  const _handleAddApiKey = async () => {
     try {
       setLoading(true);
 
@@ -121,7 +110,7 @@ const Settings = () => {
     }
   };
 
-  const handleDeleteApiKey = async (provider) => {
+  const _handleDeleteApiKey = async (provider) => {
     try {
       setLoading(true);
       await api.deleteApiKey?.({ provider });

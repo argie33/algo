@@ -66,7 +66,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/check-build-env.js && vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 148",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:strict": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext js,jsx --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",

@@ -15,7 +15,7 @@ import {
   CartesianGrid, Tooltip as RTooltip, LineChart, BarChart, PieChart, Pie, Cell,
   ReferenceLine,
 } from 'recharts';
-import { ArrowLeft, RefreshCw, Inbox, TrendingUp, Activity, Target, Briefcase, BarChart3, Users } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Inbox, _TrendingUp, _Activity, _Target, _Briefcase, _BarChart3, _Users } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
@@ -104,14 +104,14 @@ export default function StockDetail() {
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
-  const { data: profileData, error: profileError, refetch: refetchProfile } = useApiQuery(
+  const { data: profileData, error: _profileError, refetch: _refetchProfile } = useApiQuery(
     ['stock-profile', symbol],
     () => api.get(`/api/stocks/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Scores w/ all factor inputs (single-symbol path triggers full enrichment)
-  const { data: scoreData, error: scoreError, refetch: refetchScore } = useApiQuery(
+  const { data: scoreData, error: _scoreError, refetch: _refetchScore } = useApiQuery(
     ['stock-scores-detail', symbol],
     () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
     { enabled: !!symbol }
@@ -119,21 +119,21 @@ export default function StockDetail() {
   const scoreRow = scoreData?.items?.[0] || null;
 
   // Key metrics (sector/industry + market cap + ownership %)
-  const { data: keyMetricsData, error: keyMetricsError, refetch: refetchKeyMetrics } = useApiQuery(
+  const { data: keyMetricsData, error: _keyMetricsError, refetch: _refetchKeyMetrics } = useApiQuery(
     ['stock-keymetrics', symbol],
     () => api.get(`/api/financials/${symbol}/key-metrics`),
     { enabled: !!symbol }
   );
 
   // Signals (last 60d)
-  const { data: signalsData, error: signalsError, refetch: refetchSignals } = useApiQuery(
+  const { data: signalsData, error: _signalsError, refetch: _refetchSignals } = useApiQuery(
     ['stock-signals', symbol],
     () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=60`),
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
   // Algo swing-score (full eval)
-  const { data: swingScore, error: swingScoreError, refetch: refetchSwingScore } = useApiQuery(
+  const { data: swingScore, error: _swingScoreError, refetch: _refetchSwingScore } = useApiQuery(
     ['stock-swing-score', symbol],
     async () => {
       const r = await api.get(`/api/algo/swing-scores?symbol=${symbol.toUpperCase()}&limit=1`);
@@ -145,28 +145,28 @@ export default function StockDetail() {
   );
 
   // Analyst sentiment
-  const { data: analystData, error: analystError, refetch: refetchAnalyst } = useApiQuery(
+  const { data: analystData, error: _analystError, refetch: _refetchAnalyst } = useApiQuery(
     ['stock-analyst', symbol],
     () => api.get(`/api/sentiment/analyst/insights/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Income statement
-  const { data: incomeData, error: incomeError, refetch: refetchIncome } = useApiQuery(
+  const { data: incomeData, error: _incomeError, refetch: _refetchIncome } = useApiQuery(
     ['stock-income', symbol],
     () => api.get(`/api/financials/${symbol}/income-statement?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Balance sheet
-  const { data: balanceData, error: balanceError, refetch: refetchBalance } = useApiQuery(
+  const { data: balanceData, error: _balanceError, refetch: _refetchBalance } = useApiQuery(
     ['stock-balance', symbol],
     () => api.get(`/api/financials/${symbol}/balance-sheet?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Cash flow
-  const { data: cashflowData, error: cashflowError, refetch: refetchCashflow } = useApiQuery(
+  const { data: cashflowData, error: _cashflowError, refetch: _refetchCashflow } = useApiQuery(
     ['stock-cashflow', symbol],
     () => api.get(`/api/financials/${symbol}/cash-flow?period=quarterly`),
     { enabled: !!symbol }
@@ -862,8 +862,8 @@ function num1(v) {
 function AnalystsTab({ data, last }) {
   // Handle both old flat structure and new nested {metrics, momentum, recentUpgrades} structure
   const metrics = data?.metrics || data;
-  const momentum = data?.momentum || {};
-  const recentUpgrades = data?.recentUpgrades || [];
+  const _momentum = data?.momentum || {};
+  const _recentUpgrades = data?.recentUpgrades || [];
 
   const totalAnalysts = metrics?.totalAnalysts ?? metrics?.analyst_count ?? 0;
   if (!data || totalAnalysts === 0) {

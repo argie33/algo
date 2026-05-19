@@ -65,7 +65,7 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 // Layout components
 import AppLayout from "./components/AppLayout";
 
-const drawerWidth = 240;
+const _drawerWidth = 240;
 
 const menuItems = [
   // Markets Section
@@ -175,7 +175,7 @@ function App() {
   // All hooks must be at the top level - not inside try-catch
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+  const [_userMenuAnchor, _setUserMenuAnchor] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     signals: true,
@@ -192,7 +192,7 @@ function App() {
 
 
   // Safe auth context access - useAuth now has built-in fallback safety
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user: _user, logout: _logout } = useAuth();
 
   const navigate = useNavigate();
 
@@ -207,21 +207,21 @@ function App() {
 
   // Premium status functionality removed - all features available
 
-  const handleDrawerToggle = () => {
+  const _handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleUserMenuOpen = (event) => {
-    setUserMenuAnchor(event.currentTarget);
+  const _handleUserMenuOpen = (_event) => {
+    _setUserMenuAnchor(_event.currentTarget);
   };
 
-  const handleUserMenuClose = () => {
-    setUserMenuAnchor(null);
+  const _handleUserMenuClose = () => {
+    _setUserMenuAnchor(null);
   };
 
-  const handleLogout = async () => {
-    handleUserMenuClose();
-    await logout();
+  const _handleLogout = async () => {
+    _handleUserMenuClose();
+    await _logout();
   };
 
   const handleNavigation = (path) => {
@@ -257,7 +257,7 @@ function App() {
     admin: "Admin",
   };
 
-  const drawer = (
+  const _drawer = (
     <div>
       <Toolbar>
         <Typography

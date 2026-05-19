@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  RefreshCw, TrendingUp, TrendingDown, Minus, Activity,
+  RefreshCw, TrendingUp, _TrendingDown, _Minus, Activity,
   AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home,
 } from 'lucide-react';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar, ComposedChart,
+  LineChart, Line, AreaChart, Area, _BarChart, _Bar, _ComposedChart,
   XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip,
-  ReferenceLine, Legend, Cell,
+  ReferenceLine, Legend, _Cell,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
@@ -17,7 +17,7 @@ const TT = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-const num   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : (+v).toFixed(dp);
+const _num   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : (+v).toFixed(dp);
 const pct   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : `${(+v).toFixed(dp)}%`;
 const bps   = (v)         => (v == null || isNaN(+v)) ? '—' : `${Math.round(+v * 100)} bps`;
 const fmtD  = (s)         => s ? new Date(s).toLocaleDateString() : '—';
@@ -740,7 +740,7 @@ function RecessionBadge({ status }) {
   return <span className={`badge ${badge}`}>{label}</span>;
 }
 
-function MacroKpi({ label, ind, unit, invertGood }) {
+function MacroKpi({ label, ind, _unit, invertGood }) {
   if (!ind) return (
     <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
       <div className="eyebrow">{label}</div>
@@ -974,9 +974,9 @@ function NaaimPanel({ naaim }) {
   );
 }
 
-function EconomicRegimeClock({ indicators, yieldData }) {
+function EconomicRegimeClock({ indicators, _yieldData }) {
   const gdp = indicators?.find(i => (i.name || '').toLowerCase().includes('gdp'));
-  const indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial'));
+  const _indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial'));
   const cpi = indicators?.find(i => (i.name || '').toLowerCase().includes('cpi'));
   const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
 
@@ -1227,7 +1227,7 @@ function LEIPanel({ indicators }) {
   const unrate = indicators?.find(i => (i.name || '').toLowerCase().includes('unemployment'));
   const houst = indicators?.find(i => (i.name || '').toLowerCase().includes('housing'));
   const icsa = indicators?.find(i => (i.name || '').toLowerCase().includes('jobless') || (i.name || '').toLowerCase().includes('initial claims'));
-  const civpart = indicators?.find(i => (i.name || '').toLowerCase().includes('participation'));
+  const _civpart = indicators?.find(i => (i.name || '').toLowerCase().includes('participation'));
   const sp500 = indicators?.find(i => (i.name || '').toLowerCase().includes('sp500') || (i.name || '').toLowerCase().includes('s&p'));
 
   // Extract values with fallbacks
