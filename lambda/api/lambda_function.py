@@ -33,11 +33,15 @@ def get_db_connection():
 
     try:
         db_secret_arn = os.getenv('DB_SECRET_ARN')
-        db_host = os.getenv('DB_HOST', 'algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com')
+        db_host = os.getenv('DB_HOST')
         db_port = int(os.getenv('DB_PORT', '5432'))
         db_name = os.getenv('DB_NAME', 'stocks')
         db_user = os.getenv('DB_USER', 'stocks')
         db_password = os.getenv('DB_PASSWORD')
+
+        if not db_host:
+            logger.error('DB_HOST environment variable is required')
+            return None
 
         if db_secret_arn and not db_password:
             import boto3
