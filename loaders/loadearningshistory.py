@@ -34,32 +34,65 @@ class EarningsHistoryLoader(OptimalLoader):
     watermark_field = "earnings_date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch earnings history via data source router."""
+        """Fetch earnings history from yfinance earnings_dates."""
         try:
-            earnings = self.router.fetch_earnings(symbol)
-            if not earnings:
+            import yfinance as yf
+            from datetime import datetime
+            yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
+            ticker = yf.Ticker(yf_symbol)
+            df = ticker.earnings_dates
+            if df is None or (hasattr(df, "empty") and df.empty):
                 return []
-            return earnings
+
+            rows = []
+            cutoff = since.isoformat() if since else "2000-01-01"
+            for idx, row in df.iterrows():
+                try:
+                    if hasattr(idx, "date"):
+                        ed = idx.date().isoformat()
+                    else:
+                        ed = str(idx)[:10]
+                    if ed < cutoff:
+                        continue
+                    eps_est = row.get("EPS Estimate")
+                    eps_actual = row.get("Reported EPS")
+                    surprise_pct = row.get("Surprise(%)")
+
+                    def _safe_float(v):
+                        try:
+                            import math
+                            f = float(v)
+                            return None if math.isnan(f) else round(f, 4)
+                        except (TypeError, ValueError):
+                            return None
+
+                    rows.append({
+                        "symbol": symbol,
+                        "earnings_date": ed,
+                        "eps_estimate": _safe_float(eps_est),
+                        "eps_actual": _safe_float(eps_actual),
+                        "surprise_percent": _safe_float(surprise_pct),
+                    })
+                except Exception as e:
+                    logging.debug(f"Earnings row error {symbol} {idx}: {e}")
+            return rows
         except Exception as e:
             logging.debug(f"Earnings fetch error for {symbol}: {e}")
             return []
 
     def transform(self, rows):
-        """Rows are already clean from data source router."""
         return rows
 
     def _validate_row(self, row: dict) -> bool:
-        """Validate earnings row."""
         if not super()._validate_row(row):
             return False
+        ed = row.get("earnings_date")
+        if not ed:
+            return False
         try:
-            ed = row.get("earnings_date")
-            if ed is None:
-                return False
-            if isinstance(ed, date):
-                return ed.year > 1990
-            return int(ed) > 1990
-        except (KeyError, TypeError, ValueError):
+            year = int(str(ed)[:4])
+            return 1990 < year < 2100
+        except (TypeError, ValueError):
             return False
 
 
