@@ -90,27 +90,35 @@ class PriceLoader(OptimalLoader):
 
         return None
 
-    def _try_fetch(self, symbol: str, start: date, end: date):
-        """Try to fetch data from yfinance at specified interval."""
-        try:
-            return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
-        except Exception as e:
-            error_str = str(e).lower()
-            # Rate limit errors - don't re-raise, just return None
-            if "rate" in error_str or "429" in error_str or "too many" in error_str:
-                logger.debug(f"[{symbol}] Rate limited: {e}")
-                return None
-            # Network errors in AWS - queue for retry instead of failing
-            if "json" in error_str or "parse" in error_str or "connection" in error_str:
-                logger.warning(f"[{symbol}] Transient network error: {e}, will retry")
-                return None
-            # Auth errors - log but don't crash
-            if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
-                logger.warning(f"[{symbol}] Auth error: {e}")
-                return None
-            # Other errors - log and re-raise
-            logger.error(f"[{symbol}] Unexpected error: {e}")
-            raise
+    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 3):
+        """Try to fetch data from yfinance with retry logic for transient failures."""
+        import time
+        for attempt in range(max_retries):
+            try:
+                return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
+            except Exception as e:
+                error_str = str(e).lower()
+                # Rate limit errors - don't re-raise, just return None
+                if "rate" in error_str or "429" in error_str or "too many" in error_str:
+                    logger.debug(f"[{symbol}] Rate limited: {e}")
+                    return None
+                # Network/timeout errors in AWS - retry with backoff
+                if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # 1s, 2s, 4s
+                        logger.warning(f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    logger.warning(f"[{symbol}] Transient error after {max_retries} attempts: {e}")
+                    return None
+                # Auth errors - log but don't crash
+                if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
+                    logger.warning(f"[{symbol}] Auth error: {e}")
+                    return None
+                # Other errors - log and re-raise
+                logger.error(f"[{symbol}] Unexpected error: {e}")
+                raise
+        return None
 
     def transform(self, rows):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""

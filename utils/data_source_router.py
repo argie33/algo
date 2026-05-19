@@ -41,14 +41,21 @@ from algo.algo_retry import retry, YFINANCE_LIMITER
 log = logging.getLogger(__name__)
 
 
-def _call_with_timeout(fn: Callable, timeout_sec: float = 30) -> Any:
-    """Call a function with timeout protection. Raises TimeoutError if it takes too long."""
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(fn)
+def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
+    """Call a function with timeout protection and automatic retry on timeout."""
+    last_error = None
+    for attempt in range(retries):
         try:
-            return future.result(timeout=timeout_sec)
-        except FuturesTimeoutError:
-            raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout")
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(fn)
+                return future.result(timeout=timeout_sec)
+        except FuturesTimeoutError as e:
+            last_error = e
+            if attempt < retries - 1:
+                log.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
+                time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+            continue
+    raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
 
 
 @dataclass
@@ -187,8 +194,8 @@ class DataSourceRouter:
                     auto_adjust=False,
                     progress=False,
                 )
-            log.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 60s timeout")
-            hist = _call_with_timeout(do_download, timeout_sec=60)
+            log.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
+            hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
                 log.debug(f"[yfinance] No data returned for {symbol}")
