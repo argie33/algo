@@ -120,7 +120,7 @@ class TestAPIContractCompliance:
                     row_dict = dict(zip([desc[0] for desc in cur.description], row))
                     assert row_dict['symbol'] is not None, "symbol cannot be null"
                     assert row_dict['score'] is not None, "score cannot be null"
-                    assert isinstance(row_dict['score'], (int, float)), "score must be numeric"
+                    assert isinstance(row_dict['score'], (int, float, Decimal)), "score must be numeric"
 
                     # Verify components is valid JSON
                     if row_dict['components']:
