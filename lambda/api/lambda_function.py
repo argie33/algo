@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Dict, Any, Optional
 import psycopg2
+import psycopg2.sql
 from psycopg2.extras import RealDictCursor
 from collections import defaultdict
 from time import time
@@ -299,12 +300,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
 
                 cur = conn.cursor()
-                # Get table counts (whitelist prevents SQL injection)
+                # Get table counts (whitelist + SQL identifier quoting prevents SQL injection)
                 ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
                 table_counts = {}
                 for table in ALLOWED_TABLES:
                     try:
-                        cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                        query = psycopg2.sql.SQL('SELECT COUNT(*) FROM {}').format(
+                            psycopg2.sql.Identifier(table)
+                        )
+                        cur.execute(query)
                         table_counts[table] = cur.fetchone()[0]
                     except:
                         table_counts[table] = 0
