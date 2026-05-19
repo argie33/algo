@@ -20,29 +20,41 @@ Trading platform with real Alpaca credentials (paper + live). Security = non-neg
 
 ## CREDENTIALS
 
-**GitHub Secrets** (for CI/CD to deploy to AWS):
-- `AWS_ACCESS_KEY_ID` — IAM user for Terraform
-- `AWS_SECRET_ACCESS_KEY` — IAM user for Terraform
+### ⚠️ CRITICAL: NO .env FILES. EVER.
+`.env` files leak secrets to git history. Use ONLY:
+1. **PowerShell Profile** (local dev): `C:\Users\arger\OneDrive\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
+2. **GitHub Secrets** (CI/CD): `gh secret set ALPACA_API_KEY_ID "..."`
+3. **AWS Secrets Manager** (Lambda/ECS): Via Terraform + IAM roles
+
+**GitHub Secrets** (for CI/CD):
 - `ALPACA_API_KEY_ID` — Paper trading key
 - `ALPACA_API_SECRET_KEY` — Paper trading secret
 - `FRED_API_KEY` — Economic data API key
+- `AWS_ACCESS_KEY_ID` — IAM user for Terraform
+- `AWS_SECRET_ACCESS_KEY` — IAM user for Terraform
 
-**AWS Secrets Manager** (stored by Step 1 above):
+**AWS Secrets Manager** (production Lambda/ECS):
 - `algo/database` → `{host, user, password, port, database}`
 - `algo/alpaca` → `{api_key, api_secret}`
 - `algo/fred` → `{api_key}`
 
-**Local Dev** (PowerShell profile):
+**Local Dev Only** (PowerShell Profile):
 ```powershell
+# C:\Users\arger\OneDrive\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
 $env:DB_HOST="localhost"
 $env:DB_PASSWORD="stocks"
 $env:DB_NAME="stocks"
-$env:ALPACA_API_KEY_ID="..."
-$env:ALPACA_API_SECRET_KEY="..."
+$env:APCA_API_KEY_ID="PKQ4H6RGJFWUOPFARVUU5LEM2X"
+$env:APCA_API_SECRET_KEY="2X9ZXfvw1BQThdZXpbZqmfwABEFZozQw1imTrdhDq7VG"
 $env:FRED_API_KEY="..."
 ```
 
-**Rule:** Never hardcode credentials, never commit `.env`, never print secrets in logs.
+**Rules**:
+- ❌ NEVER hardcode credentials in code or .env files
+- ❌ NEVER commit .env or .env.local to git
+- ✅ Always use PowerShell profile (local), GitHub Secrets (CI), AWS Secrets Manager (AWS)
+- ✅ Rotate credentials quarterly
+- ✅ If secrets appear in git history, rotate them immediately
 
 ## DEPLOYMENT (GitHub Actions Only)
 
