@@ -59,8 +59,28 @@ vi.mock("aws-amplify/auth", () => ({
 
 // Mock amplify config
 vi.mock("../config/amplify", () => ({
-  isCognitoConfigured: false,
+  isCognitoConfigured: vi.fn(() => false),
+  getAmplifyConfig: vi.fn(() => ({ Auth: { Cognito: {} } })),
+  configureAmplify: vi.fn(),
+  default: vi.fn(() => ({ Auth: { Cognito: {} } })),
 }));
+
+// Mock NewsAnalyzer
+vi.mock("../utils/newsAnalyzer", () => {
+  const mockInstance = {
+    analyzeSentiment: vi.fn(() => ({ sentiment: "neutral", score: 0.5, confidence: 0.8 })),
+    extractKeywords: vi.fn(() => []),
+    scoreImpact: vi.fn(() => ({ impact: "low", score: 0.5 })),
+    getRecencyDescription: vi.fn(() => "recent"),
+    extractTopics: vi.fn(() => []),
+    analyzeArticles: vi.fn(() => ({ overallSentiment: "neutral", averageScore: 0.5, confidence: 0.8 })),
+    calculateReliabilityScore: vi.fn(() => 0.75),
+  };
+  return {
+    newsAnalyzer: mockInstance,
+    default: mockInstance,
+  };
+});
 
 // Mock recharts components globally to avoid canvas issues
 vi.mock("recharts", () => ({

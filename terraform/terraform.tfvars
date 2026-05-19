@@ -5,10 +5,10 @@ project_name = "algo"
 frontend_origin = "http://localhost:3000"
 # Frontend deployment
 cloudfront_enabled = true  # Enable S3 + CloudFront distribution for frontend assets
-# DISABLED: Step Functions EOD pipeline (4:05pm ET) is the only orchestrator trigger.
-# Direct EventBridge rule at 5:30pm ET was causing double execution (one silently blocked by file lock).
-algo_schedule_enabled = false
-# algo_schedule_expression  = "cron(30 21 ? * MON-FRI *)"  # 5:30pm ET (21:30 UTC)
+# ENABLED: Orchestrator runs daily at market open (9:30am ET)
+# This ensures fresh data is loaded and signals evaluated before market opens
+algo_schedule_enabled = true
+algo_schedule_expression  = "cron(30 13 ? * MON-FRI *)"  # 9:30am ET (13:30 UTC)
 cognito_enabled = true # API Gateway requires Cognito JWT authentication on all routes except /health
 
 # Orchestrator configuration (moved from GitHub Secrets)
@@ -17,7 +17,7 @@ orchestrator_dry_run   = false
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
-alpaca_paper_trading   = false  # REAL TRADING - set to true for paper trading during testing
+alpaca_paper_trading   = true   # Paper trading mode (not real money)
 api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
 
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable

@@ -208,10 +208,6 @@ const MarketStatusBar = () => {
               variant="caption"
               color="text.secondary"
               sx={{ cursor: "pointer" }}
-              onClick={() =>
-                import.meta.env &&
-                import.meta.env.DEV &&
-              }
             >
               Cache: {dataCache.cache.size} items
             </Typography>

@@ -113,17 +113,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
                 return _get_fear_greed_history(cur, range_days)
-            elif path == '/api/market/status':
-                cur.execute("""
-                    SELECT date, market_trend, market_stage, advance_decline_ratio,
-                           new_highs_count, new_lows_count, vix_level, put_call_ratio,
-                           distribution_days_4w
-                    FROM market_health_daily
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-                row = cur.fetchone()
-                return json_response(200, dict(row) if row else {})
             elif path == '/api/market/naaim':
                 cur.execute("""
                     SELECT date, naaim_number_mean, bullish, bearish

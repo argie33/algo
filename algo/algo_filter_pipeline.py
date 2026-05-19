@@ -253,6 +253,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     except Exception as e:
                         # Advanced filters failed (missing tables), use default pass
                         logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
+                        # Roll back aborted transaction so the shared connection stays usable
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass
                         adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                         result['advanced'] = adv
 
@@ -260,12 +265,16 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         advanced_passed += 1
 
                         # NEW: compute the SWING-SPECIFIC score (research-weighted)
-                        if not hasattr(self, '_swing'):
-                            self._swing = SwingTraderScore(cur=self.cur)
-                        swing = self._swing.compute(
-                            symbol, signal_date,
-                            sector=sector_info['sector'], industry=sector_info['industry'],
-                        )
+                        try:
+                            if self._swing is None:
+                                self._swing = SwingTraderScore(cur=self.cur)
+                            swing = self._swing.compute(
+                                symbol, signal_date,
+                                sector=sector_info['sector'], industry=sector_info['industry'],
+                            )
+                        except Exception as swing_err:
+                            logger.warning(f"SwingTraderScore failed for {symbol}: {swing_err} (passing through)")
+                            swing = {'pass': True, 'reason': 'swing score unavailable', 'swing_score': 60.0, 'grade': 'C', 'components': {}}
 
                         # Hard gate: must pass swing-score gates AND meet min score
                         min_swing = float(self.config.get('min_swing_score', 60.0))
