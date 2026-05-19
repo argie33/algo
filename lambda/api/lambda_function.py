@@ -92,19 +92,23 @@ def parse_query_params(event: Dict) -> Dict:
     return params
 
 
+def _build_allowed_origins() -> set:
+    """Build allowed origins from ALLOWED_ORIGINS env var (comma-separated) plus localhost defaults."""
+    origins = {'http://localhost:5173', 'http://localhost:3000'}
+    env_origins = os.getenv('ALLOWED_ORIGINS', '')
+    if env_origins:
+        for o in env_origins.split(','):
+            o = o.strip()
+            if o:
+                origins.add(o)
+    return origins
+
+
 def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (whitelist only)."""
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
-    # Whitelist of allowed origins
-    ALLOWED_ORIGINS = {
-        'https://edgebrooke.example.com',
-        'https://dashboard.example.com',
-        'http://localhost:5173',
-        'http://localhost:3000',
-    }
-
-    if origin in ALLOWED_ORIGINS:
+    if origin in _build_allowed_origins():
         return {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',

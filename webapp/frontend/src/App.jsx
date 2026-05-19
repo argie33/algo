@@ -407,13 +407,13 @@ function App() {
         {/* Authentication */}
         <Route path="/login" element={<ErrorBoundary><LoginPage /></ErrorBoundary>} />
 
-        {/* Public Dashboard Pages (without /app/ prefix) */}
-        <Route path="/stocks" element={<ErrorBoundary><DeepValueStocks /></ErrorBoundary>} />
-        <Route path="/economic" element={<ErrorBoundary><EconomicDashboard /></ErrorBoundary>} />
-        <Route path="/signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
-        <Route path="/sectors" element={<ErrorBoundary><SectorAnalysis /></ErrorBoundary>} />
-        <Route path="/sentiment" element={<ErrorBoundary><Sentiment /></ErrorBoundary>} />
-        <Route path="/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
+        {/* Public Dashboard Routes - Redirect to /app/ versions */}
+        <Route path="/stocks" element={<Navigate to="/app/deep-value" replace />} />
+        <Route path="/economic" element={<Navigate to="/app/economic" replace />} />
+        <Route path="/signals" element={<Navigate to="/app/trading-signals" replace />} />
+        <Route path="/sectors" element={<Navigate to="/app/sectors" replace />} />
+        <Route path="/sentiment" element={<Navigate to="/app/sentiment" replace />} />
+        <Route path="/scores" element={<Navigate to="/app/scores" replace />} />
 
         {/* Fallback - page not found */}
         <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
