@@ -1120,7 +1120,7 @@ function DistributionTab({ items }) {
                               labelFormatter={(b) => `Score ${b}`} />
                     <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                       {data.map((d, i) => (
-                        <Cell key={i} fill={i >= 8 ? 'var(--success)'
+                        <Cell key={`dist-${i}-${d.count}`} fill={i >= 8 ? 'var(--success)'
                                           : i >= 6 ? 'var(--cyan)'
                                           : i >= 4 ? 'var(--amber)'
                                           : 'var(--danger)'}
