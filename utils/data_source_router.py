@@ -38,6 +38,11 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 
 from algo.algo_retry import retry, YFINANCE_LIMITER
 
+try:
+    import yfinance as yf
+except ImportError:
+    yf = None  # type: ignore[assignment]
+
 log = logging.getLogger(__name__)
 
 
@@ -175,11 +180,8 @@ class DataSourceRouter:
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
-        try:
-            import yfinance as yf
-            log.debug(f"[yfinance] yfinance imported successfully")
-        except ImportError as e:
-            log.error(f"[yfinance] Failed to import yfinance: {e}")
+        if yf is None:
+            log.error("[yfinance] yfinance not installed")
             return None
         YFINANCE_LIMITER.wait()
         log.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
@@ -334,11 +336,30 @@ class DataSourceRouter:
             def fetch():
                 yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
                 ticker = yf.Ticker(yf_symbol)
-                return ticker.earnings_dates
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
+                # earnings_dates API changed in newer yfinance — try calendar first
+                df = None
+                try:
+                    cal = ticker.calendar
+                    if cal is not None and not (hasattr(cal, 'empty') and cal.empty):
+                        if isinstance(cal, dict):
+                            # Newer yfinance returns dict
+                            return cal
+                        df = cal
+                except Exception:
+                    pass
+                try:
+                    df = ticker.earnings_dates
+                except Exception:
+                    pass
+                return df
+            result = _call_with_timeout(fetch, timeout_sec=30)
+            if result is None:
                 return None
-            return df.to_dict(orient="index")
+            if hasattr(result, 'empty') and result.empty:
+                return None
+            if isinstance(result, dict):
+                return result
+            return result.to_dict(orient="index")
         except TimeoutError:
             log.warning("yfinance earnings_dates timeout for %s", symbol)
             return None
