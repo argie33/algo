@@ -92,7 +92,11 @@ class BuySellSignalsLoader(OptimalLoader):
             else:  # monthly
                 self.table_name = "buy_sell_monthly"
 
-        self.primary_key = ("symbol", "timeframe", "date")
+        # ETF tables have schema (symbol, date) only; stock tables include timeframe
+        if asset_class == "etf":
+            self.primary_key = ("symbol", "date")
+        else:
+            self.primary_key = ("symbol", "timeframe", "date")
         self.watermark_field = "date"
         super().__init__(*args, **kwargs)
 
