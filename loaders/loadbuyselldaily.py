@@ -391,6 +391,23 @@ class BuySellSignalsLoader(OptimalLoader):
         atr = _f("atr")
         adx = _f("adx")
 
+        # COMPUTE RISK/REWARD RATIO
+        # For BUY signals: use ATR as stop distance, target 2-3x risk
+        # For SELL signals: use ATR as cover distance
+        risk_reward_ratio = None
+        if signal_str == "BUY" and atr and atr > 0:
+            # Stop loss typically 1-2 ATR below entry
+            stop_distance = atr * 1.5
+            # Target 2x risk = potential reward
+            target_distance = stop_distance * 2.0
+            if stop_distance > 0:
+                risk_reward_ratio = round(target_distance / stop_distance, 2)
+        elif signal_str == "SELL" and atr and atr > 0:
+            # For sells, shorter ratio acceptable
+            risk_reward_ratio = round(1.5, 2)
+        else:
+            risk_reward_ratio = 1.0  # Default neutral ratio
+
         return {
             "symbol": symbol,
             "date": date_str,
@@ -402,6 +419,7 @@ class BuySellSignalsLoader(OptimalLoader):
             "entry_quality_score": round(entry_quality, 2),
             "signal_quality_score": round(signal_quality, 2),
             "volume_surge_pct": round((vol_ratio - 1.0) * 100, 2) if vol_ratio > 0 else 0.0,
+            "risk_reward_ratio": risk_reward_ratio,
             # Technical indicators needed by filter pipeline (matches buy_sell_daily schema)
             "rsi": round(rsi, 2) if rsi is not None else None,
             "sma_50": round(sma_50, 2) if sma_50 is not None else None,
