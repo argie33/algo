@@ -124,6 +124,40 @@ def get_security_headers() -> Dict[str, str]:
     }
 
 
+def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:
+    """Return cache control headers based on content type.
+
+    Args:
+        cache_type: 'no-cache' (revalidate each time), 'public' (cacheable),
+                    'private' (user-specific), or 'none' (never cache)
+    """
+    if cache_type == 'no-cache':
+        # Sensitive data - always revalidate with server
+        return {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        }
+    elif cache_type == 'public':
+        # Public market data - cache for 5 minutes
+        return {
+            'Cache-Control': 'public, max-age=300, s-maxage=300',
+        }
+    elif cache_type == 'private':
+        # User-specific data - cache only on client, not CDN
+        return {
+            'Cache-Control': 'private, max-age=300',
+        }
+    elif cache_type == 'none':
+        # Never cache
+        return {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+        }
+    else:
+        return {'Cache-Control': 'no-cache'}
+
+
 def get_bearer_token(event: Dict) -> Optional[str]:
     """Extract Bearer token from Authorization header."""
     headers = event.get('headers', {})
