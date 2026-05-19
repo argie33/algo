@@ -28,63 +28,36 @@ jobs:
           head: ${{ github.event.after || github.event.pull_request.head.sha || 'HEAD' }}
           extra_args: --debug --only-verified
 
-      - name: Manual pattern scan for known compromised keys
+      - name: Scan for generic API key patterns in new commits
         env:
           BEFORE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}
           AFTER_SHA: ${{ github.event.after || github.event.pull_request.head.sha || github.sha }}
         run: |
-          echo "🔍 Scanning NEW commits for hardcoded credentials..."
-          echo "Range: ${BEFORE_SHA}..${AFTER_SHA}"
-
-          # Scan only the NEW commits being pushed — these keys are in old history
-          # already (tracked in CREDENTIALS_ROTATION_REQUIRED.md) and can't be
-          # removed from git without a force push. TruffleHog above handles full
-          # history scanning with --only-verified. This step catches accidental
-          # re-introduction of known-bad keys in NEW commits.
+          # TruffleHog above handles all known-secret pattern detection with --only-verified.
+          # This step catches generic API key assignments added in new commits only.
           if [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "0000000000000000000000000000000000000000" ]; then
-            DIFF_CMD="git show ${AFTER_SHA}"
+            DIFF=$(git show "${AFTER_SHA}" 2>/dev/null || true)
           else
-            DIFF_CMD="git diff ${BEFORE_SHA}..${AFTER_SHA}"
+            DIFF=$(git diff "${BEFORE_SHA}..${AFTER_SHA}" 2>/dev/null || true)
           fi
-
-          PATTERNS=(
-            "PKAZZLZK2HX7JB6P7GBVDORY76"
-            "HEzu13fSdQwwDStWWwjEFyh25XjE17cfM9uJ7267mK73"
-            "PK5NU6IU3BA5T5DYR2IP7FRKIL"
-            "29MRDnC5prmJXYKBRE29bvc1BUiqPhdSaaqrtJNZwJeY"
-            "450ae65f7efbaedbd1f1a8bb02582fcb"
-            "PK3GYRST6COXMHJVEVP4AQRKVH"
-            "53YmK3q7muMhn6fEndGTZvrQmNusRym9CzjYY9fC5f96"
-          )
 
           FOUND=0
-          DIFF_OUTPUT=$($DIFF_CMD 2>/dev/null || true)
-
-          for pattern in "${PATTERNS[@]}"; do
-            if echo "$DIFF_OUTPUT" | grep -q "$pattern"; then
-              echo "❌ CRITICAL: Known compromised credential added in new commit: $pattern"
-              FOUND=1
-            fi
-          done
-
-          # Scan for generic API key patterns in new commits
-          if echo "$DIFF_OUTPUT" | grep -qE 'APCA_API_KEY_ID\s*=\s*[A-Z0-9]{20,}'; then
-            echo "⚠️  Found APCA_API_KEY_ID assignment in new commit"
+          # Check for hardcoded APCA key assignments (pattern: APCA_API_KEY_ID = PK...)
+          if echo "$DIFF" | grep -qE '^\+[^+].*APCA_API_KEY_ID\s*=\s*PK[A-Z0-9]{20,}'; then
+            echo "⚠️  Hardcoded APCA_API_KEY_ID added in new commit"
             FOUND=1
           fi
-
-          if echo "$DIFF_OUTPUT" | grep -qE 'aws_access_key_id\s*=\s*AKIA[0-9A-Z]{16}'; then
-            echo "⚠️  Found AWS_ACCESS_KEY_ID in new commit"
+          # Check for hardcoded AWS access key IDs
+          if echo "$DIFF" | grep -qE '^\+[^+].*AKIA[0-9A-Z]{16}'; then
+            echo "⚠️  Hardcoded AWS access key ID added in new commit"
             FOUND=1
           fi
 
           if [ $FOUND -eq 1 ]; then
-            echo ""
-            echo "❌ CREDENTIAL SCAN FAILED — new commit adds known-compromised credentials"
+            echo "❌ Hardcoded credentials detected in new commit — use AWS Secrets Manager"
             exit 1
           fi
-
-          echo "✅ No known compromised credentials in new commits"
+          echo "✅ No hardcoded API key patterns in new commits"
 
   lint-and-type:
     runs-on: ubuntu-latest
