@@ -99,6 +99,7 @@ resource "aws_lambda_function" "api" {
       CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      ALLOWED_ORIGINS      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000", "http://localhost:5173,http://localhost:3000")
       # Data patrol task configuration (for /api/algo/patrol endpoint)
       ECS_CLUSTER_ARN            = var.ecs_cluster_arn
       PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn

@@ -117,25 +117,38 @@ const authenticateTokenAsync = async (req, res, next) => {
       return sendError(res, 'Authorization missing from request headers', 401, { code: 'MISSING_AUTHORIZATION' });
     }
 
-    // DEVELOPMENT: Allow test tokens when Cognito is not configured (local dev only)
-    // Production (AWS Lambda) will have COGNITO_USER_POOL_ID set
-    const cognioNotConfigured = !process.env.COGNITO_USER_POOL_ID || !process.env.COGNITO_CLIENT_ID;
-    if (cognioNotConfigured && (token === 'test-token' || token === 'admin-token' || token === 'mock-access-token')) {
-      const isAdmin = token === 'admin-token';
-      req.user = {
-        sub: isAdmin ? 'admin-test-user' : 'test-user-123',
-        username: isAdmin ? 'admin-test' : 'test-user',
-        email: isAdmin ? 'admin@test.local' : 'test@example.com',
-        role: isAdmin ? 'admin' : 'user',
-        groups: isAdmin ? ['admin'] : ['user'],
-        sessionId: isAdmin ? 'admin-test-session' : 'test-session',
-      };
-      req.token = token;
-      return next();
-    }
-
     // Validate JWT token using apiKeyService (now with real Cognito verification)
-    const result = await validateJwtToken(token);
+    let result;
+    try {
+      result = await validateJwtToken(token);
+    } catch (error) {
+      // DEVELOPMENT: If Cognito is not configured, allow test tokens
+      // This enables local development without AWS Cognito setup
+      if (error.message && error.message.includes('Cognito environment variables not configured')) {
+        if (token === 'test-token' || token === 'admin-token' || token === 'mock-access-token') {
+          const isAdmin = token === 'admin-token';
+          req.user = {
+            sub: isAdmin ? 'admin-test-user' : 'test-user-123',
+            username: isAdmin ? 'admin-test' : 'test-user',
+            email: isAdmin ? 'admin@test.local' : 'test@example.com',
+            role: isAdmin ? 'admin' : 'user',
+            groups: isAdmin ? ['admin'] : ['user'],
+            sessionId: isAdmin ? 'admin-test-session' : 'test-session',
+          };
+          req.token = token;
+          return next();
+        }
+        // Not a test token and Cognito not configured — fail auth
+        return sendError(res, 'Authentication service not configured', 500, { code: 'AUTH_SERVICE_ERROR' });
+      }
+      // Other validation errors
+      logger.security('auth_failure', {
+        error: error.message,
+        path: req.path,
+        ip: req.ip || req.connection.remoteAddress,
+      });
+      return sendError(res, 'Invalid credentials', 401, { code: 'INVALID_CREDENTIALS' });
+    }
 
     if (!result.valid) {
       logger.security('auth_failure', {

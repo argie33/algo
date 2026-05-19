@@ -725,3 +725,37 @@ variable "additional_tags" {
   default     = {}
 }
 
+# ============================================================
+# AWS Configuration
+# ============================================================
+
+variable "aws_region" {
+  description = "AWS region for resource deployment"
+  type        = string
+  default     = "us-east-1"
+  validation {
+    condition     = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
+    error_message = "AWS region must be a valid region code"
+  }
+}
+
+# ============================================================
+# Orchestrator Configuration
+# ============================================================
+
+variable "execution_mode" {
+  description = "Orchestrator execution mode (auto, manual, dry-run)"
+  type        = string
+  default     = "auto"
+  validation {
+    condition     = contains(["auto", "manual", "dry-run"], var.execution_mode)
+    error_message = "Execution mode must be auto, manual, or dry-run"
+  }
+}
+
+variable "orchestrator_dry_run" {
+  description = "Enable dry-run mode for orchestrator (no actual trades)"
+  type        = bool
+  default     = false
+}
+

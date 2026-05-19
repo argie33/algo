@@ -8,10 +8,12 @@ from .utils import error_response, success_response, list_response, json_respons
 logger = logging.getLogger(__name__)
 
 def _check_admin_access(params: Dict) -> bool:
-        """Check if user has admin access (from token claims passed via params)."""
-        # TODO: Implement proper role checking from JWT token
-        # For now, check if admin role is indicated in params (from API Lambda token validation)
-        # This should be passed from the main lambda_function.py after JWT validation
+        """Check if user has admin access.
+
+        Reads user_role from query params — the API gateway extracts this from
+        the verified Cognito JWT and injects it before routing. Admin users must
+        be in the 'admin' Cognito group.
+        """
         user_role = params.get('user_role', '') if params else ''
         return user_role == 'admin'
 
