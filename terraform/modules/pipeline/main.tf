@@ -165,10 +165,67 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
         }]
+        Next = "ParallelTechnicals"
+      }
+
+      # ── Step 2: Technical indicators + market health (both read price_daily) ─
+      ParallelTechnicals = {
+        Type = "Parallel"
+        Branches = [
+          {
+            StartAt = "TechnicalDataDaily"
+            States = {
+              TechnicalDataDaily = {
+                Type     = "Task"
+                Resource = "arn:aws:states:::ecs:runTask.sync"
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          },
+          {
+            StartAt = "MarketHealthDaily"
+            States = {
+              MarketHealthDaily = {
+                Type     = "Task"
+                Resource = "arn:aws:states:::ecs:runTask.sync"
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          }
+        ]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
         Next = "ParallelEnrichment"
       }
 
-      # ── Step 2: Parallel enrichment (market data, sentiment, economic) ────
+      # ── Step 3: Parallel enrichment (trend template + stock scores) ────────
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -225,7 +282,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "SignalGeneration"
       }
 
-      # ── Step 4: Generate all signals in parallel ──────────────────────────
+      # ── Step 5: Generate all signals in parallel ──────────────────────────
       SignalGeneration = {
         Type = "Parallel"
         Branches = [
@@ -370,7 +427,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "AlgoMetrics"
       }
 
-      # ── Step 5: Summarize signal quality metrics ──────────────────────────
+      # ── Step 6: Summarize signal quality metrics ──────────────────────────
       AlgoMetrics = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
@@ -391,10 +448,34 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
         }]
+        Next = "SwingScores"
+      }
+
+      # ── Step 6: Swing trader scores (depends on signals + metrics) ───────
+      SwingScores = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
         Next = "TriggerOrchestrator"
       }
 
-      # ── Step 6: Fire the trading orchestrator (ECS Fargate) ──────────────
+      # ── Step 8: Fire the trading orchestrator (ECS Fargate) ──────────────
       TriggerOrchestrator = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"

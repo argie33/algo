@@ -172,6 +172,9 @@ locals {
     "algo_metrics_daily"            = "load_signal_quality_scores.py"
     "eod_bulk_refresh"              = "loadpricedaily.py"
     "market_data_batch"             = "loadmarketindices.py"
+    "technical_data_daily"          = "load_technical_data_daily.py"
+    "market_health_daily"           = "load_market_health_daily.py"
+    "swing_trader_scores"           = "load_swing_trader_scores.py"
   }
 
   scheduled_loaders = {
@@ -420,6 +423,15 @@ locals {
 
     # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
+    # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 8 }
+
+    # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, small dataset
+    "market_health_daily" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+
+    # Swing trader scores (EOD pipeline final step) — compute-heavy scoring
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
   }
 
   # For backward compatibility
