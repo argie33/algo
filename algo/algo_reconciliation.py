@@ -87,7 +87,7 @@ class PositionReconciler:
                             for row in self.cur.fetchall()}
 
             try:
-                alpaca_positions = {pos.symbol: int(pos.qty) for pos in self.trading_client.get_all_positions()}
+                alpaca_positions = {pos.symbol: int(pos.qty) for pos in self.trading_client.list_positions()}
             except Exception as e:
                 logger.error(f"  [ERROR] Could not query Alpaca positions: {e}")
                 return {'status': 'error', 'reason': str(e)}

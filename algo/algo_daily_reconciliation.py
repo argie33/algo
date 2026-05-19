@@ -29,15 +29,20 @@ class DailyReconciliation:
 
     def __init__(self, config):
         self.config = config
+        self.trading_client = None
         try:
+            from alpaca_trade_api import REST
             credential_manager = get_credential_manager()
-            self.alpaca_key = credential_manager.get_alpaca_credentials()["key"]
-            self.alpaca_secret = credential_manager.get_alpaca_credentials()["secret"]
+            creds = credential_manager.get_alpaca_credentials()
+            if creds.get("key") and creds.get("secret"):
+                self.trading_client = REST(
+                    key_id=creds["key"],
+                    secret_key=creds["secret"],
+                    base_url=os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+                )
         except Exception as e:
-            logger.warning(f"Alpaca credentials not available: {e}")
-            self.alpaca_key = None
-            self.alpaca_secret = None
-        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            logger.warning(f"Alpaca client initialization failed: {e}")
+            self.trading_client = None
         self.conn = None
         self.cur = None
 
