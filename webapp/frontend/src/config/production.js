@@ -121,17 +121,19 @@ export const PRODUCTION_CONFIG = {
     metricsInterval: 60000, // 1 minute
   },
 
-  // Content Security Policy
+  // Content Security Policy - Strict CSP without unsafe-inline
   csp: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
-    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    scriptSrc: ["'self'"],  // Only self-hosted scripts, no inline
+    styleSrc: ["'self'", "https://fonts.googleapis.com"],  // No unsafe-inline
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
     imgSrc: ["'self'", "data:", "https:"],
     connectSrc: ["'self'", "wss:", "https:"],
     frameSrc: ["'none'"],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
+    mediaUrc: ["'none'"],
+    childSrc: ["'none'"],
   },
 };
 
