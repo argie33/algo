@@ -41,26 +41,11 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = [
-    'loadecondata.py',
-    'loadfeargreed.py',
-    'loadmarketindices.py',
-    'loadseasonality.py',
-]
+tier_1e_market_data = []
 
 tier_2_reference = [
-    # Annual financials
-    ('load_income_statement.py', ['--period', 'annual']),
-    ('load_balance_sheet.py', ['--period', 'annual']),
-    ('load_cash_flow.py', ['--period', 'annual']),
-    # Quarterly financials (raw SEC data, one quarter at a time)
-    ('load_income_statement.py', ['--period', 'quarterly']),
-    ('load_balance_sheet.py', ['--period', 'quarterly']),
-    ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py',
-    # Calendar data
     'load_earnings_calendar.py',
-    # Sector and industry data
     'loadsectors.py', 'load_sector_ranking.py', 'loadindustryranking.py',
 ]
 

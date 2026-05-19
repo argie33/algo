@@ -1,194 +1,125 @@
 #!/usr/bin/env python3
+"""Seasonality Loader — computes day-of-week and monthly return stats from SPY price history.
+
+No external API needed — reads price_daily locally.
+Tables: seasonality_day_of_week, seasonality_monthly_stats
+
+Run: python3 loaders/loadseasonality.py
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-"""
-Seasonality Stats Loader.
-
-Computes day-of-week and monthly seasonality statistics from SPY price_daily
-data and stores results in seasonality_day_of_week and seasonality_monthly_stats.
-
-No external API needed — reads from local price_daily table.
-Run weekly (data changes slowly).
-
-Run:
-    python3 loadseasonality.py
-"""
-
 import logging
-from calendar import month_abbr
-from datetime import date
+from datetime import date, timedelta
+
+import pandas as pd
 
 from config.env_loader import load_env
-from utils.db_connection import get_db_connection
 
 log = logging.getLogger(__name__)
 
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+               "July", "August", "September", "October", "November", "December"]
 
 
-def compute_day_of_week(cur) -> list:
-    """Compute average return and win rate by day of week using SPY daily returns."""
-    cur.execute("""
-        SELECT
-            EXTRACT(DOW FROM date)::int AS day_num,
-            (close - open) / NULLIF(open, 0) * 100 AS daily_return
-        FROM price_daily
-        WHERE symbol = 'SPY'
-          AND date >= CURRENT_DATE - INTERVAL '5 years'
-          AND close IS NOT NULL AND open IS NOT NULL AND open != 0
-        ORDER BY date
-    """)
-    rows = cur.fetchall()
+def run() -> int:
+    from utils.db_connection import get_db_connection
 
-    buckets: dict = {}
-    for row in rows:
-        dn = row["day_num"]  # 0=Sunday in PostgreSQL EXTRACT(DOW)
-        ret = float(row["daily_return"])
-        if dn not in buckets:
-            buckets[dn] = []
-        buckets[dn].append(ret)
-
-    results = []
-    for dn, returns in buckets.items():
-        n = len(returns)
-        if n == 0:
-            continue
-        avg = sum(returns) / n
-        wins = sum(1 for r in returns if r > 0)
-        # Map PostgreSQL DOW (0=Sun) to name
-        day_name = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dn]
-        results.append({
-            "day": day_name,
-            "day_num": dn,
-            "avg_return": round(avg, 4),
-            "win_rate": round(wins / n * 100, 4),
-            "days_counted": n,
-        })
-    return results
-
-
-def compute_monthly(cur) -> list:
-    """Compute monthly return stats using SPY monthly close-to-close returns."""
-    cur.execute("""
-        SELECT
-            EXTRACT(MONTH FROM date)::int AS month,
-            EXTRACT(YEAR FROM date)::int AS year,
-            MAX(close) FILTER (WHERE date = (
-                SELECT MAX(d2.date) FROM price_daily d2
-                WHERE d2.symbol = 'SPY'
-                  AND EXTRACT(MONTH FROM d2.date) = EXTRACT(MONTH FROM price_daily.date)
-                  AND EXTRACT(YEAR FROM d2.date) = EXTRACT(YEAR FROM price_daily.date)
-            )) AS month_close
-        FROM price_daily
-        WHERE symbol = 'SPY'
-          AND date >= CURRENT_DATE - INTERVAL '20 years'
-          AND close IS NOT NULL
-        GROUP BY month, year
-        ORDER BY year, month
-    """)
-    rows = cur.fetchall()
-
-    # Build dict {(year, month): close}
-    closes = {}
-    for row in rows:
-        if row["month_close"] is not None:
-            closes[(int(row["year"]), int(row["month"]))] = float(row["month_close"])
-
-    # Compute month-over-month returns
-    sorted_keys = sorted(closes.keys())
-    monthly_returns: dict = {}
-    for i in range(1, len(sorted_keys)):
-        prev_key = sorted_keys[i - 1]
-        curr_key = sorted_keys[i]
-        prev_c = closes[prev_key]
-        curr_c = closes[curr_key]
-        if prev_c == 0:
-            continue
-        ret = (curr_c - prev_c) / prev_c * 100
-        month = curr_key[1]
-        if month not in monthly_returns:
-            monthly_returns[month] = []
-        monthly_returns[month].append(ret)
-
-    results = []
-    for month, returns in monthly_returns.items():
-        n = len(returns)
-        if n == 0:
-            continue
-        avg = sum(returns) / n
-        wins = sum(1 for r in returns if r > 0)
-        results.append({
-            "month": month,
-            "month_name": month_abbr[month],
-            "avg_return": round(avg, 4),
-            "best_return": round(max(returns), 4),
-            "worst_return": round(min(returns), 4),
-            "years_counted": n,
-            "winning_years": wins,
-            "losing_years": n - wins,
-        })
-    return results
-
-
-def upsert_all(conn, dow_rows: list, monthly_rows: list) -> tuple:
-    cur = conn.cursor()
+    conn = get_db_connection()
     try:
-        # Truncate and reload (small tables, no incremental needed)
-        cur.execute("TRUNCATE TABLE seasonality_day_of_week")
-        for row in dow_rows:
+        with conn.cursor() as cur:
+            start = date.today() - timedelta(days=20 * 365)
             cur.execute(
-                """
-                INSERT INTO seasonality_day_of_week
-                    (day, day_num, avg_return, win_rate, days_counted)
-                VALUES (%(day)s, %(day_num)s, %(avg_return)s, %(win_rate)s, %(days_counted)s)
-                """,
-                row,
+                "SELECT date, open, close FROM price_daily WHERE symbol='SPY' AND date >= %s AND close IS NOT NULL AND open IS NOT NULL AND open != 0 ORDER BY date",
+                (start,),
             )
+            rows = cur.fetchall()
 
-        cur.execute("TRUNCATE TABLE seasonality_monthly_stats")
-        for row in monthly_rows:
-            cur.execute(
-                """
-                INSERT INTO seasonality_monthly_stats
-                    (month, month_name, avg_return, best_return, worst_return,
-                     years_counted, winning_years, losing_years)
-                VALUES (%(month)s, %(month_name)s, %(avg_return)s, %(best_return)s,
-                        %(worst_return)s, %(years_counted)s, %(winning_years)s, %(losing_years)s)
-                """,
-                row,
-            )
+        if len(rows) < 252:
+            log.error("Not enough SPY price data (%d rows)", len(rows))
+            return 1
+
+        df = pd.DataFrame(rows, columns=["date", "open", "close"])
+        df["date"] = pd.to_datetime(df["date"])
+        df["open"] = df["open"].astype(float)
+        df["close"] = df["close"].astype(float)
+        df["daily_return"] = (df["close"] - df["open"]) / df["open"] * 100
+
+        # Day-of-week stats (0=Monday ... 6=Sunday in pandas, but EXTRACT(DOW) uses 0=Sunday)
+        dof_df = df[df["date"] >= pd.Timestamp(date.today() - timedelta(days=5 * 365))].copy()
+        dof_df["dow"] = dof_df["date"].dt.dayofweek  # 0=Monday ... 4=Friday
+
+        with conn.cursor() as cur:
+            cur.execute("TRUNCATE seasonality_day_of_week")
+            for dow in range(5):  # Mon=0 ... Fri=4
+                sub = dof_df[dof_df["dow"] == dow]["daily_return"]
+                if len(sub) < 10:
+                    continue
+                # pandas dow: 0=Monday -> map to day names starting Monday
+                day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][dow]
+                cur.execute(
+                    """INSERT INTO seasonality_day_of_week
+                       (day, day_num, avg_return, win_rate, days_counted)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (
+                        day_name,
+                        dow + 1,  # 1=Monday for display
+                        round(float(sub.mean()), 4),
+                        round(float((sub > 0).mean()), 4),
+                        len(sub),
+                    ),
+                )
+            log.info("Inserted day-of-week seasonality")
+
+            # Monthly stats (last 20 years)
+            df["year"] = df["date"].dt.year
+            df["month"] = df["date"].dt.month
+            monthly = df.groupby(["year", "month"])["daily_return"].sum().reset_index()
+            monthly.columns = ["year", "month", "monthly_return"]
+
+            cur.execute("TRUNCATE seasonality_monthly_stats")
+            for m in range(1, 13):
+                sub = monthly[monthly["month"] == m]["monthly_return"]
+                if len(sub) < 5:
+                    continue
+                wins = int((sub > 0).sum())
+                losses = int((sub <= 0).sum())
+                cur.execute(
+                    """INSERT INTO seasonality_monthly_stats
+                       (month, month_name, avg_return, best_return, worst_return,
+                        years_counted, winning_years, losing_years)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        m,
+                        MONTH_NAMES[m - 1],
+                        round(float(sub.mean()), 4),
+                        round(float(sub.max()), 4),
+                        round(float(sub.min()), 4),
+                        len(sub),
+                        wins,
+                        losses,
+                    ),
+                )
+            log.info("Inserted monthly seasonality stats")
+
         conn.commit()
-        return len(dow_rows), len(monthly_rows)
-    except Exception:
+        log.info("Seasonality complete")
+        return 0
+
+    except Exception as e:
+        log.error("Seasonality loader error: %s", e, exc_info=True)
         conn.rollback()
-        raise
+        return 1
     finally:
-        cur.close()
+        conn.close()
 
 
 def main() -> int:
     load_env()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        dow_rows = compute_day_of_week(cur)
-        monthly_rows = compute_monthly(cur)
-    finally:
-        cur.close()
-
-    if not dow_rows and not monthly_rows:
-        log.warning("No SPY price data found — run price loader first")
-        conn.close()
-        return 0
-
-    n_dow, n_monthly = upsert_all(conn, dow_rows, monthly_rows)
-    conn.close()
-    log.info("Seasonality: %d day-of-week rows, %d monthly rows", n_dow, n_monthly)
-    return 0
+    return run()
 
 
 if __name__ == "__main__":
