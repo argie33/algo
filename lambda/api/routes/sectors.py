@@ -51,12 +51,20 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                                 pd.date,
                                 AVG(pd.close) AS avgPrice,
                                 AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma_10,
-                                AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma_20,
-                                LAG(AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)) OVER (ORDER BY pd.date) AS prev_ma_10
+                                AVG(pd.close) OVER (PARTITION BY 1 ORDER BY pd.date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma_20
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
                             WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                             GROUP BY pd.date
+                        ),
+                        sector_with_momentum AS (
+                            SELECT
+                                date,
+                                avgPrice,
+                                ma_10,
+                                ma_20,
+                                LAG(ma_10) OVER (ORDER BY date) AS prev_ma_10
+                            FROM sector_prices
                         )
                         SELECT
                             date,
@@ -67,7 +75,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             'momentum' AS momentum,
                             ROUND(COALESCE(ma_10, 0), 2) AS ma_10,
                             ROUND(COALESCE(ma_20, 0), 2) AS ma_20
-                        FROM sector_prices
+                        FROM sector_with_momentum
                         ORDER BY date DESC
                     """, (sector_name, days))
                     rows = cur.fetchall()

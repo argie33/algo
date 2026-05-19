@@ -93,6 +93,41 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'status': 'healthy'})
             }
 
+        # Detailed health check
+        if path in ['/health/detailed', '/api/health/detailed']:
+            try:
+                conn = get_db_connection()
+                if not conn:
+                    return {
+                        'statusCode': 503,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'status': 'unhealthy', 'dbStatus': 'disconnected'})
+                    }
+
+                cur = conn.cursor()
+                # Get table counts
+                tables = ['price_daily', 'signals', 'stock_scores', 'technical_data_daily']
+                table_counts = {}
+                for table in tables:
+                    try:
+                        cur.execute(f'SELECT COUNT(*) FROM {table}')
+                        table_counts[table] = cur.fetchone()[0]
+                    except:
+                        table_counts[table] = 0
+                cur.close()
+
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
+                }
+            except Exception as e:
+                return {
+                    'statusCode': 503,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'status': 'unhealthy', 'error': str(e)})
+                }
+
         # CORS preflight
         if method == 'OPTIONS':
             return {
