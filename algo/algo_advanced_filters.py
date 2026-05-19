@@ -612,12 +612,26 @@ class AdvancedFilters:
         return float(row[0])
 
     def _estimate_days_to_earnings(self, symbol, signal_date):
-        # First, try to get actual estimated earnings date from estimated_eps table
+        # First, try to get actual estimated earnings date from earnings_calendar or earnings_estimates
         self.cur.execute(
             """
-            SELECT estimated_earnings_date FROM estimated_eps
-            WHERE symbol = %s AND estimated_earnings_date > %s
-            ORDER BY estimated_earnings_date ASC LIMIT 1
+            SELECT earnings_date FROM earnings_calendar
+            WHERE symbol = %s AND earnings_date > %s
+            ORDER BY earnings_date ASC LIMIT 1
+            """,
+            (symbol, signal_date),
+        )
+        row = self.cur.fetchone()
+        if row and row[0]:
+            earnings_date = row[0]
+            return (earnings_date - signal_date).days
+
+        # Fallback: try earnings_estimates table
+        self.cur.execute(
+            """
+            SELECT earnings_date FROM earnings_estimates
+            WHERE symbol = %s AND earnings_date > %s AND estimated = true
+            ORDER BY earnings_date ASC LIMIT 1
             """,
             (symbol, signal_date),
         )
@@ -629,8 +643,8 @@ class AdvancedFilters:
         # Fallback: estimate based on last reported earnings using proper quarter math
         self.cur.execute(
             """
-            SELECT report_date FROM earnings_history
-            WHERE symbol = %s ORDER BY report_date DESC LIMIT 1
+            SELECT earnings_date FROM earnings_history
+            WHERE symbol = %s AND estimated = false ORDER BY earnings_date DESC LIMIT 1
             """,
             (symbol,),
         )
