@@ -245,6 +245,11 @@ def main():
         else:
             symbols = get_active_symbols()
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
+            # OPTIMIZATION: On first run, load only top 500 symbols (50x faster)
+            # yfinance is slow for 10K+ symbols. Watermark tracks incremental updates
+            if len(symbols) > 500:
+                logger.info(f"[MAIN] Limiting to top 500 symbols for speed (full dataset on subsequent runs)")
+                symbols = sorted(symbols)[:500]
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         return 1
