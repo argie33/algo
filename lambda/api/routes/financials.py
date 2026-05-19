@@ -1,5 +1,5 @@
 """Route: financials"""
-import psycopg2, psycopg2.extras, psycopg2.errors
+import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
 from .utils import error_response, list_response, json_response, safe_limit, handle_db_error
@@ -50,25 +50,25 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
         if endpoint == 'income-statement':
             table = 'quarterly_income_statement' if period == 'quarterly' else 'annual_income_statement'
-            cur.execute(f"""
-                SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """, (sym, limit))
+            cur.execute(psycopg2.sql.SQL("""
+                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
+            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
             table = 'quarterly_balance_sheet' if period == 'quarterly' else 'annual_balance_sheet'
-            cur.execute(f"""
-                SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """, (sym, limit))
+            cur.execute(psycopg2.sql.SQL("""
+                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
+            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'cash-flow':
             table = 'quarterly_cash_flow' if period == 'quarterly' else 'annual_cash_flow'
-            cur.execute(f"""
-                SELECT * FROM {table} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """, (sym, limit))
+            cur.execute(psycopg2.sql.SQL("""
+                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
+            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 

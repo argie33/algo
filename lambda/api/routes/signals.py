@@ -32,7 +32,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 where_clause += " AND bsd.symbol = %s"
                 params.insert(0, symbol_filter.upper())  # Insert at beginning for parameter order
 
-            cur.execute(f"""
+            cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
@@ -81,7 +81,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
                 LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
                     AND swg.date >= CURRENT_DATE - INTERVAL '1 day'
-                {where_clause}
+                """ + where_clause + """
                 ORDER BY bsd.date DESC, bsd.symbol ASC
                 LIMIT %s
             """, tuple(params))

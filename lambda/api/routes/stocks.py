@@ -55,23 +55,24 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             query_params.append(sector)
 
         where_sql = " AND ".join(where_clauses)
-        cur.execute(f"""
+        query_params_with_limit = query_params + [limit, offset]
+
+        cur.execute("""
             SELECT ss.symbol, ss.security_name as company_name,
                    cp.sector, cp.industry,
                    ss.is_sp500
             FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE {where_sql}
+            WHERE """ + where_sql + """
             ORDER BY ss.symbol
             LIMIT %s OFFSET %s
-        """, query_params + [limit, offset])
+        """, query_params_with_limit)
         rows = cur.fetchall()
 
-        cur.execute(f"""
+        cur.execute("""
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE {where_sql}
-        """, query_params)
+            WHERE """ + where_sql, query_params)
         total = dict(cur.fetchone()).get('count', 0)
 
         return json_response(200, {

@@ -7,9 +7,21 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
+def _check_admin_access(params: Dict) -> bool:
+        """Check if user has admin access (from token claims passed via params)."""
+        # TODO: Implement proper role checking from JWT token
+        # For now, check if admin role is indicated in params (from API Lambda token validation)
+        # This should be passed from the main lambda_function.py after JWT validation
+        user_role = params.get('user_role', '') if params else ''
+        return user_role == 'admin'
+
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
+            # Require admin role for all admin endpoints
+            if not _check_admin_access(params):
+                return error_response(403, 'forbidden', 'Admin access required')
+
             if path == '/api/admin/loader-status':
                 return _get_loader_status(cur)
             elif path == '/api/admin/system-health':
@@ -128,35 +140,28 @@ def _get_system_health(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'get system health')
 def _get_database_stats(cur) -> Dict:
-        """Get database statistics."""
+        """Get database statistics (schema-safe version - no table name exposure)."""
         try:
             stats = {}
 
-            cur.execute("""
-                SELECT
-                    schemaname,
-                    tablename,
-                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
-                FROM pg_tables
-                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-                ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
-                LIMIT 20
-            """)
-
-            tables = []
-            for row in cur.fetchall():
-                row_d = dict(row)
-                tables.append({'name': row_d.get('tablename', ''), 'size': row_d.get('size', '')})
-
-            stats['largest_tables'] = tables
-
+            # Count active connections without exposing table structure
             cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
             stats['active_connections'] = next(iter(dict(cur.fetchone() or {}).values()), 0)
 
+            # Get high-level DB size without exposing individual table names
             cur.execute("""
-                SELECT COUNT(*) FROM pg_stat_user_indexes WHERE idx_scan = 0
+                SELECT pg_size_pretty(pg_database_size(current_database())) as total_size
             """)
-            stats['unused_indexes'] = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            size_row = cur.fetchone()
+            stats['total_database_size'] = dict(size_row).get('total_size', 'unknown') if size_row else 'unknown'
+
+            # Check if any tables exist without revealing names
+            cur.execute("""
+                SELECT COUNT(*) as table_count FROM information_schema.tables
+                WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+            """)
+            table_count_row = cur.fetchone()
+            stats['table_count'] = dict(table_count_row).get('table_count', 0) if table_count_row else 0
 
             stats['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, stats)

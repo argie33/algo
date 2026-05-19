@@ -9,6 +9,11 @@ logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
+        # Get current user ID from params (should be passed from main Lambda after JWT validation)
+        user_id = params.get('user_id', '') if params else ''
+        if not user_id:
+            return error_response(401, 'unauthorized', 'User ID required')
+
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
             try:
@@ -17,9 +22,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
                 cur.execute(
-                    "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
-                    (notif_id_int,)
+                    "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s AND user_id=%s",
+                    (notif_id_int, user_id)
                 )
+                # Check if notification was actually updated (ownership check)
+                if cur.rowcount == 0:
+                    return error_response(403, 'forbidden', 'Notification not found or access denied')
                 cur.connection.commit()
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
@@ -28,7 +36,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             try:
-                cur.execute("DELETE FROM algo_notifications WHERE id=%s", (int(notif_id),))
+                cur.execute("DELETE FROM algo_notifications WHERE id=%s AND user_id=%s", (int(notif_id), user_id))
+                # Check if notification was actually deleted (ownership check)
+                if cur.rowcount == 0:
+                    return error_response(403, 'forbidden', 'Notification not found or access denied')
                 cur.connection.commit()
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
