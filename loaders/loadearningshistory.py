@@ -30,7 +30,7 @@ from utils.optimal_loader import OptimalLoader
 
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
-    primary_key = ("symbol", "earnings_date")
+    primary_key = ("symbol", "quarter")
     watermark_field = "earnings_date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -66,8 +66,19 @@ class EarningsHistoryLoader(OptimalLoader):
                         except (TypeError, ValueError):
                             return None
 
+                    # Derive quarter start date (the quarter in which earnings fall)
+                    from datetime import datetime
+                    try:
+                        dt = datetime.fromisoformat(ed)
+                        q = (dt.month - 1) // 3 + 1
+                        qstart_month = (q - 1) * 3 + 1
+                        quarter_str = f"{dt.year}-{qstart_month:02d}-01"
+                    except Exception:
+                        quarter_str = ed[:10]
+
                     rows.append({
                         "symbol": symbol,
+                        "quarter": quarter_str,
                         "earnings_date": ed,
                         "eps_estimate": _safe_float(eps_est),
                         "eps_actual": _safe_float(eps_actual),
@@ -86,14 +97,7 @@ class EarningsHistoryLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         if not super()._validate_row(row):
             return False
-        ed = row.get("earnings_date")
-        if not ed:
-            return False
-        try:
-            year = int(str(ed)[:4])
-            return 1990 < year < 2100
-        except (TypeError, ValueError):
-            return False
+        return bool(row.get("quarter")) and bool(row.get("earnings_date"))
 
 
 
