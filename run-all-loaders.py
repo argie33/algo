@@ -41,20 +41,7 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = [
-    # Market indices (SPY, QQQ, VIX etc.) — independent, runs in parallel with tier 2
-    'loadmarketindices.py',
-    # Sentiment surveys — weekly data, small payloads
-    'loadaaiidata.py',
-    'loadnaaim.py',
-    'loadfeargreed.py',
-    # Economic indicators (GDP, CPI, unemployment) — FRED API
-    'loadecondata.py',
-    # Analyst sentiment recommendations
-    'loadanalystsentiment.py',
-    # Seasonality statistics (SPY-based, uses price history)
-    'loadseasonality.py',
-]
+tier_1e_market_data = []
 
 tier_2_reference = [
     # Annual financials
@@ -65,9 +52,9 @@ tier_2_reference = [
     ('load_income_statement.py', ['--period', 'quarterly']),
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
-    'loadearningshistory.py', 'loadearningsrevisions.py', 'loadearningsestimates.py',
+    'loadearningshistory.py',
     # Company profile and analyst data
-    'loadcompanyprofile.py', 'loadanalystupgradedowngrade.py',
+    'loadcompanyprofile.py',
     # Calendar data
     'load_earnings_calendar.py',
     # Sector and industry data
