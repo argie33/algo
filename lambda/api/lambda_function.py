@@ -77,6 +77,42 @@ def parse_query_params(event: Dict) -> Dict:
     return params
 
 
+def get_cors_headers(event: Dict) -> Dict[str, str]:
+    """Get CORS headers based on request origin (whitelist only)."""
+    origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
+
+    # Whitelist of allowed origins
+    ALLOWED_ORIGINS = {
+        'https://edgebrooke.example.com',
+        'https://dashboard.example.com',
+        'http://localhost:5173',
+        'http://localhost:3000',
+    }
+
+    if origin in ALLOWED_ORIGINS:
+        return {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true',
+        }
+
+    # Reject cross-origin requests from unknown sources
+    return {
+        'Access-Control-Allow-Origin': 'null',
+    }
+
+
+def get_security_headers() -> Dict[str, str]:
+    """Return security headers for all responses."""
+    return {
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+    }
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     try:
@@ -105,12 +141,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
 
                 cur = conn.cursor()
-                # Get table counts
-                tables = ['price_daily', 'signals', 'stock_scores', 'technical_data_daily']
+                # Get table counts (whitelist prevents SQL injection)
+                ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
                 table_counts = {}
-                for table in tables:
+                for table in ALLOWED_TABLES:
                     try:
-                        cur.execute(f'SELECT COUNT(*) FROM {table}')
+                        cur.execute(f'SELECT COUNT(*) FROM "{table}"')
                         table_counts[table] = cur.fetchone()[0]
                     except:
                         table_counts[table] = 0

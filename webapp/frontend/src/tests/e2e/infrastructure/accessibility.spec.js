@@ -84,8 +84,7 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-      `📊 Pages with proper titles: ${properTitles}/${criticalPages.length}`
-    );
+    console.log(`Pages with proper titles: ${properTitles}/${criticalPages.length}`);
     expect(properTitles).toBeGreaterThan(2);
   });
 

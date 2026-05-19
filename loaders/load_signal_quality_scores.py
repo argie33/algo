@@ -112,56 +112,74 @@ class SignalQualityScoresLoader(OptimalLoader):
         if not buy_sell_rows:
             return []
 
-        bs_df = pd.DataFrame(buy_sell_rows)
-        bs_df["date"] = pd.to_datetime(bs_df["date"])
+        try:
+            bs_df = pd.DataFrame(buy_sell_rows)
+            if bs_df.empty:
+                return []
+            bs_df["date"] = pd.to_datetime(bs_df["date"])
 
-        tech_df = pd.DataFrame(technical_rows)
-        tech_df["date"] = pd.to_datetime(tech_df["date"])
+            tech_df = pd.DataFrame(technical_rows) if technical_rows else pd.DataFrame()
+            if not tech_df.empty:
+                tech_df["date"] = pd.to_datetime(tech_df["date"])
 
-        trend_df = pd.DataFrame(trend_rows)
-        trend_df["date"] = pd.to_datetime(trend_df["date"])
+            trend_df = pd.DataFrame(trend_rows) if trend_rows else pd.DataFrame()
+            if not trend_df.empty:
+                trend_df["date"] = pd.to_datetime(trend_df["date"])
 
-        merged = bs_df.merge(tech_df, on="date", how="left").merge(trend_df, on="date", how="left")
+            # Merge with left join to keep all buy/sell rows
+            merged = bs_df
+            if not tech_df.empty:
+                merged = merged.merge(tech_df, on="date", how="left")
+            if not trend_df.empty:
+                merged = merged.merge(trend_df, on="date", how="left")
 
-        results = []
-        for _, row in merged.iterrows():
-            score = 40
-            signal_type = row["signal_type"]
+            results = []
+            for _, row in merged.iterrows():
+                score = 40
+                signal_type = row.get("signal_type")
+                if not signal_type:
+                    continue
 
-            if signal_type == "BUY":
-                rsi = row.get("rsi_14")
-                macd = row.get("macd")
-                macd_signal = row.get("macd_signal")
-                minervini = row.get("minervini_score", 0)
+                if signal_type == "BUY":
+                    rsi = row.get("rsi_14")
+                    macd = row.get("macd")
+                    macd_signal = row.get("macd_signal")
+                    minervini = row.get("minervini_score", 0)
 
-                if rsi and 40 < rsi < 80:
-                    score += 10
-                if macd is not None and macd_signal is not None and macd > macd_signal:
-                    score += 10
-                if minervini and minervini >= 3:
-                    score += 15
+                    if rsi and 40 < float(rsi) < 80:
+                        score += 10
+                    if macd is not None and macd_signal is not None and float(macd) > float(macd_signal):
+                        score += 10
+                    if minervini and float(minervini) >= 3:
+                        score += 15
 
-                score = min(100, score)
+                    score = min(100, score)
 
-            elif signal_type == "SELL":
-                rsi = row.get("rsi_14")
-                macd = row.get("macd")
-                macd_signal = row.get("macd_signal")
+                elif signal_type == "SELL":
+                    rsi = row.get("rsi_14")
+                    macd = row.get("macd")
+                    macd_signal = row.get("macd_signal")
 
-                if rsi and 20 < rsi < 60:
-                    score += 10
-                if macd is not None and macd_signal is not None and macd < macd_signal:
-                    score += 10
+                    if rsi and 20 < float(rsi) < 60:
+                        score += 10
+                    if macd is not None and macd_signal is not None and float(macd) < float(macd_signal):
+                        score += 10
 
-                score = min(100, score)
+                    score = min(100, score)
 
-            results.append({
-                "symbol": symbol,
-                "date": row["date"].date().isoformat(),
-                "composite_sqs": int(score),
-            })
+                date_val = row.get("date")
+                if date_val is not None:
+                    date_str = date_val.date().isoformat() if hasattr(date_val, 'date') else str(date_val)
+                    results.append({
+                        "symbol": symbol,
+                        "date": date_str,
+                        "composite_sqs": int(score),
+                    })
 
-        return results
+            return results
+        except Exception as e:
+            logger.warning(f"Error computing quality scores for {symbol}: {e}")
+            return []
 
 
 if __name__ == "__main__":

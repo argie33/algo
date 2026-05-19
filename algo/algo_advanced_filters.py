@@ -468,20 +468,23 @@ class AdvancedFilters:
         return pts, round(avg, 1)
 
     def _earnings_quality_score(self, symbol):
-        self.cur.execute(
-            """
-            SELECT earnings_quality_score FROM earnings_metrics
-            WHERE symbol = %s AND earnings_quality_score IS NOT NULL
-            ORDER BY report_date DESC LIMIT 1
-            """,
-            (symbol,),
-        )
-        row = self.cur.fetchone()
-        if not row or row[0] is None:
+        try:
+            self.cur.execute(
+                """
+                SELECT earnings_quality_score FROM earnings_metrics
+                WHERE symbol = %s AND earnings_quality_score IS NOT NULL
+                ORDER BY report_date DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            row = self.cur.fetchone()
+            if not row or row[0] is None:
+                return 0.0, None
+            score = float(row[0])
+            pts = (score / 100.0) * self.W_QUALITY_EARNINGS
+            return pts, round(score, 1)
+        except Exception:
             return 0.0, None
-        score = float(row[0])
-        pts = (score / 100.0) * self.W_QUALITY_EARNINGS
-        return pts, round(score, 1)
 
     # ============= CATALYST =============
 

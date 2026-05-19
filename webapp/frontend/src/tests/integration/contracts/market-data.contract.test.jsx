@@ -75,12 +75,7 @@ describe("Market Data Contract Tests", () => {
     // Validate backend contract
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
-
-      success: apiResponse.success,
-      dataType: typeof apiResponse.data,
-      dataKeys: Object.keys(apiResponse.data || {}),
-      isSectorsArray: Array.isArray(apiResponse.data?.sectors),
-    });
+    expect(apiResponse.data).toBeDefined();
 
     // STEP 2: Validate sector data structure
     if (apiResponse.data?.sectors && Array.isArray(apiResponse.data.sectors)) {

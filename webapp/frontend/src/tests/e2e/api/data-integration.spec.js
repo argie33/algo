@@ -88,8 +88,7 @@ test.describe("Financial Platform - Data Integration", () => {
     page.on("request", (request) => {
       if (request.url().includes("/api/")) {
         apiRequests++;
-          `📤 API Request: ${request.method()} ${request.url().split("/api/")[1]}`
-        );
+        console.log(`API Request: ${request.method()} ${request.url().split("/api/")[1]}`);
       }
     });
 

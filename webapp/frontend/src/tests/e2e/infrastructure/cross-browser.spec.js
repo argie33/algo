@@ -82,16 +82,13 @@ test.describe("Safari Routing Compatibility", () => {
         const content = await page.locator("#root").textContent();
         if (content && content.length > 100) {
           successfulRoutes++;
-        } else {
         }
       } catch (error) {
-          `❌ ${name}: Navigation failed - ${error.message.slice(0, 60)}`
-        );
+        console.log(`Navigation failed - ${error.message.slice(0, 60)}`);
       }
     }
 
-      `🧭 Safari routing results: ${successfulRoutes}/${routes.length} routes successful`
-    );
+    console.log(`Safari routing results: ${successfulRoutes}/${routes.length} routes successful`);
       `⏱️ Average navigation time: ${Math.round(routeTimings.reduce((sum, r) => sum + r.time, 0) / routeTimings.length)}ms`
     );
 

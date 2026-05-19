@@ -77,11 +77,7 @@ describe("Trading Orders Contract Tests", () => {
 
     // Validate creation response contract
     expect(createResponse).toHaveProperty("success");
-
-      success: createResponse.success,
-      hasData: "data" in createResponse,
-      hasOrderId: createResponse.data?.id ? true : false,
-    });
+    expect(typeof createResponse.success).toBe("boolean");
   });
 
   it("should validate order cancellation contract", async () => {

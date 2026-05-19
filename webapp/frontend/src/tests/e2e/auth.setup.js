@@ -22,7 +22,8 @@ setup("authenticate", async ({ page }) => {
   // Wait for the app to mount
   try {
     await page.waitForSelector("#root", { timeout: 5000 });
-  } catch (e) {
+  } catch {
+    // Element not found within timeout - continue anyway
   }
 
   await page.waitForTimeout(1000); // Brief pause for hydration

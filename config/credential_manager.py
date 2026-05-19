@@ -172,10 +172,26 @@ class CredentialManager:
         }
 
     def get_alpaca_credentials(self) -> Dict[str, str]:
-        """Get Alpaca API credentials as a dict."""
+        """Get Alpaca API credentials as a dict.
+
+        Checks in order:
+        1. AWS Secrets Manager 'alpaca/key' and 'alpaca/secret'
+        2. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        3. Returns empty dict if not found (allows graceful fallback)
+        """
+        try:
+            key = self.get_password('alpaca/key', default=None)
+        except ValueError:
+            key = os.getenv('APCA_API_KEY_ID')
+
+        try:
+            secret = self.get_password('alpaca/secret', default=None)
+        except ValueError:
+            secret = os.getenv('APCA_API_SECRET_KEY')
+
         return {
-            'key': self.get_password('alpaca/key', default=os.getenv('APCA_API_KEY_ID')),
-            'secret': self.get_password('alpaca/secret', default=os.getenv('APCA_API_SECRET_KEY')),
+            'key': key or '',
+            'secret': secret or '',
         }
 
     def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:

@@ -830,13 +830,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             current_rs = rs_line[0]  # Most recent
             rs_60day_high = max(rs_line[:60])  # 60-day high (recent peak)
 
-            # RS should be within 5% of 60-day high (use recent peak, not stale 52-week peak)
+            # RS should be within threshold of 60-day high (use recent peak, not stale 52-week peak)
             rs_pct_from_high = ((rs_60day_high - current_rs) / rs_60day_high * 100.0) if rs_60day_high > 0 else 0
+            max_rs_pct = float(self.config.get('max_rs_pct_from_60d_high', 15.0))
 
-            if rs_pct_from_high > 5.0:
+            if rs_pct_from_high > max_rs_pct:
                 return {
                     'pass': False,
-                    'reason': f'RS-line {rs_pct_from_high:.1f}% below 60d high (need <5% to trade)',
+                    'reason': f'RS-line {rs_pct_from_high:.1f}% below 60d high (need <{max_rs_pct:.0f}% to trade)',
                 }
 
             return {'pass': True, 'reason': f'RS-line strong: {rs_pct_from_high:.1f}% from high'}
