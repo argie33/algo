@@ -41,11 +41,7 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = [
-    'loadmarketindices.py',  # Market index OHLCV (^GSPC, ^IXIC, ^NYA, ^RUT)
-    'loadecondata.py',       # FRED economic series (UNRATE, FEDFUNDS, yield curve, etc.)
-    'loadfeargreed.py',      # Fear & Greed index (Alternative.me)
-]
+tier_1e_market_data = []  # DISABLED: No market data sources currently needed
 
 tier_2_reference = [
     # Annual financials
@@ -57,22 +53,10 @@ tier_2_reference = [
     ('load_balance_sheet.py', ['--period', 'quarterly']),
     ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py',
-    # Earnings estimates and revisions
-    'loadearningsestimates.py',
-    'loadearningsrevisions.py',
-    # Company profile and analyst data
-    'loadcompanyprofile.py',
-    'loadanalystupgradedowngrade.py',
-    'loadanalystsentiment.py',
-    # Sentiment surveys (weekly data, run even if already current)
-    'loadaaiidata.py',
-    'loadnaaim.py',
     # Calendar data
     'load_earnings_calendar.py',
     # Sector and industry data
-    'loadsectors.py', 'loadindustryranking.py',
-    # Seasonality stats (computed from price_daily)
-    'loadseasonality.py',
+    'loadsectors.py', 'load_sector_ranking.py', 'loadindustryranking.py',
 ]
 
 # Tier 2c: TTM aggregates - REMOVED (consolidated into quarterly reports, not needed separately)
