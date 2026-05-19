@@ -297,18 +297,7 @@ jobs:
             else
               echo "  ❌ $LOADER: has '$CURRENT_FILE', expected '$EXPECTED_FILE' — fixing"
               OLD_ARN=$(echo "$CURRENT_DEF" | jq -r '.taskDefinition.taskDefinitionArn' 2>/dev/null || echo "")
-              NEW_DEF=$(echo "$CURRENT_DEF" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)['taskDefinition']
-for k in ('taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy'):
-    d.pop(k, None)
-envs = d['containerDefinitions'][0].get('environment', [])
-d['containerDefinitions'][0]['environment'] = [
-    {'name': 'LOADER_FILE', 'value': '$EXPECTED_FILE'} if e['name'] == 'LOADER_FILE' else e
-    for e in envs
-]
-print(json.dumps(d))
-")
+              NEW_DEF=$(echo "$CURRENT_DEF" | python3 -c "import sys,json;d=json.load(sys.stdin)['taskDefinition'];[d.pop(k,None)for k in('taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy')];d['containerDefinitions'][0]['environment']=[{'name':'LOADER_FILE','value':'$EXPECTED_FILE'}if e['name']=='LOADER_FILE'else e for e in d['containerDefinitions'][0].get('environment',[])];print(json.dumps(d))")
               NEW_ARN=$(aws ecs register-task-definition \
                 --cli-input-json "$NEW_DEF" \
                 --region $AWS_REGION \
