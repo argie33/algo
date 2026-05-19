@@ -86,6 +86,16 @@ class EarningsHistoryLoader(OptimalLoader):
                     })
                 except Exception as e:
                     logging.debug(f"Earnings row error {symbol} {idx}: {e}")
+
+            # Deduplicate by (symbol, quarter) - keep most recent earnings_date
+            if rows:
+                seen = {}
+                for row in rows:
+                    key = (row["symbol"], row["quarter"])
+                    if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
+                        seen[key] = row
+                rows = list(seen.values())
+
             return rows
         except Exception as e:
             logging.debug(f"Earnings fetch error for {symbol}: {e}")
