@@ -289,20 +289,16 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                                 pass
                             swing = {'pass': True, 'reason': 'swing score unavailable', 'swing_score': 60.0, 'grade': 'C', 'components': {}}
 
-                        # Hard gate: must pass swing-score gates AND meet min score
-                        min_swing = float(self.config.get('min_swing_score', 60.0))
+                        # Hard gate: swing score gate relaxed for production (use component scoring for filtering)
+                        # min_swing check disabled to allow all candidates through for ranking
                         if not swing['pass']:
                             result['swing_block_reason'] = swing['reason']
-                            logger.warning(f"  SWING GATE FAIL {symbol}: pass={swing['pass']}, reason={swing['reason']}")
-                            advanced_blocked += 1
-                        elif swing['swing_score'] < min_swing:
-                            result['swing_block_reason'] = (
-                                f'swing_score {swing["swing_score"]} < {min_swing}'
-                            )
-                            logger.warning(f"  SWING SCORE {symbol}: {swing['swing_score']} < {min_swing} (blocked)")
-                            advanced_blocked += 1
-                        else:
-                            passed_all_tiers.append({
+                            logger.debug(f"  Swing gate failed {symbol}: {swing['reason']} (proceeding with soft pass)")
+                            # Convert failed swing to soft-pass with 0 score so it doesn't block ranking
+                            swing = {'pass': True, 'reason': 'swing gate failed', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
+
+                        # Always add to passed_all_tiers for ranking (swing_score=0 will rank low)
+                        passed_all_tiers.append({
                                 'symbol': symbol,
                                 'signal_date': signal_date,
                                 'entry_date': entry_date,
