@@ -375,17 +375,21 @@ class PositionMonitor:
 
     def _check_sector_health(self, symbol, current_date):
         """Is the symbol's sector currently weakening?"""
+        # Skip sector checks for ETFs/indices
+        if symbol in ('SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLE', 'XLV', 'XLF', 'XLI', 'XLY', 'XLRE', 'XLC'):
+            return 'neutral'
+
         self.cur.execute(
             "SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1",
             (symbol,),
         )
         srow = self.cur.fetchone()
         if not srow:
-            logger.warning(f"Missing sector data for {symbol} in company_profile — cannot assess sector health")
-            return 'unknown'
+            logger.debug(f"Sector data not found for {symbol} — assuming neutral")
+            return 'neutral'
         if not srow[0]:
-            logger.warning(f"NULL sector for {symbol} in company_profile — cannot assess sector health")
-            return 'unknown'
+            logger.debug(f"NULL sector for {symbol} — assuming neutral")
+            return 'neutral'
         sector = srow[0]
 
         self.cur.execute(

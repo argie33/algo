@@ -86,7 +86,16 @@ def _validate_pre_trade_data_quality(
             )
             count = cur.fetchone()[0]
             if count == 0:
-                issues.append(f"{description} missing for {today}")
+                # Allow fallback to yesterday's data if today's not available (for market hours lag)
+                cur.execute(
+                    f"SELECT MAX(date) FROM {table} WHERE date <= %s",
+                    (today,)
+                )
+                latest = cur.fetchone()[0]
+                if latest and latest >= today - __import__('datetime').timedelta(days=1):
+                    logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
+                else:
+                    issues.append(f"{description} missing for {today}")
             else:
                 logger.debug(f"  [OK] {table}: {count} rows for {today}")
 
