@@ -36,7 +36,9 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
-            mui: ['@mui/material', '@mui/icons-material'],
+            // @mui/icons-material intentionally excluded from manualChunks so
+            // Rollup can tree-shake unused icons (~400 icons → only imported ones)
+            mui: ['@mui/material'],
             charts: ['recharts'],
             utils: ['axios', 'date-fns', 'numeral']
           },

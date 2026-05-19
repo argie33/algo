@@ -24,6 +24,7 @@ function getSecretsManagerClient() {
 let pool = null;
 let dbInitialized = false;
 let initPromise = null;
+let indexesCreated = false; // guard: only run background index creation once per process
 
 // Database configuration cache
 let dbConfig = null;
@@ -217,33 +218,40 @@ async function initializeDatabase() {
       client.release();
       dbInitialized = true;
 
-      // Create indexes asynchronously in background (don't block initialization)
-      setImmediate(async () => {
-        try {
-          const indexClient = await pool.connect();
-          const indexQueries = [
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_date_signal ON buy_sell_daily (date DESC, UPPER(signal))",
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, date DESC)",
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_weekly_date_signal ON buy_sell_weekly (date DESC, UPPER(signal))",
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly (symbol, date DESC)",
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))",
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"
-          ];
-          for (const indexQuery of indexQueries) {
-            try {
-              await indexClient.query(indexQuery);
-            } catch (err) {
-              if (err.message?.includes("already exists")) {
-              } else {
-                console.warn("Index creation warning:", err.message);
+      // Create indexes asynchronously in background — once per process lifetime only
+      if (!indexesCreated) {
+        indexesCreated = true;
+        setImmediate(async () => {
+          try {
+            const indexClient = await pool.connect();
+            // Check which indexes already exist to avoid catalog hits for existing ones
+            const existingResult = await indexClient.query(
+              "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename IN ('buy_sell_daily','buy_sell_weekly','buy_sell_monthly')"
+            );
+            const existingIndexes = new Set(existingResult.rows.map(r => r.indexname));
+            const indexDefs = [
+              ["idx_buy_sell_daily_date_signal",   "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_date_signal   ON buy_sell_daily   (date DESC, UPPER(signal))"],
+              ["idx_buy_sell_daily_symbol_date",   "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_symbol_date   ON buy_sell_daily   (symbol, date DESC)"],
+              ["idx_buy_sell_weekly_date_signal",  "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_date_signal  ON buy_sell_weekly  (date DESC, UPPER(signal))"],
+              ["idx_buy_sell_weekly_symbol_date",  "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_symbol_date  ON buy_sell_weekly  (symbol, date DESC)"],
+              ["idx_buy_sell_monthly_date_signal", "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))"],
+              ["idx_buy_sell_monthly_symbol_date", "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"],
+            ];
+            for (const [name, sql] of indexDefs) {
+              if (!existingIndexes.has(name)) {
+                try {
+                  await indexClient.query(sql);
+                } catch (err) {
+                  console.warn("Index creation warning:", err.message);
+                }
               }
             }
+            indexClient.release();
+          } catch (err) {
+            console.warn("Warning: Background index creation failed:", err.message);
           }
-          indexClient.release();
-        } catch (err) {
-          console.warn("Warning: Background index creation failed:", err.message);
-        }
-      });
+        });
+      }
 
       pool.on("error", (err) => {
         console.error("Database pool error:", err);
@@ -283,7 +291,8 @@ async function initializeDatabase() {
 }
 
 /**
- * Create materialized views for performance optimization
+ * Create materialized views for performance optimization.
+ * Creates on first run; refreshes concurrently on subsequent cold starts.
  */
 async function initializeMaterializedViews() {
   try {
@@ -292,55 +301,67 @@ async function initializeMaterializedViews() {
       return false;
     }
 
-
     const client = await pool.connect();
     try {
-      // Drop existing views to refresh them
-      await client.query("DROP MATERIALIZED VIEW IF EXISTS mv_latest_prices CASCADE;");
-
-      // Create materialized view for latest prices (used by /api/price/latest)
-      await client.query(`
-        CREATE MATERIALIZED VIEW mv_latest_prices AS
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          close as price,
-          open,
-          high,
-          low,
-          volume,
-          date
-        FROM price_daily
-        ORDER BY symbol, date DESC;
+      // Check which views already exist so we can refresh vs create
+      const existing = await client.query(`
+        SELECT matviewname FROM pg_matviews
+        WHERE schemaname = 'public' AND matviewname IN ('mv_latest_prices', 'mv_stock_scores_full')
       `);
+      const existingNames = new Set(existing.rows.map(r => r.matviewname));
 
-      // Create index on symbol for fast lookups
-      await client.query("CREATE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);");
+      // --- mv_latest_prices ---
+      if (!existingNames.has('mv_latest_prices')) {
+        await client.query(`
+          CREATE MATERIALIZED VIEW mv_latest_prices AS
+          SELECT DISTINCT ON (symbol)
+            symbol,
+            close as price,
+            open,
+            high,
+            low,
+            volume,
+            date
+          FROM price_daily
+          ORDER BY symbol, date DESC;
+        `);
+        await client.query("CREATE UNIQUE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);");
+      } else {
+        // CONCURRENTLY requires a unique index; safe to call on warm containers
+        try {
+          await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_prices");
+        } catch (e) {
+          // Fallback to non-concurrent refresh if unique index not ready
+          await client.query("REFRESH MATERIALIZED VIEW mv_latest_prices");
+        }
+      }
 
-
-      // Drop and recreate stock scores view
-      await client.query("DROP MATERIALIZED VIEW IF EXISTS mv_stock_scores_full CASCADE;");
-
-      // Create materialized view for stock scores with metrics
-      await client.query(`
-        CREATE MATERIALIZED VIEW mv_stock_scores_full AS
-        SELECT
-          ss.symbol,
-          ss.composite_score,
-          ss.quality_score,
-          ss.growth_score,
-          ss.stability_score,
-          ss.momentum_score,
-          ss.value_score,
-          ss.positioning_score,
-          st.security_name
-        FROM stock_scores ss
-        LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
-        WHERE ss.composite_score IS NOT NULL;
-      `);
-
-      // Create index on symbol
-      await client.query("CREATE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);");
-
+      // --- mv_stock_scores_full ---
+      if (!existingNames.has('mv_stock_scores_full')) {
+        await client.query(`
+          CREATE MATERIALIZED VIEW mv_stock_scores_full AS
+          SELECT
+            ss.symbol,
+            ss.composite_score,
+            ss.quality_score,
+            ss.growth_score,
+            ss.stability_score,
+            ss.momentum_score,
+            ss.value_score,
+            ss.positioning_score,
+            st.security_name
+          FROM stock_scores ss
+          LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
+          WHERE ss.composite_score IS NOT NULL;
+        `);
+        await client.query("CREATE UNIQUE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);");
+      } else {
+        try {
+          await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_stock_scores_full");
+        } catch (e) {
+          await client.query("REFRESH MATERIALIZED VIEW mv_stock_scores_full");
+        }
+      }
 
       return true;
 
@@ -442,31 +463,12 @@ async function query(text, params = []) {
       }, queryTimeout);
     });
 
-    // Log query details for debugging BEFORE execution
-    if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
-      console.log({
-        query: typeof text === 'string' ? text.slice(0, 200) + (text.length > 200 ? "..." : "") : "NON_STRING",
-        param_count: params ? params.length : 0,
-        params_sample: params ? params.slice(0, 3) : []
-      });
-    }
-
     const result = await Promise.race([
       pool.query(text, params),
       timeoutPromise,
     ]);
 
     queryDuration = Date.now() - start; // Calculate duration AFTER query completes
-
-    // Log result details for debugging
-    if (text && text.includes && (text.includes('company_profile') || text.includes('SELECT'))) {
-      console.log({
-        rows_returned: result && result.rows ? result.rows.length : 0,
-        has_rows_property: result && 'rows' in result,
-        result_type: result ? typeof result : 'null',
-        result_keys: result ? Object.keys(result) : []
-      });
-    }
 
     // Enhanced performance monitoring based on testing insights
     if (queryDuration > 5000) {

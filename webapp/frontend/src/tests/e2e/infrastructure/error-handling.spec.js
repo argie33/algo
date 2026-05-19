@@ -10,12 +10,12 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     // Set up authentication for error testing
     await page.addInitScript(() => {
       // Set tokens that AuthContext uses
-      localStorage.setItem("accessToken", "error-test-token");
-      localStorage.setItem("authToken", "error-test-token");
-      localStorage.setItem("financial_auth_token", "error-test-token");
+      sessionStorage.setItem("accessToken", "error-test-token");
+      sessionStorage.setItem("authToken", "error-test-token");
+      sessionStorage.setItem("financial_auth_token", "error-test-token");
 
       // Set API keys for data access
-      localStorage.setItem(
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -42,7 +42,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       };
 
       // Enable dev auth for E2E tests
-      localStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
+      sessionStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
     });
 
     // Browser-specific timeout configurations
@@ -119,8 +119,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
           hasGracefulDegradation: hasContent || errorElements > 0,
         });
 
-          `✅ ${testPage}: Loaded with ${errorElements} error elements, content: ${hasContent}`
-        );
+          console.log(`Page: Loaded with ${errorElements} error elements, content: ${hasContent}`);
       } catch (error) {
         pageResults.push({
           page: testPage,

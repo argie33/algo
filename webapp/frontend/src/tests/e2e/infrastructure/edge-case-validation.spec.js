@@ -10,12 +10,12 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     // Set up consistent test environment with authentication
     await page.addInitScript(() => {
       // Set tokens that AuthContext uses
-      localStorage.setItem("accessToken", "edge-case-token");
-      localStorage.setItem("authToken", "edge-case-token");
-      localStorage.setItem("financial_auth_token", "edge-case-token");
+      sessionStorage.setItem("accessToken", "edge-case-token");
+      sessionStorage.setItem("authToken", "edge-case-token");
+      sessionStorage.setItem("financial_auth_token", "edge-case-token");
 
       // Set API keys for data access
-      localStorage.setItem(
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -42,7 +42,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       };
 
       // Enable dev auth for E2E tests
-      localStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
+      sessionStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
     });
   });
 
@@ -191,8 +191,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         contentLength: pageContent.length,
       });
 
-        `💰 ${testPage}: Large numbers: ${hasLargeNumbers}, Scientific: ${hasScientificNotation}, Invalid: ${hasInfinityOrNaN}`
-      );
+        console.log(`Page check: Large numbers: ${hasLargeNumbers}, Scientific: ${hasScientificNotation}, Invalid: ${hasInfinityOrNaN}`);
     }
 
     // Should handle extreme values without displaying invalid numbers
@@ -385,14 +384,14 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       await page.evaluate(() => {
         const testKey = "stress_test_key";
         const largeData = "x".repeat(1024 * 1024); // 1MB string
-        localStorage.setItem(testKey, largeData);
-        const retrieved = localStorage.getItem(testKey);
+        sessionStorage.setItem(testKey, largeData);
+        const retrieved = sessionStorage.getItem(testKey);
         return retrieved === largeData;
       });
-      browserTests.push({ test: "localStorage_1MB", success: true });
+      browserTests.push({ test: "sessionStorage_1MB", success: true });
     } catch (error) {
       browserTests.push({
-        test: "localStorage_1MB",
+        test: "sessionStorage_1MB",
         success: false,
         error: error.message,
       });

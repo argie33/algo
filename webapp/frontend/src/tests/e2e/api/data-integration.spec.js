@@ -10,12 +10,12 @@ test.describe("Financial Platform - Data Integration", () => {
     // Set up authentication tokens that AuthContext recognizes
     await page.addInitScript(() => {
       // Set tokens that AuthContext uses
-      localStorage.setItem("accessToken", "test-auth-token");
-      localStorage.setItem("authToken", "test-auth-token");
-      localStorage.setItem("financial_auth_token", "data-test-token");
+      sessionStorage.setItem("accessToken", "test-auth-token");
+      sessionStorage.setItem("authToken", "test-auth-token");
+      sessionStorage.setItem("financial_auth_token", "data-test-token");
 
       // Set API keys for data access
-      localStorage.setItem(
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -42,7 +42,7 @@ test.describe("Financial Platform - Data Integration", () => {
       };
 
       // Enable dev auth for E2E tests
-      localStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
+      sessionStorage.setItem("VITE_FORCE_DEV_AUTH", "true");
     });
   });
 
@@ -100,8 +100,7 @@ test.describe("Financial Platform - Data Integration", () => {
         } else if (response.status() >= 400) {
           errorResponses++;
         }
-          `📥 API Response: ${response.status()} ${response.url().split("/api/")[1]}`
-        );
+        console.log(`API Response: ${response.status()} ${response.url().split("/api/")[1]}`);
       }
     });
 
@@ -109,8 +108,7 @@ test.describe("Financial Platform - Data Integration", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(5000); // Wait for API calls
 
-      `📊 API Stats: ${apiRequests} requests, ${apiResponses} responses, ${successfulRequests} successful, ${errorResponses} errors`
-    );
+    console.log(`API Stats: ${apiRequests} requests, ${apiResponses} responses, ${successfulRequests} successful, ${errorResponses} errors`);
 
     // Test passes if either:
     // 1. API requests are made (showing frontend integration works), OR

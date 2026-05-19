@@ -12,7 +12,7 @@ setup("authenticate", async ({ page }) => {
   // Set up authentication state
   await page.addInitScript(() => {
     // Use 'test-token' which is recognized by the backend test auth handler
-    localStorage.setItem("accessToken", "test-token");
+    sessionStorage.setItem("accessToken", "test-token");
   });
 
   // Navigate to verify auth works

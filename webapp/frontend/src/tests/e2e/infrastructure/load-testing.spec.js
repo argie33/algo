@@ -9,8 +9,8 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test.beforeEach(async ({ page }) => {
     // Set up consistent test environment
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "load-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "load-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -109,8 +109,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const maxTime = Math.max(...navigationTimes);
     const minTime = Math.min(...navigationTimes);
 
-      `📈 Load Test Results - Avg: ${Math.round(avgTime)}ms, Max: ${maxTime}ms, Min: ${minTime}ms`
-    );
+      console.log(`Load Test Results - Avg: ${Math.round(avgTime)}ms, Max: ${maxTime}ms, Min: ${minTime}ms`);
 
     // Performance thresholds for high-traffic scenarios
     expect(avgTime, `Average load time: ${avgTime}ms`).toBeLessThan(3000);

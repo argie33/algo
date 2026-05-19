@@ -113,6 +113,72 @@ def get_security_headers() -> Dict[str, str]:
     }
 
 
+def get_bearer_token(event: Dict) -> Optional[str]:
+    """Extract Bearer token from Authorization header."""
+    headers = event.get('headers', {})
+    auth_header = (
+        headers.get('Authorization') or
+        headers.get('authorization') or
+        ''
+    )
+
+    if not auth_header.startswith('Bearer '):
+        return None
+
+    return auth_header[7:]  # Remove 'Bearer ' prefix
+
+
+def validate_bearer_token(token: Optional[str]) -> bool:
+    """Validate JWT token format and basic checks."""
+    if not token:
+        return False
+
+    # Real JWT tokens are ~200+ characters, at least 50 to be safe
+    if len(token) < 50:
+        return False
+
+    # Check structure: should have 3 parts separated by dots
+    if token.count('.') != 2:
+        return False
+
+    return True
+
+
+def require_auth(event: Dict, path: str) -> tuple:
+    """
+    Check if path requires authentication.
+    Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None)
+    """
+    # Public endpoints (no auth required)
+    PUBLIC_PATHS = {
+        '/health',
+        '/api/health',
+        '/health/detailed',
+        '/api/health/detailed',
+        '/health/pipeline',
+        '/api/health/pipeline',
+    }
+
+    # All other /api endpoints require auth
+    if path in PUBLIC_PATHS:
+        return (False, True, None)  # No auth required, so authorized
+
+    if not path.startswith('/api/'):
+        return (False, True, None)  # Non-API paths don't need auth
+
+    # This is an /api path that requires auth
+    token = get_bearer_token(event)
+
+    if not token:
+        return (True, False, "Missing Authorization: Bearer token")
+
+    if not validate_bearer_token(token):
+        return (True, False, "Invalid token format")
+
+    # Token is valid format
+    return (True, True, None)
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     try:
@@ -121,11 +187,23 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
 
+        # Check authorization for protected endpoints
+        requires_auth, is_authorized, auth_error = require_auth(event, path)
+        if requires_auth and not is_authorized:
+            cors_headers = get_cors_headers(event)
+            logger.warning(f'Unauthorized access attempt to {path}: {auth_error}')
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                'body': json.dumps({'error': 'unauthorized', 'message': auth_error})
+            }
+
         # Health check
         if path in ['/health', '/api/health']:
+            cors_headers = get_cors_headers(event)
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                 'body': json.dumps({'status': 'healthy'})
             }
 
@@ -134,9 +212,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             try:
                 conn = get_db_connection()
                 if not conn:
+                    cors_headers = get_cors_headers(event)
                     return {
                         'statusCode': 503,
-                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                         'body': json.dumps({'status': 'unhealthy', 'dbStatus': 'disconnected'})
                     }
 
@@ -152,16 +231,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         table_counts[table] = 0
                 cur.close()
 
+                cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
                 }
             except Exception as e:
+                cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 503,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'status': 'unhealthy', 'error': str(e)})
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'status': 'unhealthy', 'error': 'internal_error'})
                 }
 
         # Pipeline health — queries data_loader_status for all table freshness
@@ -169,9 +250,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             try:
                 conn = get_db_connection()
                 if not conn:
+                    cors_headers = get_cors_headers(event)
                     return {
                         'statusCode': 503,
-                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                         'body': json.dumps({'status': 'unhealthy', 'error': 'db_unavailable'})
                     }
                 cur = conn.cursor()
@@ -191,34 +273,39 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
                 healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
                 cur.close()
+                cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
                 }
             except Exception as e:
+                cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 500,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'status': 'error', 'error': str(e)})
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
 
         # CORS preflight
         if method == 'OPTIONS':
+            cors_headers = get_cors_headers(event)
             return {
                 'statusCode': 200,
                 'headers': {
-                    'Access-Control-Allow-Origin': '*',
+                    **cors_headers,
                     'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                    **get_security_headers()
                 }
             }
 
         conn = get_db_connection()
         if not conn:
+            cors_headers = get_cors_headers(event)
             return {
                 'statusCode': 503,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                 'body': json.dumps({'error': 'database_unavailable'})
             }
 
@@ -229,9 +316,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             _db_conn = None
             conn = get_db_connection()
             if not conn:
+                cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 503,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                     'body': json.dumps({'error': 'database_unavailable'})
                 }
 
@@ -260,7 +348,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if isinstance(response, dict):
             status = response.get('statusCode', 200)
-            headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            cors_headers = get_cors_headers(event)
+            headers = {'Content-Type': 'application/json', **cors_headers, **get_security_headers()}
             if 'body' in response:
                 body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'], default=_json_default)
             else:
@@ -268,17 +357,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 body = json.dumps({k: v for k, v in response.items() if k != 'statusCode'}, default=_json_default)
             return {'statusCode': status, 'headers': headers, 'body': body}
 
+        cors_headers = get_cors_headers(event)
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'invalid_response'})
         }
 
     except Exception as e:
         logger.error(f'Error: {e}', exc_info=True)
+        cors_headers = get_cors_headers(event)
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'internal_server_error'})
         }
 

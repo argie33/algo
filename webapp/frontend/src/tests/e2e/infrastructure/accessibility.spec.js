@@ -22,8 +22,8 @@ test.describe("Financial Platform - Accessibility", () => {
 
     // Set up auth and API keys for testing
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "e2e-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "e2e-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -128,8 +128,7 @@ test.describe("Financial Platform - Accessibility", () => {
           JSON.stringify(focused) !== JSON.stringify(currentElement)
         ) {
           focusableElements++;
-            `✅ Tab ${i + 1}: ${focused.tagName}${focused.type ? `[${focused.type}]` : ""} - "${focused.text || focused.ariaLabel || "unlabeled"}"`
-          );
+          console.log(`Tab ${i + 1}: ${focused.tagName}${focused.type ? `[${focused.type}]` : ""} - "${focused.text || focused.ariaLabel || "unlabeled"}"`);
           currentElement = focused;
         }
       } catch (error) {

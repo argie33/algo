@@ -9,8 +9,8 @@ test.describe("Stock Research to Trading Workflow", () => {
   test.beforeEach(async ({ page }) => {
     // Set up authenticated state with API keys
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "test-auth-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -18,7 +18,7 @@ test.describe("Stock Research to Trading Workflow", () => {
           finnhub: { configured: true, valid: true },
         })
       );
-      localStorage.setItem("user_data", JSON.stringify({
+      sessionStorage.setItem("user_data", JSON.stringify({
         username: "testuser",
         authenticated: true
       }));

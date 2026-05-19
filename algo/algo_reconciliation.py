@@ -46,7 +46,7 @@ class PositionReconciler:
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
             self.trading_client = REST(
-                api_key=creds["key"],
+                key_id=creds["key"],
                 secret_key=creds["secret"],
                 base_url='https://paper-api.alpaca.markets'
             )

@@ -9,8 +9,8 @@ test.describe("Trading Signals Navigation", () => {
   test.beforeEach(async ({ page }) => {
     // Set up authenticated state
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
-      localStorage.setItem("user_data", JSON.stringify({
+      sessionStorage.setItem("financial_auth_token", "test-auth-token");
+      sessionStorage.setItem("user_data", JSON.stringify({
         username: "testuser",
         authenticated: true
       }));
@@ -32,7 +32,8 @@ test.describe("Trading Signals Navigation", () => {
     try {
       await stocksSection.click();
       await page.waitForTimeout(500);
-    } catch (e) {
+    } catch {
+      // Section already expanded
     }
 
     // Look for Trading Signals menu item

@@ -30,11 +30,10 @@ test.describe("Financial Platform - Authentication Flows", () => {
       const isVisible = await authForm.isVisible().catch(() => false);
 
       if (isVisible) {
-      } else {
+        // Auth modal appeared as expected
       }
     } else {
-        "ℹ️ No authentication UI found - may be already authenticated"
-      );
+      console.log("No authentication UI found - may be already authenticated");
     }
 
     // Check for authentication state indicators
@@ -173,8 +172,8 @@ test.describe("Financial Platform - Authentication Flows", () => {
   test("should handle authentication with API keys", async ({ page }) => {
     // Set up authenticated state with API keys
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "test-auth-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -220,7 +219,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
   test("should handle logout flow", async ({ page }) => {
     // Set up authenticated state
     await page.addInitScript(() => {
-      localStorage.setItem("accessToken", "test-token");
+      sessionStorage.setItem("accessToken", "test-token");
     });
 
     await page.goto("/");

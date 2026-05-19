@@ -21,7 +21,7 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
     const numbers = await page.locator('text=/d+.d{2}%?/').count();
 
     if (numbers > 2) {
-    } else {
+      // Market data found
     }
 
     expect(numbers).toBeGreaterThan(2);
@@ -35,10 +35,7 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
     const buyLabels = await page.locator('text=/buy|sell|signal/i').count();
     const symbolElements = await page.locator('[data-testid*="signal"]').count().catch(() => 0);
 
-    if (buyLabels > 3) {
-    } else {
-    }
-
+    // Should have trading signals displayed
     expect(buyLabels).toBeGreaterThan(3);
   });
 
@@ -54,7 +51,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
     // Should have at least some table structure
     if (tableData > 5 || portfolioItems > 0) {
       expect(tableData).toBeGreaterThan(0);
-    } else {
     }
   });
 
@@ -68,7 +64,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     if (sectorNames > 2 && percentages > 0) {
       expect(percentages).toBeGreaterThan(0);
-    } else {
     }
   });
 
@@ -83,7 +78,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     if (rows > 5 || stocks > 5) {
       expect(rows + stocks).toBeGreaterThan(5);
-    } else {
     }
   });
 
@@ -95,8 +89,7 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
     const results = await page.locator('tbody tr').count().catch(() => 0);
 
 
-    if (filterElements > 0) {
-    }
+    // Filter elements found
   });
 
   // Analyst Insights
@@ -109,7 +102,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     if (ratings > 3) {
       expect(ratings).toBeGreaterThan(3);
-    } else {
     }
   });
 
@@ -123,7 +115,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     // May have limited data depending on loaders
     if (economicTerms > 0 || dataPoints > 2) {
-    } else {
     }
   });
 
@@ -137,7 +128,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
 
     if (dates > 0 || earningsItems > 0) {
-    } else {
     }
   });
 
@@ -151,7 +141,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     if (sentiments > 2) {
       expect(sentiments).toBeGreaterThan(2);
-    } else {
     }
   });
 
@@ -165,7 +154,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     // May be empty if user has no watchlist
     if (watchlistItems > 0 || symbols > 5) {
-    } else {
     }
   });
 
@@ -179,7 +167,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     if (scores > 5 && numbers > 10) {
       expect(scores).toBeGreaterThan(5);
-    } else {
     }
   });
 
@@ -193,7 +180,6 @@ test.describe('Data Validation - Verify All Pages Show Real Data', () => {
 
     // May be empty if no trades
     if (rows > 0 || tradeItems > 0) {
-    } else {
     }
   });
 });

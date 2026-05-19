@@ -6,8 +6,8 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Set up auth
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "e2e-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "e2e-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },

@@ -18,8 +18,8 @@ test.describe("Safari Routing Compatibility", () => {
 
     // Set up auth and disable service worker for Safari compatibility
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "safari-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "safari-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -246,7 +246,7 @@ test.describe("Safari Routing Compatibility", () => {
 
       // Check if auth token persists
       const initialAuth = await page.evaluate(() => {
-        return localStorage.getItem("financial_auth_token");
+        return sessionStorage.getItem("financial_auth_token");
       });
 
       // Navigate to different page
@@ -258,7 +258,7 @@ test.describe("Safari Routing Compatibility", () => {
 
       // Check if auth token still exists
       const portfolioAuth = await page.evaluate(() => {
-        return localStorage.getItem("financial_auth_token");
+        return sessionStorage.getItem("financial_auth_token");
       });
 
       // Navigate back to dashboard
@@ -267,7 +267,7 @@ test.describe("Safari Routing Compatibility", () => {
 
       // Final auth check
       const finalAuth = await page.evaluate(() => {
-        return localStorage.getItem("financial_auth_token");
+        return sessionStorage.getItem("financial_auth_token");
       });
 
         `💾 Auth persistence: Initial=${!!initialAuth}, Portfolio=${!!portfolioAuth}, Final=${!!finalAuth}`

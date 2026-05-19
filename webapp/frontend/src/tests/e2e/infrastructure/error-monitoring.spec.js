@@ -278,8 +278,7 @@ test.describe("Console Error Detection", () => {
         }
       } catch (interactionError) {
         // Interactions are secondary to console error detection
-          `Note: Could not interact with ${pageInfo.name}: ${interactionError.message}`
-        );
+        console.log(`Note: Could not interact: ${interactionError.message}`);
       }
 
       // Wait for any async operations to complete

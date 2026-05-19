@@ -9,8 +9,8 @@ test.describe("Settings API Setup Workflow", () => {
   test.beforeEach(async ({ page }) => {
     // Set up authenticated state
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
-      localStorage.setItem("user_data", JSON.stringify({
+      sessionStorage.setItem("financial_auth_token", "test-auth-token");
+      sessionStorage.setItem("user_data", JSON.stringify({
         username: "testuser",
         email: "test@example.com",
         authenticated: true

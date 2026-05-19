@@ -178,8 +178,6 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authToken");
       sessionStorage.removeItem("accessToken");
       sessionStorage.removeItem("authToken");
 
@@ -275,7 +273,7 @@ export function AuthProvider({ children }) {
 
           if (user && session.tokens) {
             // Store access token for API requests
-            localStorage.setItem("accessToken", session.tokens.accessToken);
+            sessionStorage.setItem("accessToken", session.tokens.accessToken);
 
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -339,9 +337,8 @@ export function AuthProvider({ children }) {
           },
         });
 
-        // Start session and token refresh timer
-        const rememberMe = localStorage.getItem("rememberMe") === "true";
-        sessionManager.startSession(rememberMe);
+        // Start session and token refresh timer (sessions do not persist across browser close)
+        sessionManager.startSession(false);
         // Start proactive token refresh timer
         if (state.tokens?.accessToken) {
           sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
@@ -465,8 +462,8 @@ export function AuthProvider({ children }) {
             return { success: false, error: errorMsg };
           }
 
-          // Store access token for API requests
-          localStorage.setItem("accessToken", result.tokens.accessToken);
+          // Store access token for API requests (sessionStorage, cleared on browser close)
+          sessionStorage.setItem("accessToken", result.tokens.accessToken);
 
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,

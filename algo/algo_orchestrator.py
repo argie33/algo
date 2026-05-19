@@ -413,7 +413,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = get_db_connection()
+            conn = self._get_conn()
             cur = conn.cursor()
             cur.execute(
                 """
@@ -434,14 +434,8 @@ class Orchestrator:
                 try:
                     cur.close()
                 except Exception as e:
-
                     logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
+            self._put_conn(conn)
 
     # ---------- Pipeline Health & Visibility ----------
 
@@ -451,61 +445,59 @@ class Orchestrator:
             return
 
         try:
-            # Count recent rows (from last 5 days) in each critical table
-            required_tables = {
-                'price_daily': 'price_daily (OHLCV)',
-                'buy_sell_daily': 'buy_sell_daily (entry signals)',
-                'trend_template_data': 'trend_template_data (Minervini/Weinstein scores)',
-                'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
-                'signal_quality_scores': 'signal_quality_scores (SQS >= 40 gate)',
-                'swing_trader_scores': 'swing_trader_scores (final ranking)',
-                'market_health_daily': 'market_health_daily (Tier 2 gate)',
-                'sector_ranking': 'sector_ranking (Tier 6 context)',
-                'industry_ranking': 'industry_ranking (Tier 6 context)',
-                'stock_scores': 'stock_scores (Tier 6 scoring)',
-            }
-
             five_days_ago = self.run_date - timedelta(days=5)
-            status = {}
 
-            for table, description in required_tables.items():
-                try:
-                    # Count rows added in the last 5 days
-                    if table == 'price_daily':
-                        assert_safe_table(table)
-                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE date >= %s", (five_days_ago,))
-                    elif table in ('buy_sell_daily', 'trend_template_data', 'technical_data_daily',
-                                  'signal_quality_scores', 'swing_trader_scores', 'market_health_daily',
-                                  'sector_ranking', 'industry_ranking', 'stock_scores'):
-                        # Different tables use different date column names
-                        if table == 'stock_scores':
-                            col = 'updated_at'
-                        elif table in ('sector_ranking', 'industry_ranking'):
-                            col = 'date_recorded'
-                        else:
-                            col = 'date'
-                        assert_safe_table(table)
-                        assert_safe_column(col)
-                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} >= %s", (five_days_ago,))
-                    else:
-                        assert_safe_table(table)
-                        cur.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
+            # Single query with one UNION ALL per table — avoids 10 round-trips
+            batch_sql = """
+                SELECT 'price_daily'          AS tbl, COUNT(*) FROM price_daily          WHERE date          >= %s
+                UNION ALL
+                SELECT 'buy_sell_daily',               COUNT(*) FROM buy_sell_daily               WHERE date          >= %s
+                UNION ALL
+                SELECT 'trend_template_data',          COUNT(*) FROM trend_template_data          WHERE date          >= %s
+                UNION ALL
+                SELECT 'technical_data_daily',         COUNT(*) FROM technical_data_daily         WHERE date          >= %s
+                UNION ALL
+                SELECT 'signal_quality_scores',        COUNT(*) FROM signal_quality_scores        WHERE date          >= %s
+                UNION ALL
+                SELECT 'swing_trader_scores',          COUNT(*) FROM swing_trader_scores          WHERE date          >= %s
+                UNION ALL
+                SELECT 'market_health_daily',          COUNT(*) FROM market_health_daily          WHERE date          >= %s
+                UNION ALL
+                SELECT 'sector_ranking',               COUNT(*) FROM sector_ranking               WHERE date_recorded >= %s
+                UNION ALL
+                SELECT 'industry_ranking',             COUNT(*) FROM industry_ranking             WHERE date_recorded >= %s
+                UNION ALL
+                SELECT 'stock_scores',                 COUNT(*) FROM stock_scores                 WHERE updated_at    >= %s
+            """
+            descriptions = {
+                'price_daily':          'price_daily (OHLCV)',
+                'buy_sell_daily':       'buy_sell_daily (entry signals)',
+                'trend_template_data':  'trend_template_data (Minervini/Weinstein scores)',
+                'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
+                'signal_quality_scores':'signal_quality_scores (SQS >= 40 gate)',
+                'swing_trader_scores':  'swing_trader_scores (final ranking)',
+                'market_health_daily':  'market_health_daily (Tier 2 gate)',
+                'sector_ranking':       'sector_ranking (Tier 6 context)',
+                'industry_ranking':     'industry_ranking (Tier 6 context)',
+                'stock_scores':         'stock_scores (Tier 6 scoring)',
+            }
+            try:
+                cur.execute(batch_sql, (five_days_ago,) * 10)
+                status = {row[0]: row[1] for row in cur.fetchall()}
+            except Exception as e:
+                logger.warning(f"Pipeline health batch query failed: {e}")
+                status = {t: 0 for t in descriptions}
 
-                    row = cur.fetchone()
-                    count = row[0] if row else 0
-                    status[table] = count
-                    flag = '[OK]' if count > 0 else '[EMPTY]'
-                    if self.verbose:
-                        logger.info(f"    {flag} {description:50s}: {count:,} rows (5d)")
-                except Exception as e:
-                    status[table] = 0
-                    if self.verbose:
-                        logger.warning(f"    [ERROR] {description}: {e}")
+            for table, description in descriptions.items():
+                count = status.get(table, 0)
+                flag = '[OK]' if count > 0 else '[EMPTY]'
+                if self.verbose:
+                    logger.info(f"    {flag} {description:50s}: {count:,} rows (5d)")
 
             # Alert if any critical table is empty
-            empty_tables = [t for t, c in status.items() if c == 0]
+            empty_tables = [t for t in descriptions if status.get(t, 0) == 0]
             if empty_tables:
-                empty_desc = ', '.join([required_tables[t] for t in empty_tables])
+                empty_desc = ', '.join([descriptions[t] for t in empty_tables])
                 logger.error(f"  [ALERT] Pipeline missing data in: {empty_desc}")
                 logger.error(f"  Run the loaders to populate: {', '.join(empty_tables)}")
                 self.alerts.critical(
@@ -520,7 +512,7 @@ class Orchestrator:
         conn = None
         cur = None
         try:
-            conn = get_db_connection()
+            conn = self._get_conn()
             cur = conn.cursor()
 
             # Count total BUY signals for today
@@ -578,14 +570,8 @@ class Orchestrator:
                 try:
                     cur.close()
                 except Exception as e:
-
                     logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
+            self._put_conn(conn)
 
     def _interpret_waterfall(self, total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
         """Interpret the signal waterfall to help diagnose 'no trades' situations."""

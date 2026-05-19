@@ -194,46 +194,6 @@ jobs:
             --region $AWS_REGION
           echo "✅ API Lambda deployed: $FUNC"
 
-      - name: Inject DB credentials into Lambda env (eliminates cold-start SM call)
-        run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
-          # Get the secret ARN from current Lambda config
-          DB_SECRET_ARN=$(aws lambda get-function-configuration \
-            --function-name "$FUNC" --region $AWS_REGION \
-            --query 'Environment.Variables.DB_SECRET_ARN' --output text 2>/dev/null)
-
-          if [ -z "$DB_SECRET_ARN" ] || [ "$DB_SECRET_ARN" = "None" ]; then
-            echo "⚠️ No DB_SECRET_ARN found on Lambda — skipping credential injection"
-            exit 0
-          fi
-
-          # Fetch credentials from Secrets Manager
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id "$DB_SECRET_ARN" --region $AWS_REGION \
-            --query SecretString --output text)
-          DB_USER=$(echo "$SECRET" | python3 -c "import json,sys; print(json.load(sys.stdin).get('username',''))")
-          DB_PASSWORD=$(echo "$SECRET" | python3 -c "import json,sys; print(json.load(sys.stdin).get('password',''))")
-
-          if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-            echo "⚠️ Could not extract credentials from secret — skipping"
-            exit 0
-          fi
-
-          # Merge credentials into existing env vars — jq handles special chars safely
-          CURRENT_VARS=$(aws lambda get-function-configuration \
-            --function-name "$FUNC" --region $AWS_REGION \
-            --query 'Environment.Variables' --output json)
-          NEW_VARS=$(echo "$CURRENT_VARS" | jq \
-            --arg u "$DB_USER" --arg p "$DB_PASSWORD" \
-            '. + {DB_USER: $u, DB_PASSWORD: $p} | {Variables: .}')
-
-          aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --environment "$NEW_VARS" \
-            --region $AWS_REGION
-          aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
-          echo "✅ DB credentials injected into Lambda env (cold start SM call eliminated)"
-
   # ──────────────────────────────────────────────────────────────
   # Database Init Lambda
   # ──────────────────────────────────────────────────────────────

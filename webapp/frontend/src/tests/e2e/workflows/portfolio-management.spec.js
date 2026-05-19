@@ -9,8 +9,8 @@ test.describe("Portfolio Management Workflow", () => {
   test.beforeEach(async ({ page }) => {
     // Set up authenticated state with API keys
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "test-auth-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "test-auth-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -18,13 +18,13 @@ test.describe("Portfolio Management Workflow", () => {
           finnhub: { configured: true, valid: true },
         })
       );
-      localStorage.setItem("user_data", JSON.stringify({
+      sessionStorage.setItem("user_data", JSON.stringify({
         username: "testuser",
         authenticated: true
       }));
 
       // Pre-populate some portfolio data for testing
-      localStorage.setItem("portfolio_holdings", JSON.stringify([
+      sessionStorage.setItem("portfolio_holdings", JSON.stringify([
         {
           symbol: "AAPL",
           quantity: 10,
@@ -339,7 +339,7 @@ test.describe("Portfolio Management Workflow", () => {
 
     // Clear portfolio data
     await page.addInitScript(() => {
-      localStorage.setItem("portfolio_holdings", "[]");
+      sessionStorage.setItem("portfolio_holdings", "[]");
     });
 
     await page.goto("/portfolio");

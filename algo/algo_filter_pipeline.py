@@ -242,23 +242,29 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         tier_pass_counts[t] += 1
 
                 if result['passed_all_tiers']:
-                    # Run advanced filters (with graceful fallback for missing tables)
-                    sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
-                    try:
-                        adv = self.advanced.evaluate_candidate(
-                            symbol, signal_date, float(entry_price),
-                            sector_info['sector'], sector_info['industry'],
-                        )
-                        result['advanced'] = adv
-                    except Exception as e:
-                        # Advanced filters failed (missing tables), use default pass
-                        logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
-                        # Roll back aborted transaction so the shared connection stays usable
+                    # Run advanced filters (if enabled)
+                    enable_advanced = bool(self.config.get('enable_advanced_filters', True))
+                    if enable_advanced:
+                        sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
                         try:
-                            self.conn.rollback()
-                        except Exception:
-                            pass
-                        adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
+                            adv = self.advanced.evaluate_candidate(
+                                symbol, signal_date, float(entry_price),
+                                sector_info['sector'], sector_info['industry'],
+                            )
+                            result['advanced'] = adv
+                        except Exception as e:
+                            # Advanced filters failed (missing tables), use default pass
+                            logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
+                            # Roll back aborted transaction so the shared connection stays usable
+                            try:
+                                self.conn.rollback()
+                            except Exception:
+                                pass
+                            adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
+                            result['advanced'] = adv
+                    else:
+                        # Advanced filters disabled
+                        adv = {'pass': True, 'reason': 'Advanced filters disabled', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                         result['advanced'] = adv
 
                     if adv['pass']:

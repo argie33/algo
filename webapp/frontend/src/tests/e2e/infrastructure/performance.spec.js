@@ -9,8 +9,8 @@ test.describe("Performance Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Set up consistent state for performance testing
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "perf-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "perf-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -163,10 +163,8 @@ test.describe("Performance Tests", () => {
 
     const totalSize = totalJsSize + totalCssSize;
 
-      `📦 Bundle Analysis - JS: ${Math.round(totalJsSize / 1024)}KB, CSS: ${Math.round(totalCssSize / 1024)}KB, Total: ${Math.round(totalSize / 1024)}KB`
-    );
-      `📊 Resources detected: ${resources.length} (${resources.filter((r) => r.type === "js").length} JS, ${resources.filter((r) => r.type === "css").length} CSS)`
-    );
+      console.log(`Bundle Analysis - JS: ${Math.round(totalJsSize / 1024)}KB, CSS: ${Math.round(totalCssSize / 1024)}KB, Total: ${Math.round(totalSize / 1024)}KB`);
+      console.log(`Resources detected: ${resources.length} (${resources.filter((r) => r.type === "js").length} JS, ${resources.filter((r) => r.type === "css").length} CSS)`);
 
     // Only validate if we detected resources
     if (resources.length > 0) {

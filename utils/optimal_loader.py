@@ -85,6 +85,7 @@ class OptimalLoader(ABC):
         self._watermark = None
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
+        self._schema_cols_cache: Optional[List[str]] = None  # cached column list for _bulk_insert
         self._stats_lock = threading.Lock()
         self._stats = {
             "symbols_processed": 0,
@@ -187,12 +188,15 @@ class OptimalLoader(ABC):
         try:
             # Filter to columns that exist in the target table — prevents failures when
             # a loader produces extra fields before a schema migration has run.
-            cur.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = 'public' AND table_name = %s",
-                (self.table_name,),
-            )
-            existing_cols = {row[0] for row in cur.fetchall()}
+            # Cache the column set per loader instance to avoid N schema catalog queries.
+            if self._schema_cols_cache is None:
+                cur.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = %s",
+                    (self.table_name,),
+                )
+                self._schema_cols_cache = {row[0] for row in cur.fetchall()}
+            existing_cols = self._schema_cols_cache
             all_data_cols = list(rows[0].keys())
             skipped = [c for c in all_data_cols if c not in existing_cols]
             if skipped:
@@ -201,7 +205,8 @@ class OptimalLoader(ABC):
             if not columns:
                 raise ValueError(f"No valid columns to write for {self.table_name}")
 
-            staging = f"_stage_{self.table_name}_{int(time.time() * 1000)}"
+            import threading
+            staging = f"_stage_{self.table_name}_{int(time.time() * 1000)}_{threading.get_ident() & 0xFFFF}"
 
             cur.execute(
                 f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"

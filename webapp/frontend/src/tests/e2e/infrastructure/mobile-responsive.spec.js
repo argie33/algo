@@ -23,8 +23,8 @@ test.describe("Mobile-Specific Testing", () => {
 
     // Set up authentication and API keys
     await page.addInitScript(() => {
-      localStorage.setItem("financial_auth_token", "mobile-test-token");
-      localStorage.setItem(
+      sessionStorage.setItem("financial_auth_token", "mobile-test-token");
+      sessionStorage.setItem(
         "api_keys_status",
         JSON.stringify({
           alpaca: { configured: true, valid: true },
@@ -125,8 +125,7 @@ test.describe("Mobile-Specific Testing", () => {
       }
     }
 
-      `📱 Touch-friendly targets: ${touchFriendlyCount}/${Math.min(touchTargets.length, 10)}`
-    );
+      console.log(`Touch-friendly targets: ${touchFriendlyCount}/${Math.min(touchTargets.length, 10)}`);
     expect(touchFriendlyCount).toBeGreaterThan(0);
   });
 
