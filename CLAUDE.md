@@ -81,6 +81,22 @@ python3 algo/algo_orchestrator.py --dry-run
 python3 -m pytest algo/ -v -k "signal"
 ```
 
+### Frontend Dev (Local)
+```powershell
+# Terminal 1: API server
+cd webapp/lambda
+node index.js  # Runs on port 3002
+
+# Terminal 2: Frontend dev server
+$env:VITE_FORCE_DEV_AUTH="true"
+$env:VITE_DEV_AUTH_PASSWORD="Admin123!"
+cd webapp/frontend
+npm run dev  # Runs on port 5173
+
+# Browser: http://localhost:5173
+# Login with: dev-admin / Admin123!
+```
+
 ### Run Live Trading (Local)
 ```bash
 ORCHESTRATOR_DRY_RUN=false python3 algo/algo_orchestrator.py
