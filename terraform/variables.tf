@@ -26,12 +26,6 @@ variable "environment" {
   }
 }
 
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
-}
-
 variable "github_repository" {
   description = "GitHub repository in format owner/repo for OIDC trust"
   type        = string
@@ -679,22 +673,6 @@ variable "fred_api_key" {
   type        = string
   sensitive   = true
   default     = ""
-}
-
-variable "execution_mode" {
-  description = "Algo execution mode (auto for automated, manual for testing)"
-  type        = string
-  default     = "auto"
-  validation {
-    condition     = contains(["auto", "manual", "test"], var.execution_mode)
-    error_message = "Execution mode must be auto, manual, or test"
-  }
-}
-
-variable "orchestrator_dry_run" {
-  description = "Run orchestrator in dry-run mode (no actual trades)"
-  type        = bool
-  default     = false
 }
 
 variable "orchestrator_log_level" {
