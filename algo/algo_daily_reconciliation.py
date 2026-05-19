@@ -241,18 +241,10 @@ class DailyReconciliation:
         For positions in Alpaca but not us → import as 'imported_external'
         For positions in us but not Alpaca → flag as orphaned (don't auto-close)
         """
-        if not self.alpaca_key or not self.alpaca_secret:
-            return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca creds'}
+        if not self.trading_client:
+            return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca client'}
         try:
-            r = requests.get(
-                f'{self.alpaca_base_url}/v2/positions',
-                headers={'APCA-API-KEY-ID': self.alpaca_key,
-                         'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=10,
-            )
-            if r.status_code != 200:
-                return {'imported': 0, 'orphaned': 0, 'message': f'Alpaca {r.status_code}'}
-            alpaca_positions = r.json()
+            alpaca_positions = self.trading_client.list_positions()
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
@@ -263,8 +255,8 @@ class DailyReconciliation:
         imported = 0
 
         for ap in alpaca_positions:
-            sym = ap.get('symbol')
-            qty = float(ap.get('qty', 0))
+            sym = ap.symbol
+            qty = float(ap.qty)
             alpaca_symbols[sym] = qty
 
             if sym in our_symbols:
@@ -602,32 +594,18 @@ class DailyReconciliation:
             return {'updated': 0, 'reason': f'Error: {e}'}
 
     def _fetch_alpaca_account(self):
-        """Fetch account data from Alpaca."""
+        """Fetch account data from Alpaca using REST client."""
         try:
-            if not self.alpaca_key or not self.alpaca_secret:
+            if not self.trading_client:
                 return None
 
-            headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret
+            account = self.trading_client.get_account()
+            return {
+                'cash': float(account.cash),
+                'equity': float(account.equity),
+                'portfolio_value': float(account.portfolio_value),
+                'buying_power': float(account.buying_power)
             }
-
-            response = requests.get(
-                f'{self.alpaca_base_url}/v2/account',
-                headers=headers,
-                timeout=10
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    'cash': float(data.get('cash', 0)),
-                    'equity': float(data.get('equity', 0)),
-                    'portfolio_value': float(data.get('portfolio_value', 0)),
-                    'buying_power': float(data.get('buying_power', 0))
-                }
-            else:
-                return None
 
         except Exception as e:
             logger.info(f"Warning: Could not fetch Alpaca account: {e}")

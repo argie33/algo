@@ -6,9 +6,11 @@ Routes requests to extracted handler modules via api_router.
 import os
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from collections import defaultdict
+from time import time
 
 import api_router
 
@@ -16,6 +18,11 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 _db_conn = None
+
+# Rate limiting state (in-memory for this Lambda instance)
+_request_history = defaultdict(list)
+RATE_LIMIT_REQUESTS = 1000  # requests per second per IP
+RATE_LIMIT_WINDOW = 1  # seconds
 
 
 def get_db_connection():
@@ -144,6 +151,28 @@ def validate_bearer_token(token: Optional[str]) -> bool:
     return True
 
 
+def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUESTS, window_seconds: int = RATE_LIMIT_WINDOW) -> bool:
+    """
+    Check if client IP has exceeded rate limit.
+    Returns True if rate limit exceeded (should block request).
+    """
+    now = time()
+
+    # Clean old entries outside the window
+    _request_history[client_ip] = [
+        req_time for req_time in _request_history[client_ip]
+        if now - req_time < window_seconds
+    ]
+
+    # Check if limit exceeded
+    if len(_request_history[client_ip]) >= rate_limit_requests:
+        return True
+
+    # Record this request
+    _request_history[client_ip].append(now)
+    return False
+
+
 def require_auth(event: Dict, path: str) -> tuple:
     """
     Check if path requires authentication.
@@ -196,6 +225,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                 'body': json.dumps({'error': 'unauthorized', 'message': auth_error})
+            }
+
+        # Check rate limiting (per client IP)
+        client_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+        if is_rate_limited(client_ip):
+            cors_headers = get_cors_headers(event)
+            logger.warning(f'Rate limit exceeded for IP {client_ip}')
+            return {
+                'statusCode': 429,
+                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers(),
+                           'Retry-After': '60'},
+                'body': json.dumps({'error': 'rate_limit_exceeded', 'message': 'Too many requests. Please try again later.'})
             }
 
         # Health check
