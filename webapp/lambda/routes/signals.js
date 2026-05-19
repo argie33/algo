@@ -135,7 +135,7 @@ router.get("/stocks", async (req, res) => {
         bsd.signal,
         bsd.strength,
         bsd.reason,
-        COALESCE(cp.company_name, bsd.symbol) as company_name,
+        COALESCE(cp.short_name, bsd.symbol) as company_name,
         cp.sector,
         cp.industry,
         tdd.rsi,
