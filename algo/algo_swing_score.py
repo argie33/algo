@@ -295,13 +295,18 @@ class SwingTraderScore:
             return {'pass': False, 'reason': f'{pct_from_high:.0f}% from 52w high'}
 
         # 4. Base count check + base type (no wide-and-loose)
-        self.cur.execute(
-            """SELECT estimated_base_count FROM trend_template_data
-               WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
-            (symbol, eval_date),
-        )
-        base_row = self.cur.fetchone()
-        estimated_base_count = int(base_row[0]) if base_row and base_row[0] is not None else 0
+        estimated_base_count = 0
+        try:
+            self.cur.execute(
+                """SELECT estimated_base_count FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date),
+            )
+            base_row = self.cur.fetchone()
+            estimated_base_count = int(base_row[0]) if base_row and base_row[0] is not None else 0
+        except Exception:
+            pass
+
         if estimated_base_count >= 4:
             return {'pass': False, 'reason': f'Base count {estimated_base_count} >= 4'}
 
@@ -467,17 +472,25 @@ class SwingTraderScore:
 
         # Phase: early=full, mid=full, late=half, climax=zero
         # Get phase data from trend_template_data
-        self.cur.execute(
-            """SELECT size_multiplier, consolidation_flag, estimated_base_count, weeks_since_30wk_uptrend
-               FROM trend_template_data
-               WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
-            (symbol, eval_date),
-        )
-        phase_row = self.cur.fetchone()
-        phase_mult = float(phase_row[0]) if phase_row and phase_row[0] is not None else 0.5
-        phase_name = 'early' if phase_mult == 1.0 else 'mid' if phase_mult >= 0.5 else 'late'
-        estimated_base_count = int(phase_row[2]) if phase_row and phase_row[2] is not None else 0
-        weeks_uptrend = int(phase_row[3]) if phase_row and phase_row[3] is not None else 0
+        phase_mult = 0.5
+        phase_name = 'late'
+        estimated_base_count = 0
+        weeks_uptrend = 0
+
+        try:
+            self.cur.execute(
+                """SELECT size_multiplier, consolidation_flag, estimated_base_count, weeks_since_30wk_uptrend
+                   FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date),
+            )
+            phase_row = self.cur.fetchone()
+            phase_mult = float(phase_row[0]) if phase_row and phase_row[0] is not None else 0.5
+            phase_name = 'early' if phase_mult == 1.0 else 'mid' if phase_mult >= 0.5 else 'late'
+            estimated_base_count = int(phase_row[2]) if phase_row and phase_row[2] is not None else 0
+            weeks_uptrend = int(phase_row[3]) if phase_row and phase_row[3] is not None else 0
+        except Exception:
+            pass
 
         # Stage phase contributes other 40% (8 pts) of trend bucket scaled by phase mult
         phase_pts = self.W_TREND * 0.4 * phase_mult
