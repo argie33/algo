@@ -1,7 +1,8 @@
 /**
  * Development Authentication Service
  * Mirrors the AWS Amplify auth API for local development when Cognito is not configured.
- * Stores users in localStorage for persistence across page reloads.
+ * SECURITY: Uses sessionStorage (cleared on tab close) instead of localStorage.
+ * Dev auth is disabled at build time in production (import.meta.env.PROD).
  */
 
 const STORAGE_KEY = 'devAuth_users';
@@ -25,19 +26,19 @@ const DEV_USER = {
 
 function getUsers() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}');
   } catch {
     return {};
   }
 }
 
 function saveUsers(users) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(users));
 }
 
 function getSession() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
   } catch {
     return null;
   }
@@ -45,9 +46,9 @@ function getSession() {
 
 function saveSession(session) {
   if (session) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } else {
-    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   }
 }
 

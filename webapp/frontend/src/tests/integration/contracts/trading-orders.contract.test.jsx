@@ -44,11 +44,10 @@ describe("Trading Orders Contract Tests", () => {
     if (apiResponse.data) {
       expect(Array.isArray(apiResponse.data.orders)).toBe(true);
     }
-    });
 
     // STEP 2: Validate order object structure if orders exist
-    if (apiResponse.data && apiResponse.data.length > 0) {
-      const sampleOrder = apiResponse.data[0];
+    if (apiResponse.data && apiResponse.data.orders && apiResponse.data.orders.length > 0) {
+      const sampleOrder = apiResponse.data.orders[0];
       expect(sampleOrder).toHaveProperty("id");
       expect(sampleOrder).toHaveProperty("symbol");
       expect(sampleOrder).toHaveProperty("side"); // buy/sell

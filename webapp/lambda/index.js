@@ -91,8 +91,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Trust proxy when running behind API Gateway/CloudFront
-app.set("trust proxy", true);
+// Trust only 1 hop (API Gateway / CloudFront) — prevents X-Forwarded-For spoofing
+app.set("trust proxy", 1);
 
 // Enhanced security middleware for enterprise production deployment
 app.use(
@@ -220,8 +220,16 @@ app.options(/.*/, (req, res) => {
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) {
+      // Server-to-server and same-origin requests have no Origin header — allow them.
+      // Note: Lambda-to-Lambda and ECS task calls won't have an Origin header.
+      // The "null" string origin (from sandboxed iframes) is intentionally blocked.
+      if (!origin || origin === 'null') {
+        // Allow only if not a browser preflight — browser preflights always send Origin.
+        // Plain server-side calls have no origin at all (undefined/null JS value, not string "null").
+        if (origin === 'null') {
+          console.warn("CORS blocked 'null' origin (sandboxed iframe attempt)");
+          return callback(new Error("Not allowed by CORS"));
+        }
         return callback(null, true);
       }
 

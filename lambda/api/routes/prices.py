@@ -29,7 +29,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             qparams = [symbol.upper()]
             if days:
                 try:
-                    where += f" AND date >= CURRENT_DATE - INTERVAL '{int(days)} days'"
+                    days_int = int(days)
+                    where += " AND date >= CURRENT_DATE - INTERVAL %s"
+                    qparams.append(f"{days_int} days")
                 except ValueError:
                     pass
 

@@ -344,6 +344,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
                 error: error.message,
                 success: false,
               });
+              console.log(
                 `❌ Input test failed: ${error.message.slice(0, 30)}`
               );
             }

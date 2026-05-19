@@ -291,6 +291,7 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
+    console.log(
       `📊 Pages with accessible forms: ${accessibleForms}/${pagesWithForms.length}`
     );
     // Safari may have different accessibility patterns, so be more lenient

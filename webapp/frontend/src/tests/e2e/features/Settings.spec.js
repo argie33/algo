@@ -61,6 +61,7 @@ test.describe("Settings Page Debug Analysis", () => {
 
     // Capture unhandled rejections
     page.on("requestfailed", (request) => {
+      console.log(
         `   Failure: ${request.failure()?.errorText || "Unknown error"}`
       );
     });

@@ -15,6 +15,21 @@ locals {
 }
 
 # ============================================================
+# Lambda Layer for Shared Dependencies (Cost Optimization)
+# ============================================================
+# One layer with psycopg2, boto3, requests, pandas, etc.
+# Shared by all Lambda functions → smaller packages + faster deploys
+
+resource "aws_lambda_layer_version" "shared_deps" {
+  filename            = "python-psycopg2-layer.zip"
+  layer_name          = "${var.project_name}-shared-deps-${var.environment}"
+  compatible_runtimes = ["python3.11"]
+  source_code_hash    = filebase64sha256("${path.module}/../../python-psycopg2-layer.zip")
+
+  tags = var.common_tags
+}
+
+# ============================================================
 # Lambda API Role - Reference from IAM module
 # ============================================================
 # The API Lambda role is created and managed by the IAM module.
@@ -55,7 +70,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.11"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  layers        = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
+  layers        = [aws_lambda_layer_version.shared_deps.arn]  # Use consolidated layer
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
@@ -416,7 +431,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.11"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
-  layers        = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
+  layers        = [aws_lambda_layer_version.shared_deps.arn]  # Use consolidated layer
 
   # Use S3 package if available, otherwise local file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null

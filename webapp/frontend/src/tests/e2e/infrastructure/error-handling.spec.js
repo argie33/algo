@@ -201,6 +201,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       page404Content.includes("Empty") ||
       page404Content.includes("not found");
 
+    console.log(
       `📊 404 handling: ${errorMessages} error messages, empty state: ${hasEmptyStateContent}, page loads: ${pageLoaded && hasBasicContent}`
     );
 

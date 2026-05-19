@@ -268,6 +268,7 @@ test.describe("Safari Routing Compatibility", () => {
         return sessionStorage.getItem("financial_auth_token");
       });
 
+      console.log(
         `💾 Auth persistence: Initial=${!!initialAuth}, Portfolio=${!!portfolioAuth}, Final=${!!finalAuth}`
       );
 
@@ -277,6 +278,7 @@ test.describe("Safari Routing Compatibility", () => {
       expect(finalAuth).toBeTruthy();
 
     } catch (error) {
+      console.log(
         `⚠️ Safari state persistence issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail entirely, as some state management can be browser-specific

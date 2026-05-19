@@ -2,6 +2,11 @@
 # Services Module - Outputs
 # ============================================================
 
+output "lambda_layer_arn" {
+  description = "ARN of the shared dependencies Lambda layer"
+  value       = aws_lambda_layer_version.shared_deps.arn
+}
+
 output "api_lambda_arn" {
   description = "ARN of the API Lambda function"
   value       = aws_lambda_function.api.arn

@@ -194,6 +194,7 @@ test.describe("Mobile-Specific Testing", () => {
       }
     }
 
+    console.log(
       `📱 Readable text elements: ${readableTextCount}/${Math.min(textElements.length, 20)}`
     );
     expect(readableTextCount).toBeGreaterThan(5);

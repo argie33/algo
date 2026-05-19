@@ -168,14 +168,40 @@ data "aws_iam_policy_document" "github_actions" {
     ]
   }
 
-  # API Gateway - Full management for Terraform (needed for deployment)
+  # API Gateway - Scoped management for Terraform (only the actions Terraform actually needs)
   statement {
     sid    = "APIGatewayManagement"
     effect = "Allow"
 
     actions = [
       "apigateway:GET",
-      "apigatewayv2:*"
+      "apigatewayv2:CreateApi",
+      "apigatewayv2:DeleteApi",
+      "apigatewayv2:GetApi",
+      "apigatewayv2:UpdateApi",
+      "apigatewayv2:GetApis",
+      "apigatewayv2:CreateStage",
+      "apigatewayv2:DeleteStage",
+      "apigatewayv2:GetStage",
+      "apigatewayv2:GetStages",
+      "apigatewayv2:UpdateStage",
+      "apigatewayv2:CreateRoute",
+      "apigatewayv2:DeleteRoute",
+      "apigatewayv2:GetRoute",
+      "apigatewayv2:GetRoutes",
+      "apigatewayv2:UpdateRoute",
+      "apigatewayv2:CreateIntegration",
+      "apigatewayv2:DeleteIntegration",
+      "apigatewayv2:GetIntegration",
+      "apigatewayv2:GetIntegrations",
+      "apigatewayv2:UpdateIntegration",
+      "apigatewayv2:CreateDeployment",
+      "apigatewayv2:DeleteDeployment",
+      "apigatewayv2:GetDeployment",
+      "apigatewayv2:GetDeployments",
+      "apigatewayv2:TagResource",
+      "apigatewayv2:UntagResource",
+      "apigatewayv2:GetTags"
     ]
 
     resources = ["*"]
