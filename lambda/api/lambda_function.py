@@ -15,6 +15,8 @@ from time import time
 import base64
 from datetime import datetime
 from functools import lru_cache
+import jwt
+import requests
 
 import api_router
 
@@ -129,7 +131,7 @@ def get_security_headers() -> Dict[str, str]:
         'X-XSS-Protection': '1; mode=block',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' https://cdn.cloudflare.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.example.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     }
 
 
@@ -182,48 +184,100 @@ def get_bearer_token(event: Dict) -> Optional[str]:
     return auth_header[7:]  # Remove 'Bearer ' prefix
 
 
+@lru_cache(maxsize=1)
+def _get_cognito_jwks():
+    """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 1 hour."""
+    cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
+    cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
+
+    if not cognito_user_pool_id:
+        logger.warning("COGNITO_USER_POOL_ID not set - JWT signature verification disabled")
+        return None
+
+    try:
+        url = f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}/.well-known/jwks.json"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch Cognito JWKS: {e}")
+        return None
+
+
 def validate_bearer_token(token: Optional[str]) -> tuple:
-    """Validate JWT token format and signature.
+    """Validate JWT token: format, signature, expiration, audience.
 
     Returns: (is_valid: bool, claims: dict or None, error: str or None)
     """
     if not token:
         return (False, None, "No token provided")
 
-    # Format check
     if len(token) < 50:
         return (False, None, "Token too short")
     if token.count('.') != 2:
         return (False, None, "Invalid token structure")
 
     try:
-        # Try to decode token header and payload (no signature verification yet)
+        # Decode header to get key ID without verification first
         parts = token.split('.')
         header = json.loads(base64.urlsafe_b64decode(parts[0] + '=='))
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
 
-        # Check token expiration
-        if 'exp' in payload:
-            exp_time = payload['exp']
-            if exp_time < int(time()):
+        # Get Cognito public keys
+        cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
+        cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
+
+        # If Cognito not configured, do format-only validation (dev mode)
+        if not cognito_user_pool_id:
+            logger.warning("Dev mode: COGNITO_USER_POOL_ID not set, skipping signature verification")
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+            if 'exp' in payload and payload['exp'] < int(time()):
                 return (False, None, "Token expired")
-
-        # For development: if Cognito not configured, accept token format
-        # For production: should implement full JWT signature verification with Cognito public keys
-        cognito_enabled = os.getenv('COGNITO_ENABLED') == 'true'
-        if not cognito_enabled:
-            logger.debug("Dev mode: accepting token without signature verification")
             return (True, payload, None)
 
-        # Production: signature verification would go here
-        # (requires Cognito public keys from JWKS endpoint)
-        logger.info(f"Token validated (format + expiration check)")
+        # Production: verify signature with Cognito public keys
+        jwks = _get_cognito_jwks()
+        if not jwks:
+            return (False, None, "Unable to fetch Cognito keys")
+
+        kid = header.get('kid')
+        if not kid:
+            return (False, None, "Token has no key ID")
+
+        # Find matching key
+        key_data = None
+        for key in jwks.get('keys', []):
+            if key.get('kid') == kid:
+                key_data = key
+                break
+
+        if not key_data:
+            logger.warning(f"Key {kid} not found in Cognito JWKS")
+            return (False, None, "Key not found")
+
+        # Verify signature and claims
+        cognito_client_id = os.getenv('COGNITO_CLIENT_ID')
+        payload = jwt.decode(
+            token,
+            jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data)),
+            algorithms=['RS256'],
+            audience=cognito_client_id,
+            issuer=f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}",
+            options={'verify_exp': True}
+        )
+
+        logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
         return (True, payload, None)
 
+    except jwt.ExpiredSignatureError:
+        logger.warning("Token has expired")
+        return (False, None, "Token expired")
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid JWT token: {e}")
+        return (False, None, f"Token invalid: {str(e)}")
     except json.JSONDecodeError as e:
         return (False, None, f"Invalid token format: {str(e)}")
     except Exception as e:
-        logger.error(f"Token validation error: {str(e)}")
+        logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
 
 
@@ -280,7 +334,7 @@ def log_api_request(event: Dict, status_code: int, user_id: Optional[str] = None
 def require_auth(event: Dict, path: str) -> tuple:
     """
     Check if path requires authentication.
-    Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None)
+    Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
     # Public endpoints (no auth required)
     PUBLIC_PATHS = {
@@ -295,23 +349,23 @@ def require_auth(event: Dict, path: str) -> tuple:
 
     # All other /api endpoints require auth
     if path in PUBLIC_PATHS:
-        return (False, True, None)  # No auth required, so authorized
+        return (False, True, None, None)  # No auth required, so authorized
 
     if not path.startswith('/api/'):
-        return (False, True, None)  # Non-API paths don't need auth
+        return (False, True, None, None)  # Non-API paths don't need auth
 
     # This is an /api path that requires auth
     token = get_bearer_token(event)
 
     if not token:
-        return (True, False, "Missing Authorization: Bearer token")
+        return (True, False, "Missing Authorization: Bearer token", None)
 
     is_valid, claims, error = validate_bearer_token(token)
     if not is_valid:
-        return (True, False, error or "Invalid token")
+        return (True, False, error or "Invalid token", None)
 
-    # Token is valid
-    return (True, True, None)
+    # Token is valid - return claims for routing
+    return (True, True, None, claims)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -323,7 +377,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.info(f'Request: {method} {path}')
 
         # Check authorization for protected endpoints
-        requires_auth, is_authorized, auth_error = require_auth(event, path)
+        requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
         if requires_auth and not is_authorized:
             cors_headers = get_cors_headers(event)
             logger.warning(f'Unauthorized access attempt to {path}: {auth_error}')
@@ -486,7 +540,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 pass
 
         # Route request to appropriate handler
-        response = api_router.route_request(cur, path, method, params, body)
+        response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         cur.close()
 
         # Ensure response has proper format

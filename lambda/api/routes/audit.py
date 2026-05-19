@@ -26,10 +26,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 audits = cur.fetchall()
                 cur.execute("SELECT COUNT(*) FROM algo_audit_log")
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {
-                    'data': [dict(a) for a in audits] if audits else [],
-                    'pagination': {'total': total}
-                })
+                return list_response([dict(a) for a in audits] if audits else [], total=total)
 
             elif path == '/api/audit/trades' or path.startswith('/api/audit/trades?'):
                 cur.execute("""
@@ -46,10 +43,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {
-                    'data': [dict(a) for a in audits] if audits else [],
-                    'pagination': {'total': total}
-                })
+                return list_response([dict(a) for a in audits] if audits else [], total=total)
 
             elif path == '/api/audit/config' or path.startswith('/api/audit/config?'):
                 cur.execute("""
@@ -66,10 +60,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {
-                    'data': [dict(a) for a in audits] if audits else [],
-                    'pagination': {'total': total}
-                })
+                return list_response([dict(a) for a in audits] if audits else [], total=total)
 
             elif path == '/api/audit/safeguards' or path.startswith('/api/audit/safeguards?'):
                 cur.execute("""
@@ -86,10 +77,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {
-                    'data': [dict(a) for a in audits] if audits else [],
-                    'pagination': {'total': total}
-                })
+                return list_response([dict(a) for a in audits] if audits else [], total=total)
 
             return error_response(404, 'not_found', f'No audit handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

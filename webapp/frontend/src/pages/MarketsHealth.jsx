@@ -1609,7 +1609,7 @@ function DistributionDaysTimeline() {
 function SentimentCompositeCard({ markets, sentiment }) {
   const { data: fgData } = useApiQuery(
     ['fear-greed-30d'],
-    () => api.get('/api/market/fear-greed?range=30d').then(r => r.data?.data?.items || []),
+    () => api.get('/api/market/fear-greed?range=30d'),
     { refetchInterval: 1000 * 60 * 60 }
   );
 
@@ -1782,8 +1782,7 @@ function EconomicCalendarCard() {
   const endStr = end.toISOString().slice(0, 10);
   const { data, loading, error } = useApiQuery(
     ['economic-calendar', startStr, endStr],
-    () => api.get(`/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`)
-      .then(r => r.data?.data?.events || r.data?.events || []),
+    () => api.get(`/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`),
     { refetchInterval: 1000 * 60 * 30 }
   );
 

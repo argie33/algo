@@ -78,6 +78,5 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'handle research')
-            return error_response(500, 'internal_error', 'Failed to fetch backtest results')
 
 

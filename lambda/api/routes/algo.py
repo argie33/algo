@@ -7,15 +7,15 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
-        # Get current user ID from params (should be passed from main Lambda after JWT validation)
-        user_id = params.get('user_id', '') if params else ''
-        if not user_id:
-            return error_response(401, 'unauthorized', 'User ID required')
+        # User identity from verified JWT claims (sub is the Cognito user ID)
+        user_id = (jwt_claims or {}).get('sub', '')
 
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
+            if not user_id:
+                return error_response(401, 'unauthorized', 'Authentication required')
             try:
                 try:
                     notif_id_int = int(notif_id)
@@ -25,7 +25,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s AND user_id=%s",
                     (notif_id_int, user_id)
                 )
-                # Check if notification was actually updated (ownership check)
                 if cur.rowcount == 0:
                     return error_response(403, 'forbidden', 'Notification not found or access denied')
                 cur.connection.commit()
@@ -35,9 +34,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return handle_db_error(e, logger, 'handle algo')
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
+            if not user_id:
+                return error_response(401, 'unauthorized', 'Authentication required')
             try:
                 cur.execute("DELETE FROM algo_notifications WHERE id=%s AND user_id=%s", (int(notif_id), user_id))
-                # Check if notification was actually deleted (ownership check)
                 if cur.rowcount == 0:
                     return error_response(403, 'forbidden', 'Notification not found or access denied')
                 cur.connection.commit()
@@ -379,17 +379,52 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
 def _get_data_status(cur) -> Dict:
-        """Get data freshness status."""
+        """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard."""
         try:
             cur.execute("""
-                SELECT table_name, latest_date
+                SELECT table_name, row_count, last_updated,
+                       EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 AS age_hours
                 FROM data_loader_status
-                ORDER BY latest_date DESC
-                LIMIT 10
+                ORDER BY table_name
             """)
             rows = cur.fetchall()
+
+            # Critical tables that must be fresh for live trading
+            CRITICAL_TABLES = {'price_daily', 'buy_sell_daily', 'swing_trader_scores', 'stock_symbols'}
+
+            sources = []
+            summary = {'ok': 0, 'stale': 0, 'empty': 0, 'error': 0}
+            critical_stale = []
+
+            for row in rows:
+                age_h = float(row['age_hours'] or 999)
+                row_count = row['row_count'] or 0
+                if row_count == 0:
+                    status = 'empty'
+                elif age_h <= 24:
+                    status = 'ok'
+                elif age_h <= 72:
+                    status = 'stale'
+                else:
+                    status = 'error'
+                summary[status] = summary.get(status, 0) + 1
+                if status in ('stale', 'error', 'empty') and row['table_name'] in CRITICAL_TABLES:
+                    critical_stale.append(row['table_name'])
+                sources.append({
+                    'name': row['table_name'],
+                    'status': status,
+                    'last_updated': row['last_updated'].isoformat() if row.get('last_updated') else None,
+                    'age_hours': round(age_h, 1),
+                    'row_count': row_count,
+                })
+
+            ready_to_trade = len(critical_stale) == 0 and summary.get('ok', 0) > 0
+
             return json_response(200, {
-                'latest_data': [dict(r) for r in rows],
+                'ready_to_trade': ready_to_trade,
+                'summary': summary,
+                'sources': sources,
+                'critical_stale': critical_stale,
                 'as_of': datetime.now(timezone.utc).isoformat(),
             })
         except psycopg2.errors.UndefinedTable as e:
@@ -663,7 +698,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
                 LIMIT %s OFFSET %s
             """, (limit, offset))
             findings = cur.fetchall()
-            return list_response([dict(f) for f in findings], total=total, limit=limit, offset=offset)
+            return list_response([dict(f) for f in findings], total=total)
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get patrol log'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')

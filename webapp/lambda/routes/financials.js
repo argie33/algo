@@ -35,7 +35,7 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
       SELECT *
       FROM ${table}
       WHERE symbol = $1
-      ORDER BY fiscal_year DESC, fiscal_quarter DESC
+      ORDER BY fiscal_year DESC ${period === 'quarterly' ? ', fiscal_quarter DESC' : ''}
       LIMIT 20
     `, [ticker.toUpperCase()]);
 
@@ -71,7 +71,7 @@ router.get('/:ticker/income-statement', async (req, res) => {
       SELECT *
       FROM ${table}
       WHERE symbol = $1
-      ORDER BY fiscal_year DESC, fiscal_quarter DESC
+      ORDER BY fiscal_year DESC ${period === 'quarterly' ? ', fiscal_quarter DESC' : ''}
       LIMIT 20
     `, [ticker.toUpperCase()]);
 
@@ -107,7 +107,7 @@ router.get('/:ticker/cash-flow', async (req, res) => {
       SELECT *
       FROM ${table}
       WHERE symbol = $1
-      ORDER BY fiscal_year DESC, fiscal_quarter DESC
+      ORDER BY fiscal_year DESC ${period === 'quarterly' ? ', fiscal_quarter DESC' : ''}
       LIMIT 20
     `, [ticker.toUpperCase()]);
 
@@ -142,9 +142,7 @@ router.get('/:ticker/key-metrics', async (req, res) => {
         symbol,
         market_cap,
         held_percent_insiders,
-        held_percent_institutions,
-        shares_outstanding,
-        shares_float
+        held_percent_institutions
       FROM key_metrics
       WHERE symbol = $1
     `, [ticker.toUpperCase()]);

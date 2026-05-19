@@ -194,6 +194,7 @@ async function getRecentTrades(req, res) {
 }
 
 // Register routes
+router.get('/', getPerformanceMetrics);  // Root endpoint defaults to metrics
 router.get('/metrics', getPerformanceMetrics);
 router.get('/trades', getRecentTrades);
 

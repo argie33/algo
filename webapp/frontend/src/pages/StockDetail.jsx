@@ -232,16 +232,13 @@ export default function StockDetail() {
   }, [priceSeries]);
   const distFromHigh = last && high52 ? ((last.close - high52) / high52) * 100 : null;
 
-  // Derive identity (name/sector/industry/market_cap from key_metrics endpoint)
-  const km = keyMetricsData?.metricsData || {};
-  const companyInfo = km['Company Info']?.metrics || {};
-  const valuation = km['Valuation']?.metrics || {};
-  const ownership = km['Ownership']?.metrics || {};
+  // Derive identity from profile (/api/stocks/:symbol) and key-metrics (/api/financials/:symbol/key-metrics)
+  const km = keyMetricsData?.items?.[0] || {};
   const profile = profileData || {};
-  const companyName = companyInfo.Name || companyInfo['Full Name'] || profile.name || symbol;
-  const sector = companyInfo.Sector || profile.sector || null;
-  const industry = companyInfo.Industry || profile.industry || null;
-  const marketCap = valuation['Market Cap'] || profile.market_cap || null;
+  const companyName = profile.company_name || symbol;
+  const sector = profile.sector || null;
+  const industry = profile.industry || null;
+  const marketCap = km.market_cap || null;
 
   // Check for critical errors that block page display (price chart is essential)
   const hasCriticalError = priceError;
@@ -378,7 +375,7 @@ export default function StockDetail() {
           />
         )}
         {tab === 'stats' && (
-          <StatsTab scoreRow={scoreRow} ownership={ownership} marketCap={marketCap}
+          <StatsTab scoreRow={scoreRow} km={km} marketCap={marketCap}
                     high52={high52} low52={low52} last={last?.close} />
         )}
         {tab === 'algo' && <AlgoTab swing={swingScore} scoreRow={scoreRow} />}
@@ -524,7 +521,7 @@ function Triangle({ cx, cy, fill, dir }) {
 }
 
 // ─── Statistics tab ────────────────────────────────────────────────────────
-function StatsTab({ scoreRow, ownership, marketCap, high52, low52, last }) {
+function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
   const v = scoreRow?.value_inputs || {};
   const q = scoreRow?.quality_inputs || {};
   const m = scoreRow?.momentum_inputs || {};
@@ -560,8 +557,8 @@ function StatsTab({ scoreRow, ownership, marketCap, high52, low52, last }) {
     ['52w Low', fmtMoney(low52)],
     ['Dist from High', distHigh != null ? fmtPct(distHigh, 1) : '—'],
     ['Dist from Low',  distLow  != null ? fmtPct(distLow,  1) : '—'],
-    ['Inst Ownership', p.institutional_ownership_pct != null ? fmtPct(p.institutional_ownership_pct, 1) : (ownership['Institutional Ownership %'] != null ? fmtPct(Number(ownership['Institutional Ownership %']) * 100, 1) : '—')],
-    ['Insider Ownership', p.insider_ownership_pct != null ? fmtPct(p.insider_ownership_pct, 1) : (ownership['Insider Ownership %'] != null ? fmtPct(Number(ownership['Insider Ownership %']) * 100, 1) : '—')],
+    ['Inst Ownership', p.institutional_ownership_pct != null ? fmtPct(p.institutional_ownership_pct, 1) : (km?.held_percent_institutions != null ? fmtPct(Number(km.held_percent_institutions) * 100, 1) : '—')],
+    ['Insider Ownership', p.insider_ownership_pct != null ? fmtPct(p.insider_ownership_pct, 1) : (km?.held_percent_insiders != null ? fmtPct(Number(km.held_percent_insiders) * 100, 1) : '—')],
     ['Short Float', p.short_percent_of_float != null ? fmtPct(p.short_percent_of_float, 1) : '—'],
     ['Short Ratio (DTC)', num(p.short_ratio, 2)],
   ];
@@ -860,21 +857,20 @@ function num1(v) {
 
 // ─── Analysts tab ──────────────────────────────────────────────────────────
 function AnalystsTab({ data, last }) {
-  // Handle both old flat structure and new nested {metrics, momentum, recentUpgrades} structure
-  const metrics = data?.metrics || data;
-  const _momentum = data?.momentum || {};
-  const _recentUpgrades = data?.recentUpgrades || [];
+  // data is {items: [{date, analyst_count, bullish_count, ...}]} — use most recent row
+  const rows = Array.isArray(data) ? data : (data?.items || []);
+  const metrics = rows[0] || data?.metrics || null;
 
   const totalAnalysts = metrics?.totalAnalysts ?? metrics?.analyst_count ?? 0;
-  if (!data || totalAnalysts === 0) {
+  if (!metrics || totalAnalysts === 0) {
     return <Empty wrap title="No analyst coverage data" desc="No analyst sentiment found for this symbol." />;
   }
 
-  const target = metrics?.avgPriceTarget ?? data?.target_price;
-  const upside = metrics?.priceTargetVsCurrent ?? data?.upside_downside_percent;
-  const bullish = metrics?.bullish ?? data?.bullish_count ?? 0;
-  const neutral = metrics?.neutral ?? data?.neutral_count ?? 0;
-  const bearish = metrics?.bearish ?? data?.bearish_count ?? 0;
+  const target = metrics?.avgPriceTarget ?? metrics?.target_price;
+  const upside = metrics?.priceTargetVsCurrent ?? metrics?.upside_downside_percent;
+  const bullish = metrics?.bullish ?? metrics?.bullish_count ?? 0;
+  const neutral = metrics?.neutral ?? metrics?.neutral_count ?? 0;
+  const bearish = metrics?.bearish ?? metrics?.bearish_count ?? 0;
 
   const dist = [
     { name: 'Bullish', value: Number(bullish || 0), color: 'var(--success)' },
@@ -892,10 +888,10 @@ function AnalystsTab({ data, last }) {
           </div>
           <div className="card-actions">
             <span className={`badge badge-lg ${
-              (metrics?.consensus || data?.consensus) === 'buy' ? 'badge-success'
-              : (metrics?.consensus || data?.consensus) === 'sell' ? 'badge-danger'
+              metrics?.consensus === 'buy' ? 'badge-success'
+              : metrics?.consensus === 'sell' ? 'badge-danger'
               : 'badge-amber'
-            }`}>{((metrics?.consensus || data?.consensus) || 'hold').toUpperCase()}</span>
+            }`}>{(metrics?.consensus || 'hold').toUpperCase()}</span>
           </div>
         </div>
         <div className="card-body">
@@ -912,13 +908,13 @@ function AnalystsTab({ data, last }) {
           </div>
           <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
             <Stile label="Bullish" value={
-              <span className="mono tnum up">{bullish} ({num(metrics?.bullishPercent ?? data?.bullish_percent ?? 0, 0)}%)</span>
+              <span className="mono tnum up">{bullish} ({num(metrics?.bullishPercent ?? metrics?.bullish_percent ?? 0, 0)}%)</span>
             } />
             <Stile label="Neutral" value={
-              <span className="mono tnum">{neutral} ({num(metrics?.neutralPercent ?? data?.neutral_percent ?? 0, 0)}%)</span>
+              <span className="mono tnum">{neutral} ({num(metrics?.neutralPercent ?? metrics?.neutral_percent ?? 0, 0)}%)</span>
             } />
             <Stile label="Bearish" value={
-              <span className="mono tnum down">{bearish} ({num(metrics?.bearishPercent ?? data?.bearish_percent ?? 0, 0)}%)</span>
+              <span className="mono tnum down">{bearish} ({num(metrics?.bearishPercent ?? metrics?.bearish_percent ?? 0, 0)}%)</span>
             } />
           </div>
         </div>
@@ -938,7 +934,7 @@ function AnalystsTab({ data, last }) {
             <Stile label="Upside / Downside" value={
               <span className={`mono tnum ${sigClass(upside)}`}>{upside != null ? `${upside >= 0 ? '+' : ''}${num(upside, 1)}%` : '—'}</span>
             } sub="vs current price" />
-            <Stile label="Coverage" value={`${totalAnalysts} analysts`} sub={data?.date ? `as of ${String(data.date).slice(0,10)}` : ''} />
+            <Stile label="Coverage" value={`${totalAnalysts} analysts`} sub={metrics?.date ? `as of ${String(metrics.date).slice(0,10)}` : ''} />
           </div>
 
           {target && last && (
@@ -963,12 +959,13 @@ function AnalystsTab({ data, last }) {
 
 // ─── Signals tab ───────────────────────────────────────────────────────────
 function SignalsTab({ signals }) {
-  if (!signals?.length) return <Empty wrap title="No signals" desc="No buy/sell signals in the last 60 sessions" />;
+  const items = Array.isArray(signals) ? signals : (signals?.items || []);
+  if (!items.length) return <Empty wrap title="No signals" desc="No buy/sell signals in the last 60 sessions" />;
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Recent Signals · {signals.length}</div>
+          <div className="card-title">Recent Signals · {items.length}</div>
           <div className="card-sub">Pine Script BUY/SELL events with full context</div>
         </div>
       </div>
@@ -989,7 +986,7 @@ function SignalsTab({ signals }) {
             </tr>
           </thead>
           <tbody>
-            {signals.map((s, i) => (
+            {items.map((s, i) => (
               <tr key={i}>
                 <td><span className="mono t-xs">{String(s.signal_triggered_date || s.date).slice(0, 10)}</span></td>
                 <td>

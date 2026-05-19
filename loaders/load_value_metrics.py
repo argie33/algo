@@ -57,6 +57,8 @@ def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
             ps = info.get('priceToSalesTrailing12Months')
             peg = info.get('trailingPegRatio')
             div = info.get('dividendYield')
+            held_insiders = info.get('heldPercentInsiders')
+            held_institutions = info.get('heldPercentInstitutions')
 
             if not any([mkt_cap, pe, pb, ps]):
                 return None
@@ -69,6 +71,8 @@ def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
                 'ps_ratio': float(ps) if ps and ps > 0 else None,
                 'peg_ratio': float(peg) if peg and peg > 0 else None,
                 'dividend_yield': float(div) if div else None,
+                'held_percent_insiders': float(held_insiders) if held_insiders else None,
+                'held_percent_institutions': float(held_institutions) if held_institutions else None,
             }
         except Exception as e:
             err = str(e)
@@ -218,12 +222,15 @@ def persist(metrics_list: List[Dict]) -> int:
 
                     if m.get('market_cap'):
                         cur.execute("""
-                            INSERT INTO key_metrics (ticker, symbol, market_cap, updated_at)
-                            VALUES (%s, %s, %s, NOW())
+                            INSERT INTO key_metrics
+                                (ticker, symbol, market_cap, held_percent_insiders, held_percent_institutions, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (ticker) DO UPDATE SET
                                 market_cap = EXCLUDED.market_cap,
+                                held_percent_insiders = EXCLUDED.held_percent_insiders,
+                                held_percent_institutions = EXCLUDED.held_percent_institutions,
                                 updated_at = NOW()
-                        """, (sym, sym, m['market_cap']))
+                        """, (sym, sym, m['market_cap'], m.get('held_percent_insiders'), m.get('held_percent_institutions')))
 
                     updated += 1
                 except Exception as e:

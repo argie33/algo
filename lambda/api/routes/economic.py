@@ -232,11 +232,26 @@ def _get_yield_curve_full(cur) -> Dict:
             for sid, hist in history_by_series.items():
                 history[sid] = sorted(hist, key=lambda x: x['date'])
 
+            # Build credit sub-object with the series names the frontend expects
+            credit_history = {
+                'BAMLH0A0HYM2': history.get('BAMLH0A0HYM2', []),
+                'BAMLH0A0IG':   history.get('BAMLC0A0CM', []),  # BAMLC0A0CM is IG corporate OAS
+                'VIXCLS':       history.get('VIXCLS', []),
+            }
+            credit_latest = {
+                k: v[-1].get('value') if v else None
+                for k, v in credit_history.items()
+            }
+
             return json_response(200, {
                 'currentCurve': current_curve,
                 'spreads': spreads,
                 'isInverted': is_inverted,
-                'history': history
+                'history': history,
+                'credit': {
+                    'history': credit_history,
+                    'currentSpreads': credit_latest,
+                },
             })
 
         except psycopg2.errors.UndefinedTable as e:

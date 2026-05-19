@@ -7,21 +7,25 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
-def _check_admin_access(params: Dict) -> bool:
-        """Check if user has admin access.
+def _check_admin_access(jwt_claims: Dict) -> bool:
+        """Check if user has admin access from verified JWT claims only.
 
-        Reads user_role from query params — the API gateway extracts this from
-        the verified Cognito JWT and injects it before routing. Admin users must
-        be in the 'admin' Cognito group.
+        Checks the 'cognito:groups' claim for 'admin' group membership.
+        Never trust role from query params - only from JWT signature.
         """
-        user_role = params.get('user_role', '') if params else ''
-        return user_role == 'admin'
+        if not jwt_claims:
+            return False
+        groups = jwt_claims.get('cognito:groups', [])
+        is_admin = 'admin' in groups
+        if not is_admin:
+            logger.info(f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
+        return is_admin
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
             # Require admin role for all admin endpoints
-            if not _check_admin_access(params):
+            if not _check_admin_access(jwt_claims):
                 return error_response(403, 'forbidden', 'Admin access required')
 
             if path == '/api/admin/loader-status':

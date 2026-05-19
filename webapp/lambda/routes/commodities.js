@@ -65,9 +65,9 @@ router.get("/", async (req, res) => {
 
     const [result, countResult] = await Promise.all([
       query(`
-        SELECT symbol, category
+        SELECT id, category, symbols
         FROM commodity_categories
-        ORDER BY category, symbol
+        ORDER BY category
         LIMIT $1 OFFSET $2
       `, [limit, offset]),
       query("SELECT COUNT(*) as total FROM commodity_categories")

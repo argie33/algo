@@ -1,0 +1,123 @@
+[
+  {
+    "name": "Markets Health",
+    "path": "/app/market",
+    "status": 200,
+    "loadTime": 4241,
+    "dataVisible": true,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": false,
+    "url": "http://localhost:5173/app/market"
+  },
+  {
+    "name": "Trading Signals",
+    "path": "/app/signals",
+    "status": 200,
+    "loadTime": 4227,
+    "dataVisible": true,
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": true,
+    "url": "http://localhost:5173/app/signals"
+  },
+  {
+    "name": "Stock Scores",
+    "path": "/app/scores",
+    "status": 200,
+    "loadTime": 4197,
+    "dataVisible": true,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": false,
+    "url": "http://localhost:5173/app/scores"
+  },
+  {
+    "name": "Sectors",
+    "path": "/app/sectors",
+    "status": 200,
+    "loadTime": 3721,
+    "dataVisible": true,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": false,
+    "url": "http://localhost:5173/app/sectors"
+  },
+  {
+    "name": "Economic Data",
+    "path": "/app/economic",
+    "status": 200,
+    "loadTime": 3854,
+    "dataVisible": true,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": false,
+    "url": "http://localhost:5173/app/economic"
+  },
+  {
+    "name": "Market Sentiment",
+    "path": "/app/sentiment",
+    "status": 200,
+    "loadTime": 3511,
+    "dataVisible": true,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": false,
+    "url": "http://localhost:5173/app/sentiment"
+  },
+  {
+    "name": "Algo Trading",
+    "path": "/app/algo",
+    "status": 200,
+    "loadTime": 3805,
+    "dataVisible": true,
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": true,
+    "url": "http://localhost:5173/app/algo"
+  },
+  {
+    "name": "Swing Candidates",
+    "path": "/app/swings",
+    "status": 200,
+    "loadTime": 3780,
+    "dataVisible": true,
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": true,
+    "url": "http://localhost:5173/app/swings"
+  },
+  {
+    "name": "Service Health",
+    "path": "/app/health",
+    "status": 200,
+    "loadTime": 3536,
+    "dataVisible": true,
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "success": true,
+    "url": "http://localhost:5173/login"
+  }
+]

@@ -1,6 +1,5 @@
 """API Router - dispatcher."""
-import logging, psycopg2
-from typing import Dict, Any, Optional
+import logging, inspect
 from routes import (algo, financials, earnings, signals, prices, stocks,
                      sectors, industries, market, economic, sentiment,
                      scores, research, audit, trades, admin, contact, settings)
@@ -17,13 +16,22 @@ HANDLERS = {
     '/api/contact': contact, '/api/settings': settings,
 }
 
-def route_request(cur, path, method, params, body=None):
+# Pre-compute which handlers accept jwt_claims (avoids TypeError fallback hacks)
+_JWT_AWARE = {
+    prefix for prefix, handler in HANDLERS.items()
+    if 'jwt_claims' in inspect.signature(handler.handle).parameters
+}
+
+
+def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler."""
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
+                if prefix in _JWT_AWARE:
+                    return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 return handler.handle(cur, path, method, params, body)
             except Exception as e:
-                logger.error(f"Error: {e}", exc_info=True)
+                logger.error(f"Handler error for {path}: {e}", exc_info=True)
                 return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
     return {"statusCode": 404, "errorType": "not_found", "message": "No handler"}

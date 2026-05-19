@@ -36,7 +36,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     qm.net_margin AS profit_margin,
                     qm.current_ratio,
                     qm.quick_ratio,
-                    km.market_cap
+                    km.market_cap,
+                    km.held_percent_insiders,
+                    km.held_percent_institutions
                 FROM value_metrics vm
                 LEFT JOIN quality_metrics qm ON vm.symbol = qm.symbol
                 LEFT JOIN key_metrics km ON vm.symbol = km.symbol

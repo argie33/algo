@@ -123,4 +123,44 @@ router.get('/deep-value', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/stocks/:ticker
+ * Get individual stock details
+ */
+router.get('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT
+        ss.symbol,
+        ss.security_name as company_name,
+        cp.sector,
+        cp.industry,
+        cp.website,
+        cp.exchange,
+        km.market_cap,
+        vm.pe_ratio,
+        vm.pb_ratio,
+        vm.ps_ratio,
+        vm.dividend_yield
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+      LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
+      WHERE ss.symbol = $1
+    `, [ticker.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return sendError(res, `Stock ${ticker} not found`, 404);
+    }
+
+    return sendSuccess(res, result.rows[0]);
+  } catch (error) {
+    logger.error('Error fetching stock detail:', { error: error.message });
+    return sendError(res, `Failed to fetch stock details: ${error.message}`, 500);
+  }
+});
+
 module.exports = router;

@@ -18,7 +18,7 @@ const AuditViewer = () => {
     { staleTime: 30000 }
   );
 
-  const items = auditData?.data || [];
+  const items = auditData?.items || [];
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

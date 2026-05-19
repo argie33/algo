@@ -29,12 +29,11 @@ router.get('/', async (req, res, next) => {
     let q = `
       SELECT
         br.run_id, br.run_name, br.run_timestamp,
-        br.strategy_name, br.date_start, br.date_end,
-        br.total_signals, br.total_trades, br.winning_trades, br.losing_trades,
-        br.win_rate, br.avg_win_pct, br.avg_loss_pct,
-        br.expectancy_per_trade, br.total_return_pct, br.max_drawdown_pct,
-        br.sharpe_annualized AS sharpe, br.sortino_annualized, br.profit_factor,
-        br.notes
+        br.strategy_name, br.start_date, br.end_date,
+        br.num_trades, br.num_winning_trades, br.num_losing_trades,
+        br.win_rate, br.avg_win, br.avg_loss,
+        br.total_return, br.max_drawdown,
+        br.sharpe_ratio AS sharpe, br.sortino_ratio, br.profit_factor
       FROM backtest_runs br
     `;
 

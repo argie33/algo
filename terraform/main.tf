@@ -244,15 +244,23 @@ module "services" {
   common_tags                    = local.common_tags
 }
 
-# Security monitoring module - Phase 1 (after cost optimization)
-# module "security_monitoring" {
-#   source = "./modules/security-monitoring"
-#
-#   project_name = var.project_name
-#   vpc_id       = module.vpc.vpc_id
-#   aws_region   = var.aws_region
-#   common_tags  = local.common_tags
-# }
+module "security_monitoring" {
+  source = "./modules/security-monitoring"
+
+  project_name = var.project_name
+  environment  = var.environment
+  vpc_id       = module.vpc.vpc_id
+  aws_region   = var.aws_region
+
+  cloudtrail_enabled      = true
+  guardduty_enabled       = true
+  aws_config_enabled      = true
+  vpc_flow_logs_enabled   = true
+  log_retention_days      = 90
+  notification_email      = var.notification_email
+
+  common_tags = local.common_tags
+}
 
 module "pipeline" {
   source = "./modules/pipeline"

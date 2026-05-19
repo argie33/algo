@@ -33,7 +33,7 @@ const PreTradeSimulator = () => {
       }
 
       const response = await api.post('/api/algo/pre-trade-impact', payload);
-      setResult(response);
+      setResult(response.data);
     } catch (err) {
       setError(err.message || 'Failed to run simulation');
     } finally {

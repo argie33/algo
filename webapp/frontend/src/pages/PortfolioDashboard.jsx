@@ -102,16 +102,25 @@ export default function PortfolioDashboard() {
     { refetchInterval: 60000 }
   );
 
+  // Normalize paginated responses to arrays
+  const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
+  const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
+  const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
+
+  // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
   const portfolio = status?.portfolio || {};
-  const mh = markets?.market_health || {};
-  // Normalize market_health field names to what the UI expects
+  // markets returns {success, current: {...}, history: [...]} — no market_health sub-object
+  const mh = markets?.current || markets?.market_health || {};
   const market = {
-    trend: mh.market_trend,
-    stage: mh.market_stage,
-    vix: mh.vix_level,
-    distribution_days: mh.distribution_days_4w,
+    trend: mh.market_trend || mh.trend,
+    stage: mh.market_stage || mh.stage,
+    vix: mh.vix_level || mh.vix,
+    distribution_days: mh.distribution_days_4w || mh.distribution_days || 0,
   };
-  const totalValue = parseFloat(portfolio.total_value || 0);
+  // Derive portfolio totals from open positions when status doesn't carry them
+  const unrealizedPnl = positionsList.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0);
+  const totalPositionValue = positionsList.reduce((s, p) => s + Number(p.position_value || 0), 0);
+  const totalValue = parseFloat(portfolio.total_value || totalPositionValue || 0);
 
   // Check for critical errors — circuit-breakers is supplemental, don't block whole page
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
@@ -181,15 +190,15 @@ export default function PortfolioDashboard() {
         <Kpi
           label="Portfolio Value"
           value={fmtMoneyShort(totalValue)}
-          sub={`${Array.isArray(positions) ? positions.length : 0} open positions`}
+          sub={`${positionsList.length} open positions`}
           icon={DollarSign}
         />
         <Kpi
           label="Unrealized P&L"
-          value={<Pnl value={portfolio.unrealized_pnl_pct} suffix="%" />}
-          sub={`Daily: ${num(portfolio.daily_return_pct)}%`}
+          value={<Pnl value={totalValue > 0 ? (unrealizedPnl / totalValue * 100) : null} suffix="%" />}
+          sub={`$${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(0)} unrealized`}
           icon={Activity}
-          tone={portfolio.unrealized_pnl_pct >= 0 ? 'up' : 'down'}
+          tone={unrealizedPnl >= 0 ? 'up' : 'down'}
         />
         <Kpi
           label="Total Return"
@@ -242,30 +251,30 @@ export default function PortfolioDashboard() {
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <EquityCurve series={equityItems} />
-        <DrawdownChart series={equityItems} />
+        <EquityCurve series={equityCurve} />
+        <DrawdownChart series={equityCurve} />
       </div>
 
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <DailyReturnHistogram series={equityItems} />
-        <TradeDistribution trades={trades || []} />
+        <DailyReturnHistogram series={equityCurve} />
+        <TradeDistribution trades={tradesList} />
       </div>
 
       {/* R-multiple ladder */}
-      <RLadderPanel positions={positions || []} loading={posLoading}
+      <RLadderPanel positions={positionsList} loading={posLoading}
                      onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
 
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-        <RiskAllocationPie positions={positions || []} totalValue={totalValue}
+        <RiskAllocationPie positions={positionsList} totalValue={totalValue}
                             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
-        <SectorConcentration positions={positions || []} totalValue={totalValue} />
-        <StagePhaseDonut positions={positions || []} />
+        <SectorConcentration positions={positionsList} totalValue={totalValue} />
+        <StagePhaseDonut positions={positionsList} />
       </div>
 
       {/* Position-health table */}
-      <PositionHealthTable positions={positions || []} loading={posLoading}
+      <PositionHealthTable positions={positionsList} loading={posLoading}
                             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
 
       {/* Trade-level metrics + holding-period histogram */}
@@ -299,7 +308,7 @@ export default function PortfolioDashboard() {
           </div>
         </div>
 
-        <HoldingPeriodHistogram trades={trades || []} />
+        <HoldingPeriodHistogram trades={tradesList} />
       </div>
 
       {/* Recent trades */}
@@ -311,7 +320,7 @@ export default function PortfolioDashboard() {
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          {(!trades || trades.length === 0) ? (
+          {(tradesList.length === 0) ? (
             <Empty title="No closed trades yet" />
           ) : (
             <div style={{ maxHeight: '360px', overflow: 'auto' }}>
@@ -327,7 +336,7 @@ export default function PortfolioDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((t, i) => (
+                  {tradesList.map((t, i) => (
                     <tr key={i}
                         onClick={() => navigate(`/app/stock/${encodeURIComponent(t.symbol)}`)}
                         style={{ cursor: 'pointer' }}>

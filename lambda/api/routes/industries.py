@@ -118,7 +118,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     })
 
                 return json_response(200, {
-                    'data': industries,
+                    'items': industries,
                     'total': total,
                     'page': page,
                     'limit': limit,
