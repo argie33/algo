@@ -42,6 +42,49 @@ def safe_page(page_str, default=1):
         return default
 
 
+def safe_string(value_str, allowed_values=None, default=None, max_length=100):
+    """Validate and sanitize string parameter.
+
+    Args:
+        value_str: String to validate
+        allowed_values: Set of allowed values (whitelist)
+        default: Default if invalid
+        max_length: Maximum allowed length
+
+    Returns:
+        Validated string or default
+    """
+    if not value_str:
+        return default
+
+    # Enforce max length
+    if len(str(value_str)) > max_length:
+        return default
+
+    # Check against whitelist if provided
+    if allowed_values is not None:
+        if str(value_str) not in allowed_values:
+            return default
+
+    return str(value_str)
+
+
+def safe_symbol(symbol_str):
+    """Validate stock symbol (alphanumeric + dash only)."""
+    if not symbol_str:
+        return None
+
+    # Allow up to 5 chars, alphanumeric + dash (e.g., BRK-A)
+    symbol = str(symbol_str).upper()
+    if len(symbol) > 5:
+        return None
+
+    if not all(c.isalnum() or c == '-' for c in symbol):
+        return None
+
+    return symbol
+
+
 def error_response(code, typ, msg):
     """Standardized error response."""
     return {"statusCode": code, "errorType": typ, "message": msg}
