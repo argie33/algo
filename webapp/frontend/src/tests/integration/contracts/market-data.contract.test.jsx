@@ -40,12 +40,10 @@ describe("Market Data Contract Tests", () => {
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
 
-      success: apiResponse.success,
-      dataType: typeof apiResponse.data,
-      dataKeys: Object.keys(apiResponse.data || {}),
-      hasIndices: "indices" in (apiResponse.data || {}),
-      hasMarketSummary: "marketSummary" in (apiResponse.data || {}),
-    });
+    // Validate data structure
+    if (apiResponse.data) {
+      expect(typeof apiResponse.data).toBe("object");
+    }
 
     // STEP 2: Validate expected market data fields
     if (apiResponse.data) {

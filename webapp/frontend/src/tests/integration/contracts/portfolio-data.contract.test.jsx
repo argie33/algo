@@ -38,12 +38,11 @@ describe("Portfolio Data Contract Tests", () => {
     expect(apiResponse.data).toHaveProperty("summary");
     expect(Array.isArray(apiResponse.data.holdings)).toBe(true);
 
-      success: apiResponse.success,
-      hasData: "data" in apiResponse,
-      hasHoldings: apiResponse.data && "holdings" in apiResponse.data,
-      hasSummary: apiResponse.data && "summary" in apiResponse.data,
-      holdingsCount: apiResponse.data?.holdings?.length || 0,
-    });
+    // Validate portfolio structure
+    if (apiResponse.data) {
+      expect(apiResponse.data).toHaveProperty("holdings");
+      expect(apiResponse.data).toHaveProperty("summary");
+    }
   });
 
   it("should validate portfolio analytics endpoint contract", async () => {

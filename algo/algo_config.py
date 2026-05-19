@@ -115,6 +115,7 @@ class AlgoConfig:
         'min_breakout_volume_ratio': ('1.25', 'float', 'Volume must be N x 50-day average'),
         'require_weekly_stage_2': ('true', 'bool', 'Require weekly chart Stage 2'),
         'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),
+        'max_rs_pct_from_60d_high': ('15.0', 'float', 'Max % RS-line below 60d high (Minervini strict = 5%)'),
 
         # Exit Rules
         't1_target_r_multiple': ('1.5', 'float', 'Tier 1 profit target R-mult'),

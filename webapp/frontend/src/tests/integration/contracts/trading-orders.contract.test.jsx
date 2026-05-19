@@ -40,13 +40,10 @@ describe("Trading Orders Contract Tests", () => {
     expect(Array.isArray(apiResponse.data.orders)).toBe(true);
     expect(apiResponse).toHaveProperty("trading_mode");
 
-      "🚨 CONTRACT MISMATCH: Orders API structure needs standardization"
-    );
-
-      success: apiResponse.success,
-      dataType: typeof apiResponse.data,
-      dataLength: apiResponse.data?.length || 0,
-      sampleOrder: apiResponse.data?.[0] || null,
+    // Validate orders structure
+    if (apiResponse.data) {
+      expect(Array.isArray(apiResponse.data.orders)).toBe(true);
+    }
     });
 
     // STEP 2: Validate order object structure if orders exist

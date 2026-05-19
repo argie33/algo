@@ -17,7 +17,9 @@ export const createLogger = (componentName) => ({
         ? String(data)
         : "Unable to stringify data (circular reference)";
     }
-    if (import.meta.env && import.meta.env.DEV) {
+    // Log in development mode
+    if (import.meta.env?.DEV) {
+      // Reserved for development logging
     }
   },
   error: (message, error, context) => {

@@ -41,12 +41,10 @@ describe("Settings API Keys Contract Tests", () => {
     expect(apiResponse).toHaveProperty("data");
     expect(Array.isArray(apiResponse.data)).toBe(true);
 
-      success: apiResponse.success,
-      hasDataProperty: "data" in apiResponse,
-      dataType: typeof apiResponse.data,
-      dataIsArray: Array.isArray(apiResponse.data),
-      dataLength: apiResponse.data?.length || 0,
-    });
+    // Validate API keys array structure
+    if (apiResponse.data) {
+      expect(Array.isArray(apiResponse.data)).toBe(true);
+    }
 
     // STEP 2: Test frontend component with real response structure
     // This is where the bug was - frontend expected 'apiKeys' but backend returns 'data'
