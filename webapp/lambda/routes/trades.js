@@ -138,6 +138,17 @@ router.get('/', async (req, res) => {
         params.push(types);
       }
 
+      // SECURITY: Filter trades by current user to prevent IDOR (Insecure Direct Object Reference)
+      // Get user_id from authenticated token context
+      const userId = req.user?.sub || req.user?.id || null;
+      if (!userId) {
+        return sendError(res, 'Authentication required', 401);
+      }
+
+      // Add user filter to where clause
+      whereClause += ` AND user_id = $${params.length + 1}`;
+      params.push(userId);
+
       const dataQuery = `
         SELECT id, symbol, side, quantity, execution_price, trade_date
         FROM trades

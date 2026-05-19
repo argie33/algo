@@ -53,6 +53,13 @@ router.get("/", async (req, res) => {
     return sendSuccess(res, diagnostics);
   }
 
+  // WHITELIST of allowed tables - prevents SQL injection via table names
+  const ALLOWED_TABLES = new Set([
+    'stock_symbols', 'stock_scores', 'company_profile', 'growth_metrics',
+    'value_metrics', 'quality_metrics', 'earnings_history', 'earnings_estimates',
+    'buy_sell_daily', 'price_daily', 'technical_data_daily'
+  ]);
+
   // Run table counts in parallel instead of sequentially
   const tables = [
     { name: "stock_symbols", small: true },
@@ -70,16 +77,28 @@ router.get("/", async (req, res) => {
 
   // For large tables, use n_live_tup estimate instead of COUNT(*)
   const countQueries = tables.map(table => {
+    // SECURITY: Validate table name against whitelist before interpolating
+    if (!ALLOWED_TABLES.has(table.name)) {
+      return Promise.resolve({
+        name: table.name,
+        count: 0,
+        success: false,
+        error: 'Invalid table name'
+      });
+    }
+
     let q;
     if (table.large) {
       // Use pg_class for large tables (much faster, estimates)
-      q = `SELECT '${table.name}'::text as name,
+      // SECURITY: Table name validated against whitelist above, safe to interpolate
+      q = `SELECT $1::text as name,
            COALESCE(n_live_tup::bigint, 0) as count FROM pg_stat_user_tables
-           WHERE relname = '${table.name}'`;
+           WHERE relname = $1`;
     } else {
-      q = `SELECT '${table.name}'::text as name, COUNT(*) as count FROM ${table.name}`;
+      // SECURITY: Table name validated against whitelist above, safe to interpolate
+      q = `SELECT $1::text as name, COUNT(*) as count FROM "${table.name}"`;
     }
-    return query(q).then(result => ({
+    return query(q, [table.name]).then(result => ({
       name: table.name,
       count: parseInt(result.rows[0]?.count || 0),
       success: true

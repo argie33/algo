@@ -201,27 +201,26 @@ def _parse_range_param(params: Dict, default: int = 30) -> int:
     except:
         return default
 
-INDEX_SYMBOLS = ("'^GSPC'", "'^IXIC'", "'^NYA'", "'^RUT'")
+INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']
 
 def _get_markets(cur) -> Dict:
         try:
-            syms = ", ".join(INDEX_SYMBOLS)
-            cur.execute(f"""
+            cur.execute("""
                 SELECT symbol, date, open, high, low, close, volume
                 FROM price_daily
-                WHERE symbol IN ({syms})
-                  AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ({syms}))
+                WHERE symbol = ANY(%s)
+                  AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
                 ORDER BY symbol
-            """)
+            """, (INDEX_SYMBOLS, INDEX_SYMBOLS))
             latest = cur.fetchall()
 
-            cur.execute(f"""
+            cur.execute("""
                 SELECT symbol, date, close
                 FROM price_daily
-                WHERE symbol IN ({syms})
+                WHERE symbol = ANY(%s)
                   AND date >= CURRENT_DATE - INTERVAL '90 days'
                 ORDER BY symbol, date DESC
-            """)
+            """, (INDEX_SYMBOLS,))
             history_rows = cur.fetchall()
 
             history = {}

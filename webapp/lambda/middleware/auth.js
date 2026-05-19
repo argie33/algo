@@ -10,17 +10,24 @@ const { sendError } = require("../utils/apiResponse");
  */
 
 const authenticateToken = (req, res, next) => {
-  // H5 SECURITY FIX: Removed hardcoded dev admin bypass
-  // All environments now require explicit authentication (JWT or test token)
-  // This prevents accidental credential exposure through environment variables
-  //
-  // For local development:
-  //   - Use NODE_ENV=test with Bearer token 'admin-token' (see handleTestAuth)
-  //   - Or set up real JWT tokens with JWT_SECRET
-  // Never rely on implicit dev mode bypass for authentication
+  // SECURITY ENFORCEMENT: Detect if production env accidentally set to test mode
+  // This prevents critical auth bypass if NODE_ENV is misconfigured
+  const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const isProd = process.env.NODE_ENV === 'production' || isLambda;
+  const isTest = process.env.NODE_ENV === 'test';
+
+  // CRITICAL: Reject test authentication in production
+  if (isProd && isTest) {
+    logger.security('auth_bypass_attempt', {
+      error: 'Test mode enabled in production',
+      env: process.env.NODE_ENV,
+      lambda: !!isLambda,
+    });
+    return sendError(res, 'Authentication service misconfigured', 500);
+  }
 
   // Path 1: Test environment (explicit test tokens)
-  if (process.env.NODE_ENV === 'test') {
+  if (isTest && !isProd) {
     return handleTestAuth(req, res, next);
   }
 
