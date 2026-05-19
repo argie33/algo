@@ -76,7 +76,9 @@ class PriceLoader(OptimalLoader):
         """Fetch OHLCV from yfinance at specified interval."""
         end = date.today()
         if since is None:
-            start = end - timedelta(days=5 * 365)
+            # First run: load 100 days instead of 5 years for speed
+            # Technical indicators need ~60-100 days, full history can be backfilled later
+            start = end - timedelta(days=100)
         else:
             start = since + timedelta(days=1)
 
