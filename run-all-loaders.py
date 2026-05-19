@@ -92,7 +92,9 @@ def run_loader(script: str, args: List[str] = None) -> bool:
     try:
         cmd = ["python3", script] + args
         logger.info(f"  ▶️  {Path(script).name} {' '.join(args)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        # Increase timeout for price loaders (yfinance is slow on large symbol sets)
+        timeout = 1800 if "price" in script.lower() else 600
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
         if result.returncode == 0:
             logger.info(f"  ✅ {Path(script).name}")
