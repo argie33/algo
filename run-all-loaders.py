@@ -41,7 +41,12 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = []  # DISABLED: No market data sources currently needed
+tier_1e_market_data = [
+    'loadecondata.py',
+    'loadfeargreed.py',
+    'loadmarketindices.py',
+    'loadseasonality.py',
+]
 
 tier_2_reference = [
     # Annual financials
