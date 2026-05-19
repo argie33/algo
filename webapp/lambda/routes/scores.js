@@ -122,13 +122,14 @@ router.get("/stockscores", async (req, res) => {
         pd.low,
         pd.volume,
         ROUND(((pd.close - pd.open) / pd.open * 100)::numeric, 2) as change_pct,
-        cp.market_cap,
+        km.market_cap,
         cp.display_name as company_name,
         cp.sector,
         cp.industry
       FROM swing_trader_scores s
       LEFT JOIN price_daily pd ON s.symbol = pd.symbol AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
-      LEFT JOIN company_profile cp ON s.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON s.symbol = km.symbol
       ${whereClause}
       ORDER BY s.${sortField === 'score' || sortField === 'swing_score' ? 'score' : sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

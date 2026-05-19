@@ -99,14 +99,15 @@ router.get('/deep-value', async (req, res) => {
         ss.security_name as company_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        km.market_cap,
         vm.pe_ratio,
         vm.pb_ratio,
         pd.close as price
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
       LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
-      LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL 1 DAY
+      LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL '1 day'
       WHERE ss.symbol NOT LIKE '^%%'
       ORDER BY ss.symbol
       LIMIT $1
