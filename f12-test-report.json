@@ -1,0 +1,70 @@
+[
+  {
+    "name": "Dashboard",
+    "path": "/",
+    "load_time": 3068,
+    "dom_count": 593,
+    "has_data": true,
+    "status": "loaded",
+    "errors": [],
+    "warnings": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user",
+      "✅ Main - React application rendered successfully succeeded [object Object]"
+    ]
+  },
+  {
+    "name": "Stocks",
+    "path": "/stocks",
+    "load_time": 1411,
+    "dom_count": 2578,
+    "has_data": true,
+    "status": "loaded",
+    "errors": [],
+    "warnings": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user",
+      "✅ Main - React application rendered successfully succeeded [object Object]"
+    ]
+  },
+  {
+    "name": "Signals",
+    "path": "/signals",
+    "load_time": 1278,
+    "dom_count": 13482,
+    "has_data": true,
+    "status": "loaded",
+    "errors": [],
+    "warnings": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user",
+      "✅ Main - React application rendered successfully succeeded [object Object]"
+    ]
+  },
+  {
+    "name": "Trades",
+    "path": "/trades",
+    "load_time": 1009,
+    "dom_count": 24,
+    "has_data": false,
+    "status": "loaded",
+    "errors": [],
+    "warnings": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user",
+      "✅ Main - React application rendered successfully succeeded [object Object]"
+    ]
+  }
+]

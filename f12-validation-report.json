@@ -3,80 +3,120 @@
     "name": "Dashboard",
     "path": "/",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Stocks",
     "path": "/stocks",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/stocks",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Signals",
     "path": "/signals",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/signals",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Trades",
     "path": "/trades",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/trades",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Analysis",
     "path": "/analysis",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/analysis",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Portfolio",
     "path": "/portfolio",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/portfolio",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Settings",
     "path": "/settings",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/settings",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   },
   {
     "name": "Backtest",
     "path": "/backtest",
     "status": "failed",
-    "error": "net::ERR_CONNECTION_REFUSED at http://localhost:5173/backtest",
+    "error": "page.waitForTimeout is not a function",
     "errors": [],
     "warnings": [],
-    "logs": [],
+    "logs": [
+      "ℹ️ Main: React application initialization starting ",
+      "ℹ️ Main: React root created successfully ",
+      "✅ Main - React application render initiated succeeded [object Object]",
+      "No dev auth session found: No current user"
+    ],
     "network_errors": []
   }
 ]
