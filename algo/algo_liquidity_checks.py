@@ -81,12 +81,14 @@ class LiquidityChecks:
             cur.execute(
                 """
                 SELECT AVG(volume) as avg_vol
-                FROM price_daily
-                WHERE symbol = %s
-                  AND date >= %s
-                  AND date < %s
-                ORDER BY date DESC
-                LIMIT 20
+                FROM (
+                    SELECT volume FROM price_daily
+                    WHERE symbol = %s
+                      AND date >= %s
+                      AND date < %s
+                    ORDER BY date DESC
+                    LIMIT 20
+                ) recent
                 """,
                 (
                     symbol,
@@ -120,12 +122,14 @@ class LiquidityChecks:
             cur.execute(
                 """
                 SELECT AVG(volume * close) as avg_dollar_vol
-                FROM price_daily
-                WHERE symbol = %s
-                  AND date >= %s
-                  AND date < %s
-                ORDER BY date DESC
-                LIMIT 20
+                FROM (
+                    SELECT volume, close FROM price_daily
+                    WHERE symbol = %s
+                      AND date >= %s
+                      AND date < %s
+                    ORDER BY date DESC
+                    LIMIT 20
+                ) recent
                 """,
                 (
                     symbol,

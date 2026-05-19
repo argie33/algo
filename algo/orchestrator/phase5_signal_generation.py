@@ -139,6 +139,7 @@ def run(
 
         pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
         qualified = pipeline.evaluate_signals(None)  # Auto-detect latest date with complete data
+        eval_date = pipeline._snapshot_eval_date or run_date
 
         # Signal count waterfall report (for visibility on where signals die)
         conn = None
@@ -146,7 +147,7 @@ def run(
         try:
             conn = get_conn()
             cur = conn.cursor()
-            _report_signal_waterfall(cur, run_date, verbose)
+            _report_signal_waterfall(cur, eval_date, verbose)
         finally:
             if cur:
                 try:
