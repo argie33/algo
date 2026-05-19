@@ -242,6 +242,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     // Wait for all responses
     await page.waitForTimeout(3000);
 
+    console.log(
       `📊 API Requests: ${apiRequestCount}, Responses: ${apiResponseCount}`
     );
 
@@ -249,6 +250,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const avgApiTime = apiTimes.reduce((a, b) => a + b) / apiTimes.length;
       const maxApiTime = Math.max(...apiTimes);
 
+      console.log(
         `⚡ API Performance - Avg: ${Math.round(avgApiTime)}ms, Max: ${maxApiTime}ms`
       );
 
@@ -306,6 +308,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
           const memory = await getMemoryMetrics();
           if (memory) {
             memoryReadings.push(memory);
+            console.log(
               `🧠 Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
             );
           }
@@ -316,6 +319,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const finalMemory = memoryReadings[memoryReadings.length - 1];
       const memoryIncrease = finalMemory.used - initialMemory.used;
 
+      console.log(
         `📊 Final memory usage: ${finalMemory.used}MB / ${finalMemory.total}MB`
       );
 
@@ -395,10 +399,12 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         if (i % 5 === 0) {
           const recentAvg =
             interactionTimes.slice(-5).reduce((a, b) => a + b) / 5;
+          console.log(
             `⚡ Interaction batch ${Math.floor(i / 5) + 1} avg: ${Math.round(recentAvg)}ms`
           );
         }
       } catch (error) {
+        console.log(
           `⚠️ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
         );
         interactionTimes.push(1000); // Penalty for failed interaction
@@ -411,6 +417,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       interactionTimes.reduce((a, b) => a + b) / interactionTimes.length;
     const maxInteractionTime = Math.max(...interactionTimes);
 
+    console.log(
       `📊 Interaction Performance - Avg: ${Math.round(avgInteractionTime)}ms, Max: ${maxInteractionTime}ms`
     );
 
@@ -474,6 +481,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         const loadTime = Date.now() - startTime;
         loadResults.push({ route, success: false, time: loadTime });
 
+        console.log(
           `❌ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
         );
       }
@@ -483,6 +491,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const successful = loadResults.filter((r) => r.success);
     const failed = loadResults.filter((r) => !r.success);
 
+    console.log(
       `📊 Network congestion results: ${successful.length} successful, ${failed.length} failed`
     );
 

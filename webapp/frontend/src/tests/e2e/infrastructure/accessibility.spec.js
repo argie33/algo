@@ -347,6 +347,7 @@ test.describe("Financial Platform - Accessibility", () => {
               };
             });
 
+          console.log(
             `✅ ${description}: color=${styles.color}, bg=${styles.backgroundColor}`
           );
 
@@ -366,6 +367,7 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
+    console.log(
       `🎨 Color contrast: ${elementsChecked - contrastIssues}/${elementsChecked} elements appear accessible`
     );
     expect(elementsChecked).toBeGreaterThan(0);
@@ -413,11 +415,13 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
+        console.log(
           `⚠️ Screen reader check failed: ${error.message.slice(0, 30)}`
         );
       }
     }
 
+    console.log(
       `👁️ Screen reader features: ${screenReaderFeatures}/${screenReaderChecks.length}`
     );
     expect(screenReaderFeatures).toBeGreaterThanOrEqual(1);

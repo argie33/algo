@@ -221,6 +221,7 @@ test.describe("Settings Page Debug Analysis", () => {
         buttonText.includes("Test") ||
         buttonText.includes("Load")
       ) {
+        console.log(
           `🔥 Clicking potentially API-triggering button: "${buttonText}"`
         );
         await button.click().catch(() => console.log("Button click failed"));

@@ -357,6 +357,7 @@ test.describe("Console Error Detection", () => {
 
     const finalReport = detector.generateReport();
 
+    console.log(
       `   Total Test Duration: ${finalReport.summary.testDurationMs}ms`
     );
 

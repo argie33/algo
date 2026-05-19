@@ -65,7 +65,6 @@ export function useBatchApiState(apiMap, options = {}) {
     const config = apiMap[name];
     const [key, queryFn, opts = {}] = config;
     const paginated = opts.paginated || false;
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     results[name] = useApiWithState(key, queryFn, options, paginated);
   });
 

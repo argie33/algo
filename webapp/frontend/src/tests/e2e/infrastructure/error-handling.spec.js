@@ -253,6 +253,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const isOnAuthPage =
       currentUrl.includes("login") || currentUrl.includes("auth");
 
+    console.log(
       `🔒 401 Results: ${authElements} auth elements, redirects: ${redirectAttempts}, on auth page: ${isOnAuthPage}`
     );
 
@@ -288,6 +289,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       await page.waitForLoadState("domcontentloaded", { timeout: 5000 });
     } catch (error) {
       const loadTime = Date.now() - startTime;
+      console.log(
         `⏰ Timeout occurred after ${loadTime}ms: ${error.message.slice(0, 50)}`
       );
     }
@@ -301,6 +303,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       )
       .count();
 
+    console.log(
       `⏰ Timeout test: ${finalLoadTime}ms load time, ${timeoutRequests} timeout requests, ${timeoutElements} loading elements`
     );
 
@@ -369,8 +372,10 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       }
     }
 
+    console.log(
       `   Requests: ${requestCount}, Success: ${successCount}, Errors: ${errorCount}`
     );
+    console.log(
       `   Pages loaded: ${testResults.filter((r) => r.loaded).length}/${pages.length}`
     );
 
@@ -431,12 +436,14 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       const pageContent = await page.locator("#root").textContent();
       const hasContent = pageContent.length > 200;
 
+      console.log(
         `📝 Malformed JSON results: ${jsonErrors} JSON errors, ${errorElements} error elements, has content: ${hasContent}`
       );
 
       // Should handle malformed responses gracefully
       expect(hasContent || errorElements > 0).toBe(true);
     } catch (error) {
+      console.log(
         `📝 Malformed JSON test completed with error: ${error.message.slice(0, 50)}`
       );
       expect(true).toBe(true); // Pass if error is handled
@@ -481,6 +488,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       const pageContent = await page.locator("#root").textContent();
       const hasContent = pageContent.length > 200;
 
+      console.log(
         `🌍 CORS results: ${corsErrors} CORS errors, ${networkElements} network elements, content: ${hasContent}`
       );
 
@@ -537,6 +545,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       pageContent.toLowerCase().includes("limit") ||
       pageContent.toLowerCase().includes("try again");
 
+    console.log(
       `🚦 Rate limit results: ${rateLimitCount} rate limited requests, ${rateLimitElements} UI elements, message in content: ${hasRateLimitMessage}`
     );
 
@@ -612,12 +621,15 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
         functioning: hasContent || errorElements > 0,
       });
 
+      console.log(
         `⚡ ${testPage}: Content: ${hasContent}, Error elements: ${errorElements}`
       );
     }
 
+    console.log(
       `   Portfolio requests: ${portfolioRequests}, Market requests: ${marketRequests}`
     );
+    console.log(
       `   Functioning pages: ${outageResults.filter((r) => r.functioning).length}/${testPages.length}`
     );
 

@@ -241,12 +241,14 @@ test.describe("Mobile-Specific Testing", () => {
           successfulMobileNavigation++;
         }
       } catch (e) {
+        console.log(
           `❌ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
         );
       }
     }
 
     expect(successfulMobileNavigation).toBeGreaterThanOrEqual(2);
+    console.log(
       `📱 Mobile navigation success: ${successfulMobileNavigation}/${mobileRoutes.length}`
     );
   });
@@ -286,9 +288,11 @@ test.describe("Mobile-Specific Testing", () => {
           ...metrics,
         });
 
+        console.log(
           `📱 ${pagePath}: ${loadTime}ms load, ${metrics.domContentLoaded}ms DOM ready`
         );
       } catch (e) {
+        console.log(
           `📱 Performance test failed for ${pagePath}: ${e.message.slice(0, 50)}`
         );
       }
@@ -332,6 +336,7 @@ test.describe("Mobile-Specific Testing", () => {
       await page.keyboard.press("Tab");
       await page.waitForTimeout(200);
     } catch (e) {
+      console.log(
         `📱 Mobile keyboard navigation issue: ${e.message.slice(0, 50)}`
       );
     }

@@ -361,6 +361,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
             successfulInputs.length
           : 0;
 
+      console.log(
         `   Successful: ${successfulInputs.length}, Failed: ${failedInputs.length}`
       );
 
@@ -489,12 +490,15 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     const successfulTests = browserTests.filter((t) => t.success);
     const failedTests = browserTests.filter((t) => !t.success);
 
+    console.log(
       `   Successful: ${successfulTests.length}/${browserTests.length}`
     );
+    console.log(
       `   Failed tests: ${failedTests.map((t) => t.test).join(", ")}`
     );
 
     browserTests.forEach((test) => {
+      console.log(
         `   ${test.test}: ${test.success ? "✅" : "❌"} ${test.error ? test.error.slice(0, 30) : ""}`
       );
     });
@@ -518,6 +522,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       const delay = Math.random() * 1000 + 100; // 100-1100ms
       const startTime = Date.now();
 
+      console.log(
         `🏃 API call ${callId} starting with ${Math.round(delay)}ms delay`
       );
 
@@ -568,6 +573,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       if (apiCallTimes.length > 0) {
         const avgApiTime =
           apiCallTimes.reduce((a, b) => a + b) / apiCallTimes.length;
+        console.log(
           `   Average API response time: ${Math.round(avgApiTime)}ms`
         );
       }
@@ -580,6 +586,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       expect(apiCallCount, "API calls should be made").toBeGreaterThan(0);
       expect(totalTime, `Total time: ${totalTime}ms`).toBeLessThan(15000);
     } catch (error) {
+      console.log(
         `🏃 Concurrent operations completed with some failures: ${error.message.slice(0, 50)}`
       );
       expect(true).toBe(true); // Pass if handled gracefully
@@ -606,6 +613,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         () => document.activeElement.tagName
       );
       if (focusedElement) {
+        console.log(
           `♿ Keyboard navigation completed, focused on: ${focusedElement}`
         );
       }
@@ -636,6 +644,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         return { ariaCount, labelCount, totalElements: elements.length };
       });
 
+      console.log(
         `♿ ARIA attributes: ${ariaAttributes.ariaCount}, Labels: ${ariaAttributes.labelCount}`
       );
     } catch (error) {
@@ -654,6 +663,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
 
       const pageStillVisible =
         (await page.locator("#root").textContent()).length > 100;
+      console.log(
         `♿ Low contrast simulation: Page readable: ${pageStillVisible}`
       );
     } catch (error) {
