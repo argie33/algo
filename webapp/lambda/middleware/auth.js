@@ -122,10 +122,13 @@ const authenticateTokenAsync = async (req, res, next) => {
     try {
       result = await validateJwtToken(token);
     } catch (error) {
+      console.error('[Auth] Caught error from validateJwtToken:', error.message);
       // DEVELOPMENT: If Cognito is not configured, allow test tokens
       // This enables local development without AWS Cognito setup
       if (error.message && error.message.includes('Cognito environment variables not configured')) {
+        console.log('[Auth] Cognito not configured, checking for test tokens');
         if (token === 'test-token' || token === 'admin-token' || token === 'mock-access-token') {
+          console.log('[Auth] Allowing test token:', token);
           const isAdmin = token === 'admin-token';
           req.user = {
             sub: isAdmin ? 'admin-test-user' : 'test-user-123',
