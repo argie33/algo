@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+"""
+
+Balance Sheet Loader — annual and quarterly from SEC EDGAR.
+
+Period determined by LOADER_TYPE env var (financials_annual_balance / financials_quarterly_balance)
+or --period CLI flag for manual runs.
+"""
+from utils.structured_logger import get_logger
+
+try:
+    from config.credential_manager import get_credential_manager
+    credential_manager = get_credential_manager()
+except ImportError:
+    credential_manager = None
+
+import argparse
+import logging
+logger = get_logger(__name__)
+import os
+from datetime import date
+from typing import List, Optional
+from config.env_loader import load_env
+from utils.loader_helpers import get_active_symbols
+
+from utils.optimal_loader import OptimalLoader
+
+
+
+_PERIOD_CONFIG = {
+    "annual": {
+        "table_name": "annual_balance_sheet",
+        "primary_key": ("symbol", "fiscal_year"),
+        "schema_cols": frozenset({
+            "symbol", "fiscal_year",
+            "total_assets", "current_assets", "total_liabilities", "current_liabilities", "stockholders_equity",
+            "inventory", "cash_and_equivalents", "accounts_receivable", "ppe_net", "goodwill", "long_term_debt",
+        }),
+        "field_mapping": {
+            # SEC EDGAR client converts concept names to snake_case before returning
+            # Total assets
+            "assets": "total_assets",
+            # Current assets
+            "assets_current": "current_assets",
+            "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
+            "accounts_receivable_net_current": "accounts_receivable",
+            "inventory_net": "inventory",
+            # Fixed assets
+            "property_plant_and_equipment_net": "ppe_net",
+            "goodwill": "goodwill",
+            # Total liabilities
+            "liabilities": "total_liabilities",
+            # Current liabilities
+            "liabilities_current": "current_liabilities",
+            # Equity
+            "stockholders_equity": "stockholders_equity",
+            # Long-term debt
+            "long_term_debt": "long_term_debt",
+        },
+    },
+    "quarterly": {
+        "table_name": "quarterly_balance_sheet",
+        "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
+        "schema_cols": frozenset({
+            "symbol", "fiscal_year", "fiscal_quarter",
+            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
+        }),
+        "field_mapping": {
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
+            # SEC EDGAR client converts concept names to snake_case before returning
+            "assets": "total_assets",
+            "assets_current": "current_assets",
+            "liabilities": "total_liabilities",
+            "stockholders_equity": "stockholders_equity",
+        },
+    },
+}
+
+
+def _resolve_period(cli_arg: Optional[str]) -> str:
+    if cli_arg:
+        return cli_arg
+    loader_type = os.getenv("LOADER_TYPE", "")
+    return "quarterly" if "quarterly" in loader_type else "annual"
+
+
+class BalanceSheetLoader(OptimalLoader):
+    watermark_field = "fiscal_year"
+
+    def __init__(self, period: str):
+        assert period in ("annual", "quarterly")
+        cfg = _PERIOD_CONFIG[period]
+        self.period = period
+        self.table_name = cfg["table_name"]
+        self.primary_key = cfg["primary_key"]
+        self._schema_cols = cfg["schema_cols"]
+        self._field_mapping = cfg.get("field_mapping", {})
+        super().__init__()
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        try:
+            from utils.sec_edgar_client import SecEdgarClient
+        except ImportError as e:
+            logging.error("SecEdgarClient import failed: %s — financial data unavailable", e)
+            return None
+        try:
+            client = SecEdgarClient()
+            if not client.symbol_to_cik(symbol):
+                logging.debug("Symbol %s not found in SEC EDGAR", symbol)
+                return None
+            rows = client.get_balance_sheet(symbol, period=self.period)
+            if not rows:
+                logging.debug("No %s balance sheet data for %s", self.period, symbol)
+                return None
+            since_year = int(since) if since else 2000
+            return [r for r in rows if r.get("fiscal_year", 0) > since_year] or None
+        except Exception as e:
+            logging.error("SEC EDGAR error for %s: %s", symbol, e)
+            return None
+
+    def transform(self, rows):
+        transformed = []
+        for r in rows:
+            row = {}
+            for sec_field, value in r.items():
+                # Apply field mapping first
+                db_field = self._field_mapping.get(sec_field, sec_field)
+                # Only keep fields in schema
+                if db_field in self._schema_cols:
+                    row[db_field] = value
+            if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
+                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
+            transformed.append(row)
+
+        seen = {}
+        for row in transformed:
+            if self.period == "annual":
+                key = (row.get("symbol"), row.get("fiscal_year"))
+            else:
+                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
+            if key not in seen:
+                seen[key] = row
+        return list(seen.values())
+
+    def _validate_row(self, row: dict) -> bool:
+        if not super()._validate_row(row):
+            return False
+        fy = row.get("fiscal_year")
+        if not (fy and 1990 < fy < 2100):
+            return False
+        if self.period == "quarterly" and row.get("fiscal_quarter") is None:
+            return False
+
+        # Reject rows where all key balance sheet fields are NULL
+        balance_fields = ["total_assets", "current_assets", "total_liabilities"]
+        if all(row.get(field) is None for field in balance_fields):
+            return False
+
+        return True
+
+
+def main():
+    load_env()
+    parser = argparse.ArgumentParser(description="Balance sheet loader (annual/quarterly)")
+    parser.add_argument("--period", choices=["annual", "quarterly"],
+                        help="Statement period (defaults to LOADER_TYPE env var)")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
+    parser.add_argument("--parallelism", type=int, default=8)
+    args = parser.parse_args()
+
+    period = _resolve_period(args.period)
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+
+    loader = BalanceSheetLoader(period)
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

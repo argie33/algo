@@ -41,12 +41,38 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = []
+tier_1e_market_data = [
+    'loadmarketindices.py',  # Market index OHLCV (^GSPC, ^IXIC, ^NYA, ^RUT)
+    'loadecondata.py',       # FRED economic series (UNRATE, FEDFUNDS, yield curve, etc.)
+    'loadfeargreed.py',      # Fear & Greed index (Alternative.me)
+]
 
 tier_2_reference = [
+    # Annual financials
+    ('load_income_statement.py', ['--period', 'annual']),
+    ('load_balance_sheet.py', ['--period', 'annual']),
+    ('load_cash_flow.py', ['--period', 'annual']),
+    # Quarterly financials (raw SEC data, one quarter at a time)
+    ('load_income_statement.py', ['--period', 'quarterly']),
+    ('load_balance_sheet.py', ['--period', 'quarterly']),
+    ('load_cash_flow.py', ['--period', 'quarterly']),
     'loadearningshistory.py',
+    # Earnings estimates and revisions
+    'loadearningsestimates.py',
+    'loadearningsrevisions.py',
+    # Company profile and analyst data
+    'loadcompanyprofile.py',
+    'loadanalystupgradedowngrade.py',
+    'loadanalystsentiment.py',
+    # Sentiment surveys (weekly data, run even if already current)
+    'loadaaiidata.py',
+    'loadnaaim.py',
+    # Calendar data
     'load_earnings_calendar.py',
-    'loadsectors.py', 'load_sector_ranking.py', 'loadindustryranking.py',
+    # Sector and industry data
+    'loadsectors.py', 'loadindustryranking.py',
+    # Seasonality stats (computed from price_daily)
+    'loadseasonality.py',
 ]
 
 # Tier 2c: TTM aggregates - REMOVED (consolidated into quarterly reports, not needed separately)

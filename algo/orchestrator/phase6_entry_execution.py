@@ -253,6 +253,11 @@ def run(
     try:
         from algo.algo_trade_executor import TradeExecutor
 
+        # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
+        if dry_run:
+            logger.info("[DRY-RUN] Phase 6: Skipping entry execution (dry-run mode)")
+            return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, 'DRY-RUN: execution skipped')
+
         executor = TradeExecutor(config)
 
         # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete

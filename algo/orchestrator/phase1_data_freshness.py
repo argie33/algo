@@ -298,16 +298,26 @@ def run(
                     # Fail-closed on ERROR if it's a data volume issue (ONLY for live trading on current date)
                     volume_error = [e for e in error_findings if 'low_daily_load_volume' in e[1]]
                     if volume_error:
-                        from datetime import date
+                        from datetime import date, datetime, time as dtime
                         is_live_trading = (run_date == date.today())
+
+                        # Check if we're in market hours (9:30 AM - 4:00 PM ET)
+                        now = datetime.now()
+                        market_open = dtime(9, 30)
+                        market_close = dtime(16, 0)
+                        is_market_hours = market_open <= now.time() < market_close
+
                         for _, _, msg in volume_error:
-                            if '0 symbols' in msg and is_live_trading:  # Only fail on live trading
+                            if '0 symbols' in msg and is_live_trading and is_market_hours:
+                                # Only fail if it's live trading AND during market hours
                                 log_phase_result_fn(1, 'loader_health', 'halt',
                                                    f'No data loaded today: {msg}')
                                 return PhaseResult(1, 'loader_health', 'halted', {}, True,
                                                  f'No data loaded today: {msg}')
                             elif not is_live_trading and verbose:
                                 logger.info(f"  [SKIP] Load volume check (historical run): {msg}")
+                            elif is_live_trading and not is_market_hours and verbose:
+                                logger.info(f"  [SKIP] Load volume check (pre/post-market): {msg}")
 
                     # Other errors are just warnings
                     if error_findings and verbose:

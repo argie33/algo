@@ -85,6 +85,11 @@ def run(
             except Exception as e:
                 logger.error(f"Unhandled exception: {e}")
 
+        # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
+        if dry_run:
+            logger.info("[DRY-RUN] Phase 4: Skipping trade execution (dry-run mode)")
+            return PhaseResult(4, 'exit_execution', 'ok', {}, False, 'DRY-RUN: execution skipped')
+
         executor = TradeExecutor(config)
         exit_count = 0
         stop_raises = 0

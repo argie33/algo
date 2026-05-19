@@ -43,16 +43,6 @@ export DB_HOST=localhost && python3 -m pytest tests/ -v
 - PostgreSQL `stocks` database, schema `public`
 - Run all loaders: `python3 run-all-loaders.py`
 
-## Rules
-
-1. **All loaders must be integrated** into `run-all-loaders.py` — no orphaned loader files
-2. **No unintegrated scripts** at root — dev utilities go in `scripts/` directory or delete
-3. **No one-time diagnostics** — temporary debug/audit files do not belong in repo
-4. **Credentials** — no .env, secrets, or hardcoded API keys — use AWS Secrets Manager
-5. **Test expiration** — mark skipped tests with expiration date or delete when expired
-6. **Real data only** — no mock endpoints or fake data sources
-7. **Dependencies** — before adding anything, document WHERE it's used and WHY
-
 ## Testing
 
 ```powershell
