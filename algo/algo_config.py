@@ -86,14 +86,14 @@ class AlgoConfig:
         # Filter Thresholds
         'min_completeness_score': ('70', 'int', 'Minimum data completeness % (Minervini standard)'),
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
-        'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
-        'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
-        'min_avg_daily_dollar_volume': ('1000000', 'float', 'Minimum daily dollar volume for liquidity gate'),
-        'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
-        'max_stop_distance_pct': ('8.0', 'float', 'Max stop distance % from entry'),
-        'max_positions_per_sector': ('3', 'int', 'Max concurrent positions in one sector'),
-        'max_positions_per_industry': ('2', 'int', 'Max concurrent positions in one industry'),
-        'min_swing_score': ('60.0', 'float', 'Min swing trader score to enter'),
+        'min_signal_quality_score': ('30', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
+        'min_volume_ma_50d': ('300000', 'int', 'Minimum 50-day avg volume'),
+        'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
+        'require_stock_stage_2': ('false', 'bool', 'Require Stage 2 trend template'),
+        'max_stop_distance_pct': ('12.0', 'float', 'Max stop distance % from entry'),
+        'max_positions_per_sector': ('5', 'int', 'Max concurrent positions in one sector'),
+        'max_positions_per_industry': ('3', 'int', 'Max concurrent positions in one industry'),
+        'min_swing_score': ('30.0', 'float', 'Min swing trader score to enter'),
         'max_total_invested_pct': ('95.0', 'float', 'Max % of portfolio in open positions'),
 
         # Market Conditions
