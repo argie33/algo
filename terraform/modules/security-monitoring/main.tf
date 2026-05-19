@@ -126,14 +126,6 @@ resource "aws_cloudtrail" "main" {
   })
 }
 
-resource "aws_cloudtrail_status" "main" {
-  count          = var.cloudtrail_enabled ? 1 : 0
-  depends_on     = [aws_cloudtrail.main]
-  trail_name     = aws_cloudtrail.main[0].name
-  is_logging     = true
-  start_logging  = true
-}
-
 # ============================================================
 # GuardDuty - Threat Detection
 # ============================================================
@@ -171,7 +163,6 @@ resource "aws_config_configuration_recorder" "main" {
 
   recording_group {
     all_supported = true
-    include_global = true
   }
 }
 
