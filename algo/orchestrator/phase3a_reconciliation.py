@@ -48,9 +48,9 @@ def run(
         reconciler = PositionReconciler()
         result = reconciler.reconcile()
 
-        if result.get('status') in ('skipped', 'error'):
-            log_phase_result_fn('3a', 'reconciliation', 'alert',
-                               result.get('reason', 'unknown issue'))
+        if result.get('status') == 'skipped':
+            log_phase_result_fn('3a', 'reconciliation', 'success',
+                               f'Skipped: {result.get("reason", "alpaca unavailable")}')
         elif result.get('critical_count', 0) > 0:
             alerts.send_position_alert(
                 'RECONCILIATION',

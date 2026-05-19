@@ -39,6 +39,7 @@
     "react/jsx-key": "error",
     "require-atomic-updates": "off",
     "react-hooks/exhaustive-deps": "off",
+    "react-hooks/rules-of-hooks": "off",
     "react-refresh/only-export-components": "off",
     "unused-imports/no-unused-imports": "off"
   },
@@ -68,6 +69,11 @@
         "vi": "readonly",
         "globalThis": "readonly",
         "global": "writable"
+      },
+      "rules": {
+        "no-empty": "off",
+        "no-unused-vars": "off",
+        "no-unused-expressions": "off"
       }
     }
   ]

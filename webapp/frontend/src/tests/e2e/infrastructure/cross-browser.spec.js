@@ -126,18 +126,13 @@ test.describe("Safari Routing Compatibility", () => {
         const currentUrl = page.url();
         if (currentUrl.includes(to.substring(1)) || to === "/") {
           successfulTransitions++;
-        } else {
-            `❌ ${name}: URL mismatch - expected ${to}, got ${currentUrl}`
-          );
         }
       } catch (error) {
-          `❌ ${name}: Transition failed - ${error.message.slice(0, 50)}`
-        );
+        // Transition failed - continue testing
       }
     }
 
-      `🔄 Safari transitions: ${successfulTransitions}/${transitions.length} successful`
-    );
+    console.log(`Safari transitions: ${successfulTransitions}/${transitions.length} successful`);
 
     // Safari should handle at least 2/4 transitions successfully
     expect(successfulTransitions).toBeGreaterThanOrEqual(2);
