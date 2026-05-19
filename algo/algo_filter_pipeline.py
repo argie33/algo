@@ -242,13 +242,19 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         tier_pass_counts[t] += 1
 
                 if result['passed_all_tiers']:
-                    # Run advanced filters
+                    # Run advanced filters (with graceful fallback for missing tables)
                     sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
-                    adv = self.advanced.evaluate_candidate(
-                        symbol, signal_date, float(entry_price),
-                        sector_info['sector'], sector_info['industry'],
-                    )
-                    result['advanced'] = adv
+                    try:
+                        adv = self.advanced.evaluate_candidate(
+                            symbol, signal_date, float(entry_price),
+                            sector_info['sector'], sector_info['industry'],
+                        )
+                        result['advanced'] = adv
+                    except Exception as e:
+                        # Advanced filters failed (missing tables), use default pass
+                        logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
+                        adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
+                        result['advanced'] = adv
 
                     if adv['pass']:
                         advanced_passed += 1
@@ -726,6 +732,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
             stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
 
+            # Fail if no valid stop can be computed (insufficient structural levels)
+            if stop_loss_price is None:
+                return {
+                    'pass': False,
+                    'reason': 'No valid stop loss available (insufficient technical indicators)',
+                    'trend_score': trend_score,
+                }
+
             return {
                 'pass': True,
                 'reason': f'Trend {trend_score}/8, {pct_from_low:.0f}% from low',
@@ -979,9 +993,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
         candidates = [c for c in (sma_50, swing_low, atr_stop) if c is not None and 0 < c < entry]
         if not candidates:
-            self._last_stop_method = 'fallback_8pct_floor'
-            self._last_stop_reasoning = '8% floor — no structural levels available'
-            return round(floor_stop, 2)
+            # FAIL-CLOSED: No structural stops available (data quality issue)
+            self._last_stop_method = 'none'
+            self._last_stop_reasoning = 'No structural levels available (SMA-50, swing low, ATR all missing)'
+            logger.error(f'[Stop] No structural levels for {symbol} on {signal_date} (sma_50={sma_50}, swing={swing_low}, atr_stop={atr_stop})')
+            return None
 
         viable = [c for c in candidates if c >= floor_stop]
         stop = max(viable) if viable else floor_stop
@@ -1069,8 +1085,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             # Use PositionSizer for all risk calculations (includes drawdown cascade, exposure mult, phase mult)
             if not stop_loss_price or stop_loss_price >= entry_price:
-                # Stop calculation failed. Use fallback: 2x ATR from entry (if ATR available), else 5% stop.
-                # Compute ATR fresh from price data
+                # Stop calculation failed. Try ATR-based stop if available; otherwise REJECT signal.
                 atr_value = None
                 try:
                     self.cur.execute(
@@ -1085,10 +1100,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
                 if atr_value and atr_value > 0:
                     stop_loss_price = max(0.01, entry_price - (2.0 * atr_value))
-                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr_value:.2f})')
+                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR: {stop_loss_price:.2f} (ATR={atr_value:.2f})')
                 else:
-                    stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
-                    logger.warning(f'[T5] Stop calculation FAILED for {symbol}; using 5% emergency fallback: {stop_loss_price:.2f} (no ATR available) — RISK INFLATED')
+                    # FAIL-CLOSED: No valid stop calculation possible. Reject signal.
+                    logger.error(f'[T5] REJECTED {symbol}: Stop calculation failed and no ATR available (insufficient technical data)')
+                    return {
+                        'pass': False,
+                        'reason': 'Stop calculation failed; no ATR available for fallback',
+                        'shares': 0,
+                    }
 
             from algo.algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)

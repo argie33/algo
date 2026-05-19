@@ -149,17 +149,28 @@ class BuySellSignalsLoader(OptimalLoader):
                 (symbol, start, end),
             )
             rows = cur.fetchall()
-            return [
-                {
+            result = []
+            for r in rows:
+                # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
+                close = float(r[4]) if r[4] is not None else None
+                volume = int(r[5]) if r[5] is not None else None
+
+                if close is None or close <= 0:
+                    # Zero/negative close price = data error
+                    continue
+                if volume is not None and volume == 0:
+                    # Zero volume = halted/no trading
+                    continue
+
+                result.append({
                     "date": r[0].isoformat() if r[0] else None,
                     "open": float(r[1]) if r[1] is not None else None,
                     "high": float(r[2]) if r[2] is not None else None,
                     "low": float(r[3]) if r[3] is not None else None,
-                    "close": float(r[4]) if r[4] is not None else None,
-                    "volume": int(r[5]) if r[5] is not None else None,
-                }
-                for r in rows
-            ]
+                    "close": close,
+                    "volume": volume,
+                })
+            return result
         finally:
             cur.close()
 
@@ -209,6 +220,13 @@ class BuySellSignalsLoader(OptimalLoader):
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce")
         df = df.dropna(subset=["close"]).reset_index(drop=True)
+
+        # Filter out identical OHLC rows (API-limit fallback/stale data)
+        initial_len = len(df)
+        df = df[~((df["open"] == df["high"]) & (df["high"] == df["low"]) & (df["low"] == df["close"]))]
+        if len(df) < initial_len:
+            filtered_count = initial_len - len(df)
+            logger.debug(f"[{symbol}] Filtered out {filtered_count} rows with identical OHLC (API-limit fallback data)")
 
         if len(df) < 50:
             return []

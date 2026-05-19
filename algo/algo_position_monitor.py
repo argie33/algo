@@ -604,7 +604,28 @@ class PositionMonitor:
 
                         if qty_change_pct > 20:  # Likely a split
                             split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
-                            new_stop = db_stop / split_ratio if db_stop else entry_price * 0.95
+                            if not db_stop:
+                                # FAIL-CLOSED: Can't apply split ratio without knowing original stop
+                                logger.critical(f'STOCK SPLIT DETECTED but no stop price in DB for {symbol} {pos_id}. Cannot auto-adjust stop. Manual review required.')
+                                # Update quantity but leave stop untouched
+                                self.cur.execute("""
+                                    UPDATE algo_positions
+                                    SET quantity = %s
+                                    WHERE position_id = %s
+                                """, (alpaca_qty, pos_id))
+                                self.cur.execute("""
+                                    INSERT INTO algo_audit_log (
+                                        action_type, action_date, details, severity
+                                    ) VALUES (%s, %s, %s, %s)
+                                """, (
+                                    'CORPORATE_ACTION_SPLIT_NO_STOP',
+                                    datetime.now(),
+                                    f'Stock split detected: {symbol} {db_qty} → {alpaca_qty} shares (ratio {split_ratio:.2f}). Original stop price missing in DB. Quantity updated but STOP NOT ADJUSTED. Manual review required.',
+                                    'CRITICAL'
+                                ))
+                                continue
+
+                            new_stop = db_stop / split_ratio
 
                             self.cur.execute("""
                                 UPDATE algo_positions

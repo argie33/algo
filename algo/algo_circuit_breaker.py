@@ -358,17 +358,21 @@ class CircuitBreaker:
         row = self.cur.fetchone()
         vix = float(row[0]) if row and row[0] is not None else None
 
-        # H2 FIX: If VIX missing, compute fallback from SPY price volatility
         if vix is None:
-            vix = self._compute_vix_fallback(current_date)
-            source = "computed"
-        else:
-            source = "actual"
+            # FAIL-CLOSED: No real VIX data available. Halt trading.
+            # (Computed VIX with neutral fallback could mask volatility spikes)
+            logger.critical(f'VIX missing on {current_date} — cannot reliably assess market volatility. Halting trading.')
+            return {
+                'halted': True,
+                'reason': 'VIX data missing; unable to assess market volatility — FAIL-CLOSED',
+                'value': None,
+                'threshold': float(self.config.get('vix_max_threshold', 35.0)),
+            }
 
         threshold = float(self.config.get('vix_max_threshold', 35.0))
         return {
             'halted': vix > threshold,
-            'reason': f'VIX {vix:.1f} > {threshold:.0f} ({source})' if vix > threshold else f'VIX {vix:.1f} ({source})',
+            'reason': f'VIX {vix:.1f} > {threshold:.0f}' if vix > threshold else f'VIX {vix:.1f}',
             'value': vix,
             'threshold': threshold,
         }

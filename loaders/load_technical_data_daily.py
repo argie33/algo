@@ -64,17 +64,28 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
                 (symbol, start, end),
             )
-            return [
-                {
+            rows = []
+            for r in cur.fetchall():
+                # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
+                close = float(r[4]) if r[4] is not None else None
+                volume = int(r[5]) if r[5] is not None else None
+
+                if close is None or close <= 0:
+                    # Zero/negative close price = data error
+                    continue
+                if volume is not None and volume == 0:
+                    # Zero volume = halted/no trading
+                    continue
+
+                rows.append({
                     "date": r[0].isoformat() if r[0] else None,
                     "open": float(r[1]) if r[1] is not None else None,
                     "high": float(r[2]) if r[2] is not None else None,
                     "low": float(r[3]) if r[3] is not None else None,
-                    "close": float(r[4]) if r[4] is not None else None,
-                    "volume": int(r[5]) if r[5] is not None else None,
-                }
-                for r in cur.fetchall()
-            ]
+                    "close": close,
+                    "volume": volume,
+                })
+            return rows
         finally:
             cur.close()
 
@@ -85,6 +96,14 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
+
+        # Filter out identical OHLC rows (API-limit fallback/stale data)
+        # These rows have open == high == low == close and indicate no real trading
+        initial_len = len(df)
+        df = df[~((df["open"] == df["high"]) & (df["high"] == df["low"]) & (df["low"] == df["close"]))]
+        if len(df) < initial_len:
+            filtered_count = initial_len - len(df)
+            logger.debug(f"[{symbol}] Filtered out {filtered_count} rows with identical OHLC (API-limit fallback data)")
 
         df["rsi_14"] = compute_rsi(df["close"], 14)
         df["macd"], df["macd_signal"] = compute_macd(df["close"])
