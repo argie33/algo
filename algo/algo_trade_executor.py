@@ -40,7 +40,12 @@ from algo.algo_notifications import TradeNotificationService
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
 
-
+# Map stage phase names to integer IDs for database storage
+STAGE_PHASE_MAPPING = {
+    'early': 1,
+    'mid': 2,
+    'late': 3,
+}
 
 def _redact_for_logs(message: str) -> str:
     """Redact sensitive trade data from log messages. Masks prices and shares."""
@@ -498,7 +503,7 @@ class TradeExecutor:
                     int(sqs) if sqs is not None else None,
                     int(trend_score) if trend_score is not None else None,
                     swing_score, swing_grade,
-                    base_type, base_quality, stage_phase,
+                    base_type, base_quality, STAGE_PHASE_MAPPING.get(stage_phase) if stage_phase else None,
                     sector, industry, rs_percentile,
                     market_exposure_at_entry, exposure_tier_at_entry,
                     stop_method, stop_reasoning,

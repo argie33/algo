@@ -77,8 +77,8 @@ EXPOSURE_TIERS = [
         'description': 'Uptrend under pressure — defensive posture',
         'risk_multiplier': 0.5,
         'max_new_positions_today': 2,
-        'min_swing_score': 10.0,  # TEMP: lowered for Alpaca integration test
-        'min_swing_grade': 'F',   # TEMP: lowered for Alpaca integration test
+        'min_swing_score': 70.0,
+        'min_swing_grade': 'A',
         'tighten_winners_at_r': 2.0,
         'force_partial_at_r': 3.0,
         'halt_new_entries': False,
