@@ -117,6 +117,23 @@ const authenticateTokenAsync = async (req, res, next) => {
       return sendError(res, 'Authorization missing from request headers', 401, { code: 'MISSING_AUTHORIZATION' });
     }
 
+    // DEVELOPMENT: Allow test tokens when Cognito is not configured (local dev only)
+    // Production (AWS Lambda) will have COGNITO_USER_POOL_ID set
+    const cognioNotConfigured = !process.env.COGNITO_USER_POOL_ID || !process.env.COGNITO_CLIENT_ID;
+    if (cognioNotConfigured && (token === 'test-token' || token === 'admin-token' || token === 'mock-access-token')) {
+      const isAdmin = token === 'admin-token';
+      req.user = {
+        sub: isAdmin ? 'admin-test-user' : 'test-user-123',
+        username: isAdmin ? 'admin-test' : 'test-user',
+        email: isAdmin ? 'admin@test.local' : 'test@example.com',
+        role: isAdmin ? 'admin' : 'user',
+        groups: isAdmin ? ['admin'] : ['user'],
+        sessionId: isAdmin ? 'admin-test-session' : 'test-session',
+      };
+      req.token = token;
+      return next();
+    }
+
     // Validate JWT token using apiKeyService (now with real Cognito verification)
     const result = await validateJwtToken(token);
 
