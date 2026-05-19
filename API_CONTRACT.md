@@ -1,743 +1,476 @@
-# API Contract - Stock Analytics Platform
+# API Contract - Financial Dashboard (ACTUAL Implementation)
 
-**Base URL:** `{API_BASE_URL}` (e.g., `https://api.example.com/api` or `http://localhost:3000/api` in dev)
+**CRITICAL:** This document reflects the ACTUAL API implementation. The old API_CONTRACT.md had incorrect paths - this is the authoritative source.
 
-**Authentication:** JWT token via Cognito (passed in `Authorization: Bearer` header).
+**Base URL:** Local: `http://localhost:3001/api` | AWS: `https://{api-gateway-url}/api`
 
 **Content-Type:** `application/json`
 
 ---
 
-## Health & Status Endpoints
+## Core Data Endpoints
 
 ### GET `/health`
-System health check (minimal, no dependencies).
-- **Response:** `{ "status": "healthy", "healthy": true, "service": "Financial Dashboard API" }`
+Health check (no database required).
 - **Status Code:** 200
+- **Response:** `{ "status": "healthy" }`
 
-### GET `/health/detailed`
-Detailed health check (database connectivity, table counts).
-- **Response:**
-  ```json
-  {
-    "status": "healthy",
-    "dbStatus": "connected",
-    "tables": {
-      "price_daily": 5800000,
-      "buy_sell_daily": 100000,
-      "positions": 1500
-    }
-  }
-  ```
-- **Status Code:** 200 | 503 (if DB unavailable)
-
----
-
-## Price Data Endpoints
-
-### GET `/api/prices/history/{symbol}`
-Historical daily/weekly/monthly price data for a symbol.
+### GET `/stocks`
+List all stocks with metadata.
 - **Query Parameters:**
-  - `timeframe` (optional): `daily` | `weekly` | `monthly` (default: daily)
-  - `limit` (optional): Max rows to return (default: 252, max: 2000)
-  - `days` (optional): Last N days of data
+  - `limit` (optional): Limit results (default: all)
+- **Status Code:** 200
 - **Response:**
-  ```json
-  [
+```json
+{
+  "items": [
+    {
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "sector": "Technology",
+      "industry": "Consumer Electronics",
+      "is_sp500": true
+    }
+  ],
+  "total": 10153
+}
+```
+
+### GET `/prices/history/{symbol}`
+Historical prices for a symbol.
+- **Query Parameters:**
+  - `timeframe`: `daily` | `weekly` | `monthly` (default: `daily`)
+  - `limit`: Max rows (default: 252)
+  - `days`: Days back (e.g., `days=90`)
+- **Status Code:** 200
+- **Response:**
+```json
+{
+  "items": [
     {
       "date": "2026-05-18",
-      "open": 180.50,
-      "high": 182.30,
-      "low": 179.80,
-      "close": 181.25,
-      "volume": 45000000
+      "open": 206.94,
+      "high": 208.0,
+      "low": 200.52,
+      "close": 203.25,
+      "volume": 87349208
     }
   ]
-  ```
-- **Status Code:** 200 | 404 (symbol not found)
+}
+```
 
----
-
-## Stock Data Endpoints
-
-### GET `/api/stocks`
-List all stocks with optional filtering and pagination.
+### GET `/signals` or `/signals/stocks`
+Trading signals (buy/sell) for stocks.
 - **Query Parameters:**
-  - `limit` (optional): Rows per page (default: 500, max: 50000)
-  - `offset` (optional): Pagination offset (default: 0)
-  - `search` (optional): Search by symbol or company name
-  - `sector` (optional): Filter by sector
-- **Response:**
-  ```json
-  {
-    "items": [
-      {
-        "symbol": "AAPL",
-        "company_name": "Apple Inc.",
-        "sector": "Technology",
-        "industry": "Consumer Electronics",
-        "is_sp500": true
-      }
-    ],
-    "total": 5000
-  }
-  ```
+  - `limit`: Max results (default: 50000)
+  - `timeframe`: `daily` | `weekly` | `monthly` (default: `daily`)
+  - `symbol`: Filter by symbol (optional)
 - **Status Code:** 200
-
-### GET `/api/stocks/{symbol}`
-Get detailed information for a specific stock.
 - **Response:**
-  ```json
-  {
-    "symbol": "AAPL",
-    "company_name": "Apple Inc.",
-    "sector": "Technology",
-    "industry": "Consumer Electronics",
-    "website": "https://apple.com",
-    "employees": 161000,
-    "exchange": "NASDAQ"
-  }
-  ```
-- **Status Code:** 200 | 404
-
-### GET `/api/stocks/deep-value`
-Get deep value stocks (screened for value investors).
-- **Query Parameters:**
-  - `limit` (optional): Max results (default: 600, max: 1000)
-- **Response:**
-  ```json
-  [
+```json
+{
+  "items": [
     {
-      "symbol": "IBM",
-      "company_name": "International Business Machines",
-      "sector": "Technology",
-      "industry": "Software & IT Services",
-      "market_cap": 250000000000
+      "id": 2473177,
+      "symbol": "AGG",
+      "signal": "BUY",
+      "date": "2026-05-18",
+      "signal_triggered_date": "2026-05-18",
+      "strength": 0.75,
+      "reason": "...",
+      "rsi": 96.39,
+      "sma_50": 101.55,
+      "sma_200": 101.99,
+      "ema_12": 108.37,
+      "ema_21": 104.86,
+      "ema_26": 104.02,
+      "atr": 4.97,
+      "base_type": null,
+      "base_length_days": null,
+      "market_stage": "2",
+      "trend": "uptrend",
+      "grade": "F",
+      "swing_score": 0.0,
+      "entry_quality_score": 0.0,
+      "signal_quality_score": 0.0,
+      "risk_reward_ratio": 0.0,
+      "volume_surge_pct": 0.0,
+      "security_name": "iShares Core U.S. Aggregate Bond ETF",
+      "sector": null,
+      "industry": null
     }
   ]
-  ```
+}
+```
+
+### GET `/signals/etf`
+Trading signals for ETFs.
 - **Status Code:** 200
+- **Response:** Same as `/signals` but filtered to ETFs only.
 
----
-
-## Signal Data Endpoints
-
-### GET `/api/signals`
-Get all recent trading signals (BUY/SELL) with technical enrichment.
+### GET `/scores`
+Stock quality scores.
 - **Query Parameters:**
-  - `limit` (optional): Max signals (default: 50000, max: 50000)
-  - `timeframe` (optional): `daily` | `weekly` | `monthly` (default: daily)
-  - `symbol` (optional): Filter by specific symbol
+  - `limit`: Max results (default: 50)
+- **Status Code:** 200
 - **Response:**
-  ```json
-  {
-    "items": [
-      {
-        "id": 12345,
-        "symbol": "AAPL",
-        "signal": "BUY",
-        "date": "2026-05-18",
-        "signal_triggered_date": "2026-05-18",
-        "strength": 75,
-        "reason": "RSI oversold + MACD bullish",
-        "close": 181.25,
-        "rsi": 28,
-        "atr": 2.5,
-        "sma_50": 175.5,
-        "sma_200": 160.0,
-        "ema_12": 178.0,
-        "ema_21": 176.5,
-        "ema_26": 175.0,
-        "market_stage": "Stage 2",
-        "trend": "Uptrend",
-        "company_name": "Apple Inc.",
-        "sector": "Technology",
-        "industry": "Consumer Electronics",
-        "swing_score": 82,
-        "grade": "A",
-        "base_type": "Accumulation",
-        "base_length_days": 45,
-        "buylevel": 178.50,
-        "stoplevel": 175.00,
-        "risk_reward_ratio": 2.5,
-        "volume_surge_pct": 15.5,
-        "entry_quality_score": 85,
-        "signal_quality_score": 78,
-        "buy_zone_start": 178.00,
-        "buy_zone_end": 180.00,
-        "pivot_price": 179.25,
-        "initial_stop": 175.00,
-        "trailing_stop": 177.50,
-        "position_size_recommendation": "1.0",
-        "profit_target_8pct": 195.60,
-        "profit_target_20pct": 217.50,
-        "profit_target_25pct": 226.56,
-        "exit_trigger_1_price": 176.50,
-        "exit_trigger_2_price": 174.00,
-        "sell_level": 180.00,
-        "rs_rating": 92,
-        "avg_volume_50d": 52000000
-      }
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/signals/etf`
-Get ETF trading signals (SPY, QQQ, IWM, DIA, EEM, EFA).
-- **Query Parameters:**
-  - `limit` (optional): Max signals (default: 50000)
-- **Response:** Array of signal objects (similar structure to `/api/signals`)
-- **Status Code:** 200
-
----
-
-## Scores & Rankings Endpoints
-
-### GET `/api/scores`
-Get stock scores with multi-factor ranking.
-- **Query Parameters:**
-  - `limit` (optional): Max results (default: 50000, max: 50000)
-  - `offset` (optional): Pagination offset (default: 0)
-  - `sortBy` (optional): Column to sort by (default: `composite_score`)
-    - Valid: `composite_score`, `momentum_score`, `quality_score`, `value_score`, `growth_score`, `positioning_score`, `stability_score`, `symbol`
-  - `sortOrder` (optional): `asc` | `desc` (default: `desc`)
-  - `sp500Only` (optional): `true` | `false` (default: `false`)
-  - `symbol` (optional): Filter by specific symbol
-- **Response:**
-  ```json
-  [
+```json
+{
+  "items": [
     {
       "symbol": "MSFT",
       "company_name": "Microsoft Corporation",
+      "growth_score": 85,
+      "value_score": 60,
+      "momentum_score": 92,
+      "dividend_score": 30,
+      "composite_score": 78,
+      "industry": "Software",
+      "sector": "Technology"
+    }
+  ]
+}
+```
+
+### GET `/scores/stockscores`
+Alias for `/scores` (returns same data).
+
+### GET `/sectors`
+Sector list and performance.
+- **Query Parameters:**
+  - `limit`: Max sectors (default: all)
+- **Status Code:** 200
+- **Response:**
+```json
+{
+  "items": [
+    {
       "sector": "Technology",
-      "industry": "Software & IT Services",
-      "composite_score": 92,
-      "momentum_score": 88,
-      "quality_score": 85,
-      "value_score": 72,
-      "growth_score": 90,
-      "positioning_score": 80,
-      "stability_score": 75,
-      "current_price": 450.25,
-      "price": 450.25,
-      "change_percent": 2.5,
-      "market_cap": 3000000000000,
-      "trailing_pe": 32.5,
-      "price_to_book": 12.5,
-      "roe_pct": 42.5,
-      "debt_to_equity": 0.25,
-      "dividend_yield": 0.85,
-      "revenue_growth_yoy_pct": 8.5,
-      "eps_growth_yoy_pct": 12.0
+      "avg_score": 75.5,
+      "momentum": 0.85,
+      "signal_count": 45
     }
   ]
-  ```
+}
+```
+
+### GET `/sectors/performance`
+Sector performance metrics.
 - **Status Code:** 200
 
----
-
-## Sector & Industry Endpoints
-
-### GET `/api/sectors`
-Get sector performance and rankings with pagination.
+### GET `/industries`
+Industry list.
 - **Query Parameters:**
-  - `limit` (optional): Rows per page (default: 50000, max: 50000)
-  - `page` (optional): Page number (default: 1)
-- **Response:**
-  ```json
-  {
-    "data": [
-      {
-        "sector_name": "Technology",
-        "current_rank": 1,
-        "stock_count": 156,
-        "composite_score": 82,
-        "momentum_score": 78,
-        "value_score": 65,
-        "quality_score": 80,
-        "growth_score": 85,
-        "stability_score": 72,
-        "current_momentum": "Strong",
-        "current_trend": "Uptrend",
-        "pe": {
-          "trailing": 28.5,
-          "forward": 24.0,
-          "percentile": 65.0
-        }
-      }
-    ],
-    "total": 11,
-    "page": 1,
-    "limit": 50000
-  }
-  ```
+  - `limit`: Max industries (default: all)
 - **Status Code:** 200
 
-### GET `/api/sectors/{sector_name}`
-Get performance data for a specific sector.
+## Market & Economic Data
+
+### GET `/market`
+Overall market status and indices.
+- **Status Code:** 200
+- **Response:**
+```json
+{
+  "spy_price": 450.25,
+  "vix": 18.5,
+  "market_stage": 2,
+  "distribution_days": 3,
+  "advance_decline_ratio": 1.2
+}
+```
+
+### GET `/market/status`
+Market health details.
+
+### GET `/market/indices`
+Major market indices.
+
+### GET `/market/top-movers`
+Top gainers/losers.
+
+### GET `/market/breadth`
+Market breadth data.
+
+### GET `/market/distribution-days`
+Market distribution day count.
+
+### GET `/market/sentiment`
+Market sentiment indicators.
+
+### GET `/market/fear-greed`
+Fear & Greed Index.
+
+### GET `/market/naaim`
+NAAIM data.
+
+### GET `/market/seasonality`
+Seasonal patterns.
+
+### GET `/market/correlation`
+Stock correlation matrix.
+
+### GET `/market/cap-distribution`
+Market cap distribution.
+
+### GET `/market/technicals`
+Market-wide technical indicators.
+
+### GET `/market/latest`
+Latest market data snapshot.
+
+### GET `/economic`
+Economic indicators summary.
+- **Status Code:** 200
+
+### GET `/economic/indicators`
+Detailed economic indicators.
+
+### GET `/economic/leading-indicators`
+Leading economic indicators (LEI).
+
+### GET `/economic/VIX`
+VIX (volatility) data.
+
+### GET `/economic/yield-curve-full`
+Full yield curve data.
+
+### GET `/economic/calendar`
+Economic calendar.
+
+## Sentiment & Research
+
+### GET `/sentiment/summary`
+Sentiment summary across sources.
+
+### GET `/sentiment/data`
+Sentiment by symbol or market-wide.
 - **Query Parameters:**
-  - `days` (optional): Last N days (default: 90, max: 365)
-- **Response:** Array of performance records by date
-- **Status Code:** 200 | 404
-
-### GET `/api/sectors/{sector_name}/trend`
-Get sector trend data with moving averages.
-- **Query Parameters:**
-  - `days` (optional): Last N days (default: 90, max: 365)
-- **Response:**
-  ```json
-  {
-    "trendData": [
-      {
-        "date": "2026-05-18",
-        "avgPrice": 1250.50,
-        "dailyStrengthScore": 2.5,
-        "rank": 65.0,
-        "momentumScore": 5.2,
-        "momentum": "momentum",
-        "ma_10": 1245.25,
-        "ma_20": 1240.75
-      }
-    ]
-  }
-  ```
+  - `symbol` (optional): Filter by symbol
 - **Status Code:** 200
 
-### GET `/api/sectors/trends-batch`
-Get trends for multiple sectors at once.
-- **Query Parameters:**
-  - `sectors` (required): Comma-separated sector names
-  - `days` (optional): Last N days (default: 90, max: 365)
-- **Response:**
-  ```json
-  {
-    "data": {
-      "Technology": [...],
-      "Healthcare": [...]
-    }
-  }
-  ```
-- **Status Code:** 200
+### GET `/sentiment/vix`
+VIX-based sentiment.
 
-### GET `/api/industries`
-Get all industries with stock counts.
+### GET `/sentiment/divergence`
+Sentiment/price divergence alerts.
+
+### GET `/sentiment/analyst/insights/{symbol}`
+Analyst sentiment for a symbol.
+
+### GET `/sentiment/social/insights/{symbol}`
+Social media sentiment for a symbol.
+
+## Trading & Positions
+
+### GET `/trades`
+Trade history and summaries.
+- **Status Code:** 200
 - **Response:**
-  ```json
-  [
+```json
+{
+  "items": [
     {
-      "industry_name": "Software & IT Services",
-      "sector_name": "Technology",
-      "stock_count": 145,
-      "avg_composite_score": 78,
-      "avg_momentum_score": 75
-    }
-  ]
-  ```
-- **Status Code:** 200
-
----
-
-## Market Data Endpoints
-
-### GET `/api/market`
-Get latest market status summary.
-- **Response:** Market health snapshot (see `/api/market/status`)
-- **Status Code:** 200
-
-### GET `/api/market/status`
-Get current market health and technicals.
-- **Response:**
-  ```json
-  {
-    "date": "2026-05-18",
-    "market_trend": "Uptrend",
-    "market_stage": "Stage 2",
-    "advance_decline_ratio": 1.5,
-    "new_highs_count": 250,
-    "new_lows_count": 45,
-    "vix_level": 18.5,
-    "put_call_ratio": 0.65,
-    "distribution_days_4w": 3,
-    "up_volume_percent": 55.0,
-    "breadth_momentum_10d": 12.5
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/technicals`
-Get market technical indicators (same as `/api/market/status`).
-- **Status Code:** 200
-
-### GET `/api/market/indices`
-Get major market indices data (SPY, QQQ, IWM, DIA).
-- **Response:**
-  ```json
-  {
-    "indices": [
-      {
-        "symbol": "^GSPC",
-        "date": "2026-05-18",
-        "open": 5100.0,
-        "high": 5120.5,
-        "low": 5090.0,
-        "close": 5115.25,
-        "volume": 1500000000
-      }
-    ],
-    "history": {
-      "^GSPC": [
-        {"date": "2026-05-18", "close": 5115.25},
-        {"date": "2026-05-17", "close": 5110.00}
-      ]
-    }
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/breadth`
-Get market breadth data (advances vs declines).
-- **Response:**
-  ```json
-  [
-    {
-      "date": "2026-05-18",
-      "total": 5000,
-      "advances": 3200
-    }
-  ]
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/top-movers`
-Get top 20 daily movers.
-- **Response:**
-  ```json
-  [
-    {
-      "symbol": "TSLA",
-      "security_name": "Tesla Inc.",
-      "pct_change": 5.25
-    }
-  ]
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/distribution-days`
-Get distribution days count.
-- **Response:** Array of distribution day records
-- **Status Code:** 200
-
-### GET `/api/market/seasonality`
-Get market seasonality data (monthly and day-of-week patterns).
-- **Response:**
-  ```json
-  {
-    "monthly": [
-      {
-        "month": 1,
-        "month_name": "January",
-        "avg_return": 1.5,
-        "best_return": 5.0,
-        "worst_return": -4.5,
-        "winning_years": 45,
-        "losing_years": 20,
-        "years_counted": 65
-      }
-    ],
-    "day_of_week": [
-      {
-        "day": "Monday",
-        "day_num": 1,
-        "avg_return": -0.1,
-        "win_rate": 48.0,
-        "days_counted": 1300
-      }
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/sentiment`
-Get market fear/greed sentiment over time.
-- **Query Parameters:**
-  - `range` or `days` (optional): Number of days (default: 30)
-- **Response:**
-  ```json
-  [
-    {
-      "date": "2026-05-18",
-      "fear_greed_value": 65,
-      "fear_greed_label": "Greed"
-    }
-  ]
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/fear-greed`
-Get fear/greed index history.
-- **Query Parameters:**
-  - `range` or `days` (optional): Number of days (default: 30)
-- **Response:** Array of fear/greed records
-- **Status Code:** 200
-
-### GET `/api/market/naaim`
-Get NAAIM (market sentiment) data.
-- **Response:**
-  ```json
-  {
-    "current": 65.5,
-    "history": [
-      {"date": "2026-05-18", "naaim_number_mean": 65.5}
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/market/latest`
-Get combined latest market data (status, sentiment, recent prices).
-- **Response:**
-  ```json
-  {
-    "market": {...},
-    "sentiment": {...},
-    "prices": [...]
-  }
-  ```
-- **Status Code:** 200
-
----
-
-## Economic Data Endpoints
-
-### GET `/api/economic`
-Get leading economic indicators.
-- **Response:**
-  ```json
-  {
-    "indicators": [
-      {
-        "name": "10-Year Yield",
-        "value": 4.25,
-        "date": "2026-05-18",
-        "direction": "up"
-      }
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/economic/indicators`
-Get economic indicators (same as `/api/economic`).
-- **Status Code:** 200
-
-### GET `/api/economic/leading-indicators`
-Get leading economic indicators with historical data.
-- **Status Code:** 200
-
-### GET `/api/economic/vix`
-Get VIX (volatility) historical data.
-- **Response:**
-  ```json
-  [
-    {
-      "date": "2026-05-18",
-      "vix": 18.5
-    }
-  ]
-  ```
-- **Status Code:** 200
-
-### GET `/api/economic/yield-curve-full`
-Get yield curve data (2Y, 5Y, 10Y, 30Y yields).
-- **Response:**
-  ```json
-  {
-    "yield_curve": [
-      {"maturity": "2Y", "yield": 4.50},
-      {"maturity": "10Y", "yield": 4.25},
-      {"maturity": "30Y", "yield": 4.30}
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/economic/calendar`
-Get economic calendar events.
-- **Response:**
-  ```json
-  [
-    {
-      "date": "2026-05-20",
-      "event_name": "CPI Release",
-      "country": "USA",
-      "importance": "High",
-      "category": "Inflation",
-      "event_time": "08:30",
-      "forecast_value": 3.2,
-      "actual_value": 3.1,
-      "previous_value": 3.3
-    }
-  ]
-  ```
-- **Status Code:** 200
-
----
-
-## Algo & Trading Endpoints
-
-### GET `/api/algo/status`
-Get algo orchestrator status.
-- **Response:**
-  ```json
-  {
-    "orchestrator_status": "running|idle|error",
-    "last_run": "2026-05-19T15:30:00Z",
-    "phases_completed": 7,
-    "open_positions": 45,
-    "failed_trades": 0
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/algo/trades`
-Get recent algo trades.
-- **Query Parameters:**
-  - `limit` (optional): Max results (default: 50000, max: 50000)
-- **Response:**
-  ```json
-  [
-    {
-      "id": 12345,
       "symbol": "AAPL",
-      "signal_type": "BUY",
-      "entry_price": 180.50,
-      "entry_date": "2026-05-18",
-      "shares": 100,
-      "status": "open|closed"
+      "entry_date": "2026-05-10",
+      "entry_price": 200.50,
+      "exit_date": "2026-05-15",
+      "exit_price": 210.25,
+      "return_pct": 4.85,
+      "win": true
     }
   ]
-  ```
-- **Status Code:** 200
+}
+```
 
-### GET `/api/algo/positions`
-Get current open positions.
+### GET `/trades/summary`
+Trade summary statistics.
+
+## Algorithmic Trading
+
+### GET `/algo/status`
+Orchestrator status and metrics.
+- **Status Code:** 200
 - **Response:**
-  ```json
-  {
-    "total_positions": 12,
-    "total_value": 500000,
-    "positions": [
-      {
-        "symbol": "MSFT",
-        "shares": 100,
-        "entry_price": 350.25,
-        "current_price": 375.50,
-        "current_value": 37550,
-        "unrealized_pnl": 2525,
-        "unrealized_pnl_pct": 7.2
-      }
-    ]
-  }
-  ```
-- **Status Code:** 200
-
-### GET `/api/algo/performance`
-Get algo performance metrics.
-- **Status Code:** 200
-
-### POST `/api/algo/patrol`
-Manually trigger patrol (market watch).
-- **Response:** `{ "status": "triggered", "message": "Patrol triggered" }`
-- **Status Code:** 200
-
-### POST `/api/algo/pre-trade-impact`
-Analyze pre-trade impact (slippage, cost analysis).
-- **Body:**
-  ```json
-  {
-    "symbol": "AAPL",
-    "shares": 100,
-    "current_price": 180.50
-  }
-  ```
-- **Response:** Impact analysis data
-- **Status Code:** 200
-
-### PATCH `/api/algo/notifications/{id}/read`
-Mark notification as read.
-- **Status Code:** 200
-
-### DELETE `/api/algo/notifications/{id}`
-Delete notification.
-- **Status Code:** 200
-
----
-
-## Audit & Admin Endpoints
-
-### GET `/api/audit/changes`
-Get audit log of data changes.
-- **Status Code:** 200
-
-### GET `/api/admin/health`
-Admin health check endpoint.
-- **Status Code:** 200
-
----
-
-## Response Format Standards
-
-### Success Response (HTTP 200)
-For endpoints returning lists:
-```json
-[
-  { "field": "value" }
-]
-```
-
-For endpoints returning single objects:
 ```json
 {
-  "field": "value"
+  "orchestrator_status": "running",
+  "last_run": "2026-05-19T15:30:00Z",
+  "phases_completed": 5,
+  "open_positions": 12,
+  "failed_trades": 0,
+  "total_pnl": 15250.50
 }
 ```
 
-For endpoints returning paginated data:
+### GET `/algo/data-status`
+Data freshness and completeness.
+
+### GET `/algo/positions`
+Current open positions with details.
+
+### GET `/algo/performance`
+Performance metrics (returns, Sharpe ratio, etc.).
+
+### GET `/algo/equity-curve`
+Equity curve (balance over time).
+
+### GET `/algo/swing-scores`
+Latest swing trader scores.
+
+### GET `/algo/swing-scores-history`
+Historical swing scores by symbol/date.
+
+### GET `/algo/notifications`
+Pending notifications (fills, alerts, etc.).
+
+### GET `/algo/circuit-breakers`
+Circuit breaker status.
+
+### GET `/algo/exposure-policy`
+Current sector exposure vs limits.
+
+### GET `/algo/sector-rotation`
+Sector rotation signals.
+
+### GET `/algo/sector-breadth`
+Sector breadth analysis.
+
+### GET `/algo/sector-stage2`
+Stocks in sector stage 2.
+
+### GET `/algo/markets`
+Market condition summary.
+
+### GET `/algo/rejection-funnel`
+Trade rejection reasons and counts.
+
+### GET `/algo/patrol-log`
+Data quality patrol log.
+
+### GET `/algo/data-quality`
+Data quality metrics.
+
+### GET `/algo/config`
+Orchestrator configuration.
+
+### GET `/algo/config/{key}`
+Get specific config value.
+
+### POST `/algo/patrol`
+Trigger data quality check.
+
+### POST `/algo/pre-trade-impact`
+Analyze order impact.
+
+### POST `/algo/evaluate`
+Evaluate a trade idea.
+
+### GET `/algo/audit-log`
+Audit log of recent actions.
+
+## Administration
+
+### GET `/admin/loader-status`
+Data loader health and completeness.
+- **Status Code:** 200
+- **Response:**
 ```json
 {
-  "items": [...],
-  "total": 100,
-  "page": 1,
-  "limit": 50
+  "loaders": [
+    {
+      "loader": "load_technical_data_daily",
+      "status": "active",
+      "last_run": "2026-05-19T14:00:00Z",
+      "rows_loaded": 4500000,
+      "symbols_complete": 6000,
+      "symbols_pending": 411
+    }
+  ]
 }
 ```
 
-### Error Response
+### GET `/admin/system-health`
+Overall system health.
+
+### GET `/admin/database-stats`
+Database statistics and sizes.
+
+### GET `/admin/data-quality`
+Data quality audit results.
+
+## Audit & Compliance
+
+### GET `/audit/trail`
+Audit trail of all actions.
+
+### GET `/audit/trades`
+Trade audit details.
+
+### GET `/audit/config`
+Configuration audit history.
+
+### GET `/audit/safeguards`
+Risk safeguard status and violations.
+
+## Research & Backtesting
+
+### GET `/research/backtests`
+List of backtests.
+
+### GET `/research/backtests/{id}`
+Backtest results.
+
+### POST `/research/backtests`
+Create new backtest.
+
+---
+
+## Common Query Parameters
+
+Most endpoints support:
+- `limit`: Result limit (varies by endpoint)
+- `offset`: Pagination offset
+- `sort`: Sort field (varies by endpoint)
+- `order`: `asc` | `desc`
+
+## Error Responses
+
+All endpoints return error responses in this format:
 ```json
 {
-  "statusCode": 400,
-  "errorType": "bad_request",
-  "message": "Error description"
+  "statusCode": 404,
+  "errorType": "not_found",
+  "message": "Symbol not found"
 }
 ```
 
----
-
-## Rate Limiting & Pagination
-
-- **Pagination:** Use `limit` and `offset` (or `page` for sectors)
-- **Rate Limiting:** No explicit rate limits (configurable at API Gateway)
-- **Default Page Size:** Varies by endpoint (50-50000)
-- **Max Page Size:** 50000 for most endpoints
+Common status codes:
+- 200: Success
+- 400: Bad request
+- 404: Not found
+- 500: Server error
 
 ---
 
-## Notes
+## NOTES
 
-1. All datetime values are in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
-2. Numeric values are returned as numbers (not strings)
-3. Null/missing data is omitted or represented as `null`
-4. All responses are UTF-8 encoded JSON
-5. Response times should be < 1s for most endpoints
-6. Large datasets (prices, signals) can take 2-5s due to database queries
+1. **Data Gaps:** Many fields return 0.0 or null because underlying loaders are incomplete (signal_quality_scores, market_health_daily, swing_trader_scores tables have minimal data)
+
+2. **Timeframe Support:** Endpoints with `timeframe` parameter support `daily`, `weekly`, `monthly`
+
+3. **Limits:** Default limits vary by endpoint (typically 50-50000 rows)
+
+4. **Database Tables:** Endpoints query these core tables:
+   - `price_daily`, `price_weekly`, `price_monthly` (5.8M+ rows)
+   - `buy_sell_daily` (466k rows)
+   - `technical_data_daily` (4.5M rows)
+   - `trend_template_data` (748k rows)
+   - `stock_symbols` (10k+ rows)
+   - `stock_scores` (10k rows)
+   - Other reference tables (sectors, industries, etc.)
+
+5. **Missing Tables with Data:** The following tables exist but have minimal/no data:
+   - `signal_quality_scores` (3 rows)
+   - `market_health_daily` (2 rows)
+   - `swing_trader_scores` (723 rows)
