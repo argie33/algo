@@ -256,7 +256,8 @@ def run(
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
             logger.info("[DRY-RUN] Phase 6: Skipping entry execution (dry-run mode)")
-            return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, 'DRY-RUN: execution skipped')
+            log_phase_result_fn(6, 'entry_execution', 'success', 'DRY-RUN: execution skipped')
+            return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, None)
 
         executor = TradeExecutor(config)
 
