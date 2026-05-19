@@ -24,6 +24,7 @@ Metrics computed:
 
 import json
 import numpy as np
+import psycopg2
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 import os
