@@ -322,8 +322,25 @@ locals {
       description = "Earnings calendar (next 180 days) - Sunday 11pm ET"
     }
 
+    # Market sentiment & economic data — run daily (data published at irregular intervals, daily refresh is fine)
+    "econ_data" = {
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "FRED economic indicators (GDP, unemployment, CPI, etc.) - Daily 6pm ET"
+    }
+    "feargreed" = {
+      schedule    = "cron(5 22 ? * MON-FRI *)"
+      description = "CNN Fear & Greed index - Daily 6:05pm ET"
+    }
+    "aaiidata" = {
+      schedule    = "cron(0 4 ? * FRI *)"
+      description = "AAII investor sentiment survey - Weekly Friday 12am ET (survey publishes Thursday)"
+    }
+    "naaim_data" = {
+      schedule    = "cron(5 4 ? * FRI *)"
+      description = "NAAIM exposure index - Weekly Friday 12:05am ET (publishes Wednesdays)"
+    }
+
     # NOTE: market_overview, relative_performance, social_sentiment deleted — no real data sources.
-    # NOTE: Some loaders are scheduled separately via EventBridge.
     # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
