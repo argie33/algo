@@ -1,5 +1,10 @@
 # Stock Analytics Platform — Live Paper Trading
 
+## STATUS
+- **Local:** ✅ 100% working (8.1M prices, 216K signals, 282 tests passing)
+- **AWS:** ⏳ Ready to deploy (Terraform written, secrets needed, GitHub Actions configured)
+- **Next:** Create AWS secrets (3 secrets, 5 min) → `git push main` → auto-deploys via GitHub Actions
+
 ## WHY This Matters
 Trading platform with real Alpaca credentials (paper + live). Security = non-negotiable. Every component must be bulletproof. Credentials rotated quarterly. Data flows: markets → loaders → database → signals → trades.
 
@@ -13,26 +18,21 @@ Trading platform with real Alpaca credentials (paper + live). Security = non-neg
 | **Signals** | `algo/algo_signals.py` | Called by Orchestrator | Orchestrator Phase 5 | Buy/sell signals from technical indicators (RSI, SMA, EMA, ATR, stages) |
 | **Tests** | `tests/`, `lambda/api/tests/` | Local | `pytest` | Unit + integration tests (282 passing) |
 
-## CREDENTIAL ARCHITECTURE
-```
-GitHub Secrets (source)
-  ↓ (encrypted)
-.github/workflows/* (reference them)
-  ↓ (at runtime)
-AWS Secrets Manager (stored)
-  ↓ (Lambda fetches via boto3)
-Lambda env vars ($DB_SECRET_ARN, $ALGO_SECRETS_ARN)
-  ↓ (at execution)
-Python: boto3.client('secretsmanager').get_secret_value()
-```
+## CREDENTIALS
 
-**Secrets in AWS Secrets Manager (JSON format):**
-- `algo/database` → `{username, password, host, port, dbname}`
-- `algo/alpaca` → `{api_key_id, api_secret_key, base_url}`
+**GitHub Secrets** (for CI/CD to deploy to AWS):
+- `AWS_ACCESS_KEY_ID` — IAM user for Terraform
+- `AWS_SECRET_ACCESS_KEY` — IAM user for Terraform
+- `ALPACA_API_KEY_ID` — Paper trading key
+- `ALPACA_API_SECRET_KEY` — Paper trading secret
+- `FRED_API_KEY` — Economic data API key
+
+**AWS Secrets Manager** (stored by Step 1 above):
+- `algo/database` → `{host, user, password, port, database}`
+- `algo/alpaca` → `{api_key, api_secret}`
 - `algo/fred` → `{api_key}`
 
-**Local Dev:**
-Set in PowerShell profile:
+**Local Dev** (PowerShell profile):
 ```powershell
 $env:DB_HOST="localhost"
 $env:DB_PASSWORD="stocks"
@@ -42,24 +42,55 @@ $env:ALPACA_API_SECRET_KEY="..."
 $env:FRED_API_KEY="..."
 ```
 
-**Never:** Hardcode credentials, commit `.env`, print secrets in logs.
+**Rule:** Never hardcode credentials, never commit `.env`, never print secrets in logs.
 
-## HOW TO WORK HERE
+## DEPLOYMENT (GitHub Actions Only)
 
-### Deploy Code
+**All deployment goes through GitHub Actions. No manual AWS CLI/Terraform commands.**
+
+### Step 1: Setup AWS Secrets (One-Time)
 ```bash
-git push origin main
-# → GitHub Actions: TruffleHog (secrets scan) → pip-audit (deps) → bandit (SAST) → tfsec (Terraform)
-# → Lambda redeploy (2-5 min)
-# → Monitor: .github/workflows/deploy-code.yml
+# Get Alpaca paper keys: https://app.alpaca.markets/settings/api-keys
+# Get FRED key: fred.stlouisfed.org → settings
+# Get RDS endpoint from AWS Console → RDS
+
+aws secretsmanager create-secret --name algo/alpaca \
+  --secret-string '{"api_key":"...","api_secret":"..."}' --region us-east-1
+
+aws secretsmanager create-secret --name algo/fred \
+  --secret-string '{"api_key":"..."}' --region us-east-1
+
+aws secretsmanager create-secret --name algo/database \
+  --secret-string '{"host":"...","user":"stocks","password":"...","port":5432}' --region us-east-1
 ```
 
-### Deploy Infrastructure
+### Step 2: Deploy Code & Infrastructure
 ```bash
-cd terraform
-terraform plan -var-file=terraform.tfvars
-terraform apply
-# → New AWS resources: CloudTrail, RDS, Lambda, ECS, CloudFront, Cognito, etc.
+git add .
+git commit -m "ready for deployment"
+git push origin main
+
+# GitHub Actions will:
+# 1. Scan for secrets (TruffleHog)
+# 2. Run tests (pytest)
+# 3. Check security (bandit, pip-audit, tfsec)
+# 4. Deploy Terraform (infrastructure)
+# 5. Deploy Lambda functions
+# 6. Update EventBridge schedules
+
+# Monitor at: https://github.com/argie33/algo/actions
+```
+
+### Step 3: Verify Deployment
+```bash
+# Check Lambda deployed
+aws lambda get-function-configuration --function-name stocks-algo-prod --region us-east-1
+
+# Check logs
+aws logs tail /aws/lambda/stocks-algo-prod --follow --region us-east-1
+
+# Test orchestrator
+aws lambda invoke --function-name stocks-algo-prod --payload '{"source":"schedule"}' response.json --region us-east-1
 ```
 
 ### Test Locally
