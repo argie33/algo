@@ -26,6 +26,82 @@ from algo.algo_margin_monitor import MarginMonitor
 logger = logging.getLogger(__name__)
 
 
+def _validate_and_adjust_entry_price(
+    trade: Dict[str, Any],
+    get_conn: Callable,
+    verbose: bool = False
+) -> Dict[str, Any]:
+    """
+    Validate entry price hasn't drifted >2% since signal generation.
+    If drifted, recalculate position size at current price.
+
+    Returns: Modified trade dict with current_price, adjusted shares if needed
+    """
+    symbol = trade['symbol']
+    signal_price = trade['entry_price']
+    shares = trade['shares']
+    stop_loss = trade['stop_loss_price']
+
+    try:
+        conn = get_conn()
+        if not conn:
+            return trade
+
+        cur = conn.cursor()
+
+        # Get most recent price for this symbol
+        cur.execute("""
+            SELECT close FROM price_daily
+            WHERE symbol = %s
+            ORDER BY date DESC LIMIT 1
+        """, (symbol,))
+        result = cur.fetchone()
+        cur.close()
+
+        if not result:
+            if verbose:
+                logger.warning(f"  {symbol}: No recent price data, using signal price")
+            return trade
+
+        current_price = float(result[0])
+        price_drift_pct = abs(current_price - signal_price) / signal_price * 100
+
+        # If price drifted >2%, recalculate position size
+        if price_drift_pct > 2.0:
+            # Risk should still be same dollar amount
+            risk_per_share_at_signal = signal_price - stop_loss
+            risk_per_share_at_current = current_price - stop_loss
+
+            if risk_per_share_at_current > 0:
+                adjusted_shares = int(shares * risk_per_share_at_signal / risk_per_share_at_current)
+
+                if adjusted_shares < 1:
+                    if verbose:
+                        logger.warning(f"  {symbol}: Position too small after price drift ({adjusted_shares} sh), skipping")
+                    trade['skip_due_to_price_drift'] = True
+                    return trade
+
+                logger.info(f"  {symbol}: Price drifted {price_drift_pct:.1f}% "
+                          f"(${signal_price:.2f} → ${current_price:.2f}) "
+                          f"- adjusted {shares} → {adjusted_shares} shares to maintain risk")
+
+                trade['entry_price'] = current_price
+                trade['shares'] = adjusted_shares
+                trade['price_adjusted'] = True
+                trade['adjustment_reason'] = f"Price drift {price_drift_pct:.1f}%"
+            else:
+                if verbose:
+                    logger.warning(f"  {symbol}: Current price below stop loss, skipping")
+                trade['skip_due_to_price_drift'] = True
+                return trade
+
+        return trade
+
+    except Exception as e:
+        logger.warning(f"  {symbol}: Price validation failed ({e}), using signal price")
+        return trade
+
+
 def _validate_pre_trade_data_quality(
     get_conn: Callable,
     run_date: _date,
@@ -156,7 +232,7 @@ def _validate_pre_trade_data_quality(
                 warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
 
         cur.execute(
-            "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s",
             (today,)
         )
         result = cur.fetchone()
@@ -380,6 +456,13 @@ def run(
         blocked = 0
         errors = 0
         for trade in trades_to_enter[:open_slots]:
+            # Validate entry price hasn't drifted significantly
+            trade = _validate_and_adjust_entry_price(trade, get_conn, verbose)
+            if trade.get('skip_due_to_price_drift'):
+                blocked += 1
+                logger.warning(f"  SKIPPED {trade['symbol']}: Price validation failed")
+                continue
+
             if dry_run:
                 if verbose:
                     logger.info(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "

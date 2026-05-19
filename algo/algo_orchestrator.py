@@ -830,15 +830,6 @@ class Orchestrator:
                 self.phase_7_reconcile()
                 return self._final_report()
 
-            # Phase 3a: Reconciliation
-            try:
-                with TimeBlock("phase_3a_reconciliation"):
-                    self.phase_3a_reconciliation()
-                logger.info("[OK] Phase 3a (Reconciliation) completed")
-            except Exception as e:
-                logger.error(f"✗ Phase 3a (Reconciliation) failed: {e}", exc_info=True)
-                self.log_phase_result(3, 'reconciliation', 'error', str(e))
-
             # Phase 3: Position Monitor
             try:
                 with TimeBlock("phase_3_position_monitor"):
@@ -868,6 +859,15 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, 'exit_execution', 'error', str(e))
+
+            # Phase 3a: Reconciliation (AFTER exits, BEFORE entries, to get fresh position counts)
+            try:
+                with TimeBlock("phase_3a_reconciliation"):
+                    self.phase_3a_reconciliation()
+                logger.info("[OK] Phase 3a (Reconciliation — post-exits) completed")
+            except Exception as e:
+                logger.error(f"✗ Phase 3a (Reconciliation — post-exits) failed: {e}", exc_info=True)
+                self.log_phase_result('3a', 'reconciliation_post_exits', 'error', str(e))
 
             # Phase 4b: Pyramid Adds
             try:
