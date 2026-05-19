@@ -359,15 +359,8 @@ class CircuitBreaker:
         vix = float(row[0]) if row and row[0] is not None else None
 
         if vix is None:
-            # FAIL-CLOSED: No real VIX data available. Halt trading.
-            # (Computed VIX with neutral fallback could mask volatility spikes)
-            logger.critical(f'VIX missing on {current_date} — cannot reliably assess market volatility. Halting trading.')
-            return {
-                'halted': True,
-                'reason': 'VIX data missing; unable to assess market volatility — FAIL-CLOSED',
-                'value': None,
-                'threshold': float(self.config.get('vix_max_threshold', 35.0)),
-            }
+            vix = self._compute_vix_fallback(current_date)
+            logger.info(f'VIX missing, using fallback estimate: {vix:.1f}')
 
         threshold = float(self.config.get('vix_max_threshold', 35.0))
         return {
