@@ -92,7 +92,7 @@ class BuySellSignalsLoader(OptimalLoader):
             else:  # monthly
                 self.table_name = "buy_sell_monthly"
 
-        self.primary_key = ("symbol", "date")
+        self.primary_key = ("symbol", "timeframe", "date")
         self.watermark_field = "date"
         super().__init__(*args, **kwargs)
 
@@ -336,6 +336,7 @@ class BuySellSignalsLoader(OptimalLoader):
         return {
             "symbol": symbol,
             "date": date_str,
+            "timeframe": self.timeframe,
             "signal": signal_str,
             "strength": round(strength, 4),
             "reason": "; ".join(reason_parts)[:255] if reason_parts else f"{signal_str} signal",
