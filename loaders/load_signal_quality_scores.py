@@ -58,8 +58,8 @@ class SignalQualityScoresLoader(OptimalLoader):
         cur = conn.cursor()
         try:
             cur.execute(
-                "SELECT date, signal FROM buy_sell_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s AND signal IN ('BUY', 'SELL') ORDER BY date ASC",
+                "SELECT date, signal_type FROM buy_sell_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s AND signal_type IN ('BUY', 'SELL') ORDER BY date ASC",
                 (symbol, start, end),
             )
             return [{"date": r[0].isoformat(), "signal_type": r[1]} for r in cur.fetchall()]
@@ -158,8 +158,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             results.append({
                 "symbol": symbol,
                 "date": row["date"].date().isoformat(),
-                "signal_type": signal_type,
-                "quality_score": float(score),
+                "composite_sqs": int(score),
             })
 
         return results

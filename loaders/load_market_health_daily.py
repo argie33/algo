@@ -108,23 +108,23 @@ class MarketHealthDailyLoader(OptimalLoader):
             if sma_200 and sma_50:
                 if close > sma_50 > sma_200:
                     market_trend = "uptrend"
-                    market_stage = 1
+                    market_stage = 2
                 elif close < sma_50 < sma_200:
                     market_trend = "downtrend"
                     market_stage = 4
                 else:
                     market_trend = "mixed"
-                    market_stage = 2
+                    market_stage = 1
             elif sma_200:
                 if close > sma_200 * 1.05:
                     market_trend = "uptrend"
-                    market_stage = 1
+                    market_stage = 2
                 elif close < sma_200 * 0.95:
                     market_trend = "downtrend"
                     market_stage = 4
                 else:
                     market_trend = "consolidation"
-                    market_stage = 2
+                    market_stage = 1
 
             # Count distribution days (last 4 weeks = ~20 trading days)
             dist_days_4w = int(df["distribution_day"].iloc[max(0, idx-20):idx+1].sum()) if idx >= 0 else 0

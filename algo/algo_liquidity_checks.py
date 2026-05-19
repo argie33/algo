@@ -4,6 +4,7 @@ Liquidity checks for Tier 5 portfolio health filtering.
 Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
+import psycopg2
 from datetime import datetime, timedelta
 from pathlib import Path
 from utils.structured_logger import get_logger
