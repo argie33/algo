@@ -147,7 +147,42 @@ jobs:
           aws lambda wait function-updated \
             --function-name "$FUNC" \
             --region $AWS_REGION
-          echo "✅ Algo Lambda deployed: $FUNC"
+          echo "✅ Algo Lambda code deployed: $FUNC"
+
+      - name: Configure Algo Lambda Environment Variables
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+
+          # Get current configuration
+          CURRENT_CONFIG=$(aws lambda get-function-configuration \
+            --function-name "$FUNC" \
+            --region $AWS_REGION \
+            --output json)
+
+          # Build environment variables JSON
+          ENV_VARS=$(cat <<EOF
+          {
+            "APCA_API_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
+            "APCA_API_SECRET_KEY": "${{ secrets.ALPACA_API_SECRET_KEY }}",
+            "APCA_API_BASE_URL": "https://paper-api.alpaca.markets",
+            "ORCHESTRATOR_DRY_RUN": "false"
+          }
+          EOF
+          )
+
+          # Update function configuration with credentials
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --environment "{\"Variables\":$(echo "$ENV_VARS" | jq -c .)}" \
+            --region $AWS_REGION
+
+          aws lambda wait function-updated \
+            --function-name "$FUNC" \
+            --region $AWS_REGION
+
+          echo "✅ Alpaca credentials configured in Lambda"
+          echo "   API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}" | sed 's/.*/   API_KEY_ID: PK.../'
+          echo "   API_SECRET_KEY: [configured]"
 
   # ──────────────────────────────────────────────────────────────
   # API Lambda
