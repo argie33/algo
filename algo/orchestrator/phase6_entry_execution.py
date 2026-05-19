@@ -26,6 +26,66 @@ from algo.algo_margin_monitor import MarginMonitor
 logger = logging.getLogger(__name__)
 
 
+def _recalculate_position_size_after_exits(
+    trade: Dict[str, Any],
+    get_conn: Callable,
+    exposure_multiplier: float = 1.0,
+    verbose: bool = False
+) -> Dict[str, Any]:
+    """
+    Recalculate position size based on current portfolio value (after Phase 4 exits).
+
+    Issue: Phase 5 calculates position size assuming Phase 5 portfolio value.
+           Phase 4 executes exits, freeing capital.
+           Phase 6 should use CURRENT portfolio value, not stale Phase 5 value.
+
+    Solution: Recalculate position size based on:
+    - Current available capital
+    - Same risk percentage (2%)
+    - Entry price + stop loss
+    - Exposure tier multiplier (1.0x normal, 0.75x caution, 0.5x pressure)
+
+    Returns: Modified trade dict with recalculated shares
+    """
+    symbol = trade['symbol']
+    entry_price = trade.get('entry_price', 0)
+    stop_loss = trade.get('stop_loss_price', 0)
+
+    if entry_price <= 0 or stop_loss <= 0 or entry_price <= stop_loss:
+        return trade
+
+    try:
+        from algo.algo_position_sizer import PositionSizer
+
+        sizer = PositionSizer()
+        # Get current portfolio value (not stale Phase 5 value)
+        current_result = sizer.calculate_position_size(
+            symbol=symbol,
+            entry_price=entry_price,
+            stop_loss_price=stop_loss,
+            run_date=trade.get('signal_date')  # Recalc with current data
+        )
+
+        if current_result.get('shares', 0) > 0:
+            original_shares = trade.get('shares', 0)
+            recalc_shares = int(current_result['shares'] * exposure_multiplier)
+
+            # Only update if significantly different (>5% change)
+            if original_shares > 0:
+                size_change_pct = abs(recalc_shares - original_shares) / original_shares * 100
+                if size_change_pct > 5:
+                    logger.info(f"  {symbol}: Position size updated after exits "
+                              f"{original_shares} → {recalc_shares} shares (+{size_change_pct:.1f}%)")
+                    trade['shares'] = recalc_shares
+                    trade['position_size_recalculated'] = True
+                    trade['original_shares'] = original_shares
+
+        return trade
+    except Exception as e:
+        logger.warning(f"  {symbol}: Position size recalculation failed ({e}), using original")
+        return trade
+
+
 def _validate_and_adjust_entry_price(
     trade: Dict[str, Any],
     get_conn: Callable,
@@ -455,6 +515,32 @@ def run(
         entered = 0
         blocked = 0
         errors = 0
+
+        # Recalculate exposure constraints based on CURRENT portfolio (after Phase 4 exits)
+        # Issue: exposure_constraints from Phase 3b are stale (calculated before Phase 4 exits)
+        # Solution: Recalculate based on current exposure to get accurate risk multiplier
+        try:
+            from algo.algo_market_exposure_policy import ExposurePolicy
+            exposure_policy = ExposurePolicy(config)
+            current_constraints = exposure_policy.get_entry_constraints(run_date)
+
+            if current_constraints and exposure_constraints:
+                old_mult = exposure_constraints.get('risk_multiplier', 1.0)
+                new_mult = current_constraints.get('risk_multiplier', 1.0)
+                if new_mult != old_mult:
+                    logger.info(f"  Exposure constraints recalculated after exits: "
+                              f"tier '{exposure_constraints.get('tier_name')}' → "
+                              f"'{current_constraints.get('tier_name')}', "
+                              f"risk_mult {old_mult:.2f}x → {new_mult:.2f}x")
+                    exposure_constraints = current_constraints
+        except Exception as e:
+            logger.warning(f"  Could not recalculate exposure constraints: {e}")
+
+        # Get exposure multiplier for position size recalculation
+        exposure_mult = 1.0
+        if exposure_constraints:
+            exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
+
         for trade in trades_to_enter[:open_slots]:
             # Validate entry price hasn't drifted significantly
             trade = _validate_and_adjust_entry_price(trade, get_conn, verbose)
@@ -462,6 +548,9 @@ def run(
                 blocked += 1
                 logger.warning(f"  SKIPPED {trade['symbol']}: Price validation failed")
                 continue
+
+            # Recalculate position size based on current portfolio value (after Phase 4 exits)
+            trade = _recalculate_position_size_after_exits(trade, get_conn, exposure_mult, verbose)
 
             if dry_run:
                 if verbose:
