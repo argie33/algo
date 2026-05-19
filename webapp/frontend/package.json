@@ -55,7 +55,7 @@
     "eslint-plugin-unused-imports": "^4.2.0",
     "glob": "^11.0.3",
     "jsdom": "^23.2.0",
-    "playwright": "^1.55.0",
+    "playwright": "^1.60.0",
     "postcss": "^8.5.13",
     "prettier": "^3.6.2",
     "puppeteer": "^24.42.0",

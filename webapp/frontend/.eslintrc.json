@@ -23,7 +23,7 @@
       "version": "detect"
     }
   },
-  "plugins": ["react"],
+  "plugins": ["react", "react-hooks"],
   "globals": {
     "globalThis": "readonly",
     "vi": "readonly"
