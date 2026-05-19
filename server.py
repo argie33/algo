@@ -12,12 +12,12 @@ import importlib
 from flask import Flask, request
 from flask_cors import CORS
 
-# Set local database environment variables
+# Set local database environment variables (read from environment or use defaults)
 os.environ.setdefault('DB_HOST', 'localhost')
 os.environ.setdefault('DB_PORT', '5432')
 os.environ.setdefault('DB_NAME', 'stocks')
 os.environ.setdefault('DB_USER', 'stocks')
-os.environ.setdefault('DB_PASSWORD', 'password')
+os.environ.setdefault('DB_PASSWORD', 'postgres')
 
 # Add lambda/api to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lambda', 'api'))
