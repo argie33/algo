@@ -75,8 +75,8 @@ tier_2_reference = [
     'loadseasonality.py',
 ]
 
-# Tier 2c: TTM aggregates - REMOVED (consolidated into quarterly reports, not needed separately)
-tier_2c_ttm = []
+# Tier 2c: TTM aggregates (depends on quarterly financial data from tier 2)
+tier_2c_ttm = ['load_ttm_aggregates.py']
 
 # Tier 2b: Computed metrics (depends on tier 2 financials)
 tier_2b_metrics = [

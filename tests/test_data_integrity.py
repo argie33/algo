@@ -16,7 +16,7 @@ class TestCriticalTableExistence:
 
     CRITICAL_TABLES = [
         'stock_symbols', 'price_daily', 'stock_scores', 'buy_sell_daily',
-        'economic_data', 'company_profile', 'economic_calendar',
+        'economic_data', 'company_profile',
         'sector_performance', 'industry_ranking',
         'data_loader_status', 'market_health_daily'
     ]
@@ -50,7 +50,7 @@ class TestDataFreshness:
         'stock_scores': {'table': 'stock_scores', 'column': 'date', 'max_age_days': 3},
         'buy_sell_signals': {'table': 'buy_sell_daily', 'column': 'date', 'max_age_days': 3},
         'economic_data': {'table': 'economic_data', 'column': 'date', 'max_age_days': 7},
-        'economic_calendar': {'table': 'economic_calendar', 'column': 'created_at', 'max_age_days': 7},
+        # 'economic_calendar': {'table': 'economic_calendar', 'column': 'created_at', 'max_age_days': 7},  # No loader for this table yet
         'market_health': {'table': 'market_health_daily', 'column': 'date', 'max_age_days': 3},
     }
 

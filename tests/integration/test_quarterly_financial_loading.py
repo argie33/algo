@@ -26,7 +26,7 @@ class TestQuarterlyIncomeStatement:
 
     def test_quarterly_income_statement_table_exists(self, seeded_test_db):
         """Verify quarterly_income_statement table exists with correct schema."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
@@ -52,14 +52,21 @@ class TestQuarterlyIncomeStatement:
 
     def test_quarterly_income_statement_unique_constraint(self, seeded_test_db):
         """Verify (symbol, fiscal_year, fiscal_quarter) uniqueness constraint."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
             # Try inserting duplicate
-            symbol = 'TEST_QTR'
+            symbol = 'TEST_QTR_CONSTRAINT'
             fiscal_year = 2025
             fiscal_quarter = 1
+
+            # Clean up any existing test data
+            cur.execute("""
+                DELETE FROM quarterly_income_statement
+                WHERE symbol = %s AND fiscal_year = %s AND fiscal_quarter = %s
+            """, (symbol, fiscal_year, fiscal_quarter))
+            conn.commit()
 
             # First insert
             cur.execute("""
@@ -78,8 +85,15 @@ class TestQuarterlyIncomeStatement:
                 """, (symbol, fiscal_year, fiscal_quarter, 2000000.0, 200000.0, 2.50))
                 conn.commit()
         finally:
-            conn.rollback()
-            cur.close()
+            # Clean up test data
+            try:
+                cur.execute("""
+                    DELETE FROM quarterly_income_statement
+                    WHERE symbol LIKE 'TEST_QTR%'
+                """)
+                conn.commit()
+            except:
+                pass
             conn.close()
 
 
@@ -89,7 +103,7 @@ class TestQuarterlyBalanceSheet:
 
     def test_quarterly_balance_sheet_table_exists(self, seeded_test_db):
         """Verify quarterly_balance_sheet table exists with correct schema."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
@@ -120,7 +134,7 @@ class TestQuarterlyCashFlow:
 
     def test_quarterly_cash_flow_table_exists(self, seeded_test_db):
         """Verify quarterly_cash_flow table exists with correct schema."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
@@ -151,7 +165,7 @@ class TestTTMAggregates:
 
     def test_ttm_income_statement_table_exists(self, seeded_test_db):
         """Verify ttm_income_statement table exists."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
@@ -177,7 +191,7 @@ class TestTTMAggregates:
 
     def test_ttm_cash_flow_table_exists(self, seeded_test_db):
         """Verify ttm_cash_flow table exists."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
@@ -208,7 +222,7 @@ class TestQuarterlyDataIntegration:
 
     def test_quarterly_data_populated_in_tier(self, seeded_test_db):
         """Verify quarterly data can be queried for signal quality assessment."""
-        conn = psycopg2.connect(**{**get_db_config(), 'database': 'stocks_test'})
+        conn = psycopg2.connect(**get_db_config())
         cur = conn.cursor()
 
         try:
