@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  RefreshCw, TrendingUp, _TrendingDown, _Minus, Activity,
+  RefreshCw, TrendingUp, Activity,
   AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home,
 } from 'lucide-react';
 import {
-  LineChart, Line, AreaChart, Area, _BarChart, _Bar, _ComposedChart,
+  LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip,
-  ReferenceLine, Legend, _Cell,
+  ReferenceLine, Legend,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';

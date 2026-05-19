@@ -15,7 +15,7 @@ import {
   CartesianGrid, Tooltip as RTooltip, LineChart, BarChart, PieChart, Pie, Cell,
   ReferenceLine,
 } from 'recharts';
-import { ArrowLeft, RefreshCw, Inbox, _TrendingUp, _Activity, _Target, _Briefcase, _BarChart3, _Users } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Inbox } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
