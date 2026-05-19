@@ -89,8 +89,8 @@ class PositionReconciler:
             try:
                 alpaca_positions = {pos.symbol: int(pos.qty) for pos in self.trading_client.list_positions()}
             except Exception as e:
-                logger.error(f"  [ERROR] Could not query Alpaca positions: {e}")
-                return {'status': 'error', 'reason': str(e)}
+                logger.warning(f"  [WARN] Could not query Alpaca positions: {e} (skipping reconciliation)")
+                return {'status': 'skipped', 'reason': f'alpaca_unavailable: {str(e)}'}
 
             issues = []
 

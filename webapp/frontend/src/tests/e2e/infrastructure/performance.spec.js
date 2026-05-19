@@ -325,8 +325,7 @@ test.describe("Performance Tests", () => {
         `Navigation time: ${navigationTime}ms`
       ).toBeLessThan(2000);
     } else {
-        "ℹ️ Portfolio navigation not found - test passed as page loaded"
-      );
+      // Portfolio navigation not found - test passed as page loaded
       expect(true).toBe(true);
     }
   });

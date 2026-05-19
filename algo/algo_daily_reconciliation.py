@@ -608,7 +608,7 @@ class DailyReconciliation:
             }
 
         except Exception as e:
-            logger.info(f"Warning: Could not fetch Alpaca account: {e}")
+            logger.warning(f"Could not fetch Alpaca account (skipping): {e}")
             return None
 
 if __name__ == "__main__":

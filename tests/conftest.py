@@ -35,7 +35,9 @@ os.environ.setdefault('DB_USER', DEFAULT_DB_USER)
 # Test database config — use test-specific DB if available, fallback to main DB
 TEST_DB_HOST = os.getenv('TEST_DB_HOST') or os.getenv('DB_HOST') or DEFAULT_DB_HOST
 TEST_DB_PORT = int(os.getenv('TEST_DB_PORT') or os.getenv('DB_PORT', 5432))
-TEST_DB_NAME = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME') or 'stocks_test'
+# Default: try stocks_test, fallback to stocks if explicit DB_NAME not set
+_explicit_db_name = os.getenv('TEST_DB_NAME') or os.getenv('DB_NAME')
+TEST_DB_NAME = _explicit_db_name or 'stocks'  # Default to stocks, not stocks_test
 TEST_DB_USER = os.getenv('TEST_DB_USER') or os.getenv('DB_USER') or DEFAULT_DB_USER
 TEST_DB_PASSWORD = os.getenv('TEST_DB_PASSWORD') or os.getenv('DB_PASSWORD') or ''
 

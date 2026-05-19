@@ -154,8 +154,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
       }
     }
 
-      `📊 Route accessibility: ${accessibleRoutes} accessible, ${redirectedRoutes} protected`
-    );
+    console.log(`Route accessibility: ${accessibleRoutes} accessible, ${redirectedRoutes} protected`);
 
     // Should have tested at least one route successfully
     const totalTested = accessibleRoutes + redirectedRoutes;
@@ -209,8 +208,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
     const pageContent = await page.locator("#root").textContent();
     const hasContent = pageContent && pageContent.length > 500;
 
-      `📄 Page content loaded: ${hasContent ? "Yes" : "No"} (${pageContent?.length || 0} chars)`
-    );
+    console.log(`Page content loaded: ${hasContent ? "Yes" : "No"} (${pageContent?.length || 0} chars)`);
 
     // Test passes if page loads with interactive elements or content
     expect(interactiveElements + contentElements).toBeGreaterThan(0);

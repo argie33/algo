@@ -229,9 +229,6 @@ describe("Market Data Contract Tests", () => {
       },
       { timeout: 15000 } // Allow time for charts and complex components
     );
-
-      "✅ MarketOverview component successfully integrates with backend API"
-    );
   });
 
   it("should render SectorAnalysis component with real backend data and display sectors", async () => {
@@ -279,9 +276,6 @@ describe("Market Data Contract Tests", () => {
         ).not.toBeInTheDocument();
       },
       { timeout: 12000 }
-    );
-
-      "✅ SectorAnalysis component successfully displays backend sector data"
     );
   });
 });
