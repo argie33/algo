@@ -605,22 +605,36 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
   })
 }
 
-resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
-  name                = "${var.project_name}-eod-pipeline-${var.environment}"
-  description         = "EOD pipeline: prices → technicals → signals (4:05pm ET)"
-  schedule_expression = "cron(5 20 ? * MON-FRI *)"
+resource "aws_cloudwatch_event_rule" "morning_pipeline_trigger" {
+  name                = "${var.project_name}-morning-pipeline-${var.environment}"
+  description         = "Morning data prep: technicals → signals for market open (5:30am ET)"
+  schedule_expression = "cron(30 9 ? * MON-FRI *)"
   state               = "ENABLED"
   tags                = var.common_tags
 }
 
-# Orchestrator daily trigger at 5:30pm ET (21:30 UTC)
-# Runs AFTER data pipeline completes, ensures fresh signals available
-resource "aws_cloudwatch_event_rule" "algo_orchestrator_daily" {
-  name                = "${var.project_name}-orchestrator-daily-${var.environment}"
-  description         = "Daily algorithmic orchestrator: positions, exits, entries (5:30pm ET)"
-  schedule_expression = "cron(30 21 ? * MON-FRI *)" # 5:30pm ET = 21:30 UTC
+resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
+  name                = "${var.project_name}-eod-pipeline-${var.environment}"
+  description         = "EOD pipeline: end-of-day analysis & swing scores (5:00pm ET)"
+  schedule_expression = "cron(0 21 ? * MON-FRI *)"
   state               = "ENABLED"
   tags                = var.common_tags
+}
+
+# Orchestrator daily trigger at market open (9:30am ET)
+# Runs AFTER morning data pipeline completes
+resource "aws_cloudwatch_event_rule" "algo_orchestrator_daily" {
+  name                = "${var.project_name}-orchestrator-daily-${var.environment}"
+  description         = "Daily algorithmic orchestrator: positions, exits, entries at market open (9:30am ET)"
+  schedule_expression = "cron(30 13 ? * MON-FRI *)" # 9:30am EDT = 13:30 UTC
+  state               = "ENABLED"
+  tags                = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "morning_pipeline" {
+  rule     = aws_cloudwatch_event_rule.morning_pipeline_trigger.name
+  arn      = aws_sfn_state_machine.eod_pipeline.arn
+  role_arn = aws_iam_role.eventbridge_sfn.arn
 }
 
 resource "aws_cloudwatch_event_target" "eod_pipeline" {
