@@ -269,10 +269,11 @@ class BuySellSignalsLoader(OptimalLoader):
         macd = _f("macd")
         signal_line = _f("signal_line")
         sma_50 = _f("sma_50")
+        sma_200 = _f("sma_200")
         ema_21 = _f("ema_21")
         avg_volume_50d = _f("avg_volume_50d")
 
-        if any(v is None for v in [rsi, macd, signal_line, sma_50, ema_21, avg_volume_50d]):
+        if any(v is None for v in [rsi, macd, signal_line, sma_50, sma_200, ema_21, avg_volume_50d]):
             return None
 
         # FIX: Suppress ALL Stage 4 downtrend signals (not just when trend_data is populated)
@@ -355,14 +356,162 @@ class BuySellSignalsLoader(OptimalLoader):
             strength = min(100.0, (vol_ratio - 1.0) * 30.0 + max(0.0, 50 - rsi) * 0.5)
         strength = max(0.0, strength)
 
+        # QUALITY SCORES (critical for swing trader scoring)
+        # Entry Quality: How well-positioned is the entry point? (0-100)
+        entry_quality = self._compute_entry_quality(
+            signal_str, close, pivot, sma_50, ema_21, sma_200,
+            close_quality, rsi, vol_ratio, row_idx, df
+        )
+
+        # Signal Quality: How strong/reliable is the signal? (0-100)
+        signal_quality = self._compute_signal_quality(
+            signal_str, rsi, vol_ratio, close_quality, macd, signal_line,
+            close, sma_50, ema_21, trend_data.get(date_str, {})
+        )
+
+        # Extract additional technical data from row for completeness
+        atr = _f("atr")
+        adx = _f("adx")
+
         return {
             "symbol": symbol,
             "date": date_str,
             "timeframe": self.timeframe,
             "signal": signal_str,
+            "signal_type": signal_str,
             "strength": round(strength, 4),
             "reason": "; ".join(reason_parts)[:255] if reason_parts else f"{signal_str} signal",
+            "entry_quality_score": round(entry_quality, 2),
+            "signal_quality_score": round(signal_quality, 2),
+            "volume_surge_pct": round((vol_ratio - 1.0) * 100, 2) if vol_ratio > 0 else 0.0,
+            # Technical indicators needed by filter pipeline (matches buy_sell_daily schema)
+            "rsi": round(rsi, 2) if rsi is not None else None,
+            "sma_50": round(sma_50, 2) if sma_50 is not None else None,
+            "sma_200": round(sma_200, 2) if sma_200 is not None else None,
+            "ema_21": round(ema_21, 2) if ema_21 is not None else None,
+            "atr": round(atr, 4) if atr is not None else None,
+            "adx": round(adx, 2) if adx is not None else None,
+            "macd": round(macd, 4) if macd is not None else None,
+            "macd_signal": round(signal_line, 4) if signal_line is not None else None,
+            # Stage data needed for filter gating
+            "stage_number": stage_number,
         }
+
+    def _compute_entry_quality(self, signal_type, close, pivot, sma_50, ema_21, sma_200,
+                                close_quality, rsi, vol_ratio, row_idx, df) -> float:
+        """Compute entry quality score (0-100).
+
+        Measures: How well-positioned is the entry relative to key support/resistance levels?
+        - BUY: Closer to support (farther from resistance), strong momentum, after consolidation
+        - SELL: Farther from support, weak momentum
+        """
+        if signal_type != "BUY":
+            return 50.0  # Neutral for SELL signals
+
+        score = 0.0
+
+        # Distance from pivot (consolidation base) - smaller is better
+        if pivot and pivot > 0:
+            pct_above_pivot = ((close - pivot) / pivot * 100)
+            if pct_above_pivot <= 5.0:
+                score += 30  # Just breakout - ideal entry
+            elif pct_above_pivot <= 10.0:
+                score += 20  # Reasonable pullback entry
+            elif pct_above_pivot <= 20.0:
+                score += 10  # Far from base
+            # else: 0 points if too far above
+        else:
+            score += 15  # Fallback if no pivot
+
+        # Position relative to moving averages
+        if sma_200 and sma_50:
+            if close > sma_200 and close > sma_50:
+                score += 20  # Above both key MAs - strong uptrend
+            elif close > sma_50:
+                score += 10  # Above 50 MA
+
+        # Close quality (how strong is the close?) - 0-100
+        score += (close_quality * 20)  # Up to 20 points
+
+        # RSI positioning (not overbought)
+        if 45 <= rsi <= 70:
+            score += 15  # Healthy momentum zone
+        elif 40 <= rsi <= 75:
+            score += 10  # Acceptable momentum
+
+        # Volume confirmation
+        if vol_ratio >= 2.0:
+            score += 10  # Strong volume surge
+        elif vol_ratio >= 1.5:
+            score += 5   # Moderate volume surge
+
+        return min(100.0, max(0.0, score))
+
+    def _compute_signal_quality(self, signal_type, rsi, vol_ratio, close_quality,
+                                macd, signal_line, close, sma_50, ema_21, trend_info) -> float:
+        """Compute signal quality score (0-100).
+
+        Measures: How strong and reliable is the technical signal?
+        - Technical alignment (MACD, RSI, price vs MAs)
+        - Trend confirmation
+        - Volume backup
+        """
+        score = 0.0
+
+        # MACD confirmation - strongest indicator
+        if macd and signal_line:
+            if signal_type == "BUY" and macd > signal_line:
+                histogram = macd - signal_line
+                if histogram > 0.1:  # Strong bullish
+                    score += 25
+                else:
+                    score += 15  # Marginal bullish
+            elif signal_type == "SELL" and macd < signal_line:
+                histogram = signal_line - macd
+                if histogram > 0.1:  # Strong bearish
+                    score += 25
+                else:
+                    score += 15  # Marginal bearish
+
+        # RSI momentum
+        if signal_type == "BUY":
+            if 45 <= rsi <= 70:
+                score += 20  # Healthy momentum, not overbought
+            elif 40 <= rsi <= 80:
+                score += 10
+        else:  # SELL
+            if 30 <= rsi <= 55:
+                score += 20  # Weakness, not oversold
+            elif 20 <= rsi <= 60:
+                score += 10
+
+        # Price position relative to EMAs
+        if signal_type == "BUY":
+            if close > ema_21 and close > sma_50:
+                score += 15  # Above both short and medium term
+            elif close > ema_21 or close > sma_50:
+                score += 8   # Above at least one
+        else:  # SELL
+            if close < ema_21 or close < sma_50:
+                score += 15  # Below key moving average
+
+        # Close quality (strength of the close)
+        score += (close_quality * 10)  # Up to 10 points
+
+        # Volume confirmation
+        if vol_ratio >= 2.0:
+            score += 15  # Strong volume
+        elif vol_ratio >= 1.5:
+            score += 10  # Moderate volume
+        elif vol_ratio >= 1.25:
+            score += 5   # Light volume
+
+        # Trend stage from trend_data (if available)
+        stage = trend_info.get('stage_number')
+        if signal_type == "BUY" and stage == 2:
+            score += 10  # Stage 2 is optimal for breakouts
+
+        return min(100.0, max(0.0, score))
 
     def transform(self, rows):
         """Signals are already clean from compute stage."""
@@ -372,7 +521,14 @@ class BuySellSignalsLoader(OptimalLoader):
         """Validate signal row."""
         if not super()._validate_row(row):
             return False
-        return row.get("signal") in ("BUY", "SELL")
+        # Check signal field
+        signal = row.get("signal") or row.get("signal_type")
+        if signal not in ("BUY", "SELL"):
+            return False
+        # Check quality scores are populated (new requirement)
+        entry_q = float(row.get("entry_quality_score", 0))
+        signal_q = float(row.get("signal_quality_score", 0))
+        return entry_q >= 0 and signal_q >= 0  # Should be > 0 for good signals
 
 
 
