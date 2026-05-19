@@ -35,6 +35,7 @@ const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
+const auditLogger = require("./middleware/auditLogger");
 const { initializeDatabase, initializeSchema, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const { marketCache } = require("./utils/market-cache");
@@ -105,11 +106,27 @@ app.use(
         // Note: If inline styles are required, add nonces instead of unsafe-inline
         // styleSrc: ["'self'", "https://fonts.googleapis.com", `'nonce-${nonce}'`]
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        // FIXED: Use specific domains instead of wildcard "https:"
+        // Allows data URIs and blobs for charts/images, but restricts external images to whitelist
+        imgSrc: [
+          "'self'",
+          "data:",
+          "blob:",
+          process.env.CLOUDFRONT_DOMAIN || "https://d*.cloudfront.net",
+          "https://fonts.gstatic.com",
+          "https://fonts.googleapis.com"
+        ].filter(Boolean),
         scriptSrc: ["'self'"],
         // Note: If inline scripts are required, add nonces instead of unsafe-inline
         // scriptSrc: ["'self'", `'nonce-${nonce}'`]
-        connectSrc: ["'self'", "wss:", "https:"],
+        // FIXED: Use specific domains instead of wildcard "https:" and "wss:"
+        connectSrc: [
+          "'self'",
+          process.env.API_GATEWAY_URL || "https://api*.execute-api.us-east-1.amazonaws.com",
+          process.env.CLOUDFRONT_DOMAIN || "https://d*.cloudfront.net",
+          "wss://api*.execute-api.us-east-1.amazonaws.com",
+          "https://cognito-idp.us-east-1.amazonaws.com", // Cognito auth endpoint
+        ].filter(Boolean),
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
@@ -326,6 +343,9 @@ const isProduction = nodeEnv === "production" || nodeEnv === "prod";
 if (!isProduction && nodeEnv !== 'test') {
   app.use(morgan("combined"));
 }
+
+// Comprehensive audit logging middleware - logs all requests for compliance
+app.use(auditLogger);
 
 // Request/response logging middleware for debugging all API calls
 app.use(requestLogger);
