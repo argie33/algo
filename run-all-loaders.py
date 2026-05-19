@@ -41,7 +41,9 @@ tier_1d_trend = [
     'load_trend_criteria_data.py',
 ]
 
-tier_1e_market_data = []
+tier_1e_market_data = [
+    'loadmarketindices.py',  # Market index OHLCV (^GSPC, ^IXIC, ^NYA, ^RUT)
+]
 
 tier_2_reference = [
     # Annual financials
@@ -55,6 +57,7 @@ tier_2_reference = [
     'loadearningshistory.py',
     # Company profile and analyst data
     'loadcompanyprofile.py',
+    'loadanalystupgradedowngrade.py',
     # Calendar data
     'load_earnings_calendar.py',
     # Sector and industry data

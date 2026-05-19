@@ -19,6 +19,7 @@ from config.env_loader import load_env
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
 logger = get_logger(__name__)
 
@@ -83,11 +84,15 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         df["price_change"] = df["close"].diff()
         df["up_day"] = (df["price_change"] > 0).astype(int)
-        df["distribution_day"] = ((df["up_day"] == 0) & (df["volume"] > df["volume"].rolling(50).mean())).astype(int)
 
-        # Calculate moving averages and momentum
-        df["sma_50"] = df["close"].rolling(50).mean()
-        df["sma_200"] = df["close"].rolling(200).mean()
+        # Use shared indicator computation
+        volume_ma = compute_volume_ma(df["volume"], 50)
+        df["distribution_day"] = ((df["up_day"] == 0) & (df["volume"] > volume_ma)).astype(int)
+
+        # Calculate moving averages using shared function
+        mas = compute_moving_averages(df["close"])
+        df["sma_50"] = mas['sma_50']
+        df["sma_200"] = mas['sma_200']
         df["breadth_10d"] = df["up_day"].rolling(10).mean() * 100  # % up days in last 10
 
         results = []

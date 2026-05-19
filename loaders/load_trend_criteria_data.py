@@ -19,6 +19,7 @@ from config.env_loader import load_env
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from loaders.technical_indicators import compute_moving_averages
 
 logger = get_logger(__name__)
 
@@ -72,11 +73,17 @@ class TrendCriteriaLoader(OptimalLoader):
         df = df.sort_values("date").reset_index(drop=True)
 
         close = df["close"]
-        df["sma_50"] = close.rolling(50).mean()
-        df["sma_150"] = close.rolling(150).mean()
-        df["sma_200"] = close.rolling(200).mean()
+        # Use shared moving average computation
+        mas = compute_moving_averages(close)
+        df["sma_50"] = mas['sma_50']
+        df["sma_150"] = mas['sma_150']
+        df["sma_200"] = mas['sma_200']
+
+        # Compute slopes (not in shared function)
         df["sma_50_slope"] = df["sma_50"].diff(5) / df["sma_50"].shift(5)
         df["sma_200_slope"] = df["sma_200"].diff(5) / df["sma_200"].shift(5)
+
+        # 52-week highs/lows (custom, not in shared function)
         df["high_52w"] = close.rolling(252).max()
         df["low_52w"] = close.rolling(252).min()
 
