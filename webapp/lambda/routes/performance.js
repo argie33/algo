@@ -61,9 +61,12 @@ async function getPerformanceMetrics(req, res) {
 
     const sharpeQuery = `
       SELECT
-        ROUND(
-          AVG(profit_loss_pct) / NULLIF(STDDEV(profit_loss_pct), 0) * SQRT(252),
-          2
+        COALESCE(
+          ROUND(
+            CAST(AVG(profit_loss_pct) / NULLIF(STDDEV(profit_loss_pct), 0) * SQRT(252) AS NUMERIC),
+            2
+          ),
+          0
         ) as sharpe_ratio
       FROM algo_trades
       WHERE status = 'closed' AND exit_date IS NOT NULL AND profit_loss_pct IS NOT NULL
