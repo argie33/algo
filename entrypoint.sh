@@ -39,7 +39,7 @@ echo "[ENTRYPOINT] Dir: $(pwd)"
 LOADER_ARGS=()
 case "$LOADER_TYPE" in
     # Parametrized price loaders (1d/1wk/1mo intervals)
-    stock_prices_daily)
+    stock_prices_daily|eod_bulk_refresh)
         LOADER_ARGS=("--interval" "1d")
         ;;
     stock_prices_weekly)

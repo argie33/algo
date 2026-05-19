@@ -170,7 +170,7 @@ locals {
     "signals_etf_weekly"            = "loadbuyselldaily.py"
     "signals_etf_monthly"           = "loadbuyselldaily.py"
     "algo_metrics_daily"            = "load_algo_metrics_daily.py"
-    "eod_bulk_refresh"              = "load_eod_bulk.py"
+    "eod_bulk_refresh"              = "loadpricedaily.py"
     "market_data_batch"             = "load_market_data_batch.py"
   }
 
