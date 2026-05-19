@@ -27,37 +27,46 @@ from utils.db_connection import get_db_connection
 
 log = logging.getLogger(__name__)
 
-# NAAIM publishes their exposure index as a downloadable spreadsheet.
-# The URL path includes the upload year/month. Try current and prior years.
-from datetime import datetime as _dt
-_now = _dt.now()
-NAAIM_URLS = [
-    # Try current and past few years with common month patterns
-    f"https://www.naaim.org/wp-content/uploads/{_now.year}/{_now.month:02d}/NAAIM_history.xlsx",
-    f"https://www.naaim.org/wp-content/uploads/{_now.year}/01/NAAIM_history.xlsx",
-    f"https://www.naaim.org/wp-content/uploads/{_now.year - 1}/01/NAAIM_history.xlsx",
-    "https://www.naaim.org/wp-content/uploads/2024/01/NAAIM_history.xlsx",
-    "https://www.naaim.org/wp-content/uploads/2023/01/NAAIM_history.xlsx",
-    "https://www.naaim.org/wp-content/uploads/2022/01/NAAIM_history.xlsx",
-]
+NAAIM_PAGE = "https://www.naaim.org/programs/naaim-exposure-index/"
+_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+
+def _discover_naaim_url() -> Optional[str]:
+    """Scrape the NAAIM page to find the current spreadsheet download link."""
+    import re
+    try:
+        resp = requests.get(NAAIM_PAGE, headers=_HEADERS, timeout=20)
+        resp.raise_for_status()
+        links = re.findall(r'https?://[^\s"\']*?USE_Data[^\s"\']*\.xlsx', resp.text, re.IGNORECASE)
+        if links:
+            return links[0]
+        # Fallback: any xlsx on naaim.org
+        links = re.findall(r'https?://(?:www\.)?naaim\.org[^\s"\']*\.xlsx', resp.text, re.IGNORECASE)
+        return links[0] if links else None
+    except Exception as e:
+        log.warning("NAAIM page scrape failed: %s", e)
+        return None
 
 
 def fetch_naaim() -> List[dict]:
     """Download and parse NAAIM exposure index spreadsheet."""
+    url = _discover_naaim_url()
+    if not url:
+        log.error("NAAIM: could not find download URL on NAAIM website")
+        return []
+
+    log.info("NAAIM: downloading from %s", url)
     content = None
-    for url in NAAIM_URLS:
-        try:
-            resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.status_code == 200:
-                content = resp.content
-                log.info("NAAIM: downloaded from %s", url)
-                break
-        except Exception as e:
-            log.warning("NAAIM URL %s failed: %s", url, e)
-            continue
+    try:
+        resp = requests.get(url, timeout=60, headers=_HEADERS)
+        if resp.status_code == 200:
+            content = resp.content
+    except Exception as e:
+        log.error("NAAIM download failed: %s", e)
+        return []
 
     if not content:
-        log.error("NAAIM: all download URLs failed")
+        log.error("NAAIM: download returned empty content")
         return []
 
     # Try openpyxl (xlsx) first, then xlrd (xls)
@@ -73,17 +82,23 @@ def _parse_xlsx(content: bytes) -> List[dict]:
         wb = load_workbook(filename=io.BytesIO(content), read_only=True, data_only=True)
         ws = wb.active
         rows = []
+        header_skipped = False
         for row in ws.iter_rows(values_only=True):
             if not row or row[0] is None:
+                continue
+            # Skip header row (Date, Mean/Average, ...)
+            if not header_skipped and isinstance(row[0], str):
+                header_skipped = True
                 continue
             try:
                 dt = _parse_date(row[0])
                 if dt is None:
                     continue
-                # Columns: date, naaim_number (mean), bullish_pct, bearish_pct (if available)
+                # NAAIM file columns: Date, Mean/Average, Most Bearish, Quart1, Quart2, Quart3
                 mean_val = float(row[1]) if row[1] is not None else None
-                bullish = float(row[2]) if len(row) > 2 and row[2] is not None else None
-                bearish = float(row[3]) if len(row) > 3 and row[3] is not None else None
+                bearish = float(row[2]) if len(row) > 2 and row[2] is not None else None
+                # Quart3 (75th pct) as proxy for bullish sentiment
+                bullish = float(row[5]) if len(row) > 5 and row[5] is not None else None
                 if mean_val is None:
                     continue
                 rows.append({
