@@ -531,20 +531,21 @@ class Orchestrator:
             )
             stage2_count = cur.fetchone()[0] or 0
 
-            # Count rejections at each tier from filter_rejection_log (if table exists)
-            tier_rejections = {}
+            # Count rejections per tier in a single query (uses composite index on eval_date, rejected_at_tier)
+            tier_rejections = {f'Tier {i}': 0 for i in range(1, 7)}
             try:
-                for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'], 1):
-                    cur.execute(
-                        f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
-                        (self.run_date, tier_num)
-                    )
-                    rejected = cur.fetchone()[0] or 0
-                    tier_rejections[tier_name] = rejected
+                cur.execute(
+                    """SELECT rejected_at_tier, COUNT(DISTINCT symbol)
+                       FROM filter_rejection_log
+                       WHERE eval_date = %s AND rejected_at_tier BETWEEN 1 AND 6
+                       GROUP BY rejected_at_tier""",
+                    (self.run_date,)
+                )
+                for tier_num, count in cur.fetchall():
+                    tier_rejections[f'Tier {tier_num}'] = count or 0
             except Exception:
                 # Table may not exist or columns different; skip
-                for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
-                    tier_rejections[tier_name] = 0
+                pass
 
             # Final qualified count
             qualified = getattr(self, '_qualified_trades', [])

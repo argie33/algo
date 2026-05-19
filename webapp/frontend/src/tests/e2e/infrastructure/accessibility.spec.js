@@ -164,19 +164,14 @@ test.describe("Financial Platform - Accessibility", () => {
         const newUrl = page.url();
         if (newUrl !== initialUrl) {
           workingShortcuts++;
-            `✅ ${description}: URL changed from ${initialUrl} to ${newUrl}`
-          );
-        } else {
-            `ℹ️ ${description}: No navigation (may not be implemented)`
-          );
+          console.log(`URL changed from ${initialUrl} to ${newUrl}`);
         }
       } catch (error) {
-        console.log(`⚠️ ${description}: ${error.message.slice(0, 30)}`);
+        console.log(`${description}: ${error.message.slice(0, 30)}`);
       }
     }
 
-      `⌨️ Working keyboard shortcuts: ${workingShortcuts}/${shortcuts.length}`
-    );
+    console.log(`Working keyboard shortcuts: ${workingShortcuts}/${shortcuts.length}`);
     expect(workingShortcuts).toBeGreaterThanOrEqual(0); // Just log results
   });
 
@@ -214,12 +209,10 @@ test.describe("Financial Platform - Accessibility", () => {
           const firstElement = page.locator(selector).first();
           const attrValue = await firstElement.getAttribute(attribute);
 
-            `✅ Found ${elements} elements with ${attribute}: "${attrValue}"`
-          );
+          console.log(`Found ${elements} elements with ${attribute}: "${attrValue}"`);
 
           if (expected && attrValue !== expected) {
-              `⚠️ Expected ${attribute}="${expected}", found "${attrValue}"`
-            );
+            console.log(`Expected ${attribute}="${expected}", found "${attrValue}"`);
           }
         }
       } catch (error) {

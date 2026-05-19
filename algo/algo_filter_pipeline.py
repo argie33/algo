@@ -242,10 +242,12 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         tier_pass_counts[t] += 1
 
                 if result['passed_all_tiers']:
+                    # Get sector info (needed for swing score and results)
+                    sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
+
                     # Run advanced filters (if enabled)
                     enable_advanced = bool(self.config.get('enable_advanced_filters', True))
                     if enable_advanced:
-                        sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
                         try:
                             adv = self.advanced.evaluate_candidate(
                                 symbol, signal_date, float(entry_price),
