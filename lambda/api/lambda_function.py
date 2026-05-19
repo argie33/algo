@@ -128,6 +128,45 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'status': 'unhealthy', 'error': str(e)})
                 }
 
+        # Pipeline health — queries data_loader_status for all table freshness
+        if path in ['/health/pipeline', '/api/health/pipeline']:
+            try:
+                conn = get_db_connection()
+                if not conn:
+                    return {
+                        'statusCode': 503,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'status': 'unhealthy', 'error': 'db_unavailable'})
+                    }
+                cur = conn.cursor()
+                try:
+                    cur.execute("""
+                        SELECT table_name, row_count, last_updated,
+                               EXTRACT(EPOCH FROM (NOW() - last_updated)) / 86400 AS age_days
+                        FROM data_loader_status ORDER BY table_name
+                    """)
+                    rows = cur.fetchall()
+                except Exception:
+                    rows = []
+                tables = []
+                for row in rows:
+                    age = float(row['age_days']) if row.get('age_days') is not None else 999
+                    status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
+                    tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
+                healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
+                cur.close()
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
+                }
+            except Exception as e:
+                return {
+                    'statusCode': 500,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'status': 'error', 'error': str(e)})
+                }
+
         # CORS preflight
         if method == 'OPTIONS':
             return {
