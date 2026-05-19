@@ -43,8 +43,8 @@ router.get('/', async (req, res) => {
         earnings_date,
         fiscal_quarter,
         fiscal_year,
-        estimated_eps,
-        reported_eps,
+        eps_estimate as estimated_eps,
+        actual_eps as reported_eps,
         surprise_pct,
         status
       FROM earnings_calendar
