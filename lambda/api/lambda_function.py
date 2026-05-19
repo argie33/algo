@@ -27,8 +27,9 @@ _db_conn = None
 
 # Rate limiting state (in-memory for this Lambda instance)
 _request_history = defaultdict(list)
-RATE_LIMIT_REQUESTS = 1000  # requests per second per IP
+RATE_LIMIT_REQUESTS = 100  # requests per second per IP (tightened from 1000 for trading platform)
 RATE_LIMIT_WINDOW = 1  # seconds
+MAX_REQUEST_BODY_SIZE = 1024 * 100  # 100KB max request body
 
 
 def get_db_connection():
@@ -124,6 +125,7 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
 
 def get_security_headers() -> Dict[str, str]:
     """Return security headers for all responses."""
+    allowed_origins_list = ' '.join(_build_allowed_origins())
     return {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
         'X-Content-Type-Options': 'nosniff',
@@ -131,7 +133,7 @@ def get_security_headers() -> Dict[str, str]:
         'X-XSS-Protection': '1; mode=block',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     }
 
 
@@ -534,9 +536,28 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         params = parse_query_params(event)
         body = None
         if event.get('body'):
+            body_str = event['body']
+            if len(body_str) > MAX_REQUEST_BODY_SIZE:
+                cors_headers = get_cors_headers(event)
+                logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
+                log_api_request(event, 413, error_msg='request_entity_too_large')
+                return {
+                    'statusCode': 413,
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
+                }
             try:
-                body = json.loads(event['body'])
-            except:
+                body = json.loads(body_str)
+            except json.JSONDecodeError as e:
+                cors_headers = get_cors_headers(event)
+                logger.warning(f'Failed to parse JSON body: {e}')
+                log_api_request(event, 400, error_msg='invalid_json')
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
+                }
+            except Exception:
                 pass
 
         # Route request to appropriate handler
