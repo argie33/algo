@@ -105,12 +105,17 @@ def publish_custom_metrics(table_data):
             'Timestamp': datetime.utcnow(),
         })
 
+        # CRITICAL: Do NOT publish 999 as fallback. This hides stale data in CloudWatch.
+        # If age_days is NULL, publish 0 with an alert that data_loader_status is corrupted.
+        age_value = age_days if age_days is not None else 0
         metrics.append({
             'MetricName': f'DataLoader_{table_name}_AgeDays',
-            'Value': age_days if age_days else 999,
+            'Value': age_value,
             'Unit': 'Count',
             'Timestamp': datetime.utcnow(),
         })
+        if age_days is None:
+            logger.warning(f"WARNING: age_days is NULL for {table_name} — data_loader_status may be corrupted")
 
         health_value = 1 if status == 'HEALTHY' else 0
         metrics.append({

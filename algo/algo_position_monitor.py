@@ -199,14 +199,11 @@ class PositionMonitor:
 
         # 1. Current market data
         cur_price, atr, sma_50, ema_12 = self._fetch_current_market(symbol, current_date)
-        if cur_price is None:
-            cur_price = float(db_current_price) if db_current_price else entry_price
 
+        # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts stop-loss and P&L calculations.
+        # If market data is unavailable, skip the position entirely.
         if cur_price is None or cur_price <= 0:
-            logger.warning(f"WARNING: Invalid current price {cur_price} for {symbol}, using entry price {entry_price}")
-            cur_price = entry_price
-        if cur_price <= 0:
-            logger.error(f"ERROR: Cannot monitor position {symbol} — invalid prices")
+            logger.error(f"REJECT: Position {symbol} has no valid current market price (got {cur_price}). Cannot monitor without real market data.")
             return None
 
         # P&L

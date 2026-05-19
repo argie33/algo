@@ -380,8 +380,10 @@ class TradeExecutor:
                         'message': 'Alpaca response missing order_id'
                     }
                 order_status = order_result.get('status', 'pending')
-                # For pending orders, executed_price will be None; use entry_price as placeholder
-                executed_price = order_result.get('executed_price') or entry_price
+                # CRITICAL: Do NOT use entry_price as fallback for pending Alpaca orders.
+                # This corrupts fill price data and breaks slippage/position accounting.
+                # Pending orders will be reconciled when they actually fill.
+                executed_price = order_result.get('executed_price')
 
                 # Verify bracket legs were created successfully — FAIL-CLOSED if missing stop leg
                 legs = order_result.get('legs', [])
@@ -433,7 +435,9 @@ class TradeExecutor:
 
             # Compute initial position size pct using live or snapshot portfolio value
             _pv_for_pct = self._get_portfolio_value() or 0.0
-            position_size_pct = (shares * executed_price / _pv_for_pct * 100) if _pv_for_pct > 0 else 0
+            # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
+            price_for_pct = executed_price if executed_price else entry_price
+            position_size_pct = (shares * price_for_pct / _pv_for_pct * 100) if _pv_for_pct > 0 else 0
 
             # Build comprehensive entry reason
             entry_reason_parts = ['Algo signal — all tiers passed']

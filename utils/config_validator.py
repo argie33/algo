@@ -9,7 +9,7 @@ def validate_at_startup():
     """Validate required configuration at startup."""
     from config.credential_validator import assert_credentials
     try:
-        assert_credentials(mode='warn')
+        assert_credentials(on_failure='warn')
         logger.debug("Startup validation: OK")
     except Exception as e:
         logger.warning(f"Startup validation warning: {e}")

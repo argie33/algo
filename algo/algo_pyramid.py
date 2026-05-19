@@ -108,10 +108,17 @@ class PyramidEngine:
         entry_price = float(entry_price)
         init_stop = float(init_stop)
         init_qty = int(init_qty)
-        cur_price = float(cur_price) if cur_price else entry_price
         cur_stop = float(cur_stop) if cur_stop else init_stop
         target_hits = int(target_hits or 0)
         adds_so_far = int(adds_so_far or 0)
+
+        # CRITICAL: Do NOT use entry_price as fallback for cur_price. This causes incorrect pyramiding decisions.
+        # If current price is missing, skip this position.
+        if not cur_price or float(cur_price) <= 0:
+            logger.warning(f"SKIP {symbol}: No valid current price. Cannot compute R-multiple for pyramiding.")
+            return None
+
+        cur_price = float(cur_price)
 
         # Compute R-multiple
         risk_per_share = entry_price - init_stop

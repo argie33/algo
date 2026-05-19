@@ -233,7 +233,14 @@ class ExposurePolicy:
         init_stop = float(init_stop)
         active_stop = float(cur_stop) if cur_stop else init_stop
         target_hits = int(target_hits or 0)
-        cur_price = float(cur_price) if cur_price else entry_price
+
+        # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
+        # cur_price must be valid; if missing, skip this position.
+        if not cur_price or float(cur_price) <= 0:
+            logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
+            return None
+
+        cur_price = float(cur_price)
 
         # R-multiple
         risk_per_share = entry_price - init_stop
