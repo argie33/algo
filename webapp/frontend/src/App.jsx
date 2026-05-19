@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import {
   Toolbar,
   Typography,
@@ -406,6 +406,14 @@ function App() {
 
         {/* Authentication */}
         <Route path="/login" element={<ErrorBoundary><LoginPage /></ErrorBoundary>} />
+
+        {/* Public Dashboard Pages (without /app/ prefix) */}
+        <Route path="/stocks" element={<ErrorBoundary><DeepValueStocks /></ErrorBoundary>} />
+        <Route path="/economic" element={<ErrorBoundary><EconomicDashboard /></ErrorBoundary>} />
+        <Route path="/signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
+        <Route path="/sectors" element={<ErrorBoundary><SectorAnalysis /></ErrorBoundary>} />
+        <Route path="/sentiment" element={<ErrorBoundary><Sentiment /></ErrorBoundary>} />
+        <Route path="/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
 
         {/* Fallback - page not found */}
         <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
