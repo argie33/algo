@@ -8,12 +8,23 @@ Real-time algorithmic trading system: Ingest market data â†’ Calculate signals â
 
 ## Local Setup
 
-PostgreSQL 17 on localhost:5432 (already installed). Environment variables configured in PowerShell profile.
+PostgreSQL 17 on localhost:5432 (already installed).
 
+**Set database env vars before running any loaders/scripts:**
+```bash
+export DB_HOST=localhost DB_PORT=5432 DB_NAME=stocks DB_USER=stocks DB_PASSWORD=stocks
+```
+
+**Then run:**
 ```powershell
-python3 init_database.py      # Create schema + indexes
-python3 run-all-loaders.py    # Load market data (40 loaders)
-python3 algo/algo_orchestrator.py --dry-run  # Verify full pipeline
+python3 init_database.py      # Create schema + indexes (idempotent)
+python3 run-all-loaders.py    # Load market data (22 loaders, ~45 min)
+python3 algo/algo_orchestrator.py --dry-run  # Verify full pipeline (no trades)
+```
+
+**For pytest:** env vars must be set first
+```bash
+export DB_HOST=localhost && python3 -m pytest tests/ -v
 ```
 
 ## Architecture
