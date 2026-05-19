@@ -41,6 +41,7 @@ test.describe("Settings Page Debug Analysis", () => {
     // Capture network responses
     page.on("response", (response) => {
       if (!response.ok()) {
+        console.log(
           `❌ Response Error: ${response.status()} ${response.url()}`
         );
       }

@@ -297,6 +297,7 @@ test.describe("Financial Platform - Data Integration", () => {
 
     // Log critical errors specifically
     if (criticalErrors.length > 0) {
+      console.log(
         `🚨 CRITICAL console errors that will fail the test:`,
         criticalErrors
       );

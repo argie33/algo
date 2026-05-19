@@ -48,6 +48,7 @@ test.describe("Market Overview Page E2E Tests", () => {
           error.includes("value")
       );
 
+      console.log(
         `📊 Market Overview: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 

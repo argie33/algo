@@ -179,6 +179,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       updateTimes.push(updateTime);
 
       if (i % 5 === 0) {
+        console.log(
           `⚡ Update batch ${Math.floor(i / 5) + 1} average: ${Math.round(updateTimes.slice(-5).reduce((a, b) => a + b) / 5)}ms`
         );
       }
@@ -186,6 +187,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
 
     const avgUpdateTime =
       updateTimes.reduce((a, b) => a + b) / updateTimes.length;
+    console.log(
       `📊 Overall average update time: ${Math.round(avgUpdateTime)}ms`
     );
 

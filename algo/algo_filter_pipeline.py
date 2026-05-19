@@ -282,6 +282,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             )
                         except Exception as swing_err:
                             logger.warning(f"SwingTraderScore failed for {symbol}: {swing_err} (passing through)")
+                            # Rollback transaction to prevent "transaction aborted" errors on subsequent signals
+                            try:
+                                self.conn.rollback()
+                            except Exception:
+                                pass
                             swing = {'pass': True, 'reason': 'swing score unavailable', 'swing_score': 60.0, 'grade': 'C', 'components': {}}
 
                         # Hard gate: must pass swing-score gates AND meet min score

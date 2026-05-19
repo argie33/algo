@@ -286,9 +286,9 @@ app.use(
   })
 );
 
-// Request parsing
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Request parsing — 1MB limit prevents large-payload DoS
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // CSRF Protection: Add CSRF token validation for state-changing operations
 // Skip CSRF for: GET/HEAD/OPTIONS requests, API tokens, preflight requests

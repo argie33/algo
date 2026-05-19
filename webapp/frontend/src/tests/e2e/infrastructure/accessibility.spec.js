@@ -273,12 +273,15 @@ test.describe("Financial Platform - Accessibility", () => {
 
         if (pageAccessibilityScore > 2) {
           accessibleForms++;
+          console.log(
             `✅ ${pagePath}: Good form accessibility (${pageAccessibilityScore}/6)`
           );
         } else if (pageAccessibilityScore > 0) {
+          console.log(
             `⚠️ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
           );
         } else {
+          console.log(
             `ℹ️ ${pagePath}: No forms detected or limited accessibility`
           );
         }

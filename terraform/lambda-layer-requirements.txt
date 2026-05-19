@@ -1,0 +1,18 @@
+# Consolidated Lambda Layer Dependencies
+# These are shared by ALL Lambda functions: API, Orchestrator, Data-freshness-monitor, etc.
+# Installed once in a layer, not duplicated in each function ZIP
+
+# Database
+psycopg2-binary>=2.9.0
+
+# AWS SDK
+boto3>=1.26.0
+
+# HTTP
+requests>=2.33.0
+
+# Configuration
+python-dotenv>=1.0
+
+# Data (minimal, only if actually needed by all functions)
+# pydantic>=2.5.0  # Only needed by API, not included to keep layer small

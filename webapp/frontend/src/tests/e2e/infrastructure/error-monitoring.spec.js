@@ -288,6 +288,7 @@ test.describe("Console Error Detection", () => {
       const report = detector.generateReport();
 
       // Log detailed results for debugging
+      console.log(
         `   Errors: ${report.summary.totalErrors} (${report.summary.criticalErrors} critical)`
       );
 
@@ -295,6 +296,7 @@ test.describe("Console Error Detection", () => {
         report.errors.forEach((error, i) => {
           console.log(`   ${i + 1}. [${error.severity}] ${error.message}`);
           if (Object.keys(error.classification).length > 0) {
+            console.log(
               `      Types: ${Object.keys(error.classification).join(", ")}`
             );
           }

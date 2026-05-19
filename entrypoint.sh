@@ -4,7 +4,7 @@
 # Reads LOADER_FILE env var to determine which loader to run
 # Supports LOADER_PARALLELISM for thread pool sizing
 
-set -x  # Enable debug mode to show all commands executed
+set -euo pipefail
 cd /app
 
 # Redirect all output to both stdout and stderr to ensure CloudWatch captures it
@@ -30,8 +30,7 @@ fi
 
 # Logging to stdout
 echo "[ENTRYPOINT] Starting loader: $LOADER_FILE"
-echo "[ENTRYPOINT] LOADER_TYPE: $LOADER_TYPE"
-echo "[ENTRYPOINT] DB_HOST=$DB_HOST, DB_PORT=$DB_PORT, DB_NAME=$DB_NAME"
+echo "[ENTRYPOINT] LOADER_TYPE: ${LOADER_TYPE:-unset}"
 echo "[ENTRYPOINT] Python: $(python3 --version 2>&1)"
 echo "[ENTRYPOINT] Dir: $(pwd)"
 

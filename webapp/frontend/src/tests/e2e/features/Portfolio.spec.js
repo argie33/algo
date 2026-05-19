@@ -48,6 +48,7 @@ test.describe("Portfolio Page E2E Tests", () => {
           error.includes("value")
       );
 
+      console.log(
         `📊 Portfolio: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 

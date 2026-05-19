@@ -127,6 +127,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
           error: error.message,
         });
 
+        console.log(
           `❌ ${testPage}: Failed to load - ${error.message.slice(0, 50)}`
         );
       }
@@ -136,8 +137,10 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const loadedPages = pageResults.filter((r) => r.loaded);
     const gracefulPages = pageResults.filter((r) => r.hasGracefulDegradation);
 
+    console.log(
       `📊 500 Error Results: ${loadedPages.length}/${pagesToTest.length} pages loaded`
     );
+    console.log(
       `🛡️ Graceful degradation: ${gracefulPages.length}/${pagesToTest.length} pages`
     );
 

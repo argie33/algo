@@ -10,7 +10,15 @@ resource "aws_cognito_user_pool" "stocks_trading" {
     require_uppercase = true
     require_lowercase = true
     require_numbers   = true
-    require_symbols   = false
+    require_symbols   = true
+  }
+
+  # MFA — OPTIONAL so users can enroll TOTP without breaking existing logins.
+  # Upgrade to "ON" (required) once all users have enrolled.
+  mfa_configuration = "OPTIONAL"
+
+  software_token_mfa_configuration {
+    enabled = true
   }
 
   # Email verification
@@ -41,9 +49,9 @@ resource "aws_cognito_user_pool_client" "web_app" {
   user_pool_id    = aws_cognito_user_pool.stocks_trading.id
   generate_secret = false # No secret for public frontend apps
 
-  # Authentication flows
+  # Authentication flows — SRP is the secure option (never sends password in plain to Cognito)
   explicit_auth_flows = [
-    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
     "ALLOW_CUSTOM_AUTH"
   ]

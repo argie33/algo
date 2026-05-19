@@ -201,6 +201,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     );
     const loadedPages = extremeResults.filter((r) => r.contentLength > 1000);
 
+    console.log(
       `📊 Extreme values: ${validPages.length} pages handle properly, ${invalidPages.length} show invalid, ${loadedPages.length} loaded successfully`
     );
 

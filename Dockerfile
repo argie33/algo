@@ -22,6 +22,10 @@ COPY run-all-loaders.py ./
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
 
+# Run as non-root user to limit container blast radius
+RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
+USER appuser
+
 # Set up entry point for ECS loader execution
 # ECS passes LOADER_FILE env var to specify which loader to run
 ENTRYPOINT ["./entrypoint.sh"]

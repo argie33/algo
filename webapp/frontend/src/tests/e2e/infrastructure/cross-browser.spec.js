@@ -89,6 +89,7 @@ test.describe("Safari Routing Compatibility", () => {
     }
 
     console.log(`Safari routing results: ${successfulRoutes}/${routes.length} routes successful`);
+    console.log(
       `⏱️ Average navigation time: ${Math.round(routeTimings.reduce((sum, r) => sum + r.time, 0) / routeTimings.length)}ms`
     );
 
@@ -176,9 +177,11 @@ test.describe("Safari Routing Compatibility", () => {
       // Safari history navigation can be unpredictable, so just verify no crashes
       expect(backUrl).toBeDefined();
       expect(forwardUrl).toBeDefined();
+      console.log(
         `✅ Safari browser history navigation completed without crashes`
       );
     } catch (error) {
+      console.log(
         `⚠️ Safari history navigation issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail the test entirely, as Safari history can be finicky
