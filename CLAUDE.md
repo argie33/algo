@@ -34,13 +34,13 @@ python3 algo/algo_orchestrator.py --dry-run  # Verify full pipeline
 
 ## Rules
 
-1. **One loader per data source**, integrated into `run-all-loaders.py` — else delete
-2. **No one-time scripts** — delete backfills, diagnostics, utilities immediately (Rule 2 in CLAUDE.md)
-3. **No unintegrated code** — if not in main orchestration, it doesn't exist
-4. **Dependencies used or deleted** — show WHERE and WHY before adding
-5. **Test expiration dates** — `@pytest.mark.skip(reason="... (2026-06-15)")` or delete when expired
-6. **No mock endpoints** — real data or delete completely
-7. **No .env files, hardcoded secrets, or .env.local** — use AWS Secrets Manager; set env vars locally only
+1. **All loaders must be integrated** into `run-all-loaders.py` — no orphaned loader files
+2. **No unintegrated scripts** at root — dev utilities go in `scripts/` directory or delete
+3. **No one-time diagnostics** — temporary debug/audit files do not belong in repo
+4. **Credentials** — no .env, secrets, or hardcoded API keys — use AWS Secrets Manager
+5. **Test expiration** — mark skipped tests with expiration date or delete when expired
+6. **Real data only** — no mock endpoints or fake data sources
+7. **Dependencies** — before adding anything, document WHERE it's used and WHY
 
 ## Testing
 
