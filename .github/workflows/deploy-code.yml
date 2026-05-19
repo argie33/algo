@@ -396,18 +396,13 @@ jobs:
           # This overrides the localhost:3001 config from public/config.js
           API_URL="${{ secrets.API_GATEWAY_URL }}"
           if [ -z "$API_URL" ] || [ "$API_URL" = "" ]; then
-            echo "WARNING: API_GATEWAY_URL secret not set, config.js will use env var"
-            API_URL='${VITE_API_URL}'
+            echo "WARNING: API_GATEWAY_URL secret not set, using VITE_API_URL"
+            API_URL="$VITE_API_URL"
           fi
 
-          # Generate config.js with actual API URL
+          # Generate config.js with actual API URL (use printf to safely interpolate)
           mkdir -p webapp/frontend/dist
-          cat > webapp/frontend/dist/config.js << 'EOF'
-          window.__CONFIG__ = {
-            "API_URL": "$API_URL",
-            "ENVIRONMENT": "production"
-          };
-          EOF
+          printf 'window.__CONFIG__ = {\n  "API_URL": "%s",\n  "ENVIRONMENT": "production"\n};\n' "$API_URL" > webapp/frontend/dist/config.js
 
           echo "✅ Generated dist/config.js with API_URL=$API_URL"
           cat webapp/frontend/dist/config.js
