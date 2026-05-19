@@ -216,6 +216,24 @@ class AlertManager:
         if self.webhook_url:
             self._send_webhook_simple(subject, f'{severity}: Data loaders failing', 'LOADER_FAILURE')
 
+    def critical(self, message: str):
+        """Send a generic critical alert.
+
+        Args:
+            message: Alert message
+        """
+        subject = '[ALGO ALERT] CRITICAL'
+        body_text = f"Critical Alert — {datetime.now().isoformat()}\n\n{message}"
+
+        if self.email_to:
+            self._send_email(subject, body_text)
+
+        if self.webhook_url:
+            self._send_webhook_simple(subject, message, 'CRITICAL')
+
+        if self.phone_numbers and self.twilio_client:
+            self._send_sms(f"[ALGO CRITICAL] {message[:160]}")
+
     def _send_email(self, subject, body):
         """Send email via SMTP."""
         if not self.email_to or not self.smtp_user or not self.smtp_password:

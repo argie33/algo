@@ -66,18 +66,18 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
                 tier_rejections[tier_name] = 0
 
         # Note: final_count will be set by caller via _qualified_trades
-        if verbose or total_signals > 0:
-            logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
-            logger.info(f"    Total BUY signals:        {total_signals:4d}")
-            logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
-            logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
-            logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
-            logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
-            logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
-            logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
-            logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
-            interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, 0)
-            logger.info(f"  Interpretation: {interpretation}")
+        # Always log waterfall to diagnose 'no trades' situations
+        logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
+        logger.info(f"    Total BUY signals:        {total_signals:4d}")
+        logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
+        logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
+        logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
+        logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
+        logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
+        logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
+        logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
+        interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, 0)
+        logger.info(f"  Interpretation: {interpretation}")
 
     except Exception as e:
         logger.warning(f"Signal waterfall report failed: {e}")

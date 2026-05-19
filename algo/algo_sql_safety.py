@@ -25,7 +25,7 @@ SAFE_TABLES = {
     'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
     'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
     'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly', 'buy_sell_daily_etf', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
-    'trend_template_data', 'signal_quality_scores',
+    'trend_template_data', 'signal_quality_scores', 'swing_trader_scores',
     'insider_transactions', 'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades',
     'aaii_sentiment', 'economic_data', 'naaim', 'growth_metrics', 'earnings_history', 'earnings_calendar',
     'earnings_estimates', 'earnings_revisions', 'fear_greed', 'seasonality',
