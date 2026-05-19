@@ -140,9 +140,9 @@ locals {
     "financials_quarterly_income"   = "load_income_statement.py"
     "financials_quarterly_balance"  = "load_balance_sheet.py"
     "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"         = "loadttmincomestatement.py"
-    "financials_ttm_cashflow"       = "loadttmcashflow.py"
-    "key_metrics"                   = "load_key_metrics.py"
+    "financials_ttm_income"         = "load_income_statement.py"
+    "financials_ttm_cashflow"       = "load_cash_flow.py"
+    "key_metrics"                   = "load_value_metrics.py"
     "growth_metrics"                = "load_growth_metrics.py"
     "quality_metrics"               = "load_quality_metrics.py"
     "value_metrics"                 = "load_value_metrics.py"
@@ -161,7 +161,7 @@ locals {
     "analyst_upgrades_downgrades"   = "loadanalystupgradedowngrade.py"
     "sectors"                       = "loadsectors.py"
     "industry_ranking"              = "loadindustryranking.py"
-    "trend_template_data"           = "load_trend_template_data.py"
+    "trend_template_data"           = "load_trend_criteria_data.py"
     "stock_scores"                  = "loadstockscores.py"
     "signals_daily"                 = "loadbuyselldaily.py"
     "signals_weekly"                = "loadbuyselldaily.py"
@@ -169,9 +169,9 @@ locals {
     "signals_etf_daily"             = "loadbuyselldaily.py"
     "signals_etf_weekly"            = "loadbuyselldaily.py"
     "signals_etf_monthly"           = "loadbuyselldaily.py"
-    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
+    "algo_metrics_daily"            = "load_signal_quality_scores.py"
     "eod_bulk_refresh"              = "loadpricedaily.py"
-    "market_data_batch"             = "load_market_data_batch.py"
+    "market_data_batch"             = "loadmarketindices.py"
   }
 
   scheduled_loaders = {

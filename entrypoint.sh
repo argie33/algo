@@ -76,6 +76,20 @@ case "$LOADER_TYPE" in
     signals_etf_monthly)
         LOADER_ARGS=("--timeframe" "monthly" "--asset-class" "etf")
         ;;
+    # Parametrized financial loaders (annual/quarterly periods)
+    financials_annual_income|financials_annual_balance|financials_annual_cashflow)
+        LOADER_ARGS=("--period" "annual")
+        ;;
+    financials_quarterly_income|financials_quarterly_balance|financials_quarterly_cashflow)
+        LOADER_ARGS=("--period" "quarterly")
+        ;;
+    # TTM income/cashflow: rerun quarterly loader (TTM is derived from 4 quarters)
+    financials_ttm_income)
+        LOADER_ARGS=("--period" "quarterly")
+        ;;
+    financials_ttm_cashflow)
+        LOADER_ARGS=("--period" "quarterly")
+        ;;
 esac
 
 # Run loader with loader-specific arguments + any extra args passed in
