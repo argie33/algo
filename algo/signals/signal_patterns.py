@@ -60,8 +60,8 @@ class SignalPatternsMixin:
         Returns:
             Dict with base detection results and characteristics
         """
-        self.connect()
         try:
+            self.connect()
             # Look at the last 60 trading days
             self.cur.execute(
                 """
@@ -127,8 +127,6 @@ class SignalPatternsMixin:
         except Exception as e:
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {'in_base': False, 'reason': 'Unexpected error'}
-        finally:
-            self.disconnect()
 
     def vcp_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
         """

@@ -244,6 +244,15 @@ module "services" {
   common_tags                    = local.common_tags
 }
 
+module "security_monitoring" {
+  source = "./modules/security-monitoring"
+
+  project_name = var.project_name
+  vpc_id       = module.vpc.vpc_id
+  aws_region   = var.aws_region
+  common_tags  = local.common_tags
+}
+
 module "pipeline" {
   source = "./modules/pipeline"
 
