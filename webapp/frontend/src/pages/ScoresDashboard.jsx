@@ -567,7 +567,7 @@ function FactorScoreCard({ factor, stockScore, sectorAvg, marketAvg, symbol, sec
               <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
               <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => num(v, 1)} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                {data.map((d) => <Cell key={d.name || JSON.stringify(d)} fill={d.fill} />)}
                 <LabelList dataKey="value" position="top"
                            style={{ fontSize: 10, fontWeight: 600, fill: 'var(--text-2)' }}
                            formatter={(v) => num(v, 1)} />

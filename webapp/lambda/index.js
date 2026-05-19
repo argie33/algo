@@ -227,26 +227,22 @@ app.use(
 
         // Custom frontend URL from environment
         process.env.FRONTEND_URL,
-
-        // Local development ONLY - NEVER in production
-        ...(isProduction ? [] : [
-          "http://localhost:3000",         // Primary dev port
-          "http://localhost:5173",         // Vite dev server
-          "http://127.0.0.1:3000",
-          "http://127.0.0.1:5173",
-        ])
       ].filter(Boolean); // Remove undefined/null values
 
+      // Local development ONLY - NEVER in production
+      // In dev, allow ANY localhost origin (flexible port handling for Vite dev server)
+      const isLocalhost = origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'));
+      if (!isProduction && isLocalhost) {
+        return callback(null, true);
+      }
+
       // Test-only origins for CORS testing (test environment only)
-      const testOnlyOrigins = [
-        // REMOVED: placeholder example.com domains
-        // If needed, add to environment variables instead
-      ];
+      const testOnlyOrigins = isTestEnv ? [
+        // Placeholder for test environment additional origins
+      ] : [];
 
       // Combine origins based on environment
-      const finalAllowedOrigins = isTestEnv ?
-        [...baseAllowedOrigins, ...testOnlyOrigins] :
-        baseAllowedOrigins;
+      const finalAllowedOrigins = [...baseAllowedOrigins, ...testOnlyOrigins];
 
       // FIXED: Use exact matching only - no substring patterns like .includes()
       if (finalAllowedOrigins.includes(origin)) {
