@@ -182,21 +182,16 @@ jobs:
           echo ""
 
           echo "=== Querying /api/health/pipeline (data_loader_status table) ==="
-          PAYLOAD=$(echo -n '{
-            "rawPath": "/api/health/pipeline",
-            "rawQueryString": "",
-            "headers": {"host": "localhost"},
-            "requestContext": {"http": {"method": "GET", "path": "/api/health/pipeline", "sourceIp": "127.0.0.1"}}
-          }' | base64)
+          printf '{"rawPath":"/api/health/pipeline","rawQueryString":"","headers":{"host":"localhost"},"requestContext":{"http":{"method":"GET","path":"/api/health/pipeline","sourceIp":"127.0.0.1"}}}' \
+            > /tmp/lambda_payload_pipeline.json
 
           aws lambda invoke \
             --function-name "$API_FUNC" \
-            --payload "$PAYLOAD" \
-            --cli-binary-format raw-in-base64-out \
+            --payload file:///tmp/lambda_payload_pipeline.json \
             --region $AWS_REGION \
-            /tmp/pipeline_health.json 2>/dev/null && true
+            /tmp/pipeline_health.json 2>&1 | grep -v "^$" || true
 
-          cat /tmp/pipeline_health.json | python3 -c "
+          [ -f /tmp/pipeline_health.json ] && cat /tmp/pipeline_health.json | python3 -c "
           import sys, json
           try:
             resp = json.load(sys.stdin)
@@ -220,25 +215,23 @@ jobs:
               print('Raw response:', json.dumps(data, indent=2)[:500])
           except Exception as e:
             print(f'Parse error: {e}')
-            print('Raw:', open('/tmp/pipeline_health.json').read()[:1000])
+            try:
+              print('Raw:', open('/tmp/pipeline_health.json').read()[:1000])
+            except Exception:
+              print('(no output file created — Lambda invoke failed)')
           " || true
 
           echo ""
           echo "=== Direct row counts (key tables) ==="
           # Invoke with a DB query payload to check critical tables
           for PATH_QUERY in "/api/health/detailed"; do
-            PAYLOAD=$(echo -n "{
-              \"rawPath\": \"$PATH_QUERY\",
-              \"rawQueryString\": \"\",
-              \"headers\": {\"host\": \"localhost\"},
-              \"requestContext\": {\"http\": {\"method\": \"GET\", \"path\": \"$PATH_QUERY\", \"sourceIp\": \"127.0.0.1\"}}
-            }" | base64)
+            printf '{"rawPath":"%s","rawQueryString":"","headers":{"host":"localhost"},"requestContext":{"http":{"method":"GET","path":"%s","sourceIp":"127.0.0.1"}}}' \
+              "$PATH_QUERY" "$PATH_QUERY" > /tmp/lambda_payload_detail.json
             aws lambda invoke \
               --function-name "$API_FUNC" \
-              --payload "$PAYLOAD" \
-              --cli-binary-format raw-in-base64-out \
+              --payload file:///tmp/lambda_payload_detail.json \
               --region $AWS_REGION \
-              /tmp/health_detail.json 2>/dev/null || true
+              /tmp/health_detail.json 2>&1 | grep -v "^$" || true
             cat /tmp/health_detail.json | python3 -c "
           import sys, json
           try:
@@ -261,9 +254,83 @@ jobs:
 
       # ─── Remediate if requested ───────────────────────────────────────────────
       - name: Remediate — Abort Stuck Executions & Trigger Fresh Run
-        if: ${{ inputs.remediate == 'true' }}
+        if: inputs.remediate
         run: |
           SM_ARN="${{ steps.sfn.outputs.sm_arn }}"
+
+          # ── Verify task definitions have correct LOADER_FILE values ──
+          echo "=== Verifying ECS Task Definition LOADER_FILE values ==="
+          declare -A EXPECTED_LOADER_FILE
+          EXPECTED_LOADER_FILE["eod_bulk_refresh"]="loadpricedaily.py"
+          EXPECTED_LOADER_FILE["technical_data_daily"]="loadtechnicaldaily.py"
+          EXPECTED_LOADER_FILE["market_health_daily"]="load_market_health.py"
+          EXPECTED_LOADER_FILE["trend_template_data"]="load_trend_criteria_data.py"
+          EXPECTED_LOADER_FILE["stock_scores"]="load_stock_scores.py"
+          EXPECTED_LOADER_FILE["signals_daily"]="load_signals.py"
+          EXPECTED_LOADER_FILE["signals_weekly"]="load_signals.py"
+          EXPECTED_LOADER_FILE["signals_monthly"]="load_signals.py"
+          EXPECTED_LOADER_FILE["signals_etf_daily"]="load_signals.py"
+          EXPECTED_LOADER_FILE["signals_etf_weekly"]="load_signals.py"
+          EXPECTED_LOADER_FILE["signals_etf_monthly"]="load_signals.py"
+          EXPECTED_LOADER_FILE["algo_metrics_daily"]="load_algo_metrics.py"
+          EXPECTED_LOADER_FILE["swing_trader_scores"]="load_swing_trader_scores.py"
+
+          SM_DEF=$(aws stepfunctions describe-state-machine \
+            --state-machine-arn "$SM_ARN" \
+            --query 'definition' \
+            --output text 2>/dev/null || echo "")
+
+          for LOADER in "${!EXPECTED_LOADER_FILE[@]}"; do
+            TASK_FAMILY="algo-${LOADER}-loader"
+            EXPECTED_FILE="${EXPECTED_LOADER_FILE[$LOADER]}"
+            CURRENT_DEF=$(aws ecs describe-task-definition \
+              --task-definition "$TASK_FAMILY" \
+              --region $AWS_REGION \
+              --output json 2>/dev/null || echo '{}')
+            CURRENT_FILE=$(echo "$CURRENT_DEF" | jq -r '
+              .taskDefinition.containerDefinitions[0].environment[]?
+              | select(.name=="LOADER_FILE") | .value' 2>/dev/null || echo "")
+            if [ "$CURRENT_FILE" = "$EXPECTED_FILE" ]; then
+              echo "  ✅ $LOADER: $CURRENT_FILE"
+            elif [ -z "$CURRENT_FILE" ]; then
+              echo "  ⚠️ $LOADER: not found (skipping)"
+            else
+              echo "  ❌ $LOADER: has '$CURRENT_FILE', expected '$EXPECTED_FILE' — fixing"
+              OLD_ARN=$(echo "$CURRENT_DEF" | jq -r '.taskDefinition.taskDefinitionArn' 2>/dev/null || echo "")
+              NEW_DEF=$(echo "$CURRENT_DEF" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)['taskDefinition']
+for k in ('taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy'):
+    d.pop(k, None)
+envs = d['containerDefinitions'][0].get('environment', [])
+d['containerDefinitions'][0]['environment'] = [
+    {'name': 'LOADER_FILE', 'value': '$EXPECTED_FILE'} if e['name'] == 'LOADER_FILE' else e
+    for e in envs
+]
+print(json.dumps(d))
+")
+              NEW_ARN=$(aws ecs register-task-definition \
+                --cli-input-json "$NEW_DEF" \
+                --region $AWS_REGION \
+                --query 'taskDefinition.taskDefinitionArn' \
+                --output text 2>/dev/null || echo "")
+              if [ -n "$NEW_ARN" ] && [ -n "$OLD_ARN" ] && [ -n "$SM_DEF" ]; then
+                SM_DEF=$(echo "$SM_DEF" | sed "s|${OLD_ARN}|${NEW_ARN}|g")
+                echo "    ✅ Registered $NEW_ARN (state machine will be updated)"
+              fi
+            fi
+          done
+
+          if [ -n "$SM_DEF" ]; then
+            aws stepfunctions update-state-machine \
+              --state-machine-arn "$SM_ARN" \
+              --definition "$SM_DEF" \
+              --region $AWS_REGION 2>/dev/null \
+              && echo "✅ State machine definition updated" \
+              || echo "⚠️ State machine update skipped (no changes or error)"
+          fi
+          echo ""
+
           RUNNING_COUNT="${{ steps.sfn.outputs.running_count }}"
           echo "Aborting $RUNNING_COUNT running executions..."
 
