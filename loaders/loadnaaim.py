@@ -27,9 +27,16 @@ from utils.db_connection import get_db_connection
 
 log = logging.getLogger(__name__)
 
-# NAAIM publishes their exposure index as a downloadable spreadsheet
-# The file is updated weekly. Try both xlsx and xls formats.
+# NAAIM publishes their exposure index as a downloadable spreadsheet.
+# The URL path includes the upload year/month. Try current and prior years.
+from datetime import datetime as _dt
+_now = _dt.now()
 NAAIM_URLS = [
+    # Try current and past few years with common month patterns
+    f"https://www.naaim.org/wp-content/uploads/{_now.year}/{_now.month:02d}/NAAIM_history.xlsx",
+    f"https://www.naaim.org/wp-content/uploads/{_now.year}/01/NAAIM_history.xlsx",
+    f"https://www.naaim.org/wp-content/uploads/{_now.year - 1}/01/NAAIM_history.xlsx",
+    "https://www.naaim.org/wp-content/uploads/2024/01/NAAIM_history.xlsx",
     "https://www.naaim.org/wp-content/uploads/2023/01/NAAIM_history.xlsx",
     "https://www.naaim.org/wp-content/uploads/2022/01/NAAIM_history.xlsx",
 ]
