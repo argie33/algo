@@ -7,6 +7,13 @@ import {
   LinearProgress,
   Typography,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from "@mui/material";
 import {
   BarChart,
@@ -16,6 +23,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 import {
   WarningAmber,

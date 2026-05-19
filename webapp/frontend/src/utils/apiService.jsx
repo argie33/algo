@@ -8,12 +8,12 @@ export const createLogger = (componentName) => ({
     // Safe data handling for info to avoid circular references
     let _safeData;
     try {
-      safeData =
+      _safeData =
         data && typeof data === "object"
           ? JSON.parse(JSON.stringify(data))
           : data;
     } catch (error) {
-      safeData = data
+      _safeData = data
         ? String(data)
         : "Unable to stringify data (circular reference)";
     }
@@ -47,17 +47,17 @@ export const createLogger = (componentName) => ({
     // Safe data handling for warn to avoid circular references
     let _safeData;
     try {
-      safeData =
+      _safeData =
         data && typeof data === "object"
           ? JSON.parse(JSON.stringify(data))
           : data;
     } catch (error) {
-      safeData = data
+      _safeData = data
         ? String(data)
         : "Unable to stringify data (circular reference)";
     }
     if (import.meta.env && import.meta.env.DEV) {
-      console.warn(`[${componentName}] ${message}`, safeData);
+      console.warn(`[${componentName}] ${message}`, _safeData);
     }
   },
   debug: (message, data) => {
@@ -65,16 +65,16 @@ export const createLogger = (componentName) => ({
       // Safe data handling for debug to avoid circular references
       let _safeData;
       try {
-        safeData =
+        _safeData =
           data && typeof data === "object"
             ? JSON.parse(JSON.stringify(data))
             : data;
       } catch (error) {
-        safeData = data
+        _safeData = data
           ? String(data)
           : "Unable to stringify data (circular reference)";
       }
-      console.debug(`[${componentName}] ${message}`, safeData);
+      console.debug(`[${componentName}] ${message}`, _safeData);
     }
   },
 });

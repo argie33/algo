@@ -135,7 +135,7 @@ router.get("/stocks", async (req, res) => {
         bsd.signal,
         bsd.strength,
         bsd.reason,
-        ss.name as company_name,
+        COALESCE(cp.company_name, bsd.symbol) as company_name,
         cp.sector,
         cp.industry,
         tdd.rsi,
@@ -153,7 +153,6 @@ router.get("/stocks", async (req, res) => {
         pd.low as low_52w,
         pd.volume
       FROM ${tableName} bsd
-      LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date

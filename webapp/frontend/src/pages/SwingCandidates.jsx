@@ -24,7 +24,7 @@ import {
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   Treemap, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, AreaChart, Area, Legend,
+  CartesianGrid, AreaChart, Area, Legend, Line,
 } from 'recharts';
 import { api } from '../services/api';
 
