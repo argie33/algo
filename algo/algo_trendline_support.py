@@ -184,10 +184,10 @@ class TrendlineSupport:
                 'reason': 'No valid support trendline found',
             }
 
-        support_level = trendline['support_level']
+        support_level = float(trendline['support_level'])
 
         # Entry should be near (1-5% above) the support line
-        distance_pct = ((entry_price - support_level) / support_level) * 100
+        distance_pct = ((float(entry_price) - support_level) / support_level) * 100
 
         # Accept entries 0.5-5% above support (not on the line, above it)
         near_trendline = 0.5 <= distance_pct <= 5.0
