@@ -42,7 +42,7 @@ export default function TradeTracker() {
   const [tab, setTab] = useState('trades');
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const handlePreviewConfirm = (data) => {
+  const handlePreviewConfirm = (_data) => {
     // Trade creation is now handled directly in PreviewModal via POST /api/trades/manual
     // This callback is kept for future analytics or side effects if needed
   };

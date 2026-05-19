@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  CardHeader,
 } from "@mui/material";
 import {
   LineChart,

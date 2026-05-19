@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { useMarketSentiment } from '../hooks/useDataApi';
 import {
   RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
   ArrowLeft, AlertCircle, MessageSquare, Activity,
@@ -278,7 +277,7 @@ export default function Sentiment() {
       const total = Number(a.analyst_count) || 0;
       const bull = Number(a.bullish_count) || 0;
       const bear = Number(a.bearish_count) || 0;
-      const neut = Number(a.neutral_count) || 0;
+      const _neut = Number(a.neutral_count) || 0;
       if (total === 0) return;
       const bullPct = bull / total;
       const bearPct = bear / total;
@@ -994,7 +993,7 @@ function AnalystInsights({ symbol, onClose }) {
   );
 }
 
-function SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
+function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
   if (isLoading) return <Empty title="Loading social data…" />;
   if (!selectedSymbol) {
     return (
@@ -1225,7 +1224,7 @@ function CompositeGauge({ gauge }) {
     );
   }
   const score = gauge.score;
-  const tone = score >= 70 ? 'up' : score < 30 ? 'down' : '';
+  const _tone = score >= 70 ? 'up' : score < 30 ? 'down' : '';
   const color = score >= 70 ? 'var(--success)'
               : score < 30 ? 'var(--danger)'
               : 'var(--amber)';
@@ -1376,7 +1375,7 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
 }
 
 // ─── new: contrarian setups ──────────────────────────────────────────
-function ContrarianCard({ title, desc, rows, tone, setSel }) {
+function ContrarianCard({ title, desc, rows, _tone, setSel }) {
   return (
     <div className="card">
       <div className="card-head">

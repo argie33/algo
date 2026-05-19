@@ -24,7 +24,7 @@ import {
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   Treemap, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, LineChart, Line, AreaChart, Area, Legend,
+  CartesianGrid, AreaChart, Area, Legend,
 } from 'recharts';
 import { api } from '../services/api';
 
@@ -72,7 +72,7 @@ export default function SwingCandidates() {
     { refetchInterval: 60000 }
   );
 
-  const { data: history, error: historyError } = useApiQuery(
+  const { data: history, error: _historyError } = useApiQuery(
     ['swing-history-30'],
     () => api.get('/api/algo/swing-scores-history?days=30'),
     { refetchInterval: 300000, retry: 1 }
@@ -746,7 +746,7 @@ function ComponentCorrelation({ items: itemsProp }) {
 }
 
 // ─── row ───────────────────────────────────────────────────────────────────
-function Row({ c, rank, active, onClick, onNavigate }) {
+function Row({ c, rank, active, onClick, _onNavigate }) {
   const cmp = c.components || {};
   return (
     <tr onClick={onClick}

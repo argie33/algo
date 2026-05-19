@@ -15,9 +15,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
-  Award, Layers, Wallet, History, Sliders, GitBranch,
+  Award, Layers, Wallet, History, GitBranch,
   HeartPulse, Zap, Crosshair,
-  Bot, BarChart2, Bell,
+  Bot, Bell,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';

@@ -31,7 +31,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
   const [username, setUsername] = useState(email);
   const [successMessage, setSuccessMessage] = useState("");
   const [mfaNextStep, setMfaNextStep] = useState(null);
-  const [pendingUsername, setPendingUsername] = useState("");
+  const [_pendingUsername, _setPendingUsername] = useState("");
   const { checkAuthState } = useAuth();
 
   const handleRegistrationSuccess = (registeredUsername, _nextStep) => {
@@ -47,7 +47,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
     setMode(AUTH_MODES.LOGIN);
   };
 
-  const handleForgotPasswordSuccess = (resetUsername) => {
+  const _handleForgotPasswordSuccess = (resetUsername) => {
     setUsername(resetUsername);
     setSuccessMessage("Password reset code sent! Please check your email.");
     setMode(AUTH_MODES.RESET_PASSWORD);

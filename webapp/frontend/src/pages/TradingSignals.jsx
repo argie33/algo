@@ -28,7 +28,7 @@ import { api } from '../services/api';
 const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
 const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
 const fmtInt = (v) => v == null ? '—' : Number(v).toLocaleString('en-US');
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const _num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -42,7 +42,7 @@ const STAGE_VARIANT = {
   'Stage 1': 'badge', 'Stage 2': 'badge-success', 'Stage 2 - Markup': 'badge-success',
   'Stage 3': 'badge-amber', 'Stage 3 - Topping': 'badge-amber', 'Stage 4': 'badge-danger',
 };
-const QUALITY_VARIANT = { STRONG: 'badge-success', MODERATE: 'badge-amber', WEAK: 'badge-danger' };
+const _QUALITY_VARIANT = { STRONG: 'badge-success', MODERATE: 'badge-amber', WEAK: 'badge-danger' };
 
 // Color-code chart base patterns by historical breakout reliability.
 // Cup w/ Handle and Cup are highest-probability; Flat Base is the workhorse;
@@ -202,7 +202,7 @@ export default function TradingSignals() {
   const kpi = useMemo(() => {
     // Total available (all data from API, no filters)
     const totalBuys = enriched.filter(r => (r.signal || '').toUpperCase() === 'BUY');
-    const totalSells = enriched.filter(r => (r.signal || '').toUpperCase() === 'SELL');
+    const _totalSells = enriched.filter(r => (r.signal || '').toUpperCase() === 'SELL');
 
     // Filtered stats (after user applies filters)
     const buys = filtered.filter(r => (r.signal || '').toUpperCase() === 'BUY');

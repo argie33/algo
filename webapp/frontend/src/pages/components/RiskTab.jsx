@@ -14,7 +14,7 @@ const TOOLTIP_STYLE = {
 
 const COLORS = ['var(--brand)', 'var(--purple)', 'var(--success)', 'var(--amber)', 'var(--danger)', 'var(--cyan)'];
 
-function RiskTab({ circuitBreakers, markets, positions = [] }) {
+function RiskTab({ circuitBreakers, _markets, positions = [] }) {
   const breakers = Array.isArray(circuitBreakers) ? circuitBreakers : (circuitBreakers?.breakers || []);
   const anyTriggered = Array.isArray(circuitBreakers) ? false : circuitBreakers?.any_triggered;
 

@@ -8,8 +8,6 @@ import {
   CardActionArea,
   Typography,
   useTheme,
-  useMediaQuery,
-  Chip,
   alpha,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -18,7 +16,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const getColorFromIndex = (idx) => {
+  const getColorFromIndex = (_idx) => {
     // Professional single-color accent scheme (light grays with blue accent)
     return {
       main: theme.palette.primary.main,  // Consistent professional blue

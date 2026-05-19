@@ -8,7 +8,6 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RTooltip, ResponsiveContainer, Cell, LabelList,
-  LineChart, Line,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';

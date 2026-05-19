@@ -5,7 +5,6 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import HeroSection from '../../components/marketing/HeroSection';
 import FeatureGrid from '../../components/marketing/FeatureGrid';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
-import CTAButtonGroup from '../../components/marketing/CTAButtonGroup';
 import CTASection from '../../components/marketing/CTASection';
 import CommunitySignup from '../../components/marketing/CommunitySignup';
 import {

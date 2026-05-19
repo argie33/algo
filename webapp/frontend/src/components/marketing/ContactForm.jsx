@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 
 const ContactForm = ({ onSubmit }) => {
-  const theme = useTheme();
+  const _theme = useTheme();
   const [formData, setFormData] = useState({
     name: '',
     email: '',

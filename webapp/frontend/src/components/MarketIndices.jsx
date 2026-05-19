@@ -6,10 +6,7 @@ import {
   LinearProgress,
   Typography,
   Alert,
-  Paper,
-  Chip,
 } from "@mui/material";
-import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { useTheme, alpha } from "@mui/material/styles";
 
 const MarketIndices = ({ data, isLoading, error }) => {

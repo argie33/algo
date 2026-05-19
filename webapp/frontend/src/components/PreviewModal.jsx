@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function PreviewModal({ isOpen, onClose, onConfirm }) {

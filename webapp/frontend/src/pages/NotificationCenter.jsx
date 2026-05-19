@@ -3,13 +3,13 @@
  * Surfaces algo notifications (entries, exits, errors, safeguards) in one dashboard
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Alert as MuiAlert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { api, getApiConfig } from '../services/api';
+import { api } from '../services/api';
 import {
   Bell, X, CheckCircle, AlertCircle, AlertTriangle, XCircle,
-  Clock, Trash2, RefreshCw, Filter
+  Clock, RefreshCw
 } from 'lucide-react';
 
 const NotificationCenter = () => {

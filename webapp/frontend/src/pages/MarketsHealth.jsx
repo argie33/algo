@@ -33,10 +33,10 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceLine, Cell, Legend,
-  ComposedChart, ScatterChart, Scatter, ZAxis,
+  ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 import {
-  RefreshCw, ShieldCheck, TrendingUp, TrendingDown, Activity, AlertTriangle, Inbox,
+  RefreshCw, ShieldCheck, TrendingUp, TrendingDown, AlertTriangle, Inbox,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -1247,7 +1247,7 @@ function SectorRotationSignalCard() {
   if (loading && !items.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
   if (error || !items.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
   const latest = items[items.length - 1];
-  const prior = items[items.length - 2] || latest;
+  const _prior = items[items.length - 2] || latest;
 
   const signalColor = latest?.signal === 'defensive_lead' ? C.cyan : latest?.signal === 'cyclical_strength' ? C.success : C.amber;
 

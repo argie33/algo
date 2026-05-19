@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Box, CircularProgress, Button } from '@mui/material';
-import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 /**
@@ -15,7 +14,7 @@ export function APIHealthCheck({ onHealthy, onUnhealthy, children }) {
     // Check API health immediately
     const checkHealth = async () => {
       try {
-        const response = await api.get('/health', { timeout: 5000 });
+        const _response = await api.get('/health', { timeout: 5000 });
         setIsHealthy(true);
         onHealthy?.();
       } catch (error) {

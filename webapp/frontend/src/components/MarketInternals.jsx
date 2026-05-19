@@ -7,37 +7,23 @@ import {
   LinearProgress,
   Typography,
   Alert,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
 } from "@mui/material";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import {
-  TrendingUp,
-  TrendingDown,
   WarningAmber,
   CheckCircle,
 } from "@mui/icons-material";
 
 const MarketInternals = ({ data, isLoading, error }) => {
-  const [_expandedSection, setExpandedSection] = useState(null);
+  const [_expandedSection, _setExpandedSection] = useState(null);
 
   if (isLoading) {
     return <LinearProgress />;
@@ -55,8 +41,8 @@ const MarketInternals = ({ data, isLoading, error }) => {
     market_breadth,
     moving_average_analysis,
     market_extremes,
-    overextension_indicator,
-    positioning_metrics,
+    _overextension_indicator,
+    _positioning_metrics,
   } = data.data;
 
   // Color helpers
@@ -68,7 +54,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
     return "#10b981";
   };
 
-  const getSignalIcon = (level) => {
+  const _getSignalIcon = (level) => {
     if (level && (level.includes("Extreme") || level.includes("Strong"))) {
       return <WarningAmber sx={{ color: getSignalColor(level) }} />;
     }

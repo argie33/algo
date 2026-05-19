@@ -277,7 +277,7 @@ const DeepValueStocks = () => {
   }
 
   const paginated = sorted.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  const avgPE = avg(stocks, "trailing_pe");
+  const _avgPE = avg(stocks, "trailing_pe");
   const avgROE = avg(stocks, "roe_pct");
   const avgMoS = avg(stocks, "margin_of_safety_pct");
   const avgDrop = avg(stocks, "drop_from_3y_high_pct");

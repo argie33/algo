@@ -8,7 +8,7 @@
     "@codemirror/lang-python": "^6.2.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^5.18.0",
+    "@mui/icons-material": "^5.14.0",
     "@mui/material": "^5.18.0",
     "@mui/styled-engine": "^5.18.0",
     "@mui/x-date-pickers": "^6.20.2",

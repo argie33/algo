@@ -60,7 +60,7 @@ const safeStringify = (obj, _maxDepth = 3) => {
  * @param {object} context - Additional context (URL, params, etc.)
  */
 export const logApiError = (component, operation, error, context = {}) => {
-  const timestamp = new Date().toISOString();
+  const _timestamp = new Date().toISOString();
   const errorMessage = error?.message || error?.toString() || "Unknown error";
   const errorStack = error?.stack || "No stack trace available";
 

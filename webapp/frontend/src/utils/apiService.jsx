@@ -6,7 +6,7 @@ import { getApiConfig } from "../services/api";
 export const createLogger = (componentName) => ({
   info: (message, data) => {
     // Safe data handling for info to avoid circular references
-    let safeData;
+    let _safeData;
     try {
       safeData =
         data && typeof data === "object"
@@ -45,7 +45,7 @@ export const createLogger = (componentName) => ({
   },
   warn: (message, data) => {
     // Safe data handling for warn to avoid circular references
-    let safeData;
+    let _safeData;
     try {
       safeData =
         data && typeof data === "object"
@@ -63,7 +63,7 @@ export const createLogger = (componentName) => ({
   debug: (message, data) => {
     if (process.env.NODE_ENV === "development") {
       // Safe data handling for debug to avoid circular references
-      let safeData;
+      let _safeData;
       try {
         safeData =
           data && typeof data === "object"

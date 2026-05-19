@@ -9,9 +9,8 @@ import {
   Chip,
   useTheme,
   alpha,
-  Tooltip,
 } from '@mui/material';
-import { ExpandMore, TrendingUp, TrendingDown, ShowChart } from '@mui/icons-material';
+import { ExpandMore, TrendingUp, TrendingDown } from '@mui/icons-material';
 
 const SignalCardAccordion = ({ signals = [] }) => {
   const theme = useTheme();

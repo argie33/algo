@@ -5,12 +5,12 @@
 
 import React from 'react';
 import {
-  Box, Card, CardContent, Typography, Chip, LinearProgress,
+  Box, Card, CardContent, Typography, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Stack, Tooltip, Paper,
+  Stack,
 } from '@mui/material';
 import { TrendingUp, TrendingDown } from '@mui/icons-material';
-import { C, F, S, comp, gradeColor, severityColor, pnlColor, fmt$, fmtPct } from '../../theme/algoTheme';
+import { C, F, comp, gradeColor, severityColor, pnlColor, fmt$, fmtPct } from '../../theme/algoTheme';
 
 // ============================================================================
 // SECTION CARD — primary container for grouped data
@@ -162,7 +162,7 @@ export const ProgressBar = ({ value, max, height = 6 }) => {
 // ============================================================================
 // FACTOR BAR — labelled progress bar with score
 // ============================================================================
-export const FactorBar = ({ label, pts, max, sub, expanded, onToggle }) => (
+export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
   <Box sx={{ mb: 1.5 }}>
     <Box sx={{
       display: 'flex', justifyContent: 'space-between',

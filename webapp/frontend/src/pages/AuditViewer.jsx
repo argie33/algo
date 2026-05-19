@@ -4,7 +4,7 @@ import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';
 
 const AuditViewer = () => {
-  const [limit, setLimit] = useState(100);
+  const [limit, _setLimit] = useState(100);
   const [expandedId, setExpandedId] = useState(null);
   const [activeTab, setActiveTab] = useState('trades');
   const [offset, setOffset] = useState(0);

@@ -15,7 +15,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, TrendingUp, Activity, Shield,
-  Inbox, DollarSign, BarChart3, Zap, AlertTriangle, Target,
+  Inbox, DollarSign, BarChart3, Zap, AlertTriangle,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip,

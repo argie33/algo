@@ -11,7 +11,6 @@ import {
   Groups as GroupsIcon,
   TrendingUp as TrendingUpIcon,
   Handshake as HandshakeIcon,
-  School as SchoolIcon,
 } from '@mui/icons-material';
 
 const Firm = () => {
@@ -44,7 +43,7 @@ const Firm = () => {
     },
   ];
 
-  const teamMembers = [];
+  const _teamMembers = [];
 
   return (
     <MarketingLayout>

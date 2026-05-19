@@ -70,7 +70,7 @@ const getAmplifyConfig = () => {
 export function configureAmplify() {
   try {
     const config = getAmplifyConfig();
-    const runtimeConfig = getRuntimeConfig();
+    const _runtimeConfig = getRuntimeConfig();
 
     Amplify.configure(config);
   } catch (error) {
