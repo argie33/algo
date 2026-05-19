@@ -663,7 +663,7 @@ class DataPatrol:
              800, ERROR,
              'Pine signals should produce 50+ per day minimum in active market'),
             ('buy_sell_daily',
-             "date >= CURRENT_DATE - INTERVAL '14 days' AND signal IN ('BUY', 'SELL')",
+             "date >= CURRENT_DATE - INTERVAL '14 days' AND signal_type IN ('BUY', 'SELL')",
              700, ERROR,
              'NO null/None signals — ratio of clean BUY/SELL must be >80%'),
             ('trend_template_data',
@@ -718,7 +718,7 @@ class DataPatrol:
         try:
             self.cur.execute("""
                 SELECT
-                    COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL')) AS clean,
+                    COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS clean,
                     COUNT(*) AS total
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
@@ -760,7 +760,7 @@ class DataPatrol:
                 ('algo_trades', 'symbol IS NULL OR trade_id IS NULL'),
                 ('algo_positions', 'symbol IS NULL OR position_id IS NULL'),
                 ('price_daily', 'symbol IS NULL OR date IS NULL'),
-                ('buy_sell_daily', 'symbol IS NULL OR date IS NULL OR signal IS NULL'),
+                ('buy_sell_daily', 'symbol IS NULL OR date IS NULL OR signal_type IS NULL'),
             ]
             for tbl, cond in checks:
                 try:
@@ -983,9 +983,9 @@ class DataPatrol:
         """
         try:
             self.cur.execute("""
-                SELECT COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL')) AS total_signals,
+                SELECT COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS total_signals,
                        COUNT(*) FILTER (
-                           WHERE signal IN ('BUY', 'SELL')
+                           WHERE signal_type IN ('BUY', 'SELL')
                              AND NOT EXISTS (
                                  SELECT 1 FROM price_daily pd
                                  WHERE pd.symbol = buy_sell_daily.symbol
@@ -993,7 +993,7 @@ class DataPatrol:
                              )
                        ) AS missing_price,
                        COUNT(*) FILTER (
-                           WHERE signal IN ('BUY', 'SELL')
+                           WHERE signal_type IN ('BUY', 'SELL')
                              AND NOT EXISTS (
                                  SELECT 1 FROM technical_data_daily td
                                  WHERE td.symbol = buy_sell_daily.symbol

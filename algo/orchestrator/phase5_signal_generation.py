@@ -36,7 +36,7 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
     try:
         # Count total BUY signals for today
         cur.execute(
-            "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'",
+            "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
             (run_date,)
         )
         total_signals = cur.fetchone()[0] or 0
@@ -138,7 +138,7 @@ def run(
             exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
 
         pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
-        qualified = pipeline.evaluate_signals(run_date)
+        qualified = pipeline.evaluate_signals(None)  # Auto-detect latest date with complete data
 
         # Signal count waterfall report (for visibility on where signals die)
         conn = None

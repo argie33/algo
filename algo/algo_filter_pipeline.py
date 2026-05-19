@@ -118,10 +118,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             self.cur.execute(
                 """
-                SELECT b.symbol, b.date, b.signal
+                SELECT b.symbol, b.date, b.signal_type
                 FROM buy_sell_daily b
                 LEFT JOIN stock_scores s ON b.symbol = s.symbol
-                WHERE b.date = %s AND b.signal = 'BUY'
+                WHERE b.date = %s AND b.signal_type = 'BUY'
                 ORDER BY COALESCE(s.composite_score, 0) DESC, b.symbol
                 """,
                 (eval_date,),
@@ -425,7 +425,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             """
             SELECT bs.date
             FROM buy_sell_daily bs
-            WHERE bs.signal = 'BUY'
+            WHERE bs.signal_type = 'BUY'
               AND EXISTS (SELECT 1 FROM market_health_daily mh WHERE mh.date = bs.date)
               AND EXISTS (SELECT 1 FROM trend_template_data tt WHERE tt.date = bs.date)
             GROUP BY bs.date

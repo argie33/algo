@@ -883,7 +883,7 @@ class SwingTraderScore:
         try:
             # Weekly BUY signal in last 90 days (~13 weeks, captures most active uptrends)
             self.cur.execute(
-                """SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal = 'BUY'
+                """SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal_type = 'BUY'
                    AND date >= %s::date - INTERVAL '90 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
@@ -907,7 +907,7 @@ class SwingTraderScore:
 
             # Monthly BUY in last 270 days (~9 months — long-term confirmation window)
             self.cur.execute(
-                """SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal = 'BUY'
+                """SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal_type = 'BUY'
                    AND date >= %s::date - INTERVAL '270 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )

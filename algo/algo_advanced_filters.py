@@ -341,7 +341,7 @@ class AdvancedFilters:
         try:
             self.cur.execute(
                 """SELECT 1 FROM buy_sell_weekly
-                   WHERE symbol = %s AND signal = 'BUY'
+                   WHERE symbol = %s AND signal_type = 'BUY'
                      AND date >= %s::date - INTERVAL '30 days'
                      AND date <= %s
                    LIMIT 1""",
@@ -682,7 +682,7 @@ if __name__ == "__main__":
         ('NBHC', 'Financial Services', 'Banks - Regional'),
     ]:
         f.cur.execute(
-            "SELECT entry_price FROM buy_sell_daily WHERE symbol=%s AND date='2026-04-24' AND signal='BUY'",
+            "SELECT entry_price FROM buy_sell_daily WHERE symbol=%s AND date='2026-04-24' AND signal_type='BUY'",
             (sym,),
         )
         row = f.cur.fetchone()

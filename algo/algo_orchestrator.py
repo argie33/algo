@@ -525,7 +525,7 @@ class Orchestrator:
 
             # Count total BUY signals for today
             cur.execute(
-                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal = 'BUY'",
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
                 (self.run_date,)
             )
             total_signals = cur.fetchone()[0] or 0
