@@ -275,9 +275,27 @@ class BuySellSignalsLoader(OptimalLoader):
         if any(v is None for v in [rsi, macd, signal_line, sma_50, ema_21, avg_volume_50d]):
             return None
 
-        # Suppress definitive Stage 4 downtrend; filter pipeline gates Stage 2
+        # FIX: Suppress ALL Stage 4 downtrend signals (not just when trend_data is populated)
+        # Query database directly if trend_data is empty
         trend_info = trend_data.get(date_str, {})
-        if trend_info.get("stage_number") == 4:
+        stage_number = trend_info.get("stage_number")
+
+        if stage_number is None and symbol and date_str:
+            # Fallback: fetch stage directly from database if not in trend_data
+            try:
+                conn = self._connect()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT weinstein_stage FROM trend_template_data WHERE symbol = %s AND date = %s LIMIT 1",
+                    (symbol, date_str)
+                )
+                row_result = cur.fetchone()
+                cur.close()
+                stage_number = int(row_result[0]) if row_result and row_result[0] else None
+            except Exception:
+                pass
+
+        if stage_number == 4:
             return None
 
         # Volume ratio vs 50-day average
