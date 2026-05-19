@@ -127,54 +127,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /:sector - Get specific sector details
-router.get("/:sector", async (req, res) => {
-  try {
-    const { sector } = req.params;
-    if (!sector || sector.length === 0) {
-      return sendError(res, "Sector name required", 400);
-    }
-
-    // Query sector details with performance metrics
-    const result = await query(`
-      SELECT
-        cp.sector as sector_name,
-        COUNT(DISTINCT cp.symbol) as stock_count,
-        AVG(ss.composite_score) as composite_score,
-        AVG(ss.momentum_score) as momentum_score,
-        AVG(ss.value_score) as value_score,
-        AVG(ss.quality_score) as quality_score,
-        AVG(ss.growth_score) as growth_score,
-        AVG(ss.stability_score) as stability_score
-      FROM company_profile cp
-      LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
-      WHERE cp.sector = $1
-      GROUP BY cp.sector
-    `, [sector]);
-
-    if (result.rows.length === 0) {
-      return sendError(res, `Sector not found: ${sector}`, 404);
-    }
-
-    const row = result.rows[0];
-    const sectorData = {
-      sector_name: row.sector_name,
-      stock_count: parseInt(row.stock_count || 0),
-      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
-      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
-      value_score: row.value_score ? parseFloat(row.value_score) : null,
-      quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
-      growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
-      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
-    };
-
-    return sendSuccess(res, sectorData);
-  } catch (error) {
-    console.error("Error fetching sector:", error);
-    return sendError(res, `Failed to fetch sector: ${error.message.substring(0, 100)}`, 500);
-  }
-});
-
 // GET /trends-batch - Get daily sector price averages for the past N days (for relative performance charts)
 router.get("/trends-batch", async (req, res) => {
   try {
@@ -275,6 +227,97 @@ router.get("/:sector/trend", async (req, res) => {
   } catch (error) {
     console.error("Error fetching sector trend:", error);
     return sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+  }
+});
+
+// ============================================
+// WILDCARD ROUTES - Must come AFTER specific routes!
+// ============================================
+
+// GET /:sector/trend - Get sector trend data
+router.get("/:sector/trend", async (req, res) => {
+  try {
+    const { sector } = req.params;
+    if (!sector || sector.length === 0) {
+      return sendError(res, "Sector name required", 400);
+    }
+
+    // Query using LOWER to allow case-insensitive lookup
+    const result = await query(`
+      SELECT
+        sector,
+        date,
+        avgprice
+      FROM sector_performance
+      WHERE LOWER(sector) = LOWER($1)
+      ORDER BY date DESC
+      LIMIT 100
+    `, [sector]);
+
+    if (result.length === 0) {
+      return sendError(res, `No price data for sector: ${sector}`, 404);
+    }
+
+    // Convert to required format with trendData wrapper
+    const trendData = result.map(row => ({
+      date: row.date,
+      avgPrice: parseFloat(row.avgprice),
+      dailyStrengthScore: 0,  // Placeholder; can compute from price momentum if needed
+    }));
+
+    return sendSuccess(res, { sector, trendData }, 200);
+  } catch (error) {
+    console.error("Error fetching sector trend:", error);
+    return sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+  }
+});
+
+// GET /:sector - Get specific sector details
+// MUST be last so more specific routes like /trends-batch and /:sector/trend match first
+router.get("/:sector", async (req, res) => {
+  try {
+    const { sector } = req.params;
+    if (!sector || sector.length === 0) {
+      return sendError(res, "Sector name required", 400);
+    }
+
+    // Query sector details with performance metrics
+    const result = await query(`
+      SELECT
+        cp.sector as sector_name,
+        COUNT(DISTINCT cp.symbol) as stock_count,
+        AVG(ss.composite_score) as composite_score,
+        AVG(ss.momentum_score) as momentum_score,
+        AVG(ss.value_score) as value_score,
+        AVG(ss.quality_score) as quality_score,
+        AVG(ss.growth_score) as growth_score,
+        AVG(ss.stability_score) as stability_score
+      FROM company_profile cp
+      LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+      WHERE cp.sector = $1
+      GROUP BY cp.sector
+    `, [sector]);
+
+    if (result.rows.length === 0) {
+      return sendError(res, `Sector not found: ${sector}`, 404);
+    }
+
+    const row = result.rows[0];
+    const sectorData = {
+      sector_name: row.sector_name,
+      stock_count: parseInt(row.stock_count || 0),
+      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
+      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
+      value_score: row.value_score ? parseFloat(row.value_score) : null,
+      quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
+      growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
+      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
+    };
+
+    return sendSuccess(res, sectorData);
+  } catch (error) {
+    console.error("Error fetching sector:", error);
+    return sendError(res, `Failed to fetch sector: ${error.message.substring(0, 100)}`, 500);
   }
 });
 

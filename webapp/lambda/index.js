@@ -180,43 +180,8 @@ app.use((req, res, next) => {
 
 // Note: Rate limiting removed - API Gateway handles this
 
-// Global OPTIONS handler for CORS preflight requests
-// Use regex pattern instead of '*' which is invalid in Express 5.x
-app.options(/.*/, (req, res) => {
-  const origin = req.headers.origin;
-
-  // List of explicitly allowed origins (production only - no localhost)
-  const isProduction = process.env.NODE_ENV === "production";
-  const allowedOrigins = [
-    process.env.CLOUDFRONT_DOMAIN,
-    process.env.API_GATEWAY_URL,
-    process.env.FRONTEND_URL,
-    // Development localhost - NEVER in production
-    ...(isProduction ? [] : [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:5173",
-    ])
-  ].filter(Boolean);
-
-  let allowedOrigin = null;
-  if (origin && allowedOrigins.includes(origin)) {
-    allowedOrigin = origin;
-  }
-
-  if (allowedOrigin) {
-    res.header('Access-Control-Allow-Origin', allowedOrigin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin');
-    res.header('Access-Control-Max-Age', '86400');
-  }
-
-  res.status(200).end();
-});
-
 // CORS configuration - FIXED: Use exact domain matching only, no wildcard patterns
+// (OPTIONS handler removed - cors() middleware handles preflight)
 app.use(
   cors({
     origin: (origin, callback) => {
