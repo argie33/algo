@@ -36,7 +36,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         try:
             end = date.today()
             if since is None:
-                start = end - timedelta(days=30)
+                start = end - timedelta(days=5 * 365)  # 5 years initial load
             else:
                 start = since + timedelta(days=1) if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0]) + timedelta(days=1)
 
@@ -46,7 +46,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             conn = get_db_connection()
             try:
                 with conn.cursor() as cur:
-                    # Get recent buy/sell signals for this symbol
+                    # Get ALL buy/sell signals for this symbol (not just most recent)
                     cur.execute("""
                         SELECT
                             symbol, date, signal, strength, reason,
@@ -54,16 +54,21 @@ class SwingTraderScoresLoader(OptimalLoader):
                             risk_reward_ratio, volume_surge_pct
                         FROM buy_sell_daily
                         WHERE symbol = %s AND date >= %s AND date <= %s
-                        ORDER BY date DESC
-                        LIMIT 1
+                        ORDER BY date ASC
                     """, (symbol, start, end))
-                    row = cur.fetchone()
+                    rows = cur.fetchall()
 
-                    if not row:
+                    if not rows:
                         return None
 
-                    # Compute swing score from signal quality metrics
-                    return self._compute_swing_score(symbol, row)
+                    # Compute swing scores for all dates
+                    all_scores = []
+                    for row in rows:
+                        scores = self._compute_swing_score(symbol, row)
+                        if scores:
+                            all_scores.extend(scores)
+
+                    return all_scores if all_scores else None
             finally:
                 conn.close()
         except Exception as e:
