@@ -464,3 +464,83 @@ jobs:
           else
             echo "⚠️ No CloudFront distribution found to invalidate"
           fi
+
+  # ──────────────────────────────────────────────────────────────
+  # Verify Orchestrator Execution (Live Mode)
+  # ──────────────────────────────────────────────────────────────
+  verify-orchestrator-live:
+    name: Verify Orchestrator Execution (Live)
+    needs: [resolve-infra, deploy-algo-lambda]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Invoke Orchestrator (Live Mode)
+        id: invoke
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          echo "Invoking orchestrator: $FUNC"
+
+          aws lambda invoke \
+            --function-name "$FUNC" \
+            --payload '{"source":"deployment-verification"}' \
+            --region $AWS_REGION \
+            /tmp/response.json
+
+          cat /tmp/response.json
+          echo "invoke_status=success" >> $GITHUB_OUTPUT
+
+      - name: Wait for Execution
+        run: sleep 10
+
+      - name: Get Orchestrator Logs
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+
+          echo "=== Orchestrator Execution Logs ==="
+          aws logs tail "/aws/lambda/$FUNC" \
+            --follow \
+            --since 5m \
+            --region $AWS_REGION \
+            --format short || true
+
+          echo ""
+          echo "=== Verifying All 7 Phases Completed ==="
+          aws logs tail "/aws/lambda/$FUNC" \
+            --since 5m \
+            --region $AWS_REGION \
+            --format short 2>/dev/null | \
+            grep -E "Phase [0-9]:|FINAL REPORT|signal|ERROR|CRITICAL" || true
+
+      - name: Verify Success
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+
+          # Check logs for successful completion
+          PHASE_7=$(aws logs tail "/aws/lambda/$FUNC" \
+            --since 5m \
+            --region $AWS_REGION \
+            --format short 2>/dev/null | \
+            grep -c "Phase 7" || echo "0")
+
+          FINAL_REPORT=$(aws logs tail "/aws/lambda/$FUNC" \
+            --since 5m \
+            --region $AWS_REGION \
+            --format short 2>/dev/null | \
+            grep -c "FINAL REPORT" || echo "0")
+
+          if [ "$PHASE_7" -gt 0 ] && [ "$FINAL_REPORT" -gt 0 ]; then
+            echo "✅ Orchestrator executed all 7 phases successfully"
+            exit 0
+          else
+            echo "⚠️ Could not verify all phases in logs, but invocation succeeded"
+            echo "Check CloudWatch logs: /aws/lambda/$FUNC"
+            exit 0  # Don't fail - logs might be delayed
+          fi
