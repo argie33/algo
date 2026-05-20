@@ -33,11 +33,12 @@ jobs:
 
           FUNC="algo-algo-dev"
           PAYLOAD='{"source":"test-live-execution","test":"true"}'
+          PAYLOAD_B64=$(echo -n "$PAYLOAD" | base64 -w 0)
 
           aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type Event \
-            --payload "$PAYLOAD" \
+            --payload "$PAYLOAD_B64" \
             --region $AWS_REGION \
             /tmp/response.json
 
