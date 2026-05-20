@@ -280,7 +280,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
   secret_id = aws_secretsmanager_secret.rds_credentials.id
   secret_string = jsonencode({
     username = var.db_master_username
-    password = var.db_master_password
+    password = local.rds_password
     host     = aws_db_instance.main.address
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name

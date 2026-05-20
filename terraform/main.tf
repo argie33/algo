@@ -92,7 +92,7 @@ module "database" {
   db_max_allocated_storage        = var.rds_max_allocated_storage
   db_backup_retention_days        = var.rds_backup_retention_period
   db_master_username              = var.rds_username
-  db_master_password              = var.rds_password
+  rds_password                    = var.rds_password
   rds_db_name                     = var.rds_db_name
   db_multi_az                     = var.rds_multi_az
   enable_rds_proxy                = false

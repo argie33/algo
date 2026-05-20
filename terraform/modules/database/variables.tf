@@ -82,14 +82,10 @@ variable "db_master_username" {
 }
 
 variable "db_master_password" {
-  description = "Master password for RDS"
+  description = "DEPRECATED: No longer used. RDS password is managed via rds_password and local.rds_password."
   type        = string
   sensitive   = true
-
-  validation {
-    condition     = length(var.db_master_password) >= 8
-    error_message = "Password must be at least 8 characters"
-  }
+  default     = ""
 }
 
 variable "rds_password" {
