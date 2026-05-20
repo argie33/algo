@@ -251,3 +251,17 @@ output "deployment_summary" {
     dashboard_url = module.monitoring.dashboard_url
   }
 }
+
+# ============================================================
+# Orchestrator Configuration
+# ============================================================
+
+output "alpaca_paper_trading" {
+  description = "Whether Alpaca paper trading is enabled (false = live trading)"
+  value       = var.alpaca_paper_trading
+}
+
+output "execution_mode" {
+  description = "Orchestrator execution mode (auto, paper, or live)"
+  value       = var.execution_mode
+}
