@@ -45,6 +45,22 @@ module "storage" {
   common_tags                 = local.common_tags
 }
 
+module "secrets" {
+  source = "./modules/secrets"
+
+  alpaca_api_key    = var.alpaca_api_key_id
+  alpaca_api_secret = var.alpaca_api_secret_key
+  fred_api_key      = var.fred_api_key
+  db_host           = module.database.rds_address
+  db_port           = 5432
+  db_name           = var.rds_db_name
+  db_user           = var.rds_username
+  db_password       = var.rds_password
+  common_tags       = local.common_tags
+
+  depends_on = [module.database]
+}
+
 module "database" {
   source = "./modules/database"
 
