@@ -92,6 +92,13 @@ variable "db_master_password" {
   }
 }
 
+variable "rds_password" {
+  description = "RDS master password override (via TF_VAR_rds_password). If provided, uses this instead of generated random password."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "db_multi_az" {
   description = "Enable Multi-AZ deployment for high availability (STRONGLY recommended for production to prevent single AZ failure)"
   type        = bool
