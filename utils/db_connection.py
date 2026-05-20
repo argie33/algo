@@ -47,6 +47,30 @@ class TrackedConnection:
         self.close()
 
 
+def _try_dns_with_servers(hostname: str, nameservers: list = None) -> list:
+    """Try DNS resolution with explicitly configured nameservers.
+
+    Uses dnspython if available, falls back to socket if not.
+    """
+    try:
+        import dns.resolver
+
+        if nameservers:
+            resolver = dns.resolver.Resolver()
+            resolver.nameservers = nameservers
+        else:
+            resolver = dns.resolver.Resolver()
+
+        answers = resolver.resolve(hostname, 'A')
+        return [str(rdata) for rdata in answers]
+    except ImportError:
+        # dnspython not available, return empty list
+        return []
+    except Exception as e:
+        logger.debug(f"DNS resolution with custom servers failed: {e}")
+        return []
+
+
 def _test_dns_resolution(hostname: str) -> None:
     """Test DNS resolution and log detailed diagnostics.
 
@@ -86,17 +110,22 @@ def _test_dns_resolution(hostname: str) -> None:
 
         # Try alternative DNS servers
         logger.info("Testing alternative DNS servers...")
-        test_hosts = [
+        alt_servers = [
             ('8.8.8.8', "Google Public DNS"),
             ('1.1.1.1', "Cloudflare DNS"),
+            ('169.254.169.253', "AWS Route 53 Resolver"),
         ]
 
-        for ip, name in test_hosts:
+        for ip, name in alt_servers:
+            logger.info(f"Attempting DNS lookup via {name} ({ip})...")
             try:
-                socket.gethostbyaddr(ip)
-                logger.info(f"  ✓ Can reach {name} ({ip})")
-            except Exception:
-                logger.info(f"  ✗ Cannot reach {name} ({ip})")
+                ips = _try_dns_with_servers(hostname, [ip])
+                if ips:
+                    logger.info(f"  ✓ Resolution via {name} succeeded: {hostname} → {ips}")
+                    # If we found a resolution via alternative server, log the IP we can use
+                    return
+            except Exception as err:
+                logger.debug(f"  ✗ DNS resolution via {name} failed: {err}")
 
         raise
 
