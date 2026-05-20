@@ -1,49 +1,133 @@
-name: Test Orchestrator Lambda
+name: Test Orchestrator Execution
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * MON-FRI'  # 9 AM UTC Mon-Fri
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   AWS_REGION: us-east-1
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
-  test-orchestrator:
-    name: Invoke & Test Orchestrator
+  test:
+    name: Execute & Verify Orchestrator
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Invoke Orchestrator
+      - name: Invoke Orchestrator Lambda
+        id: invoke
         run: |
-          PAYLOAD='{"source":"manual-test"}'
-          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
+          echo "Invoking algo-algo-dev in LIVE mode..."
 
-          echo "📤 Invoking algo-algo-dev..."
+          FUNC="algo-algo-dev"
+          PAYLOAD='{"source":"test-live-execution","test":"true"}'
+
           aws lambda invoke \
-            --function-name algo-algo-dev \
-            --payload "$ENCODED" \
-            --region ${{ env.AWS_REGION }} \
+            --function-name "$FUNC" \
+            --invocation-type Event \
+            --payload "$PAYLOAD" \
+            --region $AWS_REGION \
             /tmp/response.json
 
-          echo "Response:"
-          cat /tmp/response.json
-          echo ""
+          echo "Orchestrator invoked at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "timestamp=$(date -u +%s)" >> $GITHUB_OUTPUT
 
-      - name: Check Logs
+      - name: Wait for Execution (up to 5 minutes)
+        id: execution
         run: |
-          echo "📋 Lambda logs from last 5 minutes:"
-          aws logs tail /aws/lambda/algo-algo-dev \
-            --since 5m \
-            --region ${{ env.AWS_REGION }} \
-            --format short 2>/dev/null | head -100 || echo "No logs available"
+          FUNC="algo-algo-dev"
+          LOG_GROUP="/aws/lambda/$FUNC"
+          START_TIME=${{ steps.invoke.outputs.timestamp }}
+          END_TIME=$((START_TIME + 300))  # 5 minutes
+
+          echo "Waiting for orchestrator to complete..."
+
+          COMPLETED="false"
+          while [ $(date +%s) -lt $END_TIME ]; do
+            # Get latest log stream
+            LATEST=$(aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --max-items 1 \
+              --region $AWS_REGION \
+              --query 'logStreams[0].logStreamName' \
+              --output text 2>/dev/null)
+
+            if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
+              sleep 5
+              continue
+            fi
+
+            # Get execution logs
+            LOGS=$(aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LATEST" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text 2>/dev/null)
+
+            # Check for completion indicators
+            if echo "$LOGS" | grep -q "Phase 7"; then
+              echo "✅ Phase 7 found - orchestrator completed"
+              COMPLETED="true"
+              break
+            fi
+
+            sleep 10
+          done
+
+          echo "completed=$COMPLETED" >> $GITHUB_OUTPUT
+
+      - name: Retrieve & Report Logs
+        run: |
+          FUNC="algo-algo-dev"
+          LOG_GROUP="/aws/lambda/$FUNC"
+
+          LATEST=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null)
+
+          if [ -n "$LATEST" ] && [ "$LATEST" != "None" ]; then
+            echo "=== ORCHESTRATOR EXECUTION LOG ==="
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LATEST" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text | tail -150
+          else
+            echo "No logs found"
+          fi
+
+      - name: Verify Results
+        run: |
+          COMPLETED="${{ steps.execution.outputs.completed }}"
+
+          echo ""
+          echo "=== TEST RESULT ==="
+
+          if [ "$COMPLETED" = "true" ]; then
+            echo "✅ SUCCESS: Orchestrator completed execution"
+            exit 0
+          else
+            echo "⚠️ INCOMPLETE: Orchestrator did not complete within timeout"
+            exit 1
+          fi
