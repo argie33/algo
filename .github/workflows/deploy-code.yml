@@ -134,146 +134,132 @@ jobs:
 
       - name: Package Algo Lambda
         run: |
-          mkdir -p lambda-pkg
+          python3 << 'PYTHON_SCRIPT'
+          import os
+          import zipfile
+          import subprocess
+          from pathlib import Path
 
-          # CRITICAL: Copy app code FIRST, before pip install
-          cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
+          # Create ZIP using Python's zipfile for explicit control
+          print("=== Building Lambda Package with Python zipfile ===")
 
-          # Copy config package (MUST come before pip to avoid conflicts)
-          if [ ! -d config ]; then
-            echo "❌ FATAL: config directory not found in repo!"
-            exit 1
-          fi
-          cp -r config lambda-pkg/ || { echo "❌ Failed to copy config"; exit 1; }
-          [ -d lambda-pkg/config ] || { echo "❌ Config not found after copy!"; exit 1; }
-          echo "✅ Config copied to lambda-pkg/config"
+          # Directory to include in ZIP
+          app_dir = Path.cwd()
+          zip_path = Path("algo_lambda.zip")
+          pkg_dir = Path("lambda-pkg")
 
-          # Copy algo package (MUST come before pip)
-          if [ ! -d algo ]; then
-            echo "❌ FATAL: algo directory not found in repo!"
-            exit 1
-          fi
-          cp -r algo lambda-pkg/ || { echo "❌ Failed to copy algo"; exit 1; }
-          [ -d lambda-pkg/algo ] || { echo "❌ Algo not found after copy!"; exit 1; }
-          echo "✅ Algo copied to lambda-pkg/algo"
+          # Remove old ZIP if exists
+          if zip_path.exists():
+            zip_path.unlink()
+            print(f"✅ Removed old {zip_path}")
 
-          # Copy utils package (required by algo modules)
-          if [ ! -d utils ]; then
-            echo "❌ FATAL: utils directory not found in repo!"
-            exit 1
-          fi
-          cp -r utils lambda-pkg/ || { echo "❌ Failed to copy utils"; exit 1; }
-          [ -d lambda-pkg/utils ] || { echo "❌ Utils not found after copy!"; exit 1; }
-          echo "✅ Utils copied to lambda-pkg/utils"
+          # Create ZIP with explicit file control
+          with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            print(f"\n📦 Adding application code...")
 
-          # Copy shared utilities
-          for f in db_helper.py signal_utils.py data_source_router.py \
-                   optimal_loader.py bloom_dedup.py trade_status.py \
-                   loader_safety.py credential_manager.py init_database.py; do
-            [ -f "$f" ] && cp "$f" lambda-pkg/ || true
-          done
+            # Add lambda handler
+            handler_path = Path("lambda/algo_orchestrator/lambda_function.py")
+            if handler_path.exists():
+              zf.write(handler_path, "lambda_function.py")
+              print(f"  ✅ lambda_function.py")
+            else:
+              raise Exception(f"❌ {handler_path} not found!")
 
-          # NOW install pip dependencies (after app code)
-          echo "Installing dependencies..."
-          pip install -r lambda/algo_orchestrator/requirements.txt \
-            -t lambda-pkg/ --only-binary=:all: --quiet
-          echo "✅ Dependencies installed"
-          # Verify packages were copied
-          ls -la lambda-pkg/config/ || echo "❌ Config not found after copy!"
-          ls -la lambda-pkg/algo/ || echo "❌ Algo not found after copy!"
+            # Add config package
+            config_path = Path("config")
+            if config_path.is_dir():
+              for file_path in config_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  arcname = str(file_path.relative_to(app_dir))
+                  zf.write(file_path, arcname)
+              print(f"  ✅ config/ package")
+            else:
+              raise Exception(f"❌ {config_path} directory not found!")
 
-          cd lambda-pkg
-          # CRITICAL: Verify config and algo exist before zipping
-          if [ ! -d config ]; then
-            echo "❌ FATAL: config directory missing in lambda-pkg!"
-            echo "Current contents:"
-            ls -la
-            exit 1
-          fi
-          if [ ! -d algo ]; then
-            echo "❌ FATAL: algo directory missing in lambda-pkg!"
-            exit 1
-          fi
-          if [ ! -d utils ]; then
-            echo "❌ FATAL: utils directory missing in lambda-pkg!"
-            exit 1
-          fi
-          if [ ! -f lambda_function.py ]; then
-            echo "❌ FATAL: lambda_function.py missing in lambda-pkg!"
-            exit 1
-          fi
+            # Add algo package
+            algo_path = Path("algo")
+            if algo_path.is_dir():
+              for file_path in algo_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  arcname = str(file_path.relative_to(app_dir))
+                  zf.write(file_path, arcname)
+              print(f"  ✅ algo/ package")
+            else:
+              raise Exception(f"❌ {algo_path} directory not found!")
 
-          # List what we're about to zip
-          echo "=== Verifying all required items before zipping ==="
-          echo "Config:" && ls -la config | head -5 || exit 1
-          echo "Algo:" && ls -la algo | head -5 || exit 1
-          echo "Utils:" && ls -la utils | head -5 || exit 1
-          echo "Handler:" && ls -la lambda_function.py || exit 1
+            # Add utils package
+            utils_path = Path("utils")
+            if utils_path.is_dir():
+              for file_path in utils_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  arcname = str(file_path.relative_to(app_dir))
+                  zf.write(file_path, arcname)
+              print(f"  ✅ utils/ package")
+            else:
+              raise Exception(f"❌ {utils_path} directory not found!")
 
-          # Create ZIP with ALL content from current directory
-          # Exclude only compiled files and cache
-          echo "Creating ZIP with explicit exclusions..."
-          zip -r ../algo_lambda.zip . \
-            -x "*.pyc" "__pycache__/*" "*.dist-info/*" \
-            > /tmp/zip.log 2>&1
-          ZIP_EXIT=$?
-          if [ $ZIP_EXIT -ne 0 ]; then
-            echo "❌ ZIP creation failed (exit code: $ZIP_EXIT)"
-            cat /tmp/zip.log
-            exit 1
-          fi
-          cd ..
+            # Install pip dependencies to temp directory, then add to ZIP
+            print(f"\n📥 Installing and adding dependencies...")
+            pkg_temp = Path("/tmp/pip_packages")
+            if pkg_temp.exists():
+              import shutil
+              shutil.rmtree(pkg_temp)
+            pkg_temp.mkdir()
 
-          # Verify CRITICAL packages are in the zip
-          echo ""
-          echo "=== CRITICAL ZIP Verification ==="
-          echo "First 30 lines of ZIP contents:"
-          unzip -l algo_lambda.zip | head -30
-          echo ""
-          VERIFY_FAILED=0
+            # Install dependencies
+            subprocess.run([
+              "pip", "install",
+              "-r", "lambda/algo_orchestrator/requirements.txt",
+              "-t", str(pkg_temp),
+              "--only-binary=:all:",
+              "--quiet"
+            ], check=True)
 
-          echo "Checking config/__init__.py:"
-          if unzip -l algo_lambda.zip | grep -q "config/__init__.py"; then
-            echo "  ✅ config module found"
-          else
-            echo "  ❌ CRITICAL: config module NOT found"
-            VERIFY_FAILED=1
-          fi
+            # Add dependencies to ZIP
+            for file_path in pkg_temp.rglob("*"):
+              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path) or ".dist-info" in str(file_path)):
+                arcname = str(file_path.relative_to(pkg_temp))
+                zf.write(file_path, arcname)
 
-          echo "Checking algo/__init__.py:"
-          if unzip -l algo_lambda.zip | grep -q "algo/__init__.py"; then
-            echo "  ✅ algo module found"
-          else
-            echo "  ❌ CRITICAL: algo module NOT found"
-            VERIFY_FAILED=1
-          fi
+            print(f"  ✅ Dependencies added")
 
-          echo "Checking utils/__init__.py:"
-          if unzip -l algo_lambda.zip | grep -q "utils/__init__.py"; then
-            echo "  ✅ utils module found"
-          else
-            echo "  ❌ CRITICAL: utils module NOT found"
-            VERIFY_FAILED=1
-          fi
+          # Verify ZIP contents
+          print(f"\n✅ ZIP created: {zip_path.stat().st_size / (1024*1024):.1f} MB")
 
-          echo "Checking lambda_function.py:"
-          if unzip -l algo_lambda.zip | grep -q "lambda_function.py"; then
-            echo "  ✅ lambda handler found"
-          else
-            echo "  ❌ CRITICAL: lambda handler NOT found"
-            VERIFY_FAILED=1
-          fi
+          print(f"\n=== Verifying critical files in ZIP ===")
+          with zipfile.ZipFile(zip_path, 'r') as zf:
+            names = zf.namelist()
 
-          if [ "$VERIFY_FAILED" -eq 1 ]; then
-            echo "❌ ZIP verification FAILED - critical files missing"
-            echo "ZIP contents:"
-            unzip -l algo_lambda.zip | head -50
-            exit 1
-          fi
+            critical_files = {
+              "lambda_function.py": False,
+              "config/__init__.py": False,
+              "algo/__init__.py": False,
+              "utils/__init__.py": False,
+            }
 
-          echo ""
-          echo "✅ All critical files verified in ZIP"
-          echo "Package size: $(du -sh algo_lambda.zip | cut -f1)"
+            for name in names:
+              for critical in critical_files:
+                if critical in name or name == critical:
+                  critical_files[critical] = True
+
+            all_good = True
+            for critical, found in critical_files.items():
+              if found:
+                print(f"  ✅ {critical}")
+              else:
+                print(f"  ❌ {critical} NOT FOUND")
+                all_good = False
+
+            if not all_good:
+              print("\n❌ Critical files missing from ZIP!")
+              print("\nFirst 50 files in ZIP:")
+              for i, name in enumerate(sorted(names)[:50]):
+                print(f"    {name}")
+              raise Exception("ZIP verification failed")
+
+          print(f"\n✅ All critical files verified in ZIP")
+          PYTHON_SCRIPT
+
 
       - name: Deploy Algo Lambda
         run: |
