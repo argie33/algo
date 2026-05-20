@@ -139,9 +139,26 @@ jobs:
           # Install binary-compatible dependencies
           pip install -r lambda/algo_orchestrator/requirements.txt \
             -t lambda-pkg/ --only-binary=:all: --quiet
+          # Verify config was copied
+          ls -la lambda-pkg/config/ || echo "❌ Config not found after copy!"
+
           cd lambda-pkg
+          # List what we're about to zip
+          echo "=== Contents of lambda-pkg before zipping ==="
+          ls -la | head -20
+          echo ""
+          echo "=== Config contents ==="
+          ls -la config/ 2>/dev/null || echo "Config missing!"
+
           zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
+
+          # Verify config is in the zip
+          echo ""
+          echo "=== Verifying ZIP contents ==="
+          unzip -l algo_lambda.zip | grep -E "config/|lambda_function" | head -10
+
+          echo ""
           echo "Package size: $(du -sh algo_lambda.zip | cut -f1)"
 
       - name: Deploy Algo Lambda
