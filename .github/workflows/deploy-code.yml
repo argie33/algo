@@ -149,15 +149,30 @@ jobs:
           ls -la lambda-pkg/algo/ || echo "❌ Algo not found after copy!"
 
           cd lambda-pkg
+          # CRITICAL: Verify config and algo exist before zipping
+          if [ ! -d config ]; then
+            echo "❌ FATAL: config directory missing in lambda-pkg!"
+            echo "Current contents:"
+            ls -la
+            exit 1
+          fi
+          if [ ! -d algo ]; then
+            echo "❌ FATAL: algo directory missing in lambda-pkg!"
+            exit 1
+          fi
+
           # List what we're about to zip
           echo "=== Contents of lambda-pkg before zipping ==="
           ls -la | head -20
           echo ""
-          echo "=== Config contents ==="
-          ls -la config/ 2>/dev/null || echo "Config missing!"
+          echo "=== Config contents (MUST EXIST) ==="
+          ls -la config/ || exit 1
           echo ""
-          echo "=== Algo contents ==="
-          ls -la algo/ 2>/dev/null | head -10 || echo "Algo missing!"
+          echo "=== Algo contents (MUST EXIST) ==="
+          ls -la algo/ | head -10 || exit 1
+          echo ""
+          echo "=== Lambda handler ==="
+          ls -la lambda_function.py || exit 1
 
           zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
