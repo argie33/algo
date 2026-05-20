@@ -122,7 +122,12 @@ jobs:
           # Lambda handler
           cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
           # Copy entire config package (directory with __init__.py and modules)
-          cp -r config lambda-pkg/config 2>/dev/null || true
+          if [ -d config ]; then
+            cp -r config lambda-pkg/
+            echo "✅ Config directory copied to Lambda package"
+          else
+            echo "❌ WARNING: config directory not found!"
+          fi
           # All algo modules (signals, orchestrator, etc.)
           cp algo_*.py lambda-pkg/ 2>/dev/null || true
           # Shared utility modules that algo imports
