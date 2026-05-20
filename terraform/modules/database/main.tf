@@ -3,21 +3,26 @@
 # ============================================================
 
 # ============================================================
-# 0. Generate RDS Master Password Dynamically
+# 0. RDS Master Password (Use Variable or Generate)
 # ============================================================
+# Uses TF_VAR_rds_password if provided, otherwise random.
+# This allows for deterministic password management.
 
 resource "random_password" "rds_master" {
   length            = 32
-  special           = true
-  override_special  = "!#$%&*()-_=+[]{}<>:?"
+  special           = false  # No special chars for reliability
   min_upper         = 4
   min_lower         = 4
   min_numeric       = 4
-  min_special       = 4
 
   lifecycle {
     ignore_changes = all
   }
+}
+
+# Use provided password (via TF_VAR_rds_password) or fall back to generated
+locals {
+  rds_password = var.rds_password != "" ? var.rds_password : random_password.rds_master.result
 }
 
 # ============================================================
@@ -71,7 +76,7 @@ resource "aws_db_instance" "main" {
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null
 
   username               = var.db_master_username
-  password               = random_password.rds_master.result
+  password               = local.rds_password
   parameter_group_name   = aws_db_parameter_group.main.name
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.rds_security_group_id]
@@ -113,9 +118,6 @@ resource "aws_db_instance" "main" {
   # Prevent accidental destruction of data
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [
-      password # Allow password changes outside Terraform
-    ]
   }
 
   depends_on = [
