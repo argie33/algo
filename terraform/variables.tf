@@ -666,12 +666,13 @@ variable "enable_bastion_cloudwatch_logs" {
 # ============================================================
 
 variable "jwt_secret" {
-  description = "JWT secret for authentication (sensitive)"
+  description = "JWT secret for authentication (auto-generated if empty)"
   type        = string
   sensitive   = true
+  default     = ""
   validation {
-    condition     = length(var.jwt_secret) >= 16
-    error_message = "JWT secret must be at least 16 characters"
+    condition     = length(var.jwt_secret) == 0 || length(var.jwt_secret) >= 16
+    error_message = "JWT secret must be at least 16 characters or left empty for auto-generation"
   }
 }
 

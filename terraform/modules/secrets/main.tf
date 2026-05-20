@@ -2,6 +2,7 @@
 # Secrets Manager Module - Environment Credentials
 # ============================================================
 
+
 # Alpaca Trading API Credentials
 resource "aws_secretsmanager_secret" "alpaca" {
   name                    = "algo/alpaca"

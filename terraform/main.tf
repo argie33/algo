@@ -45,6 +45,21 @@ module "storage" {
   common_tags                 = local.common_tags
 }
 
+resource "random_password" "jwt_secret" {
+  count             = var.jwt_secret == "" ? 1 : 0
+  length            = 64
+  special           = true
+  override_special  = "!#$%&*()-_=+[]{}<>:?"
+  min_upper         = 8
+  min_lower         = 8
+  min_numeric       = 8
+  min_special       = 8
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
 module "secrets" {
   source = "./modules/secrets"
 
@@ -56,6 +71,7 @@ module "secrets" {
   db_name           = var.rds_db_name
   db_user           = var.rds_username
   db_password       = module.database.rds_password
+  jwt_secret        = var.jwt_secret != "" ? var.jwt_secret : random_password.jwt_secret[0].result
   common_tags       = local.common_tags
 
   depends_on = [module.database]
