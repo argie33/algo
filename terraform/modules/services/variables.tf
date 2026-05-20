@@ -106,6 +106,12 @@ variable "rds_credentials_secret_arn" {
   type        = string
 }
 
+variable "rds_password" {
+  description = "RDS database password for Lambda environment"
+  type        = string
+  sensitive   = true
+}
+
 variable "algo_secrets_arn" {
   description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
   type        = string
