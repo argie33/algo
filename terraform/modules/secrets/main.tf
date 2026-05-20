@@ -49,8 +49,8 @@ resource "aws_secretsmanager_secret_version" "database" {
   secret_string = jsonencode({
     host     = var.db_host
     port     = var.db_port
-    database = var.db_name
-    user     = var.db_user
+    dbname   = var.db_name
+    username = var.db_user
     password = var.db_password
   })
 }
