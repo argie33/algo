@@ -121,7 +121,9 @@ jobs:
           mkdir -p lambda-pkg
           # Lambda handler
           cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
-          # All algo modules (signals, orchestrator, config, etc.)
+          # Copy entire config package (directory with __init__.py and modules)
+          cp -r config lambda-pkg/config 2>/dev/null || true
+          # All algo modules (signals, orchestrator, etc.)
           cp algo_*.py lambda-pkg/ 2>/dev/null || true
           # Shared utility modules that algo imports
           for f in db_helper.py signal_utils.py data_source_router.py \
