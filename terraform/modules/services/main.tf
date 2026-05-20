@@ -21,10 +21,10 @@ locals {
 # Shared by all Lambda functions → smaller packages + faster deploys
 
 resource "aws_lambda_layer_version" "shared_deps" {
-  filename            = "${path.module}/../database/python-psycopg2-layer.zip"
+  filename            = "${path.module}/../../algo_layer.zip"
   layer_name          = "${var.project_name}-shared-deps-${var.environment}"
   compatible_runtimes = ["python3.11"]
-  source_code_hash    = filebase64sha256("${path.module}/../database/python-psycopg2-layer.zip")
+  source_code_hash    = filebase64sha256("${path.module}/../../algo_layer.zip")
 }
 
 # ============================================================
