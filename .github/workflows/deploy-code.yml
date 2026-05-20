@@ -165,7 +165,14 @@ jobs:
           # Verify packages are in the zip
           echo ""
           echo "=== Verifying ZIP contents ==="
-          unzip -l algo_lambda.zip | grep -E "config/|algo/|lambda_function" | head -20
+          echo "Config entries:"
+          unzip -l algo_lambda.zip | grep "config/" | head -10 || echo "❌ NO CONFIG FOUND"
+          echo ""
+          echo "Algo entries:"
+          unzip -l algo_lambda.zip | grep "^  .* algo/" | head -10 || echo "❌ NO ALGO FOUND"
+          echo ""
+          echo "Lambda handler:"
+          unzip -l algo_lambda.zip | grep "lambda_function.py" || echo "❌ NO HANDLER"
 
           echo ""
           echo "Package size: $(du -sh algo_lambda.zip | cut -f1)"
