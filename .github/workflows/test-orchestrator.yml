@@ -1,0 +1,45 @@
+name: Test Orchestrator Lambda
+
+on:
+  workflow_dispatch
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test-orchestrator:
+    name: Invoke & Test Orchestrator
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Invoke Orchestrator
+        run: |
+          PAYLOAD='{"source":"manual-test"}'
+          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
+
+          echo "📤 Invoking stocks-algo-prod..."
+          aws lambda invoke \
+            --function-name stocks-algo-prod \
+            --payload "$ENCODED" \
+            --region ${{ env.AWS_REGION }} \
+            /tmp/response.json
+
+          echo "Response:"
+          cat /tmp/response.json
+          echo ""
+
+      - name: Check Logs
+        run: |
+          echo "📋 Lambda logs from last 5 minutes:"
+          aws logs tail /aws/lambda/stocks-algo-prod \
+            --since 5m \
+            --region ${{ env.AWS_REGION }} \
+            --format short 2>/dev/null | head -100 || echo "No logs available"
