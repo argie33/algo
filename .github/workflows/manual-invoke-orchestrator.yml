@@ -70,13 +70,15 @@ jobs:
           FUNC="${{ needs.resolve-function-name.outputs.algo_lambda_name }}"
           echo "Invoking orchestrator: $FUNC"
 
-          # Create unencoded payload (aws lambda invoke handles encoding)
-          PAYLOAD='{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}'
+          # Write payload to file for AWS CLI (avoids encoding issues)
+          cat > /tmp/payload.json <<'EOF'
+          {"source":"manual","run_date":"now","run_identifier":"manual-live-test"}
+          EOF
 
           aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
-            --payload "$PAYLOAD" \
+            --payload file:///tmp/payload.json \
             --region ${{ env.AWS_REGION }} \
             /tmp/response.json
 
