@@ -267,10 +267,13 @@ jobs:
           DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password // .password // ""')
           echo "Database password retrieved: $(echo "$DB_PASSWORD" | wc -c) characters"
 
-          # Read Terraform configuration to determine trading mode
-          echo "Reading Terraform configuration for trading mode..."
+          # Read Terraform configuration
+          echo "Reading Terraform configuration..."
           PAPER_TRADING=$(cd terraform && terraform output -raw alpaca_paper_trading 2>/dev/null || echo "false")
           EXEC_MODE=$(cd terraform && terraform output -raw execution_mode 2>/dev/null || echo "auto")
+          DB_HOST=$(cd terraform && terraform output -raw rds_address 2>/dev/null || echo "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com")
+          DB_PORT=$(cd terraform && terraform output -raw rds_port 2>/dev/null || echo "5432")
+          DB_NAME=$(cd terraform && terraform output -raw rds_database_name 2>/dev/null || echo "stocks")
 
           if [ "$PAPER_TRADING" = "true" ]; then
             APCA_API_BASE_URL="https://paper-api.alpaca.markets"
@@ -282,14 +285,15 @@ jobs:
 
           echo "Trading mode: $TRADING_MODE (paper_trading=$PAPER_TRADING, execution_mode=$EXEC_MODE)"
           echo "Alpaca endpoint: $APCA_API_BASE_URL"
+          echo "Database endpoint: $DB_HOST:$DB_PORT/$DB_NAME"
 
           # Build environment variables JSON - include database secret ARN for credential retrieval
           ENV_VARS=$(cat <<EOF
           {
             "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo/database",
-            "DB_HOST": "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com",
-            "DB_PORT": "5432",
-            "DB_NAME": "stocks",
+            "DB_HOST": "$DB_HOST",
+            "DB_PORT": "$DB_PORT",
+            "DB_NAME": "$DB_NAME",
             "DB_USER": "stocks",
             "DB_PASSWORD": "$DB_PASSWORD",
             "APCA_API_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
