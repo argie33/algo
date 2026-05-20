@@ -1374,3 +1374,23 @@ data "aws_iam_policy_document" "developer" {
 resource "aws_iam_access_key" "developer" {
   user = aws_iam_user.developer.name
 }
+
+# Save credentials to local file for programmatic use (IaC-managed)
+resource "local_file" "developer_credentials" {
+  filename = "${path.module}/../../.aws-dev-credentials"
+  content = jsonencode({
+    access_key_id     = aws_iam_access_key.developer.id
+    secret_access_key = aws_iam_access_key.developer.secret
+    region            = var.aws_region
+  })
+
+  file_permission = "0600"
+}
+
+# Also export as environment variables via local exec (for immediate use)
+resource "null_resource" "configure_aws_credentials" {
+  provisioner "local-exec" {
+    command = "echo export AWS_ACCESS_KEY_ID='${aws_iam_access_key.developer.id}' >> ~/.aws_dev_env && echo export AWS_SECRET_ACCESS_KEY='${aws_iam_access_key.developer.secret}' >> ~/.aws_dev_env && echo export AWS_REGION='${var.aws_region}' >> ~/.aws_dev_env"
+  }
+  depends_on = [aws_iam_access_key.developer]
+}
