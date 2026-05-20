@@ -84,6 +84,7 @@ jobs:
           echo "⏳ Waiting for orchestrator to execute (up to 10 minutes)..."
 
           FUNC="algo-algo-dev"
+          LOG_GROUP="/aws/lambda/$FUNC"
           START_TIME=$(date -u +%s)
           TIMEOUT=$((START_TIME + 600))
 
@@ -92,27 +93,46 @@ jobs:
           ERRORS_FOUND=0
 
           while [ $(date -u +%s) -lt $TIMEOUT ]; do
-            # Check for Phase 7
-            if aws logs tail "/aws/lambda/$FUNC" --since 5m --region $AWS_REGION --format short 2>/dev/null | grep -q "Phase 7:"; then
-              PHASE_7_FOUND=1
-              echo "✅ Phase 7 detected!"
-            fi
+            # Get latest log stream for the Lambda function
+            LATEST_STREAM=$(aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --max-items 1 \
+              --region $AWS_REGION \
+              --query 'logStreams[0].logStreamName' \
+              --output text 2>/dev/null || echo "")
 
-            # Check for final report
-            if aws logs tail "/aws/lambda/$FUNC" --since 5m --region $AWS_REGION --format short 2>/dev/null | grep -q "FINAL REPORT"; then
-              FINAL_REPORT_FOUND=1
-              echo "✅ Final report detected!"
-            fi
+            if [ -n "$LATEST_STREAM" ] && [ "$LATEST_STREAM" != "None" ]; then
+              # Get recent log events
+              LOGS=$(aws logs get-log-events \
+                --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LATEST_STREAM" \
+                --region $AWS_REGION \
+                --query 'events[*].message' \
+                --output text 2>/dev/null || echo "")
 
-            # Check for errors
-            if aws logs tail "/aws/lambda/$FUNC" --since 5m --region $AWS_REGION --format short 2>/dev/null | grep -qE "ERROR|CRITICAL|Traceback"; then
-              ERRORS_FOUND=1
-              echo "⚠️ Errors detected in logs"
-            fi
+              if echo "$LOGS" | grep -q "Phase 7:"; then
+                PHASE_7_FOUND=1
+                echo "✅ Phase 7 detected!"
+              fi
 
-            if [ $PHASE_7_FOUND -eq 1 ] && [ $FINAL_REPORT_FOUND -eq 1 ]; then
-              echo "✅ Orchestrator execution complete!"
-              break
+              if echo "$LOGS" | grep -q "FINAL REPORT"; then
+                FINAL_REPORT_FOUND=1
+                echo "✅ Final report detected!"
+              fi
+
+              if echo "$LOGS" | grep -qE "ERROR|CRITICAL|Traceback"; then
+                ERRORS_FOUND=1
+                echo "⚠️ Errors detected in logs"
+              fi
+
+              if [ $PHASE_7_FOUND -eq 1 ] && [ $FINAL_REPORT_FOUND -eq 1 ]; then
+                echo "✅ Orchestrator execution complete!"
+                break
+              fi
+            else
+              echo "Waiting for logs to become available..."
             fi
 
             sleep 10
@@ -125,8 +145,28 @@ jobs:
       - name: Display Full Execution Logs
         run: |
           FUNC="algo-algo-dev"
-          echo "=== ORCHESTRATOR EXECUTION LOGS (Last 30 minutes) ==="
-          aws logs tail "/aws/lambda/$FUNC" --since 30m --region $AWS_REGION --format short 2>/dev/null | tail -200
+          LOG_GROUP="/aws/lambda/$FUNC"
+          echo "=== ORCHESTRATOR EXECUTION LOGS ==="
+
+          LATEST_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$LATEST_STREAM" ] && [ "$LATEST_STREAM" != "None" ]; then
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LATEST_STREAM" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text | tail -200
+          else
+            echo "No log streams found yet - execution may not have started"
+          fi
 
       - name: Verify Results
         run: |
