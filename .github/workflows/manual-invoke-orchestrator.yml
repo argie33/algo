@@ -87,4 +87,4 @@ jobs:
           echo ""
           echo "=== Lambda Execution Logs ==="
           sleep 15
-          aws logs tail "/aws/lambda/$FUNC" --follow --since 3m --region ${{ env.AWS_REGION }} | head -300 || echo "No logs available yet"
+          aws logs tail "/aws/lambda/$FUNC" --since 3m --region ${{ env.AWS_REGION }} --max-items 300 || echo "No logs available yet"
