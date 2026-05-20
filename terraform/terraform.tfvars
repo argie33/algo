@@ -20,6 +20,7 @@ data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
 alpaca_paper_trading   = false  # LIVE trading mode with real Alpaca credentials
 api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
+algo_lambda_timeout    = 600   # Orchestrator needs time to process: 7 phases, data loading, signal generation
 
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
 # For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
