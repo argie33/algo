@@ -113,11 +113,11 @@ resource "aws_cloudtrail" "main" {
     include_management_events = true
     data_resource {
       type   = "AWS::Lambda::Function"
-      values = ["arn:aws:lambda:*:*:function/*"]
+      values = ["arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function/${var.project_name}-*"]
     }
     data_resource {
       type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::*/*"]
+      values = ["arn:aws:s3:::${var.project_name}-*/*"]
     }
   }
 
@@ -299,7 +299,7 @@ resource "aws_iam_role" "config_role" {
 resource "aws_iam_role_policy_attachment" "config_policy" {
   count      = var.aws_config_enabled ? 1 : 0
   role       = aws_iam_role.config_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/ConfigRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/ConfigRole-SetupAudit"
 }
 
 resource "aws_iam_role_policy" "config_bucket_policy" {
