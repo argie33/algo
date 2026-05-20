@@ -35,8 +35,8 @@ output "rds_username" {
 }
 
 output "rds_password" {
-  description = "RDS master password (auto-generated)"
-  value       = random_password.rds_master.result
+  description = "RDS master password (generated or from TF_VAR_rds_password)"
+  value       = local.rds_password
   sensitive   = true
 }
 
