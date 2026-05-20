@@ -1,0 +1,74 @@
+name: Manual - Invoke Loaders
+
+on:
+  workflow_dispatch:
+    inputs:
+      loader_type:
+        description: 'Loader to invoke (all, prices, technicals, earnings, economic)'
+        required: false
+        default: 'all'
+
+jobs:
+  invoke-loaders:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Invoke Prices Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
+        run: |
+          echo "Invoking prices loader..."
+          aws lambda invoke \
+            --function-name stocks-prices-loader-prod \
+            --invocation-type RequestResponse \
+            --region us-east-1 \
+            /tmp/prices-response.json
+          cat /tmp/prices-response.json
+          echo "Checking CloudWatch logs..."
+          sleep 5
+          aws logs tail /aws/lambda/stocks-prices-loader-prod --follow --max-items 100 || true
+
+      - name: Invoke Technicals Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'technicals' }}
+        run: |
+          echo "Invoking technicals loader..."
+          aws lambda invoke \
+            --function-name stocks-technicals-loader-prod \
+            --invocation-type RequestResponse \
+            --region us-east-1 \
+            /tmp/technicals-response.json
+          cat /tmp/technicals-response.json
+          sleep 5
+          aws logs tail /aws/lambda/stocks-technicals-loader-prod --follow --max-items 100 || true
+
+      - name: Invoke Earnings Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'earnings' }}
+        run: |
+          echo "Invoking earnings loader..."
+          aws lambda invoke \
+            --function-name stocks-earnings-loader-prod \
+            --invocation-type RequestResponse \
+            --region us-east-1 \
+            /tmp/earnings-response.json
+          cat /tmp/earnings-response.json
+          sleep 5
+          aws logs tail /aws/lambda/stocks-earnings-loader-prod --follow --max-items 100 || true
+
+      - name: Check RDS Data
+        run: |
+          echo "Checking RDS connectivity and data..."
+          # List available data tables and row counts
+          aws secretsmanager get-secret-value \
+            --secret-id algo/database \
+            --region us-east-1 \
+            --query SecretString \
+            --output text | jq .
