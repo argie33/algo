@@ -29,9 +29,9 @@ jobs:
           PAYLOAD='{"source":"manual-test"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
-          echo "📤 Invoking stocks-algo-prod..."
+          echo "📤 Invoking algo-algo-dev..."
           aws lambda invoke \
-            --function-name stocks-algo-prod \
+            --function-name algo-algo-dev \
             --payload "$ENCODED" \
             --region ${{ env.AWS_REGION }} \
             /tmp/response.json
@@ -43,7 +43,7 @@ jobs:
       - name: Check Logs
         run: |
           echo "📋 Lambda logs from last 5 minutes:"
-          aws logs tail /aws/lambda/stocks-algo-prod \
+          aws logs tail /aws/lambda/algo-algo-dev \
             --since 5m \
             --region ${{ env.AWS_REGION }} \
             --format short 2>/dev/null | head -100 || echo "No logs available"
