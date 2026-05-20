@@ -1,9 +1,11 @@
-# Stock Analytics Platform — Live Paper Trading
+# Stock Analytics Platform — Live Trading
 
-## STATUS
-- **Local:** ✅ 100% working (8.1M prices, 216K signals, 282 tests passing)
-- **AWS:** ⏳ Ready to deploy (Terraform written, secrets needed, GitHub Actions configured)
-- **Next:** Create AWS secrets (3 secrets, 5 min) → `git push main` → auto-deploys via GitHub Actions
+## STATUS & GOAL
+**GOAL:** Algo running LIVE with fresh data automatically every day before market open.
+- **Local:** ✅ 100% working (orchestrator executes all 7 phases, 282 tests passing)
+- **AWS:** ✅ Infrastructure deployed + Orchestrator working in LIVE mode
+- **Blocker:** Verify loaders run on schedule and load fresh real data daily
+- **Next:** (1) Test loaders execute correctly, (2) Verify fresh data loads, (3) Confirm orchestrator uses it
 
 ## WHY This Matters
 Trading platform with real Alpaca credentials (paper + live). Security = non-negotiable. Every component must be bulletproof. Credentials rotated quarterly. Data flows: markets → loaders → database → signals → trades.
@@ -96,13 +98,13 @@ git push origin main
 ### Step 3: Verify Deployment
 ```bash
 # Check Lambda deployed
-aws lambda get-function-configuration --function-name stocks-algo-prod --region us-east-1
+aws lambda get-function-configuration --function-name algo-algo-dev --region us-east-1
 
 # Check logs
-aws logs tail /aws/lambda/stocks-algo-prod --follow --region us-east-1
+aws logs tail /aws/lambda/algo-algo-dev --follow --region us-east-1
 
 # Test orchestrator
-aws lambda invoke --function-name stocks-algo-prod --payload '{"source":"schedule"}' response.json --region us-east-1
+aws lambda invoke --function-name algo-algo-dev --payload '{"source":"schedule"}' response.json --region us-east-1
 ```
 
 ### Test Locally
@@ -207,6 +209,32 @@ tests/              # Test suites (unit + integration)
 config/             # Credential manager, env loader, validator
 .github/workflows/  # CI/CD (TruffleHog, pytest, deploy)
 ```
+
+## CRITICAL NAMING & CONFIGURATION
+
+**Terraform Vars** (terraform/terraform.tfvars):
+- `project_name = "algo"` → All AWS resources prefixed `algo-*`
+- `environment = "dev"` → All names end with `-dev`
+- `alpaca_paper_trading = false` → LIVE trading (true=paper/sandbox)
+- `orchestrator_dry_run = false` → Actually execute trades
+
+**AWS Resource Names** (derived from Terraform):
+- ECS Cluster: `algo-cluster` (NOT `stocks-cluster`)
+- Orchestrator Lambda: `algo-algo-dev` (NOT `stocks-algo-prod`)
+- API Lambda: `algo-api-dev`
+- RDS: `stocks-db.cluster-*.us-east-1.rds.amazonaws.com`
+- Loaders: ECS task defs named `algo-{loader_name}-loader`
+
+**Workflows to Use**:
+- Deploy code: `gh workflow run deploy-code.yml` (auto-triggered on git push)
+- Deploy infrastructure: `gh workflow run deploy-all-infrastructure.yml` (manual only)
+- Test orchestrator: `gh workflow run test-orchestrator.yml` (manual)
+- Test loaders: `gh workflow run manual-invoke-loaders.yml` (manual)
+
+**Execution Schedule** (EventBridge in Terraform):
+- 4:00 AM ET (9:00 UTC Mon-Fri): Price loaders run
+- 9:30 AM ET (2:30 PM UTC Mon-Fri): Morning orchestrator (fresh prices + yesterday's technicals)
+- 5:30 PM ET (10:30 PM UTC Mon-Fri): Evening orchestrator (complete dataset)
 
 ## KEY FILES (Don't Modify Without Understanding)
 - `lambda/api/lambda_function.py` — API auth, rate limiting, security headers, CORS
