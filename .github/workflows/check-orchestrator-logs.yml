@@ -1,0 +1,124 @@
+name: Check Orchestrator Logs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  check-logs:
+    name: Check Lambda Logs for Orchestrator Execution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Latest Orchestrator Logs
+        run: |
+          echo "=== Checking Algo Orchestrator Lambda Logs ==="
+          echo ""
+
+          # Get the log group
+          LOG_GROUP="/aws/lambda/algo-algo-dev"
+
+          # List log streams (most recent first)
+          echo "📋 Recent Lambda executions:"
+          aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 5 \
+            --region $AWS_REGION \
+            --query 'logStreams[*].[logStreamName,lastEventTimestamp,storedBytes]' \
+            --output table
+
+          echo ""
+          echo "🔍 Last execution log (most recent stream):"
+
+          # Get the most recent log stream
+          LATEST_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text)
+
+          echo "Stream: $LATEST_STREAM"
+          echo ""
+
+          # Get events from the latest stream
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LATEST_STREAM" \
+            --region $AWS_REGION \
+            --query 'events[*].message' \
+            --output text | tail -200
+
+      - name: Check for Trade Execution
+        run: |
+          echo ""
+          echo "=== Checking for Trade Execution ==="
+          echo ""
+
+          LOG_GROUP="/aws/lambda/algo-algo-dev"
+
+          LATEST_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text)
+
+          # Get full output and search for key indicators
+          FULL_LOG=$(aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LATEST_STREAM" \
+            --region $AWS_REGION \
+            --query 'events[*].message' \
+            --output text)
+
+          echo "Searching for trade execution indicators..."
+          echo ""
+
+          if echo "$FULL_LOG" | grep -qi "phase.*5\|phase.*6\|trade\|order\|execution"; then
+            echo "✅ Found trade execution indicators in logs"
+            echo "$FULL_LOG" | grep -i "phase\|trade\|order\|execution\|buy\|sell\|signal" | head -50
+          else
+            echo "⚠️  No obvious trade indicators found"
+            echo "Raw log snippet:"
+            echo "$FULL_LOG" | tail -100
+          fi
+
+      - name: Check API Lambda Health
+        run: |
+          echo ""
+          echo "=== Checking API Lambda Health ==="
+
+          aws logs get-log-events \
+            --log-group-name "/aws/lambda/algo-api-dev" \
+            --log-stream-name "$(aws logs describe-log-streams \
+              --log-group-name '/aws/lambda/algo-api-dev' \
+              --order-by LastEventTime \
+              --descending \
+              --max-items 1 \
+              --region $AWS_REGION \
+              --query 'logStreams[0].logStreamName' \
+              --output text)" \
+            --region $AWS_REGION \
+            --query 'events[-10:].message' \
+            --output text | tail -50
