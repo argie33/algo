@@ -166,34 +166,34 @@ jobs:
               raise Exception(f"❌ {handler_path} not found!")
 
             # Add config package
-            config_path = Path("config")
+            config_path = (app_dir / "config").resolve()
             if config_path.is_dir():
               for file_path in config_path.rglob("*"):
                 if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir))
-                  zf.write(file_path, arcname)
+                  arcname = str(file_path.relative_to(app_dir.resolve()))
+                  zf.write(str(file_path), arcname)
               print(f"  ✅ config/ package")
             else:
               raise Exception(f"❌ {config_path} directory not found!")
 
             # Add algo package
-            algo_path = Path("algo")
+            algo_path = (app_dir / "algo").resolve()
             if algo_path.is_dir():
               for file_path in algo_path.rglob("*"):
                 if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir))
-                  zf.write(file_path, arcname)
+                  arcname = str(file_path.relative_to(app_dir.resolve()))
+                  zf.write(str(file_path), arcname)
               print(f"  ✅ algo/ package")
             else:
               raise Exception(f"❌ {algo_path} directory not found!")
 
             # Add utils package
-            utils_path = Path("utils")
+            utils_path = (app_dir / "utils").resolve()
             if utils_path.is_dir():
               for file_path in utils_path.rglob("*"):
                 if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir))
-                  zf.write(file_path, arcname)
+                  arcname = str(file_path.relative_to(app_dir.resolve()))
+                  zf.write(str(file_path), arcname)
               print(f"  ✅ utils/ package")
             else:
               raise Exception(f"❌ {utils_path} directory not found!")
@@ -218,8 +218,8 @@ jobs:
             # Add dependencies to ZIP
             for file_path in pkg_temp.rglob("*"):
               if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path) or ".dist-info" in str(file_path)):
-                arcname = str(file_path.relative_to(pkg_temp))
-                zf.write(file_path, arcname)
+                arcname = str(file_path.relative_to(pkg_temp.resolve()))
+                zf.write(str(file_path), arcname)
 
             print(f"  ✅ Dependencies added")
 
