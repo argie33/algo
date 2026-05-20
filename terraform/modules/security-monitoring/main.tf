@@ -155,7 +155,7 @@ resource "aws_config_configuration_recorder" "main" {
   count       = var.aws_config_enabled ? 1 : 0
   name        = "${var.project_name}-config-recorder"
   role_arn    = aws_iam_role.config_role[0].arn
-  depends_on  = [aws_iam_role_policy_attachment.config_policy]
+  depends_on  = [aws_iam_role_policy.config_policy]
 
   recording_group {
     all_supported = true
