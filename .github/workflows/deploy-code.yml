@@ -290,46 +290,23 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
-      - name: Sync RDS Password with Secrets Manager
+      - name: Ensure Secrets Manager has RDS Credentials
         run: |
-          echo "Ensuring RDS password matches Secrets Manager..."
+          echo "Checking RDS credentials in Secrets Manager..."
 
-          # Get RDS endpoint
-          RDS_ENDPOINT=$(aws rds describe-db-instances \
-            --db-instance-identifier "algo-db" \
+          RDS_CREDS=$(aws secretsmanager get-secret-value \
+            --secret-id algo/database \
             --region $AWS_REGION \
-            --query 'DBInstances[0].Endpoint.Address' \
+            --query SecretString \
             --output text 2>/dev/null || echo "")
 
-          if [ -z "$RDS_ENDPOINT" ] || [ "$RDS_ENDPOINT" = "None" ]; then
-            echo "WARNING: Could not find RDS instance, skipping password sync"
-          else
-            # Generate a new strong password
-            NEW_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
-
-            echo "Resetting RDS master password..."
-            aws rds modify-db-instance \
-              --db-instance-identifier "algo-db" \
-              --master-user-password "$NEW_PASSWORD" \
-              --apply-immediately \
-              --region $AWS_REGION || echo "Note: Password change may require restart"
-
-            sleep 5
-
-            # Update Secrets Manager with the new password
-            echo "Updating algo/database secret with new password..."
-            aws secretsmanager update-secret-version-stage \
-              --secret-id "algo/database" \
-              --remove-from-version-ids $(aws secretsmanager describe-secret --secret-id algo/database --region $AWS_REGION --query 'VersionIdsToStages | keys(@)[0]' --output text 2>/dev/null || echo "") \
-              --region $AWS_REGION 2>/dev/null || true
-
-            aws secretsmanager put-secret-value \
-              --secret-id "algo/database" \
-              --secret-string "{\"host\": \"$RDS_ENDPOINT\", \"port\": 5432, \"dbname\": \"stocks\", \"username\": \"stocks\", \"password\": \"$NEW_PASSWORD\"}" \
-              --region $AWS_REGION
-
-            echo "✅ RDS password synced with Secrets Manager"
+          if [ -z "$RDS_CREDS" ] || [ "$RDS_CREDS" = "null" ]; then
+            echo "⚠️  algo/database secret missing or empty. This will cause authentication failures."
+            echo "Please ensure AWS Secrets Manager has algo/database secret with RDS credentials."
+            exit 1
           fi
+
+          echo "✅ RDS credentials secret found in Secrets Manager"
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
@@ -363,7 +340,37 @@ jobs:
           DB_HOST=$(echo "$DB_CREDS" | jq -r '.host')
           DB_PORT=$(echo "$DB_CREDS" | jq -r '.port // 5432')
           DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname // "stocks"')
+
+          # Use basic password auth from secret for now
           DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
+
+          # Fallback: If password is empty, generate a temporary one and update RDS
+          if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "null" ]; then
+            echo "⚠️  No password in secret. Generating new RDS password..."
+            TEMP_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-20)
+
+            # Get RDS endpoint for password change
+            RDS_ID=$(aws rds describe-db-instances --region $AWS_REGION --query 'DBInstances[0].DBInstanceIdentifier' --output text)
+
+            if [ ! -z "$RDS_ID" ] && [ "$RDS_ID" != "None" ]; then
+              echo "Setting RDS password..."
+              aws rds modify-db-instance \
+                --db-instance-identifier "$RDS_ID" \
+                --master-user-password "$TEMP_PASSWORD" \
+                --apply-immediately \
+                --region $AWS_REGION 2>/dev/null || true
+
+              # Update secret with new password
+              RDS_HOST=$(aws rds describe-db-instances --region $AWS_REGION --query 'DBInstances[0].Endpoint.Address' --output text)
+              aws secretsmanager put-secret-value \
+                --secret-id algo/database \
+                --secret-string "{\"host\": \"$RDS_HOST\", \"port\": 5432, \"dbname\": \"stocks\", \"username\": \"stocks\", \"password\": \"$TEMP_PASSWORD\"}" \
+                --region $AWS_REGION 2>/dev/null || true
+
+              DB_PASSWORD="$TEMP_PASSWORD"
+              echo "Password updated"
+            fi
+          fi
 
           # Retrieve Alpaca configuration
           echo "Retrieving Alpaca configuration..."
