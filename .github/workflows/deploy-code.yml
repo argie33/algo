@@ -318,18 +318,22 @@ jobs:
             print(f"ERROR: Could not retrieve RDS info: {e}")
             exit(1)
 
-          # Generate a strong new password
-          alphabet = string.ascii_letters + string.digits + '!@#$%^&*-_=+'
+          # Generate a strong new password (alphanumeric only to avoid shell/AWS parsing issues)
+          alphabet = string.ascii_letters + string.digits
           new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
 
           # Apply new password to RDS
           try:
             print(f"Setting new password on RDS instance...")
-            subprocess.run(['aws', 'rds', 'modify-db-instance',
+            result = subprocess.run(['aws', 'rds', 'modify-db-instance',
               '--db-instance-identifier', rds_id,
               '--master-user-password', new_password,
               '--apply-immediately',
-              '--region', region], check=True, capture_output=True)
+              '--region', region], capture_output=True, text=True)
+            if result.returncode != 0:
+              print(f"AWS Error: {result.stderr}")
+              print(f"ERROR: Could not update RDS password (exit code {result.returncode})")
+              exit(1)
             print("✅ RDS password updated")
           except Exception as e:
             print(f"ERROR: Could not update RDS password: {e}")
@@ -345,10 +349,14 @@ jobs:
               "password": new_password
             })
             print(f"Updating Secrets Manager with new password...")
-            subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
+            result = subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
               '--secret-id', 'algo/database',
               '--secret-string', secret_value,
-              '--region', region], check=True, capture_output=True)
+              '--region', region], capture_output=True, text=True)
+            if result.returncode != 0:
+              print(f"AWS Error: {result.stderr}")
+              print(f"ERROR: Could not update Secrets Manager (exit code {result.returncode})")
+              exit(1)
             print("✅ Secrets Manager updated")
           except Exception as e:
             print(f"ERROR: Could not update Secrets Manager: {e}")
