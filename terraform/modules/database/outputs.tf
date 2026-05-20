@@ -34,6 +34,12 @@ output "rds_username" {
   sensitive   = true
 }
 
+output "rds_password" {
+  description = "RDS master password (auto-generated)"
+  value       = random_password.rds_master.result
+  sensitive   = true
+}
+
 output "rds_arn" {
   description = "ARN of RDS instance"
   value       = aws_db_instance.main.arn

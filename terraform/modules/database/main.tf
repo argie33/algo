@@ -3,7 +3,25 @@
 # ============================================================
 
 # ============================================================
-# 0. KMS Key for RDS Encryption (Production)
+# 0. Generate RDS Master Password Dynamically
+# ============================================================
+
+resource "random_password" "rds_master" {
+  length            = 32
+  special           = true
+  override_special  = "!#$%&*()-_=+[]{}<>:?"
+  min_upper         = 4
+  min_lower         = 4
+  min_numeric       = 4
+  min_special       = 4
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+# ============================================================
+# 1. KMS Key for RDS Encryption (Production)
 # ============================================================
 
 resource "aws_kms_key" "rds" {
@@ -53,7 +71,7 @@ resource "aws_db_instance" "main" {
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null
 
   username               = var.db_master_username
-  password               = var.db_master_password
+  password               = random_password.rds_master.result
   parameter_group_name   = aws_db_parameter_group.main.name
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.rds_security_group_id]

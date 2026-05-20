@@ -55,7 +55,7 @@ module "secrets" {
   db_port           = 5432
   db_name           = var.rds_db_name
   db_user           = var.rds_username
-  db_password       = var.rds_password
+  db_password       = module.database.rds_password
   common_tags       = local.common_tags
 
   depends_on = [module.database]
