@@ -531,6 +531,12 @@ variable "algo_schedule_timezone" {
   default     = "America/New_York"
 }
 
+variable "enable_morning_orchestrator" {
+  description = "Enable 2x daily orchestrator execution (morning 9:30 AM ET + evening 5:30 PM ET)"
+  type        = bool
+  default     = true
+}
+
 # ============================================================
 # SNS Configuration
 # ============================================================

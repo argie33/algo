@@ -219,6 +219,7 @@ module "services" {
   algo_schedule_expression       = var.algo_schedule_expression
   algo_schedule_enabled          = var.algo_schedule_enabled
   algo_schedule_timezone         = var.algo_schedule_timezone
+  enable_morning_orchestrator    = var.enable_morning_orchestrator
   sns_alerts_enabled             = var.sns_alerts_enabled
   sns_alert_email                = var.sns_alert_email
   cloudwatch_log_retention_days  = var.cloudwatch_log_retention_days
