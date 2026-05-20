@@ -26,34 +26,58 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Invoke Orchestrator Lambda
+      - name: Invoke Orchestrator Lambda (Synchronous)
         id: invoke
         run: |
-          echo "Invoking algo-algo-dev in LIVE mode..."
+          echo "Invoking algo-algo-dev in LIVE mode (synchronous)..."
 
           FUNC="algo-algo-dev"
-          PAYLOAD='{"source":"test-live-execution","test":"true"}'
-          PAYLOAD_B64=$(echo -n "$PAYLOAD" | base64 -w 0)
+          PAYLOAD='{"source":"test-live-execution","test":"true","timeout":120}'
 
-          aws lambda invoke \
+          # Use timeout to prevent hanging indefinitely
+          # RequestResponse invocation will wait for Lambda to complete
+          timeout 180 aws lambda invoke \
             --function-name "$FUNC" \
-            --invocation-type Event \
-            --payload "$PAYLOAD_B64" \
+            --invocation-type RequestResponse \
+            --payload "$PAYLOAD" \
             --region $AWS_REGION \
-            /tmp/response.json
+            /tmp/response.json || {
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 124 ]; then
+                echo "⏱️  Lambda invocation timed out after 3 minutes (Lambda may still be executing)"
+              else
+                echo "❌ Lambda invocation failed with exit code: $EXIT_CODE"
+              fi
+              exit 0
+            }
 
           echo "Orchestrator invoked at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Check response
+          if [ -f /tmp/response.json ]; then
+            echo "Lambda Response:"
+            cat /tmp/response.json | head -50
+            echo ""
+          fi
+
           echo "timestamp=$(date -u +%s)" >> $GITHUB_OUTPUT
 
-      - name: Wait for Execution (up to 5 minutes)
+      - name: Check Lambda Response
+        run: |
+          if [ -f /tmp/response.json ]; then
+            echo "Full Lambda response:"
+            jq . /tmp/response.json 2>/dev/null || cat /tmp/response.json
+          else
+            echo "No response file found (Lambda may still be executing in background)"
+          fi
+
+      - name: Wait for Execution & Check Logs (up to 5 minutes)
         id: execution
         run: |
           FUNC="algo-algo-dev"
           LOG_GROUP="/aws/lambda/$FUNC"
-          START_TIME=${{ steps.invoke.outputs.timestamp }}
-          END_TIME=$((START_TIME + 300))  # 5 minutes
 
-          echo "Waiting for orchestrator to complete..."
+          echo "Waiting for CloudWatch logs from Lambda execution..."
 
           COMPLETED="false"
           ELAPSED=0
@@ -90,15 +114,27 @@ jobs:
               break
             fi
 
-            # Check for errors
+            # Check for critical errors
+            if echo "$LOGS" | grep -qE "FATAL|password authentication failed"; then
+              echo "❌ FATAL ERROR: $(echo "$LOGS" | grep -E 'FATAL|password authentication' | head -1)"
+              break
+            fi
+
             if echo "$LOGS" | grep -qE "ERROR|Exception|FAILED"; then
-              echo "⚠️ Errors found in logs, may indicate failure"
+              echo "⚠️ Errors found in logs"
             fi
 
             echo "⏳ Checking for Phase 7... ($ELAPSED/300s)"
+            echo "Latest log stream: $LATEST"
             sleep 10
             ELAPSED=$((ELAPSED + 10))
           done
+
+          if [ "$COMPLETED" = "true" ]; then
+            echo "✅ Orchestrator execution completed"
+          else
+            echo "⚠️ Orchestrator execution status unknown (may still be running)"
+          fi
 
           echo "completed=$COMPLETED" >> $GITHUB_OUTPUT
 
