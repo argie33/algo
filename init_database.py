@@ -153,6 +153,23 @@ def create_tables(conn):
         )
     """)
 
+    # Buy/sell monthly signals
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS buy_sell_monthly (
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            rsi DECIMAL(10, 2),
+            sma_50 DECIMAL(10, 2),
+            sma_200 DECIMAL(10, 2),
+            stage_number INT,
+            buy_signal BOOLEAN,
+            sell_signal BOOLEAN,
+            signal_strength DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
+        )
+    """)
+
     # Stock scores
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS stock_scores (
@@ -219,6 +236,7 @@ def create_tables(conn):
             swing_grade VARCHAR(5),
             base_type VARCHAR(50),
             stage_phase VARCHAR(50),
+            components TEXT,
             created_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY (symbol, date)
         )
@@ -370,6 +388,20 @@ def create_tables(conn):
         )
     """)
 
+    # Annual cash flow
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS annual_cash_flow (
+            symbol VARCHAR(20) NOT NULL,
+            fiscal_year INT NOT NULL,
+            operating_cash_flow BIGINT,
+            investing_cash_flow BIGINT,
+            financing_cash_flow BIGINT,
+            free_cash_flow BIGINT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, fiscal_year)
+        )
+    """)
+
     # Trading tables
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS algo_trades (
@@ -447,6 +479,17 @@ def create_tables(conn):
         )
     """)
 
+    # Stability metrics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stability_metrics (
+            id SERIAL PRIMARY KEY,
+            date DATE NOT NULL,
+            metric_name VARCHAR(100),
+            metric_value DECIMAL(15, 4),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
     # Audit logging
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS algo_audit_log (
@@ -472,6 +515,7 @@ def create_tables(conn):
             kind VARCHAR(100),
             symbol VARCHAR(20),
             message TEXT,
+            severity VARCHAR(50),
             sent BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT NOW()
         )
