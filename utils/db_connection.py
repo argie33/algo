@@ -8,6 +8,8 @@ Handles retries, pooling, proper credential fallback, and connection tracking.
 
 import psycopg2
 import logging
+import socket
+import os
 
 from config.credential_helper import get_db_config
 
@@ -45,6 +47,60 @@ class TrackedConnection:
         self.close()
 
 
+def _test_dns_resolution(hostname: str) -> None:
+    """Test DNS resolution and log detailed diagnostics.
+
+    This helps identify VPC DNS configuration issues in Lambda.
+    """
+    try:
+        logger.info(f"Testing DNS resolution for: {hostname}")
+
+        # Test socket.getaddrinfo (what psycopg2 uses)
+        results = socket.getaddrinfo(hostname, 5432, socket.AF_INET, socket.SOCK_STREAM)
+        if results:
+            resolved_ips = [r[4][0] for r in results]
+            logger.info(f"✓ DNS resolution successful: {hostname} → {resolved_ips}")
+        else:
+            logger.warning(f"⚠ DNS resolution returned no results for: {hostname}")
+
+    except socket.gaierror as e:
+        logger.error(f"✗ DNS resolution failed for {hostname}: {e}")
+        logger.error(f"  Error code: {e.errno}, {e.strerror}")
+
+        # Try to diagnose the issue
+        logger.info("Attempting diagnostic checks...")
+
+        # Check if we're in Lambda
+        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+            logger.info("Running in AWS Lambda environment")
+            if os.getenv('AWS_LAMBDA_LOG_GROUP_NAME'):
+                logger.info(f"Lambda log group: {os.getenv('AWS_LAMBDA_LOG_GROUP_NAME')}")
+
+        # Check DNS configuration
+        try:
+            with open('/etc/resolv.conf', 'r') as f:
+                resolv_content = f.read()
+                logger.info(f"System /etc/resolv.conf:\n{resolv_content}")
+        except Exception as err:
+            logger.debug(f"Could not read /etc/resolv.conf: {err}")
+
+        # Try alternative DNS servers
+        logger.info("Testing alternative DNS servers...")
+        test_hosts = [
+            ('8.8.8.8', "Google Public DNS"),
+            ('1.1.1.1', "Cloudflare DNS"),
+        ]
+
+        for ip, name in test_hosts:
+            try:
+                socket.gethostbyaddr(ip)
+                logger.info(f"  ✓ Can reach {name} ({ip})")
+            except Exception:
+                logger.info(f"  ✗ Cannot reach {name} ({ip})")
+
+        raise
+
+
 def get_db_connection(max_retries: int = 3, timeout: int = 5):
     """Get a PostgreSQL connection with automatic retry and credential management.
 
@@ -62,6 +118,9 @@ def get_db_connection(max_retries: int = 3, timeout: int = 5):
     """
     config = get_db_config()
     config["connect_timeout"] = timeout
+
+    # Test DNS resolution before attempting connection
+    _test_dns_resolution(config["host"])
 
     last_error = None
     for attempt in range(max_retries):
