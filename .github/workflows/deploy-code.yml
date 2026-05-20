@@ -192,6 +192,16 @@ jobs:
             sleep 2
           done
 
+          # Retrieve database password from Secrets Manager
+          echo "Retrieving database credentials from Secrets Manager..."
+          DB_CREDS=$(aws secretsmanager get-secret-value \
+            --secret-id algo/database \
+            --region $AWS_REGION \
+            --query SecretString \
+            --output text)
+          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password // .password // ""')
+          echo "Database password retrieved: $(echo "$DB_PASSWORD" | wc -c) characters"
+
           # Build environment variables JSON - include database secret ARN for credential retrieval
           ENV_VARS=$(cat <<EOF
           {
@@ -200,6 +210,7 @@ jobs:
             "DB_PORT": "5432",
             "DB_NAME": "stocks",
             "DB_USER": "stocks",
+            "DB_PASSWORD": "$DB_PASSWORD",
             "APCA_API_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
             "APCA_API_SECRET_KEY": "${{ secrets.ALPACA_API_SECRET_KEY }}",
             "APCA_API_BASE_URL": "https://paper-api.alpaca.markets",
