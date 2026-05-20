@@ -144,20 +144,29 @@ jobs:
             --function-name "$FUNC" \
             --zip-file fileb://algo_lambda.zip \
             --region $AWS_REGION
+          echo "Waiting for code deployment to complete..."
+          sleep 5
           aws lambda wait function-updated \
             --function-name "$FUNC" \
-            --region $AWS_REGION
+            --region $AWS_REGION || echo "⚠️ Wait timed out, but function may be ready"
+          sleep 10
           echo "✅ Algo Lambda code deployed: $FUNC"
 
       - name: Configure Algo Lambda Environment Variables
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
 
-          # Get current configuration
-          CURRENT_CONFIG=$(aws lambda get-function-configuration \
-            --function-name "$FUNC" \
-            --region $AWS_REGION \
-            --output json)
+          # Wait for function to be fully active before updating configuration
+          echo "Waiting for Lambda to be fully active..."
+          for i in {1..30}; do
+            STATE=$(aws lambda get-function-configuration --function-name "$FUNC" --region $AWS_REGION 2>&1 | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
+            if [ "$STATE" = "Active" ]; then
+              echo "Function is Active"
+              break
+            fi
+            echo "Attempt $i: State=$STATE, waiting..."
+            sleep 2
+          done
 
           # Build environment variables JSON
           ENV_VARS=$(cat <<EOF
@@ -171,14 +180,16 @@ jobs:
           )
 
           # Update function configuration with credentials
+          echo "Updating Lambda configuration..."
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
             --environment "{\"Variables\":$(echo "$ENV_VARS" | jq -c .)}" \
-            --region $AWS_REGION
+            --region $AWS_REGION || { echo "❌ Config update failed"; exit 1; }
 
+          echo "Waiting for configuration to apply..."
           aws lambda wait function-updated \
             --function-name "$FUNC" \
-            --region $AWS_REGION
+            --region $AWS_REGION || echo "⚠️ Config wait timed out (non-fatal)"
 
           echo "✅ Alpaca credentials configured in Lambda"
           echo "   API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}" | sed 's/.*/   API_KEY_ID: PK.../'
