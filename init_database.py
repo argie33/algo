@@ -44,8 +44,9 @@ def create_tables(conn):
 
     # Price tables (daily, weekly, monthly)
     for interval in ['daily', 'weekly', 'monthly']:
+        table_name = f"price_{interval}"
         cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS price_{interval} (
+            CREATE TABLE IF NOT EXISTS {table_name} (
                 symbol VARCHAR(20) NOT NULL,
                 date DATE NOT NULL,
                 open DECIMAL(10, 2),
@@ -57,7 +58,7 @@ def create_tables(conn):
                 adjusted_close DECIMAL(10, 2),
                 created_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (symbol, date),
-                CONSTRAINT unique_price_{interval} UNIQUE(symbol, date)
+                UNIQUE (symbol, date)
             )
         """)
 
