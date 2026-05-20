@@ -170,13 +170,17 @@ jobs:
             sleep 2
           done
 
-          # Build environment variables JSON
+          # Build environment variables JSON - include database secret ARN for credential retrieval
           ENV_VARS=$(cat <<EOF
           {
+            "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo/database",
+            "DB_ENDPOINT": "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com",
+            "DB_NAME": "stocks",
             "APCA_API_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
             "APCA_API_SECRET_KEY": "${{ secrets.ALPACA_API_SECRET_KEY }}",
             "APCA_API_BASE_URL": "https://paper-api.alpaca.markets",
-            "ORCHESTRATOR_DRY_RUN": "false"
+            "ORCHESTRATOR_DRY_RUN": "false",
+            "EXECUTION_MODE": "paper"
           }
           EOF
           )
