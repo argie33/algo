@@ -290,49 +290,7 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
-      - name: Deploy Algo Lambda
-        run: |
-          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
-
-          echo "Deploying function code..."
-          aws lambda update-function-code \
-            --function-name "$FUNC" \
-            --zip-file fileb://algo_lambda.zip \
-            --region $AWS_REGION
-
-          echo "Waiting for code deployment..."
-          sleep 3
-          aws lambda wait function-updated \
-            --function-name "$FUNC" \
-            --region $AWS_REGION || echo "Wait timed out"
-
-          echo "Updating function to use layer..."
-          aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --layers "$LAYER_ARN" \
-            --region $AWS_REGION
-
-          echo "Waiting for configuration update..."
-          sleep 3
-          aws lambda wait function-updated \
-            --function-name "$FUNC" \
-            --region $AWS_REGION || echo "Wait timed out"
-
-          # Force container refresh
-          echo "Refreshing containers..."
-          aws lambda put-function-concurrency \
-            --function-name "$FUNC" \
-            --reserved-concurrent-executions 0 \
-            --region $AWS_REGION 2>/dev/null || true
-          sleep 2
-          aws lambda delete-function-concurrency \
-            --function-name "$FUNC" \
-            --region $AWS_REGION 2>/dev/null || true
-
-          sleep 10
-          echo "OK - Algo Lambda deployed with layer"
-
-      - name: Configure Algo Lambda Environment Variables
+      - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
@@ -348,33 +306,20 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "Layer ARN: $LAYER_ARN"
 
-          # Wait for function to be fully active before updating configuration
-          echo "Waiting for Lambda to be fully active..."
-          for i in {1..30}; do
-            STATE=$(aws lambda get-function-configuration --function-name "$FUNC" --region $AWS_REGION 2>&1 | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
-            if [ "$STATE" = "Active" ]; then
-              echo "Function is Active"
-              break
-            fi
-            echo "Attempt $i: State=$STATE, waiting..."
-            sleep 2
-          done
-
-          # Retrieve database password from Secrets Manager
-          echo "Retrieving database credentials from Secrets Manager..."
+          # Retrieve database credentials
+          echo "Retrieving database credentials..."
           DB_CREDS=$(aws secretsmanager get-secret-value \
             --secret-id algo/database \
             --region $AWS_REGION \
             --query SecretString \
             --output text)
-          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password // .password // ""')
-          echo "Database password retrieved: $(echo "$DB_PASSWORD" | wc -c) characters"
+          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
 
           # Read Terraform configuration
           echo "Reading Terraform configuration..."
           PAPER_TRADING=$(cd terraform && terraform output -raw alpaca_paper_trading 2>/dev/null || echo "false")
           EXEC_MODE=$(cd terraform && terraform output -raw execution_mode 2>/dev/null || echo "auto")
-          DB_HOST=$(cd terraform && terraform output -raw rds_address 2>/dev/null || echo "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com")
+          DB_HOST=$(cd terraform && terraform output -raw rds_address 2>/dev/null || echo "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com")
           DB_PORT=$(cd terraform && terraform output -raw rds_port 2>/dev/null || echo "5432")
           DB_NAME=$(cd terraform && terraform output -raw rds_database_name 2>/dev/null || echo "stocks")
 
@@ -386,14 +331,25 @@ jobs:
             TRADING_MODE="LIVE"
           fi
 
-          echo "Trading mode: $TRADING_MODE (paper_trading=$PAPER_TRADING, execution_mode=$EXEC_MODE)"
-          echo "Alpaca endpoint: $APCA_API_BASE_URL"
-          echo "Database endpoint: $DB_HOST:$DB_PORT/$DB_NAME"
+          echo "Deploying function code..."
+          aws lambda update-function-code \
+            --function-name "$FUNC" \
+            --zip-file fileb://algo_lambda.zip \
+            --region $AWS_REGION
 
-          # Build environment variables JSON - include database secret ARN for credential retrieval
+          sleep 5
+
+          # Wait for code deployment to complete
+          aws lambda wait function-updated \
+            --function-name "$FUNC" \
+            --region $AWS_REGION 2>/dev/null || true
+
+          sleep 5
+
+          # Build environment variables
           ENV_VARS=$(cat <<EOF
           {
-            "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo/database",
+            "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:$ACCOUNT_ID:secret:algo/database",
             "DB_HOST": "$DB_HOST",
             "DB_PORT": "$DB_PORT",
             "DB_NAME": "$DB_NAME",
@@ -408,26 +364,32 @@ jobs:
           EOF
           )
 
-          # Update function configuration with credentials AND layers
-          # IMPORTANT: Must include --layers to prevent overwriting the layer attachment
-          echo "Updating Lambda configuration with environment variables and layers..."
+          # Single update call: code, environment, AND layer all at once
+          echo "Updating Lambda configuration (env + layer)..."
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
             --environment "{\"Variables\":$(echo "$ENV_VARS" | jq -c .)}" \
             --layers "$LAYER_ARN" \
-            --region $AWS_REGION || { echo "❌ Config update failed"; exit 1; }
+            --region $AWS_REGION
 
-          echo "Waiting for configuration to apply..."
+          # Wait for configuration to apply
+          sleep 5
           aws lambda wait function-updated \
             --function-name "$FUNC" \
-            --region $AWS_REGION || echo "⚠️ Config wait timed out (non-fatal)"
+            --region $AWS_REGION 2>/dev/null || true
 
-          echo "✅ Alpaca credentials configured in Lambda"
-          echo "   Trading mode: $TRADING_MODE"
-          echo "   Execution mode: $EXEC_MODE"
-          echo "   Layer ARN: $LAYER_ARN"
-          echo "   API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}" | sed 's/.*/   API_KEY_ID: PK.../'
-          echo "   API_SECRET_KEY: [configured]"
+          # Force container refresh
+          aws lambda put-function-concurrency \
+            --function-name "$FUNC" \
+            --reserved-concurrent-executions 0 \
+            --region $AWS_REGION 2>/dev/null || true
+          sleep 3
+          aws lambda delete-function-concurrency \
+            --function-name "$FUNC" \
+            --region $AWS_REGION 2>/dev/null || true
+
+          sleep 10
+          echo "OK - Algo Lambda deployed with code, config, and layer"
 
   # ──────────────────────────────────────────────────────────────
   # API Lambda
