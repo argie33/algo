@@ -56,19 +56,22 @@ jobs:
           echo "Waiting for orchestrator to complete..."
 
           COMPLETED="false"
-          while [ $(date +%s) -lt $END_TIME ]; do
+          ELAPSED=0
+          while [ $ELAPSED -lt 300 ]; do
             # Get latest log stream
             LATEST=$(aws logs describe-log-streams \
               --log-group-name "$LOG_GROUP" \
               --order-by LastEventTime \
               --descending \
-              --max-items 1 \
+              --limit 1 \
               --region $AWS_REGION \
               --query 'logStreams[0].logStreamName' \
-              --output text 2>/dev/null)
+              --output text 2>/dev/null || echo "")
 
             if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
+              echo "⏳ Waiting for logs... ($ELAPSED/300s)"
               sleep 5
+              ELAPSED=$((ELAPSED + 5))
               continue
             fi
 
@@ -78,7 +81,7 @@ jobs:
               --log-stream-name "$LATEST" \
               --region $AWS_REGION \
               --query 'events[*].message' \
-              --output text 2>/dev/null)
+              --output text 2>/dev/null || echo "")
 
             # Check for completion indicators
             if echo "$LOGS" | grep -q "Phase 7"; then
@@ -87,7 +90,14 @@ jobs:
               break
             fi
 
+            # Check for errors
+            if echo "$LOGS" | grep -qE "ERROR|Exception|FAILED"; then
+              echo "⚠️ Errors found in logs, may indicate failure"
+            fi
+
+            echo "⏳ Checking for Phase 7... ($ELAPSED/300s)"
             sleep 10
+            ELAPSED=$((ELAPSED + 10))
           done
 
           echo "completed=$COMPLETED" >> $GITHUB_OUTPUT
@@ -101,10 +111,10 @@ jobs:
             --log-group-name "$LOG_GROUP" \
             --order-by LastEventTime \
             --descending \
-            --max-items 1 \
+            --limit 1 \
             --region $AWS_REGION \
             --query 'logStreams[0].logStreamName' \
-            --output text 2>/dev/null)
+            --output text 2>/dev/null || echo "")
 
           if [ -n "$LATEST" ] && [ "$LATEST" != "None" ]; then
             echo "=== ORCHESTRATOR EXECUTION LOG ==="
@@ -115,7 +125,8 @@ jobs:
               --query 'events[*].message' \
               --output text | tail -150
           else
-            echo "No logs found"
+            echo "No logs found for function: $FUNC"
+            echo "Log group: $LOG_GROUP"
           fi
 
       - name: Verify Results
