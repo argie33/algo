@@ -306,22 +306,25 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "Layer ARN: $LAYER_ARN"
 
-          # Retrieve database credentials
-          echo "Retrieving database credentials..."
-          DB_CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id algo/database \
-            --region $AWS_REGION \
-            --query SecretString \
-            --output text)
-          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
-
-          # Read Terraform configuration
+          # Read Terraform configuration (for RDS password and other settings)
           echo "Reading Terraform configuration..."
           PAPER_TRADING=$(cd terraform && terraform output -raw alpaca_paper_trading 2>/dev/null || echo "false")
           EXEC_MODE=$(cd terraform && terraform output -raw execution_mode 2>/dev/null || echo "auto")
           DB_HOST=$(cd terraform && terraform output -raw rds_address 2>/dev/null || echo "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com")
           DB_PORT=$(cd terraform && terraform output -raw rds_port 2>/dev/null || echo "5432")
           DB_NAME=$(cd terraform && terraform output -raw rds_database_name 2>/dev/null || echo "stocks")
+          # Use password from Terraform (must match RDS instance) instead of Secrets Manager
+          DB_PASSWORD=$(cd terraform && terraform output -raw rds_password 2>/dev/null || echo "")
+
+          if [ -z "$DB_PASSWORD" ]; then
+            echo "WARNING: Could not retrieve rds_password from Terraform. Attempting fallback to Secrets Manager..."
+            DB_CREDS=$(aws secretsmanager get-secret-value \
+              --secret-id algo/database \
+              --region $AWS_REGION \
+              --query SecretString \
+              --output text)
+            DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
+          fi
 
           if [ "$PAPER_TRADING" = "true" ]; then
             APCA_API_BASE_URL="https://paper-api.alpaca.markets"
