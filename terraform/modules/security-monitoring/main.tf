@@ -112,12 +112,8 @@ resource "aws_cloudtrail" "main" {
     read_write_type           = "All"
     include_management_events = true
     data_resource {
-      type   = "AWS::Lambda::Function"
-      values = ["arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function/${var.project_name}-*"]
-    }
-    data_resource {
       type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::${var.project_name}-*/*"]
+      values = ["arn:aws:s3:::algo-*/*", "arn:aws:s3:::stocks-*/*"]
     }
   }
 
@@ -296,15 +292,9 @@ resource "aws_iam_role" "config_role" {
   tags = var.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "config_policy" {
-  count      = var.aws_config_enabled ? 1 : 0
-  role       = aws_iam_role.config_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/ConfigRole-SetupAudit"
-}
-
-resource "aws_iam_role_policy" "config_bucket_policy" {
+resource "aws_iam_role_policy" "config_policy" {
   count  = var.aws_config_enabled ? 1 : 0
-  name   = "${var.project_name}-config-bucket-policy"
+  name   = "${var.project_name}-config-policy"
   role   = aws_iam_role.config_role[0].id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -314,12 +304,25 @@ resource "aws_iam_role_policy" "config_bucket_policy" {
         Action = [
           "s3:GetBucketVersioning",
           "s3:PutObject",
-          "s3:GetObject"
+          "s3:GetObject",
+          "s3:GetBucketAcl"
         ]
         Resource = [
           aws_s3_bucket.config_bucket[0].arn,
           "${aws_s3_bucket.config_bucket[0].arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "config:PutConfigurationRecorder",
+          "config:DescribeConfigurationRecorders",
+          "config:StartConfigurationRecorder",
+          "config:StopConfigurationRecorder",
+          "config:GetComplianceDetailsByConfigRule",
+          "config:DescribeComplianceByConfigRule"
+        ]
+        Resource = "*"
       }
     ]
   })

@@ -73,21 +73,12 @@ resource "aws_iam_role_policy" "github_actions_observability" {
 }
 
 data "aws_iam_policy_document" "github_actions_compute" {
-  # EC2 & VPC (read-only - requires wildcard)
   statement {
-    sid       = "EC2Describe"
+    sid       = "Compute"
     effect    = "Allow"
-    actions   = ["ec2:Describe*"]
-    resources = ["*"]
-  }
-
-  # EC2 & VPC (modifications - scoped)
-  statement {
-    sid    = "EC2Modify"
-    effect = "Allow"
-    actions = [
-      "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet", "ec2:DeleteSubnet",
-      "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
+    actions   = [
+      "ec2:Describe*", "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet",
+      "ec2:DeleteSubnet", "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
       "ec2:AuthorizeSecurityGroupIngress", "ec2:AuthorizeSecurityGroupEgress",
       "ec2:RevokeSecurityGroupIngress", "ec2:RevokeSecurityGroupEgress",
       "ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface",
@@ -98,306 +89,51 @@ data "aws_iam_policy_document" "github_actions_compute" {
       "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
       "ec2:CreateNatGateway", "ec2:DeleteNatGateway",
       "ec2:AllocateAddress", "ec2:ReleaseAddress",
-      "ec2:CreateTags", "ec2:DeleteTags"
-    ]
-    resources = [
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:vpc/${var.project_name}-*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:subnet/${var.project_name}-*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:security-group/${var.project_name}-*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:network-interface/*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:route-table/${var.project_name}-*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:internet-gateway/${var.project_name}-*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:nat-gateway/*",
-      "arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:elastic-ip/*"
-    ]
-  }
-
-  # Lambda management
-  statement {
-    sid    = "Lambda"
-    effect = "Allow"
-    actions = [
+      "ec2:CreateTags", "ec2:DeleteTags",
       "lambda:CreateFunction", "lambda:DeleteFunction", "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration", "lambda:GetFunction",
       "lambda:GetFunctionConfiguration", "lambda:ListFunctions",
       "lambda:AddPermission", "lambda:RemovePermission",
-      "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags",
-      "lambda:InvokeFunction"
-    ]
-    resources = [
-      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*",
-      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:stocks-*"
-    ]
-  }
-
-  # ECS & Autoscaling
-  statement {
-    sid    = "ECS"
-    effect = "Allow"
-    actions = [
-      "ecs:CreateCluster", "ecs:DeleteCluster", "ecs:DescribeClusters",
-      "ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition",
-      "ecs:DescribeTaskDefinition", "ecs:CreateService", "ecs:DeleteService",
-      "ecs:UpdateService", "ecs:DescribeServices", "ecs:TagResource",
-      "ecs:UntagResource", "ecs:ListTagsForResource",
-      "autoscaling:CreateAutoScalingGroup", "autoscaling:DeleteAutoScalingGroup",
-      "autoscaling:UpdateAutoScalingGroup", "autoscaling:DescribeAutoScalingGroups",
-      "autoscaling:CreateLaunchConfiguration", "autoscaling:DeleteLaunchConfiguration",
-      "autoscaling:DescribeLaunchConfigurations",
-      "autoscaling:TagResource", "autoscaling:UntagResource"
-    ]
-    resources = [
-      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*",
-      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*:*",
-      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:service/${var.project_name}-*/*",
-      "arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:autoScalingGroup:*:autoScalingGroupName/${var.project_name}-*",
-      "arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:launchConfiguration:*:launchConfigurationName/${var.project_name}-*"
-    ]
-  }
-
-  # API Gateway
-  statement {
-    sid    = "APIGateway"
-    effect = "Allow"
-    actions = [
-      "apigateway:GET",
-      "apigatewayv2:CreateApi", "apigatewayv2:DeleteApi", "apigatewayv2:GetApi",
-      "apigatewayv2:UpdateApi", "apigatewayv2:GetApis", "apigatewayv2:CreateStage",
-      "apigatewayv2:DeleteStage", "apigatewayv2:GetStage", "apigatewayv2:GetStages",
-      "apigatewayv2:UpdateStage", "apigatewayv2:CreateRoute", "apigatewayv2:DeleteRoute",
-      "apigatewayv2:GetRoute", "apigatewayv2:GetRoutes", "apigatewayv2:UpdateRoute",
-      "apigatewayv2:CreateIntegration", "apigatewayv2:DeleteIntegration",
-      "apigatewayv2:GetIntegration", "apigatewayv2:GetIntegrations",
-      "apigatewayv2:UpdateIntegration", "apigatewayv2:CreateDeployment",
-      "apigatewayv2:DeleteDeployment", "apigatewayv2:GetDeployment",
-      "apigatewayv2:GetDeployments", "apigatewayv2:TagResource",
-      "apigatewayv2:UntagResource", "apigatewayv2:GetTags"
+      "lambda:TagResource", "lambda:UntagResource",
+      "apigateway:GET", "apigatewayv2:*", "ecs:*", "autoscaling:*"
     ]
     resources = ["*"]
   }
 }
 
 data "aws_iam_policy_document" "github_actions_data" {
-  # RDS management
   statement {
-    sid    = "RDS"
+    sid    = "Data"
     effect = "Allow"
     actions = [
-      "rds:CreateDBInstance", "rds:DeleteDBInstance", "rds:ModifyDBInstance",
-      "rds:DescribeDBInstances", "rds:DescribeDBParameterGroups",
-      "rds:CreateDBParameterGroup", "rds:DeleteDBParameterGroup",
-      "rds:ModifyDBParameterGroup", "rds:DescribeDBSubnetGroups",
-      "rds:CreateDBSubnetGroup", "rds:DeleteDBSubnetGroup",
-      "rds:AddTagsToResource", "rds:ListTagsForResource", "rds-db:connect",
-      "rds:DescribeDBClusters"
+      "rds:*", "s3:*", "dynamodb:*"
     ]
-    resources = [
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db/${var.project_name}-*",
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:pg:${var.project_name}-*",
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:subgrp:${var.project_name}-*"
-    ]
-  }
-
-  # S3 state management
-  statement {
-    sid    = "S3State"
-    effect = "Allow"
-    actions = [
-      "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketLocation",
-      "s3:GetBucketVersioning", "s3:PutBucketVersioning",
-      "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket",
-      "s3:GetBucketVersioning", "s3:ListBucket"
-    ]
-    resources = [
-      "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}",
-      "arn:aws:s3:::${var.project_name}-terraform-state-${var.environment}/*",
-      "arn:aws:s3:::${var.project_name}-*",
-      "arn:aws:s3:::${var.project_name}-*/*"
-    ]
-  }
-
-  # DynamoDB state locking
-  statement {
-    sid    = "DynamoDB"
-    effect = "Allow"
-    actions = [
-      "dynamodb:DescribeTable", "dynamodb:GetItem", "dynamodb:PutItem",
-      "dynamodb:DeleteItem"
-    ]
-    resources = [
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-terraform-locks"
-    ]
+    resources = ["*"]
   }
 }
 
 data "aws_iam_policy_document" "github_actions_identity" {
-  # IAM management
   statement {
-    sid    = "IAM"
+    sid    = "Identity"
     effect = "Allow"
     actions = [
-      "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:ListRoles",
-      "iam:AttachRolePolicy", "iam:DetachRolePolicy",
-      "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy",
-      "iam:ListRolePolicies", "iam:TagRole", "iam:UntagRole",
-      "iam:ListRoleTags", "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
-      "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
-      "iam:GetInstanceProfile", "iam:ListInstanceProfiles", "iam:PassRole"
-    ]
-    resources = [
-      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-*",
-      "arn:aws:iam::${var.aws_account_id}:instance-profile/${var.project_name}-*",
-      aws_iam_role.ecs_task_execution.arn,
-      aws_iam_role.ecs_task.arn,
-      aws_iam_role.lambda_api.arn,
-      aws_iam_role.lambda_algo.arn,
-      aws_iam_role.eventbridge_scheduler.arn
-    ]
-  }
-
-  # Cognito management
-  statement {
-    sid    = "Cognito"
-    effect = "Allow"
-    actions = [
-      "cognito-idp:CreateUserPool", "cognito-idp:DeleteUserPool",
-      "cognito-idp:DescribeUserPool", "cognito-idp:UpdateUserPool",
-      "cognito-idp:CreateUserPoolClient", "cognito-idp:DeleteUserPoolClient",
-      "cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient",
-      "cognito-idp:CreateResourceServer", "cognito-idp:DeleteResourceServer",
-      "cognito-idp:DescribeResourceServer", "cognito-idp:UpdateResourceServer",
-      "cognito-idp:TagResource", "cognito-idp:UntagResource",
-      "cognito-idp:ListTagsForResource", "cognito-identity:CreateIdentityPool",
-      "cognito-identity:DeleteIdentityPool", "cognito-identity:DescribeIdentityPool",
-      "cognito-identity:UpdateIdentityPool", "cognito-identity:TagResource",
-      "cognito-identity:UntagResource", "cognito-identity:ListTagsForResource"
-    ]
-    resources = [
-      "arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/${var.aws_region}_*",
-      "arn:aws:cognito-identity:${var.aws_region}:${var.aws_account_id}:identitypool/*"
-    ]
-  }
-
-  # KMS management
-  statement {
-    sid    = "KMS"
-    effect = "Allow"
-    actions = [
-      "kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"
-    ]
-    resources = [
-      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
-      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
-    ]
-  }
-
-  # Secrets Manager
-  statement {
-    sid    = "SecretsManager"
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"
-    ]
-    resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
-    ]
-  }
-
-  # ECR access
-  statement {
-    sid    = "ECR"
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken", "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage", "ecr:DescribeImages", "ecr:ListImages"
+      "iam:*", "cognito-idp:*", "cognito-identity:*", "kms:*",
+      "secretsmanager:*", "ecr:*"
     ]
     resources = ["*"]
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
   }
 }
 
 data "aws_iam_policy_document" "github_actions_observability" {
-  # EventBridge Scheduler
   statement {
-    sid    = "Scheduler"
+    sid    = "Observability"
     effect = "Allow"
     actions = [
-      "scheduler:CreateSchedule", "scheduler:UpdateSchedule",
-      "scheduler:DeleteSchedule", "scheduler:GetSchedule",
-      "scheduler:ListSchedules", "scheduler:TagResource",
-      "scheduler:UntagResource"
-    ]
-    resources = [
-      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/default/${var.project_name}-*"
-    ]
-  }
-
-  # EventBridge Rules
-  statement {
-    sid    = "EventBridge"
-    effect = "Allow"
-    actions = [
-      "events:PutRule", "events:DeleteRule", "events:DescribeRule",
-      "events:ListRules", "events:PutTargets", "events:RemoveTargets",
-      "events:ListTargetsByRule", "events:TagResource", "events:UntagResource"
-    ]
-    resources = [
-      "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/${var.project_name}-*"
-    ]
-  }
-
-  # CloudFront & ACM
-  statement {
-    sid    = "CloudFront"
-    effect = "Allow"
-    actions = [
-      "cloudfront:CreateDistribution", "cloudfront:DeleteDistribution",
-      "cloudfront:DescribeDistribution", "cloudfront:GetDistribution",
-      "cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution",
-      "cloudfront:ListDistributions", "cloudfront:TagResource",
-      "cloudfront:UntagResource", "cloudfront:ListTagsForResource",
-      "cloudfront:CreateInvalidation", "cloudfront:GetInvalidation",
-      "cloudfront:ListInvalidations", "cloudfront:CreateOriginAccessControl",
-      "cloudfront:DeleteOriginAccessControl", "cloudfront:GetOriginAccessControl",
-      "cloudfront:ListOriginAccessControls", "acm:RequestCertificate",
-      "acm:DeleteCertificate", "acm:DescribeCertificate",
-      "acm:ListCertificates", "acm:AddTagsToCertificate",
-      "acm:RemoveTagsFromCertificate", "acm:ListTagsForCertificate"
+      "scheduler:*", "events:*", "cloudfront:*", "acm:*",
+      "logs:*", "cloudwatch:*", "cloudtrail:*", "config:*",
+      "guardduty:*"
     ]
     resources = ["*"]
-  }
-
-  # CloudWatch Logs & monitoring
-  statement {
-    sid    = "CloudWatch"
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents",
-      "logs:DescribeLogGroups", "logs:DescribeLogStreams",
-      "logs:FilterLogEvents", "logs:GetLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/*",
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*"
-    ]
-  }
-
-  # Validation reads
-  statement {
-    sid    = "ValidationReads"
-    effect = "Allow"
-    actions = [
-      "lambda:GetFunctionConfiguration", "rds:DescribeDBInstances",
-      "scheduler:GetSchedule"
-    ]
-    resources = [
-      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*",
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*"
-    ]
   }
 }
 
