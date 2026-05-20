@@ -57,9 +57,12 @@ def create_tables(conn):
                 adj_close DECIMAL(10, 2),
                 adjusted_close DECIMAL(10, 2),
                 created_at TIMESTAMP DEFAULT NOW(),
-                PRIMARY KEY (symbol, date),
-                UNIQUE (symbol, date)
+                PRIMARY KEY (symbol, date)
             )
+        """)
+        # Add explicit UNIQUE constraint as separate statement
+        cursor.execute(f"""
+            ALTER TABLE {table_name} ADD CONSTRAINT unique_{table_name} UNIQUE (symbol, date)
         """)
 
     # ETF price tables
