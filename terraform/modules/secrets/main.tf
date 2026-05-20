@@ -56,6 +56,22 @@ resource "aws_secretsmanager_secret_version" "database" {
   })
 }
 
+# JWT Secret
+resource "aws_secretsmanager_secret" "jwt" {
+  name                    = "algo/jwt"
+  description             = "JWT secret key for token signing"
+  recovery_window_in_days = 7
+
+  tags = var.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "jwt" {
+  secret_id = aws_secretsmanager_secret.jwt.id
+  secret_string = jsonencode({
+    jwt_secret = var.jwt_secret
+  })
+}
+
 # Output secret ARNs for Lambda IAM policies
 output "alpaca_secret_arn" {
   value = aws_secretsmanager_secret.alpaca.arn
@@ -67,4 +83,8 @@ output "fred_secret_arn" {
 
 output "database_secret_arn" {
   value = aws_secretsmanager_secret.database.arn
+}
+
+output "jwt_secret_arn" {
+  value = aws_secretsmanager_secret.jwt.arn
 }
