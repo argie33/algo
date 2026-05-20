@@ -260,6 +260,24 @@ jobs:
           print(f"\n✅ All critical files verified in ZIP")
           PYTHON_SCRIPT
 
+      - name: Verify ZIP Contents with unzip
+        run: |
+          echo "=== ZIP File Contents Check ==="
+          echo "Total files in ZIP:"
+          unzip -l algo_lambda.zip | tail -1
+          echo ""
+          echo "Application code files in ZIP:"
+          unzip -l algo_lambda.zip | grep -E "config/|algo/|utils/" | head -20
+          echo ""
+          echo "Checking for critical modules:"
+          for pattern in "config/__init__" "algo/__init__" "utils/__init__" "lambda_function.py"; do
+            count=$(unzip -l algo_lambda.zip | grep -c "$pattern" || echo "0")
+            if [ "$count" -gt 0 ]; then
+              echo "  ✅ Found: $pattern"
+            else
+              echo "  ❌ Missing: $pattern"
+            fi
+          done
 
       - name: Deploy Algo Lambda
         run: |
