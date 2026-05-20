@@ -18,7 +18,7 @@ orchestrator_dry_run   = false
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
-alpaca_paper_trading   = true   # Paper trading mode (not real money)
+alpaca_paper_trading   = false  # LIVE trading mode with real Alpaca credentials
 api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
 
 # NOTE: rds_password is set via TF_VAR_rds_password environment variable
