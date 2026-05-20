@@ -476,8 +476,7 @@ jobs:
                 "EXECUTION_MODE": exec_mode
               }
             },
-            "Layers": [layer_arn],
-            "Region": region
+            "Layers": [layer_arn]
           }
 
           print("Updating Lambda configuration...")
@@ -492,7 +491,8 @@ jobs:
 
           try:
             subprocess.run(['aws', 'lambda', 'update-function-configuration',
-              '--cli-input-json', f'file://{config_file}'], check=True)
+              '--cli-input-json', f'file://{config_file}',
+              '--region', region], check=True)
           finally:
             try:
               os_module.unlink(config_file)
