@@ -26,11 +26,12 @@ jobs:
         run: |
           echo "Testing Lambda with synchronous invocation..."
           PAYLOAD='{"source":"test","test":"true"}'
-          
+          PAYLOAD_B64=$(echo -n "$PAYLOAD" | base64 -w 0)
+
           aws lambda invoke \
             --function-name algo-algo-dev \
             --invocation-type RequestResponse \
-            --payload "$PAYLOAD" \
+            --payload "$PAYLOAD_B64" \
             --region $AWS_REGION \
             --log-type Tail \
             /tmp/lambda_response.json 2>&1
