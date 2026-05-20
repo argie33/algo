@@ -123,6 +123,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS buy_sell_daily (
             symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
+            signal_type VARCHAR(50),
             rsi DECIMAL(10, 2),
             sma_50 DECIMAL(10, 2),
             sma_200 DECIMAL(10, 2),
@@ -373,6 +374,7 @@ def create_tables(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS algo_trades (
             id SERIAL PRIMARY KEY,
+            trade_id VARCHAR(100),
             symbol VARCHAR(20) NOT NULL,
             entry_date DATE NOT NULL,
             entry_price DECIMAL(10, 2) NOT NULL,
@@ -391,6 +393,7 @@ def create_tables(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS algo_positions (
             id SERIAL PRIMARY KEY,
+            position_id VARCHAR(100),
             symbol VARCHAR(20) NOT NULL,
             quantity INT NOT NULL,
             avg_entry_price DECIMAL(10, 2),
@@ -449,6 +452,9 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS algo_audit_log (
             id SERIAL PRIMARY KEY,
             event_type VARCHAR(100),
+            action_type VARCHAR(100),
+            action_date TIMESTAMP,
+            actor VARCHAR(100),
             symbol VARCHAR(20),
             quantity INT,
             price DECIMAL(10, 2),
@@ -474,12 +480,19 @@ def create_tables(conn):
     # Data loader status
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS data_loader_status (
-            loader_name VARCHAR(100) PRIMARY KEY,
+            loader_name VARCHAR(100),
+            table_name VARCHAR(100),
+            status VARCHAR(50),
+            row_count INT,
+            latest_date DATE,
+            age_days INT,
             last_run_date TIMESTAMP,
             last_run_status VARCHAR(50),
             rows_processed INT,
             errors INT,
-            updated_at TIMESTAMP DEFAULT NOW()
+            last_audit_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (table_name)
         )
     """)
 
@@ -488,6 +501,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS feature_flags (
             flag_name VARCHAR(100) PRIMARY KEY,
             enabled BOOLEAN DEFAULT false,
+            value TEXT,
             description TEXT,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
@@ -512,9 +526,138 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS algo_config (
             key VARCHAR(100) PRIMARY KEY,
             value TEXT,
+            value_type VARCHAR(50),
             description TEXT,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Data patrol logging
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS data_patrol_log (
+            id SERIAL PRIMARY KEY,
+            patrol_run_id VARCHAR(100),
+            check_name VARCHAR(100),
+            severity VARCHAR(50),
+            target_table VARCHAR(100),
+            message TEXT,
+            details TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Trend template data
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS trend_template_data (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            template_name VARCHAR(100),
+            confidence DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
+        )
+    """)
+
+    # Signal quality scores
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS signal_quality_scores (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            accuracy DECIMAL(10, 2),
+            precision DECIMAL(10, 2),
+            recall DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
+        )
+    """)
+
+    # Sector ranking
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sector_ranking (
+            id SERIAL PRIMARY KEY,
+            sector VARCHAR(100) NOT NULL,
+            date_recorded DATE NOT NULL,
+            rank INT,
+            score DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Industry ranking
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS industry_ranking (
+            id SERIAL PRIMARY KEY,
+            industry VARCHAR(100) NOT NULL,
+            date_recorded DATE NOT NULL,
+            rank INT,
+            score DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Insider transactions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insider_transactions (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            trade_date DATE NOT NULL,
+            insider_name VARCHAR(255),
+            transaction_type VARCHAR(100),
+            shares INT,
+            value BIGINT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Analyst upgrades/downgrades
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            action_date DATE NOT NULL,
+            action VARCHAR(50),
+            old_rating VARCHAR(50),
+            new_rating VARCHAR(50),
+            firm VARCHAR(255),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # AAII sentiment
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS aaii_sentiment (
+            id SERIAL PRIMARY KEY,
+            date DATE NOT NULL,
+            bullish DECIMAL(10, 2),
+            neutral DECIMAL(10, 2),
+            bearish DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Earnings history
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_history (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            earnings_date DATE NOT NULL,
+            eps DECIMAL(10, 4),
+            revenue BIGINT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # Earnings calendar
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_calendar (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            earnings_date DATE NOT NULL,
+            market_cap BIGINT,
+            created_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
