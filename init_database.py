@@ -550,7 +550,6 @@ def create_tables(conn):
     # Trend template data
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS trend_template_data (
-            id SERIAL PRIMARY KEY,
             symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
             template_name VARCHAR(100),
@@ -563,7 +562,6 @@ def create_tables(conn):
     # Signal quality scores
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS signal_quality_scores (
-            id SERIAL PRIMARY KEY,
             symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
             accuracy DECIMAL(10, 2),
