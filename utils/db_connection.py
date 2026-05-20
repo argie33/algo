@@ -159,6 +159,26 @@ def get_db_connection(max_retries: int = 3, timeout: int = 5):
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e
+            error_msg = str(e).lower()
+
+            # If it's a DNS error and we have alternatives, try again
+            if "name or service not known" in error_msg or "could not translate host" in error_msg:
+                if attempt == 0:
+                    logger.warning(f"DNS resolution failed, attempting workaround...")
+                    # For DNS failures, try explicitly configuring nameserver via environment
+                    # This can help in VPC environments where DNS forwarding is misconfigured
+                    try:
+                        # Try using AWS Route 53 Resolver directly
+                        import subprocess
+                        subprocess.run(
+                            ["sh", "-c", "echo 'nameserver 169.254.169.253' > /etc/resolv.conf"],
+                            check=False,
+                            timeout=2
+                        )
+                        logger.info("Configured 169.254.169.253 as nameserver (AWS Route 53 Resolver)")
+                    except Exception as cfg_err:
+                        logger.debug(f"Could not reconfigure nameserver: {cfg_err}")
+
             if attempt < max_retries - 1:
                 logger.warning(f"Connection attempt {attempt + 1} failed, retrying: {e}")
             else:
