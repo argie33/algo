@@ -748,10 +748,16 @@ jobs:
           PAYLOAD='{"source":"deployment-verification"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
+          # Invoke with increased timeouts to allow orchestrator to complete
+          # (orchestrator can take 5+ minutes to process all phases)
+          AWS_DEFAULT_REGION=$AWS_REGION \
+          AWS_REGION=$AWS_REGION \
           aws lambda invoke \
             --function-name "$FUNC" \
             --payload "$ENCODED" \
             --region $AWS_REGION \
+            --cli-connect-timeout 10 \
+            --cli-read-timeout 700 \
             /tmp/response.json
 
           cat /tmp/response.json
