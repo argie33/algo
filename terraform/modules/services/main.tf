@@ -20,11 +20,16 @@ locals {
 # One layer with psycopg2, boto3, requests, pandas, etc.
 # Shared by all Lambda functions → smaller packages + faster deploys
 
-resource "aws_lambda_layer_version" "shared_deps" {
-  filename            = "${path.module}/../../algo_layer.zip"
-  layer_name          = "${var.project_name}-shared-deps-${var.environment}"
-  compatible_runtimes = ["python3.11"]
-  source_code_hash    = filebase64sha256("${path.module}/../../algo_layer.zip")
+# Reference the algo_orchestrator_layer that's published by the deploy workflow
+# Instead of managing layer creation in Terraform
+data "aws_lambda_layer_version" "shared_deps" {
+  layer_name = "algo-orchestrator-layer"
+}
+
+# For compatibility with code that references aws_lambda_layer_version.shared_deps,
+# create a local that wraps the data source
+locals {
+  shared_deps_layer_arn = data.aws_lambda_layer_version.shared_deps.arn
 }
 
 # ============================================================
@@ -68,7 +73,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.11"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  layers        = [aws_lambda_layer_version.shared_deps.arn]  # Use consolidated layer
+  layers        = [local.shared_deps_layer_arn]  # Use consolidated layer published by deploy workflow
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
@@ -430,7 +435,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.11"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
-  layers        = [aws_lambda_layer_version.shared_deps.arn]  # Use consolidated layer
+  layers        = [local.shared_deps_layer_arn]  # Use consolidated layer published by deploy workflow
 
   # Use S3 package if available, otherwise local file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
