@@ -196,8 +196,10 @@ jobs:
           ENV_VARS=$(cat <<EOF
           {
             "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo/database",
-            "DB_ENDPOINT": "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com",
+            "DB_HOST": "stocks-db.cluster-cbbm67xshd4e.us-east-1.rds.amazonaws.com",
+            "DB_PORT": "5432",
             "DB_NAME": "stocks",
+            "DB_USER": "stocks",
             "APCA_API_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
             "APCA_API_SECRET_KEY": "${{ secrets.ALPACA_API_SECRET_KEY }}",
             "APCA_API_BASE_URL": "https://paper-api.alpaca.markets",
