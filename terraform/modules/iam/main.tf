@@ -1375,22 +1375,19 @@ resource "aws_iam_access_key" "developer" {
   user = aws_iam_user.developer.name
 }
 
-# Save credentials to local file for programmatic use (IaC-managed)
-resource "local_file" "developer_credentials" {
-  filename = "${path.module}/../../.aws-dev-credentials"
-  content = jsonencode({
-    access_key_id     = aws_iam_access_key.developer.id
-    secret_access_key = aws_iam_access_key.developer.secret
-    region            = var.aws_region
-  })
+# Store developer credentials in Secrets Manager (IaC-managed)
+resource "aws_secretsmanager_secret" "developer_credentials" {
+  name = "${var.project_name}/developer-credentials"
+  description = "Developer IAM user access keys for local CLI/automation"
 
-  file_permission = "0600"
+  tags = var.common_tags
 }
 
-# Also export as environment variables via local exec (for immediate use)
-resource "null_resource" "configure_aws_credentials" {
-  provisioner "local-exec" {
-    command = "echo export AWS_ACCESS_KEY_ID='${aws_iam_access_key.developer.id}' >> ~/.aws_dev_env && echo export AWS_SECRET_ACCESS_KEY='${aws_iam_access_key.developer.secret}' >> ~/.aws_dev_env && echo export AWS_REGION='${var.aws_region}' >> ~/.aws_dev_env"
-  }
-  depends_on = [aws_iam_access_key.developer]
+resource "aws_secretsmanager_secret_version" "developer_credentials" {
+  secret_id = aws_secretsmanager_secret.developer_credentials.id
+  secret_string = jsonencode({
+    access_key_id     = aws_iam_access_key.developer.id
+    secret_access_key = aws_iam_access_key.developer.secret
+    user_name         = aws_iam_user.developer.name
+  })
 }
