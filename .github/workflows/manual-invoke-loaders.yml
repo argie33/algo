@@ -60,14 +60,14 @@ jobs:
           echo "Invoking stock_prices_daily loader..."
           aws ecs run-task \
             --cluster stocks-cluster \
-            --task-definition stocks-stock_prices_daily-loader \
+            --task-definition algo-stock_prices_daily-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1
 
           echo "Waiting for task logs..."
-          sleep 60
-          aws logs tail /ecs/stocks-stock_prices_daily-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
+          sleep 90
+          aws logs tail /ecs/algo-stock_prices_daily-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
 
       - name: Invoke Stock Prices Weekly Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
@@ -75,13 +75,13 @@ jobs:
           echo "Invoking stock_prices_weekly loader..."
           aws ecs run-task \
             --cluster stocks-cluster \
-            --task-definition stocks-stock_prices_weekly-loader \
+            --task-definition algo-stock_prices_weekly-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1
 
-          sleep 60
-          aws logs tail /ecs/stocks-stock_prices_weekly-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
+          sleep 90
+          aws logs tail /ecs/algo-stock_prices_weekly-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
 
       - name: Invoke Market Data Batch Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
@@ -89,10 +89,10 @@ jobs:
           echo "Invoking market_data_batch loader..."
           aws ecs run-task \
             --cluster stocks-cluster \
-            --task-definition stocks-market_data_batch-loader \
+            --task-definition algo-market_data_batch-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1
 
-          sleep 60
-          aws logs tail /ecs/stocks-market_data_batch-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
+          sleep 90
+          aws logs tail /ecs/algo-market_data_batch-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
