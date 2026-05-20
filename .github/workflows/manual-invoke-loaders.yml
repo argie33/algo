@@ -39,20 +39,24 @@ jobs:
       - name: Get Network Config
         id: network
         run: |
-          # Get default VPC
-          VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --region us-east-1 --query "Vpcs[0].VpcId" --output text || echo "")
-          if [ "$VPC_ID" = "None" ] || [ -z "$VPC_ID" ]; then
-            VPC_ID=$(aws ec2 describe-vpcs --region us-east-1 --query "Vpcs[0].VpcId" --output text)
-          fi
+          # Get algo VPC (where RDS and ECS are)
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" --region us-east-1 --query "Vpcs[0].VpcId" --output text)
           echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
 
-          # Get first subnet
-          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          # Get private subnet for ECS tasks (where RDS lives)
+          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*private*" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
+            SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          fi
           echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
 
-          # Get or create security group
-          SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=default" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text || echo "")
+          # Get ECS task security group (has RDS access rules)
+          SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
           echo "security_group=$SG" >> $GITHUB_OUTPUT
+
+          echo "VPC: $VPC_ID"
+          echo "Subnet: $SUBNET"
+          echo "Security Group: $SG"
 
       - name: Invoke Stock Prices Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
