@@ -10,6 +10,7 @@ import psycopg2
 import logging
 import socket
 import os
+import subprocess
 
 from config.credential_helper import get_db_config
 
@@ -45,6 +46,30 @@ class TrackedConnection:
 
     def __exit__(self, *args):
         self.close()
+
+
+def _diagnose_with_nslookup(hostname: str) -> None:
+    """Try using nslookup as fallback DNS resolution tool."""
+    try:
+        logger.info(f"Attempting DNS resolution via nslookup for: {hostname}")
+        result = subprocess.run(
+            ["nslookup", hostname],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            logger.info(f"nslookup output:\n{result.stdout}")
+            # Extract IP from output if available
+            for line in result.stdout.split('\n'):
+                if 'Address:' in line and not line.startswith(';'):
+                    logger.info(f"  Resolved to: {line.strip()}")
+        else:
+            logger.warning(f"nslookup failed: {result.stderr}")
+    except FileNotFoundError:
+        logger.debug("nslookup not available")
+    except Exception as e:
+        logger.debug(f"nslookup error: {e}")
 
 
 def _try_dns_with_servers(hostname: str, nameservers: list = None) -> list:
@@ -107,6 +132,9 @@ def _test_dns_resolution(hostname: str) -> None:
                 logger.info(f"System /etc/resolv.conf:\n{resolv_content}")
         except Exception as err:
             logger.debug(f"Could not read /etc/resolv.conf: {err}")
+
+        # Try nslookup as diagnostic tool
+        _diagnose_with_nslookup(hostname)
 
         # Try alternative DNS servers
         logger.info("Testing alternative DNS servers...")
