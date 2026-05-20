@@ -1,0 +1,176 @@
+name: Verify Alpaca Trades
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  verify:
+    name: Check Alpaca for Executed Trades
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install alpaca-trade-api requests boto3 -q
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Alpaca Credentials from Secrets Manager
+        id: alpaca_creds
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/alpaca \
+            --region $AWS_REGION \
+            --query 'SecretString' \
+            --output text)
+
+          API_KEY=$(echo "$SECRET" | python3 -c "import sys, json; print(json.load(sys.stdin)['api_key'])")
+          API_SECRET=$(echo "$SECRET" | python3 -c "import sys, json; print(json.load(sys.stdin)['api_secret'])")
+
+          echo "::add-mask::$API_KEY"
+          echo "::add-mask::$API_SECRET"
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
+          echo "api_secret=$API_SECRET" >> $GITHUB_OUTPUT
+
+      - name: Check Alpaca Account & Recent Trades
+        env:
+          APCA_API_KEY_ID: ${{ steps.alpaca_creds.outputs.api_key }}
+          APCA_API_SECRET_KEY: ${{ steps.alpaca_creds.outputs.api_secret }}
+          APCA_API_BASE_URL: https://paper-api.alpaca.markets
+        run: |
+          python3 << 'PYTHON_SCRIPT'
+          import os
+          import json
+          from datetime import datetime, timedelta
+          from alpaca_trade_api import REST
+
+          # Initialize Alpaca API
+          api = REST(
+              key_id=os.getenv('APCA_API_KEY_ID'),
+              secret_key=os.getenv('APCA_API_SECRET_KEY'),
+              base_url=os.getenv('APCA_API_BASE_URL')
+          )
+
+          print("=== ALPACA ACCOUNT STATUS ===\n")
+
+          # Get account info
+          account = api.get_account()
+          print(f"Portfolio Value: ${account.portfolio_value:.2f}")
+          print(f"Cash: ${account.cash:.2f}")
+          print(f"Buying Power: ${account.buying_power:.2f}")
+          print(f"Equity: ${account.equity:.2f}\n")
+
+          # Get today's trades
+          print("=== TODAY'S TRADES ===")
+          today = datetime.now().date()
+
+          try:
+              orders = api.list_orders(status='all', limit=100)
+              recent_orders = [o for o in orders if o.created_at.date() == today]
+
+              if recent_orders:
+                  print(f"✅ Found {len(recent_orders)} orders today:\n")
+                  for order in recent_orders:
+                      print(f"  Order #{order.id}")
+                      print(f"    Symbol: {order.symbol}")
+                      print(f"    Side: {order.side}")
+                      print(f"    Qty: {order.qty}")
+                      print(f"    Price: ${order.limit_price if order.limit_price else 'Market'}")
+                      print(f"    Status: {order.status}")
+                      print(f"    Filled: {order.filled_qty}")
+                      print(f"    Created: {order.created_at}\n")
+              else:
+                  print("⚠️ No orders today\n")
+          except Exception as e:
+              print(f"Error fetching orders: {e}\n")
+
+          # Get positions
+          print("=== CURRENT POSITIONS ===")
+          try:
+              positions = api.list_positions()
+              if positions:
+                  print(f"✅ {len(positions)} open positions:\n")
+                  for pos in positions:
+                      print(f"  {pos.symbol}")
+                      print(f"    Qty: {pos.qty}")
+                      print(f"    Entry Price: ${pos.avg_fill_price:.2f}")
+                      print(f"    Current Price: ${pos.current_price:.2f}")
+                      print(f"    P&L: ${pos.unrealized_pl:.2f} ({pos.unrealized_plpc*100:.2f}%)\n")
+              else:
+                  print("ℹ️ No open positions\n")
+          except Exception as e:
+              print(f"Error fetching positions: {e}\n")
+
+          # Check for recent activity in the last 24 hours
+          print("=== TRADING ACTIVITY (Last 24 Hours) ===")
+          yesterday = datetime.now() - timedelta(days=1)
+
+          try:
+              orders_24h = [o for o in api.list_orders(status='all', limit=500)
+                          if o.created_at > yesterday]
+              filled_24h = [o for o in orders_24h if o.status == 'filled']
+
+              print(f"Total Orders: {len(orders_24h)}")
+              print(f"Filled Orders: {len(filled_24h)}")
+
+              if filled_24h:
+                  print(f"\n✅ SUCCESS: {len(filled_24h)} trades executed in last 24 hours!")
+                  total_value = sum(float(o.filled_qty) * float(o.filled_avg_price or o.limit_price or 0)
+                                  for o in filled_24h if o.filled_avg_price)
+                  print(f"Total Value: ${total_value:,.2f}")
+              else:
+                  print("⚠️ No filled orders in last 24 hours")
+
+          except Exception as e:
+              print(f"Error analyzing activity: {e}")
+
+          PYTHON_SCRIPT
+
+      - name: Lambda Logs Summary
+        run: |
+          echo ""
+          echo "=== LAMBDA EXECUTION SUMMARY ==="
+
+          FUNC="algo-algo-dev"
+          LOG_GROUP="/aws/lambda/$FUNC"
+
+          LATEST_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$LATEST_STREAM" ] && [ "$LATEST_STREAM" != "None" ]; then
+            echo "Latest execution: $LATEST_STREAM"
+
+            # Get last 30 lines
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LATEST_STREAM" \
+              --region $AWS_REGION \
+              --query 'events[-30:].message' \
+              --output text | grep -E "Phase|Execution|Complete|Signal|Trade" || echo "No Phase/Trade info in logs"
+          else
+            echo "No log streams found"
+          fi
