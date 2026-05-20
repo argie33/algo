@@ -290,23 +290,76 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
-      - name: Ensure Secrets Manager has RDS Credentials
+      - name: Sync RDS Password with Secrets Manager
         run: |
-          echo "Checking RDS credentials in Secrets Manager..."
+          python3 << 'PYTHON_SYNC'
+          import json
+          import subprocess
+          import os
+          import secrets
+          import string
 
-          RDS_CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id algo/database \
-            --region $AWS_REGION \
-            --query SecretString \
-            --output text 2>/dev/null || echo "")
+          region = os.environ['AWS_REGION']
 
-          if [ -z "$RDS_CREDS" ] || [ "$RDS_CREDS" = "null" ]; then
-            echo "⚠️  algo/database secret missing or empty. This will cause authentication failures."
-            echo "Please ensure AWS Secrets Manager has algo/database secret with RDS credentials."
-            exit 1
-          fi
+          print("🔐 Syncing RDS password with Secrets Manager...")
 
-          echo "✅ RDS credentials secret found in Secrets Manager"
+          # Get RDS instance details
+          try:
+            result = subprocess.run(['aws', 'rds', 'describe-db-instances',
+              '--region', region, '--query', 'DBInstances[0]',
+              '--output', 'json'], capture_output=True, text=True, check=True)
+            rds_info = json.loads(result.stdout)
+            rds_id = rds_info['DBInstanceIdentifier']
+            rds_host = rds_info['Endpoint']['Address']
+            rds_port = rds_info['Endpoint']['Port']
+            rds_user = 'stocks'  # Default master user
+            print(f"✅ Found RDS instance: {rds_id}")
+          except Exception as e:
+            print(f"ERROR: Could not retrieve RDS info: {e}")
+            exit(1)
+
+          # Generate a strong new password
+          alphabet = string.ascii_letters + string.digits + '!@#$%^&*-_=+'
+          new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
+
+          # Apply new password to RDS
+          try:
+            print(f"Setting new password on RDS instance...")
+            subprocess.run(['aws', 'rds', 'modify-db-instance',
+              '--db-instance-identifier', rds_id,
+              '--master-user-password', new_password,
+              '--apply-immediately',
+              '--region', region], check=True, capture_output=True)
+            print("✅ RDS password updated")
+          except Exception as e:
+            print(f"ERROR: Could not update RDS password: {e}")
+            exit(1)
+
+          # Update Secrets Manager with new password
+          try:
+            secret_value = json.dumps({
+              "host": rds_host,
+              "port": rds_port,
+              "dbname": "stocks",
+              "username": rds_user,
+              "password": new_password
+            })
+            print(f"Updating Secrets Manager with new password...")
+            subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
+              '--secret-id', 'algo/database',
+              '--secret-string', secret_value,
+              '--region', region], check=True, capture_output=True)
+            print("✅ Secrets Manager updated")
+          except Exception as e:
+            print(f"ERROR: Could not update Secrets Manager: {e}")
+            exit(1)
+
+          print(f"🔐 RDS and Secrets Manager are now in sync")
+          print(f"  Host: {rds_host}")
+          print(f"  Port: {rds_port}")
+          print(f"  Database: stocks")
+          print(f"  User: {rds_user}")
+          PYTHON_SYNC
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
@@ -324,116 +377,111 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "Layer ARN: $LAYER_ARN"
 
-          # Retrieve RDS configuration from Secrets Manager (which now has the latest password)
-          echo "Retrieving RDS configuration from Secrets Manager..."
-          DB_CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id algo/database \
-            --region $AWS_REGION \
-            --query SecretString \
-            --output text)
+          # Export variables for Python script
+          export FUNC_NAME="$FUNC"
+          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+          export LAYER_ARN="$LAYER_ARN"
 
-          if [ -z "$DB_CREDS" ] || [ "$DB_CREDS" = "null" ]; then
-            echo "ERROR: Could not retrieve algo/database secret"
-            exit 1
-          fi
+          # Use Python to retrieve all credentials and build Lambda config
+          python3 << 'PYTHON_DEPLOY'
+          import json
+          import subprocess
+          import os
 
-          DB_HOST=$(echo "$DB_CREDS" | jq -r '.host')
-          DB_PORT=$(echo "$DB_CREDS" | jq -r '.port // 5432')
-          DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname // "stocks"')
+          region = os.environ['AWS_REGION']
+          account_id = os.environ['AWS_ACCOUNT_ID']
+          func_name = os.environ['FUNC_NAME']
+          layer_arn = os.environ['LAYER_ARN']
 
-          # Use basic password auth from secret for now
-          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
+          # Retrieve RDS configuration from Secrets Manager
+          print("Retrieving RDS configuration from Secrets Manager...")
+          try:
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', 'algo/database', '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True, check=True)
+            db_creds = json.loads(result.stdout.strip())
+          except Exception as e:
+            print(f"ERROR: Could not retrieve algo/database secret: {e}")
+            exit(1)
 
-          # Fallback: If password is empty, generate a temporary one and update RDS
-          if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "null" ]; then
-            echo "⚠️  No password in secret. Generating new RDS password..."
-            TEMP_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-20)
-
-            # Get RDS endpoint for password change
-            RDS_ID=$(aws rds describe-db-instances --region $AWS_REGION --query 'DBInstances[0].DBInstanceIdentifier' --output text)
-
-            if [ ! -z "$RDS_ID" ] && [ "$RDS_ID" != "None" ]; then
-              echo "Setting RDS password..."
-              aws rds modify-db-instance \
-                --db-instance-identifier "$RDS_ID" \
-                --master-user-password "$TEMP_PASSWORD" \
-                --apply-immediately \
-                --region $AWS_REGION 2>/dev/null || true
-
-              # Update secret with new password
-              RDS_HOST=$(aws rds describe-db-instances --region $AWS_REGION --query 'DBInstances[0].Endpoint.Address' --output text)
-              aws secretsmanager put-secret-value \
-                --secret-id algo/database \
-                --secret-string "{\"host\": \"$RDS_HOST\", \"port\": 5432, \"dbname\": \"stocks\", \"username\": \"stocks\", \"password\": \"$TEMP_PASSWORD\"}" \
-                --region $AWS_REGION 2>/dev/null || true
-
-              DB_PASSWORD="$TEMP_PASSWORD"
-              echo "Password updated"
-            fi
-          fi
+          db_host = db_creds.get('host', 'localhost')
+          db_port = db_creds.get('port', 5432)
+          db_name = db_creds.get('dbname', 'stocks')
+          db_password = db_creds.get('password', '')
 
           # Retrieve Alpaca configuration
-          echo "Retrieving Alpaca configuration..."
-          ALPACA_CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id algo/alpaca \
-            --region $AWS_REGION \
-            --query SecretString \
-            --output text)
-          ALPACA_API_KEY=$(echo "$ALPACA_CREDS" | jq -r '.api_key')
-          ALPACA_API_SECRET=$(echo "$ALPACA_CREDS" | jq -r '.api_secret')
+          print("Retrieving Alpaca configuration...")
+          try:
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', 'algo/alpaca', '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True, check=True)
+            alpaca_creds = json.loads(result.stdout.strip())
+          except Exception as e:
+            print(f"WARNING: Could not retrieve algo/alpaca secret: {e}")
+            alpaca_creds = {}
 
-          # Read Alpaca paper trading mode from Terraform or default
-          PAPER_TRADING=$(cd terraform && terraform output -raw alpaca_paper_trading 2>/dev/null || echo "false")
-          EXEC_MODE=$(cd terraform && terraform output -raw execution_mode 2>/dev/null || echo "auto")
+          alpaca_api_key = alpaca_creds.get('api_key', '')
+          alpaca_api_secret = alpaca_creds.get('api_secret', '')
 
-          if [ "$PAPER_TRADING" = "true" ]; then
-            APCA_API_BASE_URL="https://paper-api.alpaca.markets"
-            TRADING_MODE="PAPER"
-          else
-            APCA_API_BASE_URL="https://api.alpaca.markets"
-            TRADING_MODE="LIVE"
-          fi
+          # Get Terraform outputs
+          try:
+            result = subprocess.run(['terraform', 'output', '-raw', 'alpaca_paper_trading'],
+              cwd='terraform', capture_output=True, text=True)
+            paper_trading = result.stdout.strip().lower() == 'true'
+          except:
+            paper_trading = False
 
-          echo "Deploying function code..."
-          aws lambda update-function-code \
-            --function-name "$FUNC" \
-            --zip-file fileb://algo_lambda.zip \
-            --region $AWS_REGION
+          try:
+            result = subprocess.run(['terraform', 'output', '-raw', 'execution_mode'],
+              cwd='terraform', capture_output=True, text=True)
+            exec_mode = result.stdout.strip() or 'auto'
+          except:
+            exec_mode = 'auto'
 
-          sleep 5
+          apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
+          trading_mode = "PAPER" if paper_trading else "LIVE"
 
-          # Wait for code deployment to complete
-          aws lambda wait function-updated \
-            --function-name "$FUNC" \
-            --region $AWS_REGION 2>/dev/null || true
+          print(f"✅ Credentials loaded: {db_host}:{db_port}/{db_name}")
+          print(f"📊 Trading mode: {trading_mode}")
 
-          sleep 5
+          # Deploy function code
+          print("Deploying function code...")
+          subprocess.run(['aws', 'lambda', 'update-function-code',
+            '--function-name', func_name,
+            '--zip-file', 'fileb://algo_lambda.zip',
+            '--region', region], check=True)
 
-          # Build environment variables
-          ENV_VARS=$(cat <<EOF
-          {
-            "DATABASE_SECRET_ARN": "arn:aws:secretsmanager:$AWS_REGION:$ACCOUNT_ID:secret:algo/database",
-            "DB_HOST": "$DB_HOST",
-            "DB_PORT": "$DB_PORT",
-            "DB_NAME": "$DB_NAME",
+          print("Waiting for code deployment...")
+          subprocess.run(['aws', 'lambda', 'wait', 'function-updated',
+            '--function-name', func_name,
+            '--region', region], capture_output=True)
+
+          # Build and update Lambda environment
+          env_vars = {
+            "DATABASE_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo/database",
+            "DB_HOST": str(db_host),
+            "DB_PORT": str(db_port),
+            "DB_NAME": str(db_name),
             "DB_USER": "stocks",
-            "DB_PASSWORD": "$DB_PASSWORD",
-            "APCA_API_KEY_ID": "$ALPACA_API_KEY",
-            "APCA_API_SECRET_KEY": "$ALPACA_API_SECRET",
-            "APCA_API_BASE_URL": "$APCA_API_BASE_URL",
+            "DB_PASSWORD": str(db_password),
+            "APCA_API_KEY_ID": alpaca_api_key,
+            "APCA_API_SECRET_KEY": alpaca_api_secret,
+            "APCA_API_BASE_URL": apca_base_url,
             "ORCHESTRATOR_DRY_RUN": "false",
-            "EXECUTION_MODE": "$EXEC_MODE"
+            "EXECUTION_MODE": exec_mode
           }
-          EOF
-          )
 
-          # Single update call: code, environment, AND layer all at once
-          echo "Updating Lambda configuration (env + layer)..."
-          aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --environment "{\"Variables\":$(echo "$ENV_VARS" | jq -c .)}" \
-            --layers "$LAYER_ARN" \
-            --region $AWS_REGION
+          print("Updating Lambda configuration...")
+          subprocess.run(['aws', 'lambda', 'update-function-configuration',
+            '--function-name', func_name,
+            '--environment', f"Variables={json.dumps(env_vars)}",
+            '--layers', layer_arn,
+            '--region', region], check=True)
+
+          print("✅ Lambda deployment complete")
+          PYTHON_DEPLOY
 
           # Wait for configuration to apply
           sleep 5
