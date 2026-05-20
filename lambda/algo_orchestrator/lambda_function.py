@@ -1,6 +1,8 @@
 """
-Simplified Lambda handler - runs algo orchestrator directly without subprocesses.
-Avoids psycopg2 import issues by keeping database operations local.
+Lambda handler for algo orchestrator.
+
+Uses Lambda Layers for config/, algo/, utils/ code which are extracted to /opt/python.
+This is more reliable than bundling everything in the function ZIP.
 """
 
 import os
@@ -9,20 +11,13 @@ import json
 import logging
 from datetime import datetime, date as _date
 
-# Ensure /var/task is at the front of sys.path (where Lambda extracts the ZIP)
-lambda_task_root = os.environ.get("LAMBDA_TASK_ROOT", "/var/task")
-if lambda_task_root not in sys.path:
-    sys.path.insert(0, lambda_task_root)
+# Lambda Layers automatically add /opt/python to sys.path
+# config/, algo/, utils/ will be found there
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
 
-# Additional safety: check the directory and try to import
-import logging as _logging
-_logger = _logging.getLogger()
-_logger.info(f"Lambda task root: {lambda_task_root}")
-_logger.info(f"sys.path[0]: {sys.path[0]}")
-if os.path.exists(os.path.join(lambda_task_root, 'config')):
-    _logger.info("config/ directory exists in Lambda task root")
-else:
-    _logger.error(f"config/ directory NOT FOUND in {lambda_task_root}")
+logger.info("Lambda runtime version: Python 3.11")
+logger.info(f"sys.path includes {len(sys.path)} paths")
 
 from config.credential_helper import get_db_config
 

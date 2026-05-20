@@ -139,74 +139,39 @@ jobs:
           import zipfile
           import subprocess
           from pathlib import Path
+          import shutil
 
-          # Create ZIP using Python's zipfile for explicit control
-          print("=== Building Lambda Package with Python zipfile ===")
+          # Create TWO packages:
+          # 1. algo_lambda.zip - handler + dependencies (for function code)
+          # 2. algo_layer.zip - config/, algo/, utils/ (for Lambda layer, extracted to /opt/python)
 
-          # Directory to include in ZIP
           app_dir = Path.cwd()
-          zip_path = Path("algo_lambda.zip")
-          pkg_dir = Path("lambda-pkg")
 
-          # Remove old ZIP if exists
+          # ============================================================
+          # PACKAGE 1: Function Code (handler + dependencies)
+          # ============================================================
+          print("=== Building Lambda Function Code Package ===\n")
+
+          zip_path = Path("algo_lambda.zip")
           if zip_path.exists():
             zip_path.unlink()
-            print(f"✅ Removed old {zip_path}")
 
-          # Create ZIP with explicit file control
           with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            print(f"\n📦 Adding application code...")
-
             # Add lambda handler
             handler_path = Path("lambda/algo_orchestrator/lambda_function.py")
             if handler_path.exists():
               zf.write(handler_path, "lambda_function.py")
-              print(f"  ✅ lambda_function.py")
+              print("  + lambda_function.py")
             else:
-              raise Exception(f"❌ {handler_path} not found!")
+              raise Exception(f"Handler not found: {handler_path}")
 
-            # Add config package
-            config_path = (app_dir / "config").resolve()
-            if config_path.is_dir():
-              for file_path in config_path.rglob("*"):
-                if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir.resolve()))
-                  zf.write(str(file_path), arcname)
-              print(f"  ✅ config/ package")
-            else:
-              raise Exception(f"❌ {config_path} directory not found!")
-
-            # Add algo package
-            algo_path = (app_dir / "algo").resolve()
-            if algo_path.is_dir():
-              for file_path in algo_path.rglob("*"):
-                if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir.resolve()))
-                  zf.write(str(file_path), arcname)
-              print(f"  ✅ algo/ package")
-            else:
-              raise Exception(f"❌ {algo_path} directory not found!")
-
-            # Add utils package
-            utils_path = (app_dir / "utils").resolve()
-            if utils_path.is_dir():
-              for file_path in utils_path.rglob("*"):
-                if file_path.is_file() and not file_path.name.endswith(".pyc"):
-                  arcname = str(file_path.relative_to(app_dir.resolve()))
-                  zf.write(str(file_path), arcname)
-              print(f"  ✅ utils/ package")
-            else:
-              raise Exception(f"❌ {utils_path} directory not found!")
-
-            # Install pip dependencies to temp directory, then add to ZIP
-            print(f"\n📥 Installing and adding dependencies...")
+            # Install pip dependencies
             pkg_temp = Path("/tmp/pip_packages")
             if pkg_temp.exists():
-              import shutil
               shutil.rmtree(pkg_temp)
             pkg_temp.mkdir()
 
-            # Install dependencies
+            print("  Installing dependencies...")
             subprocess.run([
               "pip", "install",
               "-r", "lambda/algo_orchestrator/requirements.txt",
@@ -221,80 +186,140 @@ jobs:
                 arcname = str(file_path.relative_to(pkg_temp.resolve()))
                 zf.write(str(file_path), arcname)
 
-            print(f"  ✅ Dependencies added")
+            print("  + dependencies")
 
-          # Verify ZIP contents
-          print(f"\n✅ ZIP created: {zip_path.stat().st_size / (1024*1024):.1f} MB")
+          print(f"  Result: {zip_path.stat().st_size / (1024*1024):.1f} MB\n")
 
-          print(f"\n=== Verifying critical files in ZIP ===")
+          # ============================================================
+          # PACKAGE 2: Lambda Layer (config/, algo/, utils/)
+          # Lambda layers are extracted to /opt/python automatically
+          # ============================================================
+          print("=== Building Lambda Layer Package ===\n")
+
+          layer_path = Path("algo_layer.zip")
+          if layer_path.exists():
+            layer_path.unlink()
+
+          with zipfile.ZipFile(layer_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Layer structure: everything goes in python/ subdirectory
+            # Lambda extracts /python/ to /opt/python automatically
+
+            # Add config package
+            config_path = app_dir / "config"
+            if config_path.is_dir():
+              for file_path in config_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + config/")
+
+            # Add algo package
+            algo_path = app_dir / "algo"
+            if algo_path.is_dir():
+              for file_path in algo_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + algo/")
+
+            # Add utils package
+            utils_path = app_dir / "utils"
+            if utils_path.is_dir():
+              for file_path in utils_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + utils/")
+
+          print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
+
+          # Verify both packages
+          print("=== Verification ===")
           with zipfile.ZipFile(zip_path, 'r') as zf:
+            print(f"Function code: {len(zf.namelist())} files")
+            if "lambda_function.py" not in zf.namelist():
+              raise Exception("lambda_function.py missing!")
+
+          with zipfile.ZipFile(layer_path, 'r') as zf:
             names = zf.namelist()
+            print(f"Layer: {len(names)} files")
+            required = ["python/config/__init__.py", "python/algo/__init__.py", "python/utils/__init__.py"]
+            for req in required:
+              if req not in names:
+                raise Exception(f"Missing in layer: {req}")
 
-            critical_files = {
-              "lambda_function.py": False,
-              "config/__init__.py": False,
-              "algo/__init__.py": False,
-              "utils/__init__.py": False,
-            }
-
-            for name in names:
-              for critical in critical_files:
-                if critical in name or name == critical:
-                  critical_files[critical] = True
-
-            all_good = True
-            for critical, found in critical_files.items():
-              if found:
-                print(f"  ✅ {critical}")
-              else:
-                print(f"  ❌ {critical} NOT FOUND")
-                all_good = False
-
-            if not all_good:
-              print("\n❌ Critical files missing from ZIP!")
-              print("\nFirst 50 files in ZIP:")
-              for i, name in enumerate(sorted(names)[:50]):
-                print(f"    {name}")
-              raise Exception("ZIP verification failed")
-
-          print(f"\n✅ All critical files verified in ZIP")
+          print("OK - both packages ready for deployment")
           PYTHON_SCRIPT
 
       - name: Verify ZIP Contents with unzip
         run: |
-          echo "=== ZIP File Contents Check ==="
-          echo "Total files in ZIP:"
-          unzip -l algo_lambda.zip | tail -1
+          echo "=== Function Code ZIP ==="
+          echo "Files: $(unzip -l algo_lambda.zip | tail -1 | awk '{print $2}')"
+          unzip -l algo_lambda.zip | grep "lambda_function.py" && echo "OK - lambda_function.py found"
+
           echo ""
-          echo "Application code files in ZIP:"
-          unzip -l algo_lambda.zip | grep -E "config/|algo/|utils/" | head -20
-          echo ""
-          echo "Checking for critical modules:"
-          for pattern in "config/__init__" "algo/__init__" "utils/__init__" "lambda_function.py"; do
-            count=$(unzip -l algo_lambda.zip | grep -c "$pattern" || echo "0")
-            if [ "$count" -gt 0 ]; then
-              echo "  ✅ Found: $pattern"
+          echo "=== Lambda Layer ZIP ==="
+          echo "Files: $(unzip -l algo_layer.zip | tail -1 | awk '{print $2}')"
+          for pattern in "python/config/__init__" "python/algo/__init__" "python/utils/__init__"; do
+            if unzip -l algo_layer.zip | grep -q "$pattern"; then
+              echo "OK - $pattern found"
             else
-              echo "  ❌ Missing: $pattern"
+              echo "MISSING - $pattern"
+              exit 1
             fi
           done
+
+      - name: Publish Lambda Layer
+        run: |
+          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          LAYER_NAME="algo-orchestrator-layer"
+
+          echo "Publishing Lambda layer: $LAYER_NAME"
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name "$LAYER_NAME" \
+            --zip-file fileb://algo_layer.zip \
+            --compatible-runtimes python3.11 \
+            --region $AWS_REGION \
+            --query 'Version' \
+            --output text)
+
+          echo "Layer published: version $LAYER_VERSION"
+          LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
+          echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
       - name: Deploy Algo Lambda
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+
+          echo "Deploying function code..."
           aws lambda update-function-code \
             --function-name "$FUNC" \
             --zip-file fileb://algo_lambda.zip \
             --region $AWS_REGION
-          echo "Waiting for code deployment to complete..."
-          sleep 5
+
+          echo "Waiting for code deployment..."
+          sleep 3
           aws lambda wait function-updated \
             --function-name "$FUNC" \
-            --region $AWS_REGION || echo "⚠️ Wait timed out, but function may be ready"
+            --region $AWS_REGION || echo "Wait timed out"
 
-          # Force invalidation of warm containers by cycling reserved concurrency
-          # This ensures all Lambda containers will have the fresh code
-          echo "Cycling reserved concurrency to invalidate warm containers..."
+          echo "Updating function to use layer..."
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --layers "$LAYER_ARN" \
+            --region $AWS_REGION
+
+          echo "Waiting for configuration update..."
+          sleep 3
+          aws lambda wait function-updated \
+            --function-name "$FUNC" \
+            --region $AWS_REGION || echo "Wait timed out"
+
+          # Force container refresh
+          echo "Refreshing containers..."
           aws lambda put-function-concurrency \
             --function-name "$FUNC" \
             --reserved-concurrent-executions 0 \
@@ -304,8 +329,8 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION 2>/dev/null || true
 
-          sleep 15  # Extended wait to allow all containers to refresh
-          echo "✅ Algo Lambda code deployed: $FUNC"
+          sleep 10
+          echo "OK - Algo Lambda deployed with layer"
 
       - name: Configure Algo Lambda Environment Variables
         run: |
