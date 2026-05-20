@@ -23,52 +23,63 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: us-east-1
 
-      - name: Invoke Prices Loader
+      - name: Get ECS Cluster & Subnets
+        id: ecs_info
+        run: |
+          CLUSTER=$(aws ecs list-clusters --region us-east-1 --query "clusterArns[0]" --output text)
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo-vpc-prod" --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+
+          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+
+          SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*loader*" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
+
+      - name: Invoke Stock Prices Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
         run: |
-          echo "Invoking prices loader..."
-          aws lambda invoke \
-            --function-name stocks-prices-loader-prod \
-            --invocation-type RequestResponse \
-            --region us-east-1 \
-            /tmp/prices-response.json
-          cat /tmp/prices-response.json
-          echo "Checking CloudWatch logs..."
-          sleep 5
-          aws logs tail /aws/lambda/stocks-prices-loader-prod --follow --max-items 100 || true
+          echo "Invoking stock_prices_daily loader..."
+          TASK_DEF=$(aws ecs describe-task-definition --task-definition stocks-stock_prices_daily-loader --region us-east-1 --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs run-task \
+            --cluster ${{ steps.ecs_info.outputs.cluster }} \
+            --task-definition $TASK_DEF \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.ecs_info.outputs.subnet }}],securityGroups=[${{ steps.ecs_info.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
 
-      - name: Invoke Technicals Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'technicals' }}
-        run: |
-          echo "Invoking technicals loader..."
-          aws lambda invoke \
-            --function-name stocks-technicals-loader-prod \
-            --invocation-type RequestResponse \
-            --region us-east-1 \
-            /tmp/technicals-response.json
-          cat /tmp/technicals-response.json
-          sleep 5
-          aws logs tail /aws/lambda/stocks-technicals-loader-prod --follow --max-items 100 || true
+          echo "Waiting for task to complete..."
+          sleep 30
+          aws logs tail /ecs/stocks-stock_prices_daily-loader --follow --max-items 200 --region us-east-1 || true
 
-      - name: Invoke Earnings Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'earnings' }}
+      - name: Invoke Stock Prices Weekly Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
         run: |
-          echo "Invoking earnings loader..."
-          aws lambda invoke \
-            --function-name stocks-earnings-loader-prod \
-            --invocation-type RequestResponse \
-            --region us-east-1 \
-            /tmp/earnings-response.json
-          cat /tmp/earnings-response.json
-          sleep 5
-          aws logs tail /aws/lambda/stocks-earnings-loader-prod --follow --max-items 100 || true
+          echo "Invoking stock_prices_weekly loader..."
+          TASK_DEF=$(aws ecs describe-task-definition --task-definition stocks-stock_prices_weekly-loader --region us-east-1 --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs run-task \
+            --cluster ${{ steps.ecs_info.outputs.cluster }} \
+            --task-definition $TASK_DEF \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.ecs_info.outputs.subnet }}],securityGroups=[${{ steps.ecs_info.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
 
-      - name: Check RDS Data
+          sleep 30
+          aws logs tail /ecs/stocks-stock_prices_weekly-loader --follow --max-items 200 --region us-east-1 || true
+
+      - name: Invoke Market Data Batch Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
         run: |
-          echo "Checking RDS connectivity and data..."
-          # List available data tables and row counts
-          aws secretsmanager get-secret-value \
-            --secret-id algo/database \
-            --region us-east-1 \
-            --query SecretString \
-            --output text | jq .
+          echo "Invoking market_data_batch loader..."
+          TASK_DEF=$(aws ecs describe-task-definition --task-definition stocks-market_data_batch-loader --region us-east-1 --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs run-task \
+            --cluster ${{ steps.ecs_info.outputs.cluster }} \
+            --task-definition $TASK_DEF \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.ecs_info.outputs.subnet }}],securityGroups=[${{ steps.ecs_info.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
+
+          sleep 30
+          aws logs tail /ecs/stocks-market_data_batch-loader --follow --max-items 200 --region us-east-1 || true
