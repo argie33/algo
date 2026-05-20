@@ -273,7 +273,29 @@ jobs:
 
       # NOTE: RDS password is now managed cleanly by Terraform (local.rds_password in database module).
       # Secrets Manager is created with the SAME password via aws_secretsmanager_secret_version.
-      # No manual password sync needed — Terraform handles it at creation time.
+      # Extract the password and set as GitHub Secret for future deployments.
+
+      - name: Extract RDS Password and Update GitHub Secret
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          echo "Extracting RDS password from Terraform output..."
+
+          RDS_PW=$(terraform output -raw rds_password 2>/dev/null || echo "")
+
+          if [ -z "$RDS_PW" ]; then
+            echo "⚠️  WARNING: Could not extract rds_password from Terraform output"
+            echo "This is expected if using an existing password (TF_VAR_rds_password set)"
+            exit 0
+          fi
+
+          echo "✅ RDS password extracted successfully"
+          echo "🔐 Setting GitHub Secret RDS_PASSWORD..."
+
+          gh secret set RDS_PASSWORD --body "$RDS_PW"
+
+          echo "✅ GitHub Secret RDS_PASSWORD updated"
 
       # NOTE: Database initialization is now handled by deploy-code.yml
       # (deploy-db-init-lambda job) which invokes algo-db-init-dev after
