@@ -185,6 +185,24 @@ resource "aws_security_group" "api_lambda" {
   description = "Security group for API Lambda function (REST API)"
   vpc_id      = aws_vpc.main.id
 
+  # Egress: allow DNS (UDP port 53) for hostname resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS queries (UDP) for RDS hostname resolution"
+  }
+
+  # Egress: allow DNS (TCP port 53) for hostname resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS queries (TCP) for RDS hostname resolution"
+  }
+
   # Egress: allow HTTPS to VPC endpoints for Secrets Manager, CloudWatch Logs, SNS
   egress {
     from_port   = 443
@@ -213,6 +231,24 @@ resource "aws_security_group" "algo_lambda" {
   name        = "${var.project_name}-algo-lambda-sg"
   description = "Security group for Algo Lambda function (orchestrator)"
   vpc_id      = aws_vpc.main.id
+
+  # Egress: allow DNS (UDP port 53) for hostname resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS queries (UDP) for RDS hostname resolution"
+  }
+
+  # Egress: allow DNS (TCP port 53) for hostname resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS queries (TCP) for RDS hostname resolution"
+  }
 
   # Egress: allow HTTPS to VPC endpoints for Secrets Manager, CloudWatch Logs, SNS
   egress {
