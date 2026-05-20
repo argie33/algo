@@ -128,9 +128,14 @@ jobs:
           else
             echo "❌ WARNING: config directory not found!"
           fi
-          # All algo modules (signals, orchestrator, etc.)
-          cp algo_*.py lambda-pkg/ 2>/dev/null || true
-          # Shared utility modules that algo imports
+          # Copy entire algo package (directory structure with __init__.py)
+          if [ -d algo ]; then
+            cp -r algo lambda-pkg/
+            echo "✅ Algo directory copied to Lambda package"
+          else
+            echo "❌ WARNING: algo directory not found!"
+          fi
+          # Shared utility modules at root level
           for f in db_helper.py signal_utils.py data_source_router.py \
                    optimal_loader.py bloom_dedup.py trade_status.py \
                    loader_safety.py credential_manager.py init_database.py; do
@@ -139,8 +144,9 @@ jobs:
           # Install binary-compatible dependencies
           pip install -r lambda/algo_orchestrator/requirements.txt \
             -t lambda-pkg/ --only-binary=:all: --quiet
-          # Verify config was copied
+          # Verify packages were copied
           ls -la lambda-pkg/config/ || echo "❌ Config not found after copy!"
+          ls -la lambda-pkg/algo/ || echo "❌ Algo not found after copy!"
 
           cd lambda-pkg
           # List what we're about to zip
@@ -149,14 +155,17 @@ jobs:
           echo ""
           echo "=== Config contents ==="
           ls -la config/ 2>/dev/null || echo "Config missing!"
+          echo ""
+          echo "=== Algo contents ==="
+          ls -la algo/ 2>/dev/null | head -10 || echo "Algo missing!"
 
           zip -r ../algo_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
 
-          # Verify config is in the zip
+          # Verify packages are in the zip
           echo ""
           echo "=== Verifying ZIP contents ==="
-          unzip -l algo_lambda.zip | grep -E "config/|lambda_function" | head -10
+          unzip -l algo_lambda.zip | grep -E "config/|algo/|lambda_function" | head -20
 
           echo ""
           echo "Package size: $(du -sh algo_lambda.zip | cut -f1)"
