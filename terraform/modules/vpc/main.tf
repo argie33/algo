@@ -357,6 +357,23 @@ resource "aws_security_group" "vpc_endpoints" {
   description = "Security group for VPC Endpoints"
   vpc_id      = aws_vpc.main.id
 
+  # Ingress: allow DNS (port 53) from private subnets
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow DNS TCP from VPC (Route 53 Resolver)"
+  }
+
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow DNS UDP from VPC (Route 53 Resolver)"
+  }
+
   # Ingress: allow HTTPS from private subnets
   ingress {
     from_port   = 443
@@ -482,5 +499,20 @@ resource "aws_vpc_endpoint" "sns" {
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-sns-endpoint"
+  })
+}
+
+# Route 53 Resolver Endpoint - Critical for DNS resolution in private subnets
+resource "aws_vpc_endpoint" "route53_resolver" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.route53resolver"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  subnet_ids          = aws_subnet.private[*].id
+  private_dns_enabled = true
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-route53resolver-endpoint"
   })
 }
