@@ -23,6 +23,19 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: us-east-1
 
+      - name: List Available Task Definitions
+        run: |
+          echo "=== Available ECS Clusters ==="
+          aws ecs list-clusters --region us-east-1
+
+          echo ""
+          echo "=== Available Task Definitions ==="
+          aws ecs list-task-definitions --region us-east-1 | head -20
+
+          echo ""
+          echo "=== Searching for loaders ==="
+          aws ecs list-task-definitions --family-prefix "stocks-" --region us-east-1 | head -50 || echo "No loaders found with stocks- prefix"
+
       - name: Get Network Config
         id: network
         run: |
