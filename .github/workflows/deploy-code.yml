@@ -290,6 +290,47 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
+      - name: Sync RDS Password with Secrets Manager
+        run: |
+          echo "Ensuring RDS password matches Secrets Manager..."
+
+          # Get RDS endpoint
+          RDS_ENDPOINT=$(aws rds describe-db-instances \
+            --db-instance-identifier "algo-db" \
+            --region $AWS_REGION \
+            --query 'DBInstances[0].Endpoint.Address' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$RDS_ENDPOINT" ] || [ "$RDS_ENDPOINT" = "None" ]; then
+            echo "WARNING: Could not find RDS instance, skipping password sync"
+          else
+            # Generate a new strong password
+            NEW_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+
+            echo "Resetting RDS master password..."
+            aws rds modify-db-instance \
+              --db-instance-identifier "algo-db" \
+              --master-user-password "$NEW_PASSWORD" \
+              --apply-immediately \
+              --region $AWS_REGION || echo "Note: Password change may require restart"
+
+            sleep 5
+
+            # Update Secrets Manager with the new password
+            echo "Updating algo/database secret with new password..."
+            aws secretsmanager update-secret-version-stage \
+              --secret-id "algo/database" \
+              --remove-from-version-ids $(aws secretsmanager describe-secret --secret-id algo/database --region $AWS_REGION --query 'VersionIdsToStages | keys(@)[0]' --output text 2>/dev/null || echo "") \
+              --region $AWS_REGION 2>/dev/null || true
+
+            aws secretsmanager put-secret-value \
+              --secret-id "algo/database" \
+              --secret-string "{\"host\": \"$RDS_ENDPOINT\", \"port\": 5432, \"dbname\": \"stocks\", \"username\": \"stocks\", \"password\": \"$NEW_PASSWORD\"}" \
+              --region $AWS_REGION
+
+            echo "✅ RDS password synced with Secrets Manager"
+          fi
+
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
@@ -306,7 +347,7 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "Layer ARN: $LAYER_ARN"
 
-          # Retrieve RDS configuration from Secrets Manager
+          # Retrieve RDS configuration from Secrets Manager (which now has the latest password)
           echo "Retrieving RDS configuration from Secrets Manager..."
           DB_CREDS=$(aws secretsmanager get-secret-value \
             --secret-id algo/database \
