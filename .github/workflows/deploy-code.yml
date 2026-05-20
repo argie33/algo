@@ -740,26 +740,37 @@ jobs:
 
       - name: Invoke Orchestrator (Live Mode)
         id: invoke
+        env:
+          # Set AWS CLI timeouts via environment variables to allow orchestrator execution
+          AWS_PAGER: ""
+          AWS_MAX_ATTEMPTS: "2"
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
-          echo "Invoking orchestrator: $FUNC"
+          echo "Invoking orchestrator: $FUNC (allowing up to 600s execution)"
 
-          # Create JSON payload and encode as base64
+          # Create JSON payload
           PAYLOAD='{"source":"deployment-verification"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
-          # Invoke with increased timeouts to allow orchestrator to complete
-          # (orchestrator can take 5+ minutes to process all phases)
-          AWS_DEFAULT_REGION=$AWS_REGION \
-          AWS_REGION=$AWS_REGION \
-          aws lambda invoke \
+          # Invoke Lambda synchronously - orchestrator can take 5+ minutes
+          # Use timeout wrapper to give AWS CLI enough time to wait for Lambda completion
+          timeout 700 aws lambda invoke \
             --function-name "$FUNC" \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            --cli-connect-timeout 10 \
-            --cli-read-timeout 700 \
-            /tmp/response.json
+            /tmp/response.json || {
+              CODE=$?
+              if [ $CODE -eq 124 ]; then
+                echo "Timeout (code 124) - may indicate Lambda is still running"
+                echo "Check CloudWatch logs for execution details"
+                cat /tmp/response.json 2>/dev/null || echo "No response file yet"
+              else
+                echo "Invoke failed with exit code $CODE"
+              fi
+              exit $CODE
+            }
 
+          echo "Orchestrator invoked successfully"
           cat /tmp/response.json
           echo "invoke_status=success" >> $GITHUB_OUTPUT
 
