@@ -227,6 +227,9 @@ jobs:
           # Verify CRITICAL packages are in the zip
           echo ""
           echo "=== CRITICAL ZIP Verification ==="
+          echo "First 30 lines of ZIP contents:"
+          unzip -l algo_lambda.zip | head -30
+          echo ""
           VERIFY_FAILED=0
 
           echo "Checking config/__init__.py:"
