@@ -508,34 +508,8 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 
 # ============================================================
 # EventBridge Scheduler for Algo Orchestrator
+# NOTE: 2x daily schedules (morning + evening) are defined in 2x-daily-orchestrator.tf
 # ============================================================
-
-resource "aws_scheduler_schedule" "algo_orchestrator" {
-  count                        = var.algo_schedule_enabled ? 1 : 0
-  name                         = "${var.project_name}-algo-schedule-${var.environment}"
-  description                  = "Trigger algo orchestrator Lambda at scheduled time"
-  schedule_expression          = var.algo_schedule_expression
-  schedule_expression_timezone = var.algo_schedule_timezone
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = aws_lambda_function.algo.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      source   = "eventbridge-scheduler"
-      run_date = "now"
-    })
-  }
-
-  depends_on = [
-    aws_lambda_permission.eventbridge_scheduler
-  ]
-}
 
 # ============================================================
 # CloudWatch Monitoring & Alarms
