@@ -128,16 +128,18 @@ jobs:
             echo "❌ FATAL: config directory not found in repo!"
             exit 1
           fi
-          cp -r config lambda-pkg/config || { echo "❌ Failed to copy config"; exit 1; }
-          echo "✅ Config copied"
+          cp -r config lambda-pkg/ || { echo "❌ Failed to copy config"; exit 1; }
+          [ -d lambda-pkg/config ] || { echo "❌ Config not found after copy!"; exit 1; }
+          echo "✅ Config copied to lambda-pkg/config"
 
           # Copy algo package (MUST come before pip)
           if [ ! -d algo ]; then
             echo "❌ FATAL: algo directory not found in repo!"
             exit 1
           fi
-          cp -r algo lambda-pkg/algo || { echo "❌ Failed to copy algo"; exit 1; }
-          echo "✅ Algo copied"
+          cp -r algo lambda-pkg/ || { echo "❌ Failed to copy algo"; exit 1; }
+          [ -d lambda-pkg/algo ] || { echo "❌ Algo not found after copy!"; exit 1; }
+          echo "✅ Algo copied to lambda-pkg/algo"
 
           # Copy shared utilities
           for f in db_helper.py signal_utils.py data_source_router.py \
