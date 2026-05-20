@@ -135,6 +135,23 @@ def create_tables(conn):
         )
     """)
 
+    # Buy/sell weekly signals
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS buy_sell_weekly (
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            rsi DECIMAL(10, 2),
+            sma_50 DECIMAL(10, 2),
+            sma_200 DECIMAL(10, 2),
+            stage_number INT,
+            buy_signal BOOLEAN,
+            sell_signal BOOLEAN,
+            signal_strength DECIMAL(10, 2),
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
+        )
+    """)
+
     # Stock scores
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS stock_scores (
@@ -164,6 +181,19 @@ def create_tables(conn):
         )
     """)
 
+    # Growth metrics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS growth_metrics (
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            revenue_growth DECIMAL(10, 4),
+            earnings_growth DECIMAL(10, 4),
+            fcf_growth DECIMAL(10, 4),
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
+        )
+    """)
+
     # Value metrics
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS value_metrics (
@@ -184,6 +214,7 @@ def create_tables(conn):
             symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
             swing_score DECIMAL(10, 2),
+            score DECIMAL(10, 2),
             swing_grade VARCHAR(5),
             base_type VARCHAR(50),
             stage_phase VARCHAR(50),
@@ -249,6 +280,20 @@ def create_tables(conn):
         )
     """)
 
+    # Financial statements - Annual Balance Sheet
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS annual_balance_sheet (
+            symbol VARCHAR(20) NOT NULL,
+            fiscal_year INT NOT NULL,
+            total_assets BIGINT,
+            total_liabilities BIGINT,
+            stockholders_equity BIGINT,
+            total_equity BIGINT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, fiscal_year)
+        )
+    """)
+
     # Financial statements - Quarterly
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quarterly_income_statement (
@@ -260,6 +305,7 @@ def create_tables(conn):
             operating_income BIGINT,
             net_income BIGINT,
             eps DECIMAL(10, 4),
+            earnings_per_share DECIMAL(10, 4),
             created_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY (symbol, fiscal_year, fiscal_quarter)
         )
@@ -274,6 +320,7 @@ def create_tables(conn):
             total_assets BIGINT,
             total_liabilities BIGINT,
             total_equity BIGINT,
+            stockholders_equity BIGINT,
             created_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY (symbol, fiscal_year, fiscal_quarter)
         )
@@ -288,6 +335,7 @@ def create_tables(conn):
             operating_cash_flow BIGINT,
             investing_cash_flow BIGINT,
             financing_cash_flow BIGINT,
+            free_cash_flow BIGINT,
             created_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY (symbol, fiscal_year, fiscal_quarter)
         )
@@ -296,24 +344,28 @@ def create_tables(conn):
     # TTM (Trailing Twelve Months) aggregates
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ttm_income_statement (
-            symbol VARCHAR(20) PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
             revenue BIGINT,
             operating_income BIGINT,
             net_income BIGINT,
             eps DECIMAL(10, 4),
             created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
         )
     """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ttm_cash_flow (
-            symbol VARCHAR(20) PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
             operating_cash_flow BIGINT,
             investing_cash_flow BIGINT,
             financing_cash_flow BIGINT,
             created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            updated_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (symbol, date)
         )
     """)
 
@@ -411,6 +463,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS algo_notifications (
             id SERIAL PRIMARY KEY,
             notification_type VARCHAR(100),
+            kind VARCHAR(100),
             symbol VARCHAR(20),
             message TEXT,
             sent BOOLEAN DEFAULT false,
@@ -451,6 +504,17 @@ def create_tables(conn):
             reason TEXT,
             created_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY (symbol, date, signal_type)
+        )
+    """)
+
+    # Algorithm configuration
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS algo_config (
+            key VARCHAR(100) PRIMARY KEY,
+            value TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
