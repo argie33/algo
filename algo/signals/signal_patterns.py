@@ -61,7 +61,9 @@ class SignalPatternsMixin:
             Dict with base detection results and characteristics
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
             # Look at the last 60 trading days
             self.cur.execute(
                 """
@@ -149,7 +151,9 @@ class SignalPatternsMixin:
         }
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
             # Last 60 bars
             self.cur.execute(
                 """
@@ -229,7 +233,9 @@ class SignalPatternsMixin:
         }
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
 
             # Use the existing base_detection as starting point
             base_info = self.base_detection(symbol, eval_date)
@@ -401,7 +407,9 @@ class SignalPatternsMixin:
         Returns: { 'stop_price': float, 'method': str, 'reasoning': str }
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
 
             base = self.classify_base_type(symbol, eval_date)
             base_type = base.get('type', 'no_base')
@@ -579,7 +587,9 @@ class SignalPatternsMixin:
         }
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
             # Need 4+ weeks of weekly data
             self.cur.execute(
                 """
@@ -668,7 +678,9 @@ class SignalPatternsMixin:
         }
         """
         try:
-            self.connect()
+            # Use existing cursor from parent class, don't reconnect
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
             # Need ~12 weeks of weekly data
             self.cur.execute(
                 """
