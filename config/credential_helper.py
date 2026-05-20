@@ -127,9 +127,28 @@ def get_db_config() -> Dict[str, any]:
             "Please set DB_HOST to your database hostname before using credential_helper."
         )
 
+    # Parse DB_HOST in case it includes port (e.g., "hostname:5432")
+    # Extract just the hostname for DNS resolution
+    if ":" in db_host:
+        parsed_host, parsed_port = db_host.rsplit(":", 1)
+        try:
+            # If port was provided in hostname, use it
+            parsed_port = int(parsed_port)
+        except ValueError:
+            # Not a valid port number, treat whole thing as hostname
+            parsed_host = db_host
+            parsed_port = int(os.getenv("DB_PORT", DEFAULT_DB_PORT))
+    else:
+        parsed_host = db_host
+        parsed_port = int(os.getenv("DB_PORT", DEFAULT_DB_PORT))
+
+    # Override port from env var if explicitly provided
+    if os.getenv("DB_PORT"):
+        parsed_port = int(os.getenv("DB_PORT"))
+
     config = {
-        "host": db_host,
-        "port": int(os.getenv("DB_PORT", DEFAULT_DB_PORT)),
+        "host": parsed_host,
+        "port": parsed_port,
         "user": os.getenv("DB_USER", DEFAULT_DB_USER),
         "password": get_db_password(),
         "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
