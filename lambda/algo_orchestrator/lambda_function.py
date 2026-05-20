@@ -14,14 +14,15 @@ lambda_task_root = os.environ.get("LAMBDA_TASK_ROOT", "/var/task")
 if lambda_task_root not in sys.path:
     sys.path.insert(0, lambda_task_root)
 
-# DEBUG: Log Python path and available modules before importing config
-sys.stderr.write(f"\n=== LAMBDA DEBUG ===\nPython path: {sys.path}\n")
-import pkgutil
-sys.stderr.write(f"Available top-level packages: {[name for finder, name, ispkg in pkgutil.iter_modules(sys.path)]}\n")
-sys.stderr.write(f"Current working directory: {os.getcwd()}\n")
-sys.stderr.write(f"Lambda task root: {lambda_task_root}\n")
-sys.stderr.write(f"Import path check - config exists?: {os.path.exists(os.path.join(lambda_task_root, 'config'))}\n")
-sys.stderr.write("=== END DEBUG ===\n\n")
+# Additional safety: check the directory and try to import
+import logging as _logging
+_logger = _logging.getLogger()
+_logger.info(f"Lambda task root: {lambda_task_root}")
+_logger.info(f"sys.path[0]: {sys.path[0]}")
+if os.path.exists(os.path.join(lambda_task_root, 'config')):
+    _logger.info("config/ directory exists in Lambda task root")
+else:
+    _logger.error(f"config/ directory NOT FOUND in {lambda_task_root}")
 
 from config.credential_helper import get_db_config
 
