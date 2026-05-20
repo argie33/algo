@@ -173,7 +173,7 @@ resource "aws_config_delivery_channel" "main" {
   count           = var.aws_config_enabled ? 1 : 0
   name            = "${var.project_name}-config-channel"
   s3_bucket_name  = aws_s3_bucket.config_bucket[0].id
-  depends_on      = [aws_config_configuration_recorder.main, aws_iam_role_policy.config_bucket_policy]
+  depends_on      = [aws_config_configuration_recorder.main, aws_iam_role_policy.config_policy]
 }
 
 # Config S3 Bucket
