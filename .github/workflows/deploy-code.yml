@@ -210,26 +210,19 @@ jobs:
           echo "Utils:" && ls -la utils | head -5 || exit 1
           echo "Handler:" && ls -la lambda_function.py || exit 1
 
-          # Create ZIP with EXPLICIT file listing to guarantee inclusion
-          # Use find to get all files and explicitly add to zip
-          echo "Creating ZIP with explicit file listing..."
-          zip -r ../algo_lambda.zip \
-            lambda_function.py \
-            config/ \
-            algo/ \
-            utils/ \
-            -x "*.pyc" "__pycache__/*" "*.dist-info/*" > /tmp/zip.log 2>&1 || {
-              echo "❌ ZIP creation failed"
-              cat /tmp/zip.log
-              exit 1
-            }
-
-          # Also add all dependencies (use . but with updated verification)
+          # Create ZIP with ALL content from current directory
+          # Exclude only compiled files and cache
+          echo "Creating ZIP with explicit exclusions..."
+          zip -r ../algo_lambda.zip . \
+            -x "*.pyc" "__pycache__/*" "*.dist-info/*" \
+            > /tmp/zip.log 2>&1
+          ZIP_EXIT=$?
+          if [ $ZIP_EXIT -ne 0 ]; then
+            echo "❌ ZIP creation failed (exit code: $ZIP_EXIT)"
+            cat /tmp/zip.log
+            exit 1
+          fi
           cd ..
-          zip -r algo_lambda.zip \
-            boto3 botocore requests psycopg2 python_dotenv \
-            -x "*.pyc" "__pycache__/*" > /tmp/zip_deps.log 2>&1 || true
-          cd lambda-pkg
 
           # Verify CRITICAL packages are in the zip
           echo ""
