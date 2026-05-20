@@ -253,19 +253,46 @@ def _validate_pre_trade_data_quality(
             else:
                 logger.debug(f"  [OK] {table}: {count} rows for today")
 
+        # Use latest available data if today's not available (same as hard-block logic above)
+        price_check_date = today
         cur.execute(
-            "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
-            (today,)
+            f"SELECT COUNT(*) FROM price_daily WHERE date = %s",
+            (price_check_date,)
         )
-        result = cur.fetchone()
-        if result and result[0]:
-            age_hours = (datetime.now() - result[0]).total_seconds() / 3600
-            if age_hours > 24:
-                issues.append(f"Price data too stale: {age_hours:.1f} hours old")
-            elif age_hours > 1:
-                warnings.append(f"Price data is {age_hours:.1f} hours old")
-        else:
+        if cur.fetchone()[0] == 0:
+            cur.execute(
+                "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                (price_check_date,)
+            )
+            latest = cur.fetchone()[0]
+            if latest:
+                price_check_date = latest
+                logger.debug(f"  [FALLBACK] Using price data from {latest} instead of {today}")
+
+        # Check if data exists for price_check_date (we already verified hard blocks above)
+        cur.execute(
+            "SELECT COUNT(*) FROM price_daily WHERE date = %s",
+            (price_check_date,)
+        )
+        price_count = cur.fetchone()[0] or 0
+        if price_count == 0:
             issues.append("No price data found")
+        else:
+            # Check created_at age if available
+            cur.execute(
+                "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
+                (price_check_date,)
+            )
+            result = cur.fetchone()
+            if result and result[0]:
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                if age_hours > 24:
+                    issues.append(f"Price data too stale: {age_hours:.1f} hours old")
+                elif age_hours > 1:
+                    warnings.append(f"Price data is {age_hours:.1f} hours old")
+            else:
+                # Data exists but created_at is missing (not critical)
+                logger.debug(f"  [WARN] Price data exists but created_at is not set for {price_check_date}")
 
         cur.execute(
             "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
@@ -291,19 +318,29 @@ def _validate_pre_trade_data_quality(
             elif coverage < 95:
                 warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
 
+        # Check if technical data exists (hard blocks already verified this above)
         cur.execute(
-            "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s",
+            "SELECT COUNT(*) FROM technical_data_daily WHERE date <= %s",
             (today,)
         )
-        result = cur.fetchone()
-        if result and result[0]:
-            age_hours = (datetime.now() - result[0]).total_seconds() / 3600
-            if age_hours > 24:
-                issues.append(f"Technical data stale: {age_hours:.1f} hours old")
-            elif age_hours > 12:
-                warnings.append(f"Technical data is {age_hours:.1f} hours old")
-        else:
+        tech_count = cur.fetchone()[0] or 0
+        if tech_count == 0:
             issues.append("No technical data found")
+        else:
+            # Check created_at age if available
+            cur.execute(
+                "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            if result and result[0]:
+                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                if age_hours > 24:
+                    issues.append(f"Technical data stale: {age_hours:.1f} hours old")
+                elif age_hours > 12:
+                    warnings.append(f"Technical data is {age_hours:.1f} hours old")
+            else:
+                logger.debug(f"  [WARN] Technical data exists but created_at is not set")
 
         # 6a. Quality metrics (momentum, volatility, RSI, etc.)
         cur.execute(

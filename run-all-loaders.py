@@ -92,9 +92,10 @@ def run_loader(script: str, args: List[str] = None) -> bool:
     try:
         cmd = ["python3", script] + args
         logger.info(f"  ▶️  {Path(script).name} {' '.join(args)}")
-        # Increase timeout for price loaders (yfinance is slow on large symbol sets)
-        timeout = 1800 if "price" in script.lower() else 600
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # Timeouts: heavy compute loaders need 30min, others 10min
+        heavy_loaders = {"price", "technical", "buysell", "trend_criteria", "swing_trader", "signal_quality"}
+        timeout = 1800 if any(name in script.lower() for name in heavy_loaders) else 600
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=os.environ.copy())
 
         if result.returncode == 0:
             logger.info(f"  ✅ {Path(script).name}")
@@ -115,6 +116,14 @@ def run_loader(script: str, args: List[str] = None) -> bool:
 def run_loaders(groups: dict, symbols: Optional[str] = None) -> dict:
     """Run loader groups. Return summary."""
     load_env()
+
+    # Ensure database credentials are in environment (for subprocess inheritance)
+    if not os.getenv("DB_HOST"):
+        os.environ["DB_HOST"] = "localhost"
+    if not os.getenv("DB_USER"):
+        os.environ["DB_USER"] = "stocks"
+    if not os.getenv("DB_PASSWORD"):
+        os.environ["DB_PASSWORD"] = "stocks"
 
     total = 0
     passed = 0
