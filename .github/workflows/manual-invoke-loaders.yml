@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "Invoking stock_prices_daily loader..."
           aws ecs run-task \
-            --cluster stocks-cluster \
+            --cluster algo-cluster \
             --task-definition algo-stock_prices_daily-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
@@ -74,7 +74,7 @@ jobs:
         run: |
           echo "Invoking stock_prices_weekly loader..."
           aws ecs run-task \
-            --cluster stocks-cluster \
+            --cluster algo-cluster \
             --task-definition algo-stock_prices_weekly-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
@@ -88,7 +88,7 @@ jobs:
         run: |
           echo "Invoking market_data_batch loader..."
           aws ecs run-task \
-            --cluster stocks-cluster \
+            --cluster algo-cluster \
             --task-definition algo-market_data_batch-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
