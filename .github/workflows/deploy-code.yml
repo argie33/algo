@@ -559,9 +559,13 @@ jobs:
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
           echo "Invoking orchestrator: $FUNC"
 
+          # Create JSON payload and encode as base64
+          PAYLOAD='{"source":"deployment-verification"}'
+          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
+
           aws lambda invoke \
             --function-name "$FUNC" \
-            --payload '{"source":"deployment-verification"}' \
+            --payload "$ENCODED" \
             --region $AWS_REGION \
             /tmp/response.json
 
@@ -577,10 +581,9 @@ jobs:
 
           echo "=== Orchestrator Execution Logs ==="
           aws logs tail "/aws/lambda/$FUNC" \
-            --follow \
             --since 5m \
             --region $AWS_REGION \
-            --format short || true
+            --format short 2>/dev/null | head -200 || true
 
           echo ""
           echo "=== Verifying All 7 Phases Completed ==="
