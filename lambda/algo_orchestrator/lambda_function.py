@@ -4,9 +4,20 @@ Avoids psycopg2 import issues by keeping database operations local.
 """
 
 import os
+import sys
 import json
 import logging
 from datetime import datetime, date as _date
+
+# DEBUG: Log Python path and available modules before importing config
+sys.stderr.write(f"\n=== LAMBDA DEBUG ===\nPython path: {sys.path}\n")
+import pkgutil
+sys.stderr.write(f"Available top-level packages: {[name for finder, name, ispkg in pkgutil.iter_modules(sys.path)]}\n")
+sys.stderr.write(f"Current working directory: {os.getcwd()}\n")
+sys.stderr.write(f"Lambda task root: {os.getenv('LAMBDA_TASK_ROOT', 'not set')}\n")
+sys.stderr.write(f"Import path check - config exists?: {os.path.exists('/var/task/config')}\n")
+sys.stderr.write("=== END DEBUG ===\n\n")
+
 from config.credential_helper import get_db_config
 
 logging.basicConfig(level=logging.INFO)
