@@ -21,10 +21,15 @@ jobs:
       - name: Invoke Orchestrator Lambda
         run: |
           echo "Invoking algo orchestrator in live mode..."
+
+          # Encode payload as base64
+          PAYLOAD='{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}'
+          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
+
           aws lambda invoke \
             --function-name algo-algo-orchestrator \
             --invocation-type RequestResponse \
-            --payload '{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}' \
+            --payload "$ENCODED" \
             --region us-east-1 \
             /tmp/response.json
 
