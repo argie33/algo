@@ -43,13 +43,17 @@ jobs:
         id: test
         run: |
           echo "Running diagnostic test..."
+
+          # Base64 encode the payload (AWS Lambda requires this)
+          PAYLOAD=$(echo -n '{"test":"diagnostics"}' | base64 -w 0)
+
           timeout 60 aws lambda invoke \
             --function-name algo-algo-dev \
             --invocation-type RequestResponse \
-            --payload '{"test":"diagnostics"}' \
+            --payload "$PAYLOAD" \
             --region $AWS_REGION \
             /tmp/test_response.json || EXIT_CODE=$?
-          
+
           if [ -f /tmp/test_response.json ]; then
             echo "Response received:"
             cat /tmp/test_response.json

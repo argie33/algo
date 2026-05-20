@@ -32,7 +32,10 @@ jobs:
           echo "Invoking algo-algo-dev in LIVE mode (synchronous)..."
 
           FUNC="algo-algo-dev"
-          PAYLOAD='{"source":"test-live-execution","test":"true","timeout":120}'
+          PAYLOAD_JSON='{"source":"test-live-execution","test":"true","timeout":120}'
+
+          # Base64 encode payload (AWS Lambda requires this format)
+          PAYLOAD=$(echo -n "$PAYLOAD_JSON" | base64 -w 0)
 
           # Use timeout to prevent hanging indefinitely
           # RequestResponse invocation will wait for Lambda to complete
