@@ -3,12 +3,20 @@ name: Invoke Orchestrator
 on:
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
 jobs:
-  run-orchestrator:
+  resolve-function-name:
+    name: Resolve Algo Lambda Function Name
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
+    outputs:
+      algo_lambda_name: ${{ steps.names.outputs.algo_lambda_name }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -16,27 +24,66 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+          terraform_wrapper: false
+
+      - name: Terraform Init (read-only)
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=stocks-terraform-state" \
+            -backend-config="key=stocks/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -reconfigure
+
+      - name: Resolve Function Name
+        id: names
+        working-directory: terraform
+        run: |
+          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
+          echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
+          echo "✅ Resolved Algo Lambda: ${ALGO_LAMBDA}"
+
+  run-orchestrator:
+    name: Invoke Orchestrator Lambda
+    needs: resolve-function-name
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Invoke Orchestrator Lambda
         run: |
-          echo "Invoking algo orchestrator in live mode..."
+          FUNC="${{ needs.resolve-function-name.outputs.algo_lambda_name }}"
+          echo "Invoking orchestrator: $FUNC"
 
-          # Encode payload as base64
+          # Create unencoded payload (aws lambda invoke handles encoding)
           PAYLOAD='{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}'
-          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
           aws lambda invoke \
-            --function-name algo-algo-orchestrator \
+            --function-name "$FUNC" \
             --invocation-type RequestResponse \
-            --payload "$ENCODED" \
-            --region us-east-1 \
+            --payload "$PAYLOAD" \
+            --region ${{ env.AWS_REGION }} \
             /tmp/response.json
 
-          echo "=== Response ==="
+          echo "=== Invocation Response ==="
           cat /tmp/response.json
 
           echo ""
-          echo "=== Lambda Logs ==="
+          echo "=== Lambda Execution Logs ==="
           sleep 15
-          aws logs tail /aws/lambda/algo-algo-orchestrator --follow --since 3m --region us-east-1 | head -300 || echo "No logs available"
+          aws logs tail "/aws/lambda/$FUNC" --follow --since 3m --region ${{ env.AWS_REGION }} | head -300 || echo "No logs available yet"
