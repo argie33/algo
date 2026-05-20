@@ -23,6 +23,24 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: us-east-1
 
+      - name: Get Network Config
+        id: network
+        run: |
+          # Get default VPC
+          VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --region us-east-1 --query "Vpcs[0].VpcId" --output text || echo "")
+          if [ "$VPC_ID" = "None" ] || [ -z "$VPC_ID" ]; then
+            VPC_ID=$(aws ec2 describe-vpcs --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          fi
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+
+          # Get first subnet
+          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+
+          # Get or create security group
+          SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=default" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text || echo "")
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
+
       - name: Invoke Stock Prices Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
         run: |
@@ -31,11 +49,12 @@ jobs:
             --cluster stocks-cluster \
             --task-definition stocks-stock_prices_daily-loader \
             --launch-type FARGATE \
-            --region us-east-1 || true
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
 
           echo "Waiting for task logs..."
-          sleep 45
-          aws logs tail /ecs/stocks-stock_prices_daily-loader --follow --max-items 300 --region us-east-1 || echo "No logs yet"
+          sleep 60
+          aws logs tail /ecs/stocks-stock_prices_daily-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
 
       - name: Invoke Stock Prices Weekly Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
@@ -45,10 +64,11 @@ jobs:
             --cluster stocks-cluster \
             --task-definition stocks-stock_prices_weekly-loader \
             --launch-type FARGATE \
-            --region us-east-1 || true
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
 
-          sleep 45
-          aws logs tail /ecs/stocks-stock_prices_weekly-loader --follow --max-items 300 --region us-east-1 || echo "No logs yet"
+          sleep 60
+          aws logs tail /ecs/stocks-stock_prices_weekly-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
 
       - name: Invoke Market Data Batch Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
@@ -58,7 +78,8 @@ jobs:
             --cluster stocks-cluster \
             --task-definition stocks-market_data_batch-loader \
             --launch-type FARGATE \
-            --region us-east-1 || true
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
 
-          sleep 45
-          aws logs tail /ecs/stocks-market_data_batch-loader --follow --max-items 300 --region us-east-1 || echo "No logs yet"
+          sleep 60
+          aws logs tail /ecs/stocks-market_data_batch-loader --follow --since 1m --region us-east-1 | head -100 || echo "No logs yet"
