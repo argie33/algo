@@ -1,0 +1,37 @@
+name: Invoke Orchestrator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-orchestrator:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Invoke Orchestrator Lambda
+        run: |
+          echo "Invoking algo orchestrator in live mode..."
+          aws lambda invoke \
+            --function-name algo-algo-orchestrator \
+            --invocation-type RequestResponse \
+            --payload '{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}' \
+            --region us-east-1 \
+            /tmp/response.json
+
+          echo "=== Response ==="
+          cat /tmp/response.json
+
+          echo ""
+          echo "=== Lambda Logs ==="
+          sleep 15
+          aws logs tail /aws/lambda/algo-algo-orchestrator --follow --since 3m --region us-east-1 | head -300 || echo "No logs available"
