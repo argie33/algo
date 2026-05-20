@@ -175,10 +175,28 @@ class CredentialManager:
         """Get Alpaca API credentials as a dict.
 
         Checks in order:
-        1. AWS Secrets Manager 'alpaca/key' and 'alpaca/secret'
-        2. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
-        3. Returns empty dict if not found (allows graceful fallback)
+        1. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
+        2. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
+        3. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        4. Returns empty dict if not found (allows graceful fallback)
         """
+        import json as _json
+
+        # Try 'algo/alpaca' JSON blob first (new secrets module format)
+        if self._is_aws:
+            try:
+                client = self._get_secrets_client()
+                if client:
+                    response = client.get_secret_value(SecretId='algo/alpaca')
+                    creds = _json.loads(response.get('SecretString', '{}'))
+                    key = creds.get('api_key')
+                    secret = creds.get('api_secret')
+                    if key and secret:
+                        return {'key': key, 'secret': secret}
+            except Exception as e:
+                log.debug(f"Could not fetch 'algo/alpaca' from Secrets Manager: {e}")
+
+        # Fall back to individual secrets (legacy format)
         try:
             key = self.get_password('alpaca/key', default=None)
         except ValueError:
