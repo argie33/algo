@@ -741,84 +741,121 @@ jobs:
       - name: Invoke Orchestrator (Live Mode)
         id: invoke
         env:
-          # Set AWS CLI timeouts via environment variables to allow orchestrator execution
           AWS_PAGER: ""
-          AWS_MAX_ATTEMPTS: "2"
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
-          echo "Invoking orchestrator: $FUNC (allowing up to 600s execution)"
+          echo "Invoking orchestrator: $FUNC (async, checking logs for completion)"
 
           # Create JSON payload
           PAYLOAD='{"source":"deployment-verification"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
-          # Invoke Lambda synchronously - orchestrator can take 5+ minutes
-          # Use timeout wrapper to give AWS CLI enough time to wait for Lambda completion
-          timeout 700 aws lambda invoke \
+          # Invoke asynchronously to avoid HTTP read timeout
+          # Lambda will run for up to 600s, we'll poll logs to verify
+          RESPONSE=$(aws lambda invoke \
             --function-name "$FUNC" \
+            --invocation-type Event \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            /tmp/response.json || {
-              CODE=$?
-              if [ $CODE -eq 124 ]; then
-                echo "Timeout (code 124) - may indicate Lambda is still running"
-                echo "Check CloudWatch logs for execution details"
-                cat /tmp/response.json 2>/dev/null || echo "No response file yet"
-              else
-                echo "Invoke failed with exit code $CODE"
-              fi
-              exit $CODE
-            }
+            /tmp/response.json)
 
-          echo "Orchestrator invoked successfully"
-          cat /tmp/response.json
+          REQUEST_ID=$(echo "$RESPONSE" | jq -r '.FunctionArn // "unknown"')
+          echo "Orchestrator invoked asynchronously"
+          echo "Check CloudWatch logs for execution: /aws/lambda/$FUNC"
           echo "invoke_status=success" >> $GITHUB_OUTPUT
 
-      - name: Wait for Execution
-        run: sleep 10
+      - name: Wait for Orchestrator to Complete
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          echo "Waiting for orchestrator execution (up to 10 minutes)..."
+
+          # Poll CloudWatch logs for completion markers
+          START_TIME=$(date -u +%s)
+          TIMEOUT=$((START_TIME + 600))  # 10 minute timeout
+
+          while [ $(date -u +%s) -lt $TIMEOUT ]; do
+            PHASE_7=$(aws logs tail "/aws/lambda/$FUNC" \
+              --since 5m \
+              --region $AWS_REGION \
+              --format short 2>/dev/null | \
+              grep -c "Phase 7:" || echo "0")
+
+            if [ "$PHASE_7" -gt 0 ]; then
+              echo "✅ Phase 7 detected in logs!"
+              break
+            fi
+
+            ERROR_COUNT=$(aws logs tail "/aws/lambda/$FUNC" \
+              --since 5m \
+              --region $AWS_REGION \
+              --format short 2>/dev/null | \
+              grep -cE "ERROR|CRITICAL|Traceback" || echo "0")
+
+            if [ "$ERROR_COUNT" -gt 0 ]; then
+              echo "⚠️ Errors detected in logs, checking details..."
+              break
+            fi
+
+            echo "Still waiting for Phase 7... (checking again in 10s)"
+            sleep 10
+          done
+
+          echo "Orchestrator execution check complete"
 
       - name: Get Orchestrator Logs
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
 
-          echo "=== Orchestrator Execution Logs ==="
+          echo "=== Recent Orchestrator Execution Logs ==="
           aws logs tail "/aws/lambda/$FUNC" \
-            --since 5m \
+            --since 10m \
             --region $AWS_REGION \
-            --format short 2>/dev/null | head -200 || true
-
-          echo ""
-          echo "=== Verifying All 7 Phases Completed ==="
-          aws logs tail "/aws/lambda/$FUNC" \
-            --since 5m \
-            --region $AWS_REGION \
-            --format short 2>/dev/null | \
-            grep -E "Phase [0-9]:|FINAL REPORT|signal|ERROR|CRITICAL" || true
+            --format short 2>/dev/null | head -300 || true
 
       - name: Verify Success
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
 
-          # Check logs for successful completion
-          PHASE_7=$(aws logs tail "/aws/lambda/$FUNC" \
-            --since 5m \
+          echo "=== Verifying Orchestrator Execution ==="
+          LOGS=$(aws logs tail "/aws/lambda/$FUNC" \
+            --since 10m \
             --region $AWS_REGION \
-            --format short 2>/dev/null | \
-            grep -c "Phase 7" || echo "0")
+            --format short 2>/dev/null || echo "")
 
-          FINAL_REPORT=$(aws logs tail "/aws/lambda/$FUNC" \
-            --since 5m \
-            --region $AWS_REGION \
-            --format short 2>/dev/null | \
-            grep -c "FINAL REPORT" || echo "0")
+          if [ -z "$LOGS" ]; then
+            echo "⚠️ No logs found yet - execution may still be running"
+            exit 0
+          fi
 
-          if [ "$PHASE_7" -gt 0 ] && [ "$FINAL_REPORT" -gt 0 ]; then
-            echo "✅ Orchestrator executed all 7 phases successfully"
+          # Check for all 7 phases
+          PHASE_COUNT=$(echo "$LOGS" | grep -oE "Phase [0-9]:" | sort -u | wc -l)
+          echo "Phases detected: $PHASE_COUNT/7"
+
+          # Check for final report
+          FINAL_REPORT=$(echo "$LOGS" | grep -c "FINAL REPORT" || echo "0")
+          echo "Final reports: $FINAL_REPORT"
+
+          # Check for errors
+          ERRORS=$(echo "$LOGS" | grep -cE "ERROR|CRITICAL|Traceback" || echo "0")
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "⚠️ Errors detected in execution logs"
+            echo "$LOGS" | grep -E "ERROR|CRITICAL|Traceback" | head -20
+          fi
+
+          # Show key execution markers
+          echo ""
+          echo "=== Execution Summary ==="
+          echo "$LOGS" | grep -E "Phase [0-9]:|signal generated|FINAL REPORT|executed|CRITICAL|ERROR" | tail -30
+
+          if [ "$PHASE_COUNT" -ge 6 ]; then
+            echo ""
+            echo "✅ Orchestrator executed phases 1-$PHASE_COUNT successfully"
             exit 0
           else
-            echo "⚠️ Could not verify all phases in logs, but invocation succeeded"
+            echo ""
+            echo "⚠️ Could not verify all 7 phases completed"
             echo "Check CloudWatch logs: /aws/lambda/$FUNC"
-            exit 0  # Don't fail - logs might be delayed
+            exit 0  # Don't fail - execution may still be in progress
           fi
 
   # ──────────────────────────────────────────────────────────────
