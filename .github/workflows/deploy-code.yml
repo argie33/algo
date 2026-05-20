@@ -458,27 +458,46 @@ jobs:
             '--function-name', func_name,
             '--region', region], capture_output=True)
 
-          # Build and update Lambda environment
-          env_vars = {
-            "DATABASE_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo/database",
-            "DB_HOST": str(db_host),
-            "DB_PORT": str(db_port),
-            "DB_NAME": str(db_name),
-            "DB_USER": "stocks",
-            "DB_PASSWORD": str(db_password),
-            "APCA_API_KEY_ID": alpaca_api_key,
-            "APCA_API_SECRET_KEY": alpaca_api_secret,
-            "APCA_API_BASE_URL": apca_base_url,
-            "ORCHESTRATOR_DRY_RUN": "false",
-            "EXECUTION_MODE": exec_mode
+          # Build Lambda configuration JSON
+          lambda_config = {
+            "FunctionName": func_name,
+            "Environment": {
+              "Variables": {
+                "DATABASE_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo/database",
+                "DB_HOST": str(db_host),
+                "DB_PORT": str(db_port),
+                "DB_NAME": str(db_name),
+                "DB_USER": "stocks",
+                "DB_PASSWORD": str(db_password),
+                "APCA_API_KEY_ID": alpaca_api_key,
+                "APCA_API_SECRET_KEY": alpaca_api_secret,
+                "APCA_API_BASE_URL": apca_base_url,
+                "ORCHESTRATOR_DRY_RUN": "false",
+                "EXECUTION_MODE": exec_mode
+              }
+            },
+            "Layers": [layer_arn],
+            "Region": region
           }
 
           print("Updating Lambda configuration...")
-          subprocess.run(['aws', 'lambda', 'update-function-configuration',
-            '--function-name', func_name,
-            '--environment', f"Variables={json.dumps(env_vars)}",
-            '--layers', layer_arn,
-            '--region', region], check=True)
+          import tempfile
+          import os as os_module
+
+          # Write config to temp file and use --cli-input-json
+          config_json = json.dumps(lambda_config)
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, dir='/tmp') as f:
+            f.write(config_json)
+            config_file = f.name
+
+          try:
+            subprocess.run(['aws', 'lambda', 'update-function-configuration',
+              '--cli-input-json', f'file://{config_file}'], check=True)
+          finally:
+            try:
+              os_module.unlink(config_file)
+            except:
+              pass
 
           print("✅ Lambda deployment complete")
           PYTHON_DEPLOY
