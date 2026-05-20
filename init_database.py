@@ -490,6 +490,17 @@ def create_tables(conn):
         )
     """)
 
+    # Key metrics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS key_metrics (
+            id SERIAL PRIMARY KEY,
+            date DATE NOT NULL,
+            metric_name VARCHAR(100),
+            metric_value DECIMAL(15, 4),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
     # Audit logging
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS algo_audit_log (
@@ -513,6 +524,7 @@ def create_tables(conn):
             id SERIAL PRIMARY KEY,
             notification_type VARCHAR(100),
             kind VARCHAR(100),
+            title VARCHAR(255),
             symbol VARCHAR(20),
             message TEXT,
             severity VARCHAR(50),
