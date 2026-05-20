@@ -338,6 +338,12 @@ variable "algo_schedule_expression" {
   }
 }
 
+variable "enable_morning_orchestrator" {
+  description = "Enable 2x daily orchestrator execution (morning at 9:30 AM ET + evening at 5:30 PM ET)"
+  type        = bool
+  default     = false
+}
+
 variable "algo_schedule_enabled" {
   description = "Whether the algo orchestrator schedule is enabled"
   type        = bool
