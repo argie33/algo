@@ -335,6 +335,18 @@ jobs:
       - name: Configure Algo Lambda Environment Variables
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          LAYER_NAME="algo-orchestrator-layer"
+
+          # Get the latest layer version
+          echo "Retrieving layer information..."
+          LAYER_VERSION=$(aws lambda list-layer-versions \
+            --layer-name "$LAYER_NAME" \
+            --region $AWS_REGION \
+            --query 'LayerVersions[0].Version' \
+            --output text)
+          LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
+          echo "Layer ARN: $LAYER_ARN"
 
           # Wait for function to be fully active before updating configuration
           echo "Waiting for Lambda to be fully active..."
@@ -396,11 +408,13 @@ jobs:
           EOF
           )
 
-          # Update function configuration with credentials
-          echo "Updating Lambda configuration..."
+          # Update function configuration with credentials AND layers
+          # IMPORTANT: Must include --layers to prevent overwriting the layer attachment
+          echo "Updating Lambda configuration with environment variables and layers..."
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
             --environment "{\"Variables\":$(echo "$ENV_VARS" | jq -c .)}" \
+            --layers "$LAYER_ARN" \
             --region $AWS_REGION || { echo "❌ Config update failed"; exit 1; }
 
           echo "Waiting for configuration to apply..."
@@ -411,6 +425,7 @@ jobs:
           echo "✅ Alpaca credentials configured in Lambda"
           echo "   Trading mode: $TRADING_MODE"
           echo "   Execution mode: $EXEC_MODE"
+          echo "   Layer ARN: $LAYER_ARN"
           echo "   API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}" | sed 's/.*/   API_KEY_ID: PK.../'
           echo "   API_SECRET_KEY: [configured]"
 
