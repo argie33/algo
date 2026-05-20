@@ -292,7 +292,7 @@ resource "aws_iam_role_policy" "ecs_task_execution" {
 }
 
 data "aws_iam_policy_document" "ecs_task_execution" {
-  # Secrets Manager (read task secrets from Secrets Manager)
+  # Secrets Manager (read task secrets from Secrets Manager, allow both patterns)
   statement {
     sid    = "SecretsManager"
     effect = "Allow"
@@ -303,7 +303,8 @@ data "aws_iam_policy_document" "ecs_task_execution" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
     ]
   }
 
@@ -392,7 +393,7 @@ resource "aws_iam_role_policy" "ecs_task" {
 }
 
 data "aws_iam_policy_document" "ecs_task" {
-  # Secrets Manager (read DB credentials)
+  # Secrets Manager (read DB credentials, allow both patterns)
   statement {
     sid    = "SecretsManager"
     effect = "Allow"
@@ -402,7 +403,8 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
     ]
   }
 
@@ -494,7 +496,7 @@ data "aws_iam_policy_document" "lambda_api" {
     resources = ["*"]
   }
 
-  # Secrets Manager (read DB credentials)
+  # Secrets Manager (read DB credentials, allow both patterns)
   statement {
     sid    = "SecretsManager"
     effect = "Allow"
@@ -504,7 +506,8 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
     ]
   }
 
@@ -606,7 +609,7 @@ data "aws_iam_policy_document" "lambda_algo" {
     resources = ["*"]
   }
 
-  # Secrets Manager
+  # Secrets Manager (allow both ${project_name}-* and ${project_name}/* patterns)
   statement {
     sid    = "SecretsManager"
     effect = "Allow"
@@ -616,7 +619,8 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
     ]
   }
 
