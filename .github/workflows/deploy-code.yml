@@ -273,7 +273,20 @@ jobs:
           aws lambda wait function-updated \
             --function-name "$FUNC" \
             --region $AWS_REGION || echo "⚠️ Wait timed out, but function may be ready"
-          sleep 10
+
+          # Force invalidation of warm containers by cycling reserved concurrency
+          # This ensures all Lambda containers will have the fresh code
+          echo "Cycling reserved concurrency to invalidate warm containers..."
+          aws lambda put-function-concurrency \
+            --function-name "$FUNC" \
+            --reserved-concurrent-executions 0 \
+            --region $AWS_REGION 2>/dev/null || true
+          sleep 2
+          aws lambda delete-function-concurrency \
+            --function-name "$FUNC" \
+            --region $AWS_REGION 2>/dev/null || true
+
+          sleep 15  # Extended wait to allow all containers to refresh
           echo "✅ Algo Lambda code deployed: $FUNC"
 
       - name: Configure Algo Lambda Environment Variables
