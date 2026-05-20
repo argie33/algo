@@ -23,8 +23,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
   count                        = var.enable_morning_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-morning-${var.environment}"
   description                  = "Morning algo orchestrator run: 9:30 AM ET (after price loads, before market open)"
-  schedule_expression          = "cron(30 9 ? * MON-FRI *)" # 9:30 AM ET
-  schedule_expression_timezone = "America/New_York"
+  schedule_expression          = "cron(30 14 ? * MON-FRI *)" # 9:30 AM ET = 2:30 PM UTC
+  schedule_expression_timezone = "UTC"
   state                        = "ENABLED"
 
   flexible_time_window {
@@ -58,8 +58,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
 # Keep as default for backwards compatibility
 locals {
   # Determine which schedule to use based on variable
-  # Note: cron expressions are interpreted in America/New_York timezone
-  orchestrator_schedule = var.enable_morning_orchestrator ? var.algo_schedule_expression : "cron(30 17 ? * MON-FRI *)"
+  # Note: cron expressions use UTC timezone for consistency
+  orchestrator_schedule = var.enable_morning_orchestrator ? var.algo_schedule_expression : "cron(30 22 ? * MON-FRI *)"
 }
 
 # Update existing schedule to reflect 2x daily behavior when enabled

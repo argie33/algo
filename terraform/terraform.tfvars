@@ -8,7 +8,7 @@ cloudfront_enabled = true  # Enable S3 + CloudFront distribution for frontend as
 # ENABLED: Orchestrator runs daily at market open (9:30am ET)
 # This ensures fresh data is loaded and signals evaluated before market opens
 algo_schedule_enabled = true
-algo_schedule_expression  = "cron(30 17 ? * MON-FRI *)"  # 5:30 PM ET
+algo_schedule_expression  = "cron(30 22 ? * MON-FRI *)"  # 10:30 PM UTC = 5:30 PM ET
 enable_morning_orchestrator = true
 cognito_enabled = true # API Gateway requires Cognito JWT authentication on all routes except /health
 
