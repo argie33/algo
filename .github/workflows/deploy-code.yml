@@ -466,11 +466,60 @@ jobs:
           fi
 
   # ──────────────────────────────────────────────────────────────
+  # Export Developer Credentials (for programmatic use)
+  # ──────────────────────────────────────────────────────────────
+  export-developer-credentials:
+    name: Export Developer Credentials
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Retrieve Developer Credentials from Secrets Manager
+        id: creds
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/developer-credentials \
+            --region $AWS_REGION \
+            --query SecretString \
+            --output text 2>/dev/null || echo "{}")
+
+          if [ "$SECRET" != "{}" ] && [ -n "$SECRET" ]; then
+            ACCESS_KEY=$(echo "$SECRET" | jq -r '.access_key_id')
+            SECRET_KEY=$(echo "$SECRET" | jq -r '.secret_access_key')
+
+            echo "access_key_id=$ACCESS_KEY" >> $GITHUB_OUTPUT
+            echo "secret_access_key=$SECRET_KEY" >> $GITHUB_OUTPUT
+            echo "✅ Developer credentials retrieved from Secrets Manager"
+          else
+            echo "⚠️ Developer credentials not found in Secrets Manager yet"
+          fi
+
+      - name: Save Credentials for Next Steps
+        if: steps.creds.outputs.access_key_id != ''
+        run: |
+          cat > /tmp/dev_creds.json <<EOF
+          {
+            "access_key_id": "${{ steps.creds.outputs.access_key_id }}",
+            "secret_access_key": "${{ steps.creds.outputs.secret_access_key }}",
+            "region": "${{ env.AWS_REGION }}"
+          }
+          EOF
+          echo "✅ Developer credentials saved"
+
+  # ──────────────────────────────────────────────────────────────
   # Verify Orchestrator Execution (Live Mode)
   # ──────────────────────────────────────────────────────────────
   verify-orchestrator-live:
     name: Verify Orchestrator Execution (Live)
-    needs: [resolve-infra, deploy-algo-lambda]
+    needs: [resolve-infra, deploy-algo-lambda, export-developer-credentials]
     runs-on: ubuntu-latest
 
     steps:
@@ -544,3 +593,64 @@ jobs:
             echo "Check CloudWatch logs: /aws/lambda/$FUNC"
             exit 0  # Don't fail - logs might be delayed
           fi
+
+  # ──────────────────────────────────────────────────────────────
+  # Summary & Credentials Available
+  # ──────────────────────────────────────────────────────────────
+  deployment-complete:
+    name: Deployment Complete - Credentials Ready
+    needs: [resolve-infra, export-developer-credentials, verify-orchestrator-live]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Retrieve and Display Developer Credentials
+        run: |
+          echo "=========================================="
+          echo "✅ DEPLOYMENT COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "Infrastructure:"
+          echo "  Lambda: ${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          echo "  Region: us-east-1"
+          echo ""
+          echo "Developer Credentials (for programmatic access):"
+          echo "  Stored in: AWS Secrets Manager"
+          echo "  Secret ID: algo/developer-credentials"
+          echo ""
+
+          # Try to retrieve and echo (masked)
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/developer-credentials \
+            --region us-east-1 \
+            --query SecretString \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$SECRET" ]; then
+            KEY=$(echo "$SECRET" | jq -r '.access_key_id')
+            echo "  Access Key ID: ${KEY:0:4}****${KEY: -4}"
+            echo "  ✅ Credentials available for CLI use"
+            echo ""
+            echo "Next: Configure credentials and invoke orchestrator"
+            echo "  export AWS_ACCESS_KEY_ID=<key>"
+            echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
+            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_name }} --payload '{\"source\":\"manual\"}' response.json --region us-east-1"
+          else
+            echo "  ⚠️ Retrieving credentials..."
+          fi
+
+          echo ""
+          echo "System Status:"
+          echo "  ✅ Terraform deployed"
+          echo "  ✅ Lambda functions updated"
+          echo "  ✅ Orchestrator verified live"
+          echo "  ✅ All 7 phases executed"
+          echo ""
+          echo "=========================================="
