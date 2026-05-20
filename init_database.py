@@ -501,8 +501,10 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS feature_flags (
             flag_name VARCHAR(100) PRIMARY KEY,
             enabled BOOLEAN DEFAULT false,
+            flag_type VARCHAR(100),
             value TEXT,
             description TEXT,
+            metadata TEXT,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )
