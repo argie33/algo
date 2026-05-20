@@ -57,7 +57,7 @@ def create_tables(conn):
                 adjusted_close DECIMAL(10, 2),
                 created_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (symbol, date),
-                UNIQUE(symbol, date)
+                CONSTRAINT unique_price_{interval} UNIQUE(symbol, date)
             )
         """)
 
@@ -231,7 +231,6 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS swing_trader_scores (
             symbol VARCHAR(20) NOT NULL,
             date DATE NOT NULL,
-            swing_score DECIMAL(10, 2),
             score DECIMAL(10, 2),
             swing_grade VARCHAR(5),
             base_type VARCHAR(50),
@@ -529,6 +528,7 @@ def create_tables(conn):
             message TEXT,
             severity VARCHAR(50),
             sent BOOLEAN DEFAULT false,
+            seen BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT NOW()
         )
     """)
