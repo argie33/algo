@@ -14,7 +14,7 @@ export function APIHealthCheck({ onHealthy, onUnhealthy, children }) {
     // Check API health immediately
     const checkHealth = async () => {
       try {
-        const _response = await api.get('/health', { timeout: 5000 });
+        const _response = await api.get('/api/health', { timeout: 5000 });
         setIsHealthy(true);
         onHealthy?.();
       } catch (error) {
