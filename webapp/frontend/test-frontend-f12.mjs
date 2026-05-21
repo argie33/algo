@@ -35,8 +35,8 @@ import { chromium } from 'playwright';
   });
 
   try {
-    console.log('Opening http://localhost:5173...');
-    const response = await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 30000 });
+    console.log('Opening http://localhost:5176...');
+    const response = await page.goto('http://localhost:5176', { waitUntil: 'networkidle', timeout: 30000 });
 
     console.log(`\nPage loaded with status: ${response.status()}`);
 
