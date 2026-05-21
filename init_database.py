@@ -150,6 +150,8 @@ def create_tables(conn):
             rsi DECIMAL(10, 2),
             sma_50 DECIMAL(10, 2),
             sma_200 DECIMAL(10, 2),
+            macd DECIMAL(10, 2),
+            macd_signal DECIMAL(10, 2),
             stage_number INT,
             buy_signal BOOLEAN,
             sell_signal BOOLEAN,
@@ -167,6 +169,8 @@ def create_tables(conn):
             rsi DECIMAL(10, 2),
             sma_50 DECIMAL(10, 2),
             sma_200 DECIMAL(10, 2),
+            macd DECIMAL(10, 2),
+            macd_signal DECIMAL(10, 2),
             stage_number INT,
             buy_signal BOOLEAN,
             sell_signal BOOLEAN,
@@ -722,6 +726,15 @@ def create_tables(conn):
             created_at TIMESTAMP DEFAULT NOW()
         )
     """)
+
+    # Ensure MACD columns exist on all buy_sell tables (for existing instances)
+    for table_name in ['buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly']:
+        try:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)")
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)")
+            logger.info(f"Added MACD columns to {table_name}")
+        except Exception as e:
+            logger.info(f"MACD columns already exist on {table_name}: {e}")
 
     conn.commit()
     cursor.close()
