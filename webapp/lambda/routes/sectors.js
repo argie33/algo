@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
       sector_scores AS (
         SELECT
           cp.sector as sector_name,
-          COUNT(DISTINCT cp.symbol) as stock_count,
+          COUNT(DISTINCT cp.ticker) as stock_count,
           AVG(ss.composite_score) as composite_score,
           AVG(ss.momentum_score) as momentum_score,
           AVG(ss.value_score) as value_score,
@@ -45,8 +45,8 @@ router.get("/", async (req, res) => {
           AVG(CASE WHEN sp.close_5d > 0 THEN (sp.close_now - sp.close_5d) / sp.close_5d * 100 END) as perf_5d,
           AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) as perf_20d
         FROM company_profile cp
-        LEFT JOIN symbol_perf sp ON cp.symbol = sp.symbol
-        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+        LEFT JOIN symbol_perf sp ON cp.ticker = sp.symbol
+        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
         GROUP BY cp.sector
       ),
@@ -66,7 +66,7 @@ router.get("/", async (req, res) => {
           AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50) AS avg_forward_pe
         FROM value_metrics vm
         JOIN company_profile cp ON vm.symbol = cp.ticker
-        WHERE cp.sector IS NOT NULL
+        WHERE cp.sector IS NOT NULL AND cp.sector != ''
         GROUP BY cp.sector
       ),
       sector_pe_ranked AS (
@@ -285,7 +285,7 @@ router.get("/:sector", async (req, res) => {
     const result = await query(`
       SELECT
         cp.sector as sector_name,
-        COUNT(DISTINCT cp.symbol) as stock_count,
+        COUNT(DISTINCT cp.ticker) as stock_count,
         AVG(ss.composite_score) as composite_score,
         AVG(ss.momentum_score) as momentum_score,
         AVG(ss.value_score) as value_score,
@@ -293,7 +293,7 @@ router.get("/:sector", async (req, res) => {
         AVG(ss.growth_score) as growth_score,
         AVG(ss.stability_score) as stability_score
       FROM company_profile cp
-      LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       WHERE cp.sector = $1
       GROUP BY cp.sector
     `, [sector]);

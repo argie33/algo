@@ -24,8 +24,8 @@ router.get("/", async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
-    // Build WHERE clause
-    let whereClause = "WHERE bsd.signal IN ('BUY', 'SELL')";
+    // Build WHERE clause (signals are lowercase: buy, sell, hold)
+    let whereClause = "WHERE LOWER(bsd.signal) IN ('buy', 'sell')";
     const params = [];
     let paramIndex = 1;
 
@@ -36,8 +36,8 @@ router.get("/", async (req, res) => {
     }
 
     if (signal) {
-      whereClause += ` AND bsd.signal = $${paramIndex}`;
-      params.push(signal);
+      whereClause += ` AND LOWER(bsd.signal) = $${paramIndex}`;
+      params.push(signal.toLowerCase());
       paramIndex++;
     }
 
@@ -113,8 +113,8 @@ router.get("/stocks", async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
-    // Build WHERE clause
-    let whereClause = `WHERE bsd.signal IN ('BUY', 'SELL')`;
+    // Build WHERE clause (signals are lowercase)
+    let whereClause = `WHERE LOWER(bsd.signal) IN ('buy', 'sell')`;
     const params = [];
     let paramIndex = 1;
 
@@ -211,7 +211,7 @@ router.get("/etf", async (req, res) => {
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
-      WHERE bsd.signal IN ('BUY', 'SELL')
+      WHERE LOWER(bsd.signal) IN ('buy', 'sell')
       ORDER BY bsd.date DESC
       LIMIT $${1} OFFSET $${2}
     `, [limit, offset]);

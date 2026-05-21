@@ -35,7 +35,7 @@ async function fetchIndustries(req, res) {
         SELECT
           cp.industry,
           cp.sector,
-          COUNT(DISTINCT cp.symbol) as stock_count,
+          COUNT(DISTINCT cp.ticker) as stock_count,
           AVG(ss.composite_score) as composite_score,
           AVG(ss.momentum_score) as momentum_score,
           AVG(ss.value_score) as value_score,
@@ -46,8 +46,8 @@ async function fetchIndustries(req, res) {
           AVG(CASE WHEN sp.close_5d > 0 THEN (sp.close_now - sp.close_5d) / sp.close_5d * 100 END) as perf_5d,
           AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) as perf_20d
         FROM company_profile cp
-        LEFT JOIN symbol_perf sp ON cp.symbol = sp.symbol
-        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+        LEFT JOIN symbol_perf sp ON cp.ticker = sp.symbol
+        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
         WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
         GROUP BY cp.industry, cp.sector
       ),
@@ -142,7 +142,7 @@ router.get("/:industry", async (req, res) => {
     const result = await query(`
       SELECT
         cp.industry as industry_name,
-        COUNT(DISTINCT cp.symbol) as stock_count,
+        COUNT(DISTINCT cp.ticker) as stock_count,
         AVG(ss.composite_score) as composite_score,
         AVG(ss.momentum_score) as momentum_score,
         AVG(ss.value_score) as value_score,
@@ -150,7 +150,7 @@ router.get("/:industry", async (req, res) => {
         AVG(ss.growth_score) as growth_score,
         AVG(ss.stability_score) as stability_score
       FROM company_profile cp
-      LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
       GROUP BY cp.industry
     `, [industry]);
