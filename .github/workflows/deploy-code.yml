@@ -405,7 +405,7 @@ jobs:
           region = os.environ['AWS_REGION']
           account_id = os.environ['AWS_ACCOUNT_ID']
           func_name = os.environ['FUNC_NAME']
-          layer_arn = os.environ['LAYER_ARN']
+          layer_arn = os.environ['LAYER_ARN'].strip()
 
           # Retrieve RDS configuration from Secrets Manager (match Terraform-created secret)
           print("Retrieving RDS configuration from Secrets Manager...")
