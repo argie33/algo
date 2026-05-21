@@ -14,31 +14,85 @@ logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
-    """Initialize RDS database schema."""
+    """Initialize RDS database schema and ensure stocks user exists."""
     import psycopg2
     from psycopg2 import OperationalError
+    import boto3
 
     db_host = os.environ.get('DB_HOST')
     db_port = int(os.environ.get('DB_PORT', 5432))
     db_name = os.environ.get('DB_NAME')
+    db_master_user = os.environ.get('DB_MASTER_USER', 'postgres')
+    db_master_password = os.environ.get('DB_MASTER_PASSWORD')
     db_user = os.environ.get('DB_USER')
-    db_password = os.environ.get('DB_PASSWORD')
 
-    if not all([db_host, db_name, db_user, db_password]):
+    if not all([db_host, db_name, db_master_user, db_master_password, db_user]):
         return {
             'statusCode': 400,
             'body': json.dumps('Missing required database connection parameters')
         }
 
     try:
-        # Connect to RDS instance
-        logger.info(f"Connecting to RDS: {db_host}:{db_port}/{db_name}")
+        # First: Ensure stocks user exists with correct password from Secrets Manager
+        logger.info("Step 1: Ensuring stocks user exists with correct password...")
+
+        # Get stocks password from Secrets Manager
+        sm = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        try:
+            secret = json.loads(sm.get_secret_value(SecretId='algo-db-credentials-dev')['SecretString'])
+            stocks_password = secret['password']
+            logger.info(f"Retrieved stocks password from Secrets Manager")
+        except Exception as e:
+            logger.warning(f"Could not get stocks password from Secrets Manager: {e}")
+            stocks_password = db_password  # Fall back to provided password
+
+        # Connect as master user
+        logger.info(f"Connecting to RDS as {db_master_user}: {db_host}:{db_port}/{db_name}")
+        master_conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            database=db_name,
+            user=db_master_user,
+            password=db_master_password,
+            connect_timeout=10
+        )
+
+        master_conn.autocommit = True
+        master_cursor = master_conn.cursor()
+
+        # Create or update stocks user
+        try:
+            master_cursor.execute(f'ALTER USER "{db_user}" WITH PASSWORD %s', (stocks_password,))
+            logger.info(f"Updated existing {db_user} user password")
+        except Exception as e:
+            logger.info(f"User update failed, creating new user: {e}")
+            try:
+                master_cursor.execute(f'CREATE USER "{db_user}" WITH PASSWORD %s', (stocks_password,))
+                logger.info(f"Created new {db_user} user")
+
+                # Grant permissions
+                master_cursor.execute(f'GRANT CONNECT ON DATABASE "{db_name}" TO "{db_user}"')
+                master_cursor.execute(f'GRANT USAGE ON SCHEMA public TO "{db_user}"')
+                master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{db_user}"')
+                master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{db_user}"')
+                logger.info(f"Granted permissions to {db_user}")
+            except Exception as e2:
+                logger.error(f"Failed to create/update user: {e2}")
+
+        master_cursor.close()
+        master_conn.close()
+        logger.info("✅ Stocks user setup complete")
+
+        # Second: Initialize schema by connecting as stocks user
+        logger.info("Step 2: Initializing database schema...")
+
+        logger.info(f"Connecting to RDS as {db_user}: {db_host}:{db_port}/{db_name}")
         conn = psycopg2.connect(
             host=db_host,
             port=db_port,
             database=db_name,
             user=db_user,
-            password=db_password,
+            password=stocks_password,
             connect_timeout=10
         )
 

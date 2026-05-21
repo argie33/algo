@@ -91,7 +91,7 @@ def split_sql_statements(sql):
 
 
 def lambda_handler(event, context):
-    """Initialize RDS database schema."""
+    """Initialize RDS database schema and ensure stocks user exists."""
     try:
         creds = get_credentials()
 
@@ -102,7 +102,54 @@ def lambda_handler(event, context):
                 'body': json.dumps('Missing required database credentials')
             }
 
-        logger.info(f"DB Init Lambda v3 — Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
+        # Step 1: Ensure stocks user exists (as master user)
+        logger.info("Step 1: Ensuring stocks user exists with correct password...")
+
+        master_user = os.environ.get('DB_MASTER_USER', 'postgres')
+        master_password = os.environ.get('DB_MASTER_PASSWORD')
+
+        if master_user and master_password:
+            try:
+                logger.info(f"Connecting as master user ({master_user}) to create/update stocks user...")
+                master_conn = psycopg2.connect(
+                    host=creds['host'],
+                    port=creds['port'],
+                    database=creds['database'],
+                    user=master_user,
+                    password=master_password,
+                    connect_timeout=15
+                )
+                master_conn.autocommit = True
+                master_cursor = master_conn.cursor()
+
+                # Create or update stocks user with password from Secrets Manager
+                try:
+                    master_cursor.execute(f'ALTER USER "{creds["user"]}" WITH PASSWORD %s', (creds['password'],))
+                    logger.info(f"Updated existing {creds['user']} user password")
+                except Exception as e:
+                    logger.info(f"User update failed, creating new user: {e}")
+                    try:
+                        master_cursor.execute(f'CREATE USER "{creds["user"]}" WITH PASSWORD %s', (creds['password'],))
+                        logger.info(f"Created new {creds['user']} user")
+                        # Grant permissions
+                        master_cursor.execute(f'GRANT CONNECT ON DATABASE "{creds["database"]}" TO "{creds["user"]}"')
+                        master_cursor.execute(f'GRANT USAGE ON SCHEMA public TO "{creds["user"]}"')
+                        master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{creds["user"]}"')
+                        master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{creds["user"]}"')
+                        logger.info(f"Granted permissions to {creds['user']}")
+                    except Exception as e2:
+                        logger.error(f"Failed to create/update user: {e2}")
+
+                master_cursor.close()
+                master_conn.close()
+                logger.info("✅ Stocks user setup complete")
+            except Exception as e:
+                logger.warning(f"Could not connect as master user to create stocks user: {e}")
+        else:
+            logger.info("Master user credentials not provided, skipping user creation")
+
+        # Step 2: Initialize schema as stocks user
+        logger.info(f"Step 2: Initializing database schema — Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
         conn = psycopg2.connect(
             host=creds['host'],
             port=creds['port'],
