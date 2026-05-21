@@ -104,8 +104,10 @@ def _test_dns_resolution(hostname: str) -> None:
     try:
         logger.info(f"Testing DNS resolution for: {hostname}")
 
-        # Test socket.getaddrinfo (what psycopg2 uses)
+        # Test socket.getaddrinfo (what psycopg2 uses) with timeout to prevent hangs
+        socket.setdefaulttimeout(5)
         results = socket.getaddrinfo(hostname, 5432, socket.AF_INET, socket.SOCK_STREAM)
+        socket.setdefaulttimeout(None)
         if results:
             resolved_ips = [r[4][0] for r in results]
             logger.info(f"✓ DNS resolution successful: {hostname} → {resolved_ips}")
@@ -113,6 +115,7 @@ def _test_dns_resolution(hostname: str) -> None:
             logger.warning(f"⚠ DNS resolution returned no results for: {hostname}")
 
     except socket.gaierror as e:
+        socket.setdefaulttimeout(None)
         logger.error(f"✗ DNS resolution failed for {hostname}: {e}")
         logger.error(f"  Error code: {e.errno}, {e.strerror}")
 
@@ -176,8 +179,9 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     config = get_db_config()
     config["connect_timeout"] = timeout
 
-    # Test DNS resolution before attempting connection
-    _test_dns_resolution(config["host"])
+    # In AWS Lambda, skip DNS pre-test (connection attempt will catch DNS issues)
+    if not os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+        _test_dns_resolution(config["host"])
 
     last_error = None
     for attempt in range(max_retries):
