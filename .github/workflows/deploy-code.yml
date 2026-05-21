@@ -290,6 +290,86 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
+      - name: Sync RDS Password with Secrets Manager
+        run: |
+          python3 << 'PYTHON_SYNC'
+          import json
+          import subprocess
+          import os
+          import secrets
+          import string
+
+          region = os.environ['AWS_REGION']
+
+          print("🔐 Syncing RDS password with Secrets Manager...")
+
+          # Get RDS instance details
+          try:
+            result = subprocess.run(['aws', 'rds', 'describe-db-instances',
+              '--region', region, '--query', 'DBInstances[0]',
+              '--output', 'json'], capture_output=True, text=True, check=True)
+            rds_info = json.loads(result.stdout)
+            rds_id = rds_info['DBInstanceIdentifier']
+            rds_host = rds_info['Endpoint']['Address']
+            rds_port = rds_info['Endpoint']['Port']
+            rds_user = 'stocks'
+            print(f"✅ Found RDS instance: {rds_id}")
+          except Exception as e:
+            print(f"ERROR: Could not retrieve RDS info: {e}")
+            exit(1)
+
+          # Generate a strong new password (alphanumeric only to avoid shell/AWS parsing issues)
+          alphabet = string.ascii_letters + string.digits
+          new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
+
+          # Apply new password to RDS
+          try:
+            print(f"Setting new password on RDS instance...")
+            result = subprocess.run(['aws', 'rds', 'modify-db-instance',
+              '--db-instance-identifier', rds_id,
+              '--master-user-password', new_password,
+              '--apply-immediately',
+              '--region', region], capture_output=True, text=True)
+            if result.returncode != 0:
+              print(f"AWS Error: {result.stderr}")
+              print(f"ERROR: Could not update RDS password (exit code {result.returncode})")
+              exit(1)
+            print("✅ RDS password updated")
+          except Exception as e:
+            print(f"ERROR: Could not update RDS password: {e}")
+            exit(1)
+
+          # Update Secrets Manager with new password
+          try:
+            with open('terraform/terraform.tfvars') as f:
+              tfvars = f.read()
+              project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
+              environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+            secret_id = f"{project}-db-credentials-{environment}"
+            secret_value = json.dumps({
+              "host": rds_host,
+              "port": rds_port,
+              "dbname": "stocks",
+              "username": rds_user,
+              "password": new_password
+            })
+            print(f"Updating Secrets Manager ({secret_id}) with new password...")
+            result = subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
+              '--secret-id', secret_id,
+              '--secret-string', secret_value,
+              '--region', region], capture_output=True, text=True)
+            if result.returncode != 0:
+              print(f"AWS Error: {result.stderr}")
+              print(f"ERROR: Could not update Secrets Manager (exit code {result.returncode})")
+              exit(1)
+            print("✅ Secrets Manager updated")
+          except Exception as e:
+            print(f"ERROR: Could not update Secrets Manager: {e}")
+            exit(1)
+
+          print(f"🔐 RDS and Secrets Manager are now in sync")
+          PYTHON_SYNC
+
       - name: Verify RDS and Secrets Manager Configuration
         run: |
           python3 << 'PYTHON_CHECK'
