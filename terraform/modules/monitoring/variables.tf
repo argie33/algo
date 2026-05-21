@@ -113,6 +113,12 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for secure database connections"
+  type        = string
+  default     = ""
+}
+
 variable "private_subnet_ids" {
   description = "Private subnet IDs for Lambda VPC config"
   type        = list(string)

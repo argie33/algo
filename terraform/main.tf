@@ -342,6 +342,7 @@ module "monitoring" {
   db_user               = module.database.rds_username
   db_name               = module.database.rds_database_name
   db_password           = module.database.rds_password
+  rds_proxy_endpoint    = module.database.rds_proxy_endpoint
   private_subnet_ids    = module.vpc.private_subnet_ids
   rds_security_group_id = module.vpc.rds_security_group_id
 

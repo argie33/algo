@@ -91,7 +91,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
 
   environment {
     variables = {
-      DB_HOST     = var.db_host
+      DB_HOST     = var.rds_proxy_endpoint != "" ? var.rds_proxy_endpoint : var.db_host
       DB_USER     = var.db_user
       DB_NAME     = var.db_name
       DB_PORT     = var.db_port
