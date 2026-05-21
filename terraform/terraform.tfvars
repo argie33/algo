@@ -22,9 +22,14 @@ alpaca_paper_trading   = false  # LIVE trading mode with real Alpaca credentials
 api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
 algo_lambda_timeout    = 600   # Orchestrator needs time to process: 7 phases, data loading, signal generation
 
-# NOTE: rds_password is set via TF_VAR_rds_password environment variable
-# For local development, export: export TF_VAR_rds_password="YourSecurePasswordHere"
-# Or create terraform.tfvars.local (gitignored) with: rds_password = "..."
+# RDS password: set via TF_VAR_rds_password GitHub Secret in CI
+# Must be stored in GitHub Secrets as RDS_PASSWORD and passed to Terraform
+# This ensures single source of truth for database credentials
+rds_password = ""  # Empty = use env var TF_VAR_rds_password (required in CI)
 
 # Dev cost savings: shorter backup retention (30d default is overkill in dev)
 rds_backup_retention_period = 7
+
+# Execution Monitor - queries RDS for signals and Alpaca for trades
+enable_execution_monitor          = true   # Deploy execution monitor Lambda
+enable_execution_monitor_schedule = true   # Run every 2 hours during trading hours
