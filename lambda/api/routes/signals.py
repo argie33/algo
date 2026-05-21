@@ -35,33 +35,13 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.strength, bsd.reason,
-                    COALESCE(bsd.close, td.close, 0) as close,
-                    COALESCE(td.rsi_14, 0) as rsi,
-                    COALESCE(td.atr_14, 0) as atr,
-                    COALESCE(td.sma_50, 0) as sma_50,
-                    COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(td.ema_21, 0) as ema_21,
-                    COALESCE(tt.weinstein_stage, 0) as market_stage,
-                    COALESCE(tt.trend_direction, 'unknown') as trend,
-                    COALESCE(ss.security_name, '') as security_name,
-                    COALESCE(cp.sector, '') as sector,
-                    COALESCE(cp.industry, '') as industry,
-                    COALESCE(swg.score, 0) AS swing_score,
-                    COALESCE(swg.components->>'grade', 'N/A') AS grade,
+                    COALESCE(bsd.close, 0) as close,
                     COALESCE(bsd.entry_quality_score, 0) as entry_quality_score,
                     COALESCE(bsd.signal_quality_score, 0) as signal_quality_score,
                     COALESCE(bsd.risk_reward_ratio, 0) as risk_reward_ratio,
                     COALESCE(bsd.volume_surge_pct, 0) as volume_surge_pct,
                     COALESCE(bsd.stage_number, 0) as stage_number
                 FROM buy_sell_daily bsd
-                LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
-                    AND bsd.date = td.date
-                LEFT JOIN trend_template_data tt ON bsd.symbol = tt.symbol
-                    AND bsd.date = tt.date
-                LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
-                LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
-                LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
-                    AND swg.date = bsd.date
                 """ + where_clause + """
                 ORDER BY bsd.date DESC, bsd.symbol ASC
                 LIMIT %s
