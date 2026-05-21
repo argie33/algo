@@ -326,7 +326,7 @@ class Orchestrator:
 
     # ---------- Logging helpers ----------
 
-    def _acquire_run_lock(self, lock_timeout_seconds: int = 3600) -> bool:
+    def _acquire_run_lock(self, lock_timeout_seconds: int = 300) -> bool:
         """Acquire exclusive lock to prevent concurrent orchestrator runs.
 
         Uses file-based locking with PID checking and timestamp-based expiration.
@@ -336,7 +336,7 @@ class Orchestrator:
         Then steal the lock and continue.
 
         Args:
-            lock_timeout_seconds: Maximum age of lock before forcing acquisition (default 1 hour)
+            lock_timeout_seconds: Maximum age of lock before forcing acquisition (default 5 min)
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
