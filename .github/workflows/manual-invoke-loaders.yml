@@ -100,3 +100,31 @@ jobs:
 
           sleep 90
           echo "Market data batch loader launched. Waiting for completion..."
+
+      - name: Invoke Technical Data Daily Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'technicals' }}
+        run: |
+          echo "Invoking technical_data_daily loader..."
+          aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition algo-technical_data_daily-loader \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
+
+          sleep 120
+          echo "Technical data loader launched."
+
+      - name: Invoke Signals Daily Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'signals' }}
+        run: |
+          echo "Invoking signals_daily loader..."
+          aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition algo-signals_daily-loader \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
+
+          sleep 120
+          echo "Signals daily loader launched. All loaders triggered successfully."
