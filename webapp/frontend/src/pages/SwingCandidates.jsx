@@ -14,7 +14,7 @@
  * Pure JSX + theme.css. Recharts for charts.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -66,6 +66,8 @@ export default function SwingCandidates() {
   const [minScore, setMinScore] = useState(0);
   const [selectedSym, setSelectedSym] = useState(null);
   const [limit, setLimit] = useState(500); // Allow user to change limit
+  const [pageSize, setPageSize] = useState(50); // Rows per page for display
+  const [currentPage, setCurrentPage] = useState(1); // Current page for pagination
 
   const { data: items, loading: isLoading, error: itemsError, refetch, isFetching } = useApiQuery(
     ['swing-candidates', minScore, limit],
@@ -98,6 +100,17 @@ export default function SwingCandidates() {
       return true;
     });
   }, [itemsList, search, grade, sector, gateFilter]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, grade, sector, gateFilter, minScore, limit]);
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pageRows = filtered.slice(pageStart, pageEnd);
 
   const stats = useMemo(() => {
     if (!itemsList) return { total: 0, passing: 0, gradeA: 0, top10Score: 0 };
@@ -337,8 +350,8 @@ export default function SwingCandidates() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c, i) => (
-                    <Row key={c.symbol} c={c} rank={i + 1}
+                  {pageRows.map((c, i) => (
+                    <Row key={c.symbol} c={c} rank={pageStart + i + 1}
                          active={selectedSym === c.symbol}
                          onClick={(e) => {
                            // single click: select for radar; double-click navigates
@@ -349,6 +362,23 @@ export default function SwingCandidates() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {filtered.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', borderTop: '1px solid var(--border)', marginTop: 'var(--space-3)', background: 'var(--bg-2)' }}>
+              <div style={{ fontSize: 'var(--t-xs)', color: 'var(--text-2)' }}>
+                Showing {filtered.length === 0 ? 0 : pageStart + 1}–{Math.min(pageEnd, filtered.length)} of {filtered.length} results
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="input" style={{ padding: '6px 8px', fontSize: 'var(--t-xs)' }}>
+                  <option value={25}>25 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">← Prev</button>
+                <div style={{ minWidth: '80px', textAlign: 'center', fontSize: 'var(--t-xs)' }}>Page {currentPage} of {totalPages}</div>
+                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next →</button>
+              </div>
             </div>
           )}
         </div>
