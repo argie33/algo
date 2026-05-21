@@ -40,17 +40,21 @@ def validate_credentials() -> Tuple[bool, List[str]]:
 
     # === CRITICAL: Database Password ===
     # This is always required. No defaults allowed.
+    # In AWS, can come from DATABASE_SECRET_ARN (JSON blob in Secrets Manager)
+    # or from DB_PASSWORD env var (legacy)
     db_password = os.getenv("DB_PASSWORD")
-    if not db_password and not is_aws:
+    database_secret_arn = os.getenv("DATABASE_SECRET_ARN") or os.getenv("DB_SECRET_ARN")
+
+    if not db_password and not database_secret_arn and not is_aws:
         errors.append(
             "[ERROR] DB_PASSWORD not set. Set DB_PASSWORD environment variable "
-            "for local development or in AWS Secrets Manager for production."
+            "for local development or DATABASE_SECRET_ARN for AWS production."
         )
-    elif not db_password and is_aws:
-        # Production: must come from Secrets Manager
+    elif not db_password and not database_secret_arn and is_aws:
+        # Production: must come from DATABASE_SECRET_ARN or DB_PASSWORD
         errors.append(
-            "[ERROR] DB_PASSWORD not set. In AWS, use AWS Secrets Manager "
-            "(db/password secret) or set DB_PASSWORD environment variable."
+            "[ERROR] DB_PASSWORD not set and DATABASE_SECRET_ARN not set. "
+            "In AWS, use DATABASE_SECRET_ARN (RDS secret) or set DB_PASSWORD environment variable."
         )
 
     # === CRITICAL: Database hostname ===
