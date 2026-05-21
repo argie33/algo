@@ -235,11 +235,6 @@ def run(
     """
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
-    # TEMP BYPASS: Return success immediately to test phases 2-7 execution
-    # Once 7-phase pipeline verified working, re-enable proper Phase 1 checks
-    logger.warning("[TEMP] Phase 1 data freshness check BYPASSED - returning success to test full 7-phase execution")
-    return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
-
     conn = None
     cur = None
     try:
@@ -283,10 +278,6 @@ def run(
         if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
             logger.debug("Phase 1: Running in DEV mode - skipping strict SLA checks")
             logger.info("  [DEV MODE] Skipping SLA and loader health checks")
-        else:
-            # TEMP: Skip loader monitor check to test 7-phase execution (Phase 2+ don't depend on it)
-            logger.info("  [TEMP] Loader health check skipped for 7-phase test")
-            pass  # Skip the monitor entirely
 
         cur.execute(
             """
@@ -319,10 +310,10 @@ def run(
             'Signal quality scores': 'signal_quality_scores',
             'Buy/sell signals': 'buy_sell_daily',
         }
-        # In DEV_MODE, be lenient about data staleness (allow up to 365 days old)
+        # In DEV_MODE, be lenient about data staleness (allow up to 7 days old)
         is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
-        # TEMP: Set to 365 days to bypass staleness checks for 7-phase test
-        max_stale = 365
+        # Use config max_data_staleness_days (default 3 days for production, 7 for DEV)
+        max_stale = config.max_data_staleness_days if hasattr(config, 'max_data_staleness_days') else (7 if is_dev_mode else 3)
         stale_items = []
 
         try:

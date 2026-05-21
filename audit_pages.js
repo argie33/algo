@@ -9,7 +9,7 @@ const axios = require('axios');
 const fs = require('fs');
 
 const BASE_URL = 'http://localhost:5173';
-const API_URL = 'http://localhost:3004';
+const API_URL = 'http://localhost:3001';
 
 const pages = [
   // Marketing pages (public)
@@ -112,11 +112,12 @@ async function auditPage(browser, pageConfig) {
       hasContent,
       dataMetrics,
       consoleErrors: errors.length,
-      errors: errors,
-      pageErrors: pageErrors,
+      errors: errors.slice(0, 5), // Keep first 5 errors for brevity
+      pageErrors: pageErrors.slice(0, 5),
     };
 
-    console.log(`✅ ${pageConfig.name} (${loadTime}ms) - Content: ${hasContent}, Tables: ${dataMetrics.tableCount}, Rows: ${dataMetrics.tableRowCount}, Nulls: ${dataMetrics.nullCount}`);
+    const errorIndicator = errors.length > 0 ? `❌ ${errors.length} errors` : '✅ clean';
+    console.log(`${pageConfig.name} (${loadTime}ms) - Content: ${hasContent}, Tables: ${dataMetrics.tableCount}, Rows: ${dataMetrics.tableRowCount}, Nulls: ${dataMetrics.nullCount} - ${errorIndicator}`);
 
   } catch (error) {
     results.pages[pageConfig.name] = {

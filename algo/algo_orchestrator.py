@@ -242,13 +242,6 @@ class Orchestrator:
         Only checks the LATEST patrol run (not accumulated from all runs in 24h).
         Returns: True if patrol OK, False if critical/error issues found.
         """
-        # TEMPORARY: Skip all patrol checks to verify 7-phase pipeline works
-        # Once all 7 phases execute successfully, re-enable proper patrol logic
-        print("[PATROL] TEMPORARILY BYPASSING - all checks skipped for full pipeline test")
-        logger.warning("[PATROL] PATROL CHECK BYPASSED FOR TESTING - will re-enable after verifying 7-phase execution")
-        return True
-
-        # ===== ORIGINAL LOGIC DISABLED FOR TESTING =====
         print("[PATROL CHECK STARTING]")  # Explicit stdout
         logger.info("[PATROL_DEBUG] Starting patrol check...")
 
