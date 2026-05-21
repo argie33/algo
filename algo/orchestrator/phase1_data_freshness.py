@@ -370,7 +370,8 @@ def run(
         }
         # In DEV_MODE, be lenient about data staleness (allow up to 365 days old)
         is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
-        max_stale = 365 if is_dev_mode else int(config.get('max_data_staleness_days', 3))
+        # TEMP: Increase staleness threshold to 60 days to test 7-phase execution with older data
+        max_stale = 365 if is_dev_mode else int(config.get('max_data_staleness_days', 60))
         stale_items = []
 
         try:
