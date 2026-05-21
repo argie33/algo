@@ -10,7 +10,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useNavigate } from 'react-router-dom';
-import { Alert } from '@mui/material';
 import {
   RefreshCw, Search, ChevronDown, ChevronUp, Inbox, AlertCircle,
   Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle, Eye,
@@ -154,7 +153,7 @@ function TradesView() {
   const closedPnL = closedTrades.reduce((s, t) => s + Number(t.profit_loss_dollars || 0), 0);
 
   if (pe || te) {
-    return <Alert severity="error" style={{ margin: '16px' }}>{pe || te}</Alert>;
+    return <div className="alert alert-danger" style={{ margin: '16px' }}>{pe || te}</div>;
   }
 
   return (
@@ -354,7 +353,7 @@ function ActivityView() {
       </div>
       <div className="card-body">
         {logError && !(logError?.status === 403) && (
-          <Alert severity="error" style={{ marginBottom: '16px' }}>{logError}</Alert>
+          <div className="alert alert-danger" style={{ marginBottom: '16px' }}>{logError}</div>
         )}
         <div className="flex gap-3" style={{ marginBottom: 'var(--space-4)' }}>
           <select className="select" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180 }}>
@@ -445,7 +444,7 @@ function NotificationsView() {
   const items = Array.isArray(data) ? data : (data?.items || []);
 
   if (notifError) {
-    return <Alert severity="error" style={{ margin: '16px' }}>{notifError}</Alert>;
+    return <div className="alert alert-danger" style={{ margin: '16px' }}>{notifError}</div>;
   }
 
   return (

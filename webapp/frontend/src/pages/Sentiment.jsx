@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
   RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
@@ -90,7 +89,7 @@ export default function Sentiment() {
   );
 
   if (error) {
-    return <Alert severity="error" style={{ margin: '20px' }}>{error}</Alert>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error}</div>;
   }
 
   const summaryQ = useApiQuery(

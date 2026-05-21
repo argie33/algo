@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { Alert as MuiAlert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import {
@@ -36,7 +35,7 @@ const NotificationCenter = () => {
   );
 
   if (notifError) {
-    return <MuiAlert severity="error" style={{ margin: '20px' }}>{notifError}</MuiAlert>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{notifError}</div>;
   }
 
   const items = notifs?.items || [];

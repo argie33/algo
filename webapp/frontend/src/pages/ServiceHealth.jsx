@@ -4,7 +4,6 @@
  */
 
 import React from 'react';
-import { Alert } from '@mui/material';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
   RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity,
@@ -45,7 +44,7 @@ export default function ServiceHealth() {
   );
 
   if (dsError || plError) {
-    return <Alert severity="error" style={{ margin: '20px' }}>{dsError || plError}</Alert>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError || plError}</div>;
   }
 
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };

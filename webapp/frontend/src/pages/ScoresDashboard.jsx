@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert } from '@mui/material';
 import {
   RefreshCw, Search, Filter, Inbox, ChevronLeft, ChevronRight,
   Star, Activity, DollarSign, TrendingUp, Users, Shield, Layers,
@@ -208,7 +207,7 @@ export default function ScoresDashboard() {
     : null;
 
   if (dataError) {
-    return <Alert severity="error" style={{ margin: '20px' }}>{dataError}</Alert>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dataError}</div>;
   }
 
   return (

@@ -1,37 +1,6 @@
 import { useState, useEffect } from "react";
-import {
-  Container,
-  Box,
-  Typography,
-  Tabs,
-  Tab,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Alert,
-  Switch,
-  FormControlLabel,
-  CircularProgress,
-  Grid,
-} from "@mui/material";
-import { Settings as SettingsIcon } from "@mui/icons-material";
+import { Settings as SettingsIcon } from "lucide-react";
 import api, { getSettings, updateSettings } from "../services/api";
-
-function TabPanel(props) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`settings-tabpanel-${index}`}
-      aria-labelledby={`settings-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-    </div>
-  );
-}
 
 const Settings = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -39,15 +8,7 @@ const Settings = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState({});
-  const [_apiKeys, setApiKeys] = useState({});
-  const [_showAddKeyDialog, setShowAddKeyDialog] = useState(false);
-  const [newApiKey, setNewApiKey] = useState({
-    provider: "alpaca",
-    keyId: "",
-    secret: "",
-  });
 
-  // Load settings on mount
   useEffect(() => {
     const loadSettings = async () => {
       setLoading(true);
@@ -65,10 +26,6 @@ const Settings = () => {
     loadSettings();
   }, []);
 
-  const handleTabChange = (event, newValue) => {
-    setTabIndex(newValue);
-  };
-
   const handleSaveGeneralSettings = async () => {
     try {
       setLoading(true);
@@ -83,53 +40,13 @@ const Settings = () => {
     }
   };
 
-  const _handleAddApiKey = async () => {
-    try {
-      setLoading(true);
-
-      // Test the API key first
-      const testResult = await api.testApiKey?.(newApiKey);
-      if (!testResult?.isValid) {
-        setError(testResult?.error || "API key validation failed");
-        return;
-      }
-
-      // Save the API key
-      await api.saveApiKey?.(newApiKey);
-      setMessage("API key saved successfully!");
-      setShowAddKeyDialog(false);
-      setNewApiKey({ provider: "alpaca", keyId: "", secret: "" });
-
-      // Reload API keys
-      const keysRes = await api.getApiKeys?.();
-      setApiKeys(keysRes?.data || {});
-    } catch (err) {
-      setError("Failed to save API key");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const _handleDeleteApiKey = async (provider) => {
-    try {
-      setLoading(true);
-      await api.deleteApiKey?.({ provider });
-      setMessage("API key deleted successfully!");
-
-      // Reload API keys
-      const keysRes = await api.getApiKeys?.();
-      setApiKeys(keysRes?.data || {});
-    } catch (err) {
-      setError("Failed to delete API key");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleNotificationChange = async (key, value) => {
     const updated = {
       ...settings,
-      [key]: value,
+      notifications: {
+        ...(settings.notifications || {}),
+        [key]: value,
+      },
     };
     setSettings(updated);
 
@@ -145,193 +62,289 @@ const Settings = () => {
 
   if (loading && !settings.profile) {
     return (
-      <Container maxWidth="md" sx={{ py: 4, display: "flex", justifyContent: "center" }}>
-        <CircularProgress />
-      </Container>
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "400px",
+        color: 'var(--text-muted)',
+      }}>
+        <p>Loading settings...</p>
+      </div>
     );
   }
 
   const profile = settings.profile || {};
   const notifications = settings.notifications || {};
+  const tabs = [
+    { label: "General Settings", id: 0 },
+    { label: "Preferences", id: 1 },
+    { label: "Account", id: 2 },
+  ];
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
-        <SettingsIcon sx={{ mr: 2, fontSize: 32 }} />
-        <Typography variant="h4">Settings</Typography>
-      </Box>
+    <div style={{ maxWidth: '700px', width: '100%', margin: '0 auto', padding: 'var(--space-6)' }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 'var(--space-6)', gap: 'var(--space-3)' }}>
+        <SettingsIcon size={32} color="var(--text)" />
+        <h1 style={{ margin: 0, fontSize: 'var(--t-2xl)', fontWeight: 'var(--w-bold)', color: 'var(--text)' }}>Settings</h1>
+      </div>
 
       {message && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setMessage("")}>
-          {message}
-        </Alert>
+        <div className="alert alert-success" style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{message}</span>
+          <button onClick={() => setMessage("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>×</button>
+        </div>
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
-          {error}
-        </Alert>
+        <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{error}</span>
+          <button onClick={() => setError("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>×</button>
+        </div>
       )}
 
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-          <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
-            <Tab
-              label="General Settings"
-              id="settings-tab-0"
-              aria-controls="settings-tabpanel-0"
-            />
-            <Tab
-              label="Preferences"
-              id="settings-tab-1"
-              aria-controls="settings-tabpanel-1"
-            />
-            <Tab
-              label="Account"
-              id="settings-tab-3"
-              aria-controls="settings-tabpanel-3"
-            />
-          </Tabs>
-        </Box>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border)',
+          backgroundColor: 'var(--bg-2)',
+        }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setTabIndex(tab.id)}
+              style={{
+                flex: 1,
+                padding: 'var(--space-3) var(--space-4)',
+                border: 'none',
+                background: tabIndex === tab.id ? 'var(--surface)' : 'transparent',
+                color: tabIndex === tab.id ? 'var(--text)' : 'var(--text-2)',
+                fontWeight: tabIndex === tab.id ? 'var(--w-semibold)' : 'var(--w-medium)',
+                fontSize: 'var(--t-sm)',
+                cursor: 'pointer',
+                borderBottom: tabIndex === tab.id ? '2px solid var(--brand)' : 'none',
+                transition: 'background var(--t-fast), color var(--t-fast)',
+                marginBottom: '-1px',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* General Settings Tab */}
-        <TabPanel value={tabIndex} index={0}>
-          <CardContent>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Theme"
-                value={settings.theme || "dark"}
-                onChange={(e) => setSettings({ ...settings, theme: e.target.value })}
-                select
-                SelectProps={{ native: true }}
-                fullWidth
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </TextField>
+        <div style={{ padding: 'var(--space-5)' }}>
+          {/* General Settings Tab */}
+          {tabIndex === 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <label style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-medium)', color: 'var(--text)' }}>Theme</label>
+                <select
+                  value={settings.theme || "dark"}
+                  onChange={(e) => setSettings({ ...settings, theme: e.target.value })}
+                  className="input"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
 
-              <TextField
-                label="Default View"
-                value={settings.defaultView || "market"}
-                onChange={(e) => setSettings({ ...settings, defaultView: e.target.value })}
-                select
-                SelectProps={{ native: true }}
-                fullWidth
-              >
-                <option value="market">Market Overview</option>
-                <option value="stocks">Stock Analysis</option>
-                <option value="economic">Economic Data</option>
-              </TextField>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <label style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-medium)', color: 'var(--text)' }}>Default View</label>
+                <select
+                  value={settings.defaultView || "market"}
+                  onChange={(e) => setSettings({ ...settings, defaultView: e.target.value })}
+                  className="input"
+                >
+                  <option value="market">Market Overview</option>
+                  <option value="stocks">Stock Analysis</option>
+                  <option value="economic">Economic Data</option>
+                </select>
+              </div>
 
-              <Box sx={{ pt: 2 }}>
-                <Button
-                  variant="contained"
+              <div style={{ paddingTop: 'var(--space-3)' }}>
+                <button
+                  className="btn btn-primary"
                   onClick={handleSaveGeneralSettings}
                   disabled={loading}
                 >
                   Save Settings
-                </Button>
-              </Box>
-            </Box>
-          </CardContent>
-        </TabPanel>
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* Preferences Tab */}
-        <TabPanel value={tabIndex} index={1}>
-          <CardContent>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
+          {/* Preferences Tab */}
+          {tabIndex === 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 'var(--space-4)' }}>
+              <div className="soitem" style={{ borderBottom: 'none', padding: 0 }}>
+                <div style={{ flex: 1 }}>
+                  <div className="soitem-label">Email Notifications</div>
+                  <div className="soitem-sub">Receive email alerts for important updates</div>
+                </div>
+                <label style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  width: '44px',
+                  height: '24px',
+                  backgroundColor: notifications.email ? 'var(--brand)' : 'var(--border-2)',
+                  borderRadius: 'var(--r-pill)',
+                  cursor: 'pointer',
+                  transition: 'background var(--t-fast)',
+                }}>
+                  <input
+                    type="checkbox"
                     checked={notifications.email || false}
                     onChange={(e) => handleNotificationChange("email", e.target.checked)}
+                    style={{ display: 'none' }}
                   />
-                }
-                label="Email Notifications"
-              />
+                  <div style={{
+                    position: 'absolute',
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: '#fff',
+                    borderRadius: '50%',
+                    left: notifications.email ? '2px' : '22px',
+                    transition: 'left var(--t-fast)',
+                  }} />
+                </label>
+              </div>
 
-              <FormControlLabel
-                control={
-                  <Switch
+              <div className="soitem" style={{ borderBottom: 'none', padding: 0, marginTop: 'var(--space-3)' }}>
+                <div style={{ flex: 1 }}>
+                  <div className="soitem-label">Push Notifications</div>
+                  <div className="soitem-sub">Browser push notifications for trades</div>
+                </div>
+                <label style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  width: '44px',
+                  height: '24px',
+                  backgroundColor: notifications.push ? 'var(--brand)' : 'var(--border-2)',
+                  borderRadius: 'var(--r-pill)',
+                  cursor: 'pointer',
+                  transition: 'background var(--t-fast)',
+                }}>
+                  <input
+                    type="checkbox"
                     checked={notifications.push || false}
                     onChange={(e) => handleNotificationChange("push", e.target.checked)}
+                    style={{ display: 'none' }}
                   />
-                }
-                label="Push Notifications"
-              />
+                  <div style={{
+                    position: 'absolute',
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: '#fff',
+                    borderRadius: '50%',
+                    left: notifications.push ? '2px' : '22px',
+                    transition: 'left var(--t-fast)',
+                  }} />
+                </label>
+              </div>
 
-              <FormControlLabel
-                control={
-                  <Switch
+              <div className="soitem" style={{ borderBottom: 'none', padding: 0, marginTop: 'var(--space-3)' }}>
+                <div style={{ flex: 1 }}>
+                  <div className="soitem-label">Trading Alerts</div>
+                  <div className="soitem-sub">Notifications when trades are executed</div>
+                </div>
+                <label style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  width: '44px',
+                  height: '24px',
+                  backgroundColor: notifications.alerts ? 'var(--brand)' : 'var(--border-2)',
+                  borderRadius: 'var(--r-pill)',
+                  cursor: 'pointer',
+                  transition: 'background var(--t-fast)',
+                }}>
+                  <input
+                    type="checkbox"
                     checked={notifications.alerts || false}
                     onChange={(e) => handleNotificationChange("alerts", e.target.checked)}
+                    style={{ display: 'none' }}
                   />
-                }
-                label="Trading Alerts"
-              />
+                  <div style={{
+                    position: 'absolute',
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: '#fff',
+                    borderRadius: '50%',
+                    left: notifications.alerts ? '2px' : '22px',
+                    transition: 'left var(--t-fast)',
+                  }} />
+                </label>
+              </div>
 
-              <Typography variant="caption" color="textSecondary" sx={{ pt: 2 }}>
-                Changes are automatically saved
-              </Typography>
-            </Box>
-          </CardContent>
-        </TabPanel>
+              <div style={{ paddingTop: 'var(--space-2)' }}>
+                <p style={{ margin: 0, fontSize: 'var(--t-2xs)', color: 'var(--text-muted)' }}>Changes are automatically saved</p>
+              </div>
+            </div>
+          )}
 
-        {/* Account Tab */}
-        <TabPanel value={tabIndex} index={2}>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="First Name"
-                  value={profile.firstName || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      profile: { ...profile, firstName: e.target.value },
-                    })
-                  }
-                  fullWidth
-                />
-              </Grid>
+          {/* Account Tab */}
+          {tabIndex === 2 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 'var(--space-4)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  <label style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-medium)', color: 'var(--text)' }}>First Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={profile.firstName || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        profile: { ...profile, firstName: e.target.value },
+                      })
+                    }
+                  />
+                </div>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Last Name"
-                  value={profile.lastName || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      profile: { ...profile, lastName: e.target.value },
-                    })
-                  }
-                  fullWidth
-                />
-              </Grid>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  <label style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-medium)', color: 'var(--text)' }}>Last Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={profile.lastName || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        profile: { ...profile, lastName: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+              </div>
 
-              <Grid item xs={12}>
-                <TextField
-                  label="Email"
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <label style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-medium)', color: 'var(--text)' }}>Email</label>
+                <input
                   type="email"
+                  className="input"
                   value={profile.email || ""}
                   disabled
-                  fullWidth
-                  helperText="Email cannot be changed"
+                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
                 />
-              </Grid>
+                <p style={{ margin: 'var(--space-1) 0 0 0', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)' }}>Email cannot be changed</p>
+              </div>
 
-              <Grid item xs={12}>
-                <Box sx={{ pt: 2 }}>
-                  <Button variant="contained" onClick={handleSaveGeneralSettings}>
-                    Save Profile
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </TabPanel>
-      </Card>
-    </Container>
+              <div style={{ paddingTop: 'var(--space-3)' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveGeneralSettings}
+                  disabled={loading}
+                >
+                  Save Profile
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
