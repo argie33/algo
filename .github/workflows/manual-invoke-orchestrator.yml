@@ -65,26 +65,25 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Invoke Orchestrator Lambda
+      - name: Invoke Orchestrator Lambda (Async)
         run: |
           FUNC="${{ needs.resolve-function-name.outputs.algo_lambda_name }}"
-          echo "Invoking orchestrator: $FUNC"
+          echo "Invoking orchestrator (async): $FUNC"
 
           # Create JSON payload and encode as base64
           PAYLOAD='{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
+          # Use Event (async) instead of RequestResponse to avoid timeout
           aws lambda invoke \
             --function-name "$FUNC" \
-            --invocation-type RequestResponse \
+            --invocation-type Event \
             --payload "$ENCODED" \
             --region ${{ env.AWS_REGION }} \
             /tmp/response.json
 
-          echo "=== Invocation Response ==="
+          echo "=== Async Invocation Triggered ==="
           cat /tmp/response.json
-
           echo ""
-          echo "=== Lambda Execution Logs ==="
-          sleep 15
-          aws logs tail "/aws/lambda/$FUNC" --since 3m --region ${{ env.AWS_REGION }} 2>/dev/null | head -300 || echo "No logs available yet"
+          echo "✅ Orchestrator Lambda invoked asynchronously (Status 202 = success)"
+          echo "Monitor CloudWatch logs for execution: /aws/lambda/$FUNC"
