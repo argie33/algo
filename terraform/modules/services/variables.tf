@@ -569,3 +569,20 @@ variable "ecs_tasks_sg_id" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Execution Monitor Configuration
+# ============================================================
+
+variable "enable_execution_monitor" {
+  description = "Enable execution monitor Lambda for querying RDS/Alpaca"
+  type        = bool
+  default     = false
+}
+
+variable "enable_execution_monitor_schedule" {
+  description = "Enable scheduled execution monitor (every 2 hours trading hours)"
+  type        = bool
+  default     = false
+}
+}
