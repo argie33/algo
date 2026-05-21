@@ -132,10 +132,10 @@ jobs:
       - name: Invoke Economic Data Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'economic' }}
         run: |
-          echo "Invoking economic_data loader..."
+          echo "Invoking econ_data loader..."
           aws ecs run-task \
             --cluster algo-cluster \
-            --task-definition algo-economic_data-loader \
+            --task-definition algo-econ_data-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1
