@@ -242,6 +242,7 @@ class Orchestrator:
         Only checks the LATEST patrol run (not accumulated from all runs in 24h).
         Returns: True if patrol OK, False if critical/error issues found.
         """
+        print("[PATROL CHECK STARTING]")  # Explicit stdout
         logger.info("[PATROL_DEBUG] Starting patrol check...")
 
         # In DEV mode, skip strict patrol checks to allow testing with partial data
@@ -262,6 +263,7 @@ class Orchestrator:
                 return True
 
             latest_run_id = latest_run[0]
+            print(f"[PATROL] Latest run ID: {latest_run_id}")
             logger.info(f"[PATROL_DEBUG] Latest patrol run ID: {latest_run_id}")
 
             # Now get results for only this run
@@ -278,6 +280,7 @@ class Orchestrator:
             row = cur.fetchone()
 
             if not row or not row[0]:
+                print("[PATROL] No findings in this run")
                 logger.info("[PATROL_DEBUG] No findings in this patrol run")
                 # No patrol findings (shouldn't happen, but safe to proceed)
                 if self.verbose:
@@ -285,6 +288,7 @@ class Orchestrator:
                 return True
 
             worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
+            print(f"[PATROL] {total_findings} total, {critical_count} CRITICAL, {error_count} error, {warn_count} warn, {info_count} info")
             logger.info(f"[PATROL_DEBUG] Findings: {total_findings} total, {critical_count} critical, {error_count} error, {warn_count} warn, {info_count} info")
 
             if self.verbose:
@@ -302,8 +306,12 @@ class Orchestrator:
                        for r in cur.fetchall()]
 
             if flagged:
+                print(f"[PATROL] Found {len(flagged)} critical/error findings:")
                 logger.info(f"[PATROL_DEBUG] Found {len(flagged)} critical/error findings:")
                 for f in flagged:
+                    msg = f"[PATROL]   {f['severity'].upper()}: {f['check']} on {f['target']}"
+                    print(msg)
+                    print(f"[PATROL]     {f['message'][:120]}")
                     logger.info(f"[PATROL_DEBUG]   {f['severity'].upper()}: {f['check']} ({f['target']})")
                     logger.info(f"[PATROL_DEBUG]     Message: {f['message'][:150]}")
 
@@ -317,6 +325,7 @@ class Orchestrator:
 
             # FAIL-CLOSED: critical findings always block
             if critical_count and critical_count > 0:
+                print(f"[PATROL_HALT] Blocking orchestrator: {critical_count} critical findings")
                 logger.info(f"[PATROL_HALT] Blocking orchestrator due to {critical_count} critical findings")
                 if self.verbose:
                     logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
