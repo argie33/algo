@@ -21,8 +21,8 @@ resource "aws_lambda_function" "execution_monitor" {
 
   environment {
     variables = {
-      ALPACA_API_KEY     = var.alpaca_api_key
-      ALPACA_SECRET_KEY  = var.alpaca_secret_key
+      ALPACA_API_KEY     = var.alpaca_api_key_id
+      ALPACA_SECRET_KEY  = var.alpaca_api_secret_key
       RDS_HOST          = var.rds_endpoint
       RDS_PORT          = var.rds_port
       RDS_USER          = var.rds_master_username

@@ -585,3 +585,27 @@ variable "enable_execution_monitor_schedule" {
   type        = bool
   default     = false
 }
+
+variable "rds_port" {
+  description = "RDS database port"
+  type        = string
+  default     = "5432"
+}
+
+variable "rds_master_username" {
+  description = "RDS master username"
+  type        = string
+  default     = "admin"
+}
+
+variable "rds_subnet_ids" {
+  description = "Subnet IDs for RDS (for Lambda VPC config)"
+  type        = list(string)
+  default     = []
+}
+
+variable "rds_security_group_id" {
+  description = "Security group ID for RDS"
+  type        = string
+  default     = ""
+}
