@@ -1,6 +1,7 @@
 """Stock Analytics Platform - API Lambda Handler.
 
 Routes requests to extracted handler modules via api_router.
+Deployment: Fixed Secrets Manager secret name for password sync.
 """
 
 import os
