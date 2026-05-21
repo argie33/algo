@@ -99,8 +99,8 @@ resource "aws_iam_role_policy" "execution_monitor_secrets" {
 data "archive_file" "execution_monitor_zip" {
   count       = var.enable_execution_monitor ? 1 : 0
   type        = "zip"
-  source_file = "${path.module}/../../lambda/execution-monitor/index.py"
-  output_path = "${path.module}/../../build/execution-monitor.zip"
+  source_file = "${path.module}/../../../lambda/execution-monitor/index.py"
+  output_path = "${path.module}/../../../build/execution-monitor.zip"
 }
 
 # ============================================================
