@@ -379,22 +379,10 @@ jobs:
         run: |
           FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          LAYER_NAME="algo-orchestrator-layer"
-
-          # Get the latest layer version
-          echo "Retrieving layer information..."
-          LAYER_VERSION=$(aws lambda list-layer-versions \
-            --layer-name "$LAYER_NAME" \
-            --region $AWS_REGION \
-            --query 'LayerVersions[0].Version' \
-            --output text | tr -d ' \n')
-          LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
-          echo "Layer ARN: $LAYER_ARN"
-
           # Export variables for Python script
           export FUNC_NAME="$FUNC"
           export AWS_ACCOUNT_ID="$ACCOUNT_ID"
-          export LAYER_ARN="$LAYER_ARN"
+          export AWS_REGION="$AWS_REGION"
 
           # Use Python to retrieve all credentials and build Lambda config
           python3 << 'PYTHON_DEPLOY'
@@ -404,8 +392,18 @@ jobs:
 
           region = os.environ['AWS_REGION']
           account_id = os.environ['AWS_ACCOUNT_ID']
+
+          # Retrieve layer version directly in Python to avoid bash variable whitespace issues
+          print("Retrieving layer information...")
+          result = subprocess.run(['aws', 'lambda', 'list-layer-versions',
+            '--layer-name', 'algo-orchestrator-layer',
+            '--region', region,
+            '--query', 'LayerVersions[0].Version',
+            '--output', 'text'], capture_output=True, text=True, check=True)
+          layer_version = result.stdout.strip()
+          layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-orchestrator-layer:{layer_version}"
+          print(f"Layer ARN: {layer_arn}")
           func_name = os.environ['FUNC_NAME']
-          layer_arn = os.environ['LAYER_ARN'].strip()
 
           # Retrieve RDS configuration from Secrets Manager (match Terraform-created secret)
           print("Retrieving RDS configuration from Secrets Manager...")
