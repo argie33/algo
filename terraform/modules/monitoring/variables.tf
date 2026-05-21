@@ -119,6 +119,12 @@ variable "rds_proxy_endpoint" {
   default     = ""
 }
 
+variable "database_secret_arn" {
+  description = "ARN of AWS Secrets Manager secret containing database credentials"
+  type        = string
+  default     = ""
+}
+
 variable "private_subnet_ids" {
   description = "Private subnet IDs for Lambda VPC config"
   type        = list(string)

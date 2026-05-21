@@ -56,7 +56,10 @@ resource "aws_iam_role_policy" "data_freshness_metrics" {
         Action = [
           "secretsmanager:GetSecretValue",
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:rds-*"
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:rds-*",
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:algo-db-*"
+        ]
       },
       {
         Effect = "Allow"
@@ -91,11 +94,12 @@ resource "aws_lambda_function" "data_freshness_monitor" {
 
   environment {
     variables = {
-      DB_HOST     = var.rds_proxy_endpoint != "" ? var.rds_proxy_endpoint : var.db_host
-      DB_USER     = var.db_user
-      DB_NAME     = var.db_name
-      DB_PORT     = var.db_port
-      DB_PASSWORD = var.db_password
+      DB_HOST              = var.rds_proxy_endpoint != "" ? var.rds_proxy_endpoint : var.db_host
+      DB_USER              = var.db_user
+      DB_NAME              = var.db_name
+      DB_PORT              = var.db_port
+      DB_PASSWORD          = var.db_password
+      DATABASE_SECRET_ARN  = var.database_secret_arn != "" ? var.database_secret_arn : ""
     }
   }
 
