@@ -85,7 +85,7 @@ jobs:
             --region us-east-1
 
           sleep 90
-          aws logs tail /ecs/algo-stock_prices_weekly-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
+          echo "Stock prices weekly loader launched. Waiting for completion..."
 
       - name: Invoke Market Data Batch Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
@@ -99,4 +99,4 @@ jobs:
             --region us-east-1
 
           sleep 90
-          aws logs tail /ecs/algo-market_data_batch-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
+          echo "Market data batch loader launched. Waiting for completion..."
