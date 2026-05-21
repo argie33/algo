@@ -74,17 +74,22 @@ def lambda_handler(event, context):
         from algo.algo_orchestrator import Orchestrator
         logger.info("[DEBUG] Orchestrator class imported successfully")
         print("[HANDLER] Orchestrator class imported")
+        print(f"[HANDLER] DRY_RUN={DRY_RUN}, EXECUTION_MODE={EXECUTION_MODE}")
 
+        print("[HANDLER] About to create Orchestrator instance")
         logger.info("[DEBUG] Creating Orchestrator instance...")
         orchestrator = Orchestrator(
             run_date=None,
             dry_run=DRY_RUN,
             verbose=True
         )
+        print("[HANDLER] Orchestrator instance created successfully")
         logger.info("[DEBUG] Orchestrator instance created successfully")
 
+        print("[HANDLER] About to call orchestrator.run()")
         logger.info("[DEBUG] Calling orchestrator.run()...")
         final_result = orchestrator.run()
+        print(f"[HANDLER] orchestrator.run() completed with result: {final_result}")
         logger.info(f"[DEBUG] orchestrator.run() completed with result: {final_result}")
 
         elapsed = (datetime.utcnow() - start_time).total_seconds()
