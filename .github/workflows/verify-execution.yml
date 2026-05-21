@@ -20,15 +20,26 @@ jobs:
 
       - name: Get RDS credentials from Secrets Manager
         id: rds-creds
+        env:
+          AWS_DEFAULT_REGION: us-east-1
         run: |
-          SECRET=$(aws secretsmanager get-secret-value --secret-id algo/rds/password --query SecretString --output text)
-          RDS_PASSWORD=$(echo "$SECRET" | jq -r '.password // .' 2>/dev/null || echo "$SECRET")
-          RDS_HOST=$(aws rds describe-db-instances --db-instance-identifier algo-postgres-rds --query 'DBInstances[0].Endpoint.Address' --output text)
-          RDS_PORT=$(aws rds describe-db-instances --db-instance-identifier algo-postgres-rds --query 'DBInstances[0].Endpoint.Port' --output text)
+          SECRET=$(aws secretsmanager get-secret-value --secret-id algo-db-credentials-dev --query SecretString --output text)
 
-          echo "host=$RDS_HOST" >> $GITHUB_OUTPUT
-          echo "port=$RDS_PORT" >> $GITHUB_OUTPUT
-          echo "password=$RDS_PASSWORD" >> $GITHUB_OUTPUT
+          # Extract JSON fields using Python
+          python3 << 'PYEOF'
+          import json, sys, os
+          secret = os.environ['SECRET']
+          try:
+              data = json.loads(secret)
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"host={data.get('host', '')}\n")
+                  f.write(f"port={data.get('port', '5432')}\n")
+                  f.write(f"password={data.get('password', '')}\n")
+                  f.write(f"user={data.get('username', 'admin')}\n")
+          except:
+              print(f"Failed to parse secret")
+              sys.exit(1)
+          PYEOF
 
       - name: Set up Python
         uses: actions/setup-python@v4
