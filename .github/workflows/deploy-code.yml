@@ -177,7 +177,6 @@ jobs:
               "-r", "lambda/algo_orchestrator/requirements.txt",
               "-t", str(pkg_temp),
               "--only-binary=:all:",
-              "--no-deps",
               "--quiet"
             ], check=True)
 
