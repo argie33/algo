@@ -414,7 +414,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
-                'body': json.dumps({'status': 'healthy'})
+                'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
             }
 
         # Detailed health check
