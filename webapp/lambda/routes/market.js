@@ -3071,15 +3071,29 @@ router.get("/", async (req, res) => {
       return sendSuccess(res, { message: "Market data available - use /status or other sub-endpoints" });
     }
 
-    const breadthResult = await query(`
-      SELECT COUNT(*) as total_stocks,
-             SUM(CASE WHEN volume > 0 THEN 1 ELSE 0 END) as active_stocks
-      FROM market_data LIMIT 1
+    // Get latest market health data (from populated market_health_daily table)
+    const healthResult = await query(`
+      SELECT date, market_stage, market_trend, advance_decline_ratio, breadth_momentum_10d, vix_level
+      FROM market_health_daily
+      ORDER BY date DESC
+      LIMIT 1
     `);
 
+    if (!healthResult.rows.length) {
+      return sendSuccess(res, { message: "Market data not available" });
+    }
+
+    const latestHealth = healthResult.rows[0];
     return sendSuccess(res, {
-      overview: breadthResult.rows[0] || { total_stocks: 0, active_stocks: 0 },
-      message: "Market overview - use /status or other sub-endpoints for detailed data"
+      overview: {
+        date: latestHealth.date,
+        market_stage: latestHealth.market_stage,
+        market_trend: latestHealth.market_trend,
+        advance_decline_ratio: latestHealth.advance_decline_ratio,
+        breadth_momentum: latestHealth.breadth_momentum_10d,
+        vix_level: latestHealth.vix_level,
+      },
+      message: "Market overview - use /status, /technicals, /sentiment for detailed data"
     });
   } catch (error) {
     return sendSuccess(res, { message: "Market data not available" });
