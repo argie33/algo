@@ -387,7 +387,7 @@ jobs:
             --layer-name "$LAYER_NAME" \
             --region $AWS_REGION \
             --query 'LayerVersions[0].Version' \
-            --output text)
+            --output text | tr -d ' \n')
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "Layer ARN: $LAYER_ARN"
 
