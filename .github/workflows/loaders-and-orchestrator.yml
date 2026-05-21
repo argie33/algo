@@ -38,9 +38,9 @@ jobs:
 
       - name: Launch All Loaders
         run: |
-          echo "=== Launching All 6 Loaders in Parallel ==="
+          echo "=== Launching All 7 Loaders in Parallel ==="
 
-          for loader in stock_prices_daily stock_prices_weekly market_data_batch technical_data_daily signals_daily econ_data; do
+          for loader in stock_prices_daily stock_prices_weekly market_data_batch technical_data_daily signals_daily algo_metrics_daily econ_data; do
             echo "Launching algo-${loader}-loader..."
             aws ecs run-task \
               --cluster algo-cluster \
