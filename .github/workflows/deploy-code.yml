@@ -393,15 +393,15 @@ jobs:
           region = os.environ['AWS_REGION']
           account_id = os.environ['AWS_ACCOUNT_ID']
 
-          # Retrieve layer version directly in Python to avoid bash variable whitespace issues
+          # Retrieve layer version using JSON output to avoid text formatting issues
           print("Retrieving layer information...")
           result = subprocess.run(['aws', 'lambda', 'list-layer-versions',
             '--layer-name', 'algo-orchestrator-layer',
             '--region', region,
-            '--query', 'LayerVersions[0].Version',
-            '--output', 'text'], capture_output=True, text=True, check=True)
-          layer_version = result.stdout.strip().replace('\n', '').replace('\r', '')
-          print(f"DEBUG: layer_version repr={repr(layer_version)}, len={len(layer_version)}")
+            '--output', 'json'], capture_output=True, text=True, check=True)
+          layers_data = json.loads(result.stdout)
+          layer_version = str(layers_data['LayerVersions'][0]['Version']).strip().replace('\n', '').replace('\r', '')
+          print(f"DEBUG: layer_version={layer_version}")
           layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-orchestrator-layer:{layer_version}"
           print(f"Layer ARN: {layer_arn}")
           func_name = os.environ['FUNC_NAME']
