@@ -25,7 +25,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with technical enrichment from normalized tables."""
         try:
-            where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND bsd.signal IN ('BUY', 'SELL')"
+            where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
             params = [limit]
 
             if symbol_filter:

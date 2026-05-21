@@ -348,6 +348,10 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/health/pipeline',
         '/api/health/pipeline',
         '/api/contact',  # Contact form is public — no account required
+        '/api/signals',  # Trading signals are public data
+        '/api/scores',  # Stock scores are public data
+        '/api/market',  # Market data is public data
+        '/api/economic',  # Economic data is public data
     }
 
     # All other /api endpoints require auth
