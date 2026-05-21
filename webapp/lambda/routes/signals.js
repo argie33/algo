@@ -126,7 +126,7 @@ router.get("/stocks", async (req, res) => {
 
     // Get signals for regular stocks (exclude major indices/ETFs)
     // Enrich with technical data (RSI, ATR, SMA, ADX)
-    const resultObj = await query(`
+    const queryStr = `
       SELECT
         bsd.id,
         bsd.symbol,
@@ -160,9 +160,12 @@ router.get("/stocks", async (req, res) => {
         AND bsd.symbol NOT IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
       ORDER BY bsd.date DESC, bsd.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limit, offset]);
+    `;
+    console.log(`[SIGNALS] Executing query with params:`, [...params, limit, offset]);
+    const resultObj = await query(queryStr, [...params, limit, offset]);
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    console.log(`[SIGNALS] /stocks query returned ${result.length} items (resultObj type: ${typeof resultObj}, has rows: ${!!resultObj?.rows}, rowCount: ${resultObj?.rowCount})`);
     return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching stock signals:", error);
