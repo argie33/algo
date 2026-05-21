@@ -484,13 +484,13 @@ variable "alpaca_api_secret_key" {
 variable "alpaca_api_base_url" {
   description = "Alpaca API base URL (passed from root module)"
   type        = string
-  default     = "https://paper-api.alpaca.markets"
+  default     = "https://api.alpaca.markets"
 }
 
 variable "alpaca_paper_trading" {
   description = "Enable Alpaca paper trading (passed from root module)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "jwt_secret" {

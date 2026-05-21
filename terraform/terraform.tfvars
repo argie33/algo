@@ -30,6 +30,9 @@ rds_password = ""  # Empty = use env var TF_VAR_rds_password (required in CI)
 # Dev cost savings: shorter backup retention (30d default is overkill in dev)
 rds_backup_retention_period = 7
 
+# Alpaca API configuration - LIVE trading
+alpaca_api_base_url = "https://api.alpaca.markets"  # LIVE API (not paper-api.alpaca.markets)
+
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true   # Deploy execution monitor Lambda
 enable_execution_monitor_schedule = true   # Run every 2 hours during trading hours
