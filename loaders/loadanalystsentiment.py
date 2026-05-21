@@ -15,7 +15,7 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional
 
-import yfinance as yf
+from utils.yfinance_wrapper import get_ticker
 
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
@@ -27,7 +27,6 @@ log = logging.getLogger(__name__)
 BULLISH_RATINGS = {"buy", "strong buy", "outperform", "overweight", "accumulate", "positive"}
 BEARISH_RATINGS = {"sell", "strong sell", "underperform", "underweight", "reduce", "negative"}
 
-
 def _classify(rating: str) -> str:
     r = str(rating).lower().strip()
     if any(b in r for b in BULLISH_RATINGS):
@@ -35,7 +34,6 @@ def _classify(rating: str) -> str:
     if any(b in r for b in BEARISH_RATINGS):
         return "bearish"
     return "neutral"
-
 
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
@@ -45,7 +43,7 @@ class AnalystSentimentLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         try:
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
-            ticker = yf.Ticker(yf_symbol)
+            ticker = get_ticker(yf_symbol)
 
             # Get recent recommendations
             recs = ticker.recommendations
@@ -127,7 +125,6 @@ class AnalystSentimentLoader(OptimalLoader):
             return False
         return row.get("analyst_count", 0) > 0
 
-
 def main() -> int:
     load_env()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -146,7 +143,6 @@ def main() -> int:
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

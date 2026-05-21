@@ -34,9 +34,7 @@ except ImportError:
 
 from config.env_loader import load_env
 
-
 logger = get_logger(__name__)
-
 
 class EarningsCalendarLoader:
     """Load upcoming earnings dates for all symbols."""
@@ -77,7 +75,7 @@ class EarningsCalendarLoader:
             import yfinance as yf
             import pandas as pd
 
-            ticker = yf.Ticker(symbol)
+            ticker = get_ticker(symbol)
             results = []
 
             # Primary: ticker.calendar returns the next earnings date(s)
@@ -207,7 +205,6 @@ class EarningsCalendarLoader:
         finally:
             self.close()
 
-
 def main():
     load_env()
     parser = argparse.ArgumentParser(
@@ -236,7 +233,6 @@ def main():
     count = loader.run(symbols, args.days_ahead)
 
     sys.exit(0 if count >= 0 else 1)
-
 
 if __name__ == "__main__":
     main()

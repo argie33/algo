@@ -16,14 +16,13 @@ import logging
 from datetime import date
 from typing import List, Optional
 
-import yfinance as yf
+from utils.yfinance_wrapper import get_ticker
 
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 log = logging.getLogger(__name__)
-
 
 class CompanyProfileLoader(OptimalLoader):
     table_name = "company_profile"
@@ -33,7 +32,7 @@ class CompanyProfileLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         try:
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
-            ticker = yf.Ticker(yf_symbol)
+            ticker = get_ticker(yf_symbol)
             info = ticker.info
             if not info or not info.get("symbol"):
                 return None
@@ -72,7 +71,6 @@ class CompanyProfileLoader(OptimalLoader):
     def _save_watermark(self, symbol: str, new_watermark) -> None:
         pass  # No watermark for profiles
 
-
 def main() -> int:
     load_env()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -91,7 +89,6 @@ def main() -> int:
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

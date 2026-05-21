@@ -15,14 +15,13 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional
 
-import yfinance as yf
+from utils.yfinance_wrapper import get_ticker
 
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 log = logging.getLogger(__name__)
-
 
 def _detect_action(old_grade: str, new_grade: str) -> str:
     """Infer upgrade/downgrade/initiation from rating change."""
@@ -40,7 +39,6 @@ def _detect_action(old_grade: str, new_grade: str) -> str:
         return "downgrade"
     return "reiterate"
 
-
 class AnalystUpgradeDowngradeLoader(OptimalLoader):
     table_name = "analyst_upgrade_downgrade"
     primary_key = ("symbol", "action_date", "firm")
@@ -49,7 +47,7 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         try:
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
-            ticker = yf.Ticker(yf_symbol)
+            ticker = get_ticker(yf_symbol)
 
             upgrades = ticker.upgrades_downgrades
             if upgrades is None or (hasattr(upgrades, "empty") and upgrades.empty):
@@ -102,7 +100,6 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
             return False
         return bool(row.get("firm")) and bool(row.get("action_date"))
 
-
 def main() -> int:
     load_env()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -121,7 +118,6 @@ def main() -> int:
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

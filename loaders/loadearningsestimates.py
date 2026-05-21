@@ -16,11 +16,10 @@ import logging
 from datetime import date
 from typing import List, Optional
 
-import yfinance as yf
-
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.yfinance_wrapper import get_ticker
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +32,9 @@ class EarningsEstimatesLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         try:
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
-            ticker = yf.Ticker(yf_symbol)
+            ticker = get_ticker(yf_symbol)
+            if not ticker:
+                return None
 
             eps_trend = ticker.eps_trend
             if eps_trend is None or (hasattr(eps_trend, "empty") and eps_trend.empty):

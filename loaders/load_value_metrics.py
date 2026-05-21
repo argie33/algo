@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Dict, List, Optional
 
-import yfinance as yf
+from utils.yfinance_wrapper import get_ticker
 from utils.db_connection import get_db_connection
 
 try:
@@ -31,10 +31,8 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
-
 def get_db_conn():
     return get_db_connection()
-
 
 def get_symbols() -> List[str]:
     conn = get_db_conn()
@@ -45,12 +43,11 @@ def get_symbols() -> List[str]:
     finally:
         conn.close()
 
-
 def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
     """Fetch value ratios from yfinance. Retries on rate limit. Returns None if no usable data."""
     for attempt in range(retries + 1):
         try:
-            info = yf.Ticker(symbol).info
+            info = get_ticker(symbol).info
             mkt_cap = info.get('marketCap')
             pe = info.get('trailingPE')
             pb = info.get('priceToBook')
@@ -86,7 +83,6 @@ def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
             else:
                 log.debug(f"yfinance failed for {symbol}: {e}")
             return None
-
 
 def _fetch_from_financials(symbol: str) -> Optional[Dict]:
     """Compute ratios from SEC financial data + existing key_metrics market_cap."""
@@ -131,7 +127,6 @@ def _fetch_from_financials(symbol: str) -> Optional[Dict]:
     except Exception as e:
         log.debug(f"Financial fallback failed for {symbol}: {e}")
         return None
-
 
 def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
     """H1 FIX: Third fallback - Compute forward PE from market cap + earnings estimates.
@@ -178,7 +173,6 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
         log.debug(f"Earnings estimate fallback failed for {symbol}: {e}")
         return None
 
-
 def fetch_symbol(symbol: str) -> Optional[Dict]:
     """H1 FIX: Try three sources in order to maximize PE coverage.
 
@@ -192,7 +186,6 @@ def fetch_symbol(symbol: str) -> Optional[Dict]:
     if result is None:
         result = _fetch_from_earnings_estimates(symbol)
     return result
-
 
 def persist(metrics_list: List[Dict]) -> int:
     """Upsert value_metrics and write market_cap to key_metrics."""
@@ -243,7 +236,6 @@ def persist(metrics_list: List[Dict]) -> int:
 
     return updated
 
-
 def main():
     parser = argparse.ArgumentParser(description="Load value metrics from yfinance")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all with prices.")
@@ -272,7 +264,6 @@ def main():
     updated = persist(results)
     log.info(f"Persisted {updated} value_metrics rows")
     return 0 if results else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

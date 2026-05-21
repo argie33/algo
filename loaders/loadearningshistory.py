@@ -25,9 +25,6 @@ from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
 
-
-
-
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
     primary_key = ("symbol", "quarter")
@@ -39,7 +36,7 @@ class EarningsHistoryLoader(OptimalLoader):
             import yfinance as yf
             from datetime import datetime
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
-            ticker = yf.Ticker(yf_symbol)
+            ticker = get_ticker(yf_symbol)
             df = ticker.earnings_dates
             if df is None or (hasattr(df, "empty") and df.empty):
                 return []
@@ -109,8 +106,6 @@ class EarningsHistoryLoader(OptimalLoader):
             return False
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))
 
-
-
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
@@ -130,7 +125,6 @@ def main():
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
