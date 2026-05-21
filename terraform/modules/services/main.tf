@@ -95,6 +95,8 @@ resource "aws_lambda_function" "api" {
     variables = {
       DB_SECRET_ARN        = var.rds_credentials_secret_arn
       DB_ENDPOINT          = var.rds_endpoint
+      DB_HOST              = split(":", var.rds_endpoint)[0]
+      DB_PORT              = "5432"
       DB_NAME              = var.rds_database_name
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
