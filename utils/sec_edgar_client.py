@@ -96,20 +96,44 @@ class SecEdgarClient:
     # ----- Symbol/CIK lookups -----
 
     def _refresh_ticker_cache(self) -> Dict[str, str]:
-        """Download SEC's ticker→CIK mapping (one file, all listed companies)."""
-        self._rate_limiter.wait()
-        resp = self._session.get(TICKER_URL, timeout=self.timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        # Format: {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}, ...}
-        mapping = {
-            entry["ticker"].upper(): str(entry["cik_str"]).zfill(10)
-            for entry in data.values()
-        }
-        self._ticker_cache = mapping
-        self._ticker_cache_time = time.time()
-        log.info("SEC ticker cache loaded: %d symbols", len(mapping))
-        return mapping
+        """Download SEC's ticker→CIK mapping (one file, all listed companies).
+
+        With retry logic for 429 rate limit errors.
+        """
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self._rate_limiter.wait()
+                resp = self._session.get(TICKER_URL, timeout=self.timeout)
+
+                # Handle rate limiting with exponential backoff
+                if resp.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # 1s, 2s, 4s
+                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        log.error("SEC ticker cache failed after 3 retries: 429 Too Many Requests")
+                        return {}
+
+                resp.raise_for_status()
+                data = resp.json()
+                # Format: {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}, ...}
+                mapping = {
+                    entry["ticker"].upper(): str(entry["cik_str"]).zfill(10)
+                    for entry in data.values()
+                }
+                self._ticker_cache = mapping
+                self._ticker_cache_time = time.time()
+                log.info("SEC ticker cache loaded: %d symbols", len(mapping))
+                return mapping
+            except requests.HTTPError as e:
+                if resp.status_code != 429:
+                    log.error(f"SEC ticker cache request failed: {e}")
+                    return {}
+
+        return {}
 
     def symbol_to_cik(self, symbol: str) -> Optional[str]:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193)."""
@@ -156,12 +180,36 @@ class SecEdgarClient:
         return self._get_json(url)
 
     def _get_json(self, url: str) -> Dict[str, Any]:
-        self._rate_limiter.wait()
-        resp = self._session.get(url, timeout=self.timeout)
-        if resp.status_code == 404:
-            return {}
-        resp.raise_for_status()
-        return resp.json()
+        """Fetch JSON from SEC API with retry logic for rate limiting."""
+        max_retries = 3
+        for attempt in range(max_retries):
+            self._rate_limiter.wait()
+            resp = self._session.get(url, timeout=self.timeout)
+
+            # 404 means the data doesn't exist
+            if resp.status_code == 404:
+                return {}
+
+            # Handle rate limiting with exponential backoff
+            if resp.status_code == 429:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s
+                    log.debug(f"SEC API rate limited (429) for {url}. Retry in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    log.warning(f"SEC API failed after {max_retries} retries: {url}")
+                    return {}
+
+            # Other HTTP errors
+            try:
+                resp.raise_for_status()
+                return resp.json()
+            except requests.HTTPError as e:
+                log.debug(f"SEC API error for {url}: {e}")
+                return {}
+
+        return {}
 
     # ----- High-level extraction helpers -----
 
