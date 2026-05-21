@@ -98,8 +98,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
       DB_USER              = var.db_user
       DB_NAME              = var.db_name
       DB_PORT              = var.db_port
-      DB_PASSWORD          = var.db_password
-      DATABASE_SECRET_ARN  = var.database_secret_arn != "" ? var.database_secret_arn : ""
+      DATABASE_SECRET_ARN  = var.database_secret_arn
     }
   }
 
