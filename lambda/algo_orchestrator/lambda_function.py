@@ -59,24 +59,33 @@ def lambda_handler(event, context):
         logger.info("=" * 80)
 
         # Prepare database credentials (from Secrets Manager or env vars)
+        logger.info("[DEBUG] Preparing database credentials...")
         prepare_database_credentials()
+        logger.info("[DEBUG] Database credentials prepared OK")
 
         # Import and run orchestrator directly (no subprocess)
         # Import from the root-level algo_orchestrator.py module, not the package
+        logger.info("[DEBUG] Importing Orchestrator class...")
         from algo.algo_orchestrator import Orchestrator
+        logger.info("[DEBUG] Orchestrator class imported successfully")
 
+        logger.info("[DEBUG] Creating Orchestrator instance...")
         orchestrator = Orchestrator(
             run_date=None,
             dry_run=DRY_RUN,
             verbose=True
         )
+        logger.info("[DEBUG] Orchestrator instance created successfully")
 
+        logger.info("[DEBUG] Calling orchestrator.run()...")
         final_result = orchestrator.run()
+        logger.info(f"[DEBUG] orchestrator.run() completed with result: {final_result}")
 
         elapsed = (datetime.utcnow() - start_time).total_seconds()
 
         logger.info("=" * 80)
         logger.info(f"✅ Execution completed successfully ({elapsed:.1f}s)")
+        logger.info(f"Final result: {final_result}")
         logger.info("=" * 80)
 
         return {
