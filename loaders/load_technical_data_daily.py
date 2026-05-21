@@ -125,6 +125,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
             results.append({
                 "symbol": symbol,
                 "date": row["date"].date().isoformat(),
+                "rsi": float(row["rsi_14"]) if pd.notna(row["rsi_14"]) else None,
                 "rsi_14": float(row["rsi_14"]) if pd.notna(row["rsi_14"]) else None,
                 "macd": float(row["macd"]) if pd.notna(row["macd"]) else None,
                 "macd_signal": float(row["macd_signal"]) if pd.notna(row["macd_signal"]) else None,
@@ -136,7 +137,9 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 "ema_12": float(row["ema_12"]) if pd.notna(row["ema_12"]) else None,
                 "ema_21": float(row["ema_21"]) if pd.notna(row["ema_21"]) else None,
                 "ema_26": float(row["ema_26"]) if pd.notna(row["ema_26"]) else None,
+                "atr": float(row["atr_14"]) if pd.notna(row["atr_14"]) else None,
                 "atr_14": float(row["atr_14"]) if pd.notna(row["atr_14"]) else None,
+                "adx": float(row["atr_14"]) if pd.notna(row["atr_14"]) else None,
                 "bb_upper": float(row["bb_upper"]) if pd.notna(row["bb_upper"]) else None,
                 "bb_middle": float(row["bb_middle"]) if pd.notna(row["bb_middle"]) else None,
                 "bb_lower": float(row["bb_lower"]) if pd.notna(row["bb_lower"]) else None,
