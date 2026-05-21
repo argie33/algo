@@ -226,13 +226,21 @@ class AlgoConfig:
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
         import time
+        import os
+
+        # In AWS Lambda, skip database load - use defaults only for speed
+        # Lambda config is immutable anyway (set via Terraform env vars)
+        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+            logger.info(f"[AlgoConfig] Skipping database load in Lambda (using defaults only)")
+            return
+
         t0 = time.time()
         logger.info(f"[AlgoConfig] _load_from_database() starting")
         conn = None
         cur = None
         try:
             t_conn_start = time.time()
-            conn = get_db_connection()
+            conn = get_db_connection(timeout=5)  # Short timeout for config queries
             t_conn_done = time.time()
             logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
             cur = conn.cursor()
