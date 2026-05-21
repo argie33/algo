@@ -34,44 +34,25 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
 
             cur.execute("""
                 SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
-                    COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
-                    bsd.strength, bsd.reason,
-                    COALESCE(td.close, 0) as close,
+                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.strength, bsd.reason,
+                    COALESCE(bsd.close, td.close, 0) as close,
                     COALESCE(td.rsi_14, 0) as rsi,
                     COALESCE(td.atr_14, 0) as atr,
                     COALESCE(td.sma_50, 0) as sma_50,
                     COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(td.ema_12, 0) as ema_12,
                     COALESCE(td.ema_21, 0) as ema_21,
-                    COALESCE(td.ema_26, 0) as ema_26,
-                    COALESCE(tt.weinstein_stage::TEXT, 'unknown') as market_stage,
+                    COALESCE(tt.weinstein_stage, 0) as market_stage,
                     COALESCE(tt.trend_direction, 'unknown') as trend,
-                    ss.security_name, cp.sector, cp.industry,
+                    COALESCE(ss.security_name, '') as security_name,
+                    COALESCE(cp.sector, '') as sector,
+                    COALESCE(cp.industry, '') as industry,
                     COALESCE(swg.score, 0) AS swing_score,
-                    swg.components->>'grade' AS grade,
-                    COALESCE(bsd.base_type, NULL) as base_type,
-                    COALESCE(bsd.base_length_days, NULL) as base_length_days,
-                    COALESCE(bsd.buylevel, 0) as buylevel,
-                    COALESCE(bsd.stoplevel, 0) as stoplevel,
-                    COALESCE(bsd.risk_reward_ratio, 0) as risk_reward_ratio,
-                    COALESCE(bsd.volume_surge_pct, 0) as volume_surge_pct,
+                    COALESCE(swg.components->>'grade', 'N/A') AS grade,
                     COALESCE(bsd.entry_quality_score, 0) as entry_quality_score,
                     COALESCE(bsd.signal_quality_score, 0) as signal_quality_score,
-                    COALESCE(bsd.buy_zone_start, 0) as buy_zone_start,
-                    COALESCE(bsd.buy_zone_end, 0) as buy_zone_end,
-                    COALESCE(bsd.pivot_price, 0) as pivot_price,
-                    COALESCE(bsd.initial_stop, 0) as initial_stop,
-                    COALESCE(bsd.trailing_stop, 0) as trailing_stop,
-                    COALESCE(bsd.position_size_recommendation, NULL) as position_size_recommendation,
-                    COALESCE(bsd.profit_target_8pct, 0) as profit_target_8pct,
-                    COALESCE(bsd.profit_target_20pct, 0) as profit_target_20pct,
-                    COALESCE(bsd.profit_target_25pct, 0) as profit_target_25pct,
-                    COALESCE(bsd.exit_trigger_1_price, 0) as exit_trigger_1_price,
-                    COALESCE(bsd.exit_trigger_2_price, 0) as exit_trigger_2_price,
-                    COALESCE(bsd.sell_level, 0) as sell_level,
-                    COALESCE(bsd.rs_rating, 0) as rs_rating,
-                    COALESCE(bsd.avg_volume_50d, 0) as avg_volume_50d
+                    COALESCE(bsd.risk_reward_ratio, 0) as risk_reward_ratio,
+                    COALESCE(bsd.volume_surge_pct, 0) as volume_surge_pct,
+                    COALESCE(bsd.stage_number, 0) as stage_number
                 FROM buy_sell_daily bsd
                 LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
                     AND bsd.date = td.date
@@ -80,7 +61,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
                 LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
                 LEFT JOIN swing_trader_scores swg ON bsd.symbol = swg.symbol
-                    AND swg.date >= CURRENT_DATE - INTERVAL '1 day'
+                    AND swg.date = bsd.date
                 """ + where_clause + """
                 ORDER BY bsd.date DESC, bsd.symbol ASC
                 LIMIT %s
