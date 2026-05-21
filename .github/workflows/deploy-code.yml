@@ -284,7 +284,7 @@ jobs:
             --compatible-runtimes python3.11 \
             --region $AWS_REGION \
             --query 'Version' \
-            --output text)
+            --output text | xargs)
 
           echo "Layer published: version $LAYER_VERSION"
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
