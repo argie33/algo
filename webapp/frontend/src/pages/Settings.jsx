@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
-import api, { getSettings, updateSettings } from "../services/api";
+import { getSettings, updateSettings } from "../services/api";
 
 const Settings = () => {
   const [tabIndex, setTabIndex] = useState(0);

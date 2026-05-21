@@ -93,14 +93,6 @@ const DeepValueStocks = () => {
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   };
 
-  const scoreColor = (score) => {
-    if (score >= 80) return "rgba(34, 197, 94, 0.20)";
-    if (score >= 70) return "rgba(34, 197, 94, 0.15)";
-    if (score >= 60) return "rgba(161, 217, 34, 0.15)";
-    if (score >= 50) return "rgba(245, 158, 11, 0.15)";
-    return "rgba(239, 68, 68, 0.15)";
-  };
-
   const qualityBadge = (tier) => {
     if (tier === "tier1") return { label: "Tier 1", color: "#22c55e", bg: "rgba(34, 197, 94, 0.16)" };
     if (tier === "tier2") return { label: "Tier 2", color: "#22c55e", bg: "rgba(34, 197, 94, 0.12)" };
