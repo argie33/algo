@@ -48,6 +48,7 @@ def lambda_handler(event, context):
     """
     Simplified handler - runs algo_orchestrator directly.
     """
+    print("[HANDLER ENTRY] Lambda handler called")  # Explicit stdout for debugging
     execution_id = getattr(context, 'aws_request_id', 'manual') if context else 'local'
     start_time = datetime.utcnow()
 
@@ -57,17 +58,22 @@ def lambda_handler(event, context):
         logger.info(f"Execution Mode: {EXECUTION_MODE}")
         logger.info(f"Dry Run: {DRY_RUN}")
         logger.info("=" * 80)
+        print("[HANDLER] Logger initialized, starting main flow")  # Debug output
 
         # Prepare database credentials (from Secrets Manager or env vars)
+        print("[HANDLER] About to prepare database credentials")
         logger.info("[DEBUG] Preparing database credentials...")
         prepare_database_credentials()
         logger.info("[DEBUG] Database credentials prepared OK")
+        print("[HANDLER] Database credentials prepared")
 
         # Import and run orchestrator directly (no subprocess)
         # Import from the root-level algo_orchestrator.py module, not the package
+        print("[HANDLER] About to import Orchestrator class")
         logger.info("[DEBUG] Importing Orchestrator class...")
         from algo.algo_orchestrator import Orchestrator
         logger.info("[DEBUG] Orchestrator class imported successfully")
+        print("[HANDLER] Orchestrator class imported")
 
         logger.info("[DEBUG] Creating Orchestrator instance...")
         orchestrator = Orchestrator(
@@ -101,11 +107,17 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
+        import traceback
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         error_msg = f"Execution failed after {elapsed:.1f}s: {str(e)}"
 
+        print(f"[ERROR] Exception caught: {str(e)}")
+        print("[ERROR] Full traceback:")
+        print(traceback.format_exc())
+
         logger.error("=" * 80)
         logger.error(f"❌ {error_msg}")
+        logger.error(traceback.format_exc())
         logger.error("=" * 80)
 
         return {
