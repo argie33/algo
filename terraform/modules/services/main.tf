@@ -199,6 +199,35 @@ resource "aws_apigatewayv2_route" "health" {
   authorization_type = "NONE"
 }
 
+# Public data endpoints (no auth required) — trading data is public
+resource "aws_apigatewayv2_route" "signals_public" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/signals"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "scores_public" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/scores"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "market_public" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/market"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "economic_public" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/economic"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
 # Default route - requires Cognito JWT authentication for all other endpoints
 # When cognito_enabled=true, all non-health routes require valid JWT token
 resource "aws_apigatewayv2_route" "api_default" {
