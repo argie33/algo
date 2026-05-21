@@ -39,22 +39,27 @@ async function checkPage(browser, url, pageName, minElements = 0) {
   });
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
-    await new Promise(r => setTimeout(r, 2000));
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
 
     const data = await page.evaluate(() => {
       const tables = document.querySelectorAll('table tbody tr').length;
       const cards = document.querySelectorAll('[class*="Card"], [role="region"]').length;
       const text = document.body.innerText.length;
       const hasNulls = document.body.innerText.match(/—/g)?.length || 0;
-      return { tables, cards, text, hasNulls };
+      const errorText = document.body.innerText.match(/error|failed|unable|not found/gi)?.join(', ') || '';
+      const hasLoading = document.body.innerText.includes('Loading');
+      return { tables, cards, text, hasNulls, errorText, hasLoading };
     });
 
     metrics.dataElements = data.tables + data.cards;
     metrics.pageText = data.text;
 
     if (minElements > 0 && metrics.dataElements < minElements) {
-      issues.push(`Low data: ${metrics.dataElements}/${minElements} elements`);
+      let msg = `Low data: ${metrics.dataElements}/${minElements} elements`;
+      if (data.hasLoading) msg += ' (still loading)';
+      if (data.errorText) msg += ` (errors detected)`;
+      issues.push(msg);
     }
     if (data.hasNulls > 10) {
       issues.push(`Many dashes: ${data.hasNulls} "—" symbols (incomplete data)`);

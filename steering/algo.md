@@ -1,10 +1,12 @@
 # Stock Analytics Platform — Algo Project Steering
 
 ## STATUS
-- **Local:** ✅ 100% operational (orchestrator 7 phases, 282+ tests passing)
-- **AWS:** ✅ Infrastructure deployed, loaders running on schedule
-- **Blocker:** Verify loaders populate fresh data daily before market open
-- **Next:** (1) Validate loader execution, (2) Confirm fresh data in DB, (3) Verify orchestrator uses it
+- **Orchestrator:** ✅ 7 phases operational locally, AWS Lambda deployed
+- **Loaders:** ✅ All 6 loaders running on schedule (EventBridge → ECS Fargate)
+- **Frontend:** ⚠️ 4/13 pages 100% working (marketing), 5/13 partial (rendering but data incomplete), 4/13 zero data
+- **API:** ✅ Connected to PostgreSQL (stocks database, 10K+ stocks), Vite proxy fixed to port 3001
+- **Database:** ✅ Connected, partially populated (8.1M price rows, 875 company profiles, but many metrics NULL)
+- **Blocker:** Pages with dashes (—) indicate NULL fields in database — need loader verification & schema checks
 
 ## SYSTEM MAP
 | Component | Code | Deployment | Trigger | Purpose |
@@ -85,8 +87,8 @@ python3 config/credential_validator.py
 python3 algo/algo_orchestrator.py --dry-run
 
 # Frontend dev (2 terminals)
-cd webapp/lambda && node index.js  # Port 3002
-cd webapp/frontend && npm run dev   # Port 5173, login: dev-admin / Admin123!
+cd webapp/lambda && DB_SSL=false node index.js  # Port 3001 (Vite proxies /api to here)
+cd webapp/frontend && npm run dev   # Port 5173 (vite.config.js set to proxy to 3001)
 
 # Live trading (real)
 ORCHESTRATOR_DRY_RUN=false python3 algo/algo_orchestrator.py

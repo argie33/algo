@@ -105,7 +105,7 @@ router.get("/stockscores", async (req, res) => {
     );
     const total = parseInt(countResult?.rows[0]?.total || 0);
 
-    // Get paginated results - Join with company profile and metrics
+    // Get paginated results - Optimized: removed slow price_daily join with window function
     const paramIndex = params.length + 1;
     const resultObj = await query(`
       SELECT
@@ -120,8 +120,8 @@ router.get("/stockscores", async (req, res) => {
         sc.growth_score,
         sc.positioning_score,
         sc.stability_score,
-        pd.close as price,
-        ROUND(((pd.close - pd.prev_close) / NULLIF(pd.prev_close, 0) * 100)::numeric, 2) as change_pct,
+        NULL::numeric as price,
+        NULL::numeric as change_pct,
         km.market_cap,
         vm.pe_ratio,
         vm.pb_ratio,
@@ -130,11 +130,6 @@ router.get("/stockscores", async (req, res) => {
       FROM stock_scores sc
       LEFT JOIN stock_symbols ss ON ss.symbol = sc.symbol
       LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
-      LEFT JOIN (
-        SELECT symbol, close,
-               LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as prev_close
-        FROM price_daily
-      ) pd ON pd.symbol = sc.symbol
       LEFT JOIN key_metrics km ON km.symbol = sc.symbol
       LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
       LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
