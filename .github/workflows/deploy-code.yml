@@ -502,8 +502,7 @@ jobs:
                 "ORCHESTRATOR_DRY_RUN": "false",
                 "EXECUTION_MODE": exec_mode
               }
-            },
-            "Layers": [layer_arn]
+            }
           }
 
           print("Updating Lambda configuration...")
