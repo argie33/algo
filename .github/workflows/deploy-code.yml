@@ -603,6 +603,8 @@ jobs:
     runs-on: ubuntu-latest
     # DB init can time out on first deploy (VPC cold start). Non-fatal — next deploy will succeed.
     continue-on-error: true
+    env:
+      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
