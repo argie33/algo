@@ -95,7 +95,7 @@ module "database" {
   rds_password                    = var.rds_password
   rds_db_name                     = var.rds_db_name
   db_multi_az                     = var.rds_multi_az
-  enable_rds_proxy                = false
+  enable_rds_proxy                = true
   enable_rds_kms_encryption       = var.environment == "prod"
   rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
   enable_rds_alarms               = var.enable_rds_alarms
@@ -220,6 +220,7 @@ module "services" {
   rds_database_name              = module.database.rds_database_name
   rds_credentials_secret_arn     = module.database.rds_credentials_secret_arn
   rds_password                   = module.database.rds_password
+  rds_proxy_endpoint             = module.database.rds_proxy_endpoint
   algo_secrets_arn               = module.database.algo_secrets_arn
   psycopg2_layer_arn             = module.database.psycopg2_layer_arn
   frontend_bucket_name           = module.storage.frontend_bucket_name

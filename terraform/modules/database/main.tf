@@ -237,7 +237,7 @@ resource "aws_db_proxy" "main" {
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
-    iam_auth    = "REQUIRED"
+    iam_auth    = "DISABLED"
   }
 
   role_arn               = aws_iam_role.rds_proxy[0].arn

@@ -111,7 +111,7 @@ class Orchestrator:
         self.db_pool = None
         try:
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
-                minconn=5, maxconn=25, **get_db_config()
+                minconn=1, maxconn=25, **get_db_config()
             )
         except Exception as e:
             if self.dry_run:
@@ -761,12 +761,23 @@ class Orchestrator:
 
         try:
             logger.info("\nRunning critical data patrol checks...")
-            # TEMPORARY: Skip data patrol to verify rest of system works
-            logger.warning("  [TEMPORARY] Data patrol SKIPPED for debugging - proceeding to phases")
+            conn = None
+            cur = None
             try:
-                pass  # Data patrol skipped temporarily
+                conn = self._get_conn()
+                cur = conn.cursor()
+                if not self._check_data_patrol(cur):
+                    return self._final_report()
             except Exception as e:
-                logger.error(f"  [WARN] Data patrol failed: {e}")
+                logger.error(f"  [HALT] Data patrol check failed: {e}")
+                return self._final_report()
+            finally:
+                if cur:
+                    try:
+                        cur.close()
+                    except Exception as e:
+                        logger.error(f"Unhandled exception: {e}")
+                self._put_conn(conn)
 
 
             if not self._check_db_connectivity():

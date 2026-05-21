@@ -268,6 +268,15 @@ resource "aws_security_group" "algo_lambda" {
     description = "Allow PostgreSQL to RDS"
   }
 
+  # Egress: allow HTTPS to external internet for Alpaca API calls
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS to external internet (Alpaca API)"
+  }
+
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-algo-lambda-sg"
   })
