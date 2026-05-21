@@ -228,14 +228,13 @@ resource "aws_apigatewayv2_route" "economic_public" {
   authorization_type = "NONE"
 }
 
-# Default route - requires Cognito JWT authentication for all other endpoints
-# When cognito_enabled=true, all non-health routes require valid JWT token
+# Default route - all routes use NONE auth, Lambda enforces auth via require_auth()
+# This gives Lambda full control over which endpoints are public vs protected
 resource "aws_apigatewayv2_route" "api_default" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "$default"
   target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
-  authorization_type = var.cognito_enabled ? "JWT" : "NONE"
-  authorizer_id      = var.cognito_enabled ? aws_apigatewayv2_authorizer.cognito[0].id : null
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_stage" "api" {
