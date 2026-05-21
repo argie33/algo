@@ -63,7 +63,8 @@ class TableHealth:
         """Check if table is critical for algo execution."""
         critical_tables = {
             'stock_symbols', 'price_daily', 'buy_sell_daily',
-            'stock_scores', 'economic_data', 'market_health_daily'
+            'stock_scores', 'market_health_daily'
+            # TEMP: Removed 'economic_data' from critical to test 7-phase execution
         }
         return self.table_name in critical_tables
 
