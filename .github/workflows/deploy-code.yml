@@ -290,90 +290,51 @@ jobs:
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
-      - name: Sync RDS Password with Secrets Manager
+      - name: Verify RDS and Secrets Manager Configuration
         run: |
-          python3 << 'PYTHON_SYNC'
+          python3 << 'PYTHON_CHECK'
           import json
           import subprocess
           import os
-          import secrets
-          import string
 
           region = os.environ['AWS_REGION']
 
-          print("🔐 Syncing RDS password with Secrets Manager...")
+          print("Checking RDS and Secrets Manager configuration...")
 
-          # Get RDS instance details
+          # Check RDS status
           try:
             result = subprocess.run(['aws', 'rds', 'describe-db-instances',
-              '--region', region, '--query', 'DBInstances[0]',
+              '--region', region, '--query', 'DBInstances[0].[DBInstanceIdentifier,DBInstanceStatus]',
               '--output', 'json'], capture_output=True, text=True, check=True)
-            rds_info = json.loads(result.stdout)
-            rds_id = rds_info['DBInstanceIdentifier']
-            rds_host = rds_info['Endpoint']['Address']
-            rds_port = rds_info['Endpoint']['Port']
-            rds_user = 'stocks'  # Default master user
-            print(f"✅ Found RDS instance: {rds_id}")
+            rds_data = json.loads(result.stdout)
+            rds_id, rds_status = rds_data
+            print(f"  RDS Instance: {rds_id} [{rds_status}]")
+
+            if rds_status != 'available':
+              print(f"WARNING: RDS is in {rds_status} state (expected: available)")
+              print("This is normal if RDS was just modified. Lambda will wait for availability.")
           except Exception as e:
-            print(f"ERROR: Could not retrieve RDS info: {e}")
+            print(f"ERROR checking RDS: {e}")
             exit(1)
 
-          # Generate a strong new password (alphanumeric only to avoid shell/AWS parsing issues)
-          alphabet = string.ascii_letters + string.digits
-          new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
-
-          # Apply new password to RDS
+          # Check Secrets Manager
           try:
-            print(f"Setting new password on RDS instance...")
-            result = subprocess.run(['aws', 'rds', 'modify-db-instance',
-              '--db-instance-identifier', rds_id,
-              '--master-user-password', new_password,
-              '--apply-immediately',
-              '--region', region], capture_output=True, text=True)
-            if result.returncode != 0:
-              print(f"AWS Error: {result.stderr}")
-              print(f"ERROR: Could not update RDS password (exit code {result.returncode})")
-              exit(1)
-            print("✅ RDS password updated")
-          except Exception as e:
-            print(f"ERROR: Could not update RDS password: {e}")
-            exit(1)
-
-          # Update Secrets Manager with new password (match Terraform-created secret name)
-          try:
-            secret_value = json.dumps({
-              "host": rds_host,
-              "port": rds_port,
-              "dbname": "stocks",
-              "username": rds_user,
-              "password": new_password
-            })
-            # Get the correct secret name from Terraform (algo-db-credentials-dev)
             with open('terraform/terraform.tfvars') as f:
               tfvars = f.read()
               project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
               environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+
             secret_id = f"{project}-db-credentials-{environment}"
-            print(f"Updating Secrets Manager ({secret_id}) with new password...")
-            result = subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
+            result = subprocess.run(['aws', 'secretsmanager', 'describe-secret',
               '--secret-id', secret_id,
-              '--secret-string', secret_value,
-              '--region', region], capture_output=True, text=True)
-            if result.returncode != 0:
-              print(f"AWS Error: {result.stderr}")
-              print(f"ERROR: Could not update Secrets Manager (exit code {result.returncode})")
-              exit(1)
-            print("✅ Secrets Manager updated")
+              '--region', region], capture_output=True, text=True, check=True)
+            print(f"  Secrets Manager: {secret_id} [OK]")
           except Exception as e:
-            print(f"ERROR: Could not update Secrets Manager: {e}")
+            print(f"ERROR checking Secrets Manager: {e}")
             exit(1)
 
-          print(f"🔐 RDS and Secrets Manager are now in sync")
-          print(f"  Host: {rds_host}")
-          print(f"  Port: {rds_port}")
-          print(f"  Database: stocks")
-          print(f"  User: {rds_user}")
-          PYTHON_SYNC
+          print("Configuration verified. Lambda will use DATABASE_SECRET_ARN for credentials.")
+          PYTHON_CHECK
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
