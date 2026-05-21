@@ -428,9 +428,8 @@ function App() {
         <AppLayout>
       <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
         <Routes>
-        {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
+        {/* Markets & Analysis */}
         <Route path="/app/markets" element={<ErrorBoundary><MarketsHealth /></ErrorBoundary>} />
-        <Route path="/app/market" element={<ErrorBoundary><MarketsHealth /></ErrorBoundary>} />
         <Route path="/app/economic" element={<ErrorBoundary><EconomicDashboard /></ErrorBoundary>} />
         <Route path="/app/sectors" element={<ErrorBoundary><SectorAnalysis /></ErrorBoundary>} />
         <Route path="/app/sentiment" element={<ErrorBoundary><Sentiment /></ErrorBoundary>} />
@@ -438,8 +437,6 @@ function App() {
         {/* Stocks Analysis & Signals */}
         <Route path="/app/deep-value" element={<ErrorBoundary><DeepValueStocks /></ErrorBoundary>} />
         <Route path="/app/trading-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
-        <Route path="/app/signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
-        <Route path="/app/etf-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
         <Route path="/app/swing" element={<ErrorBoundary><SwingCandidates /></ErrorBoundary>} />
         <Route path="/app/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
         <Route path="/app/stock/:symbol" element={<ErrorBoundary><StockDetail /></ErrorBoundary>} />
