@@ -113,6 +113,16 @@ def lambda_handler(event, context):
         )
         conn.autocommit = True
 
+        # Add MACD columns if needed (idempotent)
+        cursor = conn.cursor()
+        for table in ['buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly']:
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)")
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)")
+                logger.info(f"Added MACD columns to {table}")
+            except Exception as e:
+                logger.info(f"MACD columns may already exist on {table}: {e}")
+
         sql_script = ''
         try:
             with open('schema.sql', 'r') as f:
@@ -122,17 +132,15 @@ def lambda_handler(event, context):
             logger.warning("schema.sql not found")
 
         if not sql_script.strip():
-            cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
             table_count = cursor.fetchone()[0]
             cursor.close()
             conn.close()
             return {
                 'statusCode': 200,
-                'body': json.dumps(f'DB connected, {table_count} tables exist (no schema applied)')
+                'body': json.dumps(f'DB connected, {table_count} tables exist (MACD columns added)')
             }
 
-        cursor = conn.cursor()
         statements = split_sql_statements(sql_script)
         ok_count = 0
         skip_count = 0
