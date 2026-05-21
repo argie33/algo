@@ -233,7 +233,7 @@ app.use(
       // In dev, allow ANY localhost origin (flexible port handling for Vite dev server)
       const isLocalhost = origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'));
       if (!isProduction && isLocalhost) {
-        return callback(null, true);
+        return callback(null, origin);
       }
 
       // Test-only origins for CORS testing (test environment only)
@@ -246,7 +246,7 @@ app.use(
 
       // FIXED: Use exact matching only - no substring patterns like .includes()
       if (finalAllowedOrigins.includes(origin)) {
-        callback(null, true);
+        callback(null, origin);
       } else {
         console.warn("CORS blocked origin:", origin);
         callback(new Error("Not allowed by CORS"));
