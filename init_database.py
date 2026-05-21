@@ -131,6 +131,8 @@ def create_tables(conn):
             rsi DECIMAL(10, 2),
             sma_50 DECIMAL(10, 2),
             sma_200 DECIMAL(10, 2),
+            macd DECIMAL(10, 2),
+            macd_signal DECIMAL(10, 2),
             stage_number INT,
             buy_signal BOOLEAN,
             sell_signal BOOLEAN,
