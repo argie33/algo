@@ -482,12 +482,18 @@ jobs:
           # NOTE: DO NOT include DB_PASSWORD in env vars - use DATABASE_SECRET_ARN instead
           # This ensures Lambda always reads the latest password from Secrets Manager,
           # avoiding stale passwords after RDS sync
+          # Parse DB_HOST to extract hostname without port (in case it's "hostname:port")
+          if ":" in str(db_host):
+            db_host_parsed = str(db_host).rsplit(":", 1)[0]
+          else:
+            db_host_parsed = str(db_host)
+
           lambda_config = {
             "FunctionName": func_name,
             "Environment": {
               "Variables": {
                 "DATABASE_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}",
-                "DB_HOST": str(db_host),
+                "DB_HOST": db_host_parsed,
                 "DB_PORT": str(db_port),
                 "DB_NAME": str(db_name),
                 "DB_USER": "stocks",
