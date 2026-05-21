@@ -155,7 +155,16 @@ export function AuthProvider({ children }) {
 
   const refreshSession = useCallback(async () => {
     try {
-      const session = await fetchAuthSession({ forceRefresh: true });
+      const cognitoConfigured = isCognitoConfigured();
+      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
+      const isDev = import.meta.env.DEV;
+
+      let session;
+      if (cognitoConfigured && !forceDevAuth && !isDev) {
+        session = await fetchAuthSession({ forceRefresh: true });
+      } else {
+        session = await devAuth.fetchAuthSession();
+      }
 
       if (session.tokens) {
         dispatch({

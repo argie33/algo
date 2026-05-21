@@ -5,8 +5,9 @@ import dataCache from "./dataCache";
 // Get API configuration
 export const getApiConfig = () => {
   // STRICT 3-LEVEL URL RESOLUTION - no hardcoded production URLs
-  // 1. Runtime injection (AWS deployment)
-  if (typeof window !== "undefined" && window.__CONFIG__?.API_URL) {
+  // 1. Runtime injection (AWS deployment) - check if __CONFIG__ exists, not just if API_URL is truthy
+  // This allows empty string for localhost development
+  if (typeof window !== "undefined" && window.__CONFIG__ && 'API_URL' in window.__CONFIG__) {
     const apiUrl = window.__CONFIG__.API_URL;
     return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: false, isProduction: true };
   }
