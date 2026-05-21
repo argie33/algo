@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS price_daily (
     close DECIMAL(12, 4),
     volume BIGINT,
     adj_close DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_daily_unique ON price_daily(symbol, date);
 
 -- Weekly price data
 CREATE TABLE IF NOT EXISTS price_weekly (
@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS price_weekly (
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_weekly_unique ON price_weekly(symbol, date);
 
 -- Monthly price data
 CREATE TABLE IF NOT EXISTS price_monthly (
@@ -52,9 +52,9 @@ CREATE TABLE IF NOT EXISTS price_monthly (
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_monthly_unique ON price_monthly(symbol, date);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- EARNINGS & FINANCIAL DATA
@@ -205,9 +205,9 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
     plus_di DECIMAL(8, 4),
     minus_di DECIMAL(8, 4),
     mansfield_rs DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_daily_unique ON technical_data_daily(symbol, date);
 
 -- Weekly technical indicators
 CREATE TABLE IF NOT EXISTS technical_data_weekly (
@@ -225,9 +225,9 @@ CREATE TABLE IF NOT EXISTS technical_data_weekly (
     ema_26 DECIMAL(12, 4),
     atr DECIMAL(12, 4),
     adx DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_weekly_unique ON technical_data_weekly(symbol, date);
 
 -- Monthly technical indicators
 CREATE TABLE IF NOT EXISTS technical_data_monthly (
@@ -245,9 +245,9 @@ CREATE TABLE IF NOT EXISTS technical_data_monthly (
     ema_26 DECIMAL(12, 4),
     atr DECIMAL(12, 4),
     adx DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_monthly_unique ON technical_data_monthly(symbol, date);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- TRADING SIGNALS
@@ -276,9 +276,9 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
     macd DECIMAL(12, 4),
     macd_signal DECIMAL(12, 4),
     stage_number INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, timeframe, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_daily_unique ON buy_sell_daily(symbol, timeframe, date);
 
 -- Weekly buy/sell signals
 CREATE TABLE IF NOT EXISTS buy_sell_weekly (
@@ -303,9 +303,9 @@ CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     macd DECIMAL(12, 4),
     macd_signal DECIMAL(12, 4),
     stage_number INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, timeframe, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_weekly_unique ON buy_sell_weekly(symbol, timeframe, date);
 
 -- Monthly buy/sell signals
 CREATE TABLE IF NOT EXISTS buy_sell_monthly (
@@ -330,9 +330,9 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     macd DECIMAL(12, 4),
     macd_signal DECIMAL(12, 4),
     stage_number INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, timeframe, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_monthly_unique ON buy_sell_monthly(symbol, timeframe, date);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- QUALITY METRICS
