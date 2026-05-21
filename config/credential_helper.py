@@ -156,6 +156,11 @@ def get_db_config() -> Dict[str, any]:
         "database": os.getenv("DB_NAME", DEFAULT_DB_NAME),
     }
 
+    # RDS Proxy requires TLS/SSL connections
+    # When connecting to RDS Proxy endpoint (.proxy-.amazonaws.com), always use sslmode='require'
+    if "proxy-" in parsed_host or os.getenv("DB_SSL", "").lower() in ("true", "require"):
+        config["sslmode"] = "require"
+
     _CACHED_CREDS = config
     return config
 

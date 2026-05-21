@@ -23,12 +23,8 @@ logger = logging.getLogger(__name__)
 cloudwatch = boto3.client('cloudwatch')
 rds_client = boto3.client('rds')
 
-# Database configuration
-DB_HOST = get_db_config()['host']
-DB_USER = get_db_config()['user']
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = get_db_config()['database']
-DB_PORT = int(os.getenv('DB_PORT', 5432))
+# Database configuration - use complete config from credential_helper
+DB_CONFIG = get_db_config()
 
 # Critical tables to monitor
 CRITICAL_TABLES = [
@@ -49,15 +45,9 @@ SEVERITY_THRESHOLDS = {
 
 
 def get_db_connection():
-    """Connect to RDS database."""
+    """Connect to RDS database using credential_helper config."""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            port=DB_PORT
-        )
+        conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except Exception as e:
         logger.error(f"Failed to connect to database: {e}")
