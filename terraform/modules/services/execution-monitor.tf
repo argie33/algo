@@ -18,6 +18,7 @@ resource "aws_lambda_function" "execution_monitor" {
   timeout          = 30
   memory_size      = 256
   source_code_hash = data.archive_file.execution_monitor_zip[0].output_base64sha256
+  layers           = [var.psycopg2_layer_arn]
 
   environment {
     variables = {
