@@ -92,9 +92,34 @@ cd webapp/frontend && npm run dev   # Port 5173, login: dev-admin / Admin123!
 ORCHESTRATOR_DRY_RUN=false python3 algo/algo_orchestrator.py
 ```
 
+## ROUTING ARCHITECTURE
+**Frontend (React Router):**
+- `/*` — Public marketing site (/, /about, /firm, /contact, /terms, /privacy)
+- `/app/*` — Authenticated dashboard (requires ProtectedRoute wrapper)
+  - `/app/markets`, `/app/economic`, `/app/sectors`, `/app/sentiment` — Market data
+  - `/app/trading-signals`, `/app/deep-value`, `/app/swing` — Stock signals
+  - `/app/scores`, `/app/backtests` — Analysis
+  - `/app/portfolio`, `/app/trades`, `/app/performance` — Portfolio (auth required)
+  - `/app/health`, `/app/audit`, `/app/algo-dashboard` — Admin (admin role required)
+- **Fixed:** Removed duplicate routes (/app/market, /app/signals, /app/etf-signals) that caused intermittent failures
+
+**Backend (Express Routes):**
+- `/api/scores` — Stock multi-factor scoring (fixed to return stock_scores, not swing_trader_scores)
+- `/api/signals` — Trading signals (from buy_sell_daily table)
+- `/api/market` — Market health + indices
+- `/api/economic` — Economic indicators
+- `/api/sectors` — Sector performance
+- `/api/trades` — Trade execution + history
+- `/api/backtests` — Backtest results (also at `/api/research/backtests`)
+- `/api/prices` — Historical prices
+- Full routes in: `webapp/lambda/routes/*.js`
+
+**Rule:** One route → one component → one API call. Duplicates cause race conditions.
+
 ## DECISION RATIONALE
 - **Alpaca:** Supports paper + live trading, SRP auth, low friction
 - **PostgreSQL:** Time-series data, ACID, efficient lateral joins for enrichment
 - **Lambda API:** Serverless, OIDC auth (no long-lived keys), auto-scales
 - **ECS Loaders:** Scheduled batch jobs, pulls large datasets without timeout, separate from API
 - **Cognito:** SRP auth (password never sent plain), MFA, session tokens (not localStorage)
+- **Dual-Layout:** Marketing (`/*`) + Dashboard (`/app/*`) prevents auth bleed, clarity on scope
