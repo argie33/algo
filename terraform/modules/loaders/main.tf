@@ -368,14 +368,15 @@ locals {
     # parallelism=1: tiny list, no benefit from threads
     "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by Alpaca (180 req/min)
-    # parallelism=16 with 1 vCPU: ~3x faster than serial, stays under rate limit
-    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
-    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
-    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 16 }
-    "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
-    "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
-    "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 600, parallelism = 8 }
+    # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by yfinance
+    # Updated: timeout 900→1800s (30min for 5000/8 symbols), parallelism 16→8 (yfinance rate limit)
+    # Matches pattern of other yfinance-heavy loaders (financials: timeout=1800, parallelism=4-8)
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
+    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
+    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
+    "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
