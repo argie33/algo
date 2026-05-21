@@ -17,7 +17,7 @@ api_cors_allowed_origins = [
 algo_schedule_enabled = true
 algo_schedule_expression  = "cron(30 22 ? * MON-FRI *)"  # 10:30 PM UTC = 5:30 PM ET
 enable_morning_orchestrator = true
-cognito_enabled = false # Temporarily disabled to test public data API endpoints
+cognito_enabled = true # API Gateway requires Cognito JWT authentication on all routes except /health
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode         = "auto"
