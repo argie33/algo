@@ -176,6 +176,9 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     Raises:
         psycopg2.OperationalError: If connection fails after max retries
     """
+    import time
+    t_start = time.time()
+    logger.info(f"[DB] get_db_connection() starting")
     config = get_db_config()
     config["connect_timeout"] = timeout
 
@@ -187,7 +190,8 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     for attempt in range(max_retries):
         try:
             conn = psycopg2.connect(**config)
-            logger.debug(f"Database connection established (attempt {attempt + 1})")
+            t_connected = time.time()
+            logger.info(f"[DB] Connection established in {t_connected-t_start:.2f}s (attempt {attempt + 1})")
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e

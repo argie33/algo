@@ -207,9 +207,16 @@ class AlgoConfig:
     }
 
     def __init__(self):
+        import time
+        t0 = time.time()
+        logger.info(f"[AlgoConfig] __init__ starting")
         self._config = {}
         self._load_defaults()
+        t1 = time.time()
+        logger.info(f"[AlgoConfig] defaults loaded in {t1-t0:.2f}s")
         self._load_from_database()
+        t2 = time.time()
+        logger.info(f"[AlgoConfig] database loaded in {t2-t1:.2f}s, total {t2-t0:.2f}s")
 
     def _load_defaults(self):
         """Load default configuration."""
@@ -218,14 +225,21 @@ class AlgoConfig:
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
+        import time
+        t0 = time.time()
+        logger.info(f"[AlgoConfig] _load_from_database() starting")
         conn = None
         cur = None
         try:
+            t_conn_start = time.time()
             conn = get_db_connection()
+            t_conn_done = time.time()
+            logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
             cur = conn.cursor()
 
             cur.execute("SELECT key, value, value_type FROM algo_config")
             rows = cur.fetchall()
+            logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
             for key, value, dtype in rows:
                 if value is not None:
@@ -235,6 +249,8 @@ class AlgoConfig:
                     except ValueError as e:
                         logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
             self._validate_r_multiple_ordering()
+            t_end = time.time()
+            logger.info(f"[AlgoConfig] _load_from_database() completed in {t_end-t0:.2f}s")
         except Exception as e:
             logger.warning(f"Warning: Could not load config from DB: {e}")
             logger.info("  Using defaults...")
