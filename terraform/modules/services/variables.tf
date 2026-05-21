@@ -585,4 +585,3 @@ variable "enable_execution_monitor_schedule" {
   type        = bool
   default     = false
 }
-}
