@@ -34,13 +34,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
 
             cur.execute("""
                 SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.strength, bsd.reason,
-                    COALESCE(bsd.close, 0) as close,
-                    COALESCE(bsd.entry_quality_score, 0) as entry_quality_score,
-                    COALESCE(bsd.signal_quality_score, 0) as signal_quality_score,
-                    COALESCE(bsd.risk_reward_ratio, 0) as risk_reward_ratio,
-                    COALESCE(bsd.volume_surge_pct, 0) as volume_surge_pct,
-                    COALESCE(bsd.stage_number, 0) as stage_number
+                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.strength, bsd.reason
                 FROM buy_sell_daily bsd
                 """ + where_clause + """
                 ORDER BY bsd.date DESC, bsd.symbol ASC
