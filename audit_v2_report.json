@@ -1,0 +1,221 @@
+{
+  "timestamp": "2026-05-21T19:32:47.352Z",
+  "pages": {
+    "/": {
+      "name": "Home (Marketing)",
+      "url": "/",
+      "timestamp": "2026-05-21T19:32:47.353Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 1,
+        "dataElements": 0,
+        "charts": 6
+      },
+      "loadTime": 3437,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/markets": {
+      "name": "Markets Health",
+      "url": "/app/markets",
+      "timestamp": "2026-05-21T19:32:50.816Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 6,
+        "dataElements": 169,
+        "charts": 711
+      },
+      "loadTime": 3089,
+      "hasErrors": false,
+      "allDataLoaded": true
+    },
+    "/app/economic": {
+      "name": "Economic Dashboard",
+      "url": "/app/economic",
+      "timestamp": "2026-05-21T19:32:53.925Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 4,
+        "dataElements": 90,
+        "charts": 376
+      },
+      "loadTime": 2282,
+      "hasErrors": false,
+      "allDataLoaded": true
+    },
+    "/app/sectors": {
+      "name": "Sector Analysis",
+      "url": "/app/sectors",
+      "timestamp": "2026-05-21T19:32:56.224Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 10,
+        "nullFields": 30,
+        "dataElements": 109,
+        "charts": 995
+      },
+      "loadTime": 7510,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/sentiment": {
+      "name": "Sentiment",
+      "url": "/app/sentiment",
+      "timestamp": "2026-05-21T19:33:03.752Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 3,
+        "nullFields": 11,
+        "dataElements": 53,
+        "charts": 155
+      },
+      "loadTime": 2287,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/trading-signals": {
+      "name": "Trading Signals",
+      "url": "/app/trading-signals",
+      "timestamp": "2026-05-21T19:33:06.049Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 500,
+        "nullFields": 4496,
+        "dataElements": 45,
+        "charts": 618
+      },
+      "loadTime": 2426,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/deep-value": {
+      "name": "Deep Value Stocks",
+      "url": "/app/deep-value",
+      "timestamp": "2026-05-21T19:33:08.520Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 100,
+        "nullFields": 100,
+        "dataElements": 6,
+        "charts": 21
+      },
+      "loadTime": 2142,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/swing": {
+      "name": "Swing Candidates",
+      "url": "/app/swing",
+      "timestamp": "2026-05-21T19:33:10.680Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 192,
+        "nullFields": 1110,
+        "dataElements": 54,
+        "charts": 398
+      },
+      "loadTime": 2445,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/scores": {
+      "name": "Scores Dashboard",
+      "url": "/app/scores",
+      "timestamp": "2026-05-21T19:33:13.154Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 50,
+        "nullFields": 50,
+        "dataElements": 13,
+        "charts": 23
+      },
+      "loadTime": 2312,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/backtests": {
+      "name": "Backtests",
+      "url": "/app/backtests",
+      "timestamp": "2026-05-21T19:33:15.482Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 0,
+        "dataElements": 4,
+        "charts": 20
+      },
+      "loadTime": 2125,
+      "hasErrors": false,
+      "allDataLoaded": true
+    },
+    "/app/portfolio": {
+      "name": "Portfolio",
+      "url": "/app/portfolio",
+      "timestamp": "2026-05-21T19:33:17.618Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 0,
+        "dataElements": 0,
+        "charts": 5
+      },
+      "loadTime": 2117,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/trades": {
+      "name": "Trade Tracker",
+      "url": "/app/trades",
+      "timestamp": "2026-05-21T19:33:19.752Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 0,
+        "dataElements": 0,
+        "charts": 5
+      },
+      "loadTime": 2130,
+      "hasErrors": false,
+      "allDataLoaded": false
+    },
+    "/app/performance": {
+      "name": "Performance",
+      "url": "/app/performance",
+      "timestamp": "2026-05-21T19:33:21.894Z",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "dataStatus": {
+        "emptyTables": 0,
+        "nullFields": 0,
+        "dataElements": 0,
+        "charts": 5
+      },
+      "loadTime": 2123,
+      "hasErrors": false,
+      "allDataLoaded": false
+    }
+  },
+  "summary": {
+    "totalPages": 13,
+    "pagesWithErrors": 0,
+    "pagesWithoutData": 4,
+    "fullyWorkingPages": 3,
+    "avgNullFields": 447,
+    "avgLoadTime": 2802
+  }
+}
