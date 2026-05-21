@@ -20,6 +20,15 @@ Trading platform with real Alpaca credentials (paper + live). Security = non-neg
 | **Signals** | `algo/algo_signals.py` | Called by Orchestrator | Orchestrator Phase 5 | Buy/sell signals from technical indicators (RSI, SMA, EMA, ATR, stages) |
 | **Tests** | `tests/`, `lambda/api/tests/` | Local | `pytest` | Unit + integration tests (282 passing) |
 
+## DATABASE SCHEMA (IaC Best Practice)
+
+**Single source of truth:** `terraform/modules/database/init.sql`
+- Defines all tables including buy_sell_daily with loader-required columns (timeframe, signal_type, macd, macd_signal, etc)
+- Terraform deploys it → Lambda reads it on startup → applies to RDS
+- **NEVER** create separate init scripts (Python, JS, SQL files scattered around)
+- Schema changes: edit init.sql, commit, deploy via Terraform
+- Local dev: `docker-compose up` runs the same init.sql
+
 ## CREDENTIALS
 
 ### ⚠️ CRITICAL: NO .env FILES. EVER.
