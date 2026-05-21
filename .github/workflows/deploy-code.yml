@@ -479,6 +479,9 @@ jobs:
             '--region', region], capture_output=True)
 
           # Build Lambda configuration JSON
+          # NOTE: DO NOT include DB_PASSWORD in env vars - use DATABASE_SECRET_ARN instead
+          # This ensures Lambda always reads the latest password from Secrets Manager,
+          # avoiding stale passwords after RDS sync
           lambda_config = {
             "FunctionName": func_name,
             "Environment": {
@@ -488,7 +491,6 @@ jobs:
                 "DB_PORT": str(db_port),
                 "DB_NAME": str(db_name),
                 "DB_USER": "stocks",
-                "DB_PASSWORD": str(db_password),
                 "APCA_API_KEY_ID": alpaca_api_key,
                 "APCA_API_SECRET_KEY": alpaca_api_secret,
                 "APCA_API_BASE_URL": apca_base_url,

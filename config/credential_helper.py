@@ -69,19 +69,15 @@ def get_db_password() -> str:
     """Get database password with proper fallbacks (environment-aware).
 
     Priority:
-    1. DB_PASSWORD environment variable (CI, Lambda env injection)
-    2. credential_manager (local dev, AWS Secrets Manager)
-    3. Fallback (testing, local dev without creds)
+    1. credential_manager via DATABASE_SECRET_ARN (Lambda/production, reads latest from Secrets Manager)
+    2. credential_manager fallback (local dev, AWS Secrets Manager)
+    3. DB_PASSWORD environment variable (CI fallback, legacy)
+    4. Fallback (testing, local dev without creds)
 
     Returns:
         str: Database password
     """
-    # 1. Try environment variable first (CI/Lambda)
-    password = os.getenv("DB_PASSWORD")
-    if password is not None:
-        return password
-
-    # 2. Try credential_manager (local dev with AWS access)
+    # 1. Try credential_manager via DATABASE_SECRET_ARN (highest priority - always fresh from Secrets Manager)
     try:
         from config.credential_manager import get_credential_manager
         cm = get_credential_manager()
@@ -94,14 +90,20 @@ def get_db_password() -> str:
     except Exception as e:
         logger.debug(f"credential_manager failed (expected in some environments): {e}")
 
-    # 3. No fallback — require explicit configuration
+    # 2. Try environment variable as fallback (CI, legacy Lambda deployments)
+    password = os.getenv("DB_PASSWORD")
+    if password is not None:
+        logger.debug("Using DB_PASSWORD env var (legacy fallback - consider using DATABASE_SECRET_ARN)")
+        return password
+
+    # 3. Fallback for testing
     password_fallback = os.getenv("DB_PASSWORD_FALLBACK")
     if password_fallback:
         return password_fallback
 
     raise ValueError(
         "Database password not available. Please set: "
-        "DB_PASSWORD (env), DB_PASSWORD_FALLBACK (env), or configure AWS Secrets Manager"
+        "DATABASE_SECRET_ARN (Lambda/AWS), DB_PASSWORD (env fallback), or configure AWS Secrets Manager"
     )
 
 
