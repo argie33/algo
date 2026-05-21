@@ -69,9 +69,9 @@ jobs:
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1
 
-          echo "Waiting for task logs..."
+          echo "Task launched. Waiting 90 seconds for execution..."
           sleep 90
-          aws logs tail /ecs/algo-stock_prices_daily-loader --follow --since 2m --region us-east-1 | head -200 || echo "No logs yet"
+          echo "Loader executing in background. Monitor via CloudWatch logs."
 
       - name: Invoke Stock Prices Weekly Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
