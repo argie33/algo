@@ -42,9 +42,9 @@ import { chromium } from 'playwright';
 
     try {
       console.log(`Testing ${pagePath || '(home)'}`);
-      const response = await page.goto(`http://localhost:5174${pagePath}`, { 
-        waitUntil: 'domcontentloaded', 
-        timeout: 30000 
+      const response = await page.goto(`http://localhost:5173${pagePath}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000
       });
       
       console.log(`  Status: ${response.status()}`);
