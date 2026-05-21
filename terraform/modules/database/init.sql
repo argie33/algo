@@ -250,11 +250,26 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
+    timeframe VARCHAR(20),
     signal VARCHAR(20),
+    signal_type VARCHAR(20),
     strength DECIMAL(8, 4),
     reason VARCHAR(255),
+    entry_quality_score DECIMAL(8, 2),
+    signal_quality_score DECIMAL(8, 2),
+    volume_surge_pct DECIMAL(8, 2),
+    risk_reward_ratio DECIMAL(8, 2),
+    rsi DECIMAL(8, 2),
+    sma_50 DECIMAL(12, 2),
+    sma_200 DECIMAL(12, 2),
+    ema_21 DECIMAL(12, 2),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 2),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    stage_number INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    UNIQUE(symbol, timeframe, date)
 );
 
 -- Weekly buy/sell signals
@@ -262,11 +277,26 @@ CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
+    timeframe VARCHAR(20),
     signal VARCHAR(20),
+    signal_type VARCHAR(20),
     strength DECIMAL(8, 4),
     reason VARCHAR(255),
+    entry_quality_score DECIMAL(8, 2),
+    signal_quality_score DECIMAL(8, 2),
+    volume_surge_pct DECIMAL(8, 2),
+    risk_reward_ratio DECIMAL(8, 2),
+    rsi DECIMAL(8, 2),
+    sma_50 DECIMAL(12, 2),
+    sma_200 DECIMAL(12, 2),
+    ema_21 DECIMAL(12, 2),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 2),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    stage_number INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    UNIQUE(symbol, timeframe, date)
 );
 
 -- Monthly buy/sell signals
@@ -274,11 +304,26 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
+    timeframe VARCHAR(20),
     signal VARCHAR(20),
+    signal_type VARCHAR(20),
     strength DECIMAL(8, 4),
     reason VARCHAR(255),
+    entry_quality_score DECIMAL(8, 2),
+    signal_quality_score DECIMAL(8, 2),
+    volume_surge_pct DECIMAL(8, 2),
+    risk_reward_ratio DECIMAL(8, 2),
+    rsi DECIMAL(8, 2),
+    sma_50 DECIMAL(12, 2),
+    sma_200 DECIMAL(12, 2),
+    ema_21 DECIMAL(12, 2),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 2),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    stage_number INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    UNIQUE(symbol, timeframe, date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -2628,6 +2673,20 @@ ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_losing_trades INTEGER;
 ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS quantity DECIMAL(12,2);
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS profit_loss_percent DECIMAL(8,4);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- FEATURE FLAGS — Control system behavior without code changes
+-- ════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS feature_flags (
+    flag_name VARCHAR(100) PRIMARY KEY,
+    flag_type VARCHAR(50) NOT NULL,
+    value TEXT,
+    description TEXT,
+    metadata JSONB DEFAULT '{}',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_feature_flags_type ON feature_flags (flag_type);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- LOADER WATERMARKS — Track incremental load progress per symbol
