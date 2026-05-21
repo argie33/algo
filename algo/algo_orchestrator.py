@@ -110,9 +110,11 @@ class Orchestrator:
         # In dry-run mode, database is optional; fail gracefully if unavailable
         self.db_pool = None
         try:
+            logger.info("[POOL] Creating ThreadedConnectionPool with minconn=1, maxconn=25")
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
                 minconn=1, maxconn=25, **get_db_config()
             )
+            logger.info("[POOL] ThreadedConnectionPool created successfully")
         except Exception as e:
             if self.dry_run:
                 logger.info(f"[DRY-RUN] Database unavailable: {e}. Proceeding with planning mode.")
@@ -121,7 +123,9 @@ class Orchestrator:
                 logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
                 self.db_pool = None
 
+        logger.info("[ORCHESTRATOR] About to initialize feature flags")
         self._initialize_feature_flags()
+        logger.info("[ORCHESTRATOR] Feature flags initialized")
 
     def _get_conn(self, max_retries: int = 3) -> psycopg2.extensions.connection:
         """Get database connection from pool with exponential backoff retry.
@@ -217,6 +221,11 @@ class Orchestrator:
 
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
+        # In AWS Lambda, skip feature flag initialization (uses defaults only)
+        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+            logger.info("[FEATURE_FLAGS] Skipping initialization in Lambda (using defaults)")
+            return
+
         try:
             from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
             # Ensure table exists
