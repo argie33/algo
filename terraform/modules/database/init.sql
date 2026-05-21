@@ -827,9 +827,10 @@ CREATE TABLE IF NOT EXISTS economic_data (
     series_id VARCHAR(50) NOT NULL,
     date DATE NOT NULL,
     value DECIMAL(12, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(series_id, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Explicit unique index for ON CONFLICT support in loader
+CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_data_unique ON economic_data(series_id, date);
 CREATE INDEX IF NOT EXISTS idx_economic_data_series_date ON economic_data(series_id, date DESC);
 
 -- Index metrics (market breadth, etc.)
