@@ -2,11 +2,12 @@
 
 ## STATUS
 - **Orchestrator:** ✅ 7 phases operational locally, AWS Lambda deployed
-- **Loaders:** ✅ All 6 loaders running on schedule (EventBridge → ECS Fargate)
-- **Frontend:** ⚠️ 4/13 pages 100% working (marketing), 5/13 partial (rendering but data incomplete), 4/13 zero data
-- **API:** ✅ Connected to PostgreSQL (stocks database, 10K+ stocks), Vite proxy fixed to port 3001
-- **Database:** ✅ Connected, partially populated (8.1M price rows, 875 company profiles, but many metrics NULL)
-- **Blocker:** Pages with dashes (—) indicate NULL fields in database — need loader verification & schema checks
+- **Loaders:** ⚠️ Running on schedule but DATA INCOMPLETE — need verification of successful completion
+- **Frontend:** ⚠️ 4/13 pages 100% working (marketing), 9/13 partial/zero (render but missing data)
+- **API:** ✅ Connected to PostgreSQL, Vite proxy fixed to port 3001, endpoints returning data
+- **Database:** ✅ Connected, core metrics populated (key_metrics, value_metrics, quality_metrics, company_profile for 10K stocks)
+- **Blocker:** Pages with dashes (—) & zero elements indicate incomplete data in: market indices, economic data, signals, backtest results
+- **Root Cause:** Loaders must fetch & populate remaining tables from external APIs (FRED, yfinance, Alpaca, etc.)
 
 ## SYSTEM MAP
 | Component | Code | Deployment | Trigger | Purpose |
