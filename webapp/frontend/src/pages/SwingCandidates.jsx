@@ -65,10 +65,11 @@ export default function SwingCandidates() {
   const [gateFilter, setGateFilter] = useState('');
   const [minScore, setMinScore] = useState(0);
   const [selectedSym, setSelectedSym] = useState(null);
+  const [limit, setLimit] = useState(500); // Allow user to change limit
 
   const { data: items, loading: isLoading, error: itemsError, refetch, isFetching } = useApiQuery(
-    ['swing-candidates', minScore],
-    () => api.get(`/api/algo/swing-scores?limit=500&min_score=${minScore}`),
+    ['swing-candidates', minScore, limit],
+    () => api.get(`/api/algo/swing-scores?limit=${limit}&min_score=${minScore}`),
     { refetchInterval: 60000 }
   );
 
@@ -164,7 +165,19 @@ export default function SwingCandidates() {
             {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>· {itemsList.length} candidates</span>}
           </div>
         </div>
-        <div className="page-head-actions">
+        <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="input"
+            style={{ padding: '6px 8px', fontSize: 'var(--t-xs)', minWidth: '100px' }}
+          >
+            <option value={100}>Show 100</option>
+            <option value={500}>Show 500</option>
+            <option value={1000}>Show 1,000</option>
+            <option value={2000}>Show 2,000</option>
+            <option value={5000}>Show All</option>
+          </select>
           <button className="btn btn-outline btn-sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={14} /> Refresh
           </button>

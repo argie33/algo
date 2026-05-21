@@ -17,10 +17,11 @@ const DeepValueStocks = () => {
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [sortBy, setSortBy] = useState("generational_score");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [limit, setLimit] = useState(600); // Allow user to change limit
 
   const { data: rawStocks = [], loading, error } = useApiQuery(
-    ['deepValueStocks'],
-    () => api.get("/api/stocks/deep-value?limit=600")
+    ['deepValueStocks', limit],
+    () => api.get(`/api/stocks/deep-value?limit=${limit}`)
   );
 
   const stocks = useMemo(() => {
@@ -446,6 +447,16 @@ const DeepValueStocks = () => {
               <option value={20}>20</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <label style={{ fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--w-bold)', textTransform: 'uppercase' }}>Load records</label>
+            <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(0); }} className="input">
+              <option value={200}>200</option>
+              <option value={600}>600</option>
+              <option value={1000}>1,000</option>
+              <option value={2000}>2,000</option>
+              <option value={5000}>5,000</option>
             </select>
           </div>
           <button className="btn btn-outline" onClick={() => {

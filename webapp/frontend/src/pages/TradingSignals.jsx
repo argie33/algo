@@ -85,6 +85,7 @@ export default function TradingSignals() {
   const [expandedKey, setExpandedKey] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [freshness, setFreshness] = useState('—');
+  const [limit, setLimit] = useState(500); // Allow user to change limit
 
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {
@@ -97,11 +98,11 @@ export default function TradingSignals() {
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
   const { data, loading: isLoading, refetch, isFetching } = useApiQuery(
-    ['signals', tab, signal, timeframe],
+    ['signals', tab, signal, timeframe, limit],
     () => {
       const params = new URLSearchParams();
       params.set('timeframe', timeframe);
-      params.set('limit', '500');
+      params.set('limit', String(limit));
       if (signal !== 'all') params.set('signal', signal);
       return api.get(`${endpoint}?${params.toString()}`);
     },
@@ -264,7 +265,20 @@ export default function TradingSignals() {
             </span>
           </div>
         </div>
-        <div className="page-head-actions">
+        <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="input"
+            style={{ padding: '6px 8px', fontSize: 'var(--t-xs)', minWidth: '100px' }}
+          >
+            <option value={100}>Show 100</option>
+            <option value={500}>Show 500</option>
+            <option value={1000}>Show 1,000</option>
+            <option value={2000}>Show 2,000</option>
+            <option value={5000}>Show 5,000</option>
+            <option value={10000}>Show All</option>
+          </select>
           <button className="btn btn-outline btn-sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={14} /> Refresh
           </button>
