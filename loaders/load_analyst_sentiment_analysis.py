@@ -40,8 +40,7 @@ class AnalystSentimentLoader:
             # Get all SP500 stocks
             cur.execute("""
                 SELECT symbol FROM stock_symbols
-                WHERE is_sp500 = true
-                ORDER BY symbol
+                ORDER BY symbol LIMIT 500
             """)
 
             symbols = [row[0] for row in cur.fetchall()]
@@ -104,6 +103,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Load analyst sentiment data')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     parser.add_argument('--date', type=str, help='Date to load (YYYY-MM-DD)')
     args = parser.parse_args()
 

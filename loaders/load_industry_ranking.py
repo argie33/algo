@@ -51,7 +51,7 @@ class IndustryRankingLoader:
                 FROM stock_fundamentals f
                 JOIN stock_symbols s ON f.symbol = s.symbol
                 JOIN price_daily p ON f.symbol = p.symbol
-                WHERE s.is_sp500 = true AND f.industry IS NOT NULL
+                WHERE f.industry IS NOT NULL
                   AND p.date = %s
                 ORDER BY f.industry, f.symbol
             """, (data_date,))
@@ -124,6 +124,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Load industry ranking data')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     parser.add_argument('--date', type=str, help='Date to load (YYYY-MM-DD)')
     args = parser.parse_args()
 

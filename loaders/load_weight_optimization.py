@@ -161,6 +161,9 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
 def main():
     import argparse
     import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+
     from config.env_loader import load_env
 
     load_env()

@@ -110,7 +110,7 @@ def main():
     if args.date:
         run_date = date.fromisoformat(args.date)
 
-    loader = NAA IMLoader()
+    loader = NAAIMLoader()
     result = loader.run(run_date)
 
     if result["success"]:

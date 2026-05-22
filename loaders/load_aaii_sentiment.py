@@ -95,6 +95,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Load AAII sentiment data')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     parser.add_argument('--date', type=str, help='Date to load (YYYY-MM-DD)')
     args = parser.parse_args()
 

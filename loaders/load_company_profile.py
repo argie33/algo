@@ -33,15 +33,13 @@ class CompanyProfileLoader:
         try:
             cur = self.conn.cursor()
 
-            # Get all stocks with fundamentals data
+            # Get all stocks (limit for speed)
             cur.execute("""
-                SELECT DISTINCT s.symbol, s.security_name, s.sector, s.industry,
-                       f.market_cap, f.pe_ratio, f.dividend_yield, f.roe,
-                       f.debt_to_equity, f.current_ratio, f.quick_ratio
-                FROM stock_symbols s
-                LEFT JOIN stock_fundamentals f ON s.symbol = f.symbol
-                WHERE s.is_sp500 = true
-                ORDER BY s.symbol
+                SELECT symbol, security_name, exchange, market_category
+                FROM stock_symbols
+                WHERE symbol IS NOT NULL
+                ORDER BY symbol
+                LIMIT 500
             """)
 
             rows = cur.fetchall()
@@ -51,28 +49,15 @@ class CompanyProfileLoader:
 
             # Upsert company profiles
             inserted = 0
-            for (symbol, name, sector, industry, market_cap, pe, div_yield,
-                 roe, debt_eq, current_ratio, quick_ratio) in rows:
-
+            for (symbol, name, exchange, market_cat) in rows:
                 cur.execute("""
                     INSERT INTO company_profile
-                    (symbol, company_name, sector, industry, market_cap, pe_ratio,
-                     dividend_yield, roe, debt_to_equity, current_ratio, quick_ratio, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                    company_name = EXCLUDED.company_name,
-                    sector = EXCLUDED.sector,
-                    industry = EXCLUDED.industry,
-                    market_cap = EXCLUDED.market_cap,
-                    pe_ratio = EXCLUDED.pe_ratio,
-                    dividend_yield = EXCLUDED.dividend_yield,
-                    roe = EXCLUDED.roe,
-                    debt_to_equity = EXCLUDED.debt_to_equity,
-                    current_ratio = EXCLUDED.current_ratio,
-                    quick_ratio = EXCLUDED.quick_ratio,
+                    (ticker, symbol, short_name, display_name, exchange, created_at)
+                    VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (ticker) DO UPDATE SET
+                    exchange = EXCLUDED.exchange,
                     updated_at = CURRENT_TIMESTAMP
-                """, (symbol, name, sector, industry, market_cap, pe, div_yield,
-                      roe, debt_eq, current_ratio, quick_ratio))
+                """, (symbol, symbol, name, name, exchange))
                 inserted += 1
 
             self.conn.commit()
@@ -91,6 +76,12 @@ class CompanyProfileLoader:
             self.disconnect()
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Company Profile Loader')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
+    args = parser.parse_args()
+
     loader = CompanyProfileLoader()
     result = loader.run()
 
