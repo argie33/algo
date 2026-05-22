@@ -411,8 +411,9 @@ locals {
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "sectors"                     = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 600, parallelism = 4 }
+    # Sectors/industry: increased timeout for 5000+ symbol processing with parallelism=4
+    "sectors"                     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Market & economic data — small datasets, single-threaded fine
     "market_indices" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }

@@ -283,6 +283,8 @@ module "services" {
   rds_security_group_id             = module.vpc.rds_security_group_id
   enable_execution_monitor          = true
   enable_execution_monitor_schedule = true
+  weight_optimization_task_definition_arn = module.loaders.weight_optimization_task_definition_arn
+  algo_lambda_sg_id                 = module.vpc.algo_lambda_security_group_id
   common_tags                       = local.common_tags
 }
 

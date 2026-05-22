@@ -114,27 +114,23 @@ resource "aws_scheduler_schedule" "weight_optimization" {
     mode = "OFF"
   }
 
-  # Target: invoke weight optimization ECS task
+  # Target: invoke weight optimization ECS task via Lambda bridge
+  # (EventBridge Scheduler doesn't support direct ECS task scheduling in all regions,
+  #  so we use Lambda as a bridge to invoke the ECS task)
   target {
-    arn      = var.weight_optimization_task_definition_arn
+    arn      = aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
-    ecs_parameters {
-      task_definition_arn = var.weight_optimization_task_definition_arn
-      launch_type         = "FARGATE"
-      network_configuration {
-        subnets          = var.private_subnet_ids
-        security_groups  = [var.algo_lambda_sg_id]
-        assign_public_ip = false
-      }
-    }
-
     input = jsonencode({
-      source        = "eventbridge-scheduler"
-      trigger_type  = "daily_optimization"
-      run_date      = "now"
-      lookback_days = 7
-      dry_run       = false
+      source                              = "eventbridge-scheduler"
+      trigger_type                        = "daily_optimization"
+      run_date                            = "now"
+      lookback_days                       = 7
+      dry_run                             = false
+      weight_optimization_task_arn        = var.weight_optimization_task_definition_arn
+      weight_optimization_cluster_arn     = var.ecs_cluster_arn
+      weight_optimization_subnets         = var.private_subnet_ids
+      weight_optimization_security_groups = [var.algo_lambda_sg_id]
     })
   }
 }
