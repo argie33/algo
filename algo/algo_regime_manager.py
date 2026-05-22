@@ -83,6 +83,8 @@ class RegimeManager:
             self.cur.close()
         if self.conn:
             self.conn.close()
+        self.cur = None
+        self.conn = None
 
     def get_current_regime(self, as_of_date: Optional[_date] = None) -> str:
         """

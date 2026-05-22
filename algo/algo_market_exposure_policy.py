@@ -210,8 +210,9 @@ class ExposurePolicy:
                        p.position_id, p.quantity, p.target_levels_hit,
                        p.current_stop_price, p.current_price,
                        p.unrealized_pnl_pct
-                FROM algo_trades t
-                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                FROM algo_positions p,
+                     LATERAL UNNEST(p.trade_ids_arr) AS trade_id
+                JOIN algo_trades t ON t.trade_id = trade_id
                 WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
                 """
             )
