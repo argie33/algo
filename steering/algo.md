@@ -2,15 +2,20 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 48 total (34 scheduled + variants), all verified working (344623f17)
+- ✅ Loaders: 48 total, ECS Fargate execution active
   - ✅ Updated 7 loaders to new load_*.py versions (aaii, naaim, feargreed, company_profile, analyst_sentiment, analyst_upgrade, industry_ranking)
   - ✅ All 48 loaders import + --help test OK
   - ✅ Terraform ECS mappings deployed successfully
   - ✅ Docker image (ECR) rebuilt with all loaders
+  - 🔄 **ACTIVE NOW:** 7 critical loaders running (workflow 26312128122, launched 21:10 UTC)
+    - stock_prices_daily, stock_prices_weekly, market_data_batch, technical_data_daily, signals_daily, algo_metrics_daily, econ_data
+    - ETA: ~180+ min from launch (expected ~22:30 UTC)
+  - ⏳ Remaining 40+ loaders queued (ETF prices, signal variants, metrics, financials, sentiment, earnings, etc.)
+- ✅ Schema: rs_percentile column added to stock_scores, migration script created
 - ✅ Data: price_daily (8.1M rows), company_profile (10.1K), technical_data (8.1M), stock_symbols (10.2K)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
 - ✅ Tests: 297/302 pass, schema validated
-- NEXT: Monitor ECS loader execution via CloudWatch logs + verify all table data freshness
+- NEXT: Verify ECS completion (scripts/verify_loader_completion.py) → Run remaining 40+ loaders (scripts/batch_run_loaders.py)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
