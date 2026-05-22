@@ -40,40 +40,89 @@ jobs:
         run: |
           echo "=== Launching All 7 Loaders in Parallel ==="
 
+          # Create temp file to store task ARNs
+          > /tmp/loader_tasks.txt
+
           for loader in stock_prices_daily stock_prices_weekly market_data_batch technical_data_daily signals_daily algo_metrics_daily econ_data; do
             echo "Launching algo-${loader}-loader..."
-            aws ecs run-task \
+            TASK_ARN=$(aws ecs run-task \
               --cluster algo-cluster \
               --task-definition algo-${loader}-loader \
               --launch-type FARGATE \
               --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
-              --region us-east-1 > /dev/null
+              --region us-east-1 \
+              --query 'tasks[0].taskArn' \
+              --output text)
+            echo "$TASK_ARN" >> /tmp/loader_tasks.txt
+            echo "  Task ARN: $TASK_ARN"
           done
 
-          echo "All loaders launched. Waiting for data to populate in RDS..."
+          echo ""
+          echo "All 7 loaders launched. Task ARNs saved."
 
-      - name: Wait for Data (up to 30 minutes)
+      - name: Wait for Loaders to Complete (up to 90 minutes)
         run: |
           ELAPSED=0
-          MAX_WAIT=1800  # 30 minutes
+          MAX_WAIT=5400  # 90 minutes - loaders need 45-60 min for 5000+ symbols
+          POLL_INTERVAL=30
+
+          # Read all task ARNs from file
+          mapfile -t TASKS < /tmp/loader_tasks.txt
+
+          echo "Waiting for ${#TASKS[@]} loaders to complete..."
+          echo ""
 
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            echo "[$ELAPSED/$MAX_WAIT] Checking if data has been loaded..."
+            ALL_STOPPED=true
+            ANY_FAILED=false
 
-            # Check if at least one table has data (economic_data is critical)
-            COUNT=$(aws secretsmanager get-secret-value --secret-id algo/rds/master --region us-east-1 --query SecretString --output text 2>/dev/null || echo "")
+            # Check status of each task
+            for TASK_ARN in "${TASKS[@]}"; do
+              STATUS=$(aws ecs describe-tasks \
+                --cluster algo-cluster \
+                --tasks "$TASK_ARN" \
+                --region us-east-1 \
+                --query 'tasks[0].lastStatus' \
+                --output text 2>/dev/null || echo "UNKNOWN")
 
-            if [ -n "$COUNT" ]; then
-              echo "✅ Data checkpoint passed. Loaders appear to have executed."
+              if [ "$STATUS" != "STOPPED" ]; then
+                ALL_STOPPED=false
+              fi
+
+              # Check exit code if stopped
+              if [ "$STATUS" = "STOPPED" ]; then
+                EXIT_CODE=$(aws ecs describe-tasks \
+                  --cluster algo-cluster \
+                  --tasks "$TASK_ARN" \
+                  --region us-east-1 \
+                  --query 'tasks[0].containers[0].exitCode' \
+                  --output text 2>/dev/null || echo "")
+
+                if [ "$EXIT_CODE" != "0" ] && [ -n "$EXIT_CODE" ]; then
+                  echo "❌ Task failed: $TASK_ARN (exit code: $EXIT_CODE)"
+                  ANY_FAILED=true
+                fi
+              fi
+            done
+
+            if [ "$ALL_STOPPED" = true ]; then
+              if [ "$ANY_FAILED" = true ]; then
+                echo ""
+                echo "❌ One or more loaders failed. Exiting."
+                exit 1
+              fi
+              echo "✅ All loaders completed successfully"
               break
             fi
 
-            sleep 30
-            ELAPSED=$((ELAPSED + 30))
+            echo "[$ELAPSED/$MAX_WAIT] Waiting for loaders... (${#TASKS[@]} tasks)"
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
           done
 
           if [ $ELAPSED -ge $MAX_WAIT ]; then
-            echo "⚠️ WARNING: Data not verified after 30 minutes, but proceeding anyway..."
+            echo "❌ Loaders did not complete within 90 minutes"
+            exit 1
           fi
 
       - name: Invoke Orchestrator Lambda
