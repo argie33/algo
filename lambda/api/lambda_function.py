@@ -63,12 +63,16 @@ def get_db_connection():
             logger.error('No database password')
             return None
 
+        # RDS Proxy requires SSL/TLS connections
+        sslmode = os.getenv('DB_SSL', 'require')
+
         _db_conn = psycopg2.connect(
             host=db_host,
             port=db_port,
             database=db_name,
             user=db_user,
             password=db_password,
+            sslmode=sslmode,
             cursor_factory=RealDictCursor,
             connect_timeout=10
         )
