@@ -116,12 +116,14 @@ class SectorsLoader(OptimalLoader):
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Optimal sectors loader")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
+    symbols = args.symbols.split(",") if args.symbols else ["sectors"]
     loader = SectorsLoader()
     try:
-        stats = loader.run(["sectors"], parallelism=args.parallelism)
+        stats = loader.run(symbols, parallelism=args.parallelism)
     finally:
         loader.close()
 

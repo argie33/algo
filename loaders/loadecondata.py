@@ -101,13 +101,15 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     parser = argparse.ArgumentParser(description="FRED economic data loader")
+    parser.add_argument("--symbols", type=str, help="Comma-separated series (default: all)")
     parser.add_argument("--backfill-days", type=int, default=0)
     parser.add_argument("--parallelism", type=int, default=4)
     args = parser.parse_args()
 
+    series = args.symbols.split(",") if args.symbols else FRED_SERIES
     loader = EconDataLoader(backfill_days=args.backfill_days)
     try:
-        stats = loader.run(FRED_SERIES, parallelism=args.parallelism)
+        stats = loader.run(series, parallelism=args.parallelism)
     finally:
         loader.close()
 

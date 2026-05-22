@@ -83,11 +83,12 @@ class MarketIndicesLoader(OptimalLoader):
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Market indices loader")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
-    # Load major market indices
-    symbols = ['^GSPC', '^IXIC', '^NYA', '^RUT']
+    # Default market indices if not specified
+    symbols = args.symbols.split(",") if args.symbols else ['^GSPC', '^IXIC', '^NYA', '^RUT']
 
     loader = MarketIndicesLoader(backfill_days=365)
     try:

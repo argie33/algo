@@ -15,7 +15,7 @@ from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
 
-class NAA IMLoader:
+class NAAIMLoader:
     """Load NAAIM index data."""
 
     def __init__(self):
@@ -101,6 +101,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Load NAAIM data')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     parser.add_argument('--date', type=str, help='Date to load (YYYY-MM-DD)')
     args = parser.parse_args()
 
