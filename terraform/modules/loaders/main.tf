@@ -369,10 +369,10 @@ locals {
     "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by yfinance
-    # Updated: timeout 900→1800s (30min for 5000/8 symbols), parallelism 16→8 (yfinance rate limit)
-    # Matches pattern of other yfinance-heavy loaders (financials: timeout=1800, parallelism=4-8)
-    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
-    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
+    # Fixed: timeout 1800→2400s (40min for 5000/4 symbols), parallelism 8→4 (respect yfinance 60/min rate limit)
+    # Real-world testing shows parallelism=8 exceeds yfinance rate limits for 5000+ symbols
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 4 }
+    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 4 }
     "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
     "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
     "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
@@ -425,8 +425,8 @@ locals {
     "stock_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
-    # Right-size: 2 vCPU with 8 threads = good CPU utilization for pandas/numpy work
-    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 8 }
+    # Fixed: timeout 1800→2400s, parallelism 8→4 (real-world testing: parallelism=8 too aggressive)
+    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 4 }
     "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 4 }
@@ -443,7 +443,7 @@ locals {
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 8 }
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 4 }
 
     # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, small dataset
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
