@@ -308,6 +308,7 @@ class DataProvenanceTracker:
                 )
             self.db_conn.commit()
         except Exception as e:
+            self.db_conn.rollback()
             logger.error(f"Failed to insert loader run: {e}", exc_info=True)
             # Allow system to continue - provenance is non-critical
 
@@ -342,6 +343,7 @@ class DataProvenanceTracker:
                 )
             self.db_conn.commit()
         except Exception as e:
+            self.db_conn.rollback()
             logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
             # Allow system to continue - provenance is non-critical
 
@@ -350,24 +352,28 @@ class DataProvenanceTracker:
         if not self.db_conn:
             return
 
-        with self.db_conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO data_provenance_errors
-                (run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    error_record["run_id"],
-                    error_record["loader_name"],
-                    error_record["symbol"],
-                    error_record["error_type"],
-                    error_record["error_message"],
-                    error_record["resolution"],
-                    error_record["recorded_at"],
-                ),
-            )
-        self.db_conn.commit()
+        try:
+            with self.db_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO data_provenance_errors
+                    (run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        error_record["run_id"],
+                        error_record["loader_name"],
+                        error_record["symbol"],
+                        error_record["error_type"],
+                        error_record["error_message"],
+                        error_record["resolution"],
+                        error_record["recorded_at"],
+                    ),
+                )
+            self.db_conn.commit()
+        except Exception as e:
+            self.db_conn.rollback()
+            logger.error(f"Failed to insert error record: {e}")
 
     def _finalize_loader_run(
         self,
@@ -379,26 +385,30 @@ class DataProvenanceTracker:
         if not self.db_conn or not self.run_id:
             return
 
-        with self.db_conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE data_loader_runs
-                SET success = %s,
-                    end_at = NOW(),
-                    duration_seconds = %s,
-                    ticks_loaded = %s,
-                    summary = %s
-                WHERE run_id = %s
-                """,
-                (
-                    success,
-                    duration_seconds,
-                    len(self.ticks_recorded),
-                    json.dumps(summary) if summary else None,
-                    self.run_id,
-                ),
-            )
-        self.db_conn.commit()
+        try:
+            with self.db_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE data_loader_runs
+                    SET success = %s,
+                        end_at = NOW(),
+                        duration_seconds = %s,
+                        ticks_loaded = %s,
+                        summary = %s
+                    WHERE run_id = %s
+                    """,
+                    (
+                        success,
+                        duration_seconds,
+                        len(self.ticks_recorded),
+                        json.dumps(summary) if summary else None,
+                        self.run_id,
+                    ),
+                )
+            self.db_conn.commit()
+        except Exception as e:
+            self.db_conn.rollback()
+            logger.error(f"Failed to finalize loader run: {e}")
 
     @staticmethod
     def _compute_checksum(data: Dict[str, Any]) -> str:
