@@ -37,8 +37,6 @@ See `steering/SYSTEM.md` for full abbreviation reference.
 2. Add row to project table
 3. Verify: root < 50 lines, steering < 150 lines, commit both together
 
-See `steering/SYSTEM.md` for full guidelines.
-
 ## Security Baseline
 
 ⚠️ **All projects follow:**
