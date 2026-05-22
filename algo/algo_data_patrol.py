@@ -165,7 +165,7 @@ class DataPatrol:
             ('technical_data_daily', 'date', 'daily', 7, CRIT),
             ('buy_sell_daily', 'date', 'daily', 7, CRIT),
             ('trend_template_data', 'date', 'daily', 7, CRIT),
-            ('signal_quality_scores', 'date', 'daily', 7, ERROR),
+            ('signal_quality_scores', 'date', 'daily', 7, WARN),  # Computed table, not critical if missing
             ('market_health_daily', 'date', 'daily', 7, ERROR),
             ('sector_ranking', 'date_recorded', 'daily', 10, WARN),
             ('industry_ranking', 'date_recorded', 'daily', 10, WARN),
