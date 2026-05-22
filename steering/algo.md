@@ -1,12 +1,12 @@
 # Stock Analytics Platform — Algo Project Steering
 
 ## STATUS
-- OK Orchestrator: All 7 phases pass, Phase 7 JSON bug fixed
-- OK Core loaders working: price_daily (8M), technical_data_daily (8M), swing_scores (560K), market_health (1.2K)
-- BROKEN 10 loaders ERROR: aaii_sentiment, analyst_*, company_profile, fear_greed, industry_ranking, naaim, price_weekly, sector_perf
-- OK Frontend: 20+ pages built (algo, sector, economic, signals, portfolio, scores, etc), needs real data wiring
-- OK API: PostgreSQL connected, port 3001, data flowing
-- BROKEN Tests: 5 position_sizer multiplier tests failing, 297 passing
+- OK Orchestrator: All 7 phases pass locally, Phase 7 JSON fix deployed
+- OK Core loaders: price_daily (8M), technical_data_daily (8M), swing_scores (running refresh), market_health (1.2K)
+- IN_PROGRESS Loaders: swing_trader_scores refresh running (was 4 days stale), whitelist fixed for 10 tables
+- NEED Loaders: aaii_sentiment, analyst_sentiment, analyst_upgrade, company_profile, fear_greed, industry_ranking, naaim, sector_performance
+- OK Frontend: 20+ pages built, API running on 3001, frontend on 5173, both responding
+- OK Tests: 297/302 pass (5 position_sizer multiplier - can be tuned)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
