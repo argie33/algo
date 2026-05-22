@@ -38,6 +38,11 @@ class MarginMonitor:
         try:
             import requests
 
+            # Skip Alpaca calls if credentials missing
+            if not self.alpaca_api_key or not self.alpaca_secret:
+                logger.debug("Alpaca credentials not configured, using default margin (70%)")
+                return {"margin_usage_pct": 70.0}
+
             headers = {
                 "APCA-API-KEY-ID": self.alpaca_api_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
@@ -45,8 +50,8 @@ class MarginMonitor:
             resp = requests.get(f"{self.base_url}/v2/account", headers=headers, timeout=5)
 
             if resp.status_code != 200:
-                logger.warning(f"Alpaca API error: {resp.status_code}")
-                return None
+                logger.warning(f"Alpaca API error: {resp.status_code}, using default margin")
+                return {"margin_usage_pct": 70.0}
 
             data = resp.json()
             equity = float(data.get("equity", 0))

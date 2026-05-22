@@ -62,7 +62,7 @@ class SignalTradePerformancePopulator:
                        t.entry_price, t.stop_loss_price, t.exit_price, t.entry_quantity,
                        t.exit_r_multiple, t.profit_loss_dollars, t.swing_score,
                        t.swing_components, t.trend_template_score,
-                       EXTRACT(DAY FROM t.exit_date - t.trade_date) AS holding_days
+                       (t.exit_date::date - t.trade_date::date) AS holding_days
                 FROM algo_trades t
                 WHERE t.status = 'closed'
                   AND t.exit_date >= %s
