@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 class CompanyProfileLoader(OptimalLoader):
     table_name = "company_profile"
-    primary_key = ("symbol",)
+    primary_key = ("ticker",)
     watermark_field = None  # No date watermark — upsert on every run
 
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
