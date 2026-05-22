@@ -2,11 +2,12 @@
 
 ## STATUS
 - ✅ Orchestrator: 7-phase local + Λ deployed
-- 🔄 Loaders: eod_bulk_refresh RUNNING (task 45ce4f29), 150 calls/min limiter, ETA 1-2h
-- ⚠️ Frontend: 4/13 pages 100% (marketing), 9/13 partial (missing data)
+- ✅ Loaders: eod_bulk_refresh COMPLETE (2.05M rows, 10,153 stocks, 68 min)
+- ⏳ Next: technical_data_daily, signals_daily (in progress)
+- ⚠️ Frontend: 4/13 pages 100% (marketing), 9/13 partial (awaiting real data)
 - ✅ API: PostgreSQL connected, port 3001, data flowing
-- ✅ DB: core metrics populated (10K stocks)
-- ✅ Fix applied: yfinance rate limiter 1000→150 calls/min (Docker image built + deployed)
+- ✅ DB: 2M+ price records loaded, ready for indicators
+- ✅ Fix deployed: yfinance rate limiter 1000→150 calls/min
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
