@@ -14,6 +14,9 @@ jobs:
   full-pipeline:
     name: Launch Loaders, Wait for Data, Execute Orchestrator
     runs-on: ubuntu-latest
+    concurrency:
+      group: loaders-pipeline
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +38,24 @@ jobs:
           SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
           echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
           echo "security_group=$SG" >> $GITHUB_OUTPUT
+
+      - name: Pre-flight Check - Detect Running Loaders
+        run: |
+          echo "=== Checking for Already-Running Loaders ==="
+          RUNNING_COUNT=0
+          for loader in stock_prices_daily stock_prices_weekly market_data_batch technical_data_daily signals_daily algo_metrics_daily econ_data; do
+            COUNT=$(aws ecs list-tasks --cluster algo-cluster --desired-status RUNNING --region us-east-1 --query "length(taskArns[?contains(taskArn, 'algo-${loader}')])" --output text 2>/dev/null || echo 0)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "⚠️  WARNING: $COUNT instance(s) of algo-${loader}-loader already running"
+              RUNNING_COUNT=$((RUNNING_COUNT + COUNT))
+            fi
+          done
+          if [ "$RUNNING_COUNT" -gt 0 ]; then
+            echo "❌ ERROR: $RUNNING_COUNT loader task(s) already running. Aborting to prevent duplicates and wasted costs."
+            echo "Action: Wait for existing loaders to complete or manually stop them in ECS."
+            exit 1
+          fi
+          echo "✅ No loaders currently running. Safe to proceed."
 
       - name: Launch All Loaders
         run: |
