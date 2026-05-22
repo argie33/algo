@@ -19,6 +19,14 @@ This workspace supports multiple projects. When working in this repo, **read the
 5. Update steering doc in same commit as system changes
 6. No layering (all steering in `steering/`, not in subdirs)
 
+## Source of Truth
+- **System state** → `steering/algo.md` (updated in-commit, versioned)
+- **Blocking work** → GitHub Issues (trackable, linkable)
+- **History** → `git log` (never stale)
+- **Behavioral rules** → Memory (max 1 file, no status snapshots)
+
+❌ NO status in memory, NO incident logs in memory, NO tracking there.
+
 ## Abbreviation Patterns
 
 - Times: `4A ET` not `4:00 AM Eastern Time`

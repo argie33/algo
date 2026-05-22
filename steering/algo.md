@@ -2,11 +2,11 @@
 
 ## STATUS
 - ✅ Orchestrator: 7-phase local + Λ deployed
-- ⚠️ Loaders: running on schedule, data incomplete (verify completion)
+- 🔧 Loaders: eod_bulk_refresh in progress, rate limiting fixed (1000→150 calls/min)
 - ⚠️ Frontend: 4/13 pages 100% (marketing), 9/13 partial (missing data)
 - ✅ API: PostgreSQL connected, port 3001, data flowing
 - ✅ DB: core metrics populated (10K stocks)
-- 🔴 Blocker: External APIs (FRED, yfinance, Alpaca) not fully populating tables
+- 🔧 Issue: yfinance internal rate limiting after 30s at 1000 calls/min → reduced to 150 calls/min
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
