@@ -1,13 +1,12 @@
 # Stock Analytics Platform — Algo Project Steering
 
 ## STATUS
-- ✅ Orchestrator: 7-phase local + Λ deployed
-- ✅ Loaders: eod_bulk_refresh COMPLETE (2.05M rows, 10,153 stocks, 68 min)
-- ⏳ Next: technical_data_daily, signals_daily (in progress)
-- ⚠️ Frontend: 4/13 pages 100% (marketing), 9/13 partial (awaiting real data)
-- ✅ API: PostgreSQL connected, port 3001, data flowing
-- ✅ DB: 2M+ price records loaded, ready for indicators
-- ✅ Fix deployed: yfinance rate limiter 1000→150 calls/min
+- OK Orchestrator: All 7 phases pass, Phase 7 JSON bug fixed
+- OK Core loaders working: price_daily (8M), technical_data_daily (8M), swing_scores (560K), market_health (1.2K)
+- BROKEN 10 loaders ERROR: aaii_sentiment, analyst_*, company_profile, fear_greed, industry_ranking, naaim, price_weekly, sector_perf
+- OK Frontend: 20+ pages built (algo, sector, economic, signals, portfolio, scores, etc), needs real data wiring
+- OK API: PostgreSQL connected, port 3001, data flowing
+- BROKEN Tests: 5 position_sizer multiplier tests failing, 297 passing
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
