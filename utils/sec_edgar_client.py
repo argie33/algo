@@ -321,30 +321,60 @@ class SecEdgarClient:
         concepts: List[str],
         period: str,
     ) -> List[Dict[str, Any]]:
-        """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period)."""
-        getter = self.get_annual_concept if period == "annual" else self.get_quarterly_concept
+        """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
+
+        Optimized: Uses get_company_facts (1 API call) instead of multiple get_concept calls.
+        """
+        cik = self.symbol_to_cik(symbol)
+        if not cik:
+            return []
+
+        # Fetch all facts for this company in a single API call
+        try:
+            all_facts = self.get_company_facts(cik)
+        except Exception:
+            all_facts = {}
+
+        if not all_facts:
+            return []
+
+        # Extract concepts from all_facts (us-gaap taxonomy)
+        us_gaap_facts = all_facts.get("facts", {}).get("us-gaap", {})
         rows: Dict[Any, Dict[str, Any]] = {}
+        fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
+
         for concept in concepts:
-            for entry in getter(symbol, concept):
-                key = (
-                    entry["fiscal_year"],
-                    entry.get("fiscal_period", "FY"),
-                    entry.get("period_end"),
-                )
-                row = rows.setdefault(key, {
-                    "symbol": symbol,
-                    "fiscal_year": entry["fiscal_year"],
-                    "fiscal_period": entry.get("fiscal_period", "FY"),
-                    "period_end": entry.get("period_end"),
-                    "filed": entry.get("filed"),
-                    "form": entry.get("form"),
-                })
-                # Snake-case the concept for column compatibility
-                col = _to_snake(concept)
-                # Keep latest filing if multiple for same period
-                if col not in row or (entry.get("filed") or "") > (row.get(f"_filed_{col}") or ""):
-                    row[col] = entry["value"]
-                    row[f"_filed_{col}"] = entry.get("filed")
+            concept_data = us_gaap_facts.get(concept, {})
+            units = concept_data.get("units", {})
+
+            for unit, entries in units.items():
+                for entry in entries:
+                    fp = entry.get("fp")
+                    if period == "annual" and fp != "FY":
+                        continue
+                    if period == "quarterly" and fp not in fp_filter:
+                        continue
+
+                    key = (
+                        entry.get("fy"),
+                        fp if period == "quarterly" else "FY",
+                        entry.get("end"),
+                    )
+                    row = rows.setdefault(key, {
+                        "symbol": symbol,
+                        "fiscal_year": entry.get("fy"),
+                        "fiscal_period": fp if period == "quarterly" else "FY",
+                        "period_end": entry.get("end"),
+                        "filed": entry.get("filed"),
+                        "form": entry.get("form"),
+                    })
+                    # Snake-case the concept for column compatibility
+                    col = _to_snake(concept)
+                    # Keep latest filing if multiple for same period
+                    if col not in row or (entry.get("filed") or "") > (row.get(f"_filed_{col}") or ""):
+                        row[col] = entry.get("val")
+                        row[f"_filed_{col}"] = entry.get("filed")
+
         # Drop helper fields, return sorted
         result = []
         for row in rows.values():
