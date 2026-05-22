@@ -413,11 +413,13 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     value_score DECIMAL(8, 2),
     momentum_score DECIMAL(8, 2),
     positioning_score DECIMAL(8, 2),
+    rs_percentile DECIMAL(8, 2),
     data_completeness DECIMAL(4, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness DECIMAL(4, 2);
+ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS rs_percentile DECIMAL(8, 2);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- USER MANAGEMENT & SYSTEM TABLES
