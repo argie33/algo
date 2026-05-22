@@ -12,6 +12,7 @@ Also computes:
 FAIL-OPEN: log if Alpaca down.
 """
 
+import json
 import logging
 import traceback
 from datetime import date as _date
@@ -122,7 +123,7 @@ def run(
                             action_type, action_date, symbol, details, created_at
                         ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                         """,
-                        ('daily_report', run_date, 'PORTFOLIO', str(report)),
+                        ('daily_report', run_date, 'PORTFOLIO', json.dumps(report)),
                     )
                     conn.commit()
                     cur.close()
