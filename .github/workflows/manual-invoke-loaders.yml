@@ -144,7 +144,7 @@ jobs:
           echo "Economic data loader launched."
 
       - name: Invoke Algo Metrics Daily Loader
-        if: ${{ inputs.loader_type == 'all' }}
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'metrics' }}
         run: |
           echo "Invoking algo_metrics_daily loader..."
           aws ecs run-task \
