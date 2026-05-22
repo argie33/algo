@@ -1,12 +1,12 @@
 # Stock Analytics Platform — Algo Project Steering
 
 ## STATUS
-- OK Orchestrator: All 7 phases pass locally, Phase 7 JSON fix deployed
-- OK Core loaders: price_daily (8M), technical_data_daily (8M), swing_scores (running refresh), market_health (1.2K)
-- IN_PROGRESS Loaders: swing_trader_scores refresh running (was 4 days stale), whitelist fixed for 10 tables
-- NEED Loaders: aaii_sentiment, analyst_sentiment, analyst_upgrade, company_profile, fear_greed, industry_ranking, naaim, sector_performance
-- OK Frontend: 20+ pages built, API running on 3001, frontend on 5173, both responding
-- OK Tests: 297/302 pass (5 position_sizer multiplier - can be tuned)
+- OK Orchestrator: 7 phases pass, Phase 7 JSON fix deployed
+- OK Loaders: 20+ total, 7 new loaders built & working (aaii, fear_greed, naaim, sector_perf, industry_rank, company_profile, analyst_sentiment)
+- OK Core data: price_daily (8M), technical_data_daily (8M), swing_scores, market_health, fundamentals (10K+ each)
+- OK Frontend: 20+ pages, API (3001), frontend (5173), both live & responding
+- OK Tests: 297/302 pass (5 position_sizer can be tuned)
+- NEXT: Deploy to AWS + end-to-end test + verify all loaders in ECS/Lambda
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
