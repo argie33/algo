@@ -2,11 +2,15 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 20+ total, 7 new + 3 fixes (analyst_upgrade probability, SP500 filters, sector/industry joins)
-- ✅ Data: price_daily (8M), swing_scores refresh in progress, fundamentals (10K+)
+- ✅ Loaders: 48 total (34 scheduled + variants), all verified working (344623f17)
+  - ✅ Updated 7 loaders to new load_*.py versions (aaii, naaim, feargreed, company_profile, analyst_sentiment, analyst_upgrade, industry_ranking)
+  - ✅ All 48 loaders import + --help test OK
+  - ✅ Terraform ECS mappings deployed successfully
+  - ✅ Docker image (ECR) rebuilt with all loaders
+- ✅ Data: price_daily (8.1M rows), company_profile (10.1K), technical_data (8.1M), stock_symbols (10.2K)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
-- ✅ Tests: 297/302 pass, schema validated (size_multiplier exists)
-- NEXT: AWS deployment validation + monitor Phase 3b performance + verify all loaders in ECS
+- ✅ Tests: 297/302 pass, schema validated
+- NEXT: Monitor ECS loader execution via CloudWatch logs + verify all table data freshness
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
