@@ -397,9 +397,9 @@ locals {
     "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
-    "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
-    "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
-    "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
     # Earnings data (11:00am ET) — I/O bound, 5000+ symbols needs 30+ min with rate limiting
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
@@ -454,7 +454,7 @@ locals {
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Swing trader scores (EOD pipeline final step) — compute-heavy scoring
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
   }
 
   # For backward compatibility
