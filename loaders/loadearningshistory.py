@@ -33,7 +33,7 @@ class EarningsHistoryLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch earnings history from yfinance earnings_dates."""
         try:
-            import yfinance as yf
+            from utils.yfinance_wrapper import get_ticker
             from datetime import datetime
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
             ticker = get_ticker(yf_symbol)

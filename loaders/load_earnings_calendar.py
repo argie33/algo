@@ -72,10 +72,10 @@ class EarningsCalendarLoader:
     def fetch_earnings_from_yfinance(self, symbol: str) -> List[Dict[str, Any]]:
         """Fetch earnings dates from yfinance."""
         try:
-            import yfinance as yf
+            from utils.yfinance_wrapper import get_ticker as yf_get_ticker
             import pandas as pd
 
-            ticker = get_ticker(symbol)
+            ticker = yf_get_ticker(symbol)
             results = []
 
             # Primary: ticker.calendar returns the next earnings date(s)
