@@ -140,6 +140,19 @@ resource "aws_db_parameter_group" "main" {
     value = "pg_stat_statements"
   }
 
+  # Disable autovacuum during initial data load to prevent recovery mode
+  # Re-enable after data loading completes by changing to "true"
+  parameter {
+    name  = "autovacuum"
+    value = "false"
+  }
+
+  # Increase maintenance_work_mem for faster bulk operations
+  parameter {
+    name  = "maintenance_work_mem"
+    value = "524288"  # 512 MB
+  }
+
   tags = var.common_tags
 
   lifecycle {
