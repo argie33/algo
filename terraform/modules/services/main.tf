@@ -504,7 +504,7 @@ resource "aws_lambda_function" "algo" {
       LOG_LEVEL              = var.orchestrator_log_level
       DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
-      DEV_MODE               = "true"
+      DEV_MODE               = "false"
     }
   }
 
