@@ -12,7 +12,7 @@ This workspace supports multiple projects. When working in this repo, **read the
 
 **Future Claudes: Do not deviate. Follow these rules exactly.**
 
-1. No extra sections (only template sections from `steering/SYSTEM.md`)
+1. No extra sections (only key info: status, system map, credentials, deploy, resources, schedule, key files, troubleshooting)
 2. No prose (tables, bullets, one-liners only — no paragraphs)
 3. Stay under limits: Root < 50 lines, steering docs < 150 lines
 4. Abbreviate aggressively (token burn is critical; see patterns below)
@@ -29,11 +29,9 @@ This workspace supports multiple projects. When working in this repo, **read the
 - Tables: Use for maps, not prose descriptions
 - Lists: `RSI, SMA, EMA, ATR` (comma-sep, scannable)
 
-See `steering/SYSTEM.md` for full abbreviation reference.
-
 ## Adding Projects
 
-1. Create `steering/{name}.md` from template in `steering/SYSTEM.md`
+1. Create `steering/{name}.md` with: status, system map, credentials, deploy, resource names, schedule, key files, troubleshooting, local dev
 2. Add row to project table
 3. Verify: root < 50 lines, steering < 150 lines, commit both together
 
