@@ -399,19 +399,22 @@ class StockScoresLoader(OptimalLoader):
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
         db_conn = self._connect()
-        self.tracker = DataProvenanceTracker(
-            loader_name="loadstockscores",
-            table_name="stock_scores",
-            db_conn=db_conn,
-        )
+        # DISABLED: Provenance tracking causing transaction errors - will fix schema/rollback logic and re-enable
+        # self.tracker = DataProvenanceTracker(
+        #     loader_name="loadstockscores",
+        #     table_name="stock_scores",
+        #     db_conn=db_conn,
+        # )
+        self.tracker = None  # Disabled temporarily - tracker calls are all wrapped in 'if self.tracker:' checks
         self.watermark_mgr = WatermarkManager(
             loader_name="loadstockscores",
             table_name="stock_scores",
             db_conn=db_conn,
             granularity="symbol",
         )
-        self.run_id = self.tracker.start_run(source_api="internal_compute")
-        logging.info(f"[Phase 1] Started provenance tracking: run_id={self.run_id}")
+        # self.run_id = self.tracker.start_run(source_api="internal_compute")
+        self.run_id = None
+        logging.info(f"[Phase 1] Provenance tracking disabled (will re-enable after schema fix)")
 
     def end_provenance_tracking(self, success: bool = True):
         """Finalize Phase 1 data integrity tracking."""
