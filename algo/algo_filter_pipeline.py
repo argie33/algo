@@ -374,6 +374,22 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"  QUALIFIED FOR TRADE: {qualified:3d}")
             logger.info(f"{'='*70}")
 
+            # Regime-aware min_swing_score filter (from RegimeManager)
+            min_swing_score = self.config.get('min_swing_score', 55)
+            try:
+                from algo.algo_regime_manager import RegimeManager
+                regime_mgr = RegimeManager()
+                regime_params = regime_mgr.get_regime_params(signal_date)
+                min_swing_score = regime_params.get('min_swing_score', min_swing_score)
+                regime = regime_mgr.get_current_regime(signal_date)
+                logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
+            except Exception as e:
+                logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")
+
+            # Apply regime-aware minimum swing score filter
+            passed_all_tiers = [t for t in passed_all_tiers if t.get('swing_score', 0) >= min_swing_score]
+            logger.info(f"After regime min_swing_score filter ({min_swing_score}): {len(passed_all_tiers)} qualified")
+
             # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
             for t in passed_all_tiers:
                 t['final_score'] = t.get('swing_score', 0)

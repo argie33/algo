@@ -50,6 +50,10 @@ def run(
     """
     try:
         from algo.algo_daily_reconciliation import DailyReconciliation
+        from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
+        from algo.algo_signal_attribution import SignalAttributionEngine
+        from algo.algo_weight_optimizer import WeightOptimizer
+        from algo.algo_daily_report import DailyFinanceReport
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)
@@ -61,7 +65,79 @@ def run(
         ) if result.get('success') else result.get('error', 'unknown')
         log_phase_result_fn(7, 'reconciliation', status, summary)
 
-        # Compute and log live performance metrics
+        # Step 1: Populate signal_trade_performance from closed trades
+        stpp = SignalTradePerformancePopulator()
+        stpp_result = stpp.populate_closed_trades(lookback_days=7)
+        trades_processed = stpp_result.get('trades_processed', 0)
+        logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
+        if stpp_result.get('ic_values'):
+            logger.info(f"  IC values computed: {stpp_result['ic_values']}")
+        log_phase_result_fn(7, 'signal_attribution', 'success' if stpp_result.get('success') else 'warn',
+                          f"{trades_processed} trades processed")
+
+        # Step 2: Compute IC via attribution engine
+        attr_result = {'components': {}}
+        try:
+            attribution = SignalAttributionEngine()
+            attr_result = attribution.compute_ic(run_date, lookback_trades=40)
+            logger.info(f"Signal attribution: IC computed for {len(attr_result.get('components', {}))} components")
+            for comp, ic_data in attr_result.get('components', {}).items():
+                logger.info(f"  {comp}: IC={ic_data.get('ic', 0):.3f}, pval={ic_data.get('pvalue', 1):.3f}")
+        except Exception as e:
+            logger.warning(f"Signal attribution failed: {e}")
+        log_phase_result_fn(7, 'ic_computation', 'success' if attr_result.get('components') else 'warn',
+                          f"{len(attr_result.get('components', {}))} components analyzed")
+
+        # Step 3: Run weight optimization (if enough trades)
+        opt_result = {'changes': []}
+        try:
+            optimizer = WeightOptimizer(config)
+            opt_result = optimizer.apply(run_date, dry_run=False)
+            if opt_result.get('changes'):
+                logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
+                for change in opt_result['changes']:
+                    logger.info(f"  {change['component']}: {change['old_weight']}% → {change['new_weight']}%")
+            else:
+                logger.info("Weight optimization: no changes (insufficient trades or weights stable)")
+        except Exception as e:
+            logger.warning(f"Weight optimization failed: {e}")
+        log_phase_result_fn(7, 'weight_optimization', 'success' if opt_result.get('success') else 'warn',
+                          f"{len(opt_result.get('changes', []))} weight changes")
+
+        # Step 4: Generate institutional daily report
+        try:
+            daily_report = DailyFinanceReport()
+            report = daily_report.generate(run_date)
+            report_text = daily_report.format_text(report)
+            logger.info(f"\n{report_text}")
+
+            # Log to algo_audit_log for historical tracking
+            if get_conn and put_conn:
+                try:
+                    conn = get_conn()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO algo_audit_log (
+                            action_type, action_date, symbol, details, created_at
+                        ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        """,
+                        ('daily_report', run_date, 'PORTFOLIO', str(report)),
+                    )
+                    conn.commit()
+                    cur.close()
+                    put_conn(conn)
+                except Exception as e:
+                    logger.warning(f"Failed to log daily report to audit log: {e}")
+
+            log_phase_result_fn(7, 'daily_report', 'success',
+                              f"Portfolio ${report.get('portfolio', {}).get('current_value', 0):,.0f}, "
+                              f"P&L {report.get('portfolio', {}).get('daily_pnl_pct', 0):+.2f}%")
+        except Exception as e:
+            logger.warning(f"Daily report generation failed: {e}")
+            log_phase_result_fn(7, 'daily_report', 'warn', f"error: {str(e)[:60]}")
+
+        # Compute and log live performance metrics (legacy, kept for compatibility)
         perf_status = 'warn'
         perf_summary = 'N/A'
         try:

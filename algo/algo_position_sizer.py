@@ -305,12 +305,22 @@ class PositionSizer:
                     'reason': f'Drawdown >= 20%, trading halted'
                 }
 
-            # Dynamic risk = base × drawdown × market_exposure × stage_phase × vix_caution
+            # Dynamic risk = base × drawdown × market_exposure × stage_phase × vix_caution × regime
             base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier(symbol, signal_date)
             vix_mult = self.get_vix_caution_multiplier()
-            adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult * vix_mult
+
+            # Regime-based position sizing multiplier (from RegimeManager)
+            regime_mult = 1.0
+            try:
+                from algo.algo_regime_manager import RegimeManager
+                regime_mgr = RegimeManager()
+                regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
+            except Exception as e:
+                logger.debug(f"Could not load regime multiplier: {e}. Using 1.0.")
+
+            adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult * vix_mult * regime_mult
             risk_dollars = portfolio_value * adjusted_risk_pct
 
             # If stage phase says zero, halt this entry

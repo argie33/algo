@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+
+"""
+Signal Trade Performance Populator — extract component scores + realized P&L from closed trades.
+
+Reads closed algo_trades (with swing_components JSONB + exit_r_multiple),
+computes per-trade attribution, persists to signal_trade_performance.
+
+Enables Information Coefficient (IC) calculation per component.
+"""
+
+import logging
+import json
+from datetime import date as _date, timedelta
+from typing import Dict, Any, Optional, List
+from scipy.stats import pearsonr
+
+from utils.db_connection import get_db_connection
+from config.credential_helper import get_db_config, get_db_password
+
+logger = logging.getLogger(__name__)
+
+
+class SignalTradePerformancePopulator:
+    """Extract component attribution from closed trades."""
+
+    def __init__(self):
+        self.conn = None
+        self.cur = None
+
+    def connect(self):
+        """Connect to database."""
+        if not self.conn:
+            self.conn = get_db_connection()
+            self.cur = self.conn.cursor()
+
+    def disconnect(self):
+        """Close connection."""
+        if self.cur:
+            self.cur.close()
+        if self.conn:
+            self.conn.close()
+
+    def populate_closed_trades(self, lookback_days: int = 7) -> Dict[str, Any]:
+        """
+        Find closed trades since last populate, extract component scores, persist to signal_trade_performance.
+
+        Args:
+            lookback_days: How far back to search for unpopulated closed trades (default 7 days)
+
+        Returns:
+            {'success': bool, 'trades_processed': int, 'ic_values': dict, 'message': str}
+        """
+        self.connect()
+        try:
+            # Find closed trades not yet in signal_trade_performance
+            cutoff_date = _date.today() - timedelta(days=lookback_days)
+
+            self.cur.execute(
+                """
+                SELECT t.trade_id, t.symbol, t.signal_date, t.trade_date, t.exit_date,
+                       t.entry_price, t.stop_loss_price, t.exit_price, t.entry_quantity,
+                       t.exit_r_multiple, t.profit_loss_dollars, t.swing_score,
+                       t.swing_components, t.trend_template_score,
+                       EXTRACT(DAY FROM t.exit_date - t.trade_date) AS holding_days
+                FROM algo_trades t
+                WHERE t.status = 'closed'
+                  AND t.exit_date >= %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM signal_trade_performance stp
+                      WHERE stp.trade_id = t.trade_id
+                  )
+                ORDER BY t.exit_date DESC
+                """,
+                (cutoff_date,),
+            )
+            closed_trades = self.cur.fetchall()
+
+            if not closed_trades:
+                return {
+                    'success': True,
+                    'trades_processed': 0,
+                    'message': f'No new closed trades to populate (lookback {lookback_days}d)',
+                }
+
+            inserted_count = 0
+            component_returns = {comp: [] for comp in [
+                'setup_quality', 'trend_quality', 'momentum_rs', 'volume',
+                'fundamentals', 'sector_industry', 'multi_timeframe'
+            ]}
+
+            for row in closed_trades:
+                trade_id, symbol, signal_date, trade_date, exit_date, entry_price, stop_loss, \
+                    exit_price, entry_qty, exit_r_multiple, pnl_dollars, swing_score, \
+                    swing_components_json, trend_score, holding_days = row
+
+                # Parse swing_components JSONB
+                try:
+                    swing_comp = json.loads(swing_components_json) if swing_components_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    swing_comp = {}
+
+                # Extract component scores (normalize to 0-1 scale: pts/max)
+                component_scores = {}
+                for comp_name, comp_data in swing_comp.items():
+                    if isinstance(comp_data, dict):
+                        pts = float(comp_data.get('pts', 0))
+                        max_pts = float(comp_data.get('max', 1))
+                        normalized_score = (pts / max_pts) if max_pts > 0 else 0
+                        component_scores[comp_name] = normalized_score
+
+                        # Track for IC calculation
+                        if comp_name in component_returns and exit_r_multiple is not None:
+                            component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
+
+                # Insert into signal_trade_performance
+                try:
+                    self.cur.execute(
+                        """
+                        INSERT INTO signal_trade_performance (
+                            trade_id, symbol, signal_date, trade_date, exit_date,
+                            entry_price, stop_loss_price, exit_price, shares,
+                            entry_r_multiple, exit_r_multiple, pnl_dollars,
+                            holding_days, swing_score, trend_template_score,
+                            setup_quality_score, trend_quality_score, momentum_rs_score,
+                            volume_score, fundamentals_score, sector_industry_score, multi_timeframe_score,
+                            created_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s,
+                            %s, %s, %s,
+                            %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s,
+                            CURRENT_TIMESTAMP
+                        )
+                        ON CONFLICT (trade_id) DO NOTHING
+                        """,
+                        (
+                            trade_id, symbol, signal_date, trade_date, exit_date,
+                            float(entry_price) if entry_price else 0,
+                            float(stop_loss) if stop_loss else 0,
+                            float(exit_price) if exit_price else 0,
+                            int(entry_qty) if entry_qty else 0,
+                            ((float(entry_price) - float(stop_loss)) / float(stop_loss)) if (stop_loss and float(stop_loss) > 0) else 0,
+                            float(exit_r_multiple) if exit_r_multiple else 0,
+                            float(pnl_dollars) if pnl_dollars else 0,
+                            int(holding_days) if holding_days else 0,
+                            float(swing_score) if swing_score else 0,
+                            float(trend_score) if trend_score else 0,
+                            component_scores.get('setup_quality', 0),
+                            component_scores.get('trend_quality', 0),
+                            component_scores.get('momentum_rs', 0),
+                            component_scores.get('volume', 0),
+                            component_scores.get('fundamentals', 0),
+                            component_scores.get('sector_industry', 0),
+                            component_scores.get('multi_timeframe', 0),
+                        ),
+                    )
+                    inserted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to insert trade {trade_id}: {e}")
+                    continue
+
+            self.conn.commit()
+
+            # Compute IC values for all components with 2+ data points
+            ic_values = {}
+            for comp_name, data_points in component_returns.items():
+                if len(data_points) >= 2:
+                    scores = [x[0] for x in data_points]
+                    returns = [x[1] for x in data_points]
+                    try:
+                        ic, pvalue = pearsonr(scores, returns)
+                        ic_values[comp_name] = {
+                            'ic': round(float(ic), 4),
+                            'pvalue': round(float(pvalue), 4),
+                            'sample_size': len(data_points)
+                        }
+                    except Exception as e:
+                        logger.debug(f"IC calculation failed for {comp_name}: {e}")
+
+            logger.info(f"Populated {inserted_count} closed trades to signal_trade_performance")
+            return {
+                'success': True,
+                'trades_processed': inserted_count,
+                'ic_values': ic_values,
+                'message': f'Inserted {inserted_count} trades, computed IC for {len(ic_values)} components',
+            }
+
+        except Exception as e:
+            logger.error(f"Signal trade performance population failed: {e}", exc_info=True)
+            self.conn.rollback() if self.conn else None
+            return {
+                'success': False,
+                'trades_processed': 0,
+                'message': f'Error: {str(e)[:100]}',
+            }
+        finally:
+            self.disconnect()
+
+    def get_trailing_ic(self, component: str, days: int = 60) -> List[Dict[str, Any]]:
+        """
+        Get rolling IC for a component over trailing period.
+
+        Returns:
+            [{'date': date, 'ic': float, 'sample_size': int, 'pvalue': float}, ...]
+        """
+        self.connect()
+        try:
+            cutoff = _date.today() - timedelta(days=days)
+
+            # For each exit_date, compute IC using trades exited on/before that date
+            self.cur.execute(
+                f"""
+                WITH daily_ic AS (
+                    SELECT
+                        exit_date,
+                        COUNT(*) as sample_size,
+                        CORR({component}_score, exit_r_multiple) as ic_corr
+                    FROM signal_trade_performance
+                    WHERE exit_date >= %s
+                    GROUP BY exit_date
+                )
+                SELECT exit_date, ic_corr, sample_size
+                FROM daily_ic
+                WHERE ic_corr IS NOT NULL
+                ORDER BY exit_date DESC
+                """,
+                (cutoff,),
+            )
+            rows = self.cur.fetchall()
+
+            return [
+                {'date': str(row[0]), 'ic': round(float(row[1]), 4) if row[1] else 0, 'sample_size': int(row[2])}
+                for row in rows
+            ]
+
+        except Exception as e:
+            logger.warning(f"Rolling IC calculation failed for {component}: {e}")
+            return []
+        finally:
+            self.disconnect()
