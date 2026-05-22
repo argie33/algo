@@ -60,10 +60,10 @@ jobs:
           echo ""
           echo "All 7 loaders launched. Task ARNs saved."
 
-      - name: Wait for Loaders to Complete (up to 90 minutes)
+      - name: Wait for Loaders to Complete (up to 180 minutes)
         run: |
           ELAPSED=0
-          MAX_WAIT=5400  # 90 minutes - loaders need 45-60 min for 5000+ symbols
+          MAX_WAIT=10800  # 180 minutes - stock prices need 120+ min for 5000+ symbols
           POLL_INTERVAL=30
 
           # Read all task ARNs from file
@@ -121,7 +121,7 @@ jobs:
           done
 
           if [ $ELAPSED -ge $MAX_WAIT ]; then
-            echo "❌ Loaders did not complete within 90 minutes"
+            echo "❌ Loaders did not complete within 180 minutes"
             exit 1
           fi
 
