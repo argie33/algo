@@ -2,7 +2,7 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- 🔄 Loaders: 48 total, 8+ completed, 9 blocked on SEC API issues (FIXING NOW)
+- 🔄 Loaders: 48 total, 9 DONE, 3 RUNNING, 9 BLOCKED (3 fixes deployed + monitoring active)
   - ✅ Updated 7 loaders to new load_*.py versions (aaii, naaim, feargreed, company_profile, analyst_sentiment, analyst_upgrade, industry_ranking)
   - ✅ All 48 loaders import + --help test OK
   - ✅ Terraform ECS mappings deployed successfully
@@ -17,7 +17,11 @@
 - ✅ Data: price_daily (8.1M rows), company_profile (10.1K), technical_data (8.1M), stock_symbols (10.2K)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
 - ✅ Tests: 297/302 pass, schema validated
-- NEXT: Verify ECS completion (scripts/verify_loader_completion.py) → Run remaining 40+ loaders (scripts/batch_run_loaders.py)
+- NEXT: Docker image rebuild (in-progress via CI/CD) → ECS deploys new image → Financial loaders retry with fixes
+  - Fix 1: Persistent file-based ticker cache (67fe5cb11) - eliminates duplicate API calls
+  - Fix 2: Rate limiting + backoff improvements (6e6b6631b) - handles 429 errors better
+  - Fix 3: API call optimization (f32f3f37b) - 12 calls/symbol → 1 call
+  - Monitor: Active continuous monitoring (175bce6b9) watching for completions
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
