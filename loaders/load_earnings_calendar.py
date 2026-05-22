@@ -63,7 +63,7 @@ class EarningsCalendarLoader:
     def get_symbols(self) -> List[str]:
         """Get all active symbols from database."""
         try:
-            self.cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%' LIMIT 500")
+            self.cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%'")
             return [row[0] for row in self.cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to fetch symbols: {e}")
