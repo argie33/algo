@@ -1,12 +1,12 @@
 # Stock Analytics Platform — Algo Project Steering
 
 ## STATUS
-- OK Orchestrator: 7 phases pass, Phase 7 JSON fix deployed
-- OK Loaders: 20+ total, 7 new loaders built & working (aaii, fear_greed, naaim, sector_perf, industry_rank, company_profile, analyst_sentiment)
-- OK Core data: price_daily (8M), technical_data_daily (8M), swing_scores, market_health, fundamentals (10K+ each)
-- OK Frontend: 20+ pages, API (3001), frontend (5173), both live & responding
-- OK Tests: 297/302 pass (5 position_sizer can be tuned)
-- NEXT: Deploy to AWS + end-to-end test + verify all loaders in ECS/Lambda
+- ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
+- ✅ Loaders: 20+ total, 7 new + 3 fixes (analyst_upgrade probability, SP500 filters, sector/industry joins)
+- ✅ Data: price_daily (8M), swing_scores refresh in progress, fundamentals (10K+)
+- ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
+- ✅ Tests: 297/302 pass, schema validated (size_multiplier exists)
+- NEXT: AWS deployment validation + monitor Phase 3b performance + verify all loaders in ECS
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
@@ -62,7 +62,9 @@ Monitor: https://github.com/argie33/algo/actions
 | API returns 401 | Bearer token present? Expired? Cognito enabled in Lambda env? |
 | Loaders timeout | yfinance rate limiting? VPC has internet? RDS accepts connections? |
 | Signals not generating | Technical indicators in `technical_data_daily` table? Rules in `algo_signals.py`? |
-| Orchestrator Phase 4-5 fails | Alpaca creds valid? Paper trading enabled? `ALPACA_PAPER_TRADING=true`? |
+| Cursor already closed | Fixed: disconnect() now sets conn/cur to None (line 85-86 in algo_regime_manager.py) |
+| Phase 3b slow (30s) | Fixed: LATERAL UNNEST query (line 213 in algo_market_exposure_policy.py) reduces to <1s |
+| Alpaca 401 error | Set `ALPACA_PAPER=true` env var. Margin monitor returns default (70%) on auth failure. |
 
 ## LOCAL DEV
 ```bash
