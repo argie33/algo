@@ -98,6 +98,8 @@ resource "aws_lambda_function" "api" {
       DB_HOST              = split(":", var.rds_endpoint)[0]
       DB_PORT              = "5432"
       DB_NAME              = var.rds_database_name
+      DB_USER              = var.rds_username
+      DB_SSL               = "require"
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = "production"
@@ -490,7 +492,9 @@ resource "aws_lambda_function" "algo" {
       DB_HOST                = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
       DB_PORT                = "5432"
       DB_NAME                = var.rds_database_name
+      DB_USER                = var.rds_username
       DB_PASSWORD            = var.rds_password
+      DB_SSL                 = "require"
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE         = var.execution_mode
       ORCHESTRATOR_DRY_RUN   = tostring(var.orchestrator_dry_run)

@@ -112,6 +112,12 @@ variable "rds_password" {
   sensitive   = true
 }
 
+variable "rds_username" {
+  description = "RDS database username for Lambda environment"
+  type        = string
+  sensitive   = true
+}
+
 variable "algo_secrets_arn" {
   description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
   type        = string

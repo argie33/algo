@@ -220,6 +220,7 @@ module "services" {
   rds_database_name              = module.database.rds_database_name
   rds_credentials_secret_arn     = module.database.rds_credentials_secret_arn
   rds_password                   = module.database.rds_password
+  rds_username                   = module.database.rds_username
   rds_proxy_endpoint             = module.database.rds_proxy_endpoint
   algo_secrets_arn               = module.database.algo_secrets_arn
   psycopg2_layer_arn             = module.database.psycopg2_layer_arn
