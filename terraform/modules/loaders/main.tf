@@ -401,11 +401,11 @@ locals {
     "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
     "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
-    # Earnings data (11:00am ET) — I/O bound
-    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
-    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 900, parallelism = 4 }
+    # Earnings data (11:00am ET) — I/O bound, 5000+ symbols needs 30+ min with rate limiting
+    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
@@ -428,12 +428,13 @@ locals {
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Fixed: timeout 1800→2400→10800s (30min→40min→3h), parallelism 8→4 (real-world testing: parallelism=8 too aggressive)
+    # ETF signals: increased timeout to match heavy computation + yfinance rate limiting for 5000+ ETFs
     "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 4 }
     "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
-    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 900, parallelism = 4 }
-    "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
-    "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
+    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
