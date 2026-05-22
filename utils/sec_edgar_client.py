@@ -82,7 +82,8 @@ class SecEdgarClient:
                 "Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
             )
         self.timeout = timeout
-        self._rate_limiter = RateLimiter(8)
+        # Rate limiter: SEC allows 10 req/sec but 5 req/sec is safer for parallel ECS loaders
+        self._rate_limiter = RateLimiter(5)
         self._session = requests.Session()
         self._session.headers.update({
             "User-Agent": self.user_agent,
@@ -98,23 +99,24 @@ class SecEdgarClient:
     def _refresh_ticker_cache(self) -> Dict[str, str]:
         """Download SEC's ticker→CIK mapping (one file, all listed companies).
 
-        With retry logic for 429 rate limit errors.
+        With retry logic for 429 rate limit errors. Uses longer backoff for parallel ECS tasks.
         """
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
                 self._rate_limiter.wait()
                 resp = self._session.get(TICKER_URL, timeout=self.timeout)
 
-                # Handle rate limiting with exponential backoff
+                # Handle rate limiting with aggressive exponential backoff
                 if resp.status_code == 429:
                     if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt  # 1s, 2s, 4s
+                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                        wait_time = 2 ** (attempt + 1)
                         log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                         time.sleep(wait_time)
                         continue
                     else:
-                        log.error("SEC ticker cache failed after 3 retries: 429 Too Many Requests")
+                        log.error("SEC ticker cache failed after 5 retries (total 62s): 429 Too Many Requests")
                         return {}
 
                 resp.raise_for_status()
