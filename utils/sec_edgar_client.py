@@ -26,11 +26,13 @@ Usage:
 """
 
 
+import json
 import logging
 import os
 import threading
 import time
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -93,8 +95,41 @@ class SecEdgarClient:
         self._ticker_cache: Optional[Dict[str, str]] = None
         self._ticker_cache_time = 0.0
         self._cache_ttl = cache_ttl
+        # File-based cache to survive across processes/containers
+        self._ticker_cache_file = Path("/tmp/sec_ticker_cache.json")
+        self._load_ticker_cache_from_file()
 
     # ----- Symbol/CIK lookups -----
+
+    def _load_ticker_cache_from_file(self) -> None:
+        """Try to load ticker cache from persistent file (survives across processes)."""
+        try:
+            if self._ticker_cache_file.exists():
+                with open(self._ticker_cache_file, 'r') as f:
+                    data = json.load(f)
+                    self._ticker_cache = data.get('mapping', {})
+                    self._ticker_cache_time = data.get('timestamp', 0)
+                    age = time.time() - self._ticker_cache_time
+                    if age < self._cache_ttl:
+                        log.debug(f"Loaded ticker cache from file ({len(self._ticker_cache)} symbols, {age:.0f}s old)")
+                    else:
+                        log.debug("Ticker cache file expired, will refresh from API")
+                        self._ticker_cache = None
+        except Exception as e:
+            log.debug(f"Could not load ticker cache file: {e}")
+
+    def _save_ticker_cache_to_file(self) -> None:
+        """Save ticker cache to persistent file for other processes to use."""
+        try:
+            self._ticker_cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._ticker_cache_file, 'w') as f:
+                json.dump({
+                    'mapping': self._ticker_cache,
+                    'timestamp': self._ticker_cache_time,
+                }, f)
+            log.debug(f"Saved ticker cache to file ({len(self._ticker_cache)} symbols)")
+        except Exception as e:
+            log.debug(f"Could not save ticker cache file: {e}")
 
     def _refresh_ticker_cache(self) -> Dict[str, str]:
         """Download SEC's ticker→CIK mapping (one file, all listed companies).
@@ -128,6 +163,7 @@ class SecEdgarClient:
                 }
                 self._ticker_cache = mapping
                 self._ticker_cache_time = time.time()
+                self._save_ticker_cache_to_file()  # Save for other processes
                 log.info("SEC ticker cache loaded: %d symbols", len(mapping))
                 return mapping
             except requests.HTTPError as e:
