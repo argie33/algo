@@ -497,14 +497,16 @@ resource "aws_lambda_function" "algo" {
       DB_SSL                 = "require"
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE         = var.execution_mode
-      ORCHESTRATOR_DRY_RUN   = tostring(var.orchestrator_dry_run)
-      APCA_API_BASE_URL      = var.alpaca_api_base_url
-      ALPACA_PAPER_TRADING   = tostring(var.alpaca_paper_trading)
-      FRED_API_KEY           = var.fred_api_key
-      LOG_LEVEL              = var.orchestrator_log_level
-      DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
-      DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
-      DEV_MODE               = "false"
+      ORCHESTRATOR_DRY_RUN      = tostring(var.orchestrator_dry_run)
+      APCA_API_BASE_URL         = var.alpaca_api_base_url
+      APCA_API_KEY_ID           = var.alpaca_api_key_id
+      APCA_API_SECRET_KEY       = var.alpaca_api_secret_key
+      ALPACA_PAPER_TRADING      = tostring(var.alpaca_paper_trading)
+      FRED_API_KEY              = var.fred_api_key
+      LOG_LEVEL                 = var.orchestrator_log_level
+      DATA_PATROL_ENABLED       = tostring(var.data_patrol_enabled)
+      DATA_PATROL_TIMEOUT_MS    = tostring(var.data_patrol_timeout_ms)
+      DEV_MODE                  = "false"
     }
   }
 
