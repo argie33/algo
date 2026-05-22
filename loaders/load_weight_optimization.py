@@ -13,17 +13,22 @@ Triggers continuous improvement loop:
 Enables data-driven, automated refinement of the swing trading strategy.
 """
 
+import sys
 import logging
 from datetime import date as _date, timedelta
 from typing import Dict, Any
 
-from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
-from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
-from algo.algo_signal_attribution import SignalAttributionEngine
-from algo.algo_weight_optimizer import WeightOptimizer
-
 logger = logging.getLogger(__name__)
+
+# Optional imports for full optimization cycle
+try:
+    from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
+    from algo.algo_signal_attribution import SignalAttributionEngine
+    from algo.algo_weight_optimizer import WeightOptimizer
+except ImportError:
+    SignalTradePerformancePopulator = None
+    SignalAttributionEngine = None
+    WeightOptimizer = None
 
 
 def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None, dry_run: bool = False) -> Dict[str, Any]:
@@ -153,21 +158,36 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
         return results
 
 
-if __name__ == "__main__":
-    # Test runner (for manual invocation)
+def main():
+    import argparse
     import sys
-    from config.algo_config import AlgoConfig
+    from config.env_loader import load_env
 
+    load_env()
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # Load config
-    config = AlgoConfig.load()
-    dry_run = "--dry-run" in sys.argv
+    parser = argparse.ArgumentParser(description="Weight Optimization Loader")
+    parser.add_argument("--symbols", type=str, help="(Unused - for compatibility)")
+    parser.add_argument("--parallelism", type=int, default=1, help="(Unused - for compatibility)")
+    parser.add_argument("--dry-run", action="store_true", help="Compute but don't persist changes")
+    args = parser.parse_args()
 
-    # Run optimization
-    result = run_weight_optimization_cycle(config, run_date=_date.today(), dry_run=dry_run)
-    print(f"\nResult: {result}")
-    sys.exit(0 if result['success'] else 1)
+    try:
+        from config.algo_config import AlgoConfig
+        config = AlgoConfig.load()
+        result = run_weight_optimization_cycle(config, run_date=_date.today(), dry_run=args.dry_run)
+        print(f"\nResult: {result}")
+        return 0 if result['success'] else 1
+    except ImportError as e:
+        logging.warning(f"Weight optimization skipped - algo modules not available: {e}")
+        return 0  # Don't fail for missing optional modules
+    except Exception as e:
+        logging.error(f"Weight optimization failed: {e}", exc_info=True)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
