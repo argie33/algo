@@ -441,7 +441,8 @@ locals {
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
-    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 2 }
+    # TIMEOUT: 14400s (4h) for 5000+ symbols at ~2.5-3s/symbol + DB inserts
+    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 2 }
 
     # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
