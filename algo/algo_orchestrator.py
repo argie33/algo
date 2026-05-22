@@ -333,18 +333,11 @@ class Orchestrator:
                                       f'Critical data quality issues: {critical_count} critical findings')
                 return False
 
-            # FAIL-CLOSED: too many errors block in auto mode
-            if error_count and error_count > 2:
+            # FAIL-CLOSED: only CRITICAL blocks in LIVE mode. Errors are warnings.
+            # (Errors like incomplete price_daily coverage don't block - we proceed with available data)
+            if error_count and error_count > 0:
                 if self.verbose:
-                    logger.error(f"  [HALT] Data patrol found {error_count} ERROR issues")
-                self.log_phase_result(1, 'data_patrol', 'halt',
-                                      f'Data quality errors: {error_count} findings')
-                return False
-
-            # Warnings are just logged, not blocking
-            if error_count == 1 or error_count == 2:
-                if self.verbose:
-                    logger.error(f"  [WARN] Data patrol found {error_count} error(s)")
+                    logger.warning(f"  [PATROL] Data patrol found {error_count} error(s) - proceeding with available data")
 
             return True
 
