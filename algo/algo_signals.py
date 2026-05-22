@@ -42,6 +42,7 @@ from algo.signals.signal_base import SignalBase
 from algo.signals.signal_trend import SignalTrendMixin
 from algo.signals.signal_patterns import SignalPatternsMixin
 from algo.signals.signal_momentum import SignalMomentumMixin
+from algo.signals.signal_options import SignalOptionsMixin
 
 from datetime import date as _date
 import logging
@@ -49,7 +50,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SignalComputer(SignalBase, SignalTrendMixin, SignalPatternsMixin, SignalMomentumMixin):
+class SignalComputer(SignalBase, SignalTrendMixin, SignalPatternsMixin,
+                     SignalMomentumMixin, SignalOptionsMixin):
     """All technical signals via mixin composition."""
     pass
 

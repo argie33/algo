@@ -552,6 +552,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "BACKFILL_DAYS"
           value = "365"
+        },
+        {
+          name  = "DISABLE_PROVENANCE_TRACKING"
+          value = "true"
         }
       ]
     }

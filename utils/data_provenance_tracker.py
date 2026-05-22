@@ -30,6 +30,7 @@ USAGE:
 """
 
 import logging
+import os
 import uuid
 import hashlib
 import json
@@ -315,6 +316,10 @@ class DataProvenanceTracker:
     def _insert_provenance_record(self, record: Dict):
         """Insert a provenance record for a tick."""
         if not self.db_conn:
+            return
+
+        # Allow disabling provenance at runtime via environment variable
+        if os.environ.get('DISABLE_PROVENANCE_TRACKING') == 'true':
             return
 
         try:

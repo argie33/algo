@@ -3,13 +3,8 @@
 """
 Trend signal methods — Minervini trend template, Weinstein stage, Mansfield RS.
 
-NOTE: These methods are STUBS. Actual trend template and Weinstein stage
-computations happen in load_trend_criteria_data.py (pre-computed daily and
-stored in trend_template_data table). These stub methods are not used in the
-main orchestrator pipeline. Orchestrator retrieves pre-computed scores from DB.
-
-These stubs are left in place for future utility/standalone signal computation.
-If needed, implement using canonical definitions from the loaders.
+These methods read from pre-computed trend_template_data (populated by loaders)
+and compute Mansfield RS on-demand using price returns.
 """
 
 from typing import Dict, Any, Optional
@@ -19,39 +14,129 @@ logger = logging.getLogger(__name__)
 
 
 class SignalTrendMixin:
-    """
-    Trend signal stub methods. Not used in main orchestrator.
-
-    Actual trend signal generation happens in loaders:
-    - load_trend_criteria_data.py: Computes Minervini 8-point, Weinstein stage
-    - Scores stored in trend_template_data table
-    - Orchestrator evaluates pre-computed scores from DB
-    """
+    """Trend signal methods reading from pre-computed data and real-time calculations."""
 
     def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """STUB: Actual implementation in load_trend_criteria_data.py"""
-        raise NotImplementedError(
-            "Minervini trend template is pre-computed by loaders. "
-            "Retrieve from trend_template_data table instead."
-        )
+        """
+        Read pre-computed Minervini 8-point score from trend_template_data.
+        Loader (load_trend_criteria_data.py) computes and stores these scores daily.
 
-    def _minervini_empty(self, reason: str) -> Dict[str, Any]:
-        """Helper for empty minervini response."""
-        return {'score': 0, 'criteria': {}, 'pass': False, 'reason': reason}
+        Returns: {
+            'score': int (0-8),
+            'pass': bool (True if score >= 5),
+            'criteria': {
+                'percent_from_52w_high': float,
+                'percent_from_52w_low': float,
+                'weinstein_stage': int,
+                'trend_direction': str,
+            }
+        }
+        """
+        try:
+            self.cur.execute(
+                """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,
+                          weinstein_stage, trend_direction
+                   FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s
+                   ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date)
+            )
+            row = self.cur.fetchone()
+            if not row:
+                return {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'No trend data'}
+
+            score = int(row[0] or 0)
+            return {
+                'score': score,
+                'pass': score >= 5,
+                'criteria': {
+                    'percent_from_52w_high': float(row[1]) if row[1] else None,
+                    'percent_from_52w_low': float(row[2]) if row[2] else None,
+                    'weinstein_stage': int(row[3]) if row[3] else None,
+                    'trend_direction': str(row[4]) if row[4] else None,
+                }
+            }
+        except Exception as e:
+            logger.warning(f"minervini_trend_template({symbol}) failed: {e}")
+            return {'score': 0, 'pass': False, 'criteria': {}, 'reason': str(e)[:50]}
 
     def weinstein_stage(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """STUB: Actual implementation in load_trend_criteria_data.py"""
-        raise NotImplementedError(
-            "Weinstein stage is pre-computed by loaders. "
-            "Retrieve from trend_template_data table instead."
-        )
+        """
+        Read pre-computed Weinstein 4-stage classification from trend_template_data.
 
-    def mansfield_rs(self, symbol: str, eval_date, lookback: int = 200) -> Optional[float]:
-        """STUB: Actual Mansfield RS implementation would use signal_base._rs_percentile_vs_spy()"""
-        raise NotImplementedError(
-            "Use SignalBase._rs_percentile_vs_spy() for Mansfield RS computation."
-        )
+        Stages: 1 (downtrend), 2 (uptrend), 3 (peak/top), 4 (recovery)
+
+        Returns: {
+            'stage': int (1-4),
+            'confidence': float,
+            'price_vs_ma_pct': float,
+            'slope_pct': float,
+        }
+        """
+        try:
+            self.cur.execute(
+                """SELECT weinstein_stage, size_multiplier, price_vs_30wk_ma_pct,
+                          ma_30w_slope_pct
+                   FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s
+                   ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date)
+            )
+            row = self.cur.fetchone()
+            if not row or not row[0]:
+                return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
+
+            stage = int(row[0])
+            confidence = float(row[1]) if row[1] else 0  # size_multiplier as confidence proxy
+
+            return {
+                'stage': stage,
+                'confidence': confidence,
+                'price_vs_ma_pct': float(row[2]) if row[2] else None,
+                'slope_pct': float(row[3]) if row[3] else None,
+            }
+        except Exception as e:
+            logger.warning(f"weinstein_stage({symbol}) failed: {e}")
+            return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
+
+    def mansfield_rs(self, symbol: str, eval_date, lookback: int = 252) -> Dict[str, Any]:
+        """
+        Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
+
+        Measures how much better/worse the stock performed vs SPY over lookback period.
+        Positive RS = outperforming market
+        Negative RS = underperforming market
+
+        Returns: {
+            'mansfield_rs': float,
+            'positive': bool,
+            'stock_return_pct': float,
+            'spy_return_pct': float,
+        }
+        """
+        try:
+            stock_ret = self._period_return(symbol, eval_date, lookback)
+            spy_ret = self._period_return('SPY', eval_date, lookback)
+
+            if stock_ret is None or spy_ret is None or spy_ret == 0:
+                return {
+                    'mansfield_rs': 0,
+                    'positive': False,
+                    'stock_return_pct': stock_ret,
+                    'spy_return_pct': spy_ret,
+                }
+
+            mrs = (stock_ret / spy_ret) - 1
+            return {
+                'mansfield_rs': round(mrs, 4),
+                'positive': mrs > 0,
+                'stock_return_pct': round(stock_ret * 100, 2),
+                'spy_return_pct': round(spy_ret * 100, 2),
+            }
+        except Exception as e:
+            logger.warning(f"mansfield_rs({symbol}) failed: {e}")
+            return {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}
 
     def stage2_phase(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """STUB: Use weinstein_stage() instead."""
-        raise NotImplementedError("Use weinstein_stage() method instead.")
+        """Alias for weinstein_stage() for backwards compatibility."""
+        return self.weinstein_stage(symbol, eval_date)

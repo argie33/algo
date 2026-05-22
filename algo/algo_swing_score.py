@@ -297,21 +297,78 @@ class SwingTraderScore:
         All gates must pass for compute() to proceed to component scoring.
 
         **Gates Checked:**
-          1. Trend template score >= 5/8 (Minervini filter)
+          1. Trend template score >= min_trend_score (config, default 5/8)
           2. Weinstein stage == 2 (must be in uptrend)
-          3. Within 25% of 52w high (not too extended)
+          3. Within max_extension_pct of 52w high (config, default 25%)
           4. Base count < 4 (reasonable consolidation count)
           5. Base type != 'wide_and_loose' and quality != 'D'
-          6. Industry rank <= 100 (not in bottom half by performance)
-          7. Earnings not within 5 trading days (avoid event risk)
+          6. Industry rank <= max_industry_rank (config, default 100)
+          7. Earnings not within N days (config, default 5 trading days)
+
+        Config keys: swing_hard_gates_enabled, swing_min_trend_score, swing_max_extension_pct,
+                    swing_min_industry_rank, swing_days_to_earnings_block
 
         Returns: {'pass': True} or {'pass': False, 'reason': str, ...details...}
         """
-        # RELAXED FOR PRODUCTION TESTING: Allow signals through to measure swing score effectiveness
-        # All gates made permissive to focus on component scoring and ranking
-        return {'pass': True, 'reason': 'Hard gates relaxed for production verification'}
+        # Emergency bypass: if hard gates disabled via config, soft-pass all
+        gates_enabled = self._load_config_val('swing_hard_gates_enabled', True)
+        if not gates_enabled:
+            logger.info(f"Hard gates disabled via config for {symbol}")
+            return {'pass': True, 'reason': 'Hard gates disabled by config'}
 
-        # 4. Base count check + base type (no wide-and-loose)
+        # Gate 1 & 2: Minervini trend score + Weinstein stage
+        trend_score = 0
+        stage = 1
+        try:
+            self.cur.execute(
+                """SELECT minervini_trend_score, weinstein_stage, percent_from_52w_high,
+                          estimated_base_count FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date),
+            )
+            row = self.cur.fetchone()
+            if row:
+                trend_score = int(row[0]) if row[0] is not None else 0
+                stage = int(row[1]) if row[1] is not None else 1
+        except Exception as e:
+            logger.debug(f"Could not fetch trend data for {symbol}: {e}")
+
+        min_trend_score = self._load_config_val('swing_min_trend_score', 5)
+        if trend_score < min_trend_score:
+            return {
+                'pass': False,
+                'reason': f'Trend score {trend_score} < {min_trend_score}',
+                'trend_score': trend_score,
+            }
+
+        if stage != 2:
+            return {
+                'pass': False,
+                'reason': f'Weinstein stage {stage} != 2 (must be in uptrend)',
+                'stage': stage,
+            }
+
+        # Gate 3: Not too extended from 52-week high
+        try:
+            max_extension_pct = self._load_config_val('swing_max_extension_pct', 25)
+            self.cur.execute(
+                """SELECT percent_from_52w_high FROM trend_template_data
+                   WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
+                (symbol, eval_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0] is not None:
+                pct_from_high = float(row[0])
+                if pct_from_high > max_extension_pct:
+                    return {
+                        'pass': False,
+                        'reason': f'Extended {pct_from_high:.1f}% from 52w high (max {max_extension_pct}%)',
+                        'percent_from_52w_high': pct_from_high,
+                    }
+        except Exception:
+            pass
+
+        # Gate 4 & 5: Base count and base type
         estimated_base_count = 0
         try:
             self.cur.execute(
@@ -325,7 +382,11 @@ class SwingTraderScore:
             pass
 
         if estimated_base_count >= 4:
-            return {'pass': False, 'reason': f'Base count {estimated_base_count} >= 4'}
+            return {
+                'pass': False,
+                'reason': f'Base count {estimated_base_count} >= 4 (too many consolidations)',
+                'base_count': estimated_base_count,
+            }
 
         base_type = self._signals.classify_base_type(symbol, eval_date)
         if base_type.get('type') == 'wide_and_loose' or base_type.get('quality') == 'D':
@@ -335,47 +396,71 @@ class SwingTraderScore:
                 'base': base_type,
             }
 
-        # 5. Industry rank — get from industry_ranking
+        # Gate 6: Industry rank (not in bottom half)
         industry_rank = None
         if industry:
-            self.cur.execute(
-                """SELECT current_rank FROM industry_ranking
-                   WHERE industry = %s AND date_recorded <= %s
-                   ORDER BY date_recorded DESC LIMIT 1""",
-                (industry, eval_date),
-            )
-            r = self.cur.fetchone()
-            if r and r[0]:
-                industry_rank = int(r[0])
+            try:
+                max_industry_rank = self._load_config_val('swing_min_industry_rank', 100)
+                self.cur.execute(
+                    """SELECT current_rank FROM industry_ranking
+                       WHERE industry = %s AND date_recorded <= %s
+                       ORDER BY date_recorded DESC LIMIT 1""",
+                    (industry, eval_date),
+                )
+                r = self.cur.fetchone()
+                if r and r[0]:
+                    industry_rank = int(r[0])
+                    if industry_rank > max_industry_rank:
+                        return {
+                            'pass': False,
+                            'reason': f'Industry rank {industry_rank} > {max_industry_rank} (bottom half)',
+                            'industry_rank': industry_rank,
+                        }
+            except Exception:
+                pass
 
-        # We don't hard-fail on missing industry data, but heavy penalty in scoring
-        if industry_rank is not None and industry_rank > 100:
-            return {
-                'pass': False,
-                'reason': f'Industry rank {industry_rank} > 100 (bottom half)',
-                'industry_rank': industry_rank,
-            }
-
-        # 6. Earnings proximity
+        # Gate 7: Earnings proximity
         days_to_earn = self._days_to_earnings(symbol, eval_date)
-        if days_to_earn is not None and 0 <= days_to_earn <= 5:
+        earnings_block = self._load_config_val('swing_days_to_earnings_block', 5)
+        if days_to_earn is not None and 0 <= days_to_earn <= earnings_block:
             return {
                 'pass': False,
-                'reason': f'Earnings in ~{days_to_earn}d',
+                'reason': f'Earnings in ~{days_to_earn}d (blocked within {earnings_block}d)',
                 'days_to_earnings': days_to_earn,
             }
 
+        # All gates passed
         return {
             'pass': True,
             'trend_score': trend_score,
             'stage': stage,
-            'base_count': phase.get('estimated_base_count'),
+            'base_count': estimated_base_count,
             'base_type': base_type.get('type'),
             'base_quality': base_type.get('quality'),
-            'phase': phase.get('phase'),
             'industry_rank': industry_rank,
             'days_to_earnings': days_to_earn,
         }
+
+    def _load_config_val(self, key: str, default):
+        """Load a config value, with fallback to default."""
+        try:
+            if not self._signals:
+                return default
+            self.cur.execute("SELECT value, value_type FROM algo_config WHERE key = %s", (key,))
+            row = self.cur.fetchone()
+            if not row:
+                return default
+            val_str, val_type = row
+            if val_type == 'int':
+                return int(val_str)
+            elif val_type == 'float':
+                return float(val_str)
+            elif val_type == 'bool':
+                return val_str.lower() in ('true', '1', 'yes')
+            else:
+                return val_str or default
+        except Exception:
+            return default
 
     # ============= COMPONENTS =============
 
@@ -611,7 +696,22 @@ class SwingTraderScore:
         # EARNINGS SURPRISE MOMENTUM removed (no earnings_metrics data source)
         earnings_pts = 0.0
 
-        pts = min(self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts)
+        # OPTIONS SIGNALS BONUS — IV rank, put/call ratio, implied move
+        opts_pts = 0.0
+        opts_detail = {}
+        try:
+            if hasattr(self, 'options_signal'):
+                opts = self.options_signal(symbol, eval_date)
+                opts_pts = opts.get('bonus_pts', 0.0)
+                opts_detail = {
+                    'iv_rank': opts.get('iv_rank', {}),
+                    'put_call': opts.get('put_call', {}),
+                    'implied_move': opts.get('implied_move', {}),
+                }
+        except Exception as e:
+            logger.debug(f"Options signal failed for {symbol}: {e}")
+
+        pts = min(self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts + opts_pts)
         return pts, {
             'rs_percentile_60d': round(rs_60, 1) if rs_60 is not None else None,
             'return_1m': round(r1 * 100, 1),
@@ -620,6 +720,8 @@ class SwingTraderScore:
             'short_interest_pct': round(short_interest, 1) if short_interest is not None else None,
             'short_interest_bonus_pts': si_pts,
             'earnings_momentum_pts': earnings_pts,
+            'options_bonus_pts': opts_pts,
+            'options_signals': opts_detail,
         }
 
     def _volume_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:

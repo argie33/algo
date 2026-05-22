@@ -2712,3 +2712,80 @@ CREATE TABLE IF NOT EXISTS loader_watermarks (
     last_error TEXT,
     UNIQUE (loader, symbol, granularity)
 );
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SCHEMA FIXES — Missing columns referenced by active code
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- market_exposure_daily: add missing columns used by algo_market_exposure.py
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS exposure_pct DECIMAL(8,4);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS raw_score DECIMAL(8,4);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS regime VARCHAR(50);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS distribution_days INTEGER;
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS factors JSONB;
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS halt_reasons TEXT;
+
+-- sector_ranking: add missing historical rank columns used by sector rotation
+ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER;
+ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_4w_ago INTEGER;
+ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER;
+
+-- algo_positions: add missing columns referenced in index definitions
+ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS entry_date DATE;
+ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(100);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- NEW TABLES — Finance optimization system
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Component-level signal attribution (Information Coefficient per component)
+CREATE TABLE IF NOT EXISTS algo_component_attribution (
+    id SERIAL PRIMARY KEY,
+    report_date DATE NOT NULL,
+    component VARCHAR(50) NOT NULL,          -- setup_quality, trend_quality, momentum_rs, etc.
+    ic_value DECIMAL(8,4),                   -- Information Coefficient (Pearson r vs realized P&L)
+    ic_pvalue DECIMAL(8,4),                  -- Statistical significance
+    sample_size INTEGER,                     -- Number of trades in window
+    lookback_trades INTEGER,                 -- How many closed trades were analyzed
+    avg_component_score DECIMAL(8,4),        -- Average component score in sample
+    avg_realized_pnl DECIMAL(8,4),           -- Average realized P&L in sample
+    regime VARCHAR(50),                      -- Market regime when measured
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(report_date, component)
+);
+CREATE INDEX IF NOT EXISTS idx_component_attribution_date ON algo_component_attribution(report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_component_attribution_component ON algo_component_attribution(component);
+
+-- Historical record of weight changes (audit trail)
+CREATE TABLE IF NOT EXISTS algo_weight_history (
+    id SERIAL PRIMARY KEY,
+    change_date DATE NOT NULL,
+    component VARCHAR(50) NOT NULL,
+    old_weight INTEGER,                      -- Previous weight (0-100)
+    new_weight INTEGER,                      -- New weight (0-100)
+    reason VARCHAR(200),                     -- 'ic_optimization', 'regime_shift', 'manual', etc.
+    ic_value DECIMAL(8,4),                   -- IC that drove the optimization
+    blending_factor DECIMAL(8,4),            -- Alpha used for smooth blending
+    regime VARCHAR(50),                      -- Regime at time of change
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_weight_history_date ON algo_weight_history(change_date DESC);
+CREATE INDEX IF NOT EXISTS idx_weight_history_component ON algo_weight_history(component);
+
+-- Earnings metrics for earnings alpha scoring
+CREATE TABLE IF NOT EXISTS earnings_metrics (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    report_date DATE NOT NULL,
+    eps_surprise_pct DECIMAL(8,4),           -- (actual - consensus) / consensus
+    revenue_surprise_pct DECIMAL(8,4),
+    eps_beat_count_4q INTEGER,               -- # of last 4 quarters beaten
+    eps_beat_rate_pct DECIMAL(8,4),          -- % of last 4 quarters beaten
+    historical_beat_magnitude_avg DECIMAL(8,4), -- Average magnitude of beats
+    guidance_raised BOOLEAN,                 -- Was guidance raised?
+    guidance_beat_pct DECIMAL(8,4),          -- Beat guidance by how much?
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, report_date)
+);
+CREATE INDEX IF NOT EXISTS idx_earnings_metrics_symbol_date ON earnings_metrics(symbol, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_date DESC);
