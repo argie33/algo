@@ -66,7 +66,7 @@ def apply_migrations():
             ADD COLUMN IF NOT EXISTS rs_percentile DECIMAL(8, 2);
         """)
         conn.commit()
-        print("✓ rs_percentile column added")
+        print("[OK] rs_percentile column added")
 
         # Migration 2: Add updated_at to analyst_sentiment_analysis
         print("Applying migration: Add updated_at to analyst_sentiment_analysis...")
@@ -75,7 +75,7 @@ def apply_migrations():
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
         """)
         conn.commit()
-        print("✓ updated_at column added")
+        print("[OK] updated_at column added")
 
         cursor.close()
         conn.close()
