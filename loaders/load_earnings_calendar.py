@@ -79,7 +79,6 @@ class EarningsCalendarLoader:
             results = []
 
             # Primary: ticker.calendar returns the next earnings date(s)
-            # This works without lxml; ticker.earnings_dates requires lxml
             try:
                 cal = ticker.calendar
                 if cal and 'Earnings Date' in cal:
@@ -90,7 +89,7 @@ class EarningsCalendarLoader:
                         if d is None:
                             continue
                         if hasattr(d, 'date'):
-                            earnings_date = d  # already a date
+                            earnings_date = d
                         else:
                             earnings_date = pd.Timestamp(d).date()
                         if earnings_date < date.today():
@@ -107,10 +106,12 @@ class EarningsCalendarLoader:
                             'actual_revenue': None,
                             'fiscal_period': None,
                         })
-            except Exception:
-                pass
+                else:
+                    logger.debug(f"[{symbol}] ticker.calendar empty or no Earnings Date")
+            except Exception as e:
+                logger.debug(f"[{symbol}] ticker.calendar error: {e}")
 
-            # Fallback: earnings_dates (requires lxml — may not be available)
+            # Fallback: earnings_dates
             if not results:
                 try:
                     earnings_dates = ticker.earnings_dates
@@ -131,12 +132,14 @@ class EarningsCalendarLoader:
                                 'actual_revenue': None,
                                 'fiscal_period': None,
                             })
-                except Exception:
-                    pass
+                    else:
+                        logger.debug(f"[{symbol}] ticker.earnings_dates None or empty")
+                except Exception as e:
+                    logger.debug(f"[{symbol}] ticker.earnings_dates error: {e}")
 
             return results
         except Exception as e:
-            logger.debug(f"yfinance earnings fetch failed for {symbol}: {e}")
+            logger.warning(f"yfinance fetch failed for {symbol}: {e}")
             return []
 
     def load_earnings(self, symbols: Optional[List[str]] = None, days_ahead: int = 180) -> int:
