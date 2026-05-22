@@ -369,10 +369,10 @@ locals {
     "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by yfinance
-    # Fixed: timeout 1800→2400s (40min for 5000/4 symbols), parallelism 8→4 (respect yfinance 60/min rate limit)
-    # Real-world testing shows parallelism=8 exceeds yfinance rate limits for 5000+ symbols
-    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 4 }
-    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 4 }
+    # CRITICAL FIX: timeout 2400→5400s (90min for 5000 symbols sequential), parallelism 4→1 (sequential = safe from rate limits)
+    # parallelism=4 still exceeded rate limits (60 req/min). Sequential processing necessary for 5000+ symbols
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "stock_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
     "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
     "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
