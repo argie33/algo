@@ -371,9 +371,9 @@ locals {
     # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by yfinance
     # ROOT CAUSE: parallelism=1 → 5000 symbols * 7sec = 10+ hours. FIX: parallelism=4 with per-request rate limiting.
     # With 4 threads + yfinance limit (60 req/min): safe concurrent processing without hitting rate limit.
-    # TIMEOUT FIX: 3600→10800 (1h→3h). Stock prices needs 120+ min for 5000+ symbols; add 60min buffer.
-    "stock_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 4 }
-    "stock_prices_weekly"  = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 4 }
+    # TIMEOUT FIX: 3600→10800→14400→21600 (1h→3h→4h→6h). Stock prices needs 2.5-3h for 5000+ symbols; 6h buffer ensures completion.
+    "stock_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    "stock_prices_weekly"  = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
     "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
     "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
     "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
@@ -428,17 +428,17 @@ locals {
     "stock_scores" = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
-    # Fixed: timeout 1800→2400→10800s (30min→40min→3h), parallelism 8→4 (real-world testing: parallelism=8 too aggressive)
+    # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
     # ETF signals: increased timeout to match heavy computation + yfinance rate limiting for 5000+ ETFs
-    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 4 }
+    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
     "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
     "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
-    # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB
-    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB; increase timeout for 5000+ symbol processing
+    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 1 }
 
     # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
     # TIMEOUT: 14400s (4h) for 5000+ symbols at ~2.5-3s/symbol + DB inserts
@@ -448,7 +448,7 @@ locals {
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 4 }
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
     # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, small dataset
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
