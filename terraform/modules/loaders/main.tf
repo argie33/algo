@@ -542,6 +542,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "ALPACA_PAPER_TRADING"
           value = tostring(var.alpaca_paper_trading)
+        },
+        {
+          name  = "BACKFILL_DAYS"
+          value = "365"
         }
       ]
     }
