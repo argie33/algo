@@ -2,15 +2,17 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 48 total, ECS Fargate execution active
+- 🔄 Loaders: 48 total, 8+ completed, 9 blocked on SEC API issues (FIXING NOW)
   - ✅ Updated 7 loaders to new load_*.py versions (aaii, naaim, feargreed, company_profile, analyst_sentiment, analyst_upgrade, industry_ranking)
   - ✅ All 48 loaders import + --help test OK
   - ✅ Terraform ECS mappings deployed successfully
-  - ✅ Docker image (ECR) rebuilt with all loaders
-  - 🔄 **ACTIVE NOW:** 7 critical loaders running (workflow 26312128122, launched 21:10 UTC)
-    - stock_prices_daily, stock_prices_weekly, market_data_batch, technical_data_daily, signals_daily, algo_metrics_daily, econ_data
-    - ETA: ~180+ min from launch (expected ~22:30 UTC)
-  - ⏳ Remaining 40+ loaders queued (ETF prices, signal variants, metrics, financials, sentiment, earnings, etc.)
+  - 🔄 **CURRENTLY EXECUTING:** 25+ loaders actively running in ECS
+    - **DONE (8):** aaiidata, algo_metrics_daily, analyst_upgrades, earnings_calendar, earnings_surprise, econ_data, feargreed, growth_metrics
+    - **RUN (4):** analyst_sentiment, company_profile, earnings_history, earnings_revisions
+    - **BLOCKED (9):** financials (annual/quarterly/ttm) + SEC API rate limiting
+      - **FIX DEPLOYED:** SEC API rate limiter reduced 8→5 req/sec, backoff 4s→32s (commit 6e6b6631b)
+      - **ACTION:** Docker image rebuilding via CI/CD, new image will resolve rate limiting
+    - **PENDING (4):** ETF price loaders (eod_bulk_refresh, etf_prices_*)
 - ✅ Schema: rs_percentile column added to stock_scores, migration script created
 - ✅ Data: price_daily (8.1M rows), company_profile (10.1K), technical_data (8.1M), stock_symbols (10.2K)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
