@@ -621,3 +621,19 @@ variable "rds_proxy_endpoint" {
   type        = string
   default     = null
 }
+
+# ============================================================
+# Weight Optimization Task Configuration
+# ============================================================
+
+variable "weight_optimization_task_definition_arn" {
+  description = "ARN of the weight optimization ECS task definition (from loaders module)"
+  type        = string
+  default     = ""
+}
+
+variable "algo_lambda_sg_id" {
+  description = "Security group ID for algo Lambda (for ECS task networking)"
+  type        = string
+  default     = ""
+}

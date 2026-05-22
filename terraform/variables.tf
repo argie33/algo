@@ -117,7 +117,7 @@ variable "rds_password" {
   description = "Master password for RDS database (auto-generated if not provided, must be 8+ characters, no special chars at start/end)"
   type        = string
   sensitive   = true
-  default     = ""  # Will be generated dynamically by Terraform
+  default     = "" # Will be generated dynamically by Terraform
   validation {
     condition     = length(var.rds_password) == 0 || length(var.rds_password) >= 8
     error_message = "RDS password must be at least 8 characters long or left empty for auto-generation"

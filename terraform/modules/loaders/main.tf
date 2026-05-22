@@ -842,6 +842,66 @@ resource "aws_ecs_task_definition" "data_patrol" {
 }
 
 # ============================================================
+# Weight Optimization ECS Task Definition (Daily Continuous Improvement Loop)
+#
+# Invoked daily at 6:00 PM ET (after orchestrator completes)
+# Populates signal_trade_performance → computes IC → optimizes swing_score weights
+# Reads closed trades, computes information coefficients, adapts component weights
+# ============================================================
+
+resource "null_resource" "ensure_weight_optimization_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-weight-optimization --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "weight_optimization" {
+  depends_on = [null_resource.ensure_weight_optimization_log_group]
+
+  family = "${var.project_name}-weight-optimization"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-weight-optimization"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+
+      command = ["python3", "-m", "loaders.load_weight_optimization"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-weight-optimization"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name },
+        { name = "LOG_LEVEL", value = "info" }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"  # Lightweight computation (IC + weight optimization)
+  memory                   = "1024" # Moderate memory for in-memory IC calculations
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+# ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
 # ============================================================
 

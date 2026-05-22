@@ -118,3 +118,22 @@ output "data_patrol_log_group_name" {
   description = "CloudWatch log group for data patrol"
   value       = "/ecs/${var.project_name}-data-patrol"
 }
+
+# ============================================================
+# Weight Optimization Task Outputs (Daily Continuous Improvement)
+# ============================================================
+
+output "weight_optimization_task_definition_arn" {
+  description = "ARN of the weight optimization ECS task definition (invoked daily at 6 PM ET)"
+  value       = aws_ecs_task_definition.weight_optimization.arn
+}
+
+output "weight_optimization_task_definition_family" {
+  description = "Family name of the weight optimization ECS task definition"
+  value       = aws_ecs_task_definition.weight_optimization.family
+}
+
+output "weight_optimization_log_group_name" {
+  description = "CloudWatch log group for weight optimization"
+  value       = "/ecs/${var.project_name}-weight-optimization"
+}
