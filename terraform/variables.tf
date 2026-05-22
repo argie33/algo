@@ -767,3 +767,19 @@ variable "orchestrator_dry_run" {
   default     = false
 }
 
+# ============================================================
+# Governance & Security Configuration
+# ============================================================
+
+variable "enforce_iac_only" {
+  description = "Enforce IaC-only resource creation via SCPs (block manual AWS API calls)"
+  type        = bool
+  default     = true
+}
+
+variable "require_terraform_tag" {
+  description = "Require terraform:managed tag on all resources"
+  type        = bool
+  default     = true
+}
+

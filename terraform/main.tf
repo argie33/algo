@@ -358,3 +358,14 @@ module "monitoring" {
 }
 
 data "aws_caller_identity" "current" {}
+
+# ============================================================
+# Governance Module - Enforce IaC-only resource creation
+# ============================================================
+module "governance" {
+  source = "./modules/governance"
+
+  enforce_iac_only       = var.enforce_iac_only
+  require_terraform_tag  = var.require_terraform_tag
+  aws_region             = var.aws_region
+}

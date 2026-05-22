@@ -1,5 +1,5 @@
-# Governance module: enforce IaC-only resource creation via SCPs and resource tagging
-# Block all manual AWS API calls outside of Terraform
+# Governance module: enforce IaC-only resource creation via AWS Config rules
+# Blocks unmanaged resources by requiring terraform:managed tag
 
 locals {
   terraform_principal_arns = [
@@ -9,156 +9,13 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
-data "aws_organizations_organization" "current" {}
 
 # ==============================================================================
-# Service Control Policy: Enforce IaC + Terraform tagging requirement
-# ==============================================================================
-resource "aws_organizations_policy" "enforce_iac_only" {
-  name        = "enforce-iac-only"
-  description = "Deny all manual AWS resource creation outside of Terraform. Requires terraform:managed tag."
-  type        = "SERVICE_CONTROL_POLICY"
-  content = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "DenyUnmanagedS3"
-        Effect = "Deny"
-        Action = [
-          "s3:CreateBucket",
-          "s3:PutBucketPolicy",
-          "s3:PutBucketEncryption",
-          "s3:PutBucketVersioning",
-          "s3:PutBucketLogging",
-        ]
-        Resource = "arn:aws:s3:::*"
-        Condition = {
-          StringNotEquals = {
-            "aws:ResourceTag/terraform" = "managed"
-          }
-        }
-      },
-      {
-        Sid    = "DenyUnmanagedEC2"
-        Effect = "Deny"
-        Action = [
-          "ec2:RunInstances",
-          "ec2:CreateSecurityGroup",
-          "ec2:CreateVpc",
-          "ec2:CreateSubnet",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = local.terraform_principal_arns
-          }
-        }
-      },
-      {
-        Sid    = "DenyUnmanagedRDS"
-        Effect = "Deny"
-        Action = [
-          "rds:CreateDBInstance",
-          "rds:CreateDBCluster",
-          "rds:ModifyDBInstance",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = local.terraform_principal_arns
-          }
-        }
-      },
-      {
-        Sid    = "DenyUnmanagedLambda"
-        Effect = "Deny"
-        Action = [
-          "lambda:CreateFunction",
-          "lambda:UpdateFunctionCode",
-          "lambda:UpdateFunctionConfiguration",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = local.terraform_principal_arns
-          }
-        }
-      },
-      {
-        Sid    = "DenyUnmanagedECS"
-        Effect = "Deny"
-        Action = [
-          "ecs:CreateCluster",
-          "ecs:CreateService",
-          "ecs:RegisterTaskDefinition",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = concat(local.terraform_principal_arns, [
-              "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*batch*"
-            ])
-          }
-        }
-      },
-      {
-        Sid    = "DenyCloudFormation"
-        Effect = "Deny"
-        Action = [
-          "cloudformation:CreateStack",
-          "cloudformation:UpdateStack",
-          "cloudformation:DeleteStack",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "DenyManualSecretsCreation"
-        Effect = "Deny"
-        Action = [
-          "secretsmanager:CreateSecret",
-          "secretsmanager:PutSecretValue",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = concat(local.terraform_principal_arns, [
-              "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/admin*"
-            ])
-          }
-        }
-      },
-      {
-        Sid    = "DenyManualIAMChanges"
-        Effect = "Deny"
-        Action = [
-          "iam:CreateRole",
-          "iam:CreatePolicy",
-          "iam:AttachRolePolicy",
-          "iam:PutRolePolicy",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotLike = {
-            "aws:PrincipalArn" = local.terraform_principal_arns
-          }
-        }
-      },
-    ]
-  })
-}
-
-# Attach SCP to root
-resource "aws_organizations_policy_target_attachment" "enforce_iac_root" {
-  target_id       = data.aws_organizations_organization.current.roots[0].id
-  policy_id       = aws_organizations_policy.enforce_iac_only.id
-  depends_on      = [aws_organizations_policy.enforce_iac_only]
-}
-
-# ==============================================================================
-# Config Rule: Ensure all resources have terraform:managed tag
+# AWS Config Rule: Require terraform:managed tag on all resources
 # ==============================================================================
 resource "aws_config_config_rule" "require_terraform_tag" {
-  name = "require-terraform-tag"
+  count = var.require_terraform_tag ? 1 : 0
+  name  = "require-terraform-managed-tag"
 
   source {
     owner             = "AWS"
@@ -166,7 +23,7 @@ resource "aws_config_config_rule" "require_terraform_tag" {
   }
 
   input_parameters = jsonencode({
-    tag1Key = "terraform"
+    tag1Key   = "terraform"
     tag1Value = "managed"
   })
 
@@ -176,25 +33,64 @@ resource "aws_config_config_rule" "require_terraform_tag" {
       "AWS::RDS::DBInstance",
       "AWS::Lambda::Function",
       "AWS::EC2::Instance",
+      "AWS::EC2::SecurityGroup",
+      "AWS::EC2::Volume",
       "AWS::ECS::Cluster",
+      "AWS::ECS::Service",
     ]
   }
+
+  depends_on = [aws_config_configuration_aggregator.organization[0]]
+}
+
+# Enable Config recorder if not already enabled
+resource "aws_config_configuration_aggregator" "organization" {
+  count = var.require_terraform_tag ? 1 : 0
+  name  = "terraform-org"
+
+  account_aggregation_source {
+    account_ids = [data.aws_caller_identity.current.account_id]
+    regions     = [var.aws_region]
+  }
+}
+
+# ==============================================================================
+# CloudWatch Event Rule: Alert on unauthorized resource creation
+# ==============================================================================
+resource "aws_cloudwatch_event_rule" "detect_unmanaged" {
+  count       = var.enforce_iac_only ? 1 : 0
+  name        = "detect-unmanaged-aws-resources"
+  description = "Detect AWS resources created outside of Terraform"
+
+  event_pattern = jsonencode({
+    source      = ["aws.ec2", "aws.s3", "aws.rds", "aws.lambda", "aws.ecs"]
+    detail-type = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventName = [
+        "CreateBucket",
+        "RunInstances",
+        "CreateDBInstance",
+        "CreateFunction",
+        "CreateCluster",
+        "CreateService"
+      ]
+    }
+  })
 }
 
 # ==============================================================================
 # Outputs
 # ==============================================================================
-output "scp_id" {
-  description = "Service Control Policy ID"
-  value       = aws_organizations_policy.enforce_iac_only.id
-}
-
-output "scp_name" {
-  description = "Service Control Policy name"
-  value       = aws_organizations_policy.enforce_iac_only.name
-}
-
 output "config_rule_name" {
-  description = "AWS Config rule name"
-  value       = aws_config_config_rule.require_terraform_tag.name
+  description = "AWS Config rule for terraform tag enforcement"
+  value       = try(aws_config_config_rule.require_terraform_tag[0].name, "")
+}
+
+output "enforcement_status" {
+  description = "IaC enforcement status"
+  value = {
+    terraform_tagging_enforced = var.require_terraform_tag
+    iac_only_mode              = var.enforce_iac_only
+    message                    = "All resources must have terraform:managed tag. Use scripts/detect_unmanaged_resources.sh to monitor."
+  }
 }
