@@ -40,7 +40,6 @@ class AnalystUpgradeDowngradeLoader:
             # Get random sample of stocks for mock rating changes
             cur.execute("""
                 SELECT symbol FROM stock_symbols
-                WHERE is_sp500 = true
                 ORDER BY RANDOM() LIMIT 20
             """)
 
@@ -58,13 +57,13 @@ class AnalystUpgradeDowngradeLoader:
             inserted = 0
             for symbol in symbols:
                 # 30% chance of a rating change on this date
-                if random.random() > 0.3:
+                if random.random() > 0.30:
                     continue
 
                 firm = random.choice(firms)
                 old_rating = random.choice(old_ratings)
                 new_rating = random.choice(new_ratings)
-                action = "Upgrade" if ["Outperform", "Buy"].count(new_rating) > 0 else "Downgrade"
+                action = "Upgrade" if new_rating in ["Outperform", "Buy"] else "Downgrade"
 
                 # Check if this exact change already exists
                 cur.execute("""
@@ -101,6 +100,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Load analyst upgrade/downgrade data')
+    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
+    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     parser.add_argument('--date', type=str, help='Date to load (YYYY-MM-DD)')
     args = parser.parse_args()
 
