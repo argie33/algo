@@ -184,7 +184,8 @@ class SwingTraderScore:
                 logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
                 # Rollback to prevent transaction abort
                 try:
-                    self.conn.rollback()
+                    if self._owned:
+                        self._owned.rollback()
                 except Exception:
                     pass
                 gates = {'pass': True}  # Soft pass to continue evaluation
@@ -206,37 +207,77 @@ class SwingTraderScore:
             except Exception as e:
                 logger.debug(f"Setup component failed for {symbol}: {e}")
                 setup_pts, setup_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             try:
                 trend_pts, trend_detail = self._trend_component(symbol, eval_date)
             except Exception as e:
                 logger.debug(f"Trend component failed for {symbol}: {e}")
                 trend_pts, trend_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             try:
                 mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
             except Exception as e:
                 logger.debug(f"Momentum component failed for {symbol}: {e}")
                 mom_pts, mom_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             try:
                 vol_pts, vol_detail = self._volume_component(symbol, eval_date)
             except Exception as e:
                 logger.debug(f"Volume component failed for {symbol}: {e}")
                 vol_pts, vol_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             try:
                 fund_pts, fund_detail = self._fundamentals_component(symbol)
             except Exception as e:
                 logger.debug(f"Fundamentals component failed for {symbol}: {e}")
                 fund_pts, fund_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             try:
                 sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
             except Exception as e:
                 logger.debug(f"Sector component failed for {symbol}: {e}")
                 sec_pts, sec_detail = 0, {'error': str(e)[:50]}
-            mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
+
+            try:
+                mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
+            except Exception as e:
+                logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
+                mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
+                try:
+                    if self._owned:
+                        self._owned.rollback()
+                except Exception:
+                    pass
 
             total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
