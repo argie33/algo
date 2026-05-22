@@ -196,8 +196,8 @@ class AlgoConfig:
         'swing_days_to_earnings_block': ('5', 'int', 'Swing score: Block entries N days to earnings'),
 
         # Execution Mode
-        'execution_mode': ('paper', 'string', 'paper|dry|review|auto'),
-        'alpaca_paper_trading': ('true', 'bool', 'Use Alpaca paper account'),
+        'execution_mode': ('auto', 'string', 'paper|dry|review|auto'),
+        'alpaca_paper_trading': ('false', 'bool', 'Use Alpaca paper account'),
         'max_trades_per_day': ('5', 'int', 'Max new trades per day'),
 
         # Feature Flags
