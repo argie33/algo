@@ -141,4 +141,18 @@ jobs:
             --region us-east-1
 
           sleep 120
-          echo "Economic data loader launched. All loaders triggered successfully."
+          echo "Economic data loader launched."
+
+      - name: Invoke Algo Metrics Daily Loader
+        if: ${{ inputs.loader_type == 'all' }}
+        run: |
+          echo "Invoking algo_metrics_daily loader..."
+          aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition algo-algo_metrics_daily-loader \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+            --region us-east-1
+
+          sleep 120
+          echo "All loaders triggered successfully."
