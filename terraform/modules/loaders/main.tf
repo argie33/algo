@@ -394,9 +394,6 @@ locals {
 
     # Market & economic data — small datasets, single-threaded fine
     "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
