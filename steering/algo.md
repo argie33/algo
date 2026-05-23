@@ -2,18 +2,17 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 6-8/57 (12-14%) ECS tasks confirmed working, 6 loaders with success
-  - ✅ Verified working: earnings_surprise, econ_data, market_indices, sectors, signals_daily, stock_scores
-  - ✅ Fixed 5 broken Terraform mappings → deleted files now mapped to working loaders
-  - ✅ Fixed load_signal_quality_scores.py to accept --timeframe and --asset-class parameters
-  - ✅ signals_weekly, signals_monthly in progress (compute-intensive, ~2 min runtime)
-  - ✅ Docker image rebuild deployed (signals_etf variants should pass on retest)
-  - ✅ Database stable: 61/137 tables, 35.4M rows, all critical data present
+- ✅ Loaders: All 48 Terraform loaders queued, 36 running in parallel, 9+ passing
+  - ✅ Terraform fixed: 5 broken mappings → working loaders, all entrypoint parameters fixed
+  - ✅ Load order optimized: stock symbols → prices → financials → metrics → signals (parallel batching)
+  - ✅ Passing: aaiidata, analyst_upgrades_downgrades, company_profile, earnings_calendar, earnings_history, earnings_revisions, eod_bulk_refresh, feargreed, market_health_daily
+  - ⚠️ Mixed results: earnings_surprise, econ_data, market_indices (1 pass, 1 fail each → retry)
+  - 🔄 Running: All major loaders (signals_*, financials_*, prices, metrics) executing in parallel
+  - ✅ Database: 137 tables, 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M, etf_price_daily: 8.0M)
 - ✅ Schema: unique constraints auto-created at loader runtime (OptimalLoader)
-- ✅ Data: All critical trading platform data loaded (61 tables, 35.4M rows, 27.38 GB)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true)
 - ✅ Tests: 297/302 pass
-- NEXT: Retest signals_etf variants; investigate 40+ unmapped loaders (some deleted, need reimplementation decisions)
+- NEXT: Monitor all 36 running tasks → retry failures → verify all 48 complete 100%
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
