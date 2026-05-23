@@ -172,10 +172,24 @@ class DailyFinanceReport:
             avg_loss = abs(float(row[2])) if row[2] else 1
             profit_factor = avg_win / max(0.01, avg_loss)
 
+            # Get average hold days from recent closed trades
+            avg_hold_days = 0
+            self.cur.execute(
+                """
+                SELECT AVG(trade_duration_days) FROM algo_trades
+                WHERE exit_date IS NOT NULL AND exit_date <= %s
+                ORDER BY exit_date DESC LIMIT 100
+                """,
+                (report_date,),
+            )
+            hold_row = self.cur.fetchone()
+            if hold_row and hold_row[0]:
+                avg_hold_days = round(float(hold_row[0]), 1)
+
             return {
                 'win_rate_pct': round(win_rate * 100, 1),
                 'profit_factor': round(profit_factor, 2),
-                'avg_hold_days': 12,  # TODO: fetch from recent trades
+                'avg_hold_days': avg_hold_days,
                 'expectancy_r': round(float(row[3]), 3) if row[3] else None,
             }
         except Exception as e:

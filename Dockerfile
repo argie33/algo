@@ -21,8 +21,5 @@ COPY algo/ ./algo/
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Entry point for loaders: python3
-# Task definition specifies the loader script via command
+# Task definition overrides CMD with loader command via loader_file_map
 # Example: ["python3", "-u", "loaders/load_income_statement.py"]
-ENTRYPOINT ["python3"]
-CMD ["-u"]
