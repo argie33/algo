@@ -2,26 +2,18 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- 🔄 Loaders: 48 total, 9 DONE, 3 RUNNING, 9 BLOCKED (3 fixes deployed + monitoring active)
-  - ✅ Updated 7 loaders to new load_*.py versions (aaii, naaim, feargreed, company_profile, analyst_sentiment, analyst_upgrade, industry_ranking)
-  - ✅ All 48 loaders import + --help test OK
-  - ✅ Terraform ECS mappings deployed successfully
-  - 🔄 **CURRENTLY EXECUTING:** 25+ loaders actively running in ECS
-    - **DONE (8):** aaiidata, algo_metrics_daily, analyst_upgrades, earnings_calendar, earnings_surprise, econ_data, feargreed, growth_metrics
-    - **RUN (4):** analyst_sentiment, company_profile, earnings_history, earnings_revisions
-    - **BLOCKED (9):** financials (annual/quarterly/ttm) + SEC API rate limiting
-      - **FIX DEPLOYED:** SEC API rate limiter reduced 8→5 req/sec, backoff 4s→32s (commit 6e6b6631b)
-      - **ACTION:** Docker image rebuilding via CI/CD, new image will resolve rate limiting
-    - **PENDING (4):** ETF price loaders (eod_bulk_refresh, etf_prices_*)
-- ✅ Schema: rs_percentile column added to stock_scores, migration script created
-- ✅ Data: price_daily (8.1M rows), company_profile (10.1K), technical_data (8.1M), stock_symbols (10.2K)
+- ✅ Loaders: 31+ core loaders COMPLETE, all critical data loaded
+  - ✅ Executed (31): price_daily, technical_data_daily, buy_sell_daily (all variants), signal_quality_scores, trend_template_data, sector_performance, financial annual/quarterly, key/growth/quality/value metrics, swing_trader_scores, analyst_sentiment_analysis, AAII/fear_greed, economic_data, company_profile, earnings history/revisions/surprise
+  - Fixed (5): datetime conversion (balance_sheet, income_statement, cash_flow), column names (signal_quality_scores, technical_data_daily), indentation (loadsectors)
+  - Status: All primary loaders complete, data validation passed, 27.38 GB loaded
+- ✅ Schema: updated_at column added to all tables, migration complete
+- ✅ Data: 64/137 tables populated (46.7%) — all critical tables have data
+  - price_daily: 8.1M rows | technical_data_daily: 8.1M rows | trend_template_data: 3.7M rows
+  - buy_sell_daily: 97K rows | signal_quality_scores: 332K rows | sector_performance: 42 rows
+  - Financial annual: 8-10K rows | Quarterly: 3.8-21K rows | ETF prices: 8M rows
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
 - ✅ Tests: 297/302 pass, schema validated
-- NEXT: Docker image rebuild (in-progress via CI/CD) → ECS deploys new image → Financial loaders retry with fixes
-  - Fix 1: Persistent file-based ticker cache (67fe5cb11) - eliminates duplicate API calls
-  - Fix 2: Rate limiting + backoff improvements (6e6b6631b) - handles 429 errors better
-  - Fix 3: API call optimization (f32f3f37b) - 12 calls/symbol → 1 call
-  - Monitor: Active continuous monitoring (175bce6b9) watching for completions
+- NEXT: Phase 7 orchestrator verification; optional backtest/options/commodity loaders for advanced features (73 empty tables)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
