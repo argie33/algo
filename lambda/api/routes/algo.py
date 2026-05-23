@@ -215,7 +215,7 @@ def _get_algo_performance(cur) -> Dict:
                        entry_quantity, profit_loss_dollars, profit_loss_pct,
                        exit_r_multiple,
                        (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
-                FROM algo_trades WHERE status IN ('closed', 'CLOSED') ORDER BY exit_date DESC LIMIT 1000
+                FROM algo_trades WHERE exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 1000
             """)
             trades = [dict(row) for row in cur.fetchall()]
             if not trades:
