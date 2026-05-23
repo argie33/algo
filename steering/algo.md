@@ -2,15 +2,16 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 10/10 failed loaders recovered, 52/57 total operational
-  - 🔧 Root cause fixed: RDS timeout 120s→300s, Unicode chars removed (✓✗→), batch concurrency controlled
-  - ✅ Recovered (10): naaim_data, seasonality, signals_etf_*, swing_trader_scores, stock_prices_*, etf_prices_*
-  - ✅ Passing (47): All except 5-10 edge cases requiring individual investigation
+- ✅ Loaders: 24/24 queued + refactored; executing comprehensive recovery
+  - 🔧 Refactored: LOADER_NAME dispatcher, single Docker image multiple tasks
+  - ✅ Fixes applied: SEC rate limiting (2→0.5 req/s), task parallelization (max_concurrent=4)
+  - ⏳ In progress: final audit of 20+ completed, 2 resilient loaders stopping
+  - NEXT: Audit results, fix failures, re-run failed loaders, final database verification
 - ✅ Database: 137 tables exist, last known: 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M)
 - ✅ Schema: unique constraints auto-created at loader runtime
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
-- NEXT: Verify 10 recovered loaders in database, audit remaining edge cases, prepare for production cutover
+- NEXT: Complete loader audit, fix failures, reach 100% operational
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
