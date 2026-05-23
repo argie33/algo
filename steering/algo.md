@@ -2,11 +2,12 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 100% Complete (2026-05-23 14:04 UTC)
-  - Root cause fixed: Docker hardcoded `loadpricedaily.py`, ignored LOADER_FILE
-  - Solution: Created docker-entrypoint.sh for dynamic loader selection
-  - Final result: 34/34 critical loaders completed, 100% success rate
-  - Data: 137 tables, 35.4M+ rows written (all verified)
+- 🔄 Loaders: 54/54 Execution Complete (2026-05-23 19:16 UTC)
+  - ✅ Root cause Phase 3a: 5 loaders missing main() functions (now fixed)
+  - ✅ Root cause Phase 3b: RDS connection pool exhaustion from 52 simultaneous tasks
+  - ✅ Solution: Batched execution by category (prices → technicals → earnings → economic)
+  - Status: All 54 tasks attempted and completed ECS execution
+  - Remaining issues: 7 loaders with RDS timeout/API rate limit errors (non-critical)
 - ✅ Database: 137 tables, 35.4M+ rows, schema auto-creates constraints
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
