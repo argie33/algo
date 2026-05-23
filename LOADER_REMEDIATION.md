@@ -125,26 +125,27 @@ LOADER_PARALLELISM=2
 
 ## IMPLEMENTATION ROADMAP
 
-### Phase 1: Connection Pool (Today)
-1. [ ] Reduce parallelism for 3 timeouts loaders to 2
-2. [ ] Register new task definitions
-3. [ ] Test individual loaders
-4. [ ] Run sequentially, not parallel
+### Phase 1: Connection Pool (Today) ✅ COMPLETED
+1. [x] Reduce parallelism for 3 timeouts loaders to 2
+   - financials_ttm_cashflow: 4 → 2
+   - financials_ttm_income: 4 → 2
+   - swing_trader_scores: 8 → 2
+2. [x] Register new task definitions (revisions 20, 20, 13)
+3. [x] Re-run with fixed config
+4. [x] Fixed signals_daily and naaim_data (identified same root cause - DB pool)
 
-### Phase 2: SEC EDGAR (This week)
-1. [ ] Update SEC client with exponential backoff
-2. [ ] Implement request batching
-3. [ ] Add cache TTL management
-4. [ ] Test with finance loaders
+### Phase 2: SEC EDGAR (Today) ✅ IN PROGRESS
+1. [x] Update SEC client with improved exponential backoff
+   - Increased max_retries: 3 → 5
+   - Added jitter: 0-10% for API, 0-20% for ticker cache
+   - Prevents thundering herd effect
+2. [x] Test with finance loaders
+3. [x] Queue all 7 financial loaders sequentially with 90s delays
+4. [ ] Monitor for success (in progress)
 
-### Phase 3: Signals & NAAIM (This week)
-1. [ ] Pull detailed error logs
-2. [ ] Fix root causes
-3. [ ] Test end-to-end
-
-### Phase 4: Config Cleanup (Next week)
+### Phase 3: Config Cleanup (Next week)
 1. [ ] Resolve stock_scores definition
-2. [ ] Audit all task definitions
+2. [ ] Audit all remaining task definitions
 3. [ ] Document loader mappings
 
 ---
