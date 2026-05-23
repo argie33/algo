@@ -670,47 +670,6 @@ class MarketExposure:
             'widening_rapidly': widening_1pp,
         }
 
-    def _naaim_sentiment(self, eval_date):
-        """NAAIM Exposure Index — professional active manager positioning.
-
-        Scale: 0-200, where 100 = fully invested, 200 = 2× leveraged long.
-        Long-run average ~65-70. Unlike AAII, NAAIM reflects *actual* fund
-        positioning, not just sentiment survey.
-
-        Scoring logic:
-          >80: pros are extended → mild caution (but directionally still bullish)
-          50-80: healthy professional risk appetite → positive
-          30-50: professionals reducing exposure → mild stress
-          <30: pros very defensive → bearish, often precedes selling pressure
-
-        Data is weekly — use latest available within 14 days.
-        """
-        self.cur.execute(
-            """
-            SELECT naaim_number_mean, date
-            FROM naaim
-            WHERE date <= %s AND date >= %s::date - INTERVAL '14 days'
-            ORDER BY date DESC LIMIT 1
-            """,
-            (eval_date, eval_date),
-        )
-        row = self.cur.fetchone()
-        if not row or row[0] is None:
-            # M2 FIX: Fail-closed on missing data (0.1 instead of 0.6)
-            return {'score_factor': 0.1, 'value': None, 'reason': 'No NAAIM data'}
-
-        naaim = float(row[0])
-        if naaim > 80:
-            sf = 0.75   # Extended, some mean-reversion risk
-        elif naaim >= 50:
-            sf = 1.0    # Healthy risk appetite
-        elif naaim >= 30:
-            sf = 0.55   # Pros reducing exposure
-        else:
-            sf = 0.25   # Very defensive — selling pressure likely
-
-        return {'score_factor': sf, 'value': round(naaim, 1)}
-
     def _economic_regime_overlay(self, eval_date):
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
 
