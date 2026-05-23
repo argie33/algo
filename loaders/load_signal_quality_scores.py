@@ -189,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
     parser.add_argument("--timeframe", type=str, default="daily", help="Timeframe (daily/weekly/monthly, ignored for quality scores)")
+    parser.add_argument("--asset-class", type=str, default="stock", help="Asset class (stock/etf, ignored for quality scores)")
     args = parser.parse_args()
 
     symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
