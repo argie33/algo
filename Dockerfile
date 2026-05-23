@@ -16,11 +16,13 @@ COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
+COPY docker-entrypoint.sh .
 
 # Run as non-root user to limit container blast radius
-RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
+RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app && chmod +x /app/docker-entrypoint.sh
 USER appuser
 
-# LOADER_NAME from Terraform selects which loader to run
+# LOADER_FILE from task definition environment specifies which loader to run
 # Loaders read config from environment variables set by task definition
-CMD ["python3", "-u", "loaders/loadpricedaily.py"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD []
