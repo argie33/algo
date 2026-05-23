@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Fear & Greed Index Loader - Market sentiment indicator."""
+"""
+Fear & Greed Index Loader - DEVELOPMENT DATA.
+
+⚠️ WARNING: This loader generates RANDOM/MOCK Fear & Greed index values.
+Uses fake data until real API is integrated.
+Real API: CNN Money Fear & Greed Index (no free tier; requires scraping or paid access)
+
+TODO: Integrate with real Fear & Greed API when available.
+This data is NOT safe for production trading decisions.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))

@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""NAAIM Market Strategist Index Loader."""
+"""
+NAAIM Market Strategist Index Loader - DEVELOPMENT DATA.
+
+⚠️ WARNING: This loader generates RANDOM/MOCK NAAIM exposure index values.
+Uses fake data until real API is integrated.
+Real API: https://www.naaim.org/ (data available via newsfeeds, may require subscription)
+
+TODO: Integrate with real NAAIM API when available.
+This data is NOT safe for production trading decisions.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))

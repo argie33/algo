@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Analyst Sentiment Analysis Loader - aggregated analyst recommendations."""
+"""
+Analyst Sentiment Analysis Loader - DEVELOPMENT DATA.
+
+⚠️ WARNING: This loader generates RANDOM/MOCK analyst sentiment data.
+Uses fake analyst counts and sentiment until real API is integrated.
+Real data sources: Refinitiv, Bloomberg Terminal, FactSet (expensive APIs)
+
+TODO: Integrate with real analyst sentiment API when available.
+This data is NOT safe for production trading decisions.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))

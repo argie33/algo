@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Analyst Rating Changes Loader - upgrade/downgrade events."""
+"""
+Analyst Rating Changes Loader - DEVELOPMENT DATA.
+
+⚠️ WARNING: This loader generates RANDOM/MOCK analyst upgrade/downgrade events.
+Uses fake events until real API is integrated.
+Real data sources: Refinitiv, Bloomberg Terminal, FactSet (expensive APIs)
+
+TODO: Integrate with real analyst event API when available.
+This data is NOT safe for production trading decisions.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))

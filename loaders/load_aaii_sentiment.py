@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""AAII Investor Sentiment Index Loader."""
+"""
+AAII Investor Sentiment Index Loader - DEVELOPMENT DATA.
+
+⚠️ WARNING: This loader generates RANDOM/MOCK sentiment data.
+Uses fake data until real AAII API is integrated.
+Real API: https://www.aaii.com/investor-sentiment (requires subscription)
+
+TODO: Integrate with real AAII API when available.
+This data is NOT safe for production trading decisions.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
