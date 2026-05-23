@@ -5,8 +5,12 @@ import json
 import os
 import boto3
 import psycopg2
+import logging
 from datetime import datetime, date
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 sm_client = boto3.client('secretsmanager', region_name='us-east-1')
 
@@ -24,7 +28,7 @@ def get_rds_credentials():
             'database': secret.get('dbname', 'algo'),
         }
     except Exception as e:
-        print(f"ERROR: Failed to get RDS credentials: {e}")
+        logger.error(f"Failed to get RDS credentials: {e}")
         return None
 
 
@@ -114,7 +118,7 @@ def get_alpaca_trades():
 
 def lambda_handler(event, context):
     """Monitor execution status."""
-    print(f"Execution Monitor - {datetime.now().isoformat()}")
+    logger.info(f"Execution Monitor - {datetime.now().isoformat()}")
 
     rds_creds = get_rds_credentials()
     signals_result = query_rds_signals(rds_creds)
@@ -128,7 +132,7 @@ def lambda_handler(event, context):
     }
 
     # Log summary
-    print(json.dumps(result, indent=2, default=str))
+    logger.info(json.dumps(result, indent=2, default=str))
 
     return {
         'statusCode': 200,

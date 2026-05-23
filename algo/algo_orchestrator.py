@@ -309,7 +309,6 @@ class Orchestrator:
 
             # FAIL-CLOSED: critical findings always block
             if critical_count and critical_count > 0:
-                print(f"[PATROL_HALT] Blocking orchestrator: {critical_count} critical findings")
                 logger.info(f"[PATROL_HALT] Blocking orchestrator due to {critical_count} critical findings")
                 if self.verbose:
                     logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
@@ -738,11 +737,6 @@ class Orchestrator:
     # ---------- Main entrypoint ----------
 
     def run(self) -> Dict[str, Any]:
-        print("=" * 80)
-        print(f"[ORCHESTRATOR.RUN] Starting main orchestrator (run_id={self.run_id})")
-        print(f"[ORCHESTRATOR.RUN] dry_run={self.dry_run}, verbose={self.verbose}")
-        print("=" * 80)
-
         logger.info(f"\n{'#'*70}")
         logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         logger.info(f"#   run_id: {self.run_id}")

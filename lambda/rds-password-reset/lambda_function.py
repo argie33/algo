@@ -6,7 +6,11 @@ import json
 import psycopg2
 import os
 import sys
+import logging
 from psycopg2 import sql
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     """Reset RDS master password by connecting and running SQL."""
@@ -28,8 +32,8 @@ def lambda_handler(event, context):
     # New password to set
     new_password = os.environ.get('NEW_PASSWORD', 'Q6JO2ZiFPsKOfpwb0WGVgmcV0yUg6NAO')
 
-    print(f"Attempting to reset RDS password for {db_user}@{db_host}")
-    print(f"Trying known passwords...")
+    logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
+    logger.info(f"Trying known passwords...")
 
     connection = None
     connected = False
@@ -37,7 +41,7 @@ def lambda_handler(event, context):
     # Try to connect with known passwords
     for pwd in known_passwords:
         try:
-            print(f"  Trying password: {'[set]' if pwd else '[empty]'}")
+            logger.info(f"  Trying password: {'[set]' if pwd else '[empty]'}")
             connection = psycopg2.connect(
                 host=db_host,
                 port=db_port,
@@ -47,10 +51,10 @@ def lambda_handler(event, context):
                 connect_timeout=5
             )
             connected = True
-            print(f"  ✓ Connected successfully!")
+            logger.info(f"  ✓ Connected successfully!")
             break
         except psycopg2.Error as e:
-            print(f"  ✗ Failed: {str(e)[:100]}")
+            logger.info(f"  ✗ Failed: {str(e)[:100]}")
             continue
 
     if not connected:
@@ -67,11 +71,11 @@ def lambda_handler(event, context):
 
         # Reset the master user password
         alter_sql = f"ALTER USER {db_user} WITH PASSWORD %s;"
-        print(f"Executing: ALTER USER {db_user} WITH PASSWORD [***]")
+        logger.info(f"Executing: ALTER USER {db_user} WITH PASSWORD [***]")
         cursor.execute(alter_sql, (new_password,))
         connection.commit()
 
-        print(f"✓ Password reset successfully for user '{db_user}'")
+        logger.info(f"✓ Password reset successfully for user '{db_user}'")
 
         cursor.close()
         connection.close()
@@ -87,7 +91,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        print(f"✗ Error executing ALTER USER: {str(e)}")
+        logger.error(f"✗ Error executing ALTER USER: {str(e)}")
         if connection:
             connection.close()
         return {
