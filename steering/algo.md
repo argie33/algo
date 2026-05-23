@@ -2,16 +2,17 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 24/24 executed successfully, comprehensive recovery complete
+- 🔄 Loaders: 7/54 in latest run (2026-05-23 14:05-14:18 UTC, GH Actions workflow succeeded)
+  - ✅ Recent invocation: stock_prices_daily, stock_prices_weekly, market_data_batch, technical_data_daily, signals_daily, econ_data, algo_metrics_daily (all tasks submitted to ECS)
   - ✅ Refactored: LOADER_NAME dispatcher, single Docker image multiple tasks
   - ✅ Fixes applied: SEC rate limiting (2→0.5 req/s), task parallelization
-  - ✅ All 24 loaders executed to completion, no critical errors found
-  - NEXT: Verify data loaded to database, spot-check row counts on key tables
+  - ⏳ PENDING: Verify ECS task completion status, check data in DB for 7 loaders
+  - ⏳ TODO: Run full 54-loader audit (audit_loaders.py) to check all loaders for operational status
 - ✅ Database: 137 tables exist, last known: 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M)
 - ✅ Schema: unique constraints auto-created at loader runtime
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
-- 🎯 FINAL PHASE: Verify all 24 loaders have written data to database, 100% operational
+- 🎯 NEXT: Verify 7 recent loaders wrote data to DB; then audit full 54-loader suite
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
