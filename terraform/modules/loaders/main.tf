@@ -419,6 +419,11 @@ locals {
 
     # Swing trader scores (EOD pipeline final step) — compute-heavy scoring
     "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+
+    # Market sentiment data — small API calls, run daily/weekly
+    "feargreed"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "aaiidata"     = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
 
   # For backward compatibility
@@ -732,9 +737,9 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
 
-      # Orchestrator entry point: python3 algo_orchestrator.py [args]
+      # Orchestrator entry point: python3 algo/algo_orchestrator.py [args]
       # Step Functions passes mode and dry_run as environment variables
-      command = ["python3", "algo_orchestrator.py"]
+      command = ["python3", "algo/algo_orchestrator.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
