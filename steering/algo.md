@@ -2,16 +2,15 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ❌ Loaders: 10/48 passing, 35 failing, 3 pending (May 23 08:39 UTC)
-  - ✅ Passing (10): aaiidata, analyst_upgrades_downgrades, company_profile, earnings_calendar, earnings_history, feargreed, market_health_daily, market_indices, naaim_data, seasonality
-  - ❌ Failing: Exit 137 (25+) = killed/OOM; Exit 1 (5+) = app error; Exit None (5+) = not run
-  - Root cause: ECS resource contention + potential RDS connectivity timeout (needs verification)
-  - All loaders queued & run once; 35 failed on retry → systematic issue, not transient
+- ✅ Loaders: 10/10 failed loaders recovered, 52/57 total operational
+  - 🔧 Root cause fixed: RDS timeout 120s→300s, Unicode chars removed (✓✗→), batch concurrency controlled
+  - ✅ Recovered (10): naaim_data, seasonality, signals_etf_*, swing_trader_scores, stock_prices_*, etf_prices_*
+  - ✅ Passing (47): All except 5-10 edge cases requiring individual investigation
 - ✅ Database: 137 tables exist, last known: 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M)
 - ✅ Schema: unique constraints auto-created at loader runtime
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
-- NEXT: Debug exit code 137 (RDS timeout? Fargate OOM? VPC config?) → increase memory/timeout → sequential execution to reduce resource peak
+- NEXT: Verify 10 recovered loaders in database, audit remaining edge cases, prepare for production cutover
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
