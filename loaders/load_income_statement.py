@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 """
 Income Statement Loader — annual and quarterly from SEC EDGAR.
 
-Period determined by LOADER_TYPE env var (financials_annual_income / financials_quarterly_income)
+Period determined by LOADER_PERIOD env var (financials_annual_income / financials_quarterly_income)
 or --period CLI flag for manual runs.
 """
 from utils.structured_logger import get_logger
@@ -80,10 +80,10 @@ _PERIOD_CONFIG = {
 
 
 def _resolve_period(cli_arg: Optional[str]) -> str:
+    """Resolve period from CLI arg or LOADER_PERIOD env var (not LOADER_TYPE)."""
     if cli_arg:
         return cli_arg
-    loader_type = os.getenv("LOADER_TYPE", "")
-    return "quarterly" if "quarterly" in loader_type else "annual"
+    return os.getenv("LOADER_PERIOD", "annual")
 
 
 class IncomeStatementLoader(OptimalLoader):
@@ -171,7 +171,7 @@ def main():
     load_env()
     parser = argparse.ArgumentParser(description="Income statement loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
-                        help="Statement period (defaults to LOADER_TYPE env var)")
+                        help="Statement period (defaults to LOADER_PERIOD env var)")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     parser.add_argument("--parallelism", type=int, default=8)
     args = parser.parse_args()

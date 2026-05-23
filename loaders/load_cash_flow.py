@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 """
 Cash Flow Loader — annual and quarterly from SEC EDGAR.
 
-Period determined by LOADER_TYPE env var (financials_annual_cashflow / financials_quarterly_cashflow)
+Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financials_quarterly_cashflow)
 or --period CLI flag for manual runs.
 """
 from utils.structured_logger import get_logger
@@ -77,8 +77,8 @@ _PERIOD_CONFIG = {
 def _resolve_period(cli_arg: Optional[str]) -> str:
     if cli_arg:
         return cli_arg
-    loader_type = os.getenv("LOADER_TYPE", "")
-    return "quarterly" if "quarterly" in loader_type else "annual"
+    period_env = os.getenv("LOADER_PERIOD", "annual")
+    return period_env
 
 
 class CashFlowLoader(OptimalLoader):
@@ -170,7 +170,7 @@ def main():
     load_env()
     parser = argparse.ArgumentParser(description="Cash flow loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
-                        help="Statement period (defaults to LOADER_TYPE env var)")
+                        help="Statement period (defaults to LOADER_PERIOD env var)")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     parser.add_argument("--parallelism", type=int, default=8)
     args = parser.parse_args()

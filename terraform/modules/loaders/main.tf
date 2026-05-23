@@ -124,8 +124,8 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 
 locals {
   # Maps each Terraform loader key to the actual Python script filename.
-  # entrypoint.sh reads LOADER_FILE and LOADER_TYPE to construct the command
-  # with appropriate arguments (e.g. --interval 1d, --asset-class etf).
+  # No longer used directly (Docker CMD specifies the loader).
+  # Kept for documentation and potential future use.
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
     "stock_prices_daily"            = "loadpricedaily.py"  # Unified: loads all intervals + asset classes (1d,1wk,1mo for stock,etf)
@@ -527,6 +527,7 @@ resource "aws_ecs_task_definition" "loader" {
           value = "true"
         }
       ],
+      # Price loader: all intervals + asset classes
       each.key == "stock_prices_daily" ? [
         {
           name  = "LOADER_INTERVALS"
@@ -535,6 +536,23 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "LOADER_ASSET_CLASSES"
           value = "stock,etf"
+        }
+      ] : [],
+      # Financial loaders: determine period from task name
+      contains(each.key, "annual") ? [
+        {
+          name  = "LOADER_PERIOD"
+          value = "annual"
+        }
+      ] : contains(each.key, "quarterly") ? [
+        {
+          name  = "LOADER_PERIOD"
+          value = "quarterly"
+        }
+      ] : contains(each.key, "ttm") ? [
+        {
+          name  = "LOADER_PERIOD"
+          value = "quarterly"
         }
       ] : []
       )
