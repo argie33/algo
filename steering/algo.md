@@ -2,18 +2,17 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 31+ core loaders COMPLETE, all critical data loaded
-  - ✅ Executed (31): price_daily, technical_data_daily, buy_sell_daily (all variants), signal_quality_scores, trend_template_data, sector_performance, financial annual/quarterly, key/growth/quality/value metrics, swing_trader_scores, analyst_sentiment_analysis, AAII/fear_greed, economic_data, company_profile, earnings history/revisions/surprise
-  - Fixed (5): datetime conversion (balance_sheet, income_statement, cash_flow), column names (signal_quality_scores, technical_data_daily), indentation (loadsectors)
-  - Status: All primary loaders complete, data validation passed, 27.38 GB loaded
-- ✅ Schema: updated_at column added to all tables, migration complete
-- ✅ Data: 64/137 tables populated (46.7%) — all critical tables have data
-  - price_daily: 8.1M rows | technical_data_daily: 8.1M rows | trend_template_data: 3.7M rows
-  - buy_sell_daily: 97K rows | signal_quality_scores: 332K rows | sector_performance: 42 rows
-  - Financial annual: 8-10K rows | Quarterly: 3.8-21K rows | ETF prices: 8M rows
-- ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true), margin monitor non-blocking
-- ✅ Tests: 297/302 pass, schema validated
-- NEXT: Phase 7 orchestrator verification; optional backtest/options/commodity loaders for advanced features (73 empty tables)
+- 🔄 Loaders: 43/57 (75.4%) complete, fixing unique constraint issues
+  - ✅ Completed (43): price (daily/weekly/monthly), technical_data_daily, buy_sell (daily/weekly/monthly), signal_quality_scores, trend_template_data, financial (annual/quarterly), metrics (growth/quality/value/key), swing_trader_scores, AAII/fear_greed, economic_data, company_profile, earnings_history
+  - 🔧 In progress: sectors (constraint creation), signals (daily/weekly/monthly + ETF variants), analyst/earnings loaders
+  - 🐛 Fixed: unique constraint auto-creation in OptimalLoader for multi-column primary keys
+  - ⏸ Missing task defs (5): earnings_estimates, naaim_sentiment, sentiment_social, technical_data_monthly/weekly
+  - Status: 64/137 tables populated, 35.4M+ rows, retrying with constraint fixes
+- ✅ Schema: unique constraints auto-created at loader runtime
+- ✅ Data: All critical trading data loaded (64 tables, 35.4M rows)
+- ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true)
+- ✅ Tests: 297/302 pass
+- NEXT: Complete remaining 14 loaders; achieve 52/57 max (91.2%) given missing task definitions
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
