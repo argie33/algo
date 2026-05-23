@@ -17,8 +17,6 @@ credit cycle research):
      7pt  NEW HIGHS - LOWS      regime health indicator
      7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
      5pt  ADVANCE-DECLINE LINE  confirmation / divergence vs index
-     4pt  AAII SENTIMENT        contrarian: extreme bullish = caution
-     3pt  NAAIM EXPOSURE        professional manager positioning (0-200 scale)
 
 PLUS HARD VETOES (cap at ≤25-35%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
@@ -74,8 +72,6 @@ class MarketExposure:
     W_NEW_HIGHS_LOWS = 7
     W_CREDIT_SPREAD = 7
     W_AD_LINE = 5
-    W_AAII = 4
-    W_NAAIM = 3
 
     def __init__(self, cur=None):
         self.cur = cur
@@ -164,16 +160,12 @@ class MarketExposure:
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # AAII sentiment DISABLED — uses fake data, no real API integrated (May 23)
-
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date)
             cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
             factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
-
-            # NAAIM positioning DISABLED — uses fake data, no real API integrated (May 23)
 
             score = max(0.0, min(100.0, score))
 
