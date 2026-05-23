@@ -16,7 +16,7 @@
 - ✅ Data: All critical trading platform data loaded (61 tables, 35.4M rows, 27.38 GB)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true)
 - ✅ Tests: 297/302 pass
-- NEXT: Fix signals_daily exit code; map remaining 12 unimplemented loaders; verify all 57 complete
+- NEXT: Monitor signals_daily completion; map remaining 40+ loaders; identify which overlap/duplicate
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
