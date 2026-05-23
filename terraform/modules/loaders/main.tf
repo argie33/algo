@@ -129,6 +129,9 @@ locals {
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
     "stock_prices_daily"            = "loadpricedaily.py"  # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
+    "etf_prices_daily"              = "loadpricedaily.py"
+    "etf_prices_weekly"             = "loadpricedaily.py"
+    "etf_prices_monthly"            = "loadpricedaily.py"
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
     "financials_annual_cashflow"    = "load_cash_flow.py"
@@ -137,16 +140,12 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"         = "load_income_statement.py"
     "financials_ttm_cashflow"       = "load_cash_flow.py"
-    "key_metrics"                   = "load_value_metrics.py"
     "growth_metrics"                = "load_growth_metrics.py"
     "quality_metrics"               = "load_quality_metrics.py"
     "value_metrics"                 = "load_value_metrics.py"
     "earnings_history"              = "loadearningshistory.py"
     "earnings_revisions"            = "loadearningsrevisions.py"
-    "earnings_surprise"             = "loadearningsrevisions.py"
-    "market_indices"                = "load_market_health_daily.py"
     "seasonality"                   = "loadseasonality.py"
-    "econ_data"                     = "load_naaim.py"
     "aaiidata"                      = "load_aaii_sentiment.py"
     "naaim_data"                    = "load_naaim.py"
     "feargreed"                     = "load_fear_greed_index.py"
@@ -157,7 +156,6 @@ locals {
     "sectors"                       = "loadsectors.py"
     "industry_ranking"              = "load_industry_ranking.py"
     "trend_template_data"           = "load_trend_criteria_data.py"
-    "stock_scores"                  = "load_quality_metrics.py"
     "signals_daily"                 = "load_signal_quality_scores.py"
     "signals_weekly"                = "load_signal_quality_scores.py"
     "signals_monthly"               = "load_signal_quality_scores.py"
@@ -355,6 +353,11 @@ locals {
     # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
     # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
     "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+
+    # ETF price loaders (daily, weekly, monthly intervals)
+    "etf_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    "etf_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    "etf_prices_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
