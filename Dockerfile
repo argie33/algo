@@ -21,7 +21,4 @@ COPY algo/ ./algo/
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# ENTRYPOINT executes the command array from ECS task definition
-# Example task command: ["python3", "-u", "loaders/load_income_statement.py"]
-ENTRYPOINT ["/bin/bash", "-c", "exec \"$@\"", "--"]
-CMD []
+# No ENTRYPOINT or CMD - task definition provides complete command
