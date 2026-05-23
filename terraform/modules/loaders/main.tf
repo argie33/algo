@@ -167,6 +167,10 @@ locals {
     "technical_data_daily"          = "load_technical_data_daily.py"
     "market_health_daily"           = "load_market_health_daily.py"
     "swing_trader_scores"           = "load_swing_trader_scores.py"
+    "econ_data"                     = "loadecon.py"
+    "key_metrics"                   = "loadkeymetrics.py"
+    "stock_scores"                  = "load_signal_quality_scores.py"
+    "eod_bulk_refresh"              = "load_signal_quality_scores.py"
   }
 
   scheduled_loaders = {
@@ -424,6 +428,12 @@ locals {
     "feargreed"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "aaiidata"     = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
+    # Economic & metrics data
+    "econ_data"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "key_metrics"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    "eod_bulk_refresh" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
   }
 
   # For backward compatibility
