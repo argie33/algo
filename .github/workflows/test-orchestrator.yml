@@ -2,8 +2,6 @@ name: Test Orchestrator Execution
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 9 * * MON-FRI'  # 9 AM UTC Mon-Fri
 
 permissions:
   id-token: write
