@@ -21,5 +21,7 @@ COPY algo/ ./algo/
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Task definition overrides CMD with loader command via loader_file_map
-# Example: ["python3", "-u", "loaders/load_income_statement.py"]
+# Task definition specifies the complete command via loader_file_map
+# Example: command = ["python3", "-u", "loaders/load_income_statement.py"]
+ENTRYPOINT ["python3"]
+CMD []
