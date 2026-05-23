@@ -161,6 +161,24 @@ def test_config():
     return config
 
 
+@pytest.fixture(autouse=True)
+def patch_regime_multiplier(monkeypatch):
+    """Auto-patch PositionSizer.get_position_size_multiplier_from_regime for all tests.
+
+    Unit tests should not depend on actual market regime data. This returns 1.0 (full size)
+    so tests can focus on their specific multiplier being tested.
+    """
+    from unittest.mock import MagicMock
+    from algo.algo_position_sizer import PositionSizer
+
+    original_method = PositionSizer.get_position_size_multiplier_from_regime
+
+    def mock_regime_mult(self, signal_date=None):
+        return 1.0
+
+    monkeypatch.setattr(PositionSizer, 'get_position_size_multiplier_from_regime', mock_regime_mult)
+
+
 @pytest.fixture
 def alpaca_mock():
     """Mock Alpaca API responses with proper object attributes.

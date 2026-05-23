@@ -232,6 +232,17 @@ class PositionSizer:
         except Exception:
             return 1.0
 
+    def get_position_size_multiplier_from_regime(self, signal_date=None):
+        """Get position size multiplier from current market regime (mockable for tests)."""
+        regime_mult = 1.0
+        try:
+            from algo.algo_regime_manager import RegimeManager
+            regime_mgr = RegimeManager()
+            regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
+        except Exception as e:
+            logger.debug(f"Could not load regime multiplier: {e}. Using 1.0.")
+        return regime_mult
+
     def get_active_positions_value(self):
         """Get sum of active position values.
 
@@ -310,15 +321,7 @@ class PositionSizer:
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier(symbol, signal_date)
             vix_mult = self.get_vix_caution_multiplier()
-
-            # Regime-based position sizing multiplier (from RegimeManager)
-            regime_mult = 1.0
-            try:
-                from algo.algo_regime_manager import RegimeManager
-                regime_mgr = RegimeManager()
-                regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
-            except Exception as e:
-                logger.debug(f"Could not load regime multiplier: {e}. Using 1.0.")
+            regime_mult = self.get_position_size_multiplier_from_regime(signal_date)
 
             adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult * vix_mult * regime_mult
             risk_dollars = portfolio_value * adjusted_risk_pct
