@@ -866,7 +866,8 @@ CREATE TABLE IF NOT EXISTS sector_performance (
     date DATE,
     return_pct DECIMAL(8, 4),
     relative_strength DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(sector, date)
 );
 
 -- Industry rankings

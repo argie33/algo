@@ -86,6 +86,7 @@ class OptimalLoader(ABC):
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
         self._schema_cols_cache: Optional[List[str]] = None  # cached column list for _bulk_insert
+        self._constraint_checked = False  # track if we've verified/fixed constraint
         self._stats_lock = threading.Lock()
         self._stats = {
             "symbols_processed": 0,
@@ -162,6 +163,84 @@ class OptimalLoader(ABC):
         self._conn = conn
         return conn
 
+
+    def _ensure_unique_constraint(self, conn):
+        """Ensure the primary_key columns have a UNIQUE constraint.
+
+        If not found, create it. This prevents "ON CONFLICT" errors on inserts.
+        Only runs once per loader instance.
+        """
+        if self._constraint_checked or not self.primary_key or not self.table_name:
+            return
+
+        self._constraint_checked = True
+        cur = conn.cursor()
+        try:
+            # Check if table exists
+            cur.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = %s AND table_schema = 'public'
+            )
+            """, (self.table_name,))
+
+            if not cur.fetchone()[0]:
+                log.warning(f"Table {self.table_name} does not exist")
+                return
+
+            # Check if a UNIQUE constraint already exists on primary_key columns
+            pk_cols = ','.join(self.primary_key)
+            cur.execute("""
+            SELECT constraint_name
+            FROM information_schema.table_constraints
+            WHERE table_name = %s
+            AND constraint_type IN ('UNIQUE', 'PRIMARY KEY')
+            AND table_schema = 'public'
+            """, (self.table_name,))
+
+            existing_constraints = [row[0] for row in cur.fetchall()]
+
+            # Check if any constraint covers all our primary_key columns
+            for constraint in existing_constraints:
+                cur.execute("""
+                SELECT column_name
+                FROM information_schema.constraint_column_usage
+                WHERE constraint_name = %s AND table_schema = 'public'
+                ORDER BY ordinal_position
+                """, (constraint,))
+
+                constraint_cols = [row[0] for row in cur.fetchall()]
+                if set(constraint_cols) == set(self.primary_key):
+                    log.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
+                    return
+
+            # No matching constraint found � create one
+            constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
+            try:
+                log.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
+                cur.execute(f"""
+                ALTER TABLE {self.table_name}
+                ADD CONSTRAINT {constraint_name}
+                UNIQUE ({pk_cols})
+                """)
+                conn.commit()
+            except psycopg2.IntegrityError as e:
+                # Constraint creation failed due to duplicates
+                log.warning(f"Cannot create constraint (duplicates exist): {e}")
+                conn.rollback()
+                # Continue anyway � will use DO NOTHING fallback
+            except psycopg2.ProgrammingError as e:
+                if "already exists" in str(e):
+                    log.debug(f"Constraint already exists: {e}")
+                else:
+                    log.warning(f"Cannot create constraint: {e}")
+                conn.rollback()
+        except Exception as e:
+            log.warning(f"Error checking/creating constraint: {e}")
+            conn.rollback()
+        finally:
+            cur.close()
+
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 
     def _bulk_insert(self, rows: List[dict], symbol: Optional[str] = None, new_watermark: Optional[date] = None, watermark_mgr=None) -> int:
@@ -184,6 +263,10 @@ class OptimalLoader(ABC):
         import csv
 
         conn = self._connect()
+
+        # Ensure the unique constraint exists (one-time per loader instance)
+        self._ensure_unique_constraint(conn)
+
         cur = conn.cursor()
         try:
             # Filter to columns that exist in the target table — prevents failures when
