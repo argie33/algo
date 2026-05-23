@@ -907,44 +907,8 @@ resource "aws_ecs_task_definition" "weight_optimization" {
   tags = var.common_tags
 }
 
-# ============================================================
-# Weight Optimization — EventBridge Rule + Target
-# Triggered daily at 6:00 PM ET (after orchestrator completes, before next day data prep)
-# Reads closed trades → computes IC → optimizes weights → enables continuous improvement loop
-# ============================================================
-
-resource "aws_cloudwatch_event_rule" "weight_optimization" {
-  name                = "${var.project_name}-weight-optimization-${var.environment}"
-  description         = "Daily weight optimization - 6:00 PM ET (22:00 UTC)"
-  schedule_expression = "cron(0 22 ? * MON-FRI *)"
-  state               = "ENABLED"
-
-  tags = var.common_tags
-}
-
-resource "aws_cloudwatch_event_target" "weight_optimization" {
-  rule      = aws_cloudwatch_event_rule.weight_optimization.name
-  target_id = "WeightOptimizationTarget"
-  arn       = var.ecs_cluster_arn
-  role_arn  = aws_iam_role.eventbridge_run_task.arn
-
-  ecs_target {
-    launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.weight_optimization.arn
-    task_count          = 1
-    platform_version    = "LATEST"
-
-    network_configuration {
-      subnets          = var.private_subnet_ids
-      security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
-    }
-  }
-
-  dead_letter_config {
-    arn = aws_sqs_queue.loader_dlq.arn
-  }
-}
+# Weight Optimization — triggered via EventBridge Scheduler in services/2x-daily-orchestrator.tf
+# No longer triggered here via classic EventBridge (consolidated in services module)
 
 # ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)

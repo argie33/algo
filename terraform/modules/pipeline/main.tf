@@ -621,24 +621,8 @@ resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
   tags                = var.common_tags
 }
 
-# Orchestrator runs 2x daily for optimal swing trading
-# 1. Market open (9:30am ET) - Primary entry window
-# 2. Mid-afternoon (1:30pm ET) - Secondary entry window (new setups)
-resource "aws_cloudwatch_event_rule" "algo_orchestrator_market_open" {
-  name                = "${var.project_name}-orchestrator-market-open-${var.environment}"
-  description         = "Orchestrator at market open: monitor positions, execute entries (9:30am ET)"
-  schedule_expression = "cron(30 13 ? * MON-FRI *)" # 9:30am EDT = 13:30 UTC
-  state               = "ENABLED"
-  tags                = var.common_tags
-}
-
-resource "aws_cloudwatch_event_rule" "algo_orchestrator_mid_afternoon" {
-  name                = "${var.project_name}-orchestrator-mid-afternoon-${var.environment}"
-  description         = "Orchestrator at mid-afternoon: check positions, new setups (1:30pm ET)"
-  schedule_expression = "cron(30 17 ? * MON-FRI *)" # 1:30pm EDT = 17:30 UTC
-  state               = "ENABLED"
-  tags                = var.common_tags
-}
+# Orchestrator runs 2x daily via EventBridge Scheduler in services/2x-daily-orchestrator.tf
+# No longer triggered here via classic EventBridge rules (consolidated in services module)
 
 resource "aws_cloudwatch_event_target" "morning_pipeline" {
   rule     = aws_cloudwatch_event_rule.morning_pipeline_trigger.name
@@ -650,33 +634,6 @@ resource "aws_cloudwatch_event_target" "eod_pipeline" {
   rule     = aws_cloudwatch_event_rule.eod_pipeline_trigger.name
   arn      = aws_sfn_state_machine.eod_pipeline.arn
   role_arn = aws_iam_role.eventbridge_sfn.arn
-}
-
-# Targets for 2x daily orchestrator execution
-resource "aws_cloudwatch_event_target" "algo_orchestrator_market_open" {
-  rule      = aws_cloudwatch_event_rule.algo_orchestrator_market_open.name
-  target_id = "AlgoOrchestratorMarketOpen"
-  arn       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-algo-${var.environment}"
-  role_arn  = aws_iam_role.eventbridge_lambda.arn
-
-  input = jsonencode({
-    source   = "eventbridge-scheduler"
-    run_date = "now"
-    phase    = "market-open"
-  })
-}
-
-resource "aws_cloudwatch_event_target" "algo_orchestrator_mid_afternoon" {
-  rule      = aws_cloudwatch_event_rule.algo_orchestrator_mid_afternoon.name
-  target_id = "AlgoOrchestratorMidAfternoon"
-  arn       = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-algo-${var.environment}"
-  role_arn  = aws_iam_role.eventbridge_lambda.arn
-
-  input = jsonencode({
-    source   = "eventbridge-scheduler"
-    run_date = "now"
-    phase    = "mid-afternoon"
-  })
 }
 
 # ============================================================
