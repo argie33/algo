@@ -2,16 +2,16 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- 🔄 Loaders: 52/57 in batch execution (RDS proxy timeout 300s, max concurrent 2-4)
-  - 🔧 Fixes applied: Checkmark characters → ASCII, RDS proxy timeout 120s→300s, batch queue strategy
-  - 🔄 Batch 1 (Quick): stock_symbols, sectors, company_profile, market_indices
-  - 🔄 Batch 2 (Medium): aaiidata, feargreed, econ_data, analyst_*, earnings_*, stock_scores (11 loaders)
-  - 🔄 Batch 3 (Heavy): prices, etf_*, technicals, financials, signals, swing_trader, naaim, seasonality (36 loaders)
-  - ✅ Database: 137 tables, 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M, etf_price_daily: 8.0M)
-- ✅ Schema: unique constraints auto-created at loader runtime (OptimalLoader)
-- ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true)
+- ❌ Loaders: 10/48 passing, 35 failing, 3 pending (May 23 08:39 UTC)
+  - ✅ Passing (10): aaiidata, analyst_upgrades_downgrades, company_profile, earnings_calendar, earnings_history, feargreed, market_health_daily, market_indices, naaim_data, seasonality
+  - ❌ Failing: Exit 137 (25+) = killed/OOM; Exit 1 (5+) = app error; Exit None (5+) = not run
+  - Root cause: ECS resource contention + potential RDS connectivity timeout (needs verification)
+  - All loaders queued & run once; 35 failed on retry → systematic issue, not transient
+- ✅ Database: 137 tables exist, last known: 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M)
+- ✅ Schema: unique constraints auto-created at loader runtime
+- ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
-- NEXT: Monitor Batch 3 completion (~30min) → audit results → retry any failures
+- NEXT: Debug exit code 137 (RDS timeout? Fargate OOM? VPC config?) → increase memory/timeout → sequential execution to reduce resource peak
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
