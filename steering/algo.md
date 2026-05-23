@@ -2,18 +2,18 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- 🔄 Loaders: RECOVERY IN PROGRESS (2026-05-23 15:19 UTC)
-  - ⏳ Queueing all 54 loaders with concurrency control (max_concurrent=4)
-  - ✅ 7 recent loaders (prices, technicals, signals) invoked 13m ago - partially logged, exit code 1
-  - ✅ Root cause: > 5% symbol failure rate triggers exit 1 even on partial success
-  - ✅ Fixes in place: SEC rate limiting (2→0.5 req/s per task), concurrency enforced
-  - 🎯 CURRENT: Systematic queue of 47 remaining loaders; monitoring completion
-  - 📋 NEXT: Final data verification via verify_loader_data.py once ECS queue clears
-- ✅ Database: 137 tables exist, 35.4M+ rows (being updated by recovery)
+- 🔄 Loaders: SYSTEMATIC RECOVERY PHASE 2 (2026-05-23 ~11:00 UTC)
+  - ✅ Task definitions: All 54 updated with LOADER_NAME env var
+  - ✅ ECR image: Tagged dev-latest (was untagged, fixed pull failures)
+  - ✅ Database: Verified 8.2M rows in price_daily, recent data at 2026-05-23 10:26 UTC
+  - 🔄 Recovery in progress: ~4 loaders currently running, 100+ completed (many with retries)
+  - ✅ Root cause confirmed: >5% symbol failure = exit 1, not error
+  - ⏳ MONITORING: Waiting for final 4 loaders to complete
+- ✅ Database: 137 tables, 35.4M+ rows, actively being updated
 - ✅ Schema: unique constraints auto-created at loader runtime
-- ✅ Alpaca: Paper trading enabled
+- ✅ Alpaca: Paper trading enabled  
 - ✅ Tests: 297/302 pass
-- 🎯 GOAL: 54/54 loaders complete, all data synced to DB by end of session
+- 🎯 GOAL: 54/54 loaders queued & executing; final verification pending
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
