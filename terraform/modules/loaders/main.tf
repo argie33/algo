@@ -168,8 +168,6 @@ locals {
     "technical_data_daily"          = "load_technical_data_daily.py"
     "market_health_daily"           = "load_market_health_daily.py"
     "swing_trader_scores"           = "load_swing_trader_scores.py"
-    "econ_data"                     = "loadecon.py"
-    "key_metrics"                   = "loadkeymetrics.py"
     "stock_scores"                  = "load_signal_quality_scores.py"
     "eod_bulk_refresh"              = "load_signal_quality_scores.py"
   }
@@ -223,12 +221,6 @@ locals {
     "financials_quarterly_cashflow" = {
       schedule    = "cron(0 8 ? * MON *)"
       description = "Quarterly cash flow - Monday 3:00am ET"
-    }
-
-    # Key metrics — market cap and shareholding (slowly changing, run weekly Sunday night)
-    "key_metrics" = {
-      schedule    = "cron(10 4 ? * MON *)"
-      description = "Key metrics (market cap, insider/institution holdings) - Sunday 11:10pm ET"
     }
 
     # TTM loaders depend on quarterly data — run 1 hour after last quarterly (08:00 + 1h = 09:00)
@@ -307,12 +299,8 @@ locals {
       description = "Earnings calendar (next 180 days) - Sunday 11:35pm ET"
     }
 
-    # Market sentiment & economic data — run daily (data published at irregular intervals, daily refresh is fine)
+    # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)
     # STAGGERED: Prevent simultaneous API calls
-    "econ_data" = {
-      schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "FRED economic indicators (GDP, unemployment, CPI, etc.) - Daily 6:00pm ET"
-    }
     "feargreed" = {
       schedule    = "cron(2 22 ? * MON-FRI *)"
       description = "CNN Fear & Greed index - Daily 6:02pm ET"
@@ -431,9 +419,7 @@ locals {
     "aaiidata"     = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Economic & metrics data
-    "econ_data"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "key_metrics"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
     "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
     "eod_bulk_refresh" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
   }
