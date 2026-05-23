@@ -64,4 +64,5 @@ Monitor: https://github.com/argie33/algo/actions
 | Signals missing | Data in `technical_data_daily`? Rules in code? |
 | Alpaca 401 | Set `ALPACA_PAPER=true` env |
 | **Loader troubleshooting** | **Audit → Fix only FAILING loaders. Never rerun working ones ($$). Spot-check known-good tables before queuing tasks.** |
+| **⚠️ MOCK DATA** | 5 loaders use random/mock data: AAII, Fear & Greed, NAAIM, Analyst sentiment, Analyst upgrades. Marked with ⚠️ warnings. Need real API integration OR removal from `algo_market_exposure.py`. See `memory/messes_audit_may23.md` |
 
