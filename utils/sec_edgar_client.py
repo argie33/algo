@@ -138,22 +138,25 @@ class SecEdgarClient:
 
         With retry logic for 429 rate limit errors. Uses longer backoff for parallel ECS tasks.
         """
+        import random
         max_retries = 5
         for attempt in range(max_retries):
             try:
                 self._rate_limiter.wait()
                 resp = self._session.get(TICKER_URL, timeout=self.timeout)
 
-                # Handle rate limiting with aggressive exponential backoff
+                # Handle rate limiting with aggressive exponential backoff + jitter
                 if resp.status_code == 429:
                     if attempt < max_retries - 1:
-                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s
-                        wait_time = 2 ** (attempt + 1)
-                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s + jitter
+                        base_wait = 2 ** (attempt + 1)
+                        jitter = random.uniform(0, base_wait * 0.2)  # Add 0-20% jitter for parallel loads
+                        wait_time = base_wait + jitter
+                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                         time.sleep(wait_time)
                         continue
                     else:
-                        log.error("SEC ticker cache failed after 5 retries (total 62s): 429 Too Many Requests")
+                        log.error("SEC ticker cache failed after 5 retries: 429 Too Many Requests - will use cached data if available")
                         return {}
 
                 resp.raise_for_status()
@@ -221,7 +224,8 @@ class SecEdgarClient:
 
     def _get_json(self, url: str) -> Dict[str, Any]:
         """Fetch JSON from SEC API with retry logic for rate limiting."""
-        max_retries = 3
+        import random
+        max_retries = 5
         for attempt in range(max_retries):
             self._rate_limiter.wait()
             resp = self._session.get(url, timeout=self.timeout)
@@ -230,11 +234,14 @@ class SecEdgarClient:
             if resp.status_code == 404:
                 return {}
 
-            # Handle rate limiting with exponential backoff
+            # Handle rate limiting with exponential backoff + jitter
             if resp.status_code == 429:
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # 1s, 2s, 4s
-                    log.debug(f"SEC API rate limited (429) for {url}. Retry in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    # Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                    base_wait = 2 ** (attempt + 1)
+                    jitter = random.uniform(0, base_wait * 0.1)  # Add 0-10% jitter
+                    wait_time = base_wait + jitter
+                    log.debug(f"SEC API rate limited (429) for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 else:
