@@ -2792,3 +2792,14 @@ CREATE TABLE IF NOT EXISTS earnings_metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_earnings_metrics_symbol_date ON earnings_metrics(symbol, report_date DESC);
 CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_date DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SCHEMA MIGRATIONS - Add missing columns to existing tables
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Add updated_at column to analyst_sentiment_analysis if missing
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'analyst_sentiment_analysis' AND column_name = 'updated_at') THEN
+        ALTER TABLE analyst_sentiment_analysis ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+END $$;
