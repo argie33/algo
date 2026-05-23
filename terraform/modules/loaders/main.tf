@@ -172,10 +172,11 @@ locals {
   }
 
   scheduled_loaders = {
-    # 3:30am ET = 8:30am UTC Mon-Fri
+    # Morning batch — staggered to prevent resource contention
+    # 3:25am ET = 8:25am UTC Mon-Fri
     "stock_symbols" = {
-      schedule    = "cron(30 8 ? * MON-FRI *)"
-      description = "Stock symbols reference data - 3:30am ET"
+      schedule    = "cron(25 8 ? * MON-FRI *)"
+      description = "Stock symbols reference data - 3:25am ET"
     }
 
     # 4:00am ET = 9am UTC Mon-Fri
@@ -194,74 +195,78 @@ locals {
     # Step Functions EOD pipeline — removed from scheduled_loaders.
 
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
+    # STAGGERED: Spread across 6 minutes to avoid resource exhaustion (Exit 137 SIGKILL)
     "financials_annual_income" = {
       schedule    = "cron(0 4 ? * MON *)"
-      description = "Annual income statements - Sunday 11pm ET"
+      description = "Annual income statements - Sunday 11:00pm ET"
     }
     "financials_annual_balance" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Annual balance sheets - Sunday 11pm ET (parallel)"
+      schedule    = "cron(1 4 ? * MON *)"
+      description = "Annual balance sheets - Sunday 11:01pm ET"
     }
     "financials_annual_cashflow" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Annual cash flow - Sunday 11pm ET (parallel)"
+      schedule    = "cron(2 4 ? * MON *)"
+      description = "Annual cash flow - Sunday 11:02pm ET"
     }
     "financials_quarterly_income" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Quarterly income statements - Sunday 11pm ET (parallel)"
+      schedule    = "cron(3 4 ? * MON *)"
+      description = "Quarterly income statements - Sunday 11:03pm ET"
     }
     "financials_quarterly_balance" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Quarterly balance sheets - Sunday 11pm ET (parallel)"
+      schedule    = "cron(4 4 ? * MON *)"
+      description = "Quarterly balance sheets - Sunday 11:04pm ET"
     }
     "financials_quarterly_cashflow" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Quarterly cash flow - Sunday 11pm ET (parallel)"
+      schedule    = "cron(5 4 ? * MON *)"
+      description = "Quarterly cash flow - Sunday 11:05pm ET"
     }
 
     # Key metrics — market cap and shareholding (slowly changing, run weekly Sunday night)
     "key_metrics" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Key metrics (market cap, insider/institution holdings) - Sunday 11pm ET"
+      schedule    = "cron(10 4 ? * MON *)"
+      description = "Key metrics (market cap, insider/institution holdings) - Sunday 11:10pm ET"
     }
 
     # TTM loaders depend on quarterly data — run 2 hours after quarterly to avoid race condition
+    # STAGGERED: 1 minute apart
     "financials_ttm_income" = {
       schedule    = "cron(0 6 ? * MON *)"
-      description = "TTM income statements - Monday 1am ET (after quarterly finishes)"
+      description = "TTM income statements - Monday 1:00am ET"
     }
     "financials_ttm_cashflow" = {
-      schedule    = "cron(0 6 ? * MON *)"
-      description = "TTM cash flow - Monday 1am ET (after quarterly finishes)"
+      schedule    = "cron(1 6 ? * MON *)"
+      description = "TTM cash flow - Monday 1:01am ET"
     }
 
     # Computed metrics — run daily after market close (4pm ET) so issues can be fixed before next trading day
     # 21:00 UTC = 5pm EDT / 6pm EST (safe margin after 4pm market close)
+    # STAGGERED: 2-minute intervals to prevent simultaneous runs
     "growth_metrics" = {
       schedule    = "cron(0 21 ? * MON-FRI *)"
-      description = "Growth metrics (revenue/EPS growth) - Daily 5pm ET (after market close)"
+      description = "Growth metrics (revenue/EPS growth) - Daily 5:00pm ET"
     }
     "quality_metrics" = {
-      schedule    = "cron(5 21 ? * MON-FRI *)"
-      description = "Quality metrics (ROE, margins, D/E) - Daily 5:05pm ET (after market close)"
+      schedule    = "cron(2 21 ? * MON-FRI *)"
+      description = "Quality metrics (ROE, margins, D/E) - Daily 5:02pm ET"
     }
     "value_metrics" = {
-      schedule    = "cron(10 21 ? * MON-FRI *)"
-      description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:10pm ET (after market close)"
+      schedule    = "cron(4 21 ? * MON-FRI *)"
+      description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:04pm ET"
     }
 
     # Earnings — run Sunday night only (data changes quarterly)
+    # STAGGERED: Spread across 3 minutes to avoid resource exhaustion
     "earnings_history" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Earnings history - Sunday 11pm ET"
+      schedule    = "cron(15 4 ? * MON *)"
+      description = "Earnings history - Sunday 11:15pm ET"
     }
     "earnings_revisions" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Earnings revisions - Sunday 11pm ET (parallel)"
+      schedule    = "cron(16 4 ? * MON *)"
+      description = "Earnings revisions - Sunday 11:16pm ET"
     }
     "earnings_surprise" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Earnings surprise - Sunday 11pm ET (parallel)"
+      schedule    = "cron(17 4 ? * MON *)"
+      description = "Earnings surprise - Sunday 11:17pm ET"
     }
 
     # Seasonality — weekly recompute Sunday night (uses price_daily history, SPY-based)
@@ -270,40 +275,42 @@ locals {
       description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
-    # Company and analyst data (11:30am ET) — yfinance API calls, run weekly Sunday
+    # Company and analyst data — yfinance API calls, run weekly Sunday
+    # Already staggered by 10 minutes - no change needed
     "company_profile" = {
-      schedule    = "cron(30 4 ? * MON *)"
-      description = "Company profile (sector, industry, name) - Sunday 11:30pm ET"
+      schedule    = "cron(20 4 ? * MON *)"
+      description = "Company profile (sector, industry, name) - Sunday 11:20pm ET"
     }
     "analyst_sentiment" = {
-      schedule    = "cron(40 4 ? * MON *)"
-      description = "Analyst recommendations - Sunday 11:40pm ET"
+      schedule    = "cron(25 4 ? * MON *)"
+      description = "Analyst recommendations - Sunday 11:25pm ET"
     }
     "analyst_upgrades_downgrades" = {
-      schedule    = "cron(50 4 ? * MON *)"
-      description = "Analyst upgrades/downgrades - Sunday 11:50pm ET"
+      schedule    = "cron(30 4 ? * MON *)"
+      description = "Analyst upgrades/downgrades - Sunday 11:30pm ET"
     }
     "sectors" = {
-      schedule    = "cron(0 6 ? * MON *)"
-      description = "Sector performance metrics - Monday 12am ET (uses price_daily)"
+      schedule    = "cron(5 6 ? * MON *)"
+      description = "Sector performance metrics - Monday 1:05am ET"
     }
     "industry_ranking" = {
       schedule    = "cron(10 6 ? * MON *)"
-      description = "Industry rankings - Monday 12:10am ET"
+      description = "Industry rankings - Monday 1:10am ET"
     }
     "earnings_calendar" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Earnings calendar (next 180 days) - Sunday 11pm ET"
+      schedule    = "cron(35 4 ? * MON *)"
+      description = "Earnings calendar (next 180 days) - Sunday 11:35pm ET"
     }
 
     # Market sentiment & economic data — run daily (data published at irregular intervals, daily refresh is fine)
+    # STAGGERED: Prevent simultaneous API calls
     "econ_data" = {
       schedule    = "cron(0 22 ? * MON-FRI *)"
-      description = "FRED economic indicators (GDP, unemployment, CPI, etc.) - Daily 6pm ET"
+      description = "FRED economic indicators (GDP, unemployment, CPI, etc.) - Daily 6:00pm ET"
     }
     "feargreed" = {
-      schedule    = "cron(5 22 ? * MON-FRI *)"
-      description = "CNN Fear & Greed index - Daily 6:05pm ET"
+      schedule    = "cron(2 22 ? * MON-FRI *)"
+      description = "CNN Fear & Greed index - Daily 6:02pm ET"
     }
     "aaiidata" = {
       schedule    = "cron(0 4 ? * FRI *)"
