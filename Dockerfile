@@ -16,16 +16,13 @@ COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
-COPY entrypoint.sh ./
 COPY run-all-loaders.py ./
-
-# Make entrypoint executable
-RUN chmod +x entrypoint.sh
 
 # Run as non-root user to limit container blast radius
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Set up entry point for ECS loader execution
-# ECS passes LOADER_FILE env var to specify which loader to run
-ENTRYPOINT ["./entrypoint.sh"]
+# ECS task definition explicitly specifies command and environment variables
+# Example: python3 -u loaders/loadpricedaily.py
+# Loaders read from environment: LOADER_INTERVALS, LOADER_ASSET_CLASSES, LOADER_PARALLELISM
+CMD ["python3", "-u", "loaders/loadpricedaily.py"]

@@ -489,15 +489,7 @@ resource "aws_ecs_task_definition" "loader" {
         }
       ]
 
-      environment = [
-        {
-          name  = "LOADER_FILE"
-          value = local.loader_file_map[each.key]
-        },
-        {
-          name  = "LOADER_TYPE"
-          value = each.key
-        },
+      environment = concat([
         {
           name  = "LOADER_PARALLELISM"
           value = tostring(each.value.parallelism)
@@ -534,7 +526,18 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "DISABLE_PROVENANCE_TRACKING"
           value = "true"
         }
-      ]
+      ],
+      each.key == "stock_prices_daily" ? [
+        {
+          name  = "LOADER_INTERVALS"
+          value = "1d,1wk,1mo"
+        },
+        {
+          name  = "LOADER_ASSET_CLASSES"
+          value = "stock,etf"
+        }
+      ] : []
+      )
     }
   ])
 
