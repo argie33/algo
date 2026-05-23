@@ -221,6 +221,7 @@ class PriceLoader(OptimalLoader):
 
 
 def main():
+    """Read config from environment variables (set by ECS task definition)."""
     try:
         load_env()
         logger.info("[MAIN] Environment loaded successfully")
@@ -228,19 +229,15 @@ def main():
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
         return 1
 
-    parser = argparse.ArgumentParser(description="Price Loader - Multi-timeframe (1d/1wk/1mo)")
-    parser.add_argument("--interval", default="1d",
-                        help="Timeframe(s): 1d, 1wk, 1mo or comma-separated (1d,1wk,1mo)")
-    parser.add_argument("--asset-class", default="stock",
-                        help="Asset class(es): stock, etf or comma-separated (stock,etf)")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all active.")
-    default_parallelism = int(os.getenv("PARALLELISM", os.getenv("LOADER_PARALLELISM", "2")))
-    parser.add_argument("--parallelism", type=int, default=default_parallelism, help="Concurrent workers")
-    args = parser.parse_args()
+    # Read from environment variables (no CLI args, cleaner for containerized execution)
+    intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
+    asset_classes_str = os.getenv("LOADER_ASSET_CLASSES", "stock,etf")
+    symbols_str = os.getenv("LOADER_SYMBOLS", "")
+    parallelism = int(os.getenv("LOADER_PARALLELISM", "2"))
 
-    # Parse comma-separated intervals and asset classes
-    intervals = [x.strip() for x in args.interval.split(",")]
-    asset_classes = [x.strip() for x in args.asset_class.split(",")]
+    # Parse comma-separated values
+    intervals = [x.strip() for x in intervals_str.split(",")]
+    asset_classes = [x.strip() for x in asset_classes_str.split(",")]
 
     # Validate
     valid_intervals = {"1d", "1wk", "1mo"}
@@ -255,9 +252,9 @@ def main():
             return 1
 
     try:
-        if args.symbols:
-            symbols = [s.strip().upper() for s in args.symbols.split(",")]
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from CLI")
+        if symbols_str:
+            symbols = [s.strip().upper() for s in symbols_str.split(",")]
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from environment")
         else:
             symbols = get_active_symbols()
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
@@ -274,9 +271,9 @@ def main():
         for interval in intervals:
             try:
                 loader = PriceLoader(interval=interval, asset_class=asset_class)
-                logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={args.parallelism}")
+                logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}")
                 with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
-                    stats = loader.run(symbols, parallelism=args.parallelism)
+                    stats = loader.run(symbols, parallelism=parallelism)
 
                 logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
                 total_stats["symbols_loaded"] += stats.get("symbols_loaded", 0)
