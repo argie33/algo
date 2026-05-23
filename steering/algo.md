@@ -2,7 +2,7 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases, cursor pooling + Phase 3b opt
-- ⚠️ Loaders: 54 task families exist, execution/recovery ongoing
+- ⚠️ Loaders: 54 → Fixed rate limit cascade (parallel overload). Serial runner + 4-256s SEC EDGAR retry. Running now
 - ✅ Database: Schema in code, auto-deploy via Terraform
 - ✅ Alpaca: Paper mode enabled
 - ✅ Tests: 297/302 pass (tracked in CI)

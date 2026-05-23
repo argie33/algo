@@ -136,10 +136,11 @@ class SecEdgarClient:
     def _refresh_ticker_cache(self) -> Dict[str, str]:
         """Download SEC's ticker→CIK mapping (one file, all listed companies).
 
-        With retry logic for 429 rate limit errors. Uses longer backoff for parallel ECS tasks.
+        With retry logic for 429 rate limit errors. Uses much longer backoff for parallel ECS tasks.
+        With 8+ parallel loaders, we need 60s+ total wait time to avoid thundering herd.
         """
         import random
-        max_retries = 5
+        max_retries = 8
         for attempt in range(max_retries):
             try:
                 self._rate_limiter.wait()
@@ -148,15 +149,17 @@ class SecEdgarClient:
                 # Handle rate limiting with aggressive exponential backoff + jitter
                 if resp.status_code == 429:
                     if attempt < max_retries - 1:
-                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s + jitter
-                        base_wait = 2 ** (attempt + 1)
-                        jitter = random.uniform(0, base_wait * 0.2)  # Add 0-20% jitter for parallel loads
+                        # Much longer exponential backoff: 4s, 8s, 16s, 32s, 64s, 128s, 256s
+                        # With 8 parallel tasks, stagger the retries to avoid thundering herd
+                        base_wait = 4 * (2 ** attempt)
+                        jitter = random.uniform(0, base_wait * 0.3)  # Add 0-30% jitter
                         wait_time = base_wait + jitter
-                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+                        total_wait = sum(4 * (2 ** i) for i in range(attempt + 1))
+                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries}, total wait so far: {total_wait}s)")
                         time.sleep(wait_time)
                         continue
                     else:
-                        log.error("SEC ticker cache failed after 5 retries: 429 Too Many Requests - will use cached data if available")
+                        log.error("SEC ticker cache failed after 8 retries (total ~500s): 429 Too Many Requests - will use cached data if available")
                         return {}
 
                 resp.raise_for_status()
@@ -223,9 +226,13 @@ class SecEdgarClient:
         return self._get_json(url)
 
     def _get_json(self, url: str) -> Dict[str, Any]:
-        """Fetch JSON from SEC API with retry logic for rate limiting."""
+        """Fetch JSON from SEC API with retry logic for rate limiting.
+
+        With 8+ parallel ECS tasks hitting the 10 req/sec SEC limit, we need
+        much longer backoff times to avoid cascading failures.
+        """
         import random
-        max_retries = 5
+        max_retries = 8
         for attempt in range(max_retries):
             self._rate_limiter.wait()
             resp = self._session.get(url, timeout=self.timeout)
@@ -237,15 +244,15 @@ class SecEdgarClient:
             # Handle rate limiting with exponential backoff + jitter
             if resp.status_code == 429:
                 if attempt < max_retries - 1:
-                    # Exponential backoff: 2s, 4s, 8s, 16s, 32s
-                    base_wait = 2 ** (attempt + 1)
-                    jitter = random.uniform(0, base_wait * 0.1)  # Add 0-10% jitter
+                    # Much longer exponential backoff: 4s, 8s, 16s, 32s, 64s, 128s, 256s
+                    base_wait = 4 * (2 ** attempt)
+                    jitter = random.uniform(0, base_wait * 0.3)  # Add 0-30% jitter
                     wait_time = base_wait + jitter
                     log.debug(f"SEC API rate limited (429) for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 else:
-                    log.warning(f"SEC API failed after {max_retries} retries: {url}")
+                    log.warning(f"SEC API failed after {max_retries} retries (total ~500s): {url}")
                     return {}
 
             # Other HTTP errors
