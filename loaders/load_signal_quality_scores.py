@@ -71,14 +71,14 @@ class SignalQualityScoresLoader(OptimalLoader):
         cur = conn.cursor()
         try:
             cur.execute(
-                "SELECT date, rsi_14, macd, macd_signal FROM technical_data_daily "
+                "SELECT date, rsi, macd, macd_signal FROM technical_data_daily "
                 "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
                 (symbol, start, end),
             )
             return [
                 {
                     "date": r[0].isoformat(),
-                    "rsi_14": float(r[1]) if r[1] is not None else None,
+                    "rsi": float(r[1]) if r[1] is not None else None,
                     "macd": float(r[2]) if r[2] is not None else None,
                     "macd_signal": float(r[3]) if r[3] is not None else None,
                 }
