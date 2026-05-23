@@ -22,7 +22,6 @@ COPY run-all-loaders.py ./
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# ECS task definition explicitly specifies command and environment variables
-# Example: python3 -u loaders/loadpricedaily.py
-# Loaders read from environment: LOADER_INTERVALS, LOADER_ASSET_CLASSES, LOADER_PARALLELISM
-CMD ["python3", "-u", "loaders/loadpricedaily.py"]
+# Dispatcher reads LOADER_NAME env var from Terraform and runs correct loader
+# Loaders read from environment: LOADER_NAME, LOADER_INTERVALS, LOADER_ASSET_CLASSES, LOADER_PARALLELISM
+CMD ["python3", "-u", "-m", "loaders"]

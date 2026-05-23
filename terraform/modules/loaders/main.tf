@@ -491,6 +491,10 @@ resource "aws_ecs_task_definition" "loader" {
 
       environment = concat([
         {
+          name  = "LOADER_NAME"
+          value = each.key
+        },
+        {
           name  = "LOADER_PARALLELISM"
           value = tostring(each.value.parallelism)
         },
