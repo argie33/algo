@@ -15,7 +15,6 @@ on:
       - 'utils/**'
       - 'config/**'
       - 'algo/**'
-      - 'entrypoint.sh'
       - 'run-all-loaders.py'
   workflow_dispatch:
 

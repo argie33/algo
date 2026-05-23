@@ -11,7 +11,6 @@ on:
       - 'algo/**'
       - 'requirements.txt'
       - 'Dockerfile'
-      - 'entrypoint.sh'
   workflow_dispatch:
   workflow_call:
     outputs:
