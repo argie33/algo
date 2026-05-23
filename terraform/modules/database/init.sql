@@ -1039,7 +1039,14 @@ CREATE TABLE IF NOT EXISTS annual_balance_sheet (
     total_assets DECIMAL(16, 2),
     current_assets DECIMAL(16, 2),
     total_liabilities DECIMAL(16, 2),
+    current_liabilities DECIMAL(16, 2),
     stockholders_equity DECIMAL(16, 2),
+    inventory DECIMAL(16, 2),
+    cash_and_equivalents DECIMAL(16, 2),
+    accounts_receivable DECIMAL(16, 2),
+    ppe_net DECIMAL(16, 2),
+    goodwill DECIMAL(16, 2),
+    long_term_debt DECIMAL(16, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year)
 );
@@ -1077,7 +1084,9 @@ CREATE TABLE IF NOT EXISTS quarterly_balance_sheet (
     fiscal_year INTEGER,
     fiscal_quarter INTEGER,
     total_assets DECIMAL(16, 2),
+    current_assets DECIMAL(16, 2),
     total_liabilities DECIMAL(16, 2),
+    current_liabilities DECIMAL(16, 2),
     stockholders_equity DECIMAL(16, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year, fiscal_quarter)
@@ -1090,6 +1099,8 @@ CREATE TABLE IF NOT EXISTS quarterly_cash_flow (
     fiscal_year INTEGER,
     fiscal_quarter INTEGER,
     operating_cash_flow DECIMAL(16, 2),
+    investing_cash_flow DECIMAL(16, 2),
+    financing_cash_flow DECIMAL(16, 2),
     free_cash_flow DECIMAL(16, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year, fiscal_quarter)
@@ -2801,5 +2812,50 @@ CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'analyst_sentiment_analysis' AND column_name = 'updated_at') THEN
         ALTER TABLE analyst_sentiment_analysis ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+END $$;
+
+-- Add missing columns to annual_balance_sheet
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'current_liabilities') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN current_liabilities DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'inventory') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN inventory DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'cash_and_equivalents') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN cash_and_equivalents DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'accounts_receivable') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN accounts_receivable DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'ppe_net') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN ppe_net DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'goodwill') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN goodwill DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'long_term_debt') THEN
+        ALTER TABLE annual_balance_sheet ADD COLUMN long_term_debt DECIMAL(16, 2);
+    END IF;
+END $$;
+
+-- Add missing columns to quarterly_balance_sheet
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_balance_sheet' AND column_name = 'current_assets') THEN
+        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_assets DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_balance_sheet' AND column_name = 'current_liabilities') THEN
+        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_liabilities DECIMAL(16, 2);
+    END IF;
+END $$;
+
+-- Add missing columns to quarterly_cash_flow
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'investing_cash_flow') THEN
+        ALTER TABLE quarterly_cash_flow ADD COLUMN investing_cash_flow DECIMAL(16, 2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'financing_cash_flow') THEN
+        ALTER TABLE quarterly_cash_flow ADD COLUMN financing_cash_flow DECIMAL(16, 2);
     END IF;
 END $$;

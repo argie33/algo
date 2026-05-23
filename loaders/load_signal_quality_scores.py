@@ -142,7 +142,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     continue
 
                 if signal_type == "BUY":
-                    rsi = row.get("rsi_14")
+                    rsi = row.get("rsi")
                     macd = row.get("macd")
                     macd_signal = row.get("macd_signal")
                     minervini = row.get("minervini_score", 0)
@@ -157,7 +157,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     score = min(100, score)
 
                 elif signal_type == "SELL":
-                    rsi = row.get("rsi_14")
+                    rsi = row.get("rsi")
                     macd = row.get("macd")
                     macd_signal = row.get("macd_signal")
 
