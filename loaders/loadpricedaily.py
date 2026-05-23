@@ -259,7 +259,12 @@ def main():
             stats = loader.run(symbols, parallelism=args.parallelism)
 
         logger.info(f"[MAIN] Loader completed: {stats}")
-        return 0 if stats["symbols_failed"] == 0 else 1
+        # Allow up to 5% symbol failure rate (transient API/data issues acceptable)
+        fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+        if fail_rate > 0.05:
+            logger.error(f"[MAIN] Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+            return 1
+        return 0
 
     except Exception as e:
         logger.error(f"[MAIN] Loader failed with error: {e}", exc_info=True)

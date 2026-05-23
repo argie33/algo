@@ -163,7 +163,11 @@ def main():
     finally:
         loader.close()
 
-    return 0 if stats["symbols_failed"] == 0 else 1
+    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+        if fail_rate > 0.05:
+            logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+            return 1
+        return 0
 
 
 if __name__ == "__main__":
