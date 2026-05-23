@@ -2,8 +2,8 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases, cursor pooling + Phase 3b opt
-- ⚠️ Loaders: 54 → Fixed rate limit cascade (parallel overload). Serial runner + 4-256s SEC EDGAR retry. Running now
-- ✅ Database: Schema in code, auto-deploy via Terraform
+- ⚠️ Loaders: 54 total (28 success, 18 failed-code1, 90 killed-code137). **Critical:** buy_sell_daily empty (signals from Phase 5, not loaders). Docker image stale.
+- ✅ Database: 137 tables, 35.4M+ rows (base data intact). signal_quality_scores empty pending buy_sell_daily.
 - ✅ Alpaca: Paper mode enabled
 - ✅ Tests: 297/302 pass (tracked in CI)
 
@@ -68,4 +68,5 @@ Monitor: https://github.com/argie33/algo/actions
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
 | Signals missing | Data in `technical_data_daily`? Rules in code? |
 | Alpaca 401 | Set `ALPACA_PAPER=true` env |
+| **Loader troubleshooting** | **Audit → Fix only FAILING loaders. Never rerun working ones ($$). Spot-check known-good tables before queuing tasks.** |
 
