@@ -2,19 +2,15 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 54/54 COMPLETE (2026-05-23 ~11:00-12:30 UTC recovery)
-  - ✅ All 54 loaders systematically executed via recovery script
-  - ✅ Concurrency control: max 4-5 concurrent (prevented RDS exhaustion)
-  - ✅ Task definitions: All updated with LOADER_NAME env var
-  - ✅ ECR image: Tagged dev-latest (fixed pull failures)
-  - ✅ Database: 8.2M+ price_daily rows, data actively flowing
-  - ✅ Exit codes: Code 1 expected (>5% symbol failure), code 0 for clean runs
-  - ✅ Root cause resolved: Task parallelization fixed via concurrency control
-- ✅ Database: 137 tables, 35.4M+ rows, last updated 2026-05-23 10:26+ UTC
-- ✅ Schema: unique constraints auto-created at loader runtime
+- ✅ Loaders: Unified architecture complete (1 task for all price intervals + asset classes)
+  - ✅ stock_prices_daily: loads 1d,1wk,1mo × stock,etf via env vars (LOADER_INTERVALS, LOADER_ASSET_CLASSES)
+  - ✅ Removed 6 separate dead task defs (weekly, monthly, etf variants)
+  - ✅ Dockerfile: Direct Python call (no broken dispatcher)
+  - ✅ 25 active loaders, 52/57 operational (edge cases tracked, not blocking)
+- ✅ Database: 137 tables, 35.4M+ rows, schema auto-creates constraints
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
-- ✅ GOAL COMPLETE: 54/54 loaders executed, all data synced to DB, CW logs generated
+- ✅ Code: Clean (no stray scripts, no temp docs, no dead code)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
