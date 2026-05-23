@@ -330,14 +330,6 @@ jobs:
           CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""' 2>/dev/null || echo "")
           API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""' 2>/dev/null || echo "")
 
-          echo "Extracted values:"
-          echo "  ECR=${ECR:-(empty)}"
-          echo "  API=${API:-(empty)}"
-          echo "  ALGO=${ALGO:-(empty)}"
-          echo "  BUCKET=${BUCKET:-(empty)}"
-          echo "  CF=${CF:-(empty)}"
-          echo "  API_GW=${API_GW:-(empty)}"
-
           echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
           echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
           echo "algo_lambda_name=${ALGO}" >> $GITHUB_OUTPUT
