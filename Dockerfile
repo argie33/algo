@@ -21,6 +21,6 @@ COPY algo/ ./algo/
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Dispatcher reads LOADER_NAME env var from Terraform and runs correct loader
-# Loaders read from environment: LOADER_NAME, LOADER_INTERVALS, LOADER_ASSET_CLASSES, LOADER_PARALLELISM
-CMD ["python3", "-u", "-m", "loaders"]
+# LOADER_NAME from Terraform selects which loader to run
+# Loaders read config from environment variables set by task definition
+CMD ["python3", "-u", "loaders/loadpricedaily.py"]

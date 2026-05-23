@@ -4,18 +4,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Price Loader - Multi-timeframe (daily, weekly, monthly) with native yfinance intervals.
+UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
 
-Consolidated: Previously split across loadpricedaily.py, load_price_aggregate.py,
-loadetfpricedaily.py, and load_etf_price_aggregate.py. Now one parametrized loader.
+Environment variables (set by Terraform/ECS task definition):
+  LOADER_INTERVALS: comma-separated intervals (default: "1d,1wk,1mo")
+  LOADER_ASSET_CLASSES: comma-separated asset classes (default: "stock,etf")
+  LOADER_SYMBOLS: optional comma-separated symbols; if blank, uses database active symbols
+  LOADER_PARALLELISM: thread pool size (default: 2)
 
-Uses native yfinance intervals (1d, 1wk, 1mo) instead of local aggregation.
-
-Run:
-    python3 loadpricedaily.py --interval 1d [--symbols AAPL,MSFT] [--asset-class stock]
-    python3 loadpricedaily.py --interval 1wk [--symbols AAPL,MSFT]
-    python3 loadpricedaily.py --interval 1mo [--symbols AAPL,MSFT]
-    python3 loadpricedaily.py --interval 1d --symbols SPY,QQQ --asset-class etf
+Runs each interval+asset_class combination sequentially, parallelizing symbol fetches within.
+Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_weekly, etf_price_monthly
 """
 
 import argparse

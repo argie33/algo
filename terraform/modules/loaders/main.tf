@@ -128,7 +128,7 @@ locals {
   # Kept for documentation and potential future use.
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
-    "stock_prices_daily"            = "loadpricedaily.py"  # Unified: loads all intervals + asset classes (1d,1wk,1mo for stock,etf)
+    "stock_prices_daily"            = "loadpricedaily.py"  # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
     "financials_annual_cashflow"    = "load_cash_flow.py"
@@ -349,16 +349,10 @@ locals {
     # parallelism=1: tiny list, no benefit from threads
     "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Price data loaders (4:00am ET) — I/O bound, 5000+ symbols, rate-limited by yfinance
-    # ROOT CAUSE: parallelism=1 → 5000 symbols * 7sec = 10+ hours. FIX: parallelism=4 with per-request rate limiting.
-    # With 4 threads + yfinance limit (60 req/min): safe concurrent processing without hitting rate limit.
-    # TIMEOUT FIX: 3600→10800→14400→21600 (1h→3h→4h→6h). Stock prices needs 2.5-3h for 5000+ symbols; 6h buffer ensures completion.
-    "stock_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
-    "stock_prices_weekly"  = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
-    "stock_prices_monthly" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 8 }
-    "etf_prices_daily"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
-    "etf_prices_weekly"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
-    "etf_prices_monthly"   = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    # UNIFIED Price Loader (4:00am ET) — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
+    # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
+    # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
+    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
@@ -443,8 +437,7 @@ locals {
 
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
-    "stock_prices_daily", "stock_prices_weekly", "stock_prices_monthly",
-    "etf_prices_daily", "etf_prices_weekly", "etf_prices_monthly",
+    "stock_prices_daily",
     "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
     "algo_metrics_daily", "eod_bulk_refresh"
   ])
