@@ -373,9 +373,6 @@ locals {
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Key metrics (yfinance) — reduce parallelism to prevent API overload
-    "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-
     # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
     "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
@@ -397,16 +394,11 @@ locals {
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Market & economic data — small datasets, single-threaded fine
-    "market_indices" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "econ_data"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-
-    # Stock scores (compute-heavy scoring) — run via Step Functions EOD pipeline
-    # TIMEOUT FIX: 1200→10800 (20min→3h). Scores compute on 5000+ symbols + DB inserts; add buffer for margin.
-    "stock_scores" = { cpu = 2048, memory = 4096, timeout = 10800, parallelism = 8 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
@@ -420,10 +412,6 @@ locals {
 
     # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB; increase timeout for 5000+ symbol processing
     "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 1 }
-
-    # EOD bulk refresh (5:00am UTC next day) - FARGATE: 512 CPU for threading
-    # TIMEOUT: 14400s (4h) for 5000+ symbols at ~2.5-3s/symbol + DB inserts
-    "eod_bulk_refresh" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 2 }
 
     # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
