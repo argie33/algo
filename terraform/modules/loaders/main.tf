@@ -359,30 +359,31 @@ locals {
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
 
-    # Financial statements (10:00am ET) — I/O bound, rate-limited by yfinance/SEC
-    # parallelism=4: respect yfinance rate limits (60/min), 500+ symbols
-    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # Financial statements (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
+    # Sequential processing needs 60min timeout to handle 5000+ symbols with SEC backoff delays
+    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Key metrics (market cap, insider holdings) — I/O bound, rate-limited by Finnhub (free tier ~60/min)
-    "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # Key metrics (yfinance) — reduce parallelism to prevent API overload
+    "key_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
     # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
     "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
-    # Earnings data (11:00am ET) — I/O bound, 5000+ symbols needs 30+ min with rate limiting
-    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
+    # Increase timeout to 60min for sequential 5000+ symbol processing
+    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
