@@ -21,6 +21,6 @@ COPY algo/ ./algo/
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Task definition CMD specifies which loader to run (e.g. ["python3", "-u", "loaders/loadpricedaily.py"])
-# Loaders read configuration from environment variables set by task definition
+# Task definition specifies command explicitly via loader_file_map
+# Example: ["python3", "-u", "loaders/load_income_statement.py"]
 CMD []
