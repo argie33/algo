@@ -37,24 +37,9 @@ echo "[ENTRYPOINT] Dir: $(pwd)"
 # Build command with loader-specific arguments based on LOADER_TYPE
 LOADER_ARGS=()
 case "$LOADER_TYPE" in
-    # Parametrized price loaders (1d/1wk/1mo intervals)
-    stock_prices_daily|eod_bulk_refresh)
-        LOADER_ARGS=("--interval" "1d")
-        ;;
-    stock_prices_weekly)
-        LOADER_ARGS=("--interval" "1wk")
-        ;;
-    stock_prices_monthly)
-        LOADER_ARGS=("--interval" "1mo")
-        ;;
-    etf_prices_daily)
-        LOADER_ARGS=("--interval" "1d" "--asset-class" "etf")
-        ;;
-    etf_prices_weekly)
-        LOADER_ARGS=("--interval" "1wk" "--asset-class" "etf")
-        ;;
-    etf_prices_monthly)
-        LOADER_ARGS=("--interval" "1mo" "--asset-class" "etf")
+    # Stock prices (all intervals + asset classes in one run)
+    stock_prices_daily)
+        LOADER_ARGS=("--interval" "1d,1wk,1mo" "--asset-class" "stock,etf")
         ;;
     # Parametrized signal loaders (daily/weekly/monthly timeframes)
     signals_daily)

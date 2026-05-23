@@ -128,12 +128,7 @@ locals {
   # with appropriate arguments (e.g. --interval 1d, --asset-class etf).
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
-    "stock_prices_daily"            = "loadpricedaily.py"
-    "stock_prices_weekly"           = "loadpricedaily.py"
-    "stock_prices_monthly"          = "loadpricedaily.py"
-    "etf_prices_daily"              = "loadpricedaily.py"
-    "etf_prices_weekly"             = "loadpricedaily.py"
-    "etf_prices_monthly"            = "loadpricedaily.py"
+    "stock_prices_daily"            = "loadpricedaily.py"  # Unified: loads all intervals + asset classes (1d,1wk,1mo for stock,etf)
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
     "financials_annual_cashflow"    = "load_cash_flow.py"
@@ -170,7 +165,6 @@ locals {
     "signals_etf_weekly"            = "load_signal_quality_scores.py"
     "signals_etf_monthly"           = "load_signal_quality_scores.py"
     "algo_metrics_daily"            = "load_signal_quality_scores.py"
-    "eod_bulk_refresh"              = "loadpricedaily.py"
     "market_data_batch"             = "load_market_health_daily.py"
     "technical_data_daily"          = "load_technical_data_daily.py"
     "market_health_daily"           = "load_market_health_daily.py"
@@ -187,27 +181,7 @@ locals {
     # 4:00am ET = 9am UTC Mon-Fri
     "stock_prices_daily" = {
       schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Daily stock prices - 4:00am ET"
-    }
-    "stock_prices_weekly" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Weekly stock prices - 4:00am ET (parallel with daily)"
-    }
-    "stock_prices_monthly" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Monthly stock prices - 4:00am ET (parallel with daily)"
-    }
-    "etf_prices_daily" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Daily ETF prices - 4:00am ET (parallel with stock prices)"
-    }
-    "etf_prices_weekly" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Weekly ETF prices - 4:00am ET (parallel with stock prices)"
-    }
-    "etf_prices_monthly" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Monthly ETF prices - 4:00am ET (parallel with stock prices)"
+      description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
     }
 
     # 3:30am ET = 8:30am UTC Mon-Fri — 8 tiny loaders consolidated into one task

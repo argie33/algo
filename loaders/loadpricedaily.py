@@ -229,14 +229,30 @@ def main():
         return 1
 
     parser = argparse.ArgumentParser(description="Price Loader - Multi-timeframe (1d/1wk/1mo)")
-    parser.add_argument("--interval", choices=["1d", "1wk", "1mo"], default="1d",
-                        help="Timeframe: 1d (daily), 1wk (weekly), 1mo (monthly)")
-    parser.add_argument("--asset-class", choices=["stock", "etf"], default="stock",
-                        help="Asset class: stock or etf")
+    parser.add_argument("--interval", default="1d",
+                        help="Timeframe(s): 1d, 1wk, 1mo or comma-separated (1d,1wk,1mo)")
+    parser.add_argument("--asset-class", default="stock",
+                        help="Asset class(es): stock, etf or comma-separated (stock,etf)")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all active.")
     default_parallelism = int(os.getenv("PARALLELISM", os.getenv("LOADER_PARALLELISM", "2")))
     parser.add_argument("--parallelism", type=int, default=default_parallelism, help="Concurrent workers")
     args = parser.parse_args()
+
+    # Parse comma-separated intervals and asset classes
+    intervals = [x.strip() for x in args.interval.split(",")]
+    asset_classes = [x.strip() for x in args.asset_class.split(",")]
+
+    # Validate
+    valid_intervals = {"1d", "1wk", "1mo"}
+    valid_classes = {"stock", "etf"}
+    for i in intervals:
+        if i not in valid_intervals:
+            logger.error(f"Invalid interval: {i}. Must be one of: {valid_intervals}")
+            return 1
+    for a in asset_classes:
+        if a not in valid_classes:
+            logger.error(f"Invalid asset class: {a}. Must be one of: {valid_classes}")
+            return 1
 
     try:
         if args.symbols:
@@ -245,32 +261,44 @@ def main():
         else:
             symbols = get_active_symbols()
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
-            # Load ALL symbols. Watermark handles incremental updates for performance.
-            # Previous 500-symbol limit was causing 95% data loss. Full coverage required for data patrol.
             logger.info(f"[MAIN] Loading ALL {len(symbols)} symbols (watermark tracks incremental progress)")
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         return 1
 
-    loader = PriceLoader(interval=args.interval, asset_class=args.asset_class)
-    try:
-        logger.info(f"[MAIN] Starting price loader: interval={args.interval}, asset_class={args.asset_class}, parallelism={args.parallelism}")
-        with TimeBlock("loadpricedaily"):
-            stats = loader.run(symbols, parallelism=args.parallelism)
+    # Run price loader for each interval + asset_class combination
+    total_stats = {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
+    fail_count = 0
 
-        logger.info(f"[MAIN] Loader completed: {stats}")
-        # Allow up to 5% symbol failure rate (transient API/data issues acceptable)
-        fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-        if fail_rate > 0.05:
-            logger.error(f"[MAIN] Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
-            return 1
-        return 0
+    for asset_class in asset_classes:
+        for interval in intervals:
+            try:
+                loader = PriceLoader(interval=interval, asset_class=asset_class)
+                logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={args.parallelism}")
+                with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
+                    stats = loader.run(symbols, parallelism=args.parallelism)
 
-    except Exception as e:
-        logger.error(f"[MAIN] Loader failed with error: {e}", exc_info=True)
+                logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
+                total_stats["symbols_loaded"] += stats.get("symbols_loaded", 0)
+                total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
+                total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
+
+                fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+                if fail_rate > 0.05:
+                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)}")
+                    fail_count += 1
+
+                loader.close()
+            except Exception as e:
+                logger.error(f"[MAIN] Loader failed for {asset_class}/{interval}: {e}", exc_info=True)
+                fail_count += 1
+                return 1
+
+    logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
+    if fail_count > 0:
+        logger.error(f"[MAIN] {fail_count} interval(s) had too many failures")
         return 1
-    finally:
-        loader.close()
+    return 0
 
 
 if __name__ == "__main__":
