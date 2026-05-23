@@ -394,7 +394,6 @@ locals {
 
     # Market & economic data — small datasets, single-threaded fine
     "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "econ_data"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "aaiidata"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "naaim_data"     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "feargreed"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
