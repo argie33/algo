@@ -44,24 +44,8 @@ This workspace supports multiple projects. When working in this repo, **read the
 3. Verify: root < 50 lines, steering < 150 lines, commit both together
 
 ## Code Cleanliness (Pre-Commit Enforced)
-
-⚠️ **These rules are checked on every commit. Violations block merge.**
-
-**BLOCKED:**
-- `.env` files (use AWS Secrets Manager)
-- Session docs at root (use `memory/`)
-- Duplicate configs, test files, generated files, demo code
-- `print()` in library code (use `logger.info()`)
-- `pdb`/`ipdb` imports or `breakpoint()` calls
-- One-time scripts at root (use `scripts/`)
-- Files >1MB
-
-**ALLOWED (exempted from print check):**
-- `algo_loader_*.py`, `algo_daily_report.py` (CLI tools)
-- `scripts/` directory
-- `tests/` directory
-
-**Violations caught?** Hook rejects commit. Fix, stage again, re-commit.
+⚠️ **Violations block commit:** .env, session docs at root, test files, `print()` in lib code, pdb/breakpoint, 1-way scripts at root, >1MB files.
+**Exempt from print():** `algo_loader_*.py`, `algo_daily_report.py`, `scripts/`, `tests/`. See `.git/hooks/pre-commit`.
 
 ## Security Baseline
 
