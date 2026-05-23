@@ -84,8 +84,10 @@ class SecEdgarClient:
                 "Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
             )
         self.timeout = timeout
-        # Rate limiter: SEC allows 10 req/sec but 5 req/sec is safer for parallel ECS loaders
-        self._rate_limiter = RateLimiter(5)
+        # Rate limiter: SEC allows 10 req/sec. With many parallel ECS tasks,
+        # we need to be conservative. Using 2 req/sec per task limits total impact.
+        # If 5+ tasks run in parallel = 10 req/sec. If fewer, we stay under limit.
+        self._rate_limiter = RateLimiter(2)
         self._session = requests.Session()
         self._session.headers.update({
             "User-Agent": self.user_agent,
