@@ -56,11 +56,17 @@ class YFinanceWrapper:
         return None
 
     @classmethod
-    def get_ticker(cls, symbol: str, max_retries: int = 3):
-        """Get yfinance Ticker with retry logic for Invalid Crumb errors."""
+    def get_ticker(cls, symbol: str, max_retries: int = 5):
+        """Get yfinance Ticker with retry logic for Invalid Crumb/401 errors.
+
+        Uses longer exponential backoff for 401 auth errors (2s, 4s, 8s, 16s, 32s)
+        similar to SEC EDGAR rate limiting strategy.
+        """
         if not yf:
             logger.error("yfinance not installed")
             return None
+
+        import random
 
         for attempt in range(max_retries):
             try:
@@ -78,8 +84,8 @@ class YFinanceWrapper:
             except Exception as e:
                 error_str = str(e).lower()
 
-                # Check for auth/crumb errors
-                if 'invalid crumb' in error_str or '401' in error_str or 'unauthorized' in error_str:
+                # Check for auth/crumb errors (including rate limiting)
+                if 'invalid crumb' in error_str or '401' in error_str or 'unauthorized' in error_str or 'too many requests' in error_str:
                     logger.warning(f"Auth error for {symbol} (attempt {attempt + 1}): {e}")
 
                     # Reset session on auth error
@@ -87,8 +93,12 @@ class YFinanceWrapper:
                     cls._last_session_time = 0
 
                     if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                        logger.info(f"Retrying {symbol} in {wait_time}s...")
+                        # Longer exponential backoff: 2s, 4s, 8s, 16s, 32s
+                        # Similar to SEC EDGAR to handle API rate limits
+                        base_wait = 2 * (2 ** attempt)
+                        jitter = random.uniform(0, base_wait * 0.2)  # 0-20% jitter
+                        wait_time = base_wait + jitter
+                        logger.info(f"Retrying {symbol} in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
                         time.sleep(wait_time)
                     continue
                 else:
