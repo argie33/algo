@@ -17,10 +17,13 @@ COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
 
+# Create entrypoint script that executes whatever command ECS passes
+RUN echo '#!/bin/sh\nexec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
 # Run as non-root user to limit container blast radius
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# Task definition specifies the complete command via loader_file_map
-# Example: command = ["python3", "-u", "loaders/load_income_statement.py"]
-CMD []
+# ENTRYPOINT executes the command array passed by ECS task definition
+# Task definition command: ["python3", "-u", "loaders/load_income_statement.py"]
+ENTRYPOINT ["/entrypoint.sh"]
