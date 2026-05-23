@@ -204,7 +204,7 @@ class OptimalLoader(ABC):
             for constraint in existing_constraints:
                 cur.execute("""
                 SELECT column_name
-                FROM information_schema.constraint_column_usage
+                FROM information_schema.key_column_usage
                 WHERE constraint_name = %s AND table_schema = 'public'
                 ORDER BY ordinal_position
                 """, (constraint,))
