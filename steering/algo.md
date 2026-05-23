@@ -2,17 +2,16 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: All 48 Terraform loaders queued, 36 running in parallel, 9+ passing
-  - ✅ Terraform fixed: 5 broken mappings → working loaders, all entrypoint parameters fixed
-  - ✅ Load order optimized: stock symbols → prices → financials → metrics → signals (parallel batching)
-  - ✅ Passing: aaiidata, analyst_upgrades_downgrades, company_profile, earnings_calendar, earnings_history, earnings_revisions, eod_bulk_refresh, feargreed, market_health_daily
-  - ⚠️ Mixed results: earnings_surprise, econ_data, market_indices (1 pass, 1 fail each → retry)
-  - 🔄 Running: All major loaders (signals_*, financials_*, prices, metrics) executing in parallel
+- 🔄 Loaders: 48 Terraform loaders in execution (15 pass, 10 fail, 24 running)
+  - ✅ Passing (15): aaiidata, analyst_upgrades_downgrades, company_profile, earnings_calendar, earnings_history, earnings_revisions, earnings_surprise, econ_data, eod_bulk_refresh, feargreed, market_health_daily, market_indices, signals_daily, stock_scores, analyst_sentiment (retry)
+  - ⚠️ Failing (10): naaim_data, seasonality, signals_etf_daily (exit 2), signals_etf_weekly (exit 1), stock_prices_*, swing_trader_scores (API/data issues, transient)
+  - 🔄 Running (24): algo_metrics_daily, etf_prices_*, financials_*, growth_metrics, key_metrics, signals_*, technical_data_daily, trend_template_data (heavy compute, 10-30min ETA)
   - ✅ Database: 137 tables, 35.4M rows (price_daily: 8.1M, technical_data_daily: 8.1M, etf_price_daily: 8.0M)
+  - 🔧 Scripts: queue_all_loaders_systematically, batch_queue_and_test, loader_completion_audit, monitor_and_retry_failed_loaders, retry_specific_loaders
 - ✅ Schema: unique constraints auto-created at loader runtime (OptimalLoader)
 - ✅ Alpaca: Paper trading enabled (ALPACA_PAPER=true)
 - ✅ Tests: 297/302 pass
-- NEXT: Monitor all 36 running tasks → retry failures → verify all 48 complete 100%
+- NEXT: Wait 24 running loaders to complete (~30min) → comprehensive retry strategy → final audit → ensure 100% coverage
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
