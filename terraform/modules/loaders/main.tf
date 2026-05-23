@@ -382,7 +382,6 @@ locals {
     # Increase timeout to 60min for sequential 5000+ symbol processing
     "earnings_history"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
