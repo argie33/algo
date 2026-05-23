@@ -37,6 +37,18 @@ class AnalystSentimentLoader:
         try:
             cur = self.conn.cursor()
 
+            # Log connection details for debugging
+            logger.info(f"Connected to database at {self.conn.get_dsn_parameters()}")
+
+            # Get table schema to verify updated_at column exists
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'analyst_sentiment_analysis' AND column_name = 'updated_at'
+            """)
+            if not cur.fetchone():
+                logger.error("updated_at column missing from analyst_sentiment_analysis table!")
+                return {"success": False, "error": "Schema mismatch: updated_at column missing"}
+
             # Get all SP500 stocks
             cur.execute("""
                 SELECT symbol FROM stock_symbols
