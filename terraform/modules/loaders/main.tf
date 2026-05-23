@@ -164,7 +164,7 @@ locals {
     "signals_etf_daily"             = "load_signal_quality_scores.py"
     "signals_etf_weekly"            = "load_signal_quality_scores.py"
     "signals_etf_monthly"           = "load_signal_quality_scores.py"
-    "algo_metrics_daily"            = "load_signal_quality_scores.py"
+    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
     "market_data_batch"             = "load_market_health_daily.py"
     "technical_data_daily"          = "load_technical_data_daily.py"
     "market_health_daily"           = "load_market_health_daily.py"
