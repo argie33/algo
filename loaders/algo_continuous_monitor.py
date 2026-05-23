@@ -8,10 +8,14 @@ Checks position P&L, margin, and risk levels against configured limits.
 
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import logging
 from datetime import datetime
+from utils.structured_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def main():
