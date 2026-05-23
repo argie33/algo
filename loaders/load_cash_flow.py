@@ -25,6 +25,7 @@ from datetime import date
 from typing import List, Optional
 from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
+from utils.sec_edgar_client import SecEdgarClient
 
 from utils.optimal_loader import OptimalLoader
 
@@ -93,19 +94,14 @@ class CashFlowLoader(OptimalLoader):
         self._schema_cols = cfg["schema_cols"]
         self._field_mapping = cfg.get("field_mapping", {})
         super().__init__()
+        self._sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         try:
-            from utils.sec_edgar_client import SecEdgarClient
-        except ImportError as e:
-            logging.error("SecEdgarClient import failed: %s — financial data unavailable", e)
-            return None
-        try:
-            client = SecEdgarClient()
-            if not client.symbol_to_cik(symbol):
+            if not self._sec_client.symbol_to_cik(symbol):
                 logging.debug("Symbol %s not found in SEC EDGAR", symbol)
                 return None
-            rows = client.get_cash_flow(symbol, period=self.period)
+            rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
                 logging.debug("No %s cash flow data for %s", self.period, symbol)
                 return None
@@ -172,7 +168,9 @@ def main():
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_PERIOD env var)")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    parser.add_argument("--parallelism", type=int, default=8)
+    default_parallelism = int(os.getenv("LOADER_PARALLELISM", "1"))
+    parser.add_argument("--parallelism", type=int, default=default_parallelism,
+                        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})")
     args = parser.parse_args()
 
     period = _resolve_period(args.period)

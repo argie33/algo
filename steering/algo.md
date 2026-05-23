@@ -1,11 +1,6 @@
 # Stock Analytics Platform — Algo
 
-## STATUS
-- ✅ Orchestrator: 7 phases, cursor pooling + Phase 3b opt
-- 🔄 Loaders: 54 total. 9 viable data loaders executing (15 running). Fixes deployed: database schema (+14 cols), signal_quality_scores column ref. Docker rebuilt, RDS migrated.
-- ✅ Database: 137 tables, 35.4M+ rows. Schema migration complete (balance_sheet, quarterly_balance_sheet, quarterly_cash_flow columns added).
-- ✅ Alpaca: Paper mode enabled
-- ✅ Tests: All CI/CD workflows passed (backtest, unit, integration)
+**Current status:** Check GitHub Actions (tests), AWS ECS (loaders), RDS (row counts). Not tracked here.
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
