@@ -109,7 +109,7 @@ class CashFlowLoader(OptimalLoader):
             if not rows:
                 logging.debug("No %s cash flow data for %s", self.period, symbol)
                 return None
-            since_year = int(since) if since else 2000
+            since_year = int(since.year) if since else 2000
             return [r for r in rows if r.get("fiscal_year", 0) > since_year] or None
         except Exception as e:
             logging.error("SEC EDGAR error for %s: %s", symbol, e)
