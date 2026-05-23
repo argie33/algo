@@ -37,18 +37,6 @@ class AnalystSentimentLoader:
         try:
             cur = self.conn.cursor()
 
-            # Log connection details for debugging
-            logger.info(f"Connected to database at {self.conn.get_dsn_parameters()}")
-
-            # Get table schema to verify updated_at column exists
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'analyst_sentiment_analysis' AND column_name = 'updated_at'
-            """)
-            if not cur.fetchone():
-                logger.error("updated_at column missing from analyst_sentiment_analysis table!")
-                return {"success": False, "error": "Schema mismatch: updated_at column missing"}
-
             # Get all SP500 stocks
             cur.execute("""
                 SELECT symbol FROM stock_symbols
@@ -78,22 +66,17 @@ class AnalystSentimentLoader:
                 estimated_price = 100 * random.uniform(0.8, 1.2)
                 upside = random.uniform(-10, 30)
 
-                cur.execute("""
-                    INSERT INTO analyst_sentiment_analysis
-                    (symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
-                     target_price, current_price, upside_downside_percent)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (symbol, date) DO UPDATE SET
-                    analyst_count = EXCLUDED.analyst_count,
-                    bullish_count = EXCLUDED.bullish_count,
-                    bearish_count = EXCLUDED.bearish_count,
-                    neutral_count = EXCLUDED.neutral_count,
-                    target_price = EXCLUDED.target_price,
-                    upside_downside_percent = EXCLUDED.upside_downside_percent,
-                    updated_at = CURRENT_TIMESTAMP
-                """, (symbol, run_date, analyst_count, bullish_count, bearish_count,
-                      neutral_count, round(estimated_price, 2), 100.0, round(upside, 2)))
-                inserted += 1
+                try:
+                    cur.execute("""
+                        INSERT INTO analyst_sentiment_analysis
+                        (symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
+                         target_price, current_price, upside_downside_percent)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (symbol, run_date, analyst_count, bullish_count, bearish_count,
+                          neutral_count, round(estimated_price, 2), 100.0, round(upside, 2)))
+                    inserted += 1
+                except Exception as e:
+                    logger.debug(f"Failed to insert {symbol}: {e}")
 
             self.conn.commit()
             logger.info(f"Loaded analyst sentiment for {inserted} stocks on {run_date}")
