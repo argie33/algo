@@ -81,7 +81,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
             results['message'] = 'No new closed trades'
             return results
 
-        logger.info(f"✓ Populated {results['trades_processed']} closed trades")
+        logger.info(f"[OK] Populated {results['trades_processed']} closed trades")
 
         # Step 2: Compute IC for components
         attribution = SignalAttributionEngine()
@@ -89,7 +89,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
 
         if attr_result.get('components'):
             results['ic_values'] = attr_result['components']
-            logger.info(f"✓ Computed IC for {len(attr_result['components'])} components:")
+            logger.info(f"[OK] Computed IC for {len(attr_result['components'])} components:")
             for comp, ic_data in attr_result['components'].items():
                 status = '★' if ic_data.get('ic', 0) >= 0.25 else '◇' if ic_data.get('ic', 0) >= 0.10 else '·'
                 logger.info(
@@ -106,7 +106,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
 
             if opt_result.get('changes'):
                 results['weight_changes'] = opt_result['changes']
-                logger.info(f"✓ Weight optimization: {len(opt_result['changes'])} changes")
+                logger.info(f"[OK] Weight optimization: {len(opt_result['changes'])} changes")
                 for change in opt_result['changes']:
                     logger.info(
                         f"  {change['component']:20s}  "
@@ -116,7 +116,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
                 if dry_run:
                     logger.info("  (DRY-RUN — not persisted)")
             else:
-                logger.info("✓ Weight optimization: no changes (stable or insufficient data)")
+                logger.info("[OK] Weight optimization: no changes (stable or insufficient data)")
 
             if not opt_result.get('success'):
                 results['success'] = False
@@ -140,7 +140,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
 
                 backtest_result = backtester.run_backtest(test_start, test_end)
                 logger.info(
-                    f"✓ Walk-forward result: Sharpe={backtest_result.get('sharpe_ratio', 0):.2f}, "
+                    f"[OK] Walk-forward result: Sharpe={backtest_result.get('sharpe_ratio', 0):.2f}, "
                     f"WinRate={backtest_result.get('win_rate_pct', 0):.1f}%, "
                     f"Profit={backtest_result.get('total_return_pct', 0):+.1f}%"
                 )

@@ -100,13 +100,13 @@ def load_ttm_aggregates():
         conn.close()
 
         total_ttm = ttm_income_count + ttm_cf_count
-        logger.info(f"✓ TTM aggregates loaded successfully ({total_ttm} records)")
+        logger.info(f"[OK] TTM aggregates loaded successfully ({total_ttm} records)")
         logger.info(f"  - TTM Income Statement: {ttm_income_count} item records")
         logger.info(f"  - TTM Cash Flow: {ttm_cf_count} item records")
         return True
 
     except Exception as e:
-        logger.error(f"✗ Error: {e}", exc_info=True)
+        logger.error(f"[ERROR] Error: {e}", exc_info=True)
         return False
 
 

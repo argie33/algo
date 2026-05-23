@@ -93,27 +93,6 @@ def queue_loader(loader_name):
     """Queue a single loader."""
     task_def = f"algo-{loader_name}-loader"
 
-    # Determine launch overrides based on loader type
-    container_overrides = []
-
-    if 'etf' in loader_name and 'signals' in loader_name:
-        # Signal ETF variants need --asset-class
-        container_overrides = [{
-            'name': f'algo-{loader_name}',
-            'environment': [
-                {'name': 'LOADER_TYPE', 'value': loader_name}
-            ]
-        }]
-    elif 'signals' in loader_name:
-        # Signal stock variants need --timeframe
-        timeframe = 'daily' if 'daily' in loader_name else 'weekly' if 'weekly' in loader_name else 'monthly'
-        container_overrides = [{
-            'name': f'algo-{loader_name}',
-            'environment': [
-                {'name': 'LOADER_TYPE', 'value': loader_name}
-            ]
-        }]
-
     try:
         response = ecs.run_task(
             cluster='algo-cluster',
@@ -121,12 +100,11 @@ def queue_loader(loader_name):
             launchType='FARGATE',
             networkConfiguration={
                 'awsvpcConfiguration': {
-                    'subnets': ['subnet-0988e8d04bba87486'],
-                    'securityGroups': ['sg-0e6c1a2b3c4d5e6f7'],
+                    'subnets': ['subnet-0988e8d04bba87486', 'subnet-0ccb7db133dd4071e'],
+                    'securityGroups': ['sg-0ddae70a1a80b54bd'],
                     'assignPublicIp': 'ENABLED'
                 }
-            },
-            containerOverrides=container_overrides if container_overrides else []
+            }
         )
 
         if response['tasks']:
