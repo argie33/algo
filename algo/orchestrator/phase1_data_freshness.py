@@ -34,8 +34,6 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
     Only checks the LATEST patrol run (not accumulated from all runs in 24h).
     Returns: True if patrol OK, False if critical/error issues found.
     """
-    logger.info("[DEBUG] _check_data_patrol called - about to check latest patrol run")
-
     try:
         cur.execute("""
             SELECT patrol_run_id FROM data_patrol_log
@@ -43,13 +41,11 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
         """)
         latest_run = cur.fetchone()
         if not latest_run:
-            logger.info("[DEBUG] No patrol log entries at all")
             if verbose:
-                logger.warning("  [WARN] No patrol data available")
+                logger.info("No patrol data available")
             return True
 
         latest_run_id = latest_run[0]
-        logger.info(f"[DEBUG] Latest patrol run ID: {latest_run_id}")
 
         # Now get results for only this run
         cur.execute("""
@@ -65,17 +61,14 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
         row = cur.fetchone()
 
         if not row or not row[0]:
-            logger.info("[DEBUG] No findings in latest patrol run")
-            # No patrol findings (shouldn't happen, but safe to proceed)
             if verbose:
-                logger.info("  [PATROL] No findings in latest patrol")
+                logger.info("No findings in latest patrol")
             return True
 
         worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
-        logger.info(f"[DEBUG] Patrol results: {total_findings} total, {critical_count} critical, {error_count} error, {warn_count} warn, {info_count} info")
 
         if verbose:
-            logger.info(f"  [PATROL] {latest_run_id}: {total_findings} findings "
+            logger.info(f"Patrol {latest_run_id}: {total_findings} findings "
                         f"(critical={critical_count}, error={error_count}, warn={warn_count})")
 
         # Fetch flagged findings for alerting
@@ -89,9 +82,9 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                    for r in cur.fetchall()]
 
         if flagged:
-            logger.info(f"[DEBUG] Found {len(flagged)} critical/error findings:")
+            logger.warning(f"Patrol found {len(flagged)} critical/error findings")
             for f in flagged:
-                logger.info(f"[DEBUG]   - {f['severity'].upper()}: {f['check']} ({f['target']}): {f['message'][:100]}")
+                logger.warning(f"  {f['severity'].upper()}: {f['check']} on {f['target']}: {f['message'][:100]}")
 
         # Send alerts on CRITICAL or ERROR
         if critical_count > 0 or error_count > 0:

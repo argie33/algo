@@ -51,7 +51,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._snapshot_eval_date = None  # Immutable snapshot of eval_date for this run
         self._last_stop_method = None
         self._last_stop_reasoning = None
-        self._swing = None  # CRITICAL BUG FIX: SwingTraderScore instance, lazy-init (was using hasattr)
+        self._swing = None
 
     def connect(self) -> None:
         self.conn = get_db_connection()

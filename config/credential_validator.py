@@ -153,7 +153,7 @@ def assert_credentials(on_failure: str = "raise") -> bool:
 if __name__ == "__main__":
     # Test the validator
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(levelname)s: %(message)s"
     )
 

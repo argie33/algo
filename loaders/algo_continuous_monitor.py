@@ -23,12 +23,8 @@ def main():
     logger.info("=== Continuous Monitor Loader ===")
     logger.info(f"Started at {datetime.utcnow().isoformat()}Z")
 
-    # TODO: Implement actual intraday position monitoring
-    # - Fetch current Alpaca positions
-    # - Compare P&L against configured thresholds
-    # - Update position tracking tables
-    # - Emit alerts if risk levels exceeded
-    # - Return gracefully when done
+    # Not implemented — monitoring is handled by orchestrator phase 4 (exits/stops)
+    # and real-time alerts via CloudWatch. This loader remains as a placeholder.
 
     logger.info("Continuous monitor completed successfully")
     return 0

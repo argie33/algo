@@ -323,16 +323,6 @@ jobs:
             exit 1
           fi
 
-          echo "DEBUG: Full Terraform output JSON:"
-          echo "$TF_OUT" | jq '.'
-
-          echo ""
-          echo "DEBUG: Available output keys:"
-          echo "$TF_OUT" | jq 'keys'
-
-          echo ""
-          echo "DEBUG: Extracting values..."
-
           ECR=$(echo "$TF_OUT" | jq -r '.ecr_repository_url.value // "" ' 2>/dev/null || echo "")
           API=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"' 2>/dev/null || echo "stocks-api-dev")
           ALGO=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"' 2>/dev/null || echo "stocks-algo-dev")
