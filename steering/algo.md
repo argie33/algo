@@ -1,52 +1,50 @@
-# Stock Analytics Platform — Algo Project Steering
+# Stock Analytics Platform — Algo
 
 ## STATUS
-- ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: 54/54 All Complete + Data Verified (2026-05-23 19:30 UTC)
-  - ✅ Orchestration script: queue_all_loaders.py deployed & executed
-  - ✅ Concurrency control: max_concurrent=4 prevents RDS exhaustion
-  - ✅ Data freshness verified: price_daily (8.2M, May 22), technical_data_daily (8.1M, May 22)
-  - ✅ All 54 task families queued with LOADER_FILE env var mapping
-  - Exit codes: 0 (success), 1 (>5% symbol failures—expected), 137 (timeout—recovering)
-- ✅ Database: 137 tables, 35.5M+ rows (all critical tables current), schema auto-creates constraints
-- ✅ Alpaca: Paper trading enabled
-- ✅ Tests: 297/302 pass
-- ✅ Code: Clean (no stray scripts, no temp docs, no dead code)
+- ✅ Orchestrator: 7 phases, cursor pooling + Phase 3b opt
+- ⚠️ Loaders: 54 task families exist, execution/recovery ongoing
+- ✅ Database: Schema in code, auto-deploy via Terraform
+- ✅ Alpaca: Paper mode enabled
+- ✅ Tests: 297/302 pass (tracked in CI)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
 |-----------|------|--------|---------|
 | Orchestrator | `algo/algo_orchestrator.py` | Λ + Local | Schedule/manual |
-| Loaders | `loaders/load_*.py` | ECS Fargate | EB |
-| API | `lambda/api/lambda_function.py` | Λ HTTP | API GW |
+| Loaders | `loaders/load_*.py` | ECS Fargate | EventBridge |
+| API | `lambda/api/lambda_function.py` | Λ HTTP | API Gateway |
 | Frontend | `webapp/frontend/src/` | React + S3/CF | npm build |
 | Signals | `algo/algo_signals.py` | Λ (Phase 5) | Orchestrator |
 
-## DB SCHEMA
-`terraform/modules/database/init.sql` — single source of truth. Terraform → Λ → RDS. No scatter. Local: `docker-compose up` uses same.
+**DB:** `terraform/modules/database/init.sql` → Terraform → RDS. Schema enforced in-repo, docker-compose reuses.
 
 ## CREDENTIALS
-- **Local:** PowerShell profile (DB_HOST, DB_PASSWORD, DB_NAME, APCA keys, FRED_API_KEY)
-- **CI:** GitHub Secrets (ALPACA keys, FRED_API_KEY, AWS keys)
-- **Prod:** AWS Secrets Manager (algo/database, algo/alpaca, algo/fred)
-- Rules: Rotate Q, instant if leaked, ❌ .env files
+| Env | Store | Keys |
+|-----|-------|------|
+| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, APCA, FRED_API_KEY |
+| CI | GitHub Secrets | ALPACA, FRED_API_KEY, AWS |
+| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
+**Rules:** Rotate Q, instant if leaked, ❌ .env
 
-## DEPLOY
-`git push main` → deploy-code.yml (scan → test → Terraform → Λ → EB)
-- `deploy-code.yml` — auto (tests, scan, code)
-- `deploy-all-infrastructure.yml` — manual (Terraform, Λ layers, ECS)
-- `test-orchestrator.yml` — manual (invoke Λ)
-- `manual-invoke-loaders.yml` — manual (ECS)
-Monitor: https://github.com/argie33/algo/actions
+## DEPLOY & RESOURCES
+`git push main` → `deploy-code.yml` (auto: test → scan → Terraform → Λ → EB)
 
-## AWS RESOURCE NAMES
+| Workflow | Type | Scope |
+|----------|------|-------|
+| deploy-code.yml | Auto | Tests, scan, code |
+| deploy-all-infrastructure.yml | Manual | Terraform, Λ layers, ECS |
+| test-orchestrator.yml | Manual | Invoke Λ |
+| manual-invoke-loaders.yml | Manual | ECS tasks |
+
 | Resource | Name |
 |----------|------|
 | ECS Cluster | `algo-cluster` |
 | Orchestrator Λ | `algo-algo-dev` |
 | API Λ | `algo-api-dev` |
 | RDS | `stocks-db.cluster-*.us-east-1.rds.amazonaws.com` |
-| ECS Tasks | `algo-{loader_name}-loader` |
+| Tasks | `algo-{loader}-loader` |
+
+Monitor: https://github.com/argie33/algo/actions
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
@@ -54,37 +52,20 @@ Monitor: https://github.com/argie33/algo/actions
 - 5:30P ET: Evening orchestrator (swing trades)
 
 ## KEY FILES
-- `lambda/api/lambda_function.py` — API auth + CORS
-- `algo/algo_orchestrator.py` — 7-phase runner
-- `terraform/main.tf` — Infrastructure
-- `config/credential_manager.py` — Secret fetcher
-- `algo/algo_signals.py` — Phase 5 signals
+| File | Purpose |
+|------|---------|
+| `algo/algo_orchestrator.py` | 7-phase main loop |
+| `lambda/api/lambda_function.py` | HTTP API, auth, CORS |
+| `algo/algo_signals.py` | Phase 5 signal rules |
+| `config/credential_manager.py` | Secrets fetcher |
+| `terraform/main.tf` | Infra as code |
 
 ## TROUBLESHOOTING
-| Symptom | Check |
-|---------|-------|
-| Credential validator fails | PowerShell profile vars set? Postgres running? AWS creds accessible? |
-| API returns 401 | Bearer token present? Expired? Cognito enabled in Lambda env? |
-| Loaders timeout | yfinance rate limiting? VPC has internet? RDS accepts connections? |
-| Signals not generating | Technical indicators in `technical_data_daily` table? Rules in `algo_signals.py`? |
-| Cursor already closed | Fixed: disconnect() now sets conn/cur to None (line 85-86 in algo_regime_manager.py) |
-| Phase 3b slow (30s) | Fixed: LATERAL UNNEST query (line 213 in algo_market_exposure_policy.py) reduces to <1s |
-| Alpaca 401 error | Set `ALPACA_PAPER=true` env var. Margin monitor returns default (70%) on auth failure. |
+| Issue | Fix |
+|-------|-----|
+| Creds fail | PowerShell profile vars? Postgres running? AWS creds valid? |
+| API 401 | Token expired? Cognito env var set? |
+| Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
+| Signals missing | Data in `technical_data_daily`? Rules in code? |
+| Alpaca 401 | Set `ALPACA_PAPER=true` env |
 
-## LOCAL DEV
-```bash
-python3 -m pytest tests/ -v                          # Test
-python3 config/credential_validator.py               # Validate creds
-python3 algo/algo_orchestrator.py --dry-run          # Dry-run
-cd webapp/lambda && DB_SSL=false node index.js       # Backend (3001)
-cd webapp/frontend && npm run dev                    # Frontend (5173)
-ORCHESTRATOR_DRY_RUN=false python3 algo/algo_orchestrator.py  # Live
-```
-
-## DECISION RATIONALE
-- **Alpaca:** Paper + live, SRP auth, low friction
-- **PostgreSQL:** Time-series, ACID, fast lateral joins
-- **Λ API:** Serverless, OIDC auth, auto-scale
-- **ECS Loaders:** Batch jobs, large datasets, timeout-safe
-- **Cognito:** SRP (no plain passwords), MFA, session tokens
-- **Dual layout:** Marketing (`/*`) + Dashboard (`/app/*`) → clear scope
