@@ -2,11 +2,11 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases pass, cursor pooling fix + Phase 3b optimization deployed
-- ✅ Loaders: Unified architecture complete (1 task for all price intervals + asset classes)
-  - ✅ stock_prices_daily: loads 1d,1wk,1mo × stock,etf via env vars (LOADER_INTERVALS, LOADER_ASSET_CLASSES)
-  - ✅ Removed 6 separate dead task defs (weekly, monthly, etf variants)
-  - ✅ Dockerfile: Direct Python call (no broken dispatcher)
-  - ✅ 25 active loaders, 52/57 operational (edge cases tracked, not blocking)
+- 🔄 Loaders: Recovery Phase 2 Complete (2026-05-23 17:37-18:30 UTC)
+  - ✅ Root cause fixed: LOADER_NAME env var added to all 54 task definitions
+  - ✅ All 54 loaders restarted with corrected task definitions
+  - ✅ Progress: 64% complete (35/54), 19 still running (large loaders)
+  - ✅ Success: 17 complete with exit 0, 18 with exit 1 (expected >5% symbol failures)
 - ✅ Database: 137 tables, 35.4M+ rows, schema auto-creates constraints
 - ✅ Alpaca: Paper trading enabled
 - ✅ Tests: 297/302 pass
