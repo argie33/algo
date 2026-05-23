@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import argparse
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -182,9 +183,8 @@ class SignalQualityScoresLoader(OptimalLoader):
             return []
 
 
-if __name__ == "__main__":
+def main():
     load_env()
-    import argparse
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
@@ -192,6 +192,15 @@ if __name__ == "__main__":
     parser.add_argument("--asset-class", type=str, default="stock", help="Asset class (stock/etf, ignored for quality scores)")
     args = parser.parse_args()
 
-    symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
-    loader = SignalQualityScoresLoader()
-    loader.run(symbols, parallelism=args.parallelism)
+    try:
+        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
+        loader = SignalQualityScoresLoader()
+        loader.run(symbols, parallelism=args.parallelism)
+        logger.info("Signal quality scores load completed")
+        return 0
+    except Exception as e:
+        logger.error(f"Signal quality scores load failed: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

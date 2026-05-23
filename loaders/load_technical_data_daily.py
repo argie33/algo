@@ -179,7 +179,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         return results
 
 
-if __name__ == "__main__":
+def main():
     load_env()
     parser = argparse.ArgumentParser(description="Load technical indicators")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -188,4 +188,13 @@ if __name__ == "__main__":
 
     symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
     loader = TechnicalDataDailyLoader()
-    loader.run(symbols, parallelism=args.parallelism)
+    try:
+        result = loader.run(symbols, parallelism=args.parallelism)
+        logger.info(f"Technical data daily load completed")
+        return 0
+    except Exception as e:
+        logger.error(f"Technical data daily load failed: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import argparse
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -150,7 +151,22 @@ class MarketHealthDailyLoader(OptimalLoader):
         return results
 
 
-if __name__ == "__main__":
+def main():
+    import argparse
     load_env()
-    loader = MarketHealthDailyLoader()
-    loader.run(["SPY"], parallelism=1)
+    parser = argparse.ArgumentParser(description="Load market health daily metrics")
+    parser.add_argument("--symbols", type=str, help="(Ignored - always uses SPY)")
+    parser.add_argument("--parallelism", type=int, default=1, help="Parallel workers")
+    args = parser.parse_args()
+
+    try:
+        loader = MarketHealthDailyLoader()
+        loader.run(["SPY"], parallelism=args.parallelism)
+        logger.info("Market health daily load completed")
+        return 0
+    except Exception as e:
+        logger.error(f"Market health daily load failed: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

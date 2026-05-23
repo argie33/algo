@@ -13,11 +13,14 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import argparse
 import logging
 import os
 from datetime import datetime
 import psycopg2
 from psycopg2 import sql
+
+from config.env_loader import load_env
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -110,6 +113,15 @@ def load_ttm_aggregates():
         return False
 
 
-if __name__ == '__main__':
+def main():
+    load_env()
+    parser = argparse.ArgumentParser(description="Load TTM aggregates")
+    parser.add_argument("--symbols", type=str, help="(Ignored - TTM aggregation is symbol-agnostic)")
+    parser.add_argument("--parallelism", type=int, help="(Ignored)")
+    args = parser.parse_args()
+
     success = load_ttm_aggregates()
-    sys.exit(0 if success else 1)
+    return 0 if success else 1
+
+if __name__ == '__main__':
+    sys.exit(main())

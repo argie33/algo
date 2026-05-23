@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import argparse
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -166,13 +167,22 @@ class TrendCriteriaLoader(OptimalLoader):
         return results
 
 
-if __name__ == "__main__":
-    import argparse
+def main():
     load_env()
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=4)
+    parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
     args = parser.parse_args()
-    symbols = args.symbols.split(",") if args.symbols else get_active_symbols()
-    loader = TrendCriteriaLoader()
-    loader.run(symbols, parallelism=args.parallelism)
+
+    try:
+        symbols = args.symbols.split(",") if args.symbols else get_active_symbols()
+        loader = TrendCriteriaLoader()
+        loader.run(symbols, parallelism=args.parallelism)
+        logger.info("Trend criteria data load completed")
+        return 0
+    except Exception as e:
+        logger.error(f"Trend criteria data load failed: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
