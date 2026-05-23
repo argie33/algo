@@ -164,12 +164,7 @@ class MarketExposure:
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # --- 9. AAII sentiment (contrarian) ---
-            aaii = self._aaii_sentiment(eval_date)
-            aaii_pts = self.W_AAII * aaii['score_factor']
-            factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
-            score += aaii_pts
-            logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
+            # AAII sentiment DISABLED — uses fake data, no real API integrated (May 23)
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date)
@@ -178,12 +173,7 @@ class MarketExposure:
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
-            # --- 11. NAAIM professional manager positioning ---
-            naaim = self._naaim_sentiment(eval_date)
-            naaim_pts = self.W_NAAIM * naaim['score_factor']
-            factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
-            score += naaim_pts
-            logger.debug(f"  NAAIM positioning: {naaim_pts:.1f} pts")
+            # NAAIM positioning DISABLED — uses fake data, no real API integrated (May 23)
 
             score = max(0.0, min(100.0, score))
 
