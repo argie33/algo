@@ -70,7 +70,7 @@ _PERIOD_CONFIG = {
             "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
         }),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
             # SEC EDGAR client converts concept names to snake_case before returning
             "assets": "total_assets",
             "assets_current": "current_assets",

@@ -110,7 +110,7 @@ def run_weight_optimization_cycle(config: Dict[str, Any], run_date: _date = None
                 for change in opt_result['changes']:
                     logger.info(
                         f"  {change['component']:20s}  "
-                        f"{change['old_weight']:3d}% → {change['new_weight']:3d}%  "
+                        f"{change['old_weight']:3d}%  ->  {change['new_weight']:3d}%  "
                         f"[IC={change.get('ic', 0):+.3f}]"
                     )
                 if dry_run:

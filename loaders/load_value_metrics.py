@@ -176,9 +176,9 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
 def fetch_symbol(symbol: str) -> Optional[Dict]:
     """H1 FIX: Try three sources in order to maximize PE coverage.
 
-    1. yfinance (real-time, best data) → ~33% coverage
-    2. SEC financials (historical, reliable) → ~55% coverage
-    3. Earnings estimates (forward-looking) → ~70% coverage
+    1. yfinance (real-time, best data)  ->  ~33% coverage
+    2. SEC financials (historical, reliable)  ->  ~55% coverage
+    3. Earnings estimates (forward-looking)  ->  ~70% coverage
     """
     result = _fetch_yfinance(symbol)
     if result is None:

@@ -60,7 +60,7 @@ _PERIOD_CONFIG = {
             "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
         }),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
             # SEC EDGAR client converts concept names to snake_case before returning
             # Operating activities
             "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",

@@ -68,7 +68,7 @@ _PERIOD_CONFIG = {
             "symbol", "fiscal_year", "fiscal_quarter", "revenue", "net_income", "earnings_per_share",
         }),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4" → integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
             "revenues": "revenue",
             "sales_revenue_net": "revenue",
             "net_income_loss": "net_income",
