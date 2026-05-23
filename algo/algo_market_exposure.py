@@ -621,40 +621,6 @@ class MarketExposure:
             'relation': relation,
         }
 
-    def _aaii_sentiment(self, eval_date):
-        """AAII sentiment as contrarian indicator."""
-        self.cur.execute(
-            """
-            SELECT bullish, bearish, neutral, date
-            FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 8
-            """,
-            (eval_date,),
-        )
-        rows = self.cur.fetchall()
-        if not rows:
-            return {'score_factor': 0.5, 'value': None}
-        bull = float(rows[0][0] or 0)
-        bear = float(rows[0][1] or 0)
-        spread = bull - bear
-        # 8-week MA
-        spread_ma = sum((float(r[0] or 0) - float(r[1] or 0)) for r in rows) / len(rows)
-        # Contrarian: extreme bull (+20) = caution; extreme bear (-15) = bullish opportunity
-        if spread > 25:
-            sf = 0.3   # extreme bullish = topping risk
-        elif spread > 10:
-            sf = 0.6
-        elif spread > -10:
-            sf = 0.9
-        elif spread > -20:
-            sf = 1.0   # bearish extreme = bullish forward
-        else:
-            sf = 1.0
-        return {
-            'score_factor': sf,
-            'bull_bear_spread': round(spread, 1),
-            'spread_8wk_ma': round(spread_ma, 1),
-        }
-
     def _credit_spread(self, eval_date):
         """HY OAS credit spread (BAMLH0A0HYM2) — credit leads equity.
 
