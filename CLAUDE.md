@@ -12,7 +12,7 @@ This workspace supports multiple projects. When working in this repo, **read the
 
 **Future Claudes: Do not deviate. Follow these rules exactly.**
 
-1. No extra sections (only key info: status, system map, credentials, deploy, resources, schedule, key files, troubleshooting)
+1. No live status/counts (only guidance: system map, credentials, deploy, resources, schedule, key files, troubleshooting). Live state → GitHub Actions, AWS, git log
 2. No prose (tables, bullets, one-liners only — no paragraphs)
 3. Stay under limits: Root < 50 lines, steering docs < 150 lines
 4. Abbreviate aggressively (token burn is critical; see patterns below)
