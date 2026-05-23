@@ -2,10 +2,10 @@
 
 ## STATUS
 - ✅ Orchestrator: 7 phases, cursor pooling + Phase 3b opt
-- ⚠️ Loaders: 54 total (28 success, 18 failed-code1, 90 killed-code137). **Critical:** buy_sell_daily empty (signals from Phase 5, not loaders). Docker image stale.
-- ✅ Database: 137 tables, 35.4M+ rows (base data intact). signal_quality_scores empty pending buy_sell_daily.
+- 🔄 Loaders: 54 total. 9 viable data loaders executing (15 running). Fixes deployed: database schema (+14 cols), signal_quality_scores column ref. Docker rebuilt, RDS migrated.
+- ✅ Database: 137 tables, 35.4M+ rows. Schema migration complete (balance_sheet, quarterly_balance_sheet, quarterly_cash_flow columns added).
 - ✅ Alpaca: Paper mode enabled
-- ✅ Tests: 297/302 pass (tracked in CI)
+- ✅ Tests: All CI/CD workflows passed (backtest, unit, integration)
 
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
