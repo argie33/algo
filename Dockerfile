@@ -16,7 +16,6 @@ COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
-COPY run-all-loaders.py ./
 
 # Run as non-root user to limit container blast radius
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
