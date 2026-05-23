@@ -547,17 +547,17 @@ resource "aws_ecs_task_definition" "loader" {
         }
       ] : [],
       # Financial loaders: determine period from task name
-      contains(each.key, "annual") ? [
+      strcontains(each.key, "annual") ? [
         {
           name  = "LOADER_PERIOD"
           value = "annual"
         }
-      ] : contains(each.key, "quarterly") ? [
+      ] : strcontains(each.key, "quarterly") ? [
         {
           name  = "LOADER_PERIOD"
           value = "quarterly"
         }
-      ] : contains(each.key, "ttm") ? [
+      ] : strcontains(each.key, "ttm") ? [
         {
           name  = "LOADER_PERIOD"
           value = "quarterly"

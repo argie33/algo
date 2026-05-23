@@ -11,7 +11,7 @@
  *       → [parallel] signals_daily + signals_weekly + signals_monthly
  *                   + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
  *         → algo_metrics_daily
- *           → Invoke algo orchestrator Lambda
+ *           → Invoke algo orchestrator ECS task
  *
  * Note: technicals_daily was removed from this pipeline (moved to async processing elsewhere)
  */
