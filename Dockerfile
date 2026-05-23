@@ -16,13 +16,11 @@ COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY algo/ ./algo/
-COPY docker-entrypoint.sh .
 
 # Run as non-root user to limit container blast radius
-RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app && chmod +x /app/docker-entrypoint.sh
+RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
 
-# LOADER_FILE from task definition environment specifies which loader to run
-# Loaders read config from environment variables set by task definition
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Task definition CMD specifies which loader to run (e.g. ["python3", "-u", "loaders/loadpricedaily.py"])
+# Loaders read configuration from environment variables set by task definition
 CMD []
