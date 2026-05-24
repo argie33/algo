@@ -318,7 +318,50 @@ jobs:
 
       - name: Sync RDS Password with Secrets Manager
         run: |
-          echo "⏭️ Skipping RDS password sync (use existing credentials from Secrets Manager)"
+          python3 << 'PYTHON_SYNC'
+          import json
+          import subprocess
+          import os
+
+          region = os.environ['AWS_REGION']
+          rds_password = os.environ.get('RDS_PASSWORD', '')
+
+          if not rds_password:
+            print("ERROR: RDS_PASSWORD not found in environment")
+            exit(1)
+
+          # Read project/environment from terraform.tfvars
+          with open('terraform/terraform.tfvars') as f:
+            tfvars = f.read()
+            project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
+            environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+
+          secret_id = f"{project}-db-credentials-{environment}"
+
+          print(f"Syncing RDS password to Secrets Manager secret: {secret_id}")
+
+          # Get current secret
+          try:
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', secret_id, '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True, check=True)
+            secret_dict = json.loads(result.stdout.strip())
+          except:
+            print("Could not retrieve existing secret, creating new one")
+            secret_dict = {'host': 'localhost', 'port': 5432, 'dbname': 'stocks', 'username': 'stocks'}
+
+          # Update password
+          secret_dict['password'] = rds_password
+
+          # Update secret in Secrets Manager
+          subprocess.run(['aws', 'secretsmanager', 'update-secret-value',
+            '--secret-id', secret_id,
+            '--secret-string', json.dumps(secret_dict),
+            '--region', region], check=True)
+
+          print(f"✅ Password synced to {secret_id}")
+          PYTHON_SYNC
 
       - name: Verify RDS and Secrets Manager Configuration
         run: |
