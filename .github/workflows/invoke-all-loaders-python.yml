@@ -27,7 +27,10 @@ jobs:
         id: network
         run: |
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" --region us-east-1 --query "Vpcs[0].VpcId" --output text)
-          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*private*" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
+            SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          fi
           SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
 
           echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT

@@ -21,7 +21,7 @@ class MockAPIHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', 'http://localhost:5173')
+        self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
@@ -111,11 +111,19 @@ class MockAPIHandler(BaseHTTPRequestHandler):
             logger.error(f'Error: {e}')
             self._respond(500, {'error': str(e)})
 
+    def _get_allowed_origin(self):
+        """Get allowed origin from request or default."""
+        origin = self.headers.get('Origin', '')
+        allowed_origins = {'http://localhost:5173', 'http://localhost:5176', 'http://127.0.0.1:5173', 'http://127.0.0.1:5176'}
+        if origin and origin in allowed_origins:
+            return origin
+        return 'http://localhost:5173'
+
     def _respond(self, status_code, data):
         """Send JSON response with CORS headers."""
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', 'http://localhost:5173')
+        self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()

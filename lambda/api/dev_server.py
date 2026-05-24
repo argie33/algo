@@ -50,7 +50,7 @@ class APIHandler(BaseHTTPRequestHandler):
     def _set_cors_headers(self):
         """Set CORS headers."""
         origin = self.headers.get('Origin', '')
-        allowed_origins = {'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'}
+        allowed_origins = {'http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5176', 'http://127.0.0.1:3000'}
         if origin and origin in allowed_origins:
             self.send_header('Access-Control-Allow-Origin', origin)
         elif not origin:

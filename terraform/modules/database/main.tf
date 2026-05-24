@@ -104,6 +104,11 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = var.environment == "prod"
   performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
+  # Apply parameter group / config changes immediately rather than at next maintenance window.
+  # Without this, parameter group changes stay in pending-reboot state, blocking terraform apply
+  # from deleting the old parameter group (still "in use" until the pending change applies).
+  apply_immediately = true
+
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection
   skip_final_snapshot = !var.db_deletion_protection # take snapshot whenever deletion protection is on

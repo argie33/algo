@@ -37,7 +37,7 @@ def invoke_loaders(subnet, security_group):
                     'awsvpcConfiguration': {
                         'subnets': [subnet],
                         'securityGroups': [security_group],
-                        'assignPublicIp': 'ENABLED'
+                        'assignPublicIp': 'DISABLED'
                     }
                 }
             )

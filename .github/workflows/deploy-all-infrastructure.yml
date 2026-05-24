@@ -325,13 +325,6 @@ jobs:
             echo "[WARN]  API Gateway not found yet -- will be created by Terraform"
           fi
 
-      - name: Destroy Stale RDS Parameter Group
-        run: |
-          # Destroy the custom parameter group that conflicts with parameter modifications
-          # This removes it from AWS and terraform state so we can use the default parameter group
-          terraform destroy -auto-approve -target=module.database.aws_db_parameter_group.main || true
-          echo "Parameter group destruction attempt complete"
-
       - name: Terraform Plan
         run: |
           terraform plan \

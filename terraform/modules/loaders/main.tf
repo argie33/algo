@@ -642,7 +642,7 @@ resource "aws_ecs_task_definition" "continuous_monitor" {
       name      = "${var.project_name}-continuous-monitor"
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
-      command   = ["--once"]
+      command   = ["python3", "-u", "loaders/algo_continuous_monitor.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
