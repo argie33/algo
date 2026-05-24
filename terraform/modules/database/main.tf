@@ -135,35 +135,43 @@ resource "aws_db_parameter_group" "main" {
   description = "PostgreSQL ${var.postgres_major_version} parameter group for ${var.project_name} (TimescaleDB-enabled)"
   family      = "postgres${var.postgres_major_version}"
 
-  parameter {
-    name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
-  }
-
-  # Disable autovacuum during initial data load to prevent recovery mode
-  # Re-enable after data loading completes by changing to "true"
-  parameter {
-    name  = "autovacuum"
-    value = "false"
-  }
-
-  # Increase maintenance_work_mem for faster bulk operations
-  parameter {
-    name  = "maintenance_work_mem"
-    value = "524288"  # 512 MB
-  }
-
-  # Increase max_connections for 40+ concurrent loaders
-  parameter {
-    name  = "max_connections"
-    value = "200"
-  }
-
   tags = var.common_tags
 
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# Static parameter requiring restart
+resource "aws_db_parameter_group_parameter" "shared_preload_libraries" {
+  db_parameter_group_name = aws_db_parameter_group.main.name
+  name                    = "shared_preload_libraries"
+  value                   = "pg_stat_statements"
+  apply_method            = "pending-reboot"
+}
+
+# Dynamic parameter (immediate apply safe)
+resource "aws_db_parameter_group_parameter" "autovacuum" {
+  db_parameter_group_name = aws_db_parameter_group.main.name
+  name                    = "autovacuum"
+  value                   = "false"
+  apply_method            = "immediate"
+}
+
+# Dynamic parameter
+resource "aws_db_parameter_group_parameter" "maintenance_work_mem" {
+  db_parameter_group_name = aws_db_parameter_group.main.name
+  name                    = "maintenance_work_mem"
+  value                   = "524288"
+  apply_method            = "immediate"
+}
+
+# Static parameter requiring restart
+resource "aws_db_parameter_group_parameter" "max_connections" {
+  db_parameter_group_name = aws_db_parameter_group.main.name
+  name                    = "max_connections"
+  value                   = "200"
+  apply_method            = "pending-reboot"
 }
 
 # ============================================================
