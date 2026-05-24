@@ -77,7 +77,7 @@ resource "aws_db_instance" "main" {
 
   username               = var.db_master_username
   password               = local.rds_password
-  parameter_group_name   = "default.postgres${var.postgres_major_version}"
+  parameter_group_name   = aws_db_parameter_group.postgres.name
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.rds_security_group_id]
 
@@ -122,16 +122,43 @@ resource "aws_db_instance" "main" {
 
   depends_on = [
     aws_db_subnet_group.main,
-    aws_iam_role.rds_monitoring
+    aws_iam_role.rds_monitoring,
+    aws_db_parameter_group.postgres
   ]
 }
 
 # ============================================================
-# 3. RDS Parameter Group (Legacy - REMOVED)
+# 3. RDS Parameter Group (Custom PostgreSQL Parameters)
 # ============================================================
-# Previously custom parameter group algo-pg14-params was used but has been removed.
-# The database now uses default.postgres${var.postgres_major_version} parameter group.
-# Data source removed to prevent terraform from trying to read the deleted parameter group.
+# Custom parameter group to support parallel loaders (24 tasks × multiple connections)
+# Default max_connections=100 is insufficient; set to 300 for 24 loaders + API + headroom
+
+resource "aws_db_parameter_group" "postgres" {
+  name_prefix = "${var.project_name}-pg-"
+  family      = "postgres${var.postgres_major_version}"
+  description = "Custom parameters for ${var.project_name} parallel loaders"
+
+  parameter {
+    name  = "max_connections"
+    value = "300"
+  }
+
+  parameter {
+    name  = "shared_buffers"
+    value = "{DBInstanceClassMemory/32768}"
+  }
+
+  parameter {
+    name  = "log_connections"
+    value = "0"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = var.common_tags
+}
 
 # ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)

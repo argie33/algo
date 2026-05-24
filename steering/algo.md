@@ -14,13 +14,21 @@
 ## CREDENTIALS
 | Env | Store | Keys |
 |-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
+| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER_TRADING, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
 | CI | GitHub Secrets | APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
 | Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
-**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading email@example.com`
+
+**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading argeropolos@gmail.com`
+
+## LIVE TRADING CONFIG
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| ALGO_LIVE_TRADING | I_UNDERSTAND_REAL_MONEY | Required for live trades |
+| ALPACA_PAPER_TRADING | false | Disable paper mode |
+| APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 
 ## DEPLOY & RESOURCES
-`git push main` → `deploy-code.yml` (auto: test → scan) OR `deploy-all-infrastructure.yml` (terraform + Λ + EB)
+`git push main` → `deploy-code.yml` (auto: test, scan, code) OR `deploy-all-infrastructure.yml` (manual: terraform, Λ, ECS)
 
 | Workflow | Type | Scope |
 |----------|------|-------|
@@ -38,14 +46,6 @@
 | Tasks | `algo-{loader}-loader` |
 
 Monitor: https://github.com/argie33/algo/actions
-
-## LIVE TRADING CONFIG
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| ALGO_LIVE_TRADING | I_UNDERSTAND_REAL_MONEY | Required for live trades |
-| ALPACA_PAPER_TRADING | false | Disable paper mode |
-| APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
-| execution_mode | auto | Auto-detect live intent |
 
 ## LOADER CONFIGURATION
 24 loaders: `loaders/load_*.py` (stock prices, technical, metrics, company, earnings, industry, market health, NAAIM, signals, sentiment, value, quality, growth, AAII, fear/greed, weight optimization, balance sheet, cash flow, income statement, analyst upgrades/downgrades, swing trader scores, signal quality scores)
@@ -73,6 +73,5 @@ Credentials: SEC_USER_AGENT required for SEC EDGAR API (`algo-trading argeropolo
 | API 401 | Token expired? Cognito env var set? |
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
 | Signals missing | Data in `technical_data_daily`? Rules in code? |
-| Alpaca 401 | Set `ALPACA_PAPER=false` for live trading or `true` for paper |
-| Loader failures | Audit → Fix only FAILING loaders. Never rerun working ones ($$). Spot-check known-good tables before queuing tasks. |
+| Alpaca 401 | Set `ALPACA_PAPER_TRADING=false` for live, `true` for paper |
 
