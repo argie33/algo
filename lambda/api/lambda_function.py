@@ -47,6 +47,8 @@ def get_db_connection():
         db_user = os.getenv('DB_USER', 'stocks')
         db_password = os.getenv('DB_PASSWORD')
 
+        logger.debug(f'DB config: secret_arn={bool(db_secret_arn)}, host={db_host}, port={db_port}, db={db_name}, user={db_user}')
+
         if not db_host:
             logger.error('DB_HOST environment variable is required')
             return None
@@ -85,8 +87,14 @@ def get_db_connection():
         )
         logger.info('DB connection successful')
         return _db_conn
+    except psycopg2.OperationalError as e:
+        logger.error(f'DB Operational Error: host={db_host}:{db_port}, user={db_user}: {e}')
+        return None
+    except psycopg2.ProgrammingError as e:
+        logger.error(f'DB Programming Error: {e}')
+        return None
     except Exception as e:
-        logger.error(f'DB connection failed to {db_host}:{db_port}: {type(e).__name__}: {e}')
+        logger.error(f'DB connection failed to {db_host}:{db_port}: {type(e).__name__}: {str(e)}', exc_info=True)
         return None
 
 
