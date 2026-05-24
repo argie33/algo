@@ -14,10 +14,10 @@
 ## CREDENTIALS
 | Env | Store | Keys |
 |-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, APCA, FRED_API_KEY, SEC_USER_AGENT |
-| CI | GitHub Secrets | ALPACA, FRED_API_KEY, AWS, SEC_USER_AGENT |
+| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, SEC_USER_AGENT |
+| CI | GitHub Secrets | AWS_*, ALPACA_*, FRED_API_KEY, SEC_USER_AGENT |
 | Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred, sec-user-agent |
-**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT required (SEC policy): `AppName email@domain.com`
+**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT: `algo-trading argeropolos@gmail.com`
 
 ## DEPLOY & RESOURCES
 `git push main` → `deploy-code.yml` (auto: test → scan) OR `deploy-all-infrastructure.yml` (terraform + Λ + EB)
