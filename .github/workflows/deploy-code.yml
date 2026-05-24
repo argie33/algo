@@ -35,6 +35,7 @@ jobs:
       algo_lambda_name: ${{ steps.names.outputs.algo_lambda_name }}
       frontend_bucket: ${{ steps.names.outputs.frontend_bucket }}
       cloudfront_id: ${{ steps.names.outputs.cloudfront_id }}
+      api_gateway_endpoint: ${{ steps.names.outputs.api_gateway_endpoint }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,10 +68,11 @@ jobs:
         run: |
           TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
 
-          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"')
-          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"')
+          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // empty')
+          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // empty')
           FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
           CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
+          API_GATEWAY_ENDPOINT=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""')
 
           # Fall back to listing if TF outputs are empty
           if [ -z "$FRONTEND_BUCKET" ]; then
@@ -88,10 +90,12 @@ jobs:
           echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
           echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF_ID}" >> $GITHUB_OUTPUT
+          echo "api_gateway_endpoint=${API_GATEWAY_ENDPOINT}" >> $GITHUB_OUTPUT
 
           echo "API Lambda:  ${API_LAMBDA}"
           echo "Algo Lambda: ${ALGO_LAMBDA}"
           echo "Frontend S3: ${FRONTEND_BUCKET}"
+          echo "API Gateway: ${API_GATEWAY_ENDPOINT}"
           echo "CloudFront:  ${CF_ID}"
 
   # ──────────────────────────────────────────────────────────────
@@ -866,7 +870,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve and Display Developer Credentials
         run: |
@@ -876,7 +880,7 @@ jobs:
           echo ""
           echo "Infrastructure:"
           echo "  Lambda: ${{ needs.resolve-infra.outputs.algo_lambda_name }}"
-          echo "  Region: us-east-1"
+          echo "  Region: ${{ env.AWS_REGION }}"
           echo ""
           echo "Developer Credentials (for programmatic access):"
           echo "  Stored in: AWS Secrets Manager"
@@ -886,7 +890,7 @@ jobs:
           # Try to retrieve and echo (masked)
           SECRET=$(aws secretsmanager get-secret-value \
             --secret-id algo/developer-credentials \
-            --region us-east-1 \
+            --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text 2>/dev/null || echo "")
 
@@ -898,7 +902,7 @@ jobs:
             echo "Next: Configure credentials and invoke orchestrator"
             echo "  export AWS_ACCESS_KEY_ID=<key>"
             echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
-            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_name }} --payload '{\"source\":\"manual\"}' response.json --region us-east-1"
+            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
           else
             echo "  ⚠️ Retrieving credentials..."
           fi
@@ -917,7 +921,7 @@ jobs:
         run: |
           SECRET=$(aws secretsmanager get-secret-value \
             --secret-id algo/developer-credentials \
-            --region us-east-1 \
+            --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text 2>/dev/null || echo "{}")
 
