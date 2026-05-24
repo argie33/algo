@@ -203,6 +203,7 @@ jobs:
               "pip", "install",
               "-r", "lambda/algo_orchestrator/requirements.txt",
               "-t", str(layer_pkg_temp),
+              "--platform", "manylinux2014_x86_64",
               "--only-binary=:all:",
               "--quiet"
             ], check=True)
