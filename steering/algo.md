@@ -14,11 +14,12 @@
 ## CREDENTIALS
 | Env | Store | Keys |
 |-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER_TRADING, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
-| CI | GitHub Secrets | APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
+| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER_TRADING, FRED_API_KEY |
+| CI/GitHub Actions | **OIDC** (no static keys!) | AWS role: `algo-svc-github-actions-dev`. Uses OIDC token, not credentials |
+| CI/GitHub Secrets | GitHub Secrets | APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, RDS_PASSWORD, AWS_ACCOUNT_ID |
 | Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
 
-**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading argeropolos@gmail.com`
+**Rules:** Rotate Q, instant if leaked, ❌ .env, ❌ static AWS keys in CI. Use OIDC only. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading argeropolos@gmail.com`
 
 ## LIVE TRADING CONFIG
 | Setting | Value | Purpose |
@@ -27,7 +28,14 @@
 | ALPACA_PAPER_TRADING | false | Disable paper mode |
 | APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 
-## DEPLOY & RESOURCES
+## DEPLOY & AUTHENTICATION
+**GitHub Actions uses OIDC (no static credentials):**
+- Workflow: `aws-actions/configure-aws-credentials@v4`
+- Role: `arn:aws:iam::<ACCOUNT>:role/algo-svc-github-actions-dev`
+- OIDC exchanges GitHub token → AWS role → temporary credentials
+- **Never commit AWS keys to repo**
+
+**Deployment triggers:**
 `git push main` → `deploy-code.yml` (auto: test, scan, code) OR `deploy-all-infrastructure.yml` (manual: terraform, Λ, ECS)
 
 | Workflow | Type | Scope |
