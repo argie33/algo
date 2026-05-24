@@ -112,6 +112,18 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     UNIQUE(symbol, quarter)
 );
 
+-- Earnings surprise (actual vs estimate EPS)
+CREATE TABLE IF NOT EXISTS earnings_surprise (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    earnings_date DATE NOT NULL,
+    eps_estimate DECIMAL(12, 4),
+    eps_actual DECIMAL(12, 4),
+    surprise_percent DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, earnings_date)
+);
+
 -- Earnings calendar (upcoming earnings announcements)
 CREATE TABLE IF NOT EXISTS earnings_calendar (
     id SERIAL PRIMARY KEY,
