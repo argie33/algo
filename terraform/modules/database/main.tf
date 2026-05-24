@@ -127,20 +127,11 @@ resource "aws_db_instance" "main" {
 }
 
 # ============================================================
-# 3. RDS Parameter Group (PostgreSQL 14 + TimescaleDB optimization)
+# 3. RDS Parameter Group
 # ============================================================
-# Ignored: existing parameter group is managed outside terraform
-resource "aws_db_parameter_group" "main" {
-  name        = "${var.project_name}-pg${var.postgres_major_version}-params"
-  description = "PostgreSQL ${var.postgres_major_version} parameter group for ${var.project_name}"
-  family      = "postgres${var.postgres_major_version}"
-
-  tags = var.common_tags
-
-  lifecycle {
-    ignore_changes = all
-  }
-}
+# Using default.postgres${var.postgres_major_version} parameter group
+# Custom parameter modifications are managed outside terraform to avoid
+# 'cannot use immediate apply method for static parameter' conflicts.
 
 # ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)
