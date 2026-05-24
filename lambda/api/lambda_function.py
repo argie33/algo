@@ -469,10 +469,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     except:
                         table_counts[table] = 0
                 cur.close()
-                try:
-                    conn.rollback()
-                except:
-                    pass
 
                 cors_headers = get_cors_headers(event)
                 return {
@@ -516,10 +512,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
                 healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
                 cur.close()
-                try:
-                    conn.rollback()
-                except:
-                    pass
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 200,
