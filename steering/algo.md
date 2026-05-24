@@ -21,7 +21,6 @@
 
 ## DEPLOY & RESOURCES
 `git push main` → `deploy-code.yml` (auto: test → scan) OR `deploy-all-infrastructure.yml` (terraform + Λ + EB)
-**CURRENT BLOCKER:** RDS parameter group state mismatch — running bootstrap & state cleanup fixes
 
 | Workflow | Type | Scope |
 |----------|------|-------|
@@ -48,20 +47,10 @@ Monitor: https://github.com/argie33/algo/actions
 | APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 | execution_mode | auto | Auto-detect live intent |
 
-## LOADER STATUS
-**All 39 loaders blocked at NO_RECENT_RUNS** — waiting for infrastructure deploy to complete.
+## LOADER CONFIGURATION
+24 loaders: `loaders/load_*.py` (stock prices, technical, metrics, company, earnings, industry, market health, NAAIM, signals, sentiment, value, quality, growth, AAII, fear/greed, weight optimization, balance sheet, cash flow, income statement, analyst upgrades/downgrades, swing trader scores, signal quality scores)
 
-| Status | Count |
-|--------|-------|
-| BLOCKED | 39 | Infrastructure deployment failing (RDS parameter group blocker) |
-
-Previous fixes: SEC_USER_AGENT, analyst loaders backoff, parameter group removal
-
-**SEC Fix (COMPLETE):** SEC_USER_AGENT: `algo-trading argeropolos@gmail.com`. Added to Loader, Orchestrator, Data Patrol ECS task defs (May 24).
-
-**RDS Fix:** Default parameter group (removed stale custom group). Resolves terraform conflicts.
-
-**Other fixes:** Analyst loaders use yfinance_wrapper (exponential backoff). 60s+ → 7.4s.
+Credentials: SEC_USER_AGENT required for SEC EDGAR API (`algo-trading argeropolos@gmail.com`). Added to Λ + ECS tasks.
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
