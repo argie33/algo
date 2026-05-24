@@ -72,13 +72,16 @@ logging.basicConfig(
 # Memory-logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
+    if resource is None:
+        return 0
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
         return usage / 1024
     return usage / (1024 * 1024)
 
 def log_mem(stage: str):
-    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+    if resource:
+        logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 # -------------------------------
 # Retry settings
