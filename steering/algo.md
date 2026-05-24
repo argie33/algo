@@ -20,7 +20,8 @@
 **Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT required (SEC policy): `AppName email@domain.com`
 
 ## DEPLOY & RESOURCES
-`git push main` → `deploy-code.yml` (auto: test → scan → Terraform → Λ → EB)
+`git push main` → `deploy-code.yml` (auto: test → scan) OR `deploy-all-infrastructure.yml` (terraform + Λ + EB)
+**CURRENT BLOCKER:** RDS parameter group state mismatch — running bootstrap & state cleanup fixes
 
 | Workflow | Type | Scope |
 |----------|------|-------|
@@ -48,13 +49,13 @@ Monitor: https://github.com/argie33/algo/actions
 | execution_mode | auto | Auto-detect live intent |
 
 ## LOADER STATUS
-**All 24 loaders ready.** Deployed to AWS with full credentials support.
+**All 39 loaders blocked at NO_RECENT_RUNS** — waiting for infrastructure deploy to complete.
 
-| Status | Count | Loaders |
-|--------|-------|---------|
-| Reliable (<30s) | 18 | Algo metrics, analyst sentiment/upgrade, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, signals quality, technical, weight, stock prices |
-| Secure (30-60s) | 3 | Balance sheet, cash flow, income statement (SEC_USER_AGENT set) |
-| Slow (API) | 3 | AAII sentiment (54s), swing trader scores, trend criteria, value metrics |
+| Status | Count |
+|--------|-------|
+| BLOCKED | 39 | Infrastructure deployment failing (RDS parameter group blocker) |
+
+Previous fixes: SEC_USER_AGENT, analyst loaders backoff, parameter group removal
 
 **SEC Fix (COMPLETE):** SEC_USER_AGENT: `algo-trading argeropolos@gmail.com`. Added to Loader, Orchestrator, Data Patrol ECS task defs (May 24).
 
