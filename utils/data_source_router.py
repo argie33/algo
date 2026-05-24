@@ -178,6 +178,20 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end} {interval}]")
 
+    def fetch_ohlcv_batch(
+        self,
+        symbols: List[str],
+        start: date,
+        end: date,
+        interval: str = "1d",
+    ) -> Dict[str, Optional[List[dict]]]:
+        """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
+        sources = [
+            ("yfinance", lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval)),
+        ]
+        results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
+        return results if results else {sym: None for sym in symbols}
+
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
         if yf is None:
@@ -239,6 +253,94 @@ class DataSourceRouter:
                 log.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
                 raise Exception(f"yfinance rate limited: {e}")
             log.error(f"yfinance error for {symbol}: {e}")
+            raise
+
+    @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
+    def _fetch_yfinance_ohlcv_batch(self, symbols: List[str], start: date, end: date, interval: str = "1d"):
+        """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
+        if yf is None:
+            log.error("[yfinance] yfinance not installed")
+            return {sym: None for sym in symbols}
+
+        if not symbols:
+            return {}
+
+        YFINANCE_LIMITER.wait()
+        log.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
+
+        # Convert symbols to yfinance format
+        yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
+
+        try:
+            def do_download():
+                return yf.download(
+                    yf_symbols,
+                    start=start,
+                    end=end,
+                    interval=interval,
+                    auto_adjust=False,
+                    progress=False,
+                )
+
+            log.debug(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
+            hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
+
+            if hist is None or hist.empty:
+                log.debug(f"[yfinance] No data returned for batch of {len(symbols)} symbols")
+                return {sym: None for sym in symbols}
+
+            log.debug(f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols")
+
+            # Parse the batch result into per-symbol rows
+            results = {sym: [] for sym in symbols}
+
+            for idx, row in hist.iterrows():
+                for i, symbol in enumerate(symbols):
+                    try:
+                        yf_symbol = yf_symbols[i]
+                        # When multiple symbols, yfinance returns MultiIndex columns (symbol, price_type)
+                        if hasattr(row.index, '__iter__'):
+                            open_val = row.get((yf_symbol, "Open")) or row.get(f"{yf_symbol} Open")
+                            high_val = row.get((yf_symbol, "High")) or row.get(f"{yf_symbol} High")
+                            low_val = row.get((yf_symbol, "Low")) or row.get(f"{yf_symbol} Low")
+                            close_val = row.get((yf_symbol, "Close")) or row.get(f"{yf_symbol} Close")
+                            volume_val = row.get((yf_symbol, "Volume")) or row.get(f"{yf_symbol} Volume")
+                        else:
+                            # Single column case shouldn't happen in batch, but handle it
+                            open_val = row.get("Open")
+                            high_val = row.get("High")
+                            low_val = row.get("Low")
+                            close_val = row.get("Close")
+                            volume_val = row.get("Volume")
+
+                        # Skip if any required value is missing
+                        if any(v is None or (isinstance(v, float) and v != v) for v in [open_val, high_val, low_val, close_val, volume_val]):
+                            continue
+
+                        results[symbol].append({
+                            "symbol": symbol,
+                            "date": idx.date().isoformat() if hasattr(idx, 'date') else str(idx)[:10],
+                            "open": float(open_val),
+                            "high": float(high_val),
+                            "low": float(low_val),
+                            "close": float(close_val),
+                            "volume": int(volume_val),
+                        })
+                    except (KeyError, TypeError, ValueError) as e:
+                        log.debug(f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}")
+                        continue
+
+            # Filter out symbols with no valid rows and return only those with data
+            return {sym: rows if rows else None for sym, rows in results.items()}
+
+        except TimeoutError as e:
+            log.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
+            raise Exception(f"yfinance batch timeout: {e}")
+        except Exception as e:
+            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
+                log.warning(f"yfinance batch rate limited or parse error: {e}")
+                raise Exception(f"yfinance batch rate limited: {e}")
+            log.error(f"yfinance batch error: {e}")
             raise
 
     # ============== FUNDAMENTALS ==============

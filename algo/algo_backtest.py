@@ -16,6 +16,7 @@ import uuid
 import json
 import numpy as np
 from decimal import Decimal
+from scipy.optimize import minimize
 
 from utils.db_connection import get_db_connection
 from config.credential_helper import get_db_config, get_db_password
@@ -63,6 +64,125 @@ class Backtester:
             self.cur.close()
         if self.conn:
             self.conn.close()
+
+    def optimize_weights_in_sample(
+        self,
+        train_start: _date,
+        train_end: _date,
+    ) -> Dict[str, float]:
+        """
+        Optimize signal component weights to maximize correlation with realized returns.
+
+        Uses closed trades in training period to find weights that explain
+        exit_r_multiple best via component scores. Applies light regularization
+        to prevent overfitting to in-sample data.
+
+        Args:
+            train_start: Training period start
+            train_end: Training period end
+
+        Returns:
+            {component_name: weight, ...} (sums to 1.0)
+        """
+        self.connect()
+        try:
+            # Fetch closed trades with component scores and realized returns
+            self.cur.execute(
+                """
+                SELECT swing_components, exit_r_multiple
+                FROM algo_trades
+                WHERE signal_date BETWEEN %s AND %s
+                  AND status = 'closed'
+                  AND swing_components IS NOT NULL
+                  AND exit_r_multiple IS NOT NULL
+                """,
+                (train_start, train_end),
+            )
+            trades = self.cur.fetchall()
+
+            if len(trades) < 10:
+                logger.warning(f"Only {len(trades)} trades in training period; using default weights")
+                return {
+                    'setup_quality': 0.20,
+                    'trend_quality': 0.20,
+                    'momentum_rs': 0.20,
+                    'volume': 0.15,
+                    'fundamentals': 0.10,
+                    'sector_industry': 0.10,
+                    'multi_timeframe': 0.05,
+                }
+
+            # Extract component scores and returns
+            components_list = [
+                'setup_quality', 'trend_quality', 'momentum_rs', 'volume',
+                'fundamentals', 'sector_industry', 'multi_timeframe',
+            ]
+            component_matrix = []
+            returns_vec = []
+
+            for swing_components, exit_r_multiple in trades:
+                scores = []
+                valid = True
+                for comp in components_list:
+                    val = swing_components.get(comp, 0)
+                    if val is None:
+                        valid = False
+                        break
+                    scores.append(float(val))
+
+                if valid and exit_r_multiple is not None:
+                    component_matrix.append(scores)
+                    returns_vec.append(float(exit_r_multiple))
+
+            if len(component_matrix) < 5:
+                logger.warning(f"Insufficient data ({len(component_matrix)} trades) for weight optimization")
+                return {comp: 1.0 / len(components_list) for comp in components_list}
+
+            X = np.array(component_matrix)  # (n_trades, n_components)
+            y = np.array(returns_vec)  # (n_trades,)
+
+            # Objective: minimize negative correlation (maximize correlation)
+            def objective(weights):
+                w = np.array(weights)
+                w = np.maximum(w, 0.01)  # Ensure positive
+                w = w / w.sum()  # Normalize
+                weighted_score = X @ w
+                if weighted_score.std() == 0:
+                    return 1.0
+                correlation = np.corrcoef(weighted_score, y)[0, 1]
+                # Add light L2 regularization to prevent extreme weights
+                regularization = 0.1 * np.sum((w - 1.0 / len(w)) ** 2)
+                return -(correlation - regularization) if not np.isnan(correlation) else 1.0
+
+            # Optimize with constraints: weights >= 0, sum to 1
+            x0 = np.array([1.0 / len(components_list)] * len(components_list))
+            constraints = {'type': 'eq', 'fun': lambda w: w.sum() - 1.0}
+            bounds = [(0.01, 0.5) for _ in components_list]  # Prevent extreme weights
+
+            result = minimize(
+                objective, x0, method='SLSQP',
+                bounds=bounds, constraints=constraints,
+                options={'maxiter': 100},
+            )
+
+            if result.success:
+                optimized_weights = np.maximum(result.x, 0.01)
+                optimized_weights = optimized_weights / optimized_weights.sum()
+                opt_dict = {comp: float(w) for comp, w in zip(components_list, optimized_weights)}
+                logger.info(f"Optimized weights for train {train_start}→{train_end}: {opt_dict}")
+                return opt_dict
+            else:
+                logger.warning(f"Weight optimization failed: {result.message}")
+                return {comp: 1.0 / len(components_list) for comp in components_list}
+
+        except Exception as e:
+            logger.error(f"Error optimizing weights: {e}")
+            return {comp: 1.0 / 7 for comp in [
+                'setup_quality', 'trend_quality', 'momentum_rs', 'volume',
+                'fundamentals', 'sector_industry', 'multi_timeframe',
+            ]}
+        finally:
+            self.disconnect()
 
     def run_backtest(
         self,
@@ -190,9 +310,11 @@ class Backtester:
 
                 logger.info(f"WF Window: train {train_start}→{train_end}, test {test_start}→{test_end}")
 
-                # TODO: In-sample weight optimization would go here
-                # For now, use default weights
-                result = self.run_backtest(test_start, test_end, label="test")
+                # Optimize weights on in-sample (training) data
+                optimized_weights = self.optimize_weights_in_sample(train_start, train_end)
+
+                # Test optimized weights on out-of-sample data
+                result = self.run_backtest(test_start, test_end, config_overrides=optimized_weights, label="test")
 
                 windows.append(
                     {

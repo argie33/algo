@@ -19,7 +19,7 @@ Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_wee
 import argparse
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from config.env_loader import load_env
@@ -46,6 +46,7 @@ class PriceLoader(OptimalLoader):
 
         self.interval = interval
         self.asset_class = asset_class
+        self.batch_size = 50  # Batch 50 symbols per API call: 5000 symbols = 100 calls
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -89,6 +90,23 @@ class PriceLoader(OptimalLoader):
             return rows
 
         return None
+
+    def fetch_batch_incremental(self, symbols: List[str], since: Optional[date]):
+        """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
+
+        Returns: dict[symbol] -> rows or None
+        """
+        end = date.today()
+        if since is None:
+            start = end - timedelta(days=100)
+        else:
+            start = since + timedelta(days=1)
+
+        if start > end:
+            return {s: None for s in symbols}
+
+        # Batch fetch from router
+        return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
@@ -220,6 +238,121 @@ class PriceLoader(OptimalLoader):
         if self.tracker and self.run_id:
             self.tracker.end_run(success=success)
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
+
+    def run(self, symbols: list, parallelism: int = 1, backfill_days: Optional[int] = None) -> dict:
+        """Override to use batch fetching (50x faster than per-symbol)."""
+        if backfill_days is not None:
+            self._backfill_days = backfill_days
+
+        import time
+        start = time.time()
+        symbols = list(symbols)
+        mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
+        logger.info(
+            "[%s] Starting batch load: %d symbols (batch_size=%d)%s",
+            self.table_name, len(symbols), self.batch_size, mode,
+        )
+
+        # Process symbols in batches
+        for i in range(0, len(symbols), self.batch_size):
+            batch = symbols[i:i + self.batch_size]
+            self._load_batch(batch)
+            progress = min(i + self.batch_size, len(symbols))
+            logger.info("  Progress: %d/%d", progress, len(symbols))
+
+        self._stats["duration_sec"] = round(time.time() - start, 2)
+        logger.info(
+            "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
+            "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s",
+            self.table_name,
+            self._stats["rows_fetched"],
+            self._stats["rows_dedup_skipped"],
+            self._stats["rows_quality_dropped"],
+            self._stats["rows_inserted"],
+            self._stats["symbols_processed"],
+            self._stats["symbols_skipped_by_watermark"],
+            self._stats["symbols_failed"],
+            self._stats["duration_sec"],
+            self._stats["source_distribution"],
+        )
+
+        try:
+            from algo.algo_metrics import MetricsPublisher
+            with MetricsPublisher() as m:
+                m.put_loader_result(self.table_name, self._stats)
+        except Exception as e:
+            logger.debug("metrics unavailable: %s", e)
+
+        return self._stats
+
+    def _load_batch(self, symbols: List[str]) -> None:
+        """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
+        wm_store = self._get_watermark()
+
+        # Determine the watermark date for all symbols in batch
+        # (simplified: use same date for all, finest-grained would be per-symbol)
+        if self._backfill_days > 0:
+            previous_date = (datetime.now().date() - timedelta(days=self._backfill_days))
+        else:
+            # Use earliest watermark from batch
+            watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
+            previous_dates = [self._parse_watermark_date(w) for w in watermarks]
+            previous_date = min(d for d in previous_dates if d) if any(previous_dates) else None
+
+        # Batch fetch all symbols at once
+        batch_results = self.fetch_batch_incremental(symbols, previous_date)
+
+        # Process each symbol's results
+        for symbol in symbols:
+            rows = batch_results.get(symbol) if batch_results else None
+            if not rows:
+                logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
+                self._stats["symbols_skipped_by_watermark"] += 1
+                continue
+
+            logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
+            self._stats["rows_fetched"] += len(rows)
+
+            if self.router and self.router.last_source:
+                src = self.router.last_source
+                self._stats["source_distribution"][src] = (
+                    self._stats["source_distribution"].get(src, 0) + 1
+                )
+
+            rows = self.transform(rows)
+            before_quality = len(rows)
+            rows = [r for r in rows if self._validate_row(r)]
+            self._stats["rows_quality_dropped"] += before_quality - len(rows)
+
+            # Bloom dedup (cheap pre-filter)
+            dedup = self._get_dedup()
+            if dedup and self.primary_key:
+                before_dedup = len(rows)
+                rows = self._dedup_filter(dedup, rows)
+                self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
+
+            if not rows:
+                self._stats["symbols_processed"] += 1
+                continue
+
+            # Calculate new watermark BEFORE insert
+            new_wm = self.watermark_from_rows(rows)
+
+            # Bulk insert in chunks
+            inserted = 0
+            for chunk_start in range(0, len(rows), self.chunk_size):
+                chunk = rows[chunk_start:chunk_start + self.chunk_size]
+                is_final_chunk = (chunk_start + self.chunk_size >= len(rows))
+                chunk_wm = new_wm if is_final_chunk else None
+                inserted += self._bulk_insert(chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm)
+
+            if dedup and self.primary_key:
+                for row in rows:
+                    key = ":".join(str(row.get(c, "")) for c in self.primary_key)
+                    dedup.add(key)
+
+            self._stats["rows_inserted"] += inserted
+            self._stats["symbols_processed"] += 1
 
 
 
