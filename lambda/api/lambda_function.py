@@ -104,7 +104,7 @@ def parse_query_params(event: Dict) -> Dict:
 
 def _build_allowed_origins() -> set:
     """Build allowed origins from ALLOWED_ORIGINS env var (comma-separated) plus localhost defaults."""
-    origins = {'http://localhost:5173', 'http://localhost:3000'}
+    origins = {'http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000'}
     env_origins = os.getenv('ALLOWED_ORIGINS', '')
     if env_origins:
         for o in env_origins.split(','):

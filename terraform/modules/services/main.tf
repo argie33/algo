@@ -9,12 +9,6 @@ locals {
   # Role names with 'svc-' prefix to avoid conflicts with legacy resources
   api_lambda_role_name  = "${var.project_name}-svc-api-${var.environment}"
   algo_lambda_role_name = "${var.project_name}-svc-algo-${var.environment}"
-
-  # CORS origins include CloudFront domain if enabled (avoids circular dependency by using conditional reference)
-  api_cors_origins = concat(
-    var.api_cors_allowed_origins,
-    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : []
-  )
 }
 
 # ============================================================
@@ -140,13 +134,8 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api-${var.environment}"
   protocol_type = "HTTP"
 
-  cors_configuration {
-    allow_origins  = local.api_cors_origins
-    allow_methods  = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-    allow_headers  = ["Content-Type", "Authorization", "Accept", "X-Requested-With"]
-    expose_headers = ["Content-Length", "Content-Type", "X-Request-Id"]
-    max_age        = 3600
-  }
+  # CORS disabled: CloudFront is the origin to browsers (same domain, no CORS needed)
+  # CloudFront origin requests to API Gateway don't require CORS headers
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-api-${var.environment}"
