@@ -131,13 +131,13 @@ class CredentialManager:
         """Get database connection credentials as a dict.
 
         In AWS Lambda the RDS secret is a JSON blob stored under the ARN given by
-        DATABASE_SECRET_ARN (or DB_SECRET_ARN). We fetch and parse that blob rather
+        DB_SECRET_ARN. We fetch and parse that blob rather
         than looking up individual secret names, which don't exist in this setup.
         Falls back to individual env vars for local dev.
         """
         import json as _json
 
-        secret_arn = os.getenv('DATABASE_SECRET_ARN') or os.getenv('DB_SECRET_ARN')
+        secret_arn = os.getenv('DB_SECRET_ARN')
         if secret_arn and self._is_aws:
             try:
                 client = self._get_secrets_client()
@@ -148,11 +148,14 @@ class CredentialManager:
                     db_host = creds.get('host') or os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT')
                     if not db_host:
                         raise ValueError("DB_HOST not set in Secrets Manager or environment")
+                    password = creds.get('password')
+                    if not password:
+                        raise ValueError("password not found in DB_SECRET_ARN")
                     return {
                         'host': db_host,
                         'port': int(creds.get('port') or os.getenv('DB_PORT', '5432')),
                         'user': creds.get('username', 'stocks'),
-                        'password': creds.get('password', ''),
+                        'password': password,
                         'database': creds.get('dbname') or os.getenv('DB_NAME', 'stocks'),
                     }
             except Exception as e:
@@ -178,7 +181,8 @@ class CredentialManager:
         1. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
         2. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
         3. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
-        4. Returns empty dict if not found (allows graceful fallback)
+
+        Raises ValueError if credentials not found (required for live trading).
         """
         import json as _json
 
@@ -207,10 +211,13 @@ class CredentialManager:
         except ValueError:
             secret = os.getenv('APCA_API_SECRET_KEY')
 
-        return {
-            'key': key or '',
-            'secret': secret or '',
-        }
+        if not key or not secret:
+            raise ValueError(
+                "Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not found. "
+                "Set these environment variables or configure 'algo/alpaca' secret in AWS Secrets Manager."
+            )
+
+        return {'key': key, 'secret': secret}
 
     def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:
         """Get SMTP credentials. Returns None if not configured."""

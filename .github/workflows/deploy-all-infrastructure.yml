@@ -698,3 +698,11 @@ jobs:
           echo "| Algo Lambda | ${{ needs.deploy-algo.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| API Lambda | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CloudFront Frontend URL" >> $GITHUB_STEP_SUMMARY
+          echo "**AWS Site:** https://\${{ needs.terraform.outputs.cloudfront_id }}.cloudfront.net" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Local AWS Access:** Run \`./scripts/refresh-aws-credentials.ps1\` to fetch developer credentials from Secrets Manager" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Verify Frontend:** Visit CloudFront URL above and check data loads" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Trigger Loaders:** Run \`./scripts/invoke_all_loaders.py\` or wait for EventBridge schedule (4A, 9:30A, 5:30P ET)" >> $GITHUB_STEP_SUMMARY

@@ -104,7 +104,7 @@ def parse_query_params(event: Dict) -> Dict:
 
 def _build_allowed_origins() -> set:
     """Build allowed origins from ALLOWED_ORIGINS env var (comma-separated) plus localhost defaults."""
-    origins = {'http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000'}
+    origins = {'http://localhost:5173', 'http://localhost:3000'}
     env_origins = os.getenv('ALLOWED_ORIGINS', '')
     if env_origins:
         for o in env_origins.split(','):
@@ -118,7 +118,16 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (whitelist only)."""
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
-    if origin in _build_allowed_origins():
+    # Check if origin is in whitelist
+    allowed_origins = _build_allowed_origins()
+    if origin in allowed_origins:
+        return {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true',
+        }
+
+    # In dev mode, accept any localhost origin
+    if origin and (origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:')):
         return {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',
@@ -509,8 +518,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'statusCode': 200,
                 'headers': {
                     **cors_headers,
-                    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
                     **get_security_headers()
                 }
             }

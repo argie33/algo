@@ -65,8 +65,8 @@ class TradeExecutor:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         alpaca_creds = get_alpaca_credentials()
-        self.alpaca_key = alpaca_creds.get("key") or os.getenv("APCA_API_KEY_ID")
-        self.alpaca_secret = alpaca_creds.get("secret") or os.getenv("APCA_API_SECRET_KEY")
+        self.alpaca_key = alpaca_creds["key"]
+        self.alpaca_secret = alpaca_creds["secret"]
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL')
         if not self.alpaca_base_url:
             logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
@@ -84,7 +84,7 @@ class TradeExecutor:
 
         execution_mode = config.get('execution_mode', 'paper').lower() if isinstance(config, dict) else 'paper'
         live_ack = os.getenv('ALGO_LIVE_TRADING', '').strip()
-        paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'true').strip().lower()
+        paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'false').strip().lower()
         url_says_paper = 'paper' in (self.alpaca_base_url or '').lower()
         live_intent = (
             execution_mode == 'auto'

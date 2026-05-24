@@ -341,7 +341,7 @@ jobs:
             print(f"ERROR checking Secrets Manager: {e}")
             exit(1)
 
-          print("Configuration verified. Lambda will use DATABASE_SECRET_ARN for credentials.")
+          print("Configuration verified. Lambda will use DB_SECRET_ARN for credentials.")
           PYTHON_CHECK
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
@@ -446,7 +446,7 @@ jobs:
             '--region', region], capture_output=True)
 
           # Build Lambda configuration JSON
-          # NOTE: DO NOT include DB_PASSWORD in env vars - use DATABASE_SECRET_ARN instead
+          # NOTE: DO NOT include DB_PASSWORD in env vars - use DB_SECRET_ARN instead
           # This ensures Lambda always reads the latest password from Secrets Manager,
           # avoiding stale passwords after RDS sync
           # Parse DB_HOST to extract hostname without port (in case it's "hostname:port")
@@ -459,7 +459,7 @@ jobs:
             "FunctionName": func_name,
             "Environment": {
               "Variables": {
-                "DATABASE_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}",
+                "DB_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}",
                 "DB_HOST": db_host_parsed,
                 "DB_PORT": str(db_port),
                 "DB_NAME": str(db_name),
