@@ -28,6 +28,27 @@ class AlgoMetricsDailyLoader:
         if self.conn:
             self.conn.close()
 
+    def ensure_table_exists(self):
+        """Create algo_metrics_daily table if it doesn't exist."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS algo_metrics_daily (
+                    date DATE PRIMARY KEY,
+                    total_actions INTEGER,
+                    entries INTEGER,
+                    exits INTEGER,
+                    avg_signal_score DECIMAL(8, 4),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            self.conn.commit()
+            cursor.close()
+            logger.info("algo_metrics_daily table ensured")
+        except Exception as e:
+            logger.warning(f"Could not create table: {e}")
+
     def compute_daily_metrics(self, run_date: date) -> Dict:
         """Compute portfolio stats from algo_audit_log for the trading day."""
         try:
@@ -93,6 +114,7 @@ def main():
 
     try:
         loader.connect()
+        loader.ensure_table_exists()
         metrics = loader.compute_daily_metrics(run_date)
         loader.store_metrics(run_date, metrics)
         logger.info(f"Daily metrics computed and stored for {run_date}")
