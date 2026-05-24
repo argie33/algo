@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Trading Orders Contract Test
  *
  * Tests the contract between frontend OrderManagement component and backend orders API.
@@ -151,3 +151,4 @@ describe("Trading Orders Contract Tests", () => {
 
   });
 });
+

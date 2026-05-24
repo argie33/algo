@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+﻿import React, { useMemo } from "react";
 import {
   Box,
   Card,
@@ -53,7 +53,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     // ===== FORMULA COMPONENTS =====
     // Simple formula: Score = Base + Breadth + Sentiment + Distribution
 
-    // 1. MARKET BREADTH (±30 points)
+    // 1. MARKET BREADTH (Â±30 points)
     // Simple logic: Advancing/Declining ratio tells us market health
     const breadthInfo = breadthData?.data || breadthData;
     if (!breadthInfo || breadthInfo.advancing === null || breadthInfo.declining === null) {
@@ -72,22 +72,22 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     if (total > 0) {
       const advancePercent = (advancers / total) * 100;
       // If >60% advancing = bullish, <40% = bearish
-      breadthScore = (advancePercent - 50) * 0.6; // Max ±30 points
+      breadthScore = (advancePercent - 50) * 0.6; // Max Â±30 points
 
       if (advancePercent > 65) {
-        signals.push({ label: "Strong Breadth", color: "success", icon: "📈" });
+        signals.push({ label: "Strong Breadth", color: "success", icon: "ðŸ“ˆ" });
       } else if (advancePercent > 55) {
-        signals.push({ label: "Positive Breadth", color: "success", icon: "📊" });
+        signals.push({ label: "Positive Breadth", color: "success", icon: "ðŸ“Š" });
       } else if (advancePercent < 35) {
-        signals.push({ label: "Weak Breadth", color: "error", icon: "📉" });
+        signals.push({ label: "Weak Breadth", color: "error", icon: "ðŸ“‰" });
       } else if (advancePercent < 45) {
-        signals.push({ label: "Declining Breadth", color: "warning", icon: "⚠️" });
+        signals.push({ label: "Declining Breadth", color: "warning", icon: "âš ï¸" });
       }
     }
     breakdown.breadth = breadthScore;
     score += breadthScore;
 
-    // 2. SENTIMENT / INDEX PERFORMANCE (±20 points)
+    // 2. SENTIMENT / INDEX PERFORMANCE (Â±20 points)
     // NOTE: Indices data removed from new API, use breadth-only scoring
     let sentimentScore = 0;
     const indices = marketData?.data?.indices;
@@ -100,24 +100,24 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
       const spxIndex = indices.find((i) => i.symbol === "^GSPC");
 
       if (spxIndex && spxIndex.changePercent !== null && spxIndex.changePercent !== undefined) {
-        // Simple: +1% index move = +6.67 points (max ±20)
+        // Simple: +1% index move = +6.67 points (max Â±20)
         sentimentScore = spxIndex.changePercent * 6.67;
 
         if (spxIndex.changePercent > 2) {
-          signals.push({ label: "Strong Market Up", color: "success", icon: "🟢" });
+          signals.push({ label: "Strong Market Up", color: "success", icon: "ðŸŸ¢" });
         } else if (spxIndex.changePercent > 0.5) {
-          signals.push({ label: "Market Up", color: "success", icon: "📈" });
+          signals.push({ label: "Market Up", color: "success", icon: "ðŸ“ˆ" });
         } else if (spxIndex.changePercent < -2) {
-          signals.push({ label: "Market Down", color: "error", icon: "🔴" });
+          signals.push({ label: "Market Down", color: "error", icon: "ðŸ”´" });
         } else if (spxIndex.changePercent < -0.5) {
-          signals.push({ label: "Market Declining", color: "warning", icon: "📉" });
+          signals.push({ label: "Market Declining", color: "warning", icon: "ðŸ“‰" });
         }
       }
     }
     breakdown.sentiment = sentimentScore;
     score += sentimentScore;
 
-    // 3. DISTRIBUTION DAYS (−30 points max)
+    // 3. DISTRIBUTION DAYS (âˆ’30 points max)
     // Too many distribution days = market weakness
     let distributionScore = 0;
     const distributionDaysData_obj = distributionDaysData || {};
@@ -131,16 +131,16 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     if (recentDistribution >= 6) {
       distributionScore = -30; // Maximum penalty
-      signals.push({ label: "High Distribution ⚠️", color: "error", icon: "⛔" });
+      signals.push({ label: "High Distribution âš ï¸", color: "error", icon: "â›”" });
     } else if (recentDistribution >= 4) {
       distributionScore = -20;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "⛔" });
+      signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "â›”" });
     } else if (recentDistribution >= 2) {
       distributionScore = -10;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "⚠️" });
+      signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "âš ï¸" });
     } else if (recentDistribution === 1) {
       distributionScore = -5;
-      signals.push({ label: "1 Distribution Day", color: "warning", icon: "⚠️" });
+      signals.push({ label: "1 Distribution Day", color: "warning", icon: "âš ï¸" });
     }
     breakdown.distribution = distributionScore;
     score += distributionScore;
@@ -222,7 +222,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
               }}
             >
               <Typography variant="body2" color="error">
-                ⚠️ Unable to calculate exposure: {exposureScore.error || "Market data unavailable"}
+                âš ï¸ Unable to calculate exposure: {exposureScore.error || "Market data unavailable"}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
                 Please ensure market data is loading correctly
@@ -443,7 +443,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
             </Grid>
           </Grid>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-            Formula: 50 (base) + Breadth ± Sentiment ± Distribution
+            Formula: 50 (base) + Breadth Â± Sentiment Â± Distribution
           </Typography>
         </Box>
 
@@ -463,22 +463,22 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
           <Grid container spacing={1}>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                📈 If Bullish: Enter on strength
+                ðŸ“ˆ If Bullish: Enter on strength
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                📉 If Bearish: Reduce exposure
+                ðŸ“‰ If Bearish: Reduce exposure
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                ⚠️ If Mixed: Use trailing stops
+                âš ï¸ If Mixed: Use trailing stops
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                💰 Scale in/out gradually
+                ðŸ’° Scale in/out gradually
               </Typography>
             </Grid>
           </Grid>
@@ -489,3 +489,4 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 };
 
 export default MarketExposure;
+

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Card,
   CardContent,
   Box,
@@ -170,3 +170,4 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
 };
 
 export default McClellanOscillatorChart;
+

@@ -1,9 +1,9 @@
-import ReactDOM from "react-dom/client";
+﻿import ReactDOM from "react-dom/client";
 import "./index.css"; // Tailwind base + design system tokens
 import { theme } from "./services/theme";
 
 // Apply theme class before first paint (avoid flash of wrong theme).
-// Dark is default — sleek is the look we want. User can opt into light via
+// Dark is default â€” sleek is the look we want. User can opt into light via
 // the toggle in the user menu (persisted to localStorage as theme=light).
 theme.initialize();
 import { BrowserRouter } from "react-router-dom";
@@ -66,7 +66,7 @@ window.addEventListener(
 
     // Log detailed error for .type access issues
     if (e.message && e.message.includes("Cannot read properties of undefined (reading 'type')")) {
-      console.group("🔴 CRITICAL: .type access on undefined detected!");
+      console.group("ðŸ”´ CRITICAL: .type access on undefined detected!");
       console.error("Message:", e.message);
       console.error("Location:", `${e.filename}:${e.lineno}:${e.colno}`);
       console.error("Stack trace:", e.error?.stack);
@@ -149,7 +149,7 @@ if (window.__CONFIG__) {
       // Config loaded after waiting
     } else {
       if (import.meta.env && import.meta.env.DEV) {
-        console.warn("⚠️ Config not loaded yet, check index.html script tag");
+        console.warn("âš ï¸ Config not loaded yet, check index.html script tag");
       }
     }
   }, 1000);
@@ -177,7 +177,7 @@ const queryClient = new QueryClient({
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
-  console.error("❌ Root element not found!");
+  console.error("âŒ Root element not found!");
   alert("Root element not found!");
 } else {
   // Root element found
@@ -206,7 +206,7 @@ try {
       >
         <QueryClientProvider client={queryClient}>
           {/* MUI ThemeProvider stays for legacy MUI components on other pages.
-              CssBaseline removed — our theme.css owns the global reset/base. */}
+              CssBaseline removed â€” our theme.css owns the global reset/base. */}
           <ThemeProvider theme={modernTheme}>
             <AuthProvider>
               <App />
@@ -251,3 +251,4 @@ try {
     "Application failed to start. Please refresh the page or contact support."
   );
 }
+

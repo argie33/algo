@@ -1,4 +1,4 @@
-// Development mode detection and API availability checking
+﻿// Development mode detection and API availability checking
 import { useState, useEffect } from "react";
 
 export function useDevelopmentMode() {
@@ -66,3 +66,4 @@ export function useDevelopmentMode() {
 }
 
 export default useDevelopmentMode;
+

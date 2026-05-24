@@ -1,5 +1,5 @@
-/**
- * Notification Center — Real-time alerts, trade execution notifications, risk breaches
+﻿/**
+ * Notification Center â€” Real-time alerts, trade execution notifications, risk breaches
  * Surfaces algo notifications (entries, exits, errors, safeguards) in one dashboard
  */
 
@@ -81,7 +81,7 @@ const NotificationCenter = () => {
   };
 
   const formatTime = (dateString) => {
-    if (!dateString) return '—';
+    if (!dateString) return 'â€”';
     const date = new Date(dateString);
     const now = new Date();
     const diff = now - date;
@@ -407,3 +407,4 @@ const NotificationCenter = () => {
 };
 
 export default NotificationCenter;
+

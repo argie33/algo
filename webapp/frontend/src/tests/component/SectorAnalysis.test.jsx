@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, vi } from "vitest";
+﻿import { describe, test, expect, beforeEach, vi } from "vitest";
 import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { renderWithAuth } from "../test-utils";
@@ -335,7 +335,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
                   {
                     sector_name: "Technology",
                     current_rank: 1,
-                    momentum_score: 2.3, // ✅ Momentum score
+                    momentum_score: 2.3, // âœ… Momentum score
                     rank_1w_ago: 2,
                     rank_4w_ago: 3,
                   },
@@ -351,7 +351,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
                 {
                   date: "2025-10-10",
                   rank: 2,
-                  momentumScore: 1.5, // ✅ Momentum for chart orange line
+                  momentumScore: 1.5, // âœ… Momentum for chart orange line
                   label: "10 Oct",
                 },
                 {
@@ -373,7 +373,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
                     industry: "Software",
                     sector: "Technology",
                     current_rank: 1,
-                    momentum_score: 2.1, // ✅ Industries displayed
+                    momentum_score: 2.1, // âœ… Industries displayed
                   },
                 ],
               },
@@ -403,7 +403,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
         { timeout: 10000 }
       );
 
-      // ✅ Verify key features are loaded
+      // âœ… Verify key features are loaded
       // 1. Sectors with momentum
       expect(api.default.get).toHaveBeenCalledWith(
         expect.stringContaining("/api/sectors/sectors-with-history")
@@ -483,3 +483,4 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
     });
   });
 });
+

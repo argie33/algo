@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Load Testing for High-Traffic Scenarios
  * Tests system behavior under heavy load and concurrent users
  */
@@ -180,7 +180,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
 
       if (i % 5 === 0) {
         console.log(
-          `⚡ Update batch ${Math.floor(i / 5) + 1} average: ${Math.round(updateTimes.slice(-5).reduce((a, b) => a + b) / 5)}ms`
+          `âš¡ Update batch ${Math.floor(i / 5) + 1} average: ${Math.round(updateTimes.slice(-5).reduce((a, b) => a + b) / 5)}ms`
         );
       }
     }
@@ -188,7 +188,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const avgUpdateTime =
       updateTimes.reduce((a, b) => a + b) / updateTimes.length;
     console.log(
-      `📊 Overall average update time: ${Math.round(avgUpdateTime)}ms`
+      `ðŸ“Š Overall average update time: ${Math.round(avgUpdateTime)}ms`
     );
 
     expect(
@@ -243,7 +243,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     await page.waitForTimeout(3000);
 
     console.log(
-      `📊 API Requests: ${apiRequestCount}, Responses: ${apiResponseCount}`
+      `ðŸ“Š API Requests: ${apiRequestCount}, Responses: ${apiResponseCount}`
     );
 
     if (apiTimes.length > 0) {
@@ -251,7 +251,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const maxApiTime = Math.max(...apiTimes);
 
       console.log(
-        `⚡ API Performance - Avg: ${Math.round(avgApiTime)}ms, Max: ${maxApiTime}ms`
+        `âš¡ API Performance - Avg: ${Math.round(avgApiTime)}ms, Max: ${maxApiTime}ms`
       );
 
       expect(avgApiTime, `Average API time: ${avgApiTime}ms`).toBeLessThan(
@@ -309,7 +309,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
           if (memory) {
             memoryReadings.push(memory);
             console.log(
-              `🧠 Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
+              `ðŸ§  Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
             );
           }
         }
@@ -320,7 +320,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const memoryIncrease = finalMemory.used - initialMemory.used;
 
       console.log(
-        `📊 Final memory usage: ${finalMemory.used}MB / ${finalMemory.total}MB`
+        `ðŸ“Š Final memory usage: ${finalMemory.used}MB / ${finalMemory.total}MB`
       );
 
       // Memory leak detection
@@ -400,12 +400,12 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
           const recentAvg =
             interactionTimes.slice(-5).reduce((a, b) => a + b) / 5;
           console.log(
-            `⚡ Interaction batch ${Math.floor(i / 5) + 1} avg: ${Math.round(recentAvg)}ms`
+            `âš¡ Interaction batch ${Math.floor(i / 5) + 1} avg: ${Math.round(recentAvg)}ms`
           );
         }
       } catch (error) {
         console.log(
-          `⚠️ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
+          `âš ï¸ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
         );
         interactionTimes.push(1000); // Penalty for failed interaction
       }
@@ -418,7 +418,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const maxInteractionTime = Math.max(...interactionTimes);
 
     console.log(
-      `📊 Interaction Performance - Avg: ${Math.round(avgInteractionTime)}ms, Max: ${maxInteractionTime}ms`
+      `ðŸ“Š Interaction Performance - Avg: ${Math.round(avgInteractionTime)}ms, Max: ${maxInteractionTime}ms`
     );
 
     // UI responsiveness thresholds
@@ -482,7 +482,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         loadResults.push({ route, success: false, time: loadTime });
 
         console.log(
-          `❌ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
+          `âŒ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
         );
       }
     }
@@ -492,7 +492,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const failed = loadResults.filter((r) => !r.success);
 
     console.log(
-      `📊 Network congestion results: ${successful.length} successful, ${failed.length} failed`
+      `ðŸ“Š Network congestion results: ${successful.length} successful, ${failed.length} failed`
     );
 
     if (successful.length > 0) {
@@ -510,3 +510,4 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     expect(successful.length).toBeGreaterThan(0);
   });
 });
+

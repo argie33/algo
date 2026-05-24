@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Box, Container, Grid, Typography, Link, Divider, useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,7 +25,7 @@ const Footer = () => {
     {
       title: 'Application',
       links: [
-        { label: 'Market Overview', path: '/app/market' },
+        { label: 'Market Overview', path: '/app/markets' },
         { label: 'Economic Data', path: '/app/economic' },
         { label: 'Trading Signals', path: '/app/trading-signals' },
       ],
@@ -120,7 +120,7 @@ const Footer = () => {
           }}
         >
           <Typography variant="body2">
-            © {currentYear} Bullseye Financial. All rights reserved.
+            Â© {currentYear} Bullseye Financial. All rights reserved.
           </Typography>
           <Box sx={{ display: 'flex', gap: 3 }}>
             <Link
@@ -157,3 +157,4 @@ const Footer = () => {
 };
 
 export default Footer;
+

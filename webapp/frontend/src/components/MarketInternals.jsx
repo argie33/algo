@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Box,
   Card,
@@ -311,10 +311,10 @@ const MarketInternals = ({ data, isLoading, error }) => {
                         <TableCell align="right">{row.data.count || 0}</TableCell>
                         <TableCell align="right">{row.data.total || 0}</TableCell>
                         <TableCell align="right">
-                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "—"}
+                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "â€”"}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "—"}
+                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "â€”"}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -414,7 +414,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>Std Devs from Mean:</strong>{" "}
-                  {market_extremes.stddev_from_mean}σ
+                  {market_extremes.stddev_from_mean}Ïƒ
                 </Typography>
                 <Typography variant="body2">
                   <strong>Breadth Rank:</strong>{" "}
@@ -433,3 +433,4 @@ const MarketInternals = ({ data, isLoading, error }) => {
 };
 
 export default MarketInternals;
+

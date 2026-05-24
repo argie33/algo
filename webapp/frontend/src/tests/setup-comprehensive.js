@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Comprehensive Test Setup
  * Ensures consistent mocking and configuration across all tests
  */
@@ -354,3 +354,4 @@ afterAll(() => {
   console.warn = originalConsole.warn;
   console.error = originalConsole.error;
 });
+

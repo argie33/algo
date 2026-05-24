@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Global Playwright Teardown
  * Runs once after all tests - cleanup resources
  */
@@ -10,3 +10,4 @@ async function globalTeardown() {
 }
 
 export default globalTeardown;
+

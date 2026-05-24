@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SectorAnalysis Page Integration Tests
  * Tests the sector analysis functionality with REAL API calls to backend
  * NO MOCKS - All tests use actual database data from http://localhost:5001
@@ -163,3 +163,4 @@ function createMockUser() {
     isAuthenticated: true,
   };
 }
+

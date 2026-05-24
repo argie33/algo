@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+﻿import { render, screen, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
 import { Badge } from "../../../../components/ui/badge";
 
@@ -171,3 +171,4 @@ describe("Badge", () => {
     });
   });
 });
+

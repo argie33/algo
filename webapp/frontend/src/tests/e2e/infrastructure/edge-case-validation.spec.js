@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Edge Case Validation Tests
  * Tests system behavior with unusual inputs, boundary conditions, and extreme scenarios
  */
@@ -202,7 +202,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     const loadedPages = extremeResults.filter((r) => r.contentLength > 1000);
 
     console.log(
-      `📊 Extreme values: ${validPages.length} pages handle properly, ${invalidPages.length} show invalid, ${loadedPages.length} loaded successfully`
+      `ðŸ“Š Extreme values: ${validPages.length} pages handle properly, ${invalidPages.length} show invalid, ${loadedPages.length} loaded successfully`
     );
 
     // Critical requirement: No pages should show Infinity/NaN (prevents crashes)
@@ -224,29 +224,29 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
           success: true,
           data: {
             symbols: [
-              "测试股票", // Chinese
-              "Tëst Štöck", // European characters
-              "тест акции", // Russian
-              "テスト株式", // Japanese
-              "مخزون اختبار", // Arabic
-              "¡Acción¿", // Spanish with special punctuation
-              "Stock™®©", // Trademark symbols
+              "æµ‹è¯•è‚¡ç¥¨", // Chinese
+              "TÃ«st Å tÃ¶ck", // European characters
+              "Ñ‚ÐµÑÑ‚ Ð°ÐºÑ†Ð¸Ð¸", // Russian
+              "ãƒ†ã‚¹ãƒˆæ ªå¼", // Japanese
+              "Ù…Ø®Ø²ÙˆÙ† Ø§Ø®ØªØ¨Ø§Ø±", // Arabic
+              "Â¡AcciÃ³nÂ¿", // Spanish with special punctuation
+              "Stockâ„¢Â®Â©", // Trademark symbols
               "TEST-STOCK_123", // Special characters
-              "émoji🚀📈💰", // Emoji symbols
+              "Ã©mojiðŸš€ðŸ“ˆðŸ’°", // Emoji symbols
               "NULL",
               "undefined",
               "DROP TABLE;", // Potential injection
             ],
-            currencies: ["$", "€", "£", "¥", "₹", "₽", "₩", "₦"],
+            currencies: ["$", "â‚¬", "Â£", "Â¥", "â‚¹", "â‚½", "â‚©", "â‚¦"],
             names: [
-              "Company™ Inc.",
-              "Företag AB",
-              "Société Anonyme",
-              "Компания ООО",
-              "株式会社テスト",
-              "شركة اختبار",
+              "Companyâ„¢ Inc.",
+              "FÃ¶retag AB",
+              "SociÃ©tÃ© Anonyme",
+              "ÐšÐ¾Ð¼Ð¿Ð°Ð½Ð¸Ñ ÐžÐžÐž",
+              "æ ªå¼ä¼šç¤¾ãƒ†ã‚¹ãƒˆ",
+              "Ø´Ø±ÙƒØ© Ø§Ø®ØªØ¨Ø§Ø±",
               "Empresa S.A.",
-              "测试公司",
+              "æµ‹è¯•å…¬å¸",
             ],
           },
         },
@@ -265,7 +265,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(
         pageContent
       );
-    const hasSpecialSymbols = /[™®©]/.test(pageContent);
+    const hasSpecialSymbols = /[â„¢Â®Â©]/.test(pageContent);
     const hasInjectionAttempts =
       pageContent.includes("DROP TABLE") || pageContent.includes("<script>");
 
@@ -306,8 +306,8 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         "\\n\\r\\t\\0", // Control characters
         "../../etc/passwd", // Path traversal
         Array.from({ length: 1000 }, (_, i) => i).join(","), // Large comma list
-        "🚀📈💰🏦💸📊🔥⚡🌟💎", // Many emojis
-        "àáâãäåæçèéêëìíîïñòóôõöøùúûüý", // Accented characters
+        "ðŸš€ðŸ“ˆðŸ’°ðŸ¦ðŸ’¸ðŸ“ŠðŸ”¥âš¡ðŸŒŸðŸ’Ž", // Many emojis
+        "Ã Ã¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§Ã¨Ã©ÃªÃ«Ã¬Ã­Ã®Ã¯Ã±Ã²Ã³Ã´ÃµÃ¶Ã¸Ã¹ÃºÃ»Ã¼Ã½", // Accented characters
         "\\x00\\x01\\x02\\xFF", // Binary data
       ];
 
@@ -345,7 +345,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
                 success: false,
               });
               console.log(
-                `❌ Input test failed: ${error.message.slice(0, 30)}`
+                `âŒ Input test failed: ${error.message.slice(0, 30)}`
               );
             }
           }
@@ -499,7 +499,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
 
     browserTests.forEach((test) => {
       console.log(
-        `   ${test.test}: ${test.success ? "✅" : "❌"} ${test.error ? test.error.slice(0, 30) : ""}`
+        `   ${test.test}: ${test.success ? "âœ…" : "âŒ"} ${test.error ? test.error.slice(0, 30) : ""}`
       );
     });
 
@@ -523,7 +523,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       const startTime = Date.now();
 
       console.log(
-        `🏃 API call ${callId} starting with ${Math.round(delay)}ms delay`
+        `ðŸƒ API call ${callId} starting with ${Math.round(delay)}ms delay`
       );
 
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -587,7 +587,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       expect(totalTime, `Total time: ${totalTime}ms`).toBeLessThan(15000);
     } catch (error) {
       console.log(
-        `🏃 Concurrent operations completed with some failures: ${error.message.slice(0, 50)}`
+        `ðŸƒ Concurrent operations completed with some failures: ${error.message.slice(0, 50)}`
       );
       expect(true).toBe(true); // Pass if handled gracefully
     }
@@ -614,7 +614,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       );
       if (focusedElement) {
         console.log(
-          `♿ Keyboard navigation completed, focused on: ${focusedElement}`
+          `â™¿ Keyboard navigation completed, focused on: ${focusedElement}`
         );
       }
     } catch (error) {
@@ -645,7 +645,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       });
 
       console.log(
-        `♿ ARIA attributes: ${ariaAttributes.ariaCount}, Labels: ${ariaAttributes.labelCount}`
+        `â™¿ ARIA attributes: ${ariaAttributes.ariaCount}, Labels: ${ariaAttributes.labelCount}`
       );
     } catch (error) {
       accessibilityIssues.push(`ARIA analysis: ${error.message}`);
@@ -664,7 +664,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       const pageStillVisible =
         (await page.locator("#root").textContent()).length > 100;
       console.log(
-        `♿ Low contrast simulation: Page readable: ${pageStillVisible}`
+        `â™¿ Low contrast simulation: Page readable: ${pageStillVisible}`
       );
     } catch (error) {
       accessibilityIssues.push(`Contrast test: ${error.message}`);
@@ -787,3 +787,4 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     ).toBe(false);
   });
 });
+

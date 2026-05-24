@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Standardize API response handling across all pages
  * Single function to extract data regardless of response shape
  */
@@ -33,7 +33,7 @@ export const extractData = (response) => {
   }
 
   // Priority order for extracting data:
-  // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
+  // 1. data.items (most common paginated response) â€” return full envelope so components can access .items, .total, .pagination
   if (data.items) {
     return data;  // Return the full envelope, not just items
   }
@@ -106,3 +106,4 @@ export default {
   extractPaginatedData,
   extractDataOrFallback,
 };
+

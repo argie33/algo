@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Trading Signals - Empty State", () => {
   test("should display 0 signals when database is empty", async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe("Trading Signals - Empty State", () => {
     // Check the console for warnings about empty data
     const messages = [];
     page.on("console", (msg) => {
-      if (msg.text().includes("NO SIGNALS") || msg.text().includes("📭")) {
+      if (msg.text().includes("NO SIGNALS") || msg.text().includes("ðŸ“­")) {
         messages.push(msg.text());
       }
     });
@@ -69,3 +69,4 @@ test.describe("Trading Signals - Empty State", () => {
 
   });
 });
+

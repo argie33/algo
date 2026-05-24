@@ -1,4 +1,4 @@
-import { } from "react";
+﻿import { } from "react";
 import {
   Box,
   Card,
@@ -170,3 +170,4 @@ const MarketVolatility = ({ data, isLoading, error }) => {
 };
 
 export default MarketVolatility;
+

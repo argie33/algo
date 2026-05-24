@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+﻿import { test } from '@playwright/test';
 
 test('Capture KB Financial Group on TradingView', async ({ page }) => {
   await page.goto('https://www.tradingview.com/chart/?symbol=NYSE:KB', { 
@@ -10,3 +10,4 @@ test('Capture KB Financial Group on TradingView', async ({ page }) => {
   
   await page.screenshot({ path: '/tmp/tradingview_kb_full.png' });
 });
+

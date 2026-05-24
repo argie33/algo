@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle, Box, Typography, Button, LinearProgress } from '@mui/material';
 import { Clock } from '@mui/icons-material';
 
@@ -58,3 +58,4 @@ const SessionExpiredModal = ({ open, onClose, countdownSeconds = 10 }) => {
 };
 
 export default SessionExpiredModal;
+

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Box,
   Card,
   CardContent,
@@ -99,7 +99,7 @@ const MarketIndices = ({ data, isLoading, error }) => {
   return (
     <Box>
       <Alert severity="info" sx={{ mb: 3 }}>
-        📊 <strong>Market Indices</strong> - Real-time market index data
+        ðŸ“Š <strong>Market Indices</strong> - Real-time market index data
       </Alert>
 
       <Grid container spacing={3}>
@@ -138,7 +138,7 @@ const MarketIndices = ({ data, isLoading, error }) => {
                         Price
                       </Typography>
                       <Typography variant="h5" sx={{ fontWeight: 600, color: "text.primary" }}>
-                        —
+                        â€”
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
                         Real-time data coming soon
@@ -156,3 +156,4 @@ const MarketIndices = ({ data, isLoading, error }) => {
 };
 
 export default MarketIndices;
+

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import ProtectedRoute from "../../../../components/auth/ProtectedRoute";
 
@@ -226,3 +226,4 @@ describe("ProtectedRoute", () => {
     });
   });
 });
+

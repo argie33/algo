@@ -1,4 +1,4 @@
-import {
+﻿import {
   render,
   screen,
   fireEvent,
@@ -349,3 +349,4 @@ describe("SessionWarningDialog", () => {
     });
   });
 });
+

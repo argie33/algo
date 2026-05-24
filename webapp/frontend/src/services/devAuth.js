@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Development Authentication Service
  * Mirrors the AWS Amplify auth API for local development when Cognito is not configured.
  * SECURITY: Uses sessionStorage (cleared on tab close) instead of localStorage.
@@ -8,7 +8,7 @@
 const STORAGE_KEY = 'devAuth_users';
 const SESSION_KEY = 'devAuth_session';
 
-// Default dev user — always available in development
+// Default dev user â€” always available in development
 // Password is configurable via VITE_DEV_AUTH_PASSWORD env var (set in .env.local as VITE_DEV_AUTH_PASSWORD)
 const DEV_PASSWORD = import.meta.env.VITE_DEV_AUTH_PASSWORD || 'Admin123!';
 
@@ -191,3 +191,4 @@ const devAuth = {
 };
 
 export default devAuth;
+

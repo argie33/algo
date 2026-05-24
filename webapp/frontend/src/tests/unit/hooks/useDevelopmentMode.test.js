@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useDevelopmentMode Hook Unit Tests
  * Tests development mode detection and API availability checking
  *
@@ -226,3 +226,4 @@ describe("useDevelopmentMode Hook", () => {
     expect(typeof result.current.shouldEnableQueries).toBe("boolean");
   });
 });
+

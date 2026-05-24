@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   // Navigate to portfolio dashboard
@@ -46,7 +46,7 @@ test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   const errors = await page.locator('[role="alert"]').count();
   const loading = await page.locator('[class*="loading"], [class*="skeleton"]').count();
 
-  console.log(`${errors === 0 ? '✅' : '❌'} No error alerts: ${errors === 0 ? 'Pass' : `Found ${errors}`}`);
+  console.log(`${errors === 0 ? 'âœ…' : 'âŒ'} No error alerts: ${errors === 0 ? 'Pass' : `Found ${errors}`}`);
 
   // 5. Check page performance
 
@@ -58,15 +58,15 @@ test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   const returnMatch = textContent.match(/-\d+\.\d+%/);
   const valueMatch = textContent.match(/\$[\d,]+\.?\d*/);
 
-  if (returnMatch) console.log(`✅ Portfolio Return found: ${returnMatch[0]}`);
-  if (valueMatch) console.log(`✅ Portfolio Value found: ${valueMatch[0]}`);
+  if (returnMatch) console.log(`âœ… Portfolio Return found: ${returnMatch[0]}`);
+  if (valueMatch) console.log(`âœ… Portfolio Value found: ${valueMatch[0]}`);
 
   // 7. Summary
 
   const rendererWorking = cardCount > 100 && svgCount > 10;
   const dataLoaded = holdingsFound >= 5 && metricsFound >= 3;
 
-  console.log(`${errors === 0 ? '✅' : '⚠️'} No errors on page`);
+  console.log(`${errors === 0 ? 'âœ…' : 'âš ï¸'} No errors on page`);
 
 
   // Basic assertions - all 10 holdings should render
@@ -75,3 +75,4 @@ test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   expect(svgCount).toBeGreaterThan(0);
   expect(errors).toBe(0);
 });
+

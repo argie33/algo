@@ -1,5 +1,5 @@
-/**
- * Service Health — patrol findings, loader status, data freshness, schedules.
+﻿/**
+ * Service Health â€” patrol findings, loader status, data freshness, schedules.
  * Pure JSX + theme.css classes.
  */
 
@@ -11,7 +11,7 @@ import {
 import { api } from '../services/api';
 
 const fmtAgo = (ts) => {
-  if (!ts) return '—';
+  if (!ts) return 'â€”';
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
   if (s < 60) return `${Math.floor(s)}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -57,7 +57,7 @@ export default function ServiceHealth() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Service Health</div>
-          <div className="page-head-sub">Data freshness · Patrol findings · Algo readiness</div>
+          <div className="page-head-sub">Data freshness Â· Patrol findings Â· Algo readiness</div>
         </div>
         <div className="page-head-actions">
           <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
@@ -119,11 +119,11 @@ export default function ServiceHealth() {
           <div className="card-head">
             <div>
               <div className="card-title">Data Sources ({sources.length})</div>
-              <div className="card-sub">Per-table freshness · loader role · age</div>
+              <div className="card-sub">Per-table freshness Â· loader role Â· age</div>
             </div>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            {isLoading ? <Empty title="Loading…" /> : sources.length === 0 ? <Empty title="No data" /> : (
+            {isLoading ? <Empty title="Loadingâ€¦" /> : sources.length === 0 ? <Empty title="No data" /> : (
               <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
                 <table className="data-table">
                   <thead>
@@ -143,9 +143,9 @@ export default function ServiceHealth() {
                         <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{s.table}</span></td>
                         <td className="muted t-xs">{(s.role || '').split(':')[0]}</td>
                         <td className="muted t-xs">{s.frequency}</td>
-                        <td className="num mono t-xs">{s.latest ? String(s.latest).slice(0, 10) : '—'}</td>
-                        <td className={`num mono ${s.age_days > 7 ? 'down' : ''}`}>{s.age_days != null ? `${s.age_days}d` : '—'}</td>
-                        <td className="num mono t-xs muted">{s.rows ? Number(s.rows).toLocaleString('en-US') : '—'}</td>
+                        <td className="num mono t-xs">{s.latest ? String(s.latest).slice(0, 10) : 'â€”'}</td>
+                        <td className={`num mono ${s.age_days > 7 ? 'down' : ''}`}>{s.age_days != null ? `${s.age_days}d` : 'â€”'}</td>
+                        <td className="num mono t-xs muted">{s.rows ? Number(s.rows).toLocaleString('en-US') : 'â€”'}</td>
                         <td>
                           <span className={`badge ${STATUS_VARIANT[s.status] || 'badge'}`}>{(s.status || '').toUpperCase()}</span>
                         </td>
@@ -192,8 +192,8 @@ export default function ServiceHealth() {
             <div className="grid grid-4">
               <div className="stile">
                 <div className="stile-label">Last Run</div>
-                <div className="stile-value">{status.last_run_at ? fmtAgo(status.last_run_at) : '—'}</div>
-                <div className="stile-sub">{status.last_run_id || '—'}</div>
+                <div className="stile-value">{status.last_run_at ? fmtAgo(status.last_run_at) : 'â€”'}</div>
+                <div className="stile-sub">{status.last_run_id || 'â€”'}</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Status</div>
@@ -203,11 +203,11 @@ export default function ServiceHealth() {
               </div>
               <div className="stile">
                 <div className="stile-label">Execution Mode</div>
-                <div className="stile-value">{status.execution_mode || '—'}</div>
+                <div className="stile-value">{status.execution_mode || 'â€”'}</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Open Positions</div>
-                <div className="stile-value">{status.open_positions ?? '—'}</div>
+                <div className="stile-value">{status.open_positions ?? 'â€”'}</div>
               </div>
             </div>
           ) : <Empty title="No status yet" desc="Algo orchestrator hasn't reported a run." />}
@@ -234,7 +234,7 @@ function FindingRow({ finding }) {
         {icon}
         <span className={`badge ${variant}`}>{sev}</span>
         <span className="strong t-sm" style={{ fontWeight: 'var(--w-semibold)' }}>{finding.check_type || finding.type}</span>
-        {finding.target && <span className="muted t-xs">· {finding.target}</span>}
+        {finding.target && <span className="muted t-xs">Â· {finding.target}</span>}
         <span className="t-xs faint mono" style={{ marginLeft: 'auto' }}>{fmtAgo(finding.created_at)}</span>
       </div>
       <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>{finding.message}</div>
@@ -251,3 +251,4 @@ function Empty({ title, desc, icon: Icon = Inbox }) {
     </div>
   );
 }
+

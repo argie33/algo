@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthModal from '../components/auth/AuthModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,3 +51,4 @@ function LoginPage() {
 }
 
 export default LoginPage;
+

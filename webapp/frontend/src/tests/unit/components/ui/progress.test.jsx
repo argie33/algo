@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+﻿import { screen } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils";
 import { Progress } from "../../../../components/ui/progress";
@@ -152,3 +152,4 @@ describe("Progress Component", () => {
     });
   });
 });
+

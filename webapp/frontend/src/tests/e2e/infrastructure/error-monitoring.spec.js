@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Enhanced Console Error Detection with Playwright
  * Replaces Puppeteer-based console monitoring with superior multi-browser testing
  *
@@ -370,3 +370,4 @@ test.describe("Console Error Detection", () => {
 
 // Export the detector class for use in other tests
 export { ConsoleErrorDetector, ERROR_PATTERNS };
+

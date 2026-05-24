@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Export Utilities
  * Functions for exporting data to CSV and PDF formats
  */
@@ -242,3 +242,4 @@ export const formatDataForExport = (data, excludeFields = []) => {
     return formatted;
   });
 };
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Mobile-Specific E2E Tests
  * Tests focused on mobile device functionality and responsive design
  */
@@ -195,7 +195,7 @@ test.describe("Mobile-Specific Testing", () => {
     }
 
     console.log(
-      `📱 Readable text elements: ${readableTextCount}/${Math.min(textElements.length, 20)}`
+      `ðŸ“± Readable text elements: ${readableTextCount}/${Math.min(textElements.length, 20)}`
     );
     expect(readableTextCount).toBeGreaterThan(5);
 
@@ -242,14 +242,14 @@ test.describe("Mobile-Specific Testing", () => {
         }
       } catch (e) {
         console.log(
-          `❌ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
+          `âŒ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
         );
       }
     }
 
     expect(successfulMobileNavigation).toBeGreaterThanOrEqual(2);
     console.log(
-      `📱 Mobile navigation success: ${successfulMobileNavigation}/${mobileRoutes.length}`
+      `ðŸ“± Mobile navigation success: ${successfulMobileNavigation}/${mobileRoutes.length}`
     );
   });
 
@@ -289,11 +289,11 @@ test.describe("Mobile-Specific Testing", () => {
         });
 
         console.log(
-          `📱 ${pagePath}: ${loadTime}ms load, ${metrics.domContentLoaded}ms DOM ready`
+          `ðŸ“± ${pagePath}: ${loadTime}ms load, ${metrics.domContentLoaded}ms DOM ready`
         );
       } catch (e) {
         console.log(
-          `📱 Performance test failed for ${pagePath}: ${e.message.slice(0, 50)}`
+          `ðŸ“± Performance test failed for ${pagePath}: ${e.message.slice(0, 50)}`
         );
       }
     }
@@ -337,7 +337,7 @@ test.describe("Mobile-Specific Testing", () => {
       await page.waitForTimeout(200);
     } catch (e) {
       console.log(
-        `📱 Mobile keyboard navigation issue: ${e.message.slice(0, 50)}`
+        `ðŸ“± Mobile keyboard navigation issue: ${e.message.slice(0, 50)}`
       );
     }
 
@@ -346,3 +346,4 @@ test.describe("Mobile-Specific Testing", () => {
     expect(headings).toBeGreaterThan(1);
   });
 });
+

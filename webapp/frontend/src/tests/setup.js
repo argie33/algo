@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vitest Setup File
  * Configures test environment, mocks, and global utilities
  * This file runs once before all tests
@@ -408,3 +408,4 @@ afterAll(() => {
   console.warn = originalConsole.warn;
   console.error = originalConsole.error;
 });
+

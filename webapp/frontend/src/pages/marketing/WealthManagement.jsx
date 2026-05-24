@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -157,7 +157,7 @@ const WealthManagement = () => {
         icon={<TrendingUpIcon sx={{ color: theme.palette.primary.main }} />}
         title="Manage Wealth with Confidence"
         subtitle="Use AI-powered insights to optimize your portfolio and protect your wealth"
-        primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
+        primaryCTA={{ label: 'Launch Platform', href: '/app/markets' }}
         secondaryCTA={{ label: 'Schedule Consultation', href: '/contact' }}
       />
 
@@ -175,3 +175,4 @@ const WealthManagement = () => {
 };
 
 export default WealthManagement;
+

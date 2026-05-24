@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -366,7 +366,7 @@ const ResearchInsights = () => {
         icon={<InsightsIcon sx={{ color: theme.palette.primary.main }} />}
         title="Ready for Professional-Grade Insights?"
         subtitle="Start leveraging AI-powered research to improve your investment decisions"
-        primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
+        primaryCTA={{ label: 'Launch Platform', href: '/app/markets' }}
         secondaryCTA={{ label: 'Schedule Demo', href: '/contact' }}
       />
 
@@ -375,7 +375,7 @@ const ResearchInsights = () => {
           variant="primary"
           title="Unlock Market Intelligence"
           subtitle="Access comprehensive research and insights to stay ahead of the market."
-          primaryCTA={{ label: 'Get Started', link: '/app/market' }}
+          primaryCTA={{ label: 'Get Started', link: '/app/markets' }}
         />
       </Box>
     </MarketingLayout>
@@ -383,3 +383,4 @@ const ResearchInsights = () => {
 };
 
 export default ResearchInsights;
+

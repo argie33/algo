@@ -1,4 +1,4 @@
-import { screen, fireEvent } from "@testing-library/react";
+﻿import { screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils";
 import { Select, SelectItem } from "../../../../components/ui/select";
@@ -211,3 +211,4 @@ describe("Select Component", () => {
     });
   });
 });
+

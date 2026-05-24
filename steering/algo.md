@@ -48,9 +48,9 @@
 Monitor: https://github.com/argie33/algo/actions
 
 ## LOADER CONFIGURATION
-24 loaders: `loaders/load_*.py` (stock prices, technical, metrics, company, earnings, industry, market health, NAAIM, signals, sentiment, value, quality, growth, AAII, fear/greed, weight optimization, balance sheet, cash flow, income statement, analyst upgrades/downgrades, swing trader scores, signal quality scores)
+24 loaders: `loaders/load_*.py` — prices, technicals, metrics, fundamentals, sentiment, signals
 
-Credentials: SEC_USER_AGENT required for SEC EDGAR API (`algo-trading argeropolos@gmail.com`). Added to Λ + ECS tasks.
+SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared utilities for contract tests to reduce duplication
  */
 
@@ -133,3 +133,4 @@ export function createMockFetch(mockResponse) {
 }
 
 export { API_BASE_URL };
+

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { LinearProgress } from "@mui/material";
 
 export const Progress = React.forwardRef(
@@ -18,3 +18,4 @@ export const Progress = React.forwardRef(
   }
 );
 Progress.displayName = "Progress";
+

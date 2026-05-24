@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Formatters Utility Unit Tests
  * Tests currency, percentage, and number formatting functions
  */
@@ -148,9 +148,9 @@ describe("Formatters Utility", () => {
 
   describe("getChangeIcon", () => {
     it("returns correct icons for different values", () => {
-      expect(getChangeIcon(5)).toBe("↗");
-      expect(getChangeIcon(-3)).toBe("↘");
-      expect(getChangeIcon(0)).toBe("→");
+      expect(getChangeIcon(5)).toBe("â†—");
+      expect(getChangeIcon(-3)).toBe("â†˜");
+      expect(getChangeIcon(0)).toBe("â†’");
       expect(getChangeIcon(null)).toBe("");
       expect(getChangeIcon(undefined)).toBe("");
     });
@@ -517,3 +517,4 @@ describe("Formatters Utility", () => {
     });
   });
 });
+

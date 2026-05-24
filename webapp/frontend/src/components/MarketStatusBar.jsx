@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Box, Typography, Chip, Paper, Divider } from "@mui/material";
 import { Circle, TrendingUp, TrendingDown } from "@mui/icons-material";
 import dataCache from "../services/dataCache";
@@ -219,3 +219,4 @@ const MarketStatusBar = () => {
 };
 
 export default MarketStatusBar;
+

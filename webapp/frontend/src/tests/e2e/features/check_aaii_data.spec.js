@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Check AAII Data", () => {
   test("should log AAII data to the console", async ({ page }) => {
@@ -28,3 +28,4 @@ test.describe("Check AAII Data", () => {
     );
   });
 });
+

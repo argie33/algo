@@ -1,4 +1,4 @@
-/**
+﻿/**
  * XSS Protection Utilities
  * Sanitize user-provided data to prevent cross-site scripting attacks
  */
@@ -102,3 +102,4 @@ export default {
   sanitizeObject,
   sanitizeNumber,
 };
+

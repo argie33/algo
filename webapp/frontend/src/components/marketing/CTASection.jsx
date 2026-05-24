@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   Box,
   Container,
@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 const CTASection = ({
   title,
   subtitle,
-  primaryCTA = { label: 'Get Started', link: '/app/market' },
+  primaryCTA = { label: 'Get Started', link: '/app/markets' },
   secondaryCTA = { label: 'Learn More', link: '/services' },
   variant = 'primary',
   centered = true,
@@ -140,3 +140,4 @@ const CTASection = ({
 };
 
 export default CTASection;
+

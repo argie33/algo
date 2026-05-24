@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Centralized logging service for the entire app
  * Single place to control log levels, format, and behavior
  */
@@ -114,3 +114,4 @@ export default {
   getLogLevel,
   captureError,
 };
+

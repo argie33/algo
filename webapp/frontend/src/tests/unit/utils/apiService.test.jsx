@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ApiService Utility Unit Tests
  * Tests the standardized API service with error handling and configuration
  */
@@ -194,3 +194,4 @@ describe("ApiService Utility", () => {
     });
   });
 });
+

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
@@ -21,12 +21,12 @@ const TT_STYLE = {
 };
 
 const fmtDate = (d) => {
-  if (!d) return '—';
+  if (!d) return 'â€”';
   try { return new Date(d).toLocaleDateString(); } catch { return String(d); }
 };
-const num = (v, dp = 2) => (v == null || isNaN(Number(v))) ? '—' : Number(v).toFixed(dp);
-const pct = (v, dp = 2) => (v == null || isNaN(Number(v))) ? '—' : `${Number(v).toFixed(dp)}%`;
-const money = (v) => (v == null || isNaN(Number(v))) ? '—' : `$${Number(v).toFixed(2)}`;
+const num = (v, dp = 2) => (v == null || isNaN(Number(v))) ? 'â€”' : Number(v).toFixed(dp);
+const pct = (v, dp = 2) => (v == null || isNaN(Number(v))) ? 'â€”' : `${Number(v).toFixed(dp)}%`;
+const money = (v) => (v == null || isNaN(Number(v))) ? 'â€”' : `$${Number(v).toFixed(2)}`;
 
 const sentimentLabel = (score) => {
   if (score == null) return { label: 'Unknown', cls: '' };
@@ -177,7 +177,7 @@ export default function Sentiment() {
     [stocksList, selectedSymbol]
   );
 
-  // Composite gauge (0-100) — average across available sources, normalized.
+  // Composite gauge (0-100) â€” average across available sources, normalized.
   const compositeGauge = useMemo(() => {
     const sum = summaryQ.data || {};
     const components = [];
@@ -210,7 +210,7 @@ export default function Sentiment() {
     return { score: Math.round(score), components };
   }, [summaryQ.data]);
 
-  // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
+  // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bullâˆ’bear %)
   const changeLeaders = useMemo(() => {
     const byDate = {};
     const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || divergenceQ.data || []);
@@ -301,7 +301,7 @@ export default function Sentiment() {
         <div>
           <div className="page-head-title">Market Sentiment</div>
           <div className="page-head-sub">
-            Analyst ratings · price targets · social discussion · composite scoring
+            Analyst ratings Â· price targets Â· social discussion Â· composite scoring
           </div>
         </div>
         <div className="page-head-actions">
@@ -315,13 +315,13 @@ export default function Sentiment() {
         <Kpi label="Symbols Tracked" value={<span className="mono tnum">{stats.total}</span>} />
         <Kpi label="Bullish"
              value={<span className="mono tnum up">{stats.bull}</span>}
-             sub={stats.total ? pct((stats.bull / stats.total) * 100, 1) : '—'} />
+             sub={stats.total ? pct((stats.bull / stats.total) * 100, 1) : 'â€”'} />
         <Kpi label="Bearish"
              value={<span className="mono tnum down">{stats.bear}</span>}
-             sub={stats.total ? pct((stats.bear / stats.total) * 100, 1) : '—'} />
+             sub={stats.total ? pct((stats.bear / stats.total) * 100, 1) : 'â€”'} />
         <Kpi label="Neutral / Unknown"
              value={<span className="mono tnum">{stats.neutral + stats.unknown}</span>}
-             sub={stats.total ? pct(((stats.neutral + stats.unknown) / stats.total) * 100, 1) : '—'} />
+             sub={stats.total ? pct(((stats.neutral + stats.unknown) / stats.total) * 100, 1) : 'â€”'} />
       </div>
 
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
@@ -390,12 +390,12 @@ function OverviewTab({
 
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
         <ContrarianCard title="Contrarian Buys (bearish sentiment, strong algo)"
-                        desc="Analyst score < 0, composite ≥ 70 — potential mispricing"
+                        desc="Analyst score < 0, composite â‰¥ 70 â€” potential mispricing"
                         rows={contrarianSetups.buys}
                         tone="up"
                         setSel={setSelectedSymbol} />
         <ContrarianCard title="Potential Traps (bullish sentiment, weak algo)"
-                        desc="Analyst score > 0.3, composite < 50 — buyer-beware"
+                        desc="Analyst score > 0.3, composite < 50 â€” buyer-beware"
                         rows={contrarianSetups.traps}
                         tone="down"
                         setSel={setSelectedSymbol} />
@@ -446,7 +446,7 @@ function OverviewTab({
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {isLoading ? (
-            <Empty title="Loading sentiment…" />
+            <Empty title="Loading sentimentâ€¦" />
           ) : filtered.length === 0 ? (
             <Empty title="No symbols match" desc={searchFilter ? `No data for "${searchFilter}"` : 'No sentiment data available'} />
           ) : (
@@ -480,7 +480,7 @@ function OverviewTab({
                           }}>
                         <td><span className="strong">{s.symbol}</span></td>
                         <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : 'â€”'}
                         </td>
                         <td>
                           <span className={`badge ${lab.cls}`}>
@@ -495,7 +495,7 @@ function OverviewTab({
                         <td className="num mono tnum">{money(a.current_price)}</td>
                         <td className="num">
                           <span className={`mono tnum ${upside > 0 ? 'up' : upside < 0 ? 'down' : 'muted'}`}>
-                            {isNaN(upside) ? '—' : pct(upside)}
+                            {isNaN(upside) ? 'â€”' : pct(upside)}
                           </span>
                         </td>
                       </tr>
@@ -541,9 +541,9 @@ function StockDetail({ stock, onClose }) {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
           <div>
-            <div className="card-title">{stock.symbol} · Sentiment Detail</div>
+            <div className="card-title">{stock.symbol} Â· Sentiment Detail</div>
             <div className="card-sub">
-              Analyst-derived score · {stock.divergence?.isDiverged ? 'divergent sources' : 'aligned sources'}
+              Analyst-derived score Â· {stock.divergence?.isDiverged ? 'divergent sources' : 'aligned sources'}
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
@@ -564,14 +564,14 @@ function StockDetail({ stock, onClose }) {
             <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-3)' }}>
               <div className="mono"
                    style={{ fontSize: 'var(--t-2xl)', fontWeight: 'var(--w-bold)' }}>
-                {stock.compositeScore != null ? stock.compositeScore.toFixed(2) : '—'}
+                {stock.compositeScore != null ? stock.compositeScore.toFixed(2) : 'â€”'}
               </div>
               <span className={`badge ${lab.cls} badge-lg`}>
                 {sentimentIcon(stock.compositeScore)} {lab.label}
               </span>
             </div>
             <div className="t-xs muted">
-              {a.analyst_count || 0} analysts · {bull} bullish · {neut} neutral · {bear} bearish
+              {a.analyst_count || 0} analysts Â· {bull} bullish Â· {neut} neutral Â· {bear} bearish
             </div>
           </div>
         </div>
@@ -659,7 +659,7 @@ function StockDetail({ stock, onClose }) {
               <div className="stile">
                 <div className="stile-label">Upside</div>
                 <div className={`stile-value ${upside > 0 ? 'up' : upside < 0 ? 'down' : ''}`}>
-                  {isNaN(upside) ? '—' : pct(upside)}
+                  {isNaN(upside) ? 'â€”' : pct(upside)}
                 </div>
                 <div className="stile-sub">vs current</div>
               </div>
@@ -701,10 +701,10 @@ function StockDetail({ stock, onClose }) {
                         {num(row.sentiment_score)}
                       </span>
                     </td>
-                    <td className="num mono tnum up">{row.bullish_count ?? row.positive_mentions ?? '—'}</td>
-                    <td className="num mono tnum muted">{row.neutral_count ?? row.neutral_mentions ?? '—'}</td>
-                    <td className="num mono tnum down">{row.bearish_count ?? row.negative_mentions ?? '—'}</td>
-                    <td className="num mono tnum">{row.analyst_count ?? row.total_mentions ?? '—'}</td>
+                    <td className="num mono tnum up">{row.bullish_count ?? row.positive_mentions ?? 'â€”'}</td>
+                    <td className="num mono tnum muted">{row.neutral_count ?? row.neutral_mentions ?? 'â€”'}</td>
+                    <td className="num mono tnum down">{row.bearish_count ?? row.negative_mentions ?? 'â€”'}</td>
+                    <td className="num mono tnum">{row.analyst_count ?? row.total_mentions ?? 'â€”'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -717,7 +717,7 @@ function StockDetail({ stock, onClose }) {
 }
 
 function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
-  if (isLoading) return <Empty title="Loading analyst data…" />;
+  if (isLoading) return <Empty title="Loading analyst dataâ€¦" />;
   if (!selectedSymbol) {
     return (
       <>
@@ -746,7 +746,7 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                         <td><span className="strong">{s.symbol}</span></td>
                         <td><span className={`badge ${lab.cls}`}>{lab.label}</span></td>
                         <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : 'â€”'}
                         </td>
                         <td className="num mono tnum">{s.latestAnalyst?.analyst_count ?? 0}</td>
                       </tr>
@@ -781,8 +781,8 @@ function AnalystInsights({ symbol, onClose }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">{symbol} · Analyst Insights</div>
-            <div className="card-sub">Distribution · momentum · price targets · coverage</div>
+            <div className="card-title">{symbol} Â· Analyst Insights</div>
+            <div className="card-sub">Distribution Â· momentum Â· price targets Â· coverage</div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
             <ArrowLeft size={14} /> Back
@@ -797,7 +797,7 @@ function AnalystInsights({ symbol, onClose }) {
         </div>
       )}
 
-      {isLoading ? <Empty title="Loading analyst insights…" />
+      {isLoading ? <Empty title="Loading analyst insightsâ€¦" />
        : !data ? <Empty title="No analyst data" desc={`No insights available for ${symbol}`} />
        : (
         <>
@@ -898,7 +898,7 @@ function AnalystInsights({ symbol, onClose }) {
                           <td className="num mono tnum">{money(cur)}</td>
                           <td className="num mono tnum muted">{money(prev)}</td>
                           <td className="num">
-                            {diff == null ? <span className="muted">—</span> :
+                            {diff == null ? <span className="muted">â€”</span> :
                               <span className={`badge ${diff > 0 ? 'badge-success' : 'badge-danger'}`}>
                                 {diff > 0 ? '+' : ''}{diff.toFixed(2)}
                               </span>}
@@ -918,7 +918,7 @@ function AnalystInsights({ symbol, onClose }) {
               <div className="card-head">
                 <div>
                   <div className="card-title">Recent Analyst Actions</div>
-                  <div className="card-sub">Upgrades · downgrades · maintains</div>
+                  <div className="card-sub">Upgrades Â· downgrades Â· maintains</div>
                 </div>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
@@ -944,10 +944,10 @@ function AnalystInsights({ symbol, onClose }) {
                       return (
                         <tr key={`${u.firm}-${i}`}>
                           <td>{u.firm}</td>
-                          <td><span className={`badge ${cls}`}>{arrow} {u.action || '—'}</span></td>
-                          <td className="t-xs muted">{u.from_grade || '—'}</td>
-                          <td><span className="badge">{u.to_grade || '—'}</span></td>
-                          <td className="t-xs">{u.details || '—'}</td>
+                          <td><span className={`badge ${cls}`}>{arrow} {u.action || 'â€”'}</span></td>
+                          <td className="t-xs muted">{u.from_grade || 'â€”'}</td>
+                          <td><span className="badge">{u.to_grade || 'â€”'}</span></td>
+                          <td className="t-xs">{u.details || 'â€”'}</td>
                           <td className="t-xs muted">{fmtDate(u.date)}</td>
                         </tr>
                       );
@@ -971,7 +971,7 @@ function AnalystInsights({ symbol, onClose }) {
                   {coverage.firms.slice(0, 9).map((firm, i) => (
                     <div className="stile" key={`${firm.analyst_firm || firm.name}-${i}`}>
                       <div className="stile-label">{firm.analyst_firm || firm.name}</div>
-                      <div className="stile-value t-sm">{firm.analyst_name || '—'}</div>
+                      <div className="stile-value t-sm">{firm.analyst_name || 'â€”'}</div>
                       <div className="stile-sub">
                         <span className="badge">{firm.coverage_status || 'covering'}</span>
                         {firm.coverage_started && (
@@ -993,13 +993,13 @@ function AnalystInsights({ symbol, onClose }) {
 }
 
 function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
-  if (isLoading) return <Empty title="Loading social data…" />;
+  if (isLoading) return <Empty title="Loading social dataâ€¦" />;
   if (!selectedSymbol) {
     return (
       <>
         <div className="alert alert-info">
           <MessageSquare size={16} />
-          <div>Select a symbol to view Reddit · news · search · viral metrics.</div>
+          <div>Select a symbol to view Reddit Â· news Â· search Â· viral metrics.</div>
         </div>
         <div className="card" style={{ marginTop: 'var(--space-4)' }}>
           <div className="card-body" style={{ padding: 0 }}>
@@ -1021,7 +1021,7 @@ function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                         <td><span className="strong">{s.symbol}</span></td>
                         <td><span className={`badge ${lab.cls}`}>{lab.label}</span></td>
                         <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : 'â€”'}
                         </td>
                       </tr>
                     );
@@ -1053,8 +1053,8 @@ function SocialInsights({ symbol, onClose }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">{symbol} · Social Sentiment</div>
-            <div className="card-sub">Reddit · news · search · viral score · 30-day history</div>
+            <div className="card-title">{symbol} Â· Social Sentiment</div>
+            <div className="card-sub">Reddit Â· news Â· search Â· viral score Â· 30-day history</div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
             <ArrowLeft size={14} /> Back
@@ -1069,7 +1069,7 @@ function SocialInsights({ symbol, onClose }) {
         </div>
       )}
 
-      {isLoading ? <Empty title="Loading social insights…" />
+      {isLoading ? <Empty title="Loading social insightsâ€¦" />
        : !metrics ? <Empty title="No social data" desc={`No social sentiment data for ${symbol}`} />
        : (
         <>
@@ -1078,27 +1078,27 @@ function SocialInsights({ symbol, onClose }) {
                    value={
                      metrics.reddit?.sentiment_score
                        ? `${parseFloat(metrics.reddit.sentiment_score) > 0 ? '+' : ''}${parseFloat(metrics.reddit.sentiment_score).toFixed(3)}`
-                       : '—'
+                       : 'â€”'
                    }
                    sub={`${metrics.reddit?.mention_count ?? 0} mentions`} />
             <Stile label="News Sentiment"
                    value={
                      metrics.news?.sentiment_score
                        ? `${parseFloat(metrics.news.sentiment_score) > 0 ? '+' : ''}${parseFloat(metrics.news.sentiment_score).toFixed(3)}`
-                       : '—'
+                       : 'â€”'
                    }
                    sub={`${metrics.news?.article_count ?? 0} articles`} />
             <Stile label="Search Volume"
-                   value={metrics.search?.volume_index ?? '—'}
+                   value={metrics.search?.volume_index ?? 'â€”'}
                    sub={`7d ${metrics.search?.trend_7d_direction ?? ''}${
                      Math.abs(parseFloat(metrics.search?.trend_7d_percent || 0)).toFixed(1)
-                   }% · 30d ${metrics.search?.trend_30d_direction ?? ''}${
+                   }% Â· 30d ${metrics.search?.trend_30d_direction ?? ''}${
                      Math.abs(parseFloat(metrics.search?.trend_30d_percent || 0)).toFixed(1)
                    }%`} />
             <Stile label="Social Volume"
                    value={`${metrics.social?.volume ?? 0} posts`}
                    sub={`Viral ${metrics.social?.viral_score
-                     ? parseFloat(metrics.social.viral_score).toFixed(2) : '—'}`} />
+                     ? parseFloat(metrics.social.viral_score).toFixed(2) : 'â€”'}`} />
           </div>
 
           {trends && (trends.news_sentiment || trends.reddit_sentiment || trends.search_volume) && (
@@ -1166,16 +1166,16 @@ function SocialInsights({ symbol, onClose }) {
                           <td className="t-xs muted">{fmtDate(row.date)}</td>
                           <td className="num mono tnum">
                             {row.reddit_sentiment != null
-                              ? parseFloat(row.reddit_sentiment).toFixed(2) : '—'}
+                              ? parseFloat(row.reddit_sentiment).toFixed(2) : 'â€”'}
                           </td>
                           <td className="num mono tnum">
                             {row.news_sentiment != null
-                              ? parseFloat(row.news_sentiment).toFixed(2) : '—'}
+                              ? parseFloat(row.news_sentiment).toFixed(2) : 'â€”'}
                           </td>
-                          <td className="num mono tnum">{row.search_volume ?? '—'}</td>
+                          <td className="num mono tnum">{row.search_volume ?? 'â€”'}</td>
                           <td className="num mono tnum">
                             {row.viral_score != null
-                              ? parseFloat(row.viral_score).toFixed(2) : '—'}
+                              ? parseFloat(row.viral_score).toFixed(2) : 'â€”'}
                           </td>
                         </tr>
                       ))}
@@ -1198,16 +1198,16 @@ function TrendStile({ label, cur, prd, dp }) {
     <div className="stile">
       <div className="stile-label">{label}</div>
       <div className="stile-value">
-        {isNaN(c) ? '—' : c.toFixed(dp)}
+        {isNaN(c) ? 'â€”' : c.toFixed(dp)}
       </div>
       <div className="stile-sub">
-        30d avg: <span className="mono tnum">{isNaN(p) ? '—' : p.toFixed(dp)}</span>
+        30d avg: <span className="mono tnum">{isNaN(p) ? 'â€”' : p.toFixed(dp)}</span>
       </div>
     </div>
   );
 }
 
-// ─── new: composite sentiment gauge ─────────────────────────────────────
+// â”€â”€â”€ new: composite sentiment gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CompositeGauge({ gauge }) {
   if (!gauge) {
     return (
@@ -1236,7 +1236,7 @@ function CompositeGauge({ gauge }) {
       <div className="card-head">
         <div>
           <div className="card-title">Composite Sentiment Gauge</div>
-          <div className="card-sub">Cross-source aggregate · {gauge.components.length} sources</div>
+          <div className="card-sub">Cross-source aggregate Â· {gauge.components.length} sources</div>
         </div>
       </div>
       <div className="card-body">
@@ -1276,16 +1276,16 @@ function CompositeGauge({ gauge }) {
         <div className="flex items-center justify-between" style={{
           marginTop: 'var(--space-2)', fontSize: 'var(--t-xs)', color: 'var(--text-3)',
         }}>
-          <span>0 · Extreme Fear</span>
+          <span>0 Â· Extreme Fear</span>
           <span>50</span>
-          <span>100 · Extreme Greed</span>
+          <span>100 Â· Extreme Greed</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── new: rating funnel ────────────────────────────────────────────────
+// â”€â”€â”€ new: rating funnel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RatingFunnel({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) {
@@ -1332,7 +1332,7 @@ function RatingFunnel({ data }) {
   );
 }
 
-// ─── new: change leaders ──────────────────────────────────────────────
+// â”€â”€â”€ new: change leaders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ChangeLeadersCard({ title, rows, tone, setSel }) {
   return (
     <div className="card">
@@ -1345,13 +1345,13 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {!rows || rows.length === 0 ? (
-          <Empty title="Insufficient history" desc="Need ≥ 7 days of analyst sentiment per symbol" />
+          <Empty title="Insufficient history" desc="Need â‰¥ 7 days of analyst sentiment per symbol" />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
                 <th>Symbol</th>
-                <th className="num">7d Δ</th>
+                <th className="num">7d Î”</th>
                 <th className="num">Current</th>
               </tr>
             </thead>
@@ -1373,7 +1373,7 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
   );
 }
 
-// ─── new: contrarian setups ──────────────────────────────────────────
+// â”€â”€â”€ new: contrarian setups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ContrarianCard({ title, desc, rows, _tone, setSel }) {
   return (
     <div className="card">
@@ -1402,7 +1402,7 @@ function ContrarianCard({ title, desc, rows, _tone, setSel }) {
                   <td><span className="strong">{r.symbol}</span></td>
                   <td className="t-xs muted" style={{
                     maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{r.sector || '—'}</td>
+                  }}>{r.sector || 'â€”'}</td>
                   <td className={`num mono tnum ${r.analystScore > 0 ? 'up' : 'down'}`}>
                     {r.analystScore.toFixed(2)}
                   </td>
@@ -1424,7 +1424,7 @@ function ContrarianCard({ title, desc, rows, _tone, setSel }) {
   );
 }
 
-// ─── new: divergence timeline (universe-wide rolling avg of bull−bear) ─
+// â”€â”€â”€ new: divergence timeline (universe-wide rolling avg of bullâˆ’bear) â”€
 function DivergenceTimeline({ rows }) {
   const series = useMemo(() => {
     if (!Array.isArray(rows) || rows.length === 0) return [];
@@ -1450,7 +1450,7 @@ function DivergenceTimeline({ rows }) {
         <div className="card-head">
           <div>
             <div className="card-title">Universe Sentiment Trend (90d)</div>
-            <div className="card-sub">Average analyst bull% − bear% across all covered symbols</div>
+            <div className="card-sub">Average analyst bull% âˆ’ bear% across all covered symbols</div>
           </div>
         </div>
         <div className="card-body"><Empty title="No history" /></div>
@@ -1463,7 +1463,7 @@ function DivergenceTimeline({ rows }) {
       <div className="card-head">
         <div>
           <div className="card-title">Universe Sentiment Trend (90d)</div>
-          <div className="card-sub">Average analyst (bull% − bear%) across {rows.length} readings</div>
+          <div className="card-sub">Average analyst (bull% âˆ’ bear%) across {rows.length} readings</div>
         </div>
       </div>
       <div className="card-body">
@@ -1477,7 +1477,7 @@ function DivergenceTimeline({ rows }) {
                      tickFormatter={(v) => `${Math.round(v)}`} />
               <RechartsTooltip contentStyle={TT_STYLE}
                                labelFormatter={(d) => fmtDate(d)}
-                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull − Bear']} />
+                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull âˆ’ Bear']} />
               <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="avg" stroke="var(--brand)"
                     strokeWidth={2} dot={false} />
@@ -1544,3 +1544,4 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+

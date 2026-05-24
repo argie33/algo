@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Centralized theme management service
  * Single source of truth for theme state and persistence
  */
@@ -93,3 +93,4 @@ export const theme = {
 };
 
 export default theme;
+

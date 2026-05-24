@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Error Handling and Network Failure Tests
  * Tests system resilience under various error conditions
  */
@@ -67,7 +67,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error") {
         _errorCount++;
-        console.log(`❌ Console error: ${msg.text().slice(0, 100)}`);
+        console.log(`âŒ Console error: ${msg.text().slice(0, 100)}`);
       }
     });
 
@@ -88,7 +88,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const pageResults = [];
 
     for (const testPage of pagesToTest) {
-      console.log(`🧪 Testing ${testPage} with 500 errors...`);
+      console.log(`ðŸ§ª Testing ${testPage} with 500 errors...`);
 
       try {
         await page.goto(testPage, {
@@ -128,7 +128,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
         });
 
         console.log(
-          `❌ ${testPage}: Failed to load - ${error.message.slice(0, 50)}`
+          `âŒ ${testPage}: Failed to load - ${error.message.slice(0, 50)}`
         );
       }
     }
@@ -138,10 +138,10 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const gracefulPages = pageResults.filter((r) => r.hasGracefulDegradation);
 
     console.log(
-      `📊 500 Error Results: ${loadedPages.length}/${pagesToTest.length} pages loaded`
+      `ðŸ“Š 500 Error Results: ${loadedPages.length}/${pagesToTest.length} pages loaded`
     );
     console.log(
-      `🛡️ Graceful degradation: ${gracefulPages.length}/${pagesToTest.length} pages`
+      `ðŸ›¡ï¸ Graceful degradation: ${gracefulPages.length}/${pagesToTest.length} pages`
     );
 
     // System should handle errors gracefully
@@ -154,7 +154,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   });
 
   test("Should handle 404 Not Found errors appropriately", async ({ page }) => {
-    console.log("🔍 Testing 404 Not Found error handling...");
+    console.log("ðŸ” Testing 404 Not Found error handling...");
 
     // Mock 404 errors for specific endpoints
     await page.route("**/api/portfolio/**", (route) => {
@@ -202,7 +202,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       page404Content.includes("not found");
 
     console.log(
-      `📊 404 handling: ${errorMessages} error messages, empty state: ${hasEmptyStateContent}, page loads: ${pageLoaded && hasBasicContent}`
+      `ðŸ“Š 404 handling: ${errorMessages} error messages, empty state: ${hasEmptyStateContent}, page loads: ${pageLoaded && hasBasicContent}`
     );
 
     // Key requirement: Page doesn't crash due to 404 errors
@@ -212,7 +212,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   test("Should handle 401 Unauthorized errors with redirect", async ({
     page,
   }) => {
-    console.log("🔒 Testing 401 Unauthorized error handling...");
+    console.log("ðŸ”’ Testing 401 Unauthorized error handling...");
 
     let redirectAttempts = 0;
 
@@ -254,7 +254,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       currentUrl.includes("login") || currentUrl.includes("auth");
 
     console.log(
-      `🔒 401 Results: ${authElements} auth elements, redirects: ${redirectAttempts}, on auth page: ${isOnAuthPage}`
+      `ðŸ”’ 401 Results: ${authElements} auth elements, redirects: ${redirectAttempts}, on auth page: ${isOnAuthPage}`
     );
 
     // Should handle unauthorized access appropriately
@@ -290,7 +290,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     } catch (error) {
       const loadTime = Date.now() - startTime;
       console.log(
-        `⏰ Timeout occurred after ${loadTime}ms: ${error.message.slice(0, 50)}`
+        `â° Timeout occurred after ${loadTime}ms: ${error.message.slice(0, 50)}`
       );
     }
 
@@ -304,7 +304,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       .count();
 
     console.log(
-      `⏰ Timeout test: ${finalLoadTime}ms load time, ${timeoutRequests} timeout requests, ${timeoutElements} loading elements`
+      `â° Timeout test: ${finalLoadTime}ms load time, ${timeoutRequests} timeout requests, ${timeoutElements} loading elements`
     );
 
     // Should handle timeouts gracefully (either load or show loading state)
@@ -368,7 +368,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
           loaded: false,
           error: error.message,
         });
-        console.log(`❌ ${testPage}: Failed - ${error.message.slice(0, 50)}`);
+        console.log(`âŒ ${testPage}: Failed - ${error.message.slice(0, 50)}`);
       }
     }
 
@@ -393,7 +393,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error" && msg.text().includes("JSON")) {
         jsonErrors++;
-        console.log(`📝 JSON error detected: ${msg.text().slice(0, 80)}`);
+        console.log(`ðŸ“ JSON error detected: ${msg.text().slice(0, 80)}`);
       }
     });
 
@@ -437,21 +437,21 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       const hasContent = pageContent.length > 200;
 
       console.log(
-        `📝 Malformed JSON results: ${jsonErrors} JSON errors, ${errorElements} error elements, has content: ${hasContent}`
+        `ðŸ“ Malformed JSON results: ${jsonErrors} JSON errors, ${errorElements} error elements, has content: ${hasContent}`
       );
 
       // Should handle malformed responses gracefully
       expect(hasContent || errorElements > 0).toBe(true);
     } catch (error) {
       console.log(
-        `📝 Malformed JSON test completed with error: ${error.message.slice(0, 50)}`
+        `ðŸ“ Malformed JSON test completed with error: ${error.message.slice(0, 50)}`
       );
       expect(true).toBe(true); // Pass if error is handled
     }
   });
 
   test("Should handle CORS and cross-origin errors", async ({ page }) => {
-    console.log("🌍 Testing CORS and cross-origin error handling...");
+    console.log("ðŸŒ Testing CORS and cross-origin error handling...");
 
     let corsErrors = 0;
 
@@ -461,7 +461,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
         (msg.text().includes("CORS") || msg.text().includes("cross-origin"))
       ) {
         corsErrors++;
-        console.log(`🌍 CORS error detected: ${msg.text().slice(0, 80)}`);
+        console.log(`ðŸŒ CORS error detected: ${msg.text().slice(0, 80)}`);
       }
     });
 
@@ -489,13 +489,13 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       const hasContent = pageContent.length > 200;
 
       console.log(
-        `🌍 CORS results: ${corsErrors} CORS errors, ${networkElements} network elements, content: ${hasContent}`
+        `ðŸŒ CORS results: ${corsErrors} CORS errors, ${networkElements} network elements, content: ${hasContent}`
       );
 
       // Should handle CORS/network errors gracefully
       expect(hasContent || networkElements > 0).toBe(true);
     } catch (error) {
-      console.log(`🌍 CORS test handled error: ${error.message.slice(0, 50)}`);
+      console.log(`ðŸŒ CORS test handled error: ${error.message.slice(0, 50)}`);
       expect(true).toBe(true);
     }
   });
@@ -503,7 +503,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   test("Should handle rate limiting (429 Too Many Requests)", async ({
     page,
   }) => {
-    console.log("🚦 Testing rate limiting error handling...");
+    console.log("ðŸš¦ Testing rate limiting error handling...");
 
     let rateLimitCount = 0;
 
@@ -546,7 +546,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       pageContent.toLowerCase().includes("try again");
 
     console.log(
-      `🚦 Rate limit results: ${rateLimitCount} rate limited requests, ${rateLimitElements} UI elements, message in content: ${hasRateLimitMessage}`
+      `ðŸš¦ Rate limit results: ${rateLimitCount} rate limited requests, ${rateLimitElements} UI elements, message in content: ${hasRateLimitMessage}`
     );
 
     // Should handle rate limiting appropriately
@@ -622,7 +622,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
       });
 
       console.log(
-        `⚡ ${testPage}: Content: ${hasContent}, Error elements: ${errorElements}`
+        `âš¡ ${testPage}: Content: ${hasContent}, Error elements: ${errorElements}`
       );
     }
 
@@ -641,3 +641,4 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     ).toBeGreaterThanOrEqual(1); // At least one service working
   });
 });
+

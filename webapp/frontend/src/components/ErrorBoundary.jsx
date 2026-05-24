@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   Box,
   Typography,
@@ -64,7 +64,7 @@ class ErrorBoundary extends React.Component {
 
     // Enhanced logging for .type access errors
     if (error && error.message && error.message.includes("Cannot read properties of undefined (reading 'type')")) {
-      console.error("🔴 CRITICAL: .type access on undefined in component tree");
+      console.error("ðŸ”´ CRITICAL: .type access on undefined in component tree");
       console.error("Component that failed:", errorInfo?.componentStack?.split('\n')[0]);
       console.error("Full stack:", errorInfo?.componentStack);
       console.error("Full error:", error);
@@ -269,3 +269,4 @@ class ErrorBoundary extends React.Component {
 }
 
 export default ErrorBoundary;
+

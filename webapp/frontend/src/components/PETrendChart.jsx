@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
@@ -46,9 +46,9 @@ export default function PETrendChart({ sectorName, industryName }) {
               contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
               labelStyle={{ color: "#fff" }}
               formatter={(value) => {
-                if (value === null || value === undefined) return "—";
+                if (value === null || value === undefined) return "â€”";
                 const num = parseFloat(value);
-                return isNaN(num) ? "—" : `$${num.toFixed(2)}`;
+                return isNaN(num) ? "â€”" : `$${num.toFixed(2)}`;
               }}
               labelFormatter={(label) => label}
             />
@@ -63,3 +63,4 @@ export default function PETrendChart({ sectorName, industryName }) {
     </Card>
   );
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Simple Test Verification
  * Ensures basic test setup is working
  */
@@ -42,3 +42,4 @@ describe("Simple Test Verification", () => {
     expect(mockFn).toHaveBeenCalledWith("test");
   });
 });
+

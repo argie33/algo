@@ -1,5 +1,5 @@
-/**
- * Backtest Results — list runs, drill into trades + equity curve.
+﻿/**
+ * Backtest Results â€” list runs, drill into trades + equity curve.
  * Pure JSX + theme.css classes.
  */
 
@@ -15,9 +15,9 @@ import {
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
-const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const pct = (v, dp = 1) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
+const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : 'â€”';
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
+const pct = (v, dp = 1) => v == null || isNaN(Number(v)) ? 'â€”' : `${Number(v).toFixed(dp)}%`;
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -62,7 +62,7 @@ export default function BacktestResults() {
         <div className="main-content">
           <div style={{ padding: '40px', textAlign: 'center' }}>
             <RefreshCw size={24} className="animate-spin" style={{ marginBottom: '16px' }} />
-            <div className="muted">Loading backtest details…</div>
+            <div className="muted">Loading backtest detailsâ€¦</div>
           </div>
         </div>
       );
@@ -78,7 +78,7 @@ export default function BacktestResults() {
         <div>
           <div className="page-head-title">Backtest Results</div>
           <div className="page-head-sub">
-            Strategy validation runs · win rate · expectancy · Sharpe · max DD
+            Strategy validation runs Â· win rate Â· expectancy Â· Sharpe Â· max DD
           </div>
         </div>
         <div className="page-head-actions">
@@ -137,7 +137,7 @@ export default function BacktestResults() {
               <div>{listErr.message || 'Failed to load runs'}</div>
             </div>
           ) : isLoading ? (
-            <Empty title="Loading…" />
+            <Empty title="Loadingâ€¦" />
           ) : runs.length === 0 ? (
             <Empty title="No backtest runs" desc="Trigger a walk-forward run to populate this list." />
           ) : (
@@ -162,8 +162,8 @@ export default function BacktestResults() {
                     <tr key={r.run_id}>
                       <td><span className="strong">{r.run_name}</span></td>
                       <td className="muted t-xs">{r.strategy_name}</td>
-                      <td className="t-xs muted">{fmtDate(r.date_start)} → {fmtDate(r.date_end)}</td>
-                      <td className="num mono tnum">{r.total_signals ?? '—'}</td>
+                      <td className="t-xs muted">{fmtDate(r.date_start)} â†’ {fmtDate(r.date_end)}</td>
+                      <td className="num mono tnum">{r.total_signals ?? 'â€”'}</td>
                       <td className="num">
                         <span className={`badge ${(r.win_rate >= 50) ? 'badge-success' : 'badge-amber'}`}>
                           {pct(r.win_rate)}
@@ -195,7 +195,7 @@ export default function BacktestResults() {
       {runs.length > 0 && (
         <div className="flex items-center justify-between" style={{ marginTop: 'var(--space-4)' }}>
           <span className="t-xs muted">
-            Page {pagination.page ?? 1} of {pagination.totalPages ?? 1} · {pagination.total ?? 0} runs
+            Page {pagination.page ?? 1} of {pagination.totalPages ?? 1} Â· {pagination.total ?? 0} runs
           </span>
           <div className="flex items-center gap-2">
             <button className="btn btn-outline btn-sm"
@@ -215,7 +215,7 @@ export default function BacktestResults() {
   );
 }
 
-// ─── Run detail view ───────────────────────────────────────────────────────
+// â”€â”€â”€ Run detail view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RunDetail({ detail, onBack }) {
   const navigate = useNavigate();
   const r = detail?.run || {};
@@ -231,14 +231,14 @@ function RunDetail({ detail, onBack }) {
           </button>
           <div className="page-head-title">{r.run_name || 'Run'}</div>
           <div className="page-head-sub">
-            {r.strategy_name} · {fmtDate(r.date_start)} → {fmtDate(r.date_end)}
+            {r.strategy_name} Â· {fmtDate(r.date_start)} â†’ {fmtDate(r.date_end)}
           </div>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-4">
-        <Kpi label="Total Signals" value={<span className="mono tnum">{r.total_signals ?? '—'}</span>} />
+        <Kpi label="Total Signals" value={<span className="mono tnum">{r.total_signals ?? 'â€”'}</span>} />
         <Kpi label="Win Rate" value={<span className="mono tnum">{pct(r.win_rate)}</span>}
              tone={r.win_rate >= 50 ? 'up' : 'down'} />
         <Kpi label="Expectancy" value={<span className="mono tnum">{num(r.expectancy_per_trade, 3)}</span>}
@@ -345,7 +345,7 @@ function RunDetail({ detail, onBack }) {
                         </span>
                       </td>
                       <td className="t-xs muted" style={{ textTransform: 'uppercase' }}>{t.outcome}</td>
-                      <td className="num mono tnum muted">{t.days_held ?? '—'}</td>
+                      <td className="num mono tnum muted">{t.days_held ?? 'â€”'}</td>
                       <td className="num mono tnum up">{pct(t.mfe_pct)}</td>
                       <td className="num mono tnum down">{pct(t.mae_pct)}</td>
                     </tr>
@@ -381,3 +381,4 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+

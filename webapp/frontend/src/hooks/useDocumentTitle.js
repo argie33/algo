@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 
 /**
  * Custom hook to set document title for accessibility and SEO
@@ -23,3 +23,4 @@ export const useDocumentTitle = (title, suffix = "Financial Dashboard") => {
 };
 
 export default useDocumentTitle;
+

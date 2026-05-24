@@ -1,4 +1,4 @@
-import {
+﻿import {
   Box,
   Card,
   CardContent,
@@ -255,3 +255,4 @@ const MarketIndicators = ({ data, isLoading, error }) => {
 };
 
 export default MarketIndicators;
+

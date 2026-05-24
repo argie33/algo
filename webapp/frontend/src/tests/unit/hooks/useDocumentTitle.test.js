@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useDocumentTitle Hook Unit Tests
  * Tests document title management hook
  */
@@ -165,3 +165,4 @@ describe("useDocumentTitle Hook", () => {
     expect(document.title).toBe(originalTitle);
   });
 });
+

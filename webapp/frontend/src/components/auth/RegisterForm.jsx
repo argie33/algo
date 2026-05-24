@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Box,
   Card,
@@ -272,3 +272,4 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 }
 
 export default RegisterForm;
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared test setup utilities for consistent testing across all components
  */
 
@@ -186,3 +186,4 @@ export const testScenarios = {
     });
   },
 };
+

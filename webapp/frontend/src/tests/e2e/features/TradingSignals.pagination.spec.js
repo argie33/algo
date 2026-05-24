@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Trading Signals Pagination', () => {
   test.beforeEach(async ({ page }) => {
@@ -278,3 +278,4 @@ test.describe('Trading Signals Pagination', () => {
     }
   });
 });
+

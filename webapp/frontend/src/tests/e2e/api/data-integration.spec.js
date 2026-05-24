@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Data Integration Tests
  * Tests real-time data loading, API responses, and data consistency
  */
@@ -239,7 +239,7 @@ test.describe("Financial Platform - Data Integration", () => {
   });
 
   test("should handle error states gracefully", async ({ page }) => {
-    console.log("⚠️ Testing error handling...");
+    console.log("âš ï¸ Testing error handling...");
 
     let consoleErrors = [];
     let networkErrors = [];
@@ -267,13 +267,13 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`⚠️ Error elements found: ${errorElements}`);
-    console.log(`🔍 Console errors: ${consoleErrors.length}`);
-    console.log(`🌐 Network errors: ${networkErrors.length}`);
+    console.log(`âš ï¸ Error elements found: ${errorElements}`);
+    console.log(`ðŸ” Console errors: ${consoleErrors.length}`);
+    console.log(`ðŸŒ Network errors: ${networkErrors.length}`);
 
     // Log specific console errors for debugging
     if (consoleErrors.length > 0) {
-      console.log(`❌ Console error details:`, consoleErrors);
+      console.log(`âŒ Console error details:`, consoleErrors);
     }
 
     // CRITICAL: Filter for critical errors that should cause test failure
@@ -298,7 +298,7 @@ test.describe("Financial Platform - Data Integration", () => {
     // Log critical errors specifically
     if (criticalErrors.length > 0) {
       console.log(
-        `🚨 CRITICAL console errors that will fail the test:`,
+        `ðŸš¨ CRITICAL console errors that will fail the test:`,
         criticalErrors
       );
     }
@@ -319,8 +319,9 @@ test.describe("Financial Platform - Data Integration", () => {
     const pageContent = await page.locator("#root").textContent();
     const hasContent = pageContent && pageContent.length > 500;
 
-    console.log(`📄 Page loaded despite errors: ${hasContent ? "Yes" : "No"}`);
+    console.log(`ðŸ“„ Page loaded despite errors: ${hasContent ? "Yes" : "No"}`);
 
     expect(hasContent).toBe(true);
   });
 });
+

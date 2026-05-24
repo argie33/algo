@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Component Test Utilities
  * Helpers for React component unit testing
  */
@@ -309,3 +309,4 @@ export default {
   testComponentLifecycle,
   createSnapshot,
 };
+

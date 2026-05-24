@@ -1,5 +1,5 @@
-/**
- * Swing Candidates — full-universe analytical workbench.
+﻿/**
+ * Swing Candidates â€” full-universe analytical workbench.
  *
  * Sections:
  *   - KPI strip
@@ -28,7 +28,7 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -174,8 +174,8 @@ export default function SwingCandidates() {
         <div>
           <div className="page-head-title">Swing Candidates</div>
           <div className="page-head-sub">
-            Full-universe research-weighted scoring · setup · trend · momentum · volume · fundamentals · sector · multi-TF
-            {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>· {itemsList.length} candidates</span>}
+            Full-universe research-weighted scoring Â· setup Â· trend Â· momentum Â· volume Â· fundamentals Â· sector Â· multi-TF
+            {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>Â· {itemsList.length} candidates</span>}
           </div>
         </div>
         <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
@@ -228,13 +228,13 @@ export default function SwingCandidates() {
         </div>
       )}
 
-      {/* Charts row 1 — radar + sector treemap */}
+      {/* Charts row 1 â€” radar + sector treemap */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ComponentRadar items={items} selected={selected} />
         <SectorTreemap items={items} onSectorClick={(s) => setSector(s)} />
       </div>
 
-      {/* Charts row 2 — funnel + correlation */}
+      {/* Charts row 2 â€” funnel + correlation */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <GradeFunnel items={items} />
         <ComponentCorrelation items={items} />
@@ -283,7 +283,7 @@ export default function SwingCandidates() {
               <Search size={14} className="muted" />
               <input
                 className="input"
-                placeholder="Search symbol…"
+                placeholder="Search symbolâ€¦"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ flex: 1 }}
@@ -308,11 +308,11 @@ export default function SwingCandidates() {
               <option value="fail">Fail only</option>
             </select>
             <select className="select" value={minScore} onChange={e => setMinScore(Number(e.target.value))}>
-              <option value="0">Score ≥ 0</option>
-              <option value="40">Score ≥ 40</option>
-              <option value="60">Score ≥ 60</option>
-              <option value="75">Score ≥ 75</option>
-              <option value="85">Score ≥ 85</option>
+              <option value="0">Score â‰¥ 0</option>
+              <option value="40">Score â‰¥ 40</option>
+              <option value="60">Score â‰¥ 60</option>
+              <option value="75">Score â‰¥ 75</option>
+              <option value="85">Score â‰¥ 85</option>
             </select>
             <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
               <Filter size={12} style={{ verticalAlign: '-2px' }} /> {filtered.length} of {itemsList?.length || 0}
@@ -325,7 +325,7 @@ export default function SwingCandidates() {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-body" style={{ padding: 0 }}>
           {isLoading ? (
-            <Empty title="Loading universe…" />
+            <Empty title="Loading universeâ€¦" />
           ) : filtered.length === 0 ? (
             <Empty title="No candidates match filters"
                    desc="Loosen filters or wait for the next eval cycle." />
@@ -367,7 +367,7 @@ export default function SwingCandidates() {
           {filtered.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', borderTop: '1px solid var(--border)', marginTop: 'var(--space-3)', background: 'var(--bg-2)' }}>
               <div style={{ fontSize: 'var(--t-xs)', color: 'var(--text-2)' }}>
-                Showing {filtered.length === 0 ? 0 : pageStart + 1}–{Math.min(pageEnd, filtered.length)} of {filtered.length} results
+                Showing {filtered.length === 0 ? 0 : pageStart + 1}â€“{Math.min(pageEnd, filtered.length)} of {filtered.length} results
               </div>
               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                 <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="input" style={{ padding: '6px 8px', fontSize: 'var(--t-xs)' }}>
@@ -375,9 +375,9 @@ export default function SwingCandidates() {
                   <option value={50}>50 per page</option>
                   <option value={100}>100 per page</option>
                 </select>
-                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">← Prev</button>
+                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">â† Prev</button>
                 <div style={{ minWidth: '80px', textAlign: 'center', fontSize: 'var(--t-xs)' }}>Page {currentPage} of {totalPages}</div>
-                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next →</button>
+                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next â†’</button>
               </div>
             </div>
           )}
@@ -389,7 +389,7 @@ export default function SwingCandidates() {
         <div className="card-head">
           <div>
             <div className="card-title">Score Components</div>
-            <div className="card-sub">Click a row to update the radar · double-click to open detail</div>
+            <div className="card-sub">Click a row to update the radar Â· double-click to open detail</div>
           </div>
         </div>
         <div className="card-body">
@@ -409,7 +409,7 @@ export default function SwingCandidates() {
   );
 }
 
-// ─── top A+ card with sparkline ────────────────────────────────────────────
+// â”€â”€â”€ top A+ card with sparkline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TopCard({ c, onClick }) {
   const { data } = useApiQuery(
     ['spark', c.symbol],
@@ -438,7 +438,7 @@ function TopCard({ c, onClick }) {
         <span className="badge badge-success">{c.grade}</span>
       </div>
       <div className="t-2xs muted" style={{ marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {c.sector || '—'}
+        {c.sector || 'â€”'}
       </div>
       <div style={{ height: 44, marginBottom: 6 }}>
         {series.length >= 2 ? (
@@ -466,7 +466,7 @@ function TopCard({ c, onClick }) {
   );
 }
 
-// ─── component radar ───────────────────────────────────────────────────────
+// â”€â”€â”€ component radar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ComponentRadar({ items: itemsProp, selected }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -535,7 +535,7 @@ function ComponentRadar({ items: itemsProp, selected }) {
   );
 }
 
-// ─── sector treemap ────────────────────────────────────────────────────────
+// â”€â”€â”€ sector treemap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SectorTreemap({ items: itemsProp, onSectorClick }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -559,7 +559,7 @@ function SectorTreemap({ items: itemsProp, onSectorClick }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Concentration</div>
-          <div className="card-sub">Top-50 candidates by sector · click to filter</div>
+          <div className="card-sub">Top-50 candidates by sector Â· click to filter</div>
         </div>
       </div>
       <div className="card-body">
@@ -592,7 +592,7 @@ function TreemapCell({ x, y, width, height, name, size, colors, onClick, index }
         <>
           <text x={x + 6} y={y + 16} fill="var(--text)" fontSize={11}
             fontWeight="600" style={{ pointerEvents: 'none' }}>
-            {name && name.length > 18 ? name.slice(0, 16) + '…' : name}
+            {name && name.length > 18 ? name.slice(0, 16) + 'â€¦' : name}
           </text>
           <text x={x + 6} y={y + 32} fill="var(--text-2)" fontSize={10}
             style={{ pointerEvents: 'none' }}>
@@ -604,7 +604,7 @@ function TreemapCell({ x, y, width, height, name, size, colors, onClick, index }
   );
 }
 
-// ─── grade distribution + funnel ───────────────────────────────────────────
+// â”€â”€â”€ grade distribution + funnel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function GradeFunnel({ items: itemsProp }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -620,8 +620,8 @@ function GradeFunnel({ items: itemsProp }) {
     const buckets = {
       'Universe': total,
       'Has data': items.filter(i => i.swing_score != null).length,
-      'Score ≥ 40': items.filter(i => Number(i.swing_score) >= 40).length,
-      'Score ≥ 60': items.filter(i => Number(i.swing_score) >= 60).length,
+      'Score â‰¥ 40': items.filter(i => Number(i.swing_score) >= 40).length,
+      'Score â‰¥ 60': items.filter(i => Number(i.swing_score) >= 60).length,
       'Grade B+': items.filter(i => ['B', 'A', 'A+'].includes(i.grade)).length,
       'Pass gates': items.filter(i => i.pass_gates).length,
     };
@@ -685,7 +685,7 @@ function GradeFunnel({ items: itemsProp }) {
   );
 }
 
-// ─── component correlation matrix ──────────────────────────────────────────
+// â”€â”€â”€ component correlation matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ComponentCorrelation({ items: itemsProp }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const matrix = useMemo(() => {
@@ -723,13 +723,13 @@ function ComponentCorrelation({ items: itemsProp }) {
     return (
       <div className="card">
         <div className="card-head"><div><div className="card-title">Component Correlation Matrix</div></div></div>
-        <div className="card-body"><Empty title="Need ≥5 candidates for correlation" /></div>
+        <div className="card-body"><Empty title="Need â‰¥5 candidates for correlation" /></div>
       </div>
     );
   }
 
   const shade = (r) => {
-    // -1 → red, 0 → neutral, +1 → success
+    // -1 â†’ red, 0 â†’ neutral, +1 â†’ success
     if (r > 0) return `rgba(34, 197, 94, ${Math.abs(r) * 0.7 + 0.05})`;
     if (r < 0) return `rgba(239, 68, 68, ${Math.abs(r) * 0.7 + 0.05})`;
     return 'transparent';
@@ -765,7 +765,7 @@ function ComponentCorrelation({ items: itemsProp }) {
                   const cell = matrix.find(m => m.rowIdx === rIdx && m.colIdx === cIdx);
                   const r = cell?.r ?? 0;
                   return (
-                    <td key={lb} title={`${la} × ${lb} = ${r.toFixed(2)}`}
+                    <td key={lb} title={`${la} Ã— ${lb} = ${r.toFixed(2)}`}
                       style={{
                         padding: '8px 4px',
                         textAlign: 'center',
@@ -788,7 +788,7 @@ function ComponentCorrelation({ items: itemsProp }) {
   );
 }
 
-// ─── row ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Row({ c, rank, active, onClick, _onNavigate }) {
   const cmp = c.components || {};
   return (
@@ -802,10 +802,10 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
         <span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{c.symbol}</span>
       </td>
       <td className="t-xs muted" style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {c.sector || '—'}
+        {c.sector || 'â€”'}
       </td>
       <td>
-        <span className={`badge ${GRADE_CLASS[c.grade] || 'badge'}`}>{c.grade || '—'}</span>
+        <span className={`badge ${GRADE_CLASS[c.grade] || 'badge'}`}>{c.grade || 'â€”'}</span>
       </td>
       <td className="num mono tnum" style={{ fontWeight: 'var(--w-semibold)' }}>
         {num(c.swing_score, 1)}
@@ -832,7 +832,7 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
   );
 }
 
-// ─── small ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ small â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Kpi({ label, value, sub, tone }) {
   return (
     <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
@@ -867,3 +867,4 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+

@@ -1,10 +1,10 @@
-/**
- * Trade Tracker — every action the algo takes.
+﻿/**
+ * Trade Tracker â€” every action the algo takes.
  *
  * Pure JSX + theme.css classes. Three tabs:
- *   1. Trades — open + closed positions w/ row expansion (full reasoning)
- *   2. Activity — algo audit log (entries, exits, stops, halts, skips)
- *   3. Notifications — circuit-breaker / sector-rotation / etc alerts
+ *   1. Trades â€” open + closed positions w/ row expansion (full reasoning)
+ *   2. Activity â€” algo audit log (entries, exits, stops, halts, skips)
+ *   3. Notifications â€” circuit-breaker / sector-rotation / etc alerts
  */
 
 import React, { useState, useMemo } from 'react';
@@ -17,11 +17,11 @@ import {
 import { api } from '../services/api';
 import PreviewModal from '../components/PreviewModal';
 
-// ─── helpers ───────────────────────────────────────────────────────────────
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
+const fmtMoney = (v) => v == null ? 'â€”' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtAgo = (ts) => {
-  if (!ts) return '—';
+  if (!ts) return 'â€”';
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
   if (s < 60) return `${Math.floor(s)}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -29,14 +29,14 @@ const fmtAgo = (ts) => {
   return `${Math.floor(s / 86400)}d ago`;
 };
 const Pnl = ({ value, suffix = '' }) => {
-  if (value == null || isNaN(Number(value))) return <span className="muted">—</span>;
+  if (value == null || isNaN(Number(value))) return <span className="muted">â€”</span>;
   const v = Number(value);
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
   const sign = v > 0 ? '+' : '';
   return <span className={`mono tnum ${cls}`} style={{ fontWeight: 'var(--w-semibold)' }}>{sign}{v.toFixed(2)}{suffix}</span>;
 };
 
-// ─── main ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function TradeTracker() {
   const [tab, setTab] = useState('trades');
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -52,7 +52,7 @@ export default function TradeTracker() {
         <div>
           <div className="page-head-title">Trade Tracker</div>
           <div className="page-head-sub">
-            Every action the algo takes — entries, exits, stops, pyramids, halts, skipped signals
+            Every action the algo takes â€” entries, exits, stops, pyramids, halts, skipped signals
           </div>
         </div>
         <button onClick={() => setPreviewOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }} className="btn">
@@ -83,7 +83,7 @@ export default function TradeTracker() {
   );
 }
 
-// ─── TABS ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Tabs({ tabs, value, onChange }) {
   return (
     <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
@@ -117,7 +117,7 @@ function Tabs({ tabs, value, onChange }) {
   );
 }
 
-// ─── TRADES VIEW ───────────────────────────────────────────────────────────
+// â”€â”€â”€ TRADES VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TradesView() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('all');
@@ -188,7 +188,7 @@ function TradesView() {
           </select>
         </div>
 
-        {(lp || lt) ? <Empty title="Loading…" /> : rows.length === 0 ? <Empty title="No trades" /> : (
+        {(lp || lt) ? <Empty title="Loadingâ€¦" /> : rows.length === 0 ? <Empty title="No trades" /> : (
           <div style={{ overflow: 'auto', maxHeight: '70vh', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
             <table className="data-table">
               <thead>
@@ -233,12 +233,12 @@ function TradesView() {
                         </td>
                         <td className="num">{fmtMoney(row.entry_price || row.avg_entry_price)}</td>
                         <td className="num">{fmtMoney(px)}</td>
-                        <td className="num">{row.quantity || row.entry_quantity || '—'}</td>
+                        <td className="num">{row.quantity || row.entry_quantity || 'â€”'}</td>
                         <td className="num"><Pnl value={pl} /></td>
                         <td className="num"><Pnl value={plPct} suffix="%" /></td>
-                        <td className="num">{rMult != null ? <Pnl value={rMult} suffix="R" /> : '—'}</td>
-                        <td className="num muted">{days || '—'}</td>
-                        <td className="muted t-xs">{reason || '—'}</td>
+                        <td className="num">{rMult != null ? <Pnl value={rMult} suffix="R" /> : 'â€”'}</td>
+                        <td className="num muted">{days || 'â€”'}</td>
+                        <td className="muted t-xs">{reason || 'â€”'}</td>
                       </tr>
                       {expanded && (
                         <tr>
@@ -271,7 +271,7 @@ function TradeReasoning({ row, isOpen }) {
         <Detail label="Stop" value={fmtMoney(row.current_stop_price || row.initial_stop)} />
         <Detail label="Base type" value={row.base_type} />
         <Detail label="Stage phase" value={row.stage_phase} />
-        <Detail label="Swing score" value={row.swing_score != null ? `${row.swing_score} (${row.swing_grade || '?'})` : '—'} />
+        <Detail label="Swing score" value={row.swing_score != null ? `${row.swing_score} (${row.swing_grade || '?'})` : 'â€”'} />
       </div>
       <div>
         <div className="eyebrow" style={{ marginBottom: 8 }}>{isOpen ? 'Position health' : 'Exit context'}</div>
@@ -288,8 +288,8 @@ function TradeReasoning({ row, isOpen }) {
             <Detail label="Exit $" value={fmtMoney(row.exit_price)} />
             <Detail label="Exit reason" value={row.exit_reason} />
             <Detail label="Days held" value={row.trade_duration_days} />
-            <Detail label="R multiple" value={row.exit_r_multiple != null ? `${num(row.exit_r_multiple)}R` : '—'} />
-            <Detail label="MFE / MAE" value={`${row.mfe_pct || '—'}% / ${row.mae_pct || '—'}%`} />
+            <Detail label="R multiple" value={row.exit_r_multiple != null ? `${num(row.exit_r_multiple)}R` : 'â€”'} />
+            <Detail label="MFE / MAE" value={`${row.mfe_pct || 'â€”'}% / ${row.mae_pct || 'â€”'}%`} />
           </>
         )}
       </div>
@@ -300,12 +300,12 @@ function Detail({ label, value }) {
   return (
     <div className="flex" style={{ padding: '4px 0', fontSize: 'var(--t-xs)' }}>
       <span className="muted" style={{ minWidth: 130 }}>{label}</span>
-      <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || '—'}</span>
+      <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || 'â€”'}</span>
     </div>
   );
 }
 
-// ─── ACTIVITY VIEW ─────────────────────────────────────────────────────────
+// â”€â”€â”€ ACTIVITY VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ACTION_ICON = {
   ENTRY: <Bolt size={16} className="up" />,
   EXIT: <Minus size={16} className="down" />,
@@ -345,7 +345,7 @@ function ActivityView() {
       <div className="card-head">
         <div>
           <div className="card-title">Activity Log</div>
-          <div className="card-sub">algo_audit_log · every decision the algo makes</div>
+          <div className="card-sub">algo_audit_log Â· every decision the algo makes</div>
         </div>
         <div className="card-actions">
           <button className="btn btn-icon btn-ghost" onClick={refetch}><RefreshCw size={14} /></button>
@@ -372,7 +372,7 @@ function ActivityView() {
           </div>
         </div>
 
-        {isLoading ? <Empty title="Loading…" /> : logError?.status === 403 ? (
+        {isLoading ? <Empty title="Loadingâ€¦" /> : logError?.status === 403 ? (
           <Empty title="Admin access required" desc="The audit log is restricted to admin accounts." />
         ) : items.length === 0 ? (
           <Empty title="No activity yet" desc="The algo logs every decision here. Entries appear after each orchestrator run." />
@@ -406,10 +406,10 @@ function ActivityRow({ item }) {
         <div className="flex-1" style={{ minWidth: 0 }}>
           <div className="t-sm strong" style={{ fontWeight: 'var(--w-medium)', color: failed ? 'var(--danger)' : 'var(--text)' }}>
             {item.action_type}
-            {item.symbol && <span className="muted" style={{ marginLeft: 8 }}>· {item.symbol}</span>}
+            {item.symbol && <span className="muted" style={{ marginLeft: 8 }}>Â· {item.symbol}</span>}
           </div>
           <div className="t-xs muted">
-            {fmtAgo(item.created_at)} · {item.actor || 'orchestrator'}
+            {fmtAgo(item.created_at)} Â· {item.actor || 'orchestrator'}
             {failed && <span className="down" style={{ marginLeft: 8 }}>FAILED</span>}
           </div>
         </div>
@@ -434,7 +434,7 @@ function ActivityRow({ item }) {
   );
 }
 
-// ─── NOTIFICATIONS VIEW ────────────────────────────────────────────────────
+// â”€â”€â”€ NOTIFICATIONS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NotificationsView() {
   const { data, loading: isLoading, error: notifError, refetch } = useApiQuery(
     ['algo-notifications-all'],
@@ -459,7 +459,7 @@ function NotificationsView() {
         </div>
       </div>
       <div className="card-body">
-        {isLoading ? <Empty title="Loading…" /> : items.length === 0 ? (
+        {isLoading ? <Empty title="Loadingâ€¦" /> : items.length === 0 ? (
           <Empty title="No active notifications" desc="Quiet markets." />
         ) : (
           <div className="flex flex-col gap-2">
@@ -485,7 +485,7 @@ function NotificationsView() {
   );
 }
 
-// ─── EMPTY ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ EMPTY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Empty({ title, desc }) {
   return (
     <div className="empty">
@@ -495,3 +495,4 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+

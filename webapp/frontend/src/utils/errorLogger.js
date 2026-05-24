@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Centralized error logging utility for consistent error handling across all pages
  * Enhanced with circular reference protection and comprehensive error details
  */
@@ -66,16 +66,16 @@ export const logApiError = (component, operation, error, context = {}) => {
 
   // Log structured error information (using console.log to avoid recursion)
   if (import.meta.env && import.meta.env.DEV) {
-    console.group(`❌ ${component} - ${operation} failed`);
-    console.log(`💥 Error: ${errorMessage}`);
+    console.group(`âŒ ${component} - ${operation} failed`);
+    console.log(`ðŸ’¥ Error: ${errorMessage}`);
 
     // Log additional context if provided (with safe stringification)
-    if (context.url) console.log(`🌐 URL: ${context.url}`);
-    if (context.status) console.log(`🚦 Status: ${context.status}`);
+    if (context.url) console.log(`ðŸŒ URL: ${context.url}`);
+    if (context.status) console.log(`ðŸš¦ Status: ${context.status}`);
 
     // Log full error details safely (avoid circular references)
     try {
-      console.log(`📄 Full Error Details:`, safeStringify(error));
+      console.log(`ðŸ“„ Full Error Details:`, safeStringify(error));
     } catch (stringifyError) {
       console.log("Failed to stringify error:", stringifyError);
     }
@@ -88,10 +88,10 @@ export const logApiError = (component, operation, error, context = {}) => {
         status: error.response?.status,
         statusText: error.response?.statusText,
       };
-      console.log(`🔗 Axios Details:`, axiosDetails);
+      console.log(`ðŸ”— Axios Details:`, axiosDetails);
     }
 
-    console.log(`📚 Stack Trace:`, errorStack);
+    console.log(`ðŸ“š Stack Trace:`, errorStack);
     console.groupEnd();
   }
 };
@@ -138,7 +138,7 @@ export const logApiSuccess = (
   };
 
   if (import.meta.env && import.meta.env.DEV) {
-    console.log(`✅ ${component} - ${operation} succeeded`, successLog);
+    console.log(`âœ… ${component} - ${operation} succeeded`, successLog);
   }
 };
 
@@ -157,7 +157,7 @@ export const createComponentLogger = (component) => ({
   info: (message, context) =>
     import.meta.env &&
     import.meta.env.DEV &&
-    console.log(`ℹ️ ${component}:`, message, context),
+    console.log(`â„¹ï¸ ${component}:`, message, context),
 });
 
 export default {
@@ -166,3 +166,4 @@ export default {
   logApiSuccess,
   createComponentLogger,
 };
+

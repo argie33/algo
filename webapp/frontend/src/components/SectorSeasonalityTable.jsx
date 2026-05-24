@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import {
   Box,
   Card,
@@ -95,7 +95,7 @@ const SectorSeasonalityTable = ({ data }) => {
   };
 
   const formatReturn = (value) => {
-    if (value === undefined || value === null) return "—";
+    if (value === undefined || value === null) return "â€”";
     const sign = value > 0 ? "+" : "";
     return `${sign}${value.toFixed(1)}%`;
   };
@@ -272,3 +272,4 @@ const SectorSeasonalityTable = ({ data }) => {
 };
 
 export default SectorSeasonalityTable;
+

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+﻿import { screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import { renderWithProvidersNoRouter } from "../../../test-utils.jsx";
@@ -321,3 +321,4 @@ describe("UI ErrorBoundary", () => {
     });
   });
 });
+

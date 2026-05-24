@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared date formatting utilities for chart components
  */
 
@@ -22,3 +22,4 @@ export const formatXAxisDate = (dateString) => {
 export default {
   formatXAxisDate,
 };
+

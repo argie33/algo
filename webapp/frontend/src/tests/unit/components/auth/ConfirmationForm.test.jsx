@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+﻿import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import ConfirmationForm from "../../../../components/auth/ConfirmationForm";
 
@@ -112,3 +112,4 @@ describe("ConfirmationForm", () => {
     expect(onSwitchToLogin).toHaveBeenCalled();
   });
 });
+

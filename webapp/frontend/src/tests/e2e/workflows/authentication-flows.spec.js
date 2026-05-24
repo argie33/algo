@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Authentication Flow Tests
  * Tests login, logout, API key setup, and protected routes
  */
@@ -150,7 +150,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
           accessibleRoutes++;
         }
       } catch (error) {
-        console.log(`⚠️ ${route}: Error - ${error.message.slice(0, 50)}`);
+        console.log(`âš ï¸ ${route}: Error - ${error.message.slice(0, 50)}`);
       }
     }
 
@@ -247,3 +247,4 @@ test.describe("Financial Platform - Authentication Flows", () => {
     expect(true).toBe(true); // Test passes if page loads
   });
 });
+

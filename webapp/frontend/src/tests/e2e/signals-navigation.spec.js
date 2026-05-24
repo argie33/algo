@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Trading Signals Navigation and Basic Functionality E2E Test
  * Tests the signals page is accessible via menu and loads correctly
  */

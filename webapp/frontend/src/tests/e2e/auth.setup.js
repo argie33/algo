@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Authentication Setup for E2E Tests
  * Creates authenticated state for all tests
  */
@@ -29,3 +29,4 @@ setup("authenticate", async ({ page }) => {
   await page.waitForTimeout(1000); // Brief pause for hydration
 
 });
+

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -353,7 +353,7 @@ const Firm = () => {
                   mb: 1,
                 }}
               >
-                👥 Expert Leadership
+                ðŸ‘¥ Expert Leadership
               </Typography>
             </Box>
             <Typography
@@ -403,7 +403,7 @@ const Firm = () => {
                       flexShrink: 0,
                     }}
                   >
-                    ✓
+                    âœ“
                   </Box>
                   <Typography sx={{ color: theme.palette.text.secondary, fontSize: '1rem' }}>
                     {credential}
@@ -569,7 +569,7 @@ const Firm = () => {
                       mb: 2,
                     }}
                   >
-                    ✓
+                    âœ“
                   </Box>
                   <Typography
                     sx={{
@@ -717,7 +717,7 @@ const Firm = () => {
           variant="primary"
           title="Ready to Partner With Bullseye?"
           subtitle="Access research-driven insights and institutional-grade advisory solutions designed for serious investors."
-          primaryCTA={{ label: 'Explore Platform', link: '/app/market' }}
+          primaryCTA={{ label: 'Explore Platform', link: '/app/markets' }}
           secondaryCTA={{ label: 'View Team', link: '/our-team' }}
         />
       </Box>
@@ -726,3 +726,4 @@ const Firm = () => {
 };
 
 export default Firm;
+

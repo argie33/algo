@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AuthFixer Utility Unit Tests
  * Tests the development authentication helper
  */
@@ -310,3 +310,4 @@ describe("AuthFixer Utility", () => {
     });
   });
 });
+

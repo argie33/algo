@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useWebSocket Hook API Contract Tests
  *
  * NOTE: This hook currently uses a mock implementation since WebSocket
@@ -260,3 +260,4 @@ describe.skip("useWebSocket Hook API Contract", () => {
     expect(result.current.error).toBe(null);
   });
 });
+

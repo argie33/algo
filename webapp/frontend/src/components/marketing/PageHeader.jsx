@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Box, Container, Typography, useTheme, alpha } from '@mui/material';
 
 /**
@@ -68,3 +68,4 @@ const PageHeader = ({ title, subtitle }) => {
 };
 
 export default PageHeader;
+

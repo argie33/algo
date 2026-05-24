@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AWS Amplify Proxy - Delegates to real AWS Amplify library
  * This wrapper handles ES module compatibility issues while providing full functionality
  */
@@ -42,3 +42,4 @@ export * from './auth/index.js';
 export default {
   Amplify,
 };
+

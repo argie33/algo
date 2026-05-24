@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, useTheme, Grid, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -118,7 +118,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Our platform represents years of research infrastructure development, integrating over a decade of market data, advanced analytical models, and systematic research methodology. The result is comprehensive equity coverage underpinned by rigorous quantitative frameworks and institutional-grade research practices—delivering the analysis that professional investors require for disciplined capital allocation.
+                Our platform represents years of research infrastructure development, integrating over a decade of market data, advanced analytical models, and systematic research methodology. The result is comprehensive equity coverage underpinned by rigorous quantitative frameworks and institutional-grade research practicesâ€”delivering the analysis that professional investors require for disciplined capital allocation.
               </Typography>
             </Grid>
 
@@ -149,7 +149,7 @@ const About = () => {
           variant="primary"
           title="Ready to Get Started?"
           subtitle="Join investors using Bullseye Financial for evidence-based market analysis."
-          primaryCTA={{ label: 'Launch Platform', link: '/app/market' }}
+          primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
           secondaryCTA={{ label: 'Become a Client', link: '/contact' }}
         />
       </Box>
@@ -158,3 +158,4 @@ const About = () => {
 };
 
 export default About;
+

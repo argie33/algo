@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Sector Analysis Page E2E Tests", () => {
   test.setTimeout(30000);
@@ -49,11 +49,11 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       );
 
       console.log(
-        `📊 Sector Analysis: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
+        `ðŸ“Š Sector Analysis: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 
       if (muiTabsErrors.length > 0) {
-        console.log("❌ MUI Tabs errors on Sector Analysis:");
+        console.log("âŒ MUI Tabs errors on Sector Analysis:");
         muiTabsErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
@@ -72,7 +72,7 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       expect(hasSectorContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("⚠️ Sector Analysis failed to load:", error.message);
+      console.log("âš ï¸ Sector Analysis failed to load:", error.message);
       await page.screenshot({ path: 'debug-sector-analysis.png' });
       throw error;
     }

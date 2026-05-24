@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+﻿import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import RegisterForm from "../../../../components/auth/RegisterForm";
 
@@ -283,3 +283,4 @@ describe("RegisterForm", () => {
 
   // Loading state test removed due to mock complexity issues - functionality tested in integration tests
 });
+

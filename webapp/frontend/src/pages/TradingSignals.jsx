@@ -1,9 +1,9 @@
-/**
- * Trading Signals — analytical workbench for swing-trader signals.
+﻿/**
+ * Trading Signals â€” analytical workbench for swing-trader signals.
  *
  * Sections:
  *   - Enhanced KPI strip (totals + crossings + freshness + quality)
- *   - 4-quadrant heatmap (SQS × age, sized by volume)
+ *   - 4-quadrant heatmap (SQS Ã— age, sized by volume)
  *   - Setup-type breakdown (BUY signals by base type)
  *   - Recent signal performance (5d/20d return + hit rate)
  *   - SQS distribution histogram
@@ -24,11 +24,11 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
-// ─── formatters ────────────────────────────────────────────────────────────
-const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
-const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
-const fmtInt = (v) => v == null ? '—' : Number(v).toLocaleString('en-US');
-const _num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+// â”€â”€â”€ formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const fmtMoney = (v) => v == null ? 'â€”' : `$${Number(v).toFixed(2)}`;
+const fmtPct = (v) => v == null ? 'â€”' : `${Number(v).toFixed(2)}%`;
+const fmtInt = (v) => v == null ? 'â€”' : Number(v).toLocaleString('en-US');
+const _num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -70,7 +70,7 @@ const sqsOf = (r) =>
   r.strength ??
   null;
 
-// ─── main page ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function TradingSignals() {
   const [tab, setTab] = useState('stocks');
   const [signal, setSignal] = useState('all');
@@ -84,7 +84,7 @@ export default function TradingSignals() {
   const [baseTypeFilter, setBaseTypeFilter] = useState('all');
   const [expandedKey, setExpandedKey] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [freshness, setFreshness] = useState('—');
+  const [freshness, setFreshness] = useState('â€”');
   const [limit, setLimit] = useState(500); // Allow user to change limit
 
   // Trigger resize after mount to force charts to remeasure
@@ -238,7 +238,7 @@ export default function TradingSignals() {
       total: filtered.length,
       buys: buys.length,
       sells: sells.length,
-      ratio: sells.length === 0 ? '∞' : (buys.length / sells.length).toFixed(2),
+      ratio: sells.length === 0 ? 'âˆž' : (buys.length / sells.length).toFixed(2),
       // Total available (before filters) for reference
       totalAvailable: enriched.length,
       totalBuysAvailable: totalBuys.length,
@@ -257,8 +257,8 @@ export default function TradingSignals() {
           <div className="page-head-title">Trading Signals</div>
           <div className="page-head-sub">
             {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
-            {' · click any row for full detail'}
-            {' · '}
+            {' Â· click any row for full detail'}
+            {' Â· '}
             <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
               <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
               Updated {freshness}
@@ -328,7 +328,7 @@ export default function TradingSignals() {
         <div className="kpi">
           <div className="kpi-label">Fresh BUYs</div>
           <div className="kpi-value up">{kpi.fresh}</div>
-          <div className="kpi-sub">≤ 3 days old</div>
+          <div className="kpi-sub">â‰¤ 3 days old</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">High Quality BUYs</div>
@@ -337,13 +337,13 @@ export default function TradingSignals() {
         </div>
       </div>
 
-      {/* Charts row 1 — heatmap + setup breakdown */}
+      {/* Charts row 1 â€” heatmap + setup breakdown */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
         <SignalHeatmap rows={filtered} />
         <SetupBreakdown rows={filtered} />
       </div>
 
-      {/* Charts row 2 — performance + SQS histogram */}
+      {/* Charts row 2 â€” performance + SQS histogram */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
         <RecentPerformance rows={enriched} timeframe={timeframe} />
         <SqsHistogram rows={filtered} />
@@ -394,7 +394,7 @@ export default function TradingSignals() {
         {/* Sliders + chips */}
         <div className="flex gap-3" style={{ flexWrap: 'wrap', marginTop: 'var(--space-3)', alignItems: 'center' }}>
           <SliderField label="SQS range" value={scoreRange[0]} max={100}
-            onChange={v => setScoreRange([Number(v), scoreRange[1]])} suffix={`–${scoreRange[1]}`} />
+            onChange={v => setScoreRange([Number(v), scoreRange[1]])} suffix={`â€“${scoreRange[1]}`} />
           <SliderField label="" value={scoreRange[1]} max={100}
             onChange={v => setScoreRange([scoreRange[0], Number(v)])} suffix="" />
           <SliderField label="Max age (days)" value={maxAge} max={90}
@@ -433,7 +433,7 @@ export default function TradingSignals() {
   );
 }
 
-// ─── slider field ──────────────────────────────────────────────────────────
+// â”€â”€â”€ slider field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SliderField({ label, value, max, onChange, suffix }) {
   return (
     <div className="flex items-center gap-2" style={{ minWidth: 200 }}>
@@ -451,7 +451,7 @@ function SliderField({ label, value, max, onChange, suffix }) {
   );
 }
 
-// ─── chart: signal heatmap ─────────────────────────────────────────────────
+// â”€â”€â”€ chart: signal heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SignalHeatmap({ rows }) {
   const data = useMemo(() => rows
     .map(r => ({
@@ -459,7 +459,7 @@ function SignalHeatmap({ rows }) {
       sqs: Number(r._sqs),
       age: Number(r._age),
       vol: Number(r.volume) || 1,
-      sector: r.sector || '—',
+      sector: r.sector || 'â€”',
       close: Number(r.close),
       sig: (r.signal || '').toUpperCase(),
     }))
@@ -474,7 +474,7 @@ function SignalHeatmap({ rows }) {
       <div className="card-head">
         <div>
           <div className="card-title">Signal Heatmap</div>
-          <div className="card-sub">SQS × Age · bubble size = volume · click to drill</div>
+          <div className="card-sub">SQS Ã— Age Â· bubble size = volume Â· click to drill</div>
         </div>
       </div>
       <div className="card-body">
@@ -506,7 +506,7 @@ function SignalHeatmap({ rows }) {
                         <div style={TOOLTIP_STYLE}>
                           <div style={{ fontWeight: 'var(--w-semibold)' }}>{p.symbol} <span style={{ color: p.sig === 'BUY' ? 'var(--success)' : 'var(--danger)' }}>{p.sig}</span></div>
                           <div className="muted t-2xs">{p.sector}</div>
-                          <div className="t-2xs">${p.close.toFixed(2)} · SQS {p.sqs.toFixed(1)} · {p.age}d</div>
+                          <div className="t-2xs">${p.close.toFixed(2)} Â· SQS {p.sqs.toFixed(1)} Â· {p.age}d</div>
                         </div>
                       );
                     }} />
@@ -523,7 +523,7 @@ function SignalHeatmap({ rows }) {
   );
 }
 
-// ─── chart: setup type breakdown ───────────────────────────────────────────
+// â”€â”€â”€ chart: setup type breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SetupBreakdown({ rows }) {
   const data = useMemo(() => {
     const buckets = {};
@@ -561,7 +561,7 @@ function SetupBreakdown({ rows }) {
                   <XAxis type="number" stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="type" stroke="var(--text-3)" fontSize={11}
                     tickLine={false} width={130}
-                    tickFormatter={(v) => v.length > 16 ? v.slice(0, 14) + '…' : v} />
+                    tickFormatter={(v) => v.length > 16 ? v.slice(0, 14) + 'â€¦' : v} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                     {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -575,7 +575,7 @@ function SetupBreakdown({ rows }) {
   );
 }
 
-// ─── chart: recent performance (look-back) ─────────────────────────────────
+// â”€â”€â”€ chart: recent performance (look-back) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RecentPerformance({ rows, timeframe }) {
   // For BUY signals from last 30 days, fetch price history per symbol and
   // compute 5d / 20d forward returns. Returns aggregated stats.
@@ -656,32 +656,32 @@ function RecentPerformance({ rows, timeframe }) {
       <div className="card-head">
         <div>
           <div className="card-title">Recent Signal Performance</div>
-          <div className="card-sub">BUY signals 5–30d ago · forward returns</div>
+          <div className="card-sub">BUY signals 5â€“30d ago Â· forward returns</div>
         </div>
       </div>
       <div className="card-body">
         {recentBuys.length === 0 ? (
           <Empty title="No mature BUYs" desc="Need BUY signals 5+ days old to compute returns." />
         ) : isLoading ? (
-          <Empty title="Computing forward returns…" />
+          <Empty title="Computing forward returnsâ€¦" />
         ) : !stats ? (
           <Empty title="No performance data available" />
         ) : (
           <div className="grid grid-3" style={{ gap: 'var(--space-3)' }}>
             <Stile label="Avg 5d return"
-              value={stats.avg5 != null ? `${stats.avg5 >= 0 ? '+' : ''}${stats.avg5.toFixed(2)}%` : '—'}
+              value={stats.avg5 != null ? `${stats.avg5 >= 0 ? '+' : ''}${stats.avg5.toFixed(2)}%` : 'â€”'}
               tone={stats.avg5 == null ? 'flat' : stats.avg5 >= 0 ? 'up' : 'down'}
               sub={`n=${stats.n5}`} />
             <Stile label="Avg 20d return"
-              value={stats.avg20 != null ? `${stats.avg20 >= 0 ? '+' : ''}${stats.avg20.toFixed(2)}%` : '—'}
+              value={stats.avg20 != null ? `${stats.avg20 >= 0 ? '+' : ''}${stats.avg20.toFixed(2)}%` : 'â€”'}
               tone={stats.avg20 == null ? 'flat' : stats.avg20 >= 0 ? 'up' : 'down'}
               sub={`n=${stats.n20}`} />
             <Stile label="Hit rate (20d)"
-              value={stats.hit20 != null ? `${stats.hit20.toFixed(0)}%` : '—'}
+              value={stats.hit20 != null ? `${stats.hit20.toFixed(0)}%` : 'â€”'}
               tone={stats.hit20 == null ? 'flat' : stats.hit20 >= 50 ? 'up' : 'down'}
               sub={`% positive @ 20d`} />
             <div className="muted t-2xs col-span-3" style={{ marginTop: 4 }}>
-              Loaded: {stats.sample}/{stats.attempted} symbols · {timeframe} bars {stats.attempted > stats.sample ? `(${stats.attempted - stats.sample} price fetch failures)` : ''}
+              Loaded: {stats.sample}/{stats.attempted} symbols Â· {timeframe} bars {stats.attempted > stats.sample ? `(${stats.attempted - stats.sample} price fetch failures)` : ''}
             </div>
           </div>
         )}
@@ -690,11 +690,11 @@ function RecentPerformance({ rows, timeframe }) {
   );
 }
 
-// ─── chart: SQS distribution histogram ─────────────────────────────────────
+// â”€â”€â”€ chart: SQS distribution histogram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SqsHistogram({ rows }) {
   const data = useMemo(() => {
     const bins = Array.from({ length: 10 }, (_, i) => ({
-      range: `${i * 10}–${i * 10 + 10}`,
+      range: `${i * 10}â€“${i * 10 + 10}`,
       lo: i * 10, hi: i * 10 + 10, count: 0,
     }));
     rows.filter(r => (r.signal || '').toUpperCase() === 'BUY' && r._sqs != null).forEach(r => {
@@ -744,15 +744,15 @@ function SqsHistogram({ rows }) {
             <div className="flex gap-4" style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-2xs)', flexWrap: 'wrap' }}>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--success)', borderRadius: 2 }} />
-                <span className="muted">≥80 Excellent</span>
+                <span className="muted">â‰¥80 Excellent</span>
               </div>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--brand)', borderRadius: 2 }} />
-                <span className="muted">60–79 Good</span>
+                <span className="muted">60â€“79 Good</span>
               </div>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--amber)', borderRadius: 2 }} />
-                <span className="muted">40–59 Fair</span>
+                <span className="muted">40â€“59 Fair</span>
               </div>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--danger)', borderRadius: 2 }} />
@@ -766,7 +766,7 @@ function SqsHistogram({ rows }) {
   );
 }
 
-// ─── stile ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ stile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Stile({ label, value, sub, tone }) {
   return (
     <div className="stile">
@@ -777,10 +777,10 @@ function Stile({ label, value, sub, tone }) {
   );
 }
 
-// ─── table ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
   const navigate = useNavigate();
-  if (loading) return <Empty title="Loading…" />;
+  if (loading) return <Empty title="Loadingâ€¦" />;
   if (rows.length === 0) return <Empty title="No active signals" desc={`No ${kind} signals match these filters.`} />;
 
   return (
@@ -788,10 +788,10 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
       {/* Data legend and help text */}
       <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
         <strong>Column meanings:</strong>
-        <span> SQS = Composite signal quality (from algo evaluation, shows "—" if algo hasn't evaluated yet)</span>
-        <span> • Gates = Algo qualification (PASS/FAIL with grade, or "—" if unevaluated)</span>
-        <span> • Age = Days since signal triggered</span>
-        <span> • Click any row for full details</span>
+        <span> SQS = Composite signal quality (from algo evaluation, shows "â€”" if algo hasn't evaluated yet)</span>
+        <span> â€¢ Gates = Algo qualification (PASS/FAIL with grade, or "â€”" if unevaluated)</span>
+        <span> â€¢ Age = Days since signal triggered</span>
+        <span> â€¢ Click any row for full details</span>
       </div>
       <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
         <table className="data-table">
@@ -828,13 +828,13 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                         {expanded ? <ChevronUp size={12} className="muted" /> : <ChevronDown size={12} className="muted" />}
                       </div>
                     </td>
-                    <td className="muted t-xs">{r.sector || '—'}</td>
+                    <td className="muted t-xs">{r.sector || 'â€”'}</td>
                     <td className="num">{fmtMoney(r.close)}</td>
                     <td className="num">
                       <span className={r.close != null && r.buylevel != null && r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
                     </td>
                     <td className="num">{fmtMoney(r.stoplevel)}</td>
-                    <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
+                    <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? 'â€”' : Number(r.risk_reward_ratio).toFixed(2)}</td>
                     <td className="num">
                       {r._sqs == null ? <span className="muted t-2xs">no score</span> : (
                         <span className={Number(r._sqs) >= 80 ? 'up' : Number(r._sqs) >= 60 ? '' : 'muted'}>
@@ -843,11 +843,11 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                       )}
                     </td>
                     <td className="num">
-                      {rsi == null ? <span className="muted">—</span> :
+                      {rsi == null ? <span className="muted">â€”</span> :
                         <span className={rsi > 70 ? 'down' : rsi < 30 ? 'up' : ''}>{Number(rsi).toFixed(1)}</span>}
                     </td>
                     <td className="num">
-                      {r.volume_surge_pct == null || isNaN(Number(r.volume_surge_pct)) ? <span className="muted">—</span> : (
+                      {r.volume_surge_pct == null || isNaN(Number(r.volume_surge_pct)) ? <span className="muted">â€”</span> : (
                         <span className={Number(r.volume_surge_pct) >= 0 ? 'up' : 'down'}>
                           {Number(r.volume_surge_pct) >= 0 ? '+' : ''}{Number(r.volume_surge_pct).toFixed(1)}%
                         </span>
@@ -857,22 +857,22 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                       {r.base_type ? (
                         <span className={`badge ${BASE_TYPE_VARIANT[r.base_type] || 'badge'}`}
                           title={r.base_length_days ? `${r.base_length_days}d base` : 'chart pattern'}>
-                          {r.base_type}{r.base_length_days ? ` · ${r.base_length_days}d` : ''}
+                          {r.base_type}{r.base_length_days ? ` Â· ${r.base_length_days}d` : ''}
                         </span>
-                      ) : <span className="muted">—</span>}
+                      ) : <span className="muted">â€”</span>}
                     </td>
                     <td>
                       {r.market_stage
                         ? <span className={`badge ${STAGE_VARIANT[r.market_stage] || 'badge'}`}>{r.market_stage.replace('Stage ', 'S')}</span>
-                        : <span className="muted">—</span>}
+                        : <span className="muted">â€”</span>}
                     </td>
                     <td>
-                      {r._pass_gates == null ? <span className="muted t-2xs">—</span>
+                      {r._pass_gates == null ? <span className="muted t-2xs">â€”</span>
                         : r._pass_gates
                           ? <span className="badge badge-success">PASS{r._grade ? ` ${r._grade}` : ''}</span>
                           : <span className="badge badge-danger" title={r._fail_reason || ''}>FAIL</span>}
                     </td>
-                    <td className="num muted t-xs">{r._age != null ? `${r._age}d` : '—'}</td>
+                    <td className="num muted t-xs">{r._age != null ? `${r._age}d` : 'â€”'}</td>
                   </tr>
                   {expanded && (
                     <tr>
@@ -891,14 +891,14 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
   );
 }
 
-// ─── row-expanded detail ───────────────────────────────────────────────────
+// â”€â”€â”€ row-expanded detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SignalDetail({ row, kind, onSymbolClick }) {
   return (
     <div>
       <div className="flex gap-3 items-center" style={{ marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
         {kind === 'stocks' && (
           <button className="btn btn-outline btn-sm" onClick={onSymbolClick}>
-            Open {row.symbol} detail →
+            Open {row.symbol} detail â†’
           </button>
         )}
         {row._grade && <span className={`badge badge-lg ${row._grade.startsWith('A') ? 'badge-success' : row._grade === 'B' ? 'badge-cyan' : row._grade === 'C' ? 'badge-amber' : 'badge'}`}>Grade {row._grade}</span>}
@@ -913,12 +913,12 @@ function SignalDetail({ row, kind, onSymbolClick }) {
 
       <div className="grid grid-3 gap-4" style={{ marginTop: 'var(--space-3)' }}>
         <DetailGroup title="Entry plan" items={[
-          ['Buy zone', `${fmtMoney(row.buy_zone_start)} – ${fmtMoney(row.buy_zone_end)}`],
+          ['Buy zone', `${fmtMoney(row.buy_zone_start)} â€“ ${fmtMoney(row.buy_zone_end)}`],
           ['Pivot', fmtMoney(row.pivot_price)],
           ['Initial stop', fmtMoney(row.initial_stop)],
           ['Trailing stop', fmtMoney(row.trailing_stop)],
-          ['Position size', row.position_size_recommendation || '—'],
-          ['Entry quality', row.entry_quality_score ? `${row.entry_quality_score}/100` : '—'],
+          ['Position size', row.position_size_recommendation || 'â€”'],
+          ['Entry quality', row.entry_quality_score ? `${row.entry_quality_score}/100` : 'â€”'],
         ]} />
         <DetailGroup title="Targets & exits" items={[
           ['Target T1 (+8%)', fmtMoney(row.profit_target_8pct)],
@@ -929,22 +929,22 @@ function SignalDetail({ row, kind, onSymbolClick }) {
           ['Sell level', fmtMoney(row.sell_level)],
         ]} />
         <DetailGroup title="Technicals & strength" items={[
-          ['RSI (14)', row.rsi != null ? Number(row.rsi).toFixed(1) : '—'],
-          ['ADX', row.adx != null ? Number(row.adx).toFixed(1) : '—'],
-          ['ATR', row.atr != null ? Number(row.atr).toFixed(2) : '—'],
+          ['RSI (14)', row.rsi != null ? Number(row.rsi).toFixed(1) : 'â€”'],
+          ['ADX', row.adx != null ? Number(row.adx).toFixed(1) : 'â€”'],
+          ['ATR', row.atr != null ? Number(row.atr).toFixed(2) : 'â€”'],
           ['SMA 50 / 200', `${fmtMoney(row.sma_50)} / ${fmtMoney(row.sma_200)}`],
           ['EMA 21', fmtMoney(row.ema_21)],
-          ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : '—'],
-          ['RS (vs market)', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
+          ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : 'â€”'],
+          ['RS (vs market)', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : 'â€”'],
           ['Avg vol 50d', fmtInt(row.avg_volume_50d)],
-          ['Vol surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
+          ['Vol surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : 'â€”'],
         ]} />
       </div>
     </div>
   );
 }
 
-// ─── inline sparkline ──────────────────────────────────────────────────────
+// â”€â”€â”€ inline sparkline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PriceSparkline({ symbol }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['sparkline', symbol],
@@ -962,7 +962,7 @@ function PriceSparkline({ symbol }) {
     staleTime: 300000,
   });
 
-  if (isLoading) return <div className="muted t-xs">Loading chart…</div>;
+  if (isLoading) return <div className="muted t-xs">Loading chartâ€¦</div>;
   if (error || !data || data.length < 2) return <div className="muted t-xs">No price history available.</div>;
 
   const series = [...data]
@@ -980,7 +980,7 @@ function PriceSparkline({ symbol }) {
   return (
     <div className="panel" style={{ padding: 'var(--space-3) var(--space-4)' }}>
       <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-        <span className="eyebrow">{symbol} · last 60 days</span>
+        <span className="eyebrow">{symbol} Â· last 60 days</span>
         <span className={`mono tnum t-xs ${change >= 0 ? 'up' : 'down'}`}>
           {change >= 0 ? '+' : ''}{change.toFixed(2)}%
         </span>
@@ -1006,7 +1006,7 @@ function PriceSparkline({ symbol }) {
   );
 }
 
-// ─── detail group ──────────────────────────────────────────────────────────
+// â”€â”€â”€ detail group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DetailGroup({ title, items }) {
   return (
     <div>
@@ -1015,7 +1015,7 @@ function DetailGroup({ title, items }) {
         {items.map(([label, value], i) => (
           <div key={i} className="flex" style={{ fontSize: 'var(--t-xs)' }}>
             <span className="muted" style={{ minWidth: 110 }}>{label}</span>
-            <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || '—'}</span>
+            <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || 'â€”'}</span>
           </div>
         ))}
       </div>
@@ -1023,7 +1023,7 @@ function DetailGroup({ title, items }) {
   );
 }
 
-// ─── empty state ───────────────────────────────────────────────────────────
+// â”€â”€â”€ empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Empty({ title, desc }) {
   return (
     <div className="empty">
@@ -1033,3 +1033,4 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+

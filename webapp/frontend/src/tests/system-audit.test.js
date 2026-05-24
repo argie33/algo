@@ -1,4 +1,4 @@
-/**
+﻿/**
  * System Audit Test Suite
  * Tests all pages, API endpoints, and console for errors
  *
@@ -13,7 +13,7 @@ const API_BASE = 'http://localhost:3001';
 
 // List of all app pages to test
 const APP_PAGES = [
-  { path: '/app/market', name: 'Market Overview' },
+  { path: '/app/markets', name: 'Market Overview' },
   { path: '/app/sectors', name: 'Sectors' },
   { path: '/app/economic', name: 'Economic Data' },
   { path: '/app/sentiment', name: 'Sentiment' },
@@ -111,7 +111,7 @@ test.describe('System Audit', () => {
         await page.waitForTimeout(2000);
 
         // Log results
-        console.log(`✓ ${page_info.name}`);
+        console.log(`âœ“ ${page_info.name}`);
         if (errors.length > 0) {
           console.error(`  Errors: ${errors.join('; ')}`);
         }
@@ -148,7 +148,7 @@ test.describe('System Audit', () => {
     });
 
     // Visit main page
-    await page.goto(`${BASE_URL}/app/market`);
+    await page.goto(`${BASE_URL}/app/markets`);
     await page.waitForLoadState('networkidle');
 
     console.log('Network Audit Report:');
@@ -163,3 +163,4 @@ test.describe('System Audit', () => {
     }
   });
 });
+

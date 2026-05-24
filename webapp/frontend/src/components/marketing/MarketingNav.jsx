@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -142,7 +142,7 @@ const MarketingNav = () => {
               fullWidth
               endIcon={<LaunchIcon />}
               onClick={() => {
-                navigate('/app/market');
+                navigate('/app/markets');
                 setMobileMenuOpen(false);
               }}
             >
@@ -265,7 +265,7 @@ const MarketingNav = () => {
                     >
                       {item.label}
                       {item.submenu && (
-                        <Box sx={{ fontSize: '0.8rem', ml: 0.5 }}>▼</Box>
+                        <Box sx={{ fontSize: '0.8rem', ml: 0.5 }}>â–¼</Box>
                       )}
                     </Button>
 
@@ -347,7 +347,7 @@ const MarketingNav = () => {
                 <Button
                   variant="contained"
                   endIcon={<LaunchIcon />}
-                  onClick={() => navigate('/app/market')}
+                  onClick={() => navigate('/app/markets')}
                   sx={{
                     borderRadius: 1,
                     textTransform: 'none',
@@ -379,3 +379,4 @@ const MarketingNav = () => {
 };
 
 export default MarketingNav;
+

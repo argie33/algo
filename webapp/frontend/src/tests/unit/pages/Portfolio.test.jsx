@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor, renderWithProviders } from "../../test-utils.jsx";
+﻿import { screen, fireEvent, waitFor, renderWithProviders } from "../../test-utils.jsx";
 import { vi, describe, test, expect, beforeEach } from "vitest";
 import Portfolio from "../../../pages/Portfolio";
 
@@ -427,3 +427,4 @@ describe("Portfolio", () => {
     });
   });
 });
+

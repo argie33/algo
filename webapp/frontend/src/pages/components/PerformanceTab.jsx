@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   Tooltip as RechartTooltip, ReferenceLine
@@ -67,7 +67,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
         <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="card-head">
             <div className="card-title">
-              Equity Curve {totalReturn != null && <span className="muted t-xs" style={{ fontWeight: 'normal', marginLeft: 8 }}>·  {totalReturn >= 0 ? '+' : ''}{totalReturn}% total return</span>}
+              Equity Curve {totalReturn != null && <span className="muted t-xs" style={{ fontWeight: 'normal', marginLeft: 8 }}>Â·  {totalReturn >= 0 ? '+' : ''}{totalReturn}% total return</span>}
             </div>
           </div>
           <div className="card-body">
@@ -154,7 +154,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
 
       {!performance && (
         <div className="alert alert-info" style={{ marginBottom: 'var(--space-4)' }}>
-          No performance data — needs closed trades + portfolio snapshots
+          No performance data â€” needs closed trades + portfolio snapshots
         </div>
       )}
 
@@ -164,7 +164,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
           <PerfCard label="Total Trades" value={p.total_trades} hint={`${p.winning_trades}W / ${p.losing_trades}L`} />
           <PerfCard label="Win Rate" value={`${p.win_rate_pct}%`} color={numColor(p.win_rate_pct, 50)} hint="of closed trades" />
           <PerfCard label="Expectancy" value={`${p.expectancy_r >= 0 ? '+' : ''}${p.expectancy_r}R`} color={numColor(p.expectancy_r)} hint="per trade" />
-          <PerfCard label="Profit Factor" value={p.profit_factor || '∞'} color={numColor((p.profit_factor || 0) - 1)} hint="gross win / gross loss" />
+          <PerfCard label="Profit Factor" value={p.profit_factor || 'âˆž'} color={numColor((p.profit_factor || 0) - 1)} hint="gross win / gross loss" />
           <PerfCard label="Avg Win" value={`${p.avg_win_r >= 0 ? '+' : ''}${p.avg_win_r}R`} color="var(--success)" hint={`${p.avg_win_pct}%`} />
           <PerfCard label="Avg Loss" value={`${p.avg_loss_r}R`} color="var(--danger)" hint={`${p.avg_loss_pct}%`} />
           <PerfCard label="Avg Hold" value={`${p.avg_hold_days}d`} hint="days per trade" />
@@ -190,3 +190,4 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
     </div>
   );
 }
+

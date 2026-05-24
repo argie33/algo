@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Market Data Contract Test
  *
  * Tests the contract between frontend market components and backend market data API.
@@ -279,3 +279,4 @@ describe("Market Data Contract Tests", () => {
     );
   });
 });
+

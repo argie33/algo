@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Test Infrastructure Check
  * Basic test to verify test infrastructure is working correctly
  */
@@ -75,3 +75,4 @@ describe("Test Infrastructure Check", () => {
     expect(screen.getByText("MUI Button Test")).toBeInTheDocument();
   });
 });
+

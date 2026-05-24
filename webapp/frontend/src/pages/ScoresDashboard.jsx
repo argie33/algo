@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, Filter, Inbox, ChevronLeft, ChevronRight,
@@ -11,10 +11,10 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
-const num = (v, dp = 1) => (v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp));
-const pct = (v, dp = 2) => (v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`);
+const num = (v, dp = 1) => (v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp));
+const pct = (v, dp = 2) => (v == null || isNaN(Number(v)) ? 'â€”' : `${Number(v).toFixed(dp)}%`);
 const money = (v) => {
-  if (v == null || isNaN(Number(v))) return '—';
+  if (v == null || isNaN(Number(v))) return 'â€”';
   const n = Number(v);
   if (Math.abs(n) >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
@@ -40,7 +40,7 @@ const scoreColor = (v) => {
 };
 
 const grade = (v) => {
-  if (v == null) return '—';
+  if (v == null) return 'â€”';
   const n = Number(v);
   if (n >= 90) return 'A+';
   if (n >= 85) return 'A';
@@ -216,7 +216,7 @@ export default function ScoresDashboard() {
         <div>
           <div className="page-head-title">Bullseye Stock Screener</div>
           <div className="page-head-sub">
-            Multi-factor stock scoring · composite + 6 factors · S&amp;P 500 universe · click row for full factor breakdown
+            Multi-factor stock scoring Â· composite + 6 factors Â· S&amp;P 500 universe Â· click row for full factor breakdown
           </div>
         </div>
         <div className="page-head-actions">
@@ -228,12 +228,12 @@ export default function ScoresDashboard() {
 
       <div className="grid grid-4">
         <Kpi label="Universe" value={stats.total.toLocaleString()} sub="ranked stocks" />
-        <Kpi label="Composite ≥ 80" value={stats.top.toLocaleString()}
+        <Kpi label="Composite â‰¥ 80" value={stats.top.toLocaleString()}
              sub={`${stats.total ? Math.round(stats.top / stats.total * 100) : 0}% qualify`}
              tone={stats.top > 0 ? 'up' : ''} />
         <Kpi label="Market Avg" value={num(stats.avg, 1)} sub="composite score" />
-        <Kpi label="Top Decile" value={filtered.length > 0 ? num(filtered[0].composite_score, 1) : '—'}
-             sub={filtered.length > 0 ? filtered[0].symbol : '—'} tone={filtered.length > 0 ? "up" : ""} />
+        <Kpi label="Top Decile" value={filtered.length > 0 ? num(filtered[0].composite_score, 1) : 'â€”'}
+             sub={filtered.length > 0 ? filtered[0].symbol : 'â€”'} tone={filtered.length > 0 ? "up" : ""} />
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -243,7 +243,7 @@ export default function ScoresDashboard() {
               <Search size={14} className="muted" />
               <input
                 className="input"
-                placeholder="Search symbol…"
+                placeholder="Search symbolâ€¦"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ flex: 1 }}
@@ -253,8 +253,8 @@ export default function ScoresDashboard() {
               {SORT_FIELDS.map(f => <option key={f.value} value={f.value}>Sort: {f.label}</option>)}
             </select>
             <select className="select" value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
-              <option value="desc">High → Low</option>
-              <option value="asc">Low → High</option>
+              <option value="desc">High â†’ Low</option>
+              <option value="asc">Low â†’ High</option>
             </select>
             <select className="select" value={sector} onChange={e => setSector(e.target.value)}>
               <option value="">All sectors</option>
@@ -262,11 +262,11 @@ export default function ScoresDashboard() {
             </select>
             <select className="select" value={minScore} onChange={e => setMinScore(Number(e.target.value))}>
               <option value="0">Min score: any</option>
-              <option value="50">≥ 50</option>
-              <option value="60">≥ 60</option>
-              <option value="70">≥ 70</option>
-              <option value="80">≥ 80</option>
-              <option value="90">≥ 90</option>
+              <option value="50">â‰¥ 50</option>
+              <option value="60">â‰¥ 60</option>
+              <option value="70">â‰¥ 70</option>
+              <option value="80">â‰¥ 80</option>
+              <option value="90">â‰¥ 90</option>
             </select>
             <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
             <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
@@ -282,7 +282,7 @@ export default function ScoresDashboard() {
         tabs={[
           { value: 'rankings',     label: 'Rankings' },
           { value: 'movers',       label: 'Top Movers' },
-          { value: 'leaderboard',  label: 'A-Grade ≥ 80' },
+          { value: 'leaderboard',  label: 'A-Grade â‰¥ 80' },
           { value: 'heatmap',      label: 'Factor Heatmap' },
           { value: 'distribution', label: 'Distributions' },
           { value: 'correlation',  label: 'Correlations' },
@@ -347,7 +347,7 @@ export default function ScoresDashboard() {
   );
 }
 
-// ─── tabs: rankings ────────────────────────────────────────────────────────
+// â”€â”€â”€ tabs: rankings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RankingsTab({
   rows, isLoading, page, setPage, pageSize, setPageSize,
   totalPages, totalRows, pageStart, pageEnd,
@@ -356,7 +356,7 @@ function RankingsTab({
   if (isLoading) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card-body"><Empty title="Loading scores…" /></div>
+        <div className="card-body"><Empty title="Loading scoresâ€¦" /></div>
       </div>
     );
   }
@@ -390,7 +390,7 @@ function RankingsTab({
                   <th className="num">Pos</th>
                   <th className="num">Stab</th>
                   <th className="num">Price</th>
-                  <th className="num">Δ</th>
+                  <th className="num">Î”</th>
                 </tr>
               </thead>
               <tbody>
@@ -422,7 +422,7 @@ function RankingsTab({
                     <td className="t-xs muted" style={{
                       maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {s.sector || '—'}
+                      {s.sector || 'â€”'}
                     </td>
                     <td className="num mono tnum" style={{ fontWeight: 'var(--w-semibold)' }}>
                       <span className={`badge ${scoreClass(s.composite_score)}`}>
@@ -440,9 +440,9 @@ function RankingsTab({
                     <td className="num mono tnum t-xs" style={{ color: scoreColor(s.growth_score) }}>{num(s.growth_score, 0)}</td>
                     <td className="num mono tnum t-xs" style={{ color: scoreColor(s.positioning_score) }}>{num(s.positioning_score, 0)}</td>
                     <td className="num mono tnum t-xs" style={{ color: scoreColor(s.stability_score) }}>{num(s.stability_score, 0)}</td>
-                    <td className="num mono tnum t-xs">{s.price != null ? `$${num(s.price, 2)}` : '—'}</td>
+                    <td className="num mono tnum t-xs">{s.price != null ? `$${num(s.price, 2)}` : 'â€”'}</td>
                     <td className={`num mono tnum t-xs ${Number(s.change_percent) >= 0 ? 'up' : 'down'}`}>
-                      {s.change_percent != null ? `${Number(s.change_percent) >= 0 ? '+' : ''}${num(s.change_percent, 2)}%` : '—'}
+                      {s.change_percent != null ? `${Number(s.change_percent) >= 0 ? '+' : ''}${num(s.change_percent, 2)}%` : 'â€”'}
                     </td>
                   </tr>
                 ))}
@@ -456,7 +456,7 @@ function RankingsTab({
         marginTop: 'var(--space-3)', flexWrap: 'wrap', justifyContent: 'flex-end',
       }}>
         <span className="t-xs muted">
-          {pageStart + 1}–{Math.min(pageEnd, totalRows)} of {totalRows.toLocaleString()}
+          {pageStart + 1}â€“{Math.min(pageEnd, totalRows)} of {totalRows.toLocaleString()}
         </span>
         <select className="select" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
           <option value="25">25 / page</option>
@@ -486,7 +486,7 @@ function RankingsTab({
   );
 }
 
-// ─── factor detail (expanded) ──────────────────────────────────────────────
+// â”€â”€â”€ factor detail (expanded) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -496,18 +496,18 @@ function FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
             {stock.symbol}
             {stock.company_name && (
               <span className="t-sm muted" style={{ fontWeight: 'var(--w-medium)', marginLeft: 'var(--space-2)' }}>
-                · {stock.company_name}
+                Â· {stock.company_name}
               </span>
             )}
           </div>
           <div className="card-sub">
-            {stock.sector || '—'} · composite {num(stock.composite_score, 1)} · grade {grade(stock.composite_score)}
-            {stock.last_updated && ` · updated ${new Date(stock.last_updated).toLocaleDateString()}`}
+            {stock.sector || 'â€”'} Â· composite {num(stock.composite_score, 1)} Â· grade {grade(stock.composite_score)}
+            {stock.last_updated && ` Â· updated ${new Date(stock.last_updated).toLocaleDateString()}`}
           </div>
         </div>
         <div className="card-actions">
           <button className="btn btn-outline btn-sm" onClick={() => onNavigate(stock.symbol)}>
-            Open Stock →
+            Open Stock â†’
           </button>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
@@ -615,7 +615,7 @@ function FactorInputs({ title, inputs, schema }) {
         <div className="card-head"><div className="card-title">{title}</div></div>
         <div className="card-body">
           <div className="t-xs muted">
-            No detailed metrics available — API returned {apiKeys.length} keys but all values are null.
+            No detailed metrics available â€” API returned {apiKeys.length} keys but all values are null.
             See console for details.
           </div>
         </div>
@@ -641,7 +641,7 @@ function FactorInputs({ title, inputs, schema }) {
   );
 }
 
-// ─── tabs: leaders/laggards/sectors ────────────────────────────────────────
+// â”€â”€â”€ tabs: leaders/laggards/sectors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function LeadersTab({ items, sectorFilter, onClick }) {
   return (
     <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
@@ -777,7 +777,7 @@ function SectorsTab({ items, sectors, onClick }) {
   );
 }
 
-// ─── tab: top movers ───────────────────────────────────────────────────────
+// â”€â”€â”€ tab: top movers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function MoversTab({ items, onClick }) {
   // Without historical score data, derive proxy "movers" from price change_percent.
   // Two side-by-side cards: composite leaders vs composite laggards (by score),
@@ -794,7 +794,7 @@ function MoversTab({ items, onClick }) {
       <div className="alert alert-info" style={{ marginTop: 'var(--space-4)' }}>
         <Activity size={16} />
         <div>
-          Score-history is a snapshot table — these cards show <strong>composite leaders / laggards</strong>{' '}
+          Score-history is a snapshot table â€” these cards show <strong>composite leaders / laggards</strong>{' '}
           and <strong>1-day price gainers / decliners</strong> across the universe (proxy for momentum movers).
         </div>
       </div>
@@ -818,7 +818,7 @@ function MoverCard({ title, rows, field, tone, onClick, fmt }) {
       </div>
     );
   }
-  // Build a mini-bar per stock — values normalized for the sparkline-style display.
+  // Build a mini-bar per stock â€” values normalized for the sparkline-style display.
   const max = Math.max(...rows.map((r) => Math.abs(Number(r[field]) || 0)), 1);
   return (
     <div className="card">
@@ -850,7 +850,7 @@ function MoverCard({ title, rows, field, tone, onClick, fmt }) {
                   <td style={{ fontWeight: 'var(--w-semibold)' }}>{s.symbol}</td>
                   <td className="t-xs muted" style={{
                     maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{s.sector || '—'}</td>
+                  }}>{s.sector || 'â€”'}</td>
                   <td className={`num mono tnum t-xs ${tone}`}>{fmt(s[field])}</td>
                   <td>
                     <div className="bar" style={{ width: 90 }}>
@@ -870,7 +870,7 @@ function MoverCard({ title, rows, field, tone, onClick, fmt }) {
   );
 }
 
-// ─── tab: leaderboard ≥ 80 ────────────────────────────────────────────────
+// â”€â”€â”€ tab: leaderboard â‰¥ 80 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function LeaderboardTab({ items, sectorFilter, onClick }) {
   const [activeSec, setActiveSec] = useState(sectorFilter || '');
   const eligible = items.filter((s) => Number(s.composite_score) >= 80);
@@ -882,7 +882,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-body">
-          <Empty title="No A-grade names" desc="No symbols currently rank ≥ 80 on composite." />
+          <Empty title="No A-grade names" desc="No symbols currently rank â‰¥ 80 on composite." />
         </div>
       </div>
     );
@@ -893,8 +893,8 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
           <div>
-            <div className="card-title">A-Grade Leaderboard (Composite ≥ 80)</div>
-            <div className="card-sub">{eligible.length} qualifying names · click chip to filter by sector</div>
+            <div className="card-title">A-Grade Leaderboard (Composite â‰¥ 80)</div>
+            <div className="card-sub">{eligible.length} qualifying names Â· click chip to filter by sector</div>
           </div>
         </div>
         <div className="card-body" style={{ paddingBottom: 0 }}>
@@ -952,7 +952,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                         }}>{s.company_name}</div>
                       )}
                     </td>
-                    <td className="t-xs muted">{s.sector || '—'}</td>
+                    <td className="t-xs muted">{s.sector || 'â€”'}</td>
                     <td className="num">
                       <span className={`badge ${scoreClass(s.composite_score)}`}>
                         {num(s.composite_score, 1)}
@@ -978,7 +978,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
   );
 }
 
-// ─── tab: factor heatmap ──────────────────────────────────────────────────
+// â”€â”€â”€ tab: factor heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function HeatmapTab({ items, sectorFilter, onClick }) {
   // Show all by composite (or filtered by sector). Cell = factor score, color encodes value.
   const arr = items.filter((s) => s.composite_score != null);
@@ -996,7 +996,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
   const heatColor = (v) => {
     if (v == null || isNaN(Number(v))) return 'var(--surface-2)';
     const n = Number(v);
-    // Stoplight gradient: red → amber → cyan → green
+    // Stoplight gradient: red â†’ amber â†’ cyan â†’ green
     if (n >= 80) return 'var(--success-soft)';
     if (n >= 60) return 'var(--cyan-soft)';
     if (n >= 40) return 'var(--amber-soft)';
@@ -1012,7 +1012,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
       <div className="card-head">
         <div>
           <div className="card-title">Factor Heatmap (Top 50 by Composite)</div>
-          <div className="card-sub">Cell color = factor score 0-100 · click row → stock detail</div>
+          <div className="card-sub">Cell color = factor score 0-100 Â· click row â†’ stock detail</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
@@ -1050,7 +1050,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
                             color: textColor(v),
                             fontSize: 'var(--t-xs)',
                           }}>
-                        {v == null ? '—' : num(v, 0)}
+                        {v == null ? 'â€”' : num(v, 0)}
                       </td>
                     );
                   })}
@@ -1064,7 +1064,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
   );
 }
 
-// ─── tab: distributions per factor ────────────────────────────────────────
+// â”€â”€â”€ tab: distributions per factor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DistributionTab({ items }) {
   const buckets = useMemo(() => {
     // 10-bucket histogram per factor, range [0, 100]
@@ -1137,7 +1137,7 @@ function DistributionTab({ items }) {
   );
 }
 
-// ─── tab: correlation matrix ──────────────────────────────────────────────
+// â”€â”€â”€ tab: correlation matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CorrelationTab({ items }) {
   const matrix = useMemo(() => {
     if (!items || items.length === 0) return null;
@@ -1194,7 +1194,7 @@ function CorrelationTab({ items }) {
       <div className="card-head">
         <div>
           <div className="card-title">Factor Correlation Matrix</div>
-          <div className="card-sub">Pearson correlation across the universe · 1.0 = perfect, 0 = none, −1.0 = inverse</div>
+          <div className="card-sub">Pearson correlation across the universe Â· 1.0 = perfect, 0 = none, âˆ’1.0 = inverse</div>
         </div>
       </div>
       <div className="card-body">
@@ -1216,7 +1216,7 @@ function CorrelationTab({ items }) {
                     const v = matrix[rf.scoreKey]?.[cf.scoreKey];
                     return (
                       <td key={cf.key}
-                          title={`${rf.label} ↔ ${cf.label}: ${v == null ? '—' : v.toFixed(3)}`}
+                          title={`${rf.label} â†” ${cf.label}: ${v == null ? 'â€”' : v.toFixed(3)}`}
                           style={{
                             background: corrColor(v),
                             textAlign: 'center',
@@ -1226,7 +1226,7 @@ function CorrelationTab({ items }) {
                             fontSize: 'var(--t-xs)',
                             color: rf.scoreKey === cf.scoreKey ? 'var(--text-2)' : 'var(--text-1)',
                           }}>
-                        {v == null ? '—' : v.toFixed(2)}
+                        {v == null ? 'â€”' : v.toFixed(2)}
                       </td>
                     );
                   })}
@@ -1238,11 +1238,11 @@ function CorrelationTab({ items }) {
             marginTop: 'var(--space-4)', flexWrap: 'wrap',
           }}>
             <span className="t-xs muted">Legend:</span>
-            <LegendChip color="var(--success-soft)" label="≥ 0.6 strong+" />
-            <LegendChip color="var(--cyan-soft)"    label="0.3 – 0.6"    />
-            <LegendChip color="var(--surface-2)"    label="−0.3 – 0.3"   />
-            <LegendChip color="var(--amber-soft)"   label="−0.6 – −0.3"  />
-            <LegendChip color="var(--danger-soft)"  label="< −0.6 strong−" />
+            <LegendChip color="var(--success-soft)" label="â‰¥ 0.6 strong+" />
+            <LegendChip color="var(--cyan-soft)"    label="0.3 â€“ 0.6"    />
+            <LegendChip color="var(--surface-2)"    label="âˆ’0.3 â€“ 0.3"   />
+            <LegendChip color="var(--amber-soft)"   label="âˆ’0.6 â€“ âˆ’0.3"  />
+            <LegendChip color="var(--danger-soft)"  label="< âˆ’0.6 strongâˆ’" />
           </div>
         </div>
       </div>
@@ -1256,15 +1256,15 @@ function ScoreLegend() {
       <div className="card-head">
         <div>
           <div className="card-title">Score Guide</div>
-          <div className="card-sub">Each factor scored 0-100 from underlying fundamentals · composite is research-weighted blend</div>
+          <div className="card-sub">Each factor scored 0-100 from underlying fundamentals Â· composite is research-weighted blend</div>
         </div>
       </div>
       <div className="card-body">
         <div className="flex items-center gap-4" style={{ flexWrap: 'wrap' }}>
-          <LegendChip color="var(--success)" label="80–100 Excellent" />
-          <LegendChip color="var(--cyan)"    label="60–79 Good" />
-          <LegendChip color="var(--amber)"   label="40–59 Fair" />
-          <LegendChip color="var(--danger)"  label="0–39 Weak" />
+          <LegendChip color="var(--success)" label="80â€“100 Excellent" />
+          <LegendChip color="var(--cyan)"    label="60â€“79 Good" />
+          <LegendChip color="var(--amber)"   label="40â€“59 Fair" />
+          <LegendChip color="var(--danger)"  label="0â€“39 Weak" />
           <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
             Source: /api/scores/stockscores
           </span>
@@ -1283,7 +1283,7 @@ function LegendChip({ color, label }) {
   );
 }
 
-// ─── shared ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ shared â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Tabs({ tabs, value, onChange }) {
   return (
     <div className="flex items-center gap-2" style={{
@@ -1331,7 +1331,7 @@ function Empty({ title, desc }) {
   );
 }
 
-// ─── helpers ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function topBy(items, field, count, sector, dir) {
   const arr = (sector ? items.filter(s => s.sector === sector) : items)
     .filter(s => s[field] != null);
@@ -1339,7 +1339,7 @@ function topBy(items, field, count, sector, dir) {
   return arr.slice(0, count);
 }
 
-// ─── input schemas ─────────────────────────────────────────────────────────
+// â”€â”€â”€ input schemas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const QUALITY_SCHEMA = [
   { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1) },
   { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1) },
@@ -1419,7 +1419,7 @@ const POSITIONING_SCHEMA = [
   { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1) },
   { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2) },
   { key: 'short_percent_of_float',      label: 'Short % of Float',    fmt: v => pct(v, 1) },
-  { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
+  { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : 'â€”' },
   { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1) },
 ];
 
@@ -1434,3 +1434,4 @@ const STABILITY_SCHEMA = [
   { key: 'volatility_volume_ratio',  label: 'Volatility / Volume',  fmt: v => num(v, 1) },
   { key: 'daily_spread',             label: 'Daily Spread',         fmt: v => num(v, 1) },
 ];
+

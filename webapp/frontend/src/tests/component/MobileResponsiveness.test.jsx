@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -73,7 +73,7 @@ vi.mock("../../components/navigation/AppBar", () => {
     return (
       <div data-testid="app-bar">
         {isMobile ? (
-          <div data-testid="mobile-menu-button">☰</div>
+          <div data-testid="mobile-menu-button">â˜°</div>
         ) : (
           <div data-testid="desktop-navigation">
             <span>Dashboard</span>
@@ -97,7 +97,7 @@ const MockMobileApp = () => {
       <BrowserRouter>
         <div data-testid="mobile-app">
           <div data-testid="app-bar">
-            <div data-testid="mobile-menu-button">☰</div>
+            <div data-testid="mobile-menu-button">â˜°</div>
           </div>
           <div data-testid="main-content">
             <div data-testid="dashboard">
@@ -211,7 +211,7 @@ describe("Mobile Responsiveness Tests", () => {
 
       // Menu should be accessible
       expect(menuButton).toBeInTheDocument();
-      expect(menuButton.textContent).toBe("☰");
+      expect(menuButton.textContent).toBe("â˜°");
     });
 
     test("should navigate between sections on mobile", () => {
@@ -637,3 +637,4 @@ describe("Mobile Responsiveness Tests", () => {
     });
   });
 });
+

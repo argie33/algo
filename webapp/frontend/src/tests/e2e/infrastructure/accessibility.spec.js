@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Accessibility Testing (A11y)
  * Tests WCAG compliance, keyboard navigation, and screen reader compatibility
  */
@@ -79,7 +79,7 @@ test.describe("Financial Platform - Accessibility", () => {
         } else {
         }
       } catch (error) {
-        console.log(`❌ ${name}: ${error.message.slice(0, 50)}`);
+        console.log(`âŒ ${name}: ${error.message.slice(0, 50)}`);
         // Continue testing other pages even if one fails
       }
     }
@@ -133,7 +133,7 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         // Continue testing even if individual focus operations fail
-        console.log(`⚠️ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
+        console.log(`âš ï¸ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -216,7 +216,7 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`⚠️ ARIA check failed: ${error.message.slice(0, 30)}`);
+        console.log(`âš ï¸ ARIA check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -274,25 +274,25 @@ test.describe("Financial Platform - Accessibility", () => {
         if (pageAccessibilityScore > 2) {
           accessibleForms++;
           console.log(
-            `✅ ${pagePath}: Good form accessibility (${pageAccessibilityScore}/6)`
+            `âœ… ${pagePath}: Good form accessibility (${pageAccessibilityScore}/6)`
           );
         } else if (pageAccessibilityScore > 0) {
           console.log(
-            `⚠️ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
+            `âš ï¸ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
           );
         } else {
           console.log(
-            `ℹ️ ${pagePath}: No forms detected or limited accessibility`
+            `â„¹ï¸ ${pagePath}: No forms detected or limited accessibility`
           );
         }
       } catch (error) {
-        console.log(`❌ ${pagePath}: ${error.message.slice(0, 50)}`);
+        console.log(`âŒ ${pagePath}: ${error.message.slice(0, 50)}`);
         // Continue to next page even if current page fails
       }
     }
 
     console.log(
-      `📊 Pages with accessible forms: ${accessibleForms}/${pagesWithForms.length}`
+      `ðŸ“Š Pages with accessible forms: ${accessibleForms}/${pagesWithForms.length}`
     );
     // Safari may have different accessibility patterns, so be more lenient
     const minExpected = browserName === "webkit" ? 0 : 0;
@@ -348,7 +348,7 @@ test.describe("Financial Platform - Accessibility", () => {
             });
 
           console.log(
-            `✅ ${description}: color=${styles.color}, bg=${styles.backgroundColor}`
+            `âœ… ${description}: color=${styles.color}, bg=${styles.backgroundColor}`
           );
 
           // Simple check - if background is transparent or white and text is dark
@@ -363,12 +363,12 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`⚠️ Contrast check failed: ${error.message.slice(0, 30)}`);
+        console.log(`âš ï¸ Contrast check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
     console.log(
-      `🎨 Color contrast: ${elementsChecked - contrastIssues}/${elementsChecked} elements appear accessible`
+      `ðŸŽ¨ Color contrast: ${elementsChecked - contrastIssues}/${elementsChecked} elements appear accessible`
     );
     expect(elementsChecked).toBeGreaterThan(0);
   });
@@ -416,14 +416,15 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         console.log(
-          `⚠️ Screen reader check failed: ${error.message.slice(0, 30)}`
+          `âš ï¸ Screen reader check failed: ${error.message.slice(0, 30)}`
         );
       }
     }
 
     console.log(
-      `👁️ Screen reader features: ${screenReaderFeatures}/${screenReaderChecks.length}`
+      `ðŸ‘ï¸ Screen reader features: ${screenReaderFeatures}/${screenReaderChecks.length}`
     );
     expect(screenReaderFeatures).toBeGreaterThanOrEqual(1);
   });
 });
+

@@ -1,11 +1,11 @@
-/**
- * Bullseye Trading — Unified Design System
+﻿/**
+ * Bullseye Trading â€” Unified Design System
  *
  * Hybrid light/dark theme inspired by Bloomberg Terminal, Koyfin, Stripe.
  * Default: dark palette for sleek/professional look.
  * Optional: light mode toggle for high-light/daytime use.
  *
- * Each page builds with these tokens — purpose-designed, not template-driven.
+ * Each page builds with these tokens â€” purpose-designed, not template-driven.
  * Mobile-responsive from the foundation.
  *
  * Usage:
@@ -16,7 +16,7 @@
 import { theme as themeService } from '../services/theme';
 
 // ============================================================================
-// THEME MODE — controlled via centralized theme service
+// THEME MODE â€” controlled via centralized theme service
 // ============================================================================
 const getMode = () => {
   return themeService.getTheme();
@@ -27,11 +27,11 @@ const setMode = (mode) => {
 };
 
 // ============================================================================
-// COLOR TOKENS — light is default, dark is opt-in
+// COLOR TOKENS â€” light is default, dark is opt-in
 // ============================================================================
 const lightTokens = {
-  // === SURFACES — warm, premium, captivating (WhatsForLunch-inspired) ===
-  // Slight warm tint instead of cold gray — feels more inviting for hours of use
+  // === SURFACES â€” warm, premium, captivating (WhatsForLunch-inspired) ===
+  // Slight warm tint instead of cold gray â€” feels more inviting for hours of use
   bg:        '#FAFAF7',   // warm white page bg
   bgElev:    '#FFFFFF',   // sidebar/header
   card:      '#FFFFFF',
@@ -43,14 +43,14 @@ const lightTokens = {
   borderLight:   '#EDECE5',
   borderStrong:  '#C9C8BE',
 
-  // === TEXT (warm dark, not pure black — premium feel) ===
+  // === TEXT (warm dark, not pure black â€” premium feel) ===
   textBright: '#1A1A1A',
   text:       '#2C2C28',
   textDim:    '#6A6A65',
   textFaint:  '#9A9A95',
 
-  // === BRAND — deep verdant green (premium, financial gravity + life) ===
-  brand:     '#0E5C3A',   // deep verdant — same as WhatsForLunch
+  // === BRAND â€” deep verdant green (premium, financial gravity + life) ===
+  brand:     '#0E5C3A',   // deep verdant â€” same as WhatsForLunch
   brandDark: '#08402A',
   brandSoft: '#E6F2EC',
   brandTint: '#F2F8F4',
@@ -63,7 +63,7 @@ const lightTokens = {
   bear:      '#E0392B',   // urgent but not screaming
   bearDeep:  '#B22A1E',
   bearSoft:  '#FBE0DD',
-  warn:      '#E08F1B',   // honey amber — warm caution
+  warn:      '#E08F1B',   // honey amber â€” warm caution
   warnDeep:  '#B07015',
   warnSoft:  '#FCEFD3',
 
@@ -89,7 +89,7 @@ const lightTokens = {
   amber:     '#E08F1B',
   amberSoft: '#FCEFD3',
 
-  // === SHADOWS — softer, layered, warm ===
+  // === SHADOWS â€” softer, layered, warm ===
   shadow1:   '0 1px 2px rgba(15,26,17,0.04), 0 2px 6px rgba(15,26,17,0.04)',
   shadow2:   '0 2px 4px rgba(15,26,17,0.04), 0 8px 20px rgba(15,26,17,0.07)',
   shadow3:   '0 8px 16px rgba(15,26,17,0.06), 0 20px 40px rgba(15,26,17,0.10)',
@@ -148,7 +148,7 @@ const darkTokens = {
   transparent: 'transparent',
 };
 
-// Active palette — dynamically switches based on localStorage
+// Active palette â€” dynamically switches based on localStorage
 let _mode = getMode();
 let _tokens = _mode === 'dark' ? darkTokens : lightTokens;
 
@@ -202,7 +202,7 @@ export const severityColor = (s) => ({
 }[s] || _tokens.textDim);
 
 // ============================================================================
-// TYPOGRAPHY — Inter for body, JetBrains Mono for numbers
+// TYPOGRAPHY â€” Inter for body, JetBrains Mono for numbers
 // ============================================================================
 export const F = {
   body: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -263,7 +263,7 @@ export const S = {
 };
 
 // ============================================================================
-// COMPONENT MIXINS — used by AlgoUI primitives
+// COMPONENT MIXINS â€” used by AlgoUI primitives
 // ============================================================================
 export const comp = {
   card: {
@@ -329,7 +329,7 @@ export const comp = {
 // FORMATTERS
 // ============================================================================
 export const pnlColor = (n) => (n > 0 ? _tokens.bull : n < 0 ? _tokens.bear : _tokens.textDim);
-export const arrowFor = (n) => (n > 0 ? '▲' : n < 0 ? '▼' : '·');
+export const arrowFor = (n) => (n > 0 ? 'â–²' : n < 0 ? 'â–¼' : 'Â·');
 
 export const fmt$ = (n, decimals = 2) => {
   if (n === null || n === undefined || isNaN(n)) return '-';
@@ -387,3 +387,4 @@ export default {
   arrowFor, fmt$, fmtPct, fmtNum, fmtDate, fmtTime,
   isDarkMode, setThemeMode, getCurrentMode, responsive,
 };
+

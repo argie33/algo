@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Test Helper Functions and Constants
  * Non-component utilities for testing
  */
@@ -97,3 +97,4 @@ export const makeRealApiCall = async (endpoint, options = {}) => {
 // Re-export testing library utilities
 export * from "@testing-library/react";
 export { vi } from "vitest";
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 import { getSettings, updateSettings } from "../services/api";
 
@@ -92,14 +92,14 @@ const Settings = () => {
       {message && (
         <div className="alert alert-success" style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{message}</span>
-          <button onClick={() => setMessage("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>×</button>
+          <button onClick={() => setMessage("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>Ã—</button>
         </div>
       )}
 
       {error && (
         <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{error}</span>
-          <button onClick={() => setError("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>×</button>
+          <button onClick={() => setError("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--t-lg)', color: 'inherit' }}>Ã—</button>
         </div>
       )}
 
@@ -349,3 +349,4 @@ const Settings = () => {
 };
 
 export default Settings;
+

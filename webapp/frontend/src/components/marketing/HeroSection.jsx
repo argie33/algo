@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Box, Container, Typography, Button, Grid, useTheme, alpha } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -81,7 +81,7 @@ const HeroSection = () => {
                 <Button
                   variant="contained"
                   size="large"
-                  onClick={() => navigate('/app/market')}
+                  onClick={() => navigate('/app/markets')}
                   sx={{
                     fontSize: '1.05rem',
                     fontWeight: 600,
@@ -107,3 +107,4 @@ const HeroSection = () => {
 };
 
 export default HeroSection;
+

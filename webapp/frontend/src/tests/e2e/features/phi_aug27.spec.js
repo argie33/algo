@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+﻿import { test } from '@playwright/test';
 
 test('Screenshot PHI Aug 27 on TradingView', async ({ page }) => {
   // Navigate to PHI chart
@@ -11,3 +11,4 @@ test('Screenshot PHI Aug 27 on TradingView', async ({ page }) => {
   // First, let's just take a screenshot of the current view
   await page.screenshot({ path: '/tmp/phi_full_chart.png', fullPage: true });
 });
+

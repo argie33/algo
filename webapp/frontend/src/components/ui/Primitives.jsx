@@ -1,11 +1,11 @@
-/**
- * Primitives — Tailwind component library for the rebuild.
+﻿/**
+ * Primitives â€” Tailwind component library for the rebuild.
  *
  * Per DESIGN_REDESIGN_PLAN.md and the giggly-meandering-shannon plan file.
  * Plain React + Tailwind classes. No MUI imports. Authored to be easily ported
  * to Tamagui later for the iOS/Android app (cross-platform mobile stack).
  *
- * All visual tokens come from tailwind.config.js → Bullseye design system.
+ * All visual tokens come from tailwind.config.js â†’ Bullseye design system.
  *
  * Components exported from this file:
  *   - <Card>          surface for any data section
@@ -49,7 +49,7 @@ import {
 export const cx = (...args) => twMerge(clsx(...args));
 
 export const fmtAgo = (ts) => {
-  if (!ts) return '—';
+  if (!ts) return 'â€”';
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
   if (s < 60) return `${Math.floor(s)}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -58,14 +58,14 @@ export const fmtAgo = (ts) => {
 };
 
 export const fmtMoney = (v, dp = 2) =>
-  v == null ? '—' :
+  v == null ? 'â€”' :
   `$${Number(v).toLocaleString('en-US', { maximumFractionDigits: dp, minimumFractionDigits: dp })}`;
 
 export const fmtPct = (v, dp = 2) =>
-  v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(dp)}%`;
+  v == null ? 'â€”' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(dp)}%`;
 
 export const fmtNum = (v, dp = 2) =>
-  v == null ? '—' : Number(v).toFixed(dp);
+  v == null ? 'â€”' : Number(v).toFixed(dp);
 
 // =============================================================================
 // CARD
@@ -164,12 +164,12 @@ export function Stat({ label, value, delta, sub, color, mono = true, size = 'md'
 }
 
 // =============================================================================
-// PNL CELL — money or percent with semantic color
+// PNL CELL â€” money or percent with semantic color
 // =============================================================================
 
 export function PnlCell({ value, format = 'percent', dp = 2, inline = false, className }) {
   if (value == null || isNaN(Number(value))) {
-    return <span className={cx('text-ink-faint', className)}>—</span>;
+    return <span className={cx('text-ink-faint', className)}>â€”</span>;
   }
   const v = Number(value);
   const color = v > 0 ? 'text-bull' : v < 0 ? 'text-bear' : 'text-ink-muted';
@@ -210,7 +210,7 @@ const GRADE_VARIANT = {
 };
 
 export function GradeChip({ grade, className }) {
-  if (!grade) return <span className="text-ink-faint">—</span>;
+  if (!grade) return <span className="text-ink-faint">â€”</span>;
   return (
     <Chip variant={GRADE_VARIANT[grade] || 'muted'} className={cx('w-7 justify-center', className)}>
       {grade}
@@ -495,7 +495,7 @@ export function DataTable({
                         col.mono && 'font-mono tnum',
                       )}
                     >
-                      {col.render ? col.render(row) : row[col.key] ?? '—'}
+                      {col.render ? col.render(row) : row[col.key] ?? 'â€”'}
                     </td>
                   ))}
                 </tr>
@@ -529,7 +529,7 @@ export function SectionDivider({ children, className }) {
 }
 
 // =============================================================================
-// SPARKLINE — minimal SVG, no axis, brand-colored
+// SPARKLINE â€” minimal SVG, no axis, brand-colored
 // =============================================================================
 
 export function Sparkline({ data, width = 80, height = 24, color }) {
@@ -556,3 +556,4 @@ export function Sparkline({ data, width = 80, height = 24, color }) {
     </svg>
   );
 }
+

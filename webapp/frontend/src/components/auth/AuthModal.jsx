@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -221,3 +221,4 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
 }
 
 export default AuthModal;
+

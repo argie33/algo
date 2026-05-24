@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -157,3 +157,4 @@ const SessionWarningDialog = ({
 };
 
 export default SessionWarningDialog;
+

@@ -1,4 +1,4 @@
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+﻿import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../test-utils";
 import HistoricalPriceChart from "../../../components/HistoricalPriceChart";
@@ -552,3 +552,4 @@ describe("HistoricalPriceChart", () => {
     });
   });
 });
+

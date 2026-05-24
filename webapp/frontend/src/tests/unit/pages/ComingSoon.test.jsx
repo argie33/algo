@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ComingSoon Page Unit Tests
  * Tests the coming soon placeholder page functionality
  */
@@ -163,3 +163,4 @@ describe("ComingSoon Component", () => {
     expect(screen.getByText(longDescription)).toBeInTheDocument();
   });
 });
+

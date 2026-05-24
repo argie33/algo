@@ -1,4 +1,4 @@
-import { createTheme, alpha } from '@mui/material/styles';
+﻿import { createTheme, alpha } from '@mui/material/styles';
 
 /**
  * REFINED PROFESSIONAL FINANCIAL PLATFORM THEME
@@ -622,3 +622,4 @@ export const modernTheme = createTheme({
 export { colors };
 
 export default modernTheme;
+

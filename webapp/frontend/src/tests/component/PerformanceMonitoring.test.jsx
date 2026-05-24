@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { vi, describe, test, beforeEach, expect } from "vitest";
@@ -559,7 +559,7 @@ describe("Performance Monitoring Tests", () => {
             {apiMetrics.map((metric, index) => (
               <div key={index} data-testid={`api-metric-${index}`}>
                 {metric.endpoint}: {metric.responseTime}ms
-                {metric.success ? " ✓" : " ✗"}
+                {metric.success ? " âœ“" : " âœ—"}
               </div>
             ))}
           </div>
@@ -576,9 +576,9 @@ describe("Performance Monitoring Tests", () => {
 
       // All API calls should show response times - check that all endpoints are present (order may vary)
       const allText = screen.getByTestId("api-performance-monitor").textContent;
-      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms ✓/);
-      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms ✓/);
-      expect(allText).toMatch(/\/api\/news: [\d.]+ms ✓/);
+      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms âœ“/);
+      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms âœ“/);
+      expect(allText).toMatch(/\/api\/news: [\d.]+ms âœ“/);
     });
 
     test("should detect slow API calls", async () => {
@@ -708,7 +708,7 @@ describe("Performance Monitoring Tests", () => {
                 data-testid={`warning-${index}`}
                 className="warning"
               >
-                ⚠️ {warning}
+                âš ï¸ {warning}
               </div>
             ))}
           </div>
@@ -721,7 +721,7 @@ describe("Performance Monitoring Tests", () => {
         expect(screen.getByTestId("warning-0")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("⚠️ vendor.js is 600KB")).toBeInTheDocument();
+      expect(screen.getByText("âš ï¸ vendor.js is 600KB")).toBeInTheDocument();
     });
   });
 
@@ -753,7 +753,7 @@ describe("Performance Monitoring Tests", () => {
             </div>
             {violations.map((violation, index) => (
               <div key={index} data-testid={`violation-${index}`}>
-                ❌ {violation}
+                âŒ {violation}
               </div>
             ))}
           </div>
@@ -770,11 +770,12 @@ describe("Performance Monitoring Tests", () => {
 
       expect(screen.getByText("Budget violations: 2")).toBeInTheDocument();
       expect(
-        screen.getByText("❌ Load time exceeds budget")
+        screen.getByText("âŒ Load time exceeds budget")
       ).toBeInTheDocument();
       expect(
-        screen.getByText("❌ Bundle size exceeds budget")
+        screen.getByText("âŒ Bundle size exceeds budget")
       ).toBeInTheDocument();
     });
   });
 });
+

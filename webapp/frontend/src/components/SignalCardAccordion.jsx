@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   Accordion,
   AccordionSummary,
@@ -49,7 +49,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
   };
 
   const DataField = ({ label, value, format = 'text', color = null, unit = '' }) => {
-    // Skip rendering if value is null/undefined/empty (don't show "—" for missing data)
+    // Skip rendering if value is null/undefined/empty (don't show "â€”" for missing data)
     if (value === null || value === undefined || value === '') {
       return null;
     }
@@ -172,7 +172,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           RS
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.rs_rating ? signal.rs_rating.toFixed(0) : '—'}
+                          {signal.rs_rating ? signal.rs_rating.toFixed(0) : 'â€”'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -194,7 +194,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                                    'text.primary'
                           }}
                         >
-                          {signal.stage_number ? `S${signal.stage_number}` : '—'}
+                          {signal.stage_number ? `S${signal.stage_number}` : 'â€”'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -206,7 +206,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           ATR
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.atr ? signal.atr.toFixed(2) : '—'}
+                          {signal.atr ? signal.atr.toFixed(2) : 'â€”'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -249,7 +249,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
                           {signal.signal_triggered_date
                             ? new Date(signal.signal_triggered_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : '—'}
+                            : 'â€”'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -377,7 +377,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       Signal Type
                     </Typography>
                     <Chip
-                      label={signal.signal_type || '—'}
+                      label={signal.signal_type || 'â€”'}
                       size="small"
                       color={signal.signal_type?.includes('BUY') ? 'success' : signal.signal_type?.includes('SELL') ? 'error' : 'default'}
                       variant="outlined"
@@ -435,16 +435,16 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       EXIT TRIGGER STATUS:
                     </Typography>
                     {signal.exit_21ema_break && (
-                      <Chip label="🟡 21-EMA Break" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="ðŸŸ¡ 21-EMA Break" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_50dma_light_volume && (
-                      <Chip label="🟠 50-DMA (Light Vol)" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="ðŸŸ  50-DMA (Light Vol)" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_50dma_heavy_volume && (
-                      <Chip label="🔴 50-DMA (Heavy Vol)" size="small" variant="outlined" color="error" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="ðŸ”´ 50-DMA (Heavy Vol)" size="small" variant="outlined" color="error" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_power_trend_flag && (
-                      <Chip label="⚡ Power Trend (8-Week Hold)" size="small" variant="outlined" color="warning" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="âš¡ Power Trend (8-Week Hold)" size="small" variant="outlined" color="warning" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {!signal.exit_21ema_break && !signal.exit_50dma_light_volume && !signal.exit_50dma_heavy_volume && (
                       <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
@@ -532,3 +532,4 @@ const SignalCardAccordion = ({ signals = [] }) => {
 };
 
 export default SignalCardAccordion;
+

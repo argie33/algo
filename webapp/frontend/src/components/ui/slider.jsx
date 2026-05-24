@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Slider as MuiSlider } from "@mui/material";
 
 export const Slider = React.forwardRef(
@@ -15,3 +15,4 @@ export const Slider = React.forwardRef(
   }
 );
 Slider.displayName = "Slider";
+

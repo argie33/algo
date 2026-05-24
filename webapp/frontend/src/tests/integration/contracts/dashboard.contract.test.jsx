@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Contract Tests
  * Tests the most critical user-facing data flows
  */
@@ -57,3 +57,4 @@ describe("Dashboard Critical Contract Tests", () => {
     expect(data).toHaveProperty("success", true);
   });
 });
+

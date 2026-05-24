@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test('Portfolio Dashboard - Verify data rendering and charts', async ({ page }) => {
   // Navigate to portfolio dashboard
@@ -19,9 +19,9 @@ test('Portfolio Dashboard - Verify data rendering and charts', async ({ page }) 
   const errorDivs = await page.locator('[class*="error"], [class*="Error"]').all();
 
   if (errorAlerts.length === 0 && errorDivs.length === 0) {
-    console.log('✅ No error messages detected');
+    console.log('âœ… No error messages detected');
   } else {
-    console.log(`⚠️  Found ${errorAlerts.length + errorDivs.length} error elements`);
+    console.log(`âš ï¸  Found ${errorAlerts.length + errorDivs.length} error elements`);
     for (const error of [...errorAlerts, ...errorDivs]) {
       const text = await error.textContent();
       if (text?.trim()) {
@@ -101,3 +101,4 @@ test('Portfolio Dashboard - Verify data rendering and charts', async ({ page }) 
   // Portfolio dashboard displays expected elements
 
 });
+

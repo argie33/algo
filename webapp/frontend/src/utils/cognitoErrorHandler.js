@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cognito error message mapping and formatting
  * Extracted from AuthContext for reusability
  */
@@ -44,3 +44,4 @@ export const getErrorMessage = (error) => {
 };
 
 export default { getErrorMessage, errorMessageMap };
+

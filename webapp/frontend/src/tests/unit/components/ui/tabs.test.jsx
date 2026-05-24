@@ -1,4 +1,4 @@
-import { screen, fireEvent } from "@testing-library/react";
+﻿import { screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils";
 import {
@@ -307,3 +307,4 @@ describe("Tabs Components", () => {
   // Deleted: Error Handling describe block
   // Tests for empty tabs, missing values, empty content are covered by accessibility tests
 });
+

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -157,7 +157,7 @@ const InvestmentTools = () => {
         icon={<BuildIcon sx={{ color: theme.palette.primary.main }} />}
         title="Built for Active Investors"
         subtitle="Get real-time analysis and AI-powered signals for informed trading decisions"
-        primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
+        primaryCTA={{ label: 'Launch Platform', href: '/app/markets' }}
         secondaryCTA={{ label: 'View Pricing', href: '/contact' }}
       />
 
@@ -175,3 +175,4 @@ const InvestmentTools = () => {
 };
 
 export default InvestmentTools;
+

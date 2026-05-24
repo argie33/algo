@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -53,7 +53,7 @@ const MissionValues = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Our platform analyzes 5,300+ equities across six integrated research dimensions—valuation, earnings fundamentals, technical analysis, market sentiment, sector dynamics, and quantitative factors. By integrating over a decade of historical market data with real-time feeds from market data providers, we deliver the systematic, evidence-based research framework that professional investors require for informed capital allocation decisions.
+                Our platform analyzes 5,300+ equities across six integrated research dimensionsâ€”valuation, earnings fundamentals, technical analysis, market sentiment, sector dynamics, and quantitative factors. By integrating over a decade of historical market data with real-time feeds from market data providers, we deliver the systematic, evidence-based research framework that professional investors require for informed capital allocation decisions.
               </Typography>
             </Grid>
 
@@ -168,7 +168,7 @@ const MissionValues = () => {
         icon={<CheckCircleIcon sx={{ color: theme.palette.primary.main }} />}
         title="Institutional-Grade Research Standards"
         subtitle="Experience rigorous, comprehensive research methodology designed for professional investors"
-        primaryCTA={{ label: 'Explore Platform', href: '/app/market' }}
+        primaryCTA={{ label: 'Explore Platform', href: '/app/markets' }}
         secondaryCTA={{ label: 'View Services', href: '/services' }}
       />
 
@@ -186,3 +186,4 @@ const MissionValues = () => {
 };
 
 export default MissionValues;
+

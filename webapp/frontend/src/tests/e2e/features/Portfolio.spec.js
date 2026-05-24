@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Portfolio Page E2E Tests", () => {
   test.setTimeout(30000);
@@ -49,11 +49,11 @@ test.describe("Portfolio Page E2E Tests", () => {
       );
 
       console.log(
-        `📊 Portfolio: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
+        `ðŸ“Š Portfolio: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
       );
 
       if (muiTabsErrors.length > 0) {
-        console.log("❌ MUI Tabs errors on Portfolio:");
+        console.log("âŒ MUI Tabs errors on Portfolio:");
         muiTabsErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
@@ -72,7 +72,7 @@ test.describe("Portfolio Page E2E Tests", () => {
       expect(hasPortfolioContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("⚠️ Portfolio failed to load:", error.message);
+      console.log("âš ï¸ Portfolio failed to load:", error.message);
       await page.screenshot({ path: 'debug-portfolio.png' });
       throw error;
     }

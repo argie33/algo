@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 
 /**
  * Unit tests for Trading Signals pagination logic
@@ -235,3 +235,4 @@ describe('TradingSignals Pagination Logic', () => {
     });
   });
 });
+

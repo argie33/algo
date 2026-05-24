@@ -1,4 +1,4 @@
-import {
+﻿import {
   Box,
   Card,
   CardContent,
@@ -130,10 +130,10 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                               }}
                             >
                               {corrValue === null || corrValue === undefined
-                                ? "—"
+                                ? "â€”"
                                 : (() => {
                                     const num = typeof corrValue === 'number' ? corrValue : parseFloat(corrValue) || 0;
-                                    return isNaN(num) ? "—" : num.toFixed(2);
+                                    return isNaN(num) ? "â€”" : num.toFixed(2);
                                   })()}
                             </td>
                           ))}
@@ -262,15 +262,15 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   {analysis?.risk_assessment && (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                       <Typography variant="caption">
-                        • <strong>Concentration:</strong>{" "}
+                        â€¢ <strong>Concentration:</strong>{" "}
                         {analysis.risk_assessment.concentration_risk}
                       </Typography>
                       <Typography variant="caption">
-                        • <strong>Diversification:</strong>{" "}
+                        â€¢ <strong>Diversification:</strong>{" "}
                         {analysis.risk_assessment.diversification_benefit}
                       </Typography>
                       <Typography variant="caption">
-                        • <strong>Stability:</strong>{" "}
+                        â€¢ <strong>Stability:</strong>{" "}
                         {analysis.risk_assessment.portfolio_stability}
                       </Typography>
                     </Box>
@@ -286,3 +286,4 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
 };
 
 export default MarketCorrelation;
+

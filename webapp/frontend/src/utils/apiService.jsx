@@ -1,4 +1,4 @@
-// Standardized API Service with consistent error handling and logging
+﻿// Standardized API Service with consistent error handling and logging
 import React from "react";
 import { getApiConfig } from "../services/api";
 
@@ -382,3 +382,4 @@ export default {
   withErrorHandling,
   getApiConfig,
 };
+

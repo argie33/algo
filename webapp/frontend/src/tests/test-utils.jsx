@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Test Utilities - Real Site Testing Setup
  * Provides wrapper components and utilities for testing actual site functionality with NO MOCKS
  */
@@ -104,7 +104,7 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
       return { success: true };
     },
     clearError: () => {
-      console.log("🔐 Real error clear");
+      console.log("ðŸ” Real error clear");
     },
     updateTokens: (tokens) => {
     },
@@ -221,3 +221,4 @@ export const renderSync = (ui, options = {}) => {
     ...options,
   });
 };
+

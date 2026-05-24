@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AWS Amplify Core Mock
  */
 
@@ -18,3 +18,4 @@ export default {
   Hub,
   Cache,
 };
+

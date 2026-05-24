@@ -1,4 +1,4 @@
-import { Amplify } from "aws-amplify";
+﻿import { Amplify } from "aws-amplify";
 
 // Get runtime configuration values
 const getRuntimeConfig = () => {
@@ -74,9 +74,10 @@ export function configureAmplify() {
 
     Amplify.configure(config);
   } catch (error) {
-    console.error("❌ Failed to configure Amplify:", error);
+    console.error("âŒ Failed to configure Amplify:", error);
   }
 }
 
 export { isCognitoConfigured, getAmplifyConfig };
 export default getAmplifyConfig;
+

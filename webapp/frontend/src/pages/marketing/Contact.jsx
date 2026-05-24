@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -233,7 +233,7 @@ const Contact = () => {
 
                       return result;
                     } catch (error) {
-                      console.error('❌ Form submission error:', error);
+                      console.error('âŒ Form submission error:', error);
                       throw error;
                     }
                   }}
@@ -355,3 +355,4 @@ const Contact = () => {
 };
 
 export default Contact;
+

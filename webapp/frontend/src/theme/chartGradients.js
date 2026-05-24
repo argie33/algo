@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Centralized Chart Gradient Theme System
  * Ensures consistent, professional appearance across all charts site-wide
  *
@@ -145,3 +145,4 @@ export default {
   GRADIENTS,
   COLOR_PALETTE
 };
+

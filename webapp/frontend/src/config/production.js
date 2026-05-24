@@ -1,4 +1,4 @@
-// Production configuration for Edgebrooke Capital Financial Dashboard
+﻿// Production configuration for Edgebrooke Capital Financial Dashboard
 // This file contains production-ready settings for enterprise deployment
 
 export const PRODUCTION_CONFIG = {
@@ -217,3 +217,4 @@ if (!validation.isValid) {
 }
 
 export default CONFIG;
+

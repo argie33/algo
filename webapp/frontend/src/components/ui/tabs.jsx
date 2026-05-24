@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Tabs as MuiTabs, Tab, Box } from "@mui/material";
 
 export const Tabs = React.forwardRef(
@@ -186,3 +186,4 @@ export const TabsContent = React.forwardRef(
   }
 );
 TabsContent.displayName = "TabsContent";
+

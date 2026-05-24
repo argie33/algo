@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 /**
  * Settings Page Debug Test
@@ -42,7 +42,7 @@ test.describe("Settings Page Debug Analysis", () => {
     page.on("response", (response) => {
       if (!response.ok()) {
         console.log(
-          `❌ Response Error: ${response.status()} ${response.url()}`
+          `âŒ Response Error: ${response.status()} ${response.url()}`
         );
       }
     });
@@ -55,7 +55,7 @@ test.describe("Settings Page Debug Analysis", () => {
         timestamp: new Date().toISOString(),
       };
       pageErrors.push(errorData);
-      console.log(`🚨 Page Error: ${error.message}`);
+      console.log(`ðŸš¨ Page Error: ${error.message}`);
       console.log(`   Stack: ${error.stack}`);
     });
 
@@ -184,7 +184,7 @@ test.describe("Settings Page Debug Analysis", () => {
     const errorElements = await page
       .locator('.error, [data-testid*="error"], .alert-error')
       .count();
-    console.log(`❌ Error elements found: ${errorElements}`);
+    console.log(`âŒ Error elements found: ${errorElements}`);
 
     // Wait for any async operations to complete
     await page.waitForTimeout(5000);
@@ -222,7 +222,7 @@ test.describe("Settings Page Debug Analysis", () => {
         buttonText.includes("Load")
       ) {
         console.log(
-          `🔥 Clicking potentially API-triggering button: "${buttonText}"`
+          `ðŸ”¥ Clicking potentially API-triggering button: "${buttonText}"`
         );
         await button.click().catch(() => console.log("Button click failed"));
         await page.waitForTimeout(2000);
@@ -236,3 +236,4 @@ test.describe("Settings Page Debug Analysis", () => {
     await page.waitForTimeout(5000);
   });
 });
+

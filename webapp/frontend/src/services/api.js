@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 import { tokenManager } from "./tokenManager";
 import dataCache from "./dataCache";
 
@@ -117,7 +117,7 @@ try {
       async (error) => {
         const originalRequest = error.config;
 
-        // Handle 401 — try refresh once, then redirect
+        // Handle 401 â€” try refresh once, then redirect
         if (error.response?.status === 401) {
           if (isRefreshing) {
             // Already refreshing, queue this request
@@ -156,7 +156,7 @@ try {
           }
         }
 
-        // Handle 403 — permission denied
+        // Handle 403 â€” permission denied
         if (error.response?.status === 403) {
           const forbiddenError = new Error("You do not have permission to perform this action.");
           forbiddenError.code = "FORBIDDEN";
@@ -487,3 +487,4 @@ export const getFearGreedData = async (range = "30d") => {
 // Export the axios instance for direct use
 export { api };
 export default api;
+

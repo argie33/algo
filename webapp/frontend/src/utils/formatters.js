@@ -1,4 +1,4 @@
-import numeral from "numeral";
+﻿import numeral from "numeral";
 
 // Format currency values
 export const formatCurrency = (value, decimals = 2) => {
@@ -120,9 +120,9 @@ export const getChangeIcon = (value) => {
   const num = parseFloat(value);
   if (isNaN(num)) return "";
 
-  if (num > 0) return "↗";
-  if (num < 0) return "↘";
-  return "→";
+  if (num > 0) return "â†—";
+  if (num < 0) return "â†˜";
+  return "â†’";
 };
 
 // Format date strings
@@ -533,3 +533,4 @@ export const getTechStatus = (indicator, value) => {
       return { icon: "info", color: "text.secondary", label: "" };
   }
 };
+

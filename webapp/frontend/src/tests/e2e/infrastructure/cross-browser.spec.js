@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Safari-Specific Routing Tests
  * Addresses Safari compatibility issues with SPA routing and navigation
  */
@@ -90,7 +90,7 @@ test.describe("Safari Routing Compatibility", () => {
 
     console.log(`Safari routing results: ${successfulRoutes}/${routes.length} routes successful`);
     console.log(
-      `⏱️ Average navigation time: ${Math.round(routeTimings.reduce((sum, r) => sum + r.time, 0) / routeTimings.length)}ms`
+      `â±ï¸ Average navigation time: ${Math.round(routeTimings.reduce((sum, r) => sum + r.time, 0) / routeTimings.length)}ms`
     );
 
     // Safari should load at least 3/5 critical routes
@@ -107,10 +107,10 @@ test.describe("Safari Routing Compatibility", () => {
     await page.waitForTimeout(2000);
 
     const transitions = [
-      { from: "/", to: "/portfolio", name: "Dashboard → Portfolio" },
-      { from: "/portfolio", to: "/market", name: "Portfolio → Market" },
-      { from: "/market", to: "/settings", name: "Market → Settings" },
-      { from: "/settings", to: "/", name: "Settings → Dashboard" },
+      { from: "/", to: "/portfolio", name: "Dashboard â†’ Portfolio" },
+      { from: "/portfolio", to: "/market", name: "Portfolio â†’ Market" },
+      { from: "/market", to: "/settings", name: "Market â†’ Settings" },
+      { from: "/settings", to: "/", name: "Settings â†’ Dashboard" },
     ];
 
     let successfulTransitions = 0;
@@ -178,11 +178,11 @@ test.describe("Safari Routing Compatibility", () => {
       expect(backUrl).toBeDefined();
       expect(forwardUrl).toBeDefined();
       console.log(
-        `✅ Safari browser history navigation completed without crashes`
+        `âœ… Safari browser history navigation completed without crashes`
       );
     } catch (error) {
       console.log(
-        `⚠️ Safari history navigation issue: ${error.message.slice(0, 60)}`
+        `âš ï¸ Safari history navigation issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail the test entirely, as Safari history can be finicky
       expect(error).toBeDefined(); // At least the error is captured
@@ -220,7 +220,7 @@ test.describe("Safari Routing Compatibility", () => {
         } else {
         }
       } catch (error) {
-        console.log(`❌ ${route}: Load timeout or error`);
+        console.log(`âŒ ${route}: Load timeout or error`);
         loadTimes.push({ route, time: 30000 }); // Max timeout
       }
     }
@@ -269,7 +269,7 @@ test.describe("Safari Routing Compatibility", () => {
       });
 
       console.log(
-        `💾 Auth persistence: Initial=${!!initialAuth}, Portfolio=${!!portfolioAuth}, Final=${!!finalAuth}`
+        `ðŸ’¾ Auth persistence: Initial=${!!initialAuth}, Portfolio=${!!portfolioAuth}, Final=${!!finalAuth}`
       );
 
       // State should persist across navigation in Safari
@@ -279,10 +279,11 @@ test.describe("Safari Routing Compatibility", () => {
 
     } catch (error) {
       console.log(
-        `⚠️ Safari state persistence issue: ${error.message.slice(0, 60)}`
+        `âš ï¸ Safari state persistence issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail entirely, as some state management can be browser-specific
       expect(error).toBeDefined();
     }
   });
 });
+

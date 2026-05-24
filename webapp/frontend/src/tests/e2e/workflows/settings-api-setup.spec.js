@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Settings API Setup Workflow E2E Test
- * Tests complete API configuration workflow: navigate → configure keys → validate → use in other pages
+ * Tests complete API configuration workflow: navigate â†’ configure keys â†’ validate â†’ use in other pages
  */
 
 import { test, expect } from "@playwright/test";

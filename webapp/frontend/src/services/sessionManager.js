@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Session Manager - Handles user session lifecycle
  * Manages timeouts, warnings, and session persistence
  */
@@ -145,3 +145,4 @@ class SessionManager {
 
 // Export singleton instance
 export default new SessionManager();
+

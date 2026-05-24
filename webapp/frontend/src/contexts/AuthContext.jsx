@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useContext,
   useReducer,
@@ -348,7 +348,7 @@ export function AuthProvider({ children }) {
           },
           onRefreshError: (error, attempts) => {
             console.error(
-              `❌ Token refresh failed (attempt ${attempts}):`,
+              `âŒ Token refresh failed (attempt ${attempts}):`,
               error
             );
           },
@@ -361,7 +361,7 @@ export function AuthProvider({ children }) {
           sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
         }
       } catch (error) {
-        console.error("❌ Failed to initialize session manager:", error);
+        console.error("âŒ Failed to initialize session manager:", error);
         // Don't throw error to prevent app crash
       }
     } else if (!state.isAuthenticated) {
@@ -447,7 +447,7 @@ export function AuthProvider({ children }) {
             };
           }
         } catch (cognitoError) {
-          console.warn("⚠️ Cognito authentication failed, trying dev auth fallback:", cognitoError);
+          console.warn("âš ï¸ Cognito authentication failed, trying dev auth fallback:", cognitoError);
           // Don't return here - fall through to dev auth
         }
       }
@@ -463,8 +463,8 @@ export function AuthProvider({ children }) {
       if (shouldUseDevAuth) {
         console.log(
           forceDevAuth
-            ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
-            : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
+            ? "ðŸ”§ DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
+            : "ðŸ”§ DEVELOPMENT LOGIN - Using dev auth fallback"
         );
 
         try {
@@ -505,7 +505,7 @@ export function AuthProvider({ children }) {
 
       // If we get here, neither production nor development auth is available
       // This should not happen in normal circumstances
-      console.error("🚨 CRITICAL: Both Cognito and dev auth paths were skipped or failed");
+      console.error("ðŸš¨ CRITICAL: Both Cognito and dev auth paths were skipped or failed");
       console.error("Debug info:", {
         isProductionBuild,
         cognitoConfigured,
@@ -898,3 +898,4 @@ export { AuthContext };
 
 // Make AuthProvider the default export for Fast Refresh compatibility
 export default AuthProvider;
+

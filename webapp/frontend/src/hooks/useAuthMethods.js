@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Auth method logic extracted from AuthContext
  * Handles login, signup, password reset, etc.
  * Works with both Cognito and dev auth
@@ -197,3 +197,4 @@ export const useAuthMethods = (dispatch, AUTH_ACTIONS) => {
 };
 
 export default useAuthMethods;
+

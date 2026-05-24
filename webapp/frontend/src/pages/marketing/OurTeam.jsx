@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -147,7 +147,7 @@ const OurTeam = () => {
           variant="primary"
           title="Experience the Bullseye Difference"
           subtitle="Meet the team that's revolutionizing market analysis with AI."
-          primaryCTA={{ label: 'Launch Platform', link: '/app/market' }}
+          primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
           secondaryCTA={{ label: 'Learn More', link: '/about' }}
         />
       </Box>
@@ -156,3 +156,4 @@ const OurTeam = () => {
 };
 
 export default OurTeam;
+

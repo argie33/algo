@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Box, Container, Typography, Grid, alpha, useTheme, Card, CardContent } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
@@ -79,7 +79,7 @@ const Home = () => {
       description:
         'Systematic sector rotation analysis, macroeconomic research, and policy impact assessment. Integrate Fed policy, economic indicators, and market regime analysis for strategic positioning.',
       tags: ['Sectors', 'Economics', 'Macro'],
-      link: '/app/market',
+      link: '/app/markets',
     },
   ];
 
@@ -239,7 +239,7 @@ const Home = () => {
                         letterSpacing: '0.5px',
                       }}
                     >
-                      {insight.date} • {insight.author}
+                      {insight.date} â€¢ {insight.author}
                     </Typography>
                     <Typography
                       variant="h6"
@@ -311,10 +311,11 @@ const Home = () => {
         variant="dark"
         title="Ready to Access Professional Research?"
         subtitle="Get institutional-grade market research and advisory insights."
-        primaryCTA={{ label: 'Launch Platform', link: '/app/market' }}
+        primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
       />
     </MarketingLayout>
   );
 };
 
 export default Home;
+

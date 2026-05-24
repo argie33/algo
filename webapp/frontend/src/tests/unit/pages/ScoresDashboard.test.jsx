@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Bullseye Stock Screener Page Unit Tests
  * Tests the new leaderboard-based scores dashboard with top performers
  */
@@ -429,3 +429,4 @@ describe("Bullseye Stock Screener Page", () => {
     });
   });
 });
+

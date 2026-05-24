@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Frontend News Analyzer Utility
  * Provides client-side news analysis and sentiment scoring
  */
@@ -479,3 +479,4 @@ class NewsAnalyzer {
 // Create and export singleton instance
 export const newsAnalyzer = new NewsAnalyzer();
 export default newsAnalyzer;
+

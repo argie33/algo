@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Signal Table Helper Functions
  * Provides reusable utilities for dynamic signal table rendering across pages
  */
@@ -10,7 +10,7 @@ import { formatCurrency } from './formatters';
  */
 export const formatCellValue = (value, key) => {
   if (value === null || value === undefined || value === "" || value === "None") {
-    return "—";
+    return "â€”";
   }
 
   // Format currency fields (prices, levels, targets, moving averages)
@@ -148,3 +148,4 @@ export const formatColumnHeader = (columnKey) => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
+

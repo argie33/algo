@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Bullseye Stock Screener E2E Tests", () => {
   test.setTimeout(30000);
@@ -49,11 +49,11 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       );
 
       console.log(
-        `📊 Bullseye Stock Screener: ${consoleErrors.length} total console messages, ${criticalErrors.length} critical errors`
+        `ðŸ“Š Bullseye Stock Screener: ${consoleErrors.length} total console messages, ${criticalErrors.length} critical errors`
       );
 
       if (criticalErrors.length > 0) {
-        console.log("❌ Critical errors on Bullseye Stock Screener:");
+        console.log("âŒ Critical errors on Bullseye Stock Screener:");
         criticalErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
@@ -72,7 +72,7 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       expect(hasScoresContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("⚠️ Bullseye Stock Screener failed to load:", error.message);
+      console.log("âš ï¸ Bullseye Stock Screener failed to load:", error.message);
       await page.screenshot({ path: 'debug-scores-dashboard.png' });
       throw error;
     }
@@ -325,3 +325,4 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
     await expect(leaderboardHeaders).not.toBeVisible();
   });
 });
+

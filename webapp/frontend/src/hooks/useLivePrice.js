@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 
 /**
  * Hook to subscribe to live price updates via WebSocket.
@@ -112,9 +112,10 @@ export function LivePriceTicker({ symbol, currentPrice, entryPrice }) {
       </div>
       {!connected && (
         <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '6px' }}>
-          ⚠ Live prices unavailable (using cached)
+          âš  Live prices unavailable (using cached)
         </div>
       )}
     </div>
   );
 }
+

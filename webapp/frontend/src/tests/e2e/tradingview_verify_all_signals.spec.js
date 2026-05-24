@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test('Verify all historical PHI signals on TradingView match our calculations', async ({ page }) => {
   // Navigate to PHI chart
@@ -33,3 +33,4 @@ test('Verify all historical PHI signals on TradingView match our calculations', 
   await page.screenshot({ path: '/tmp/tradingview_november_final.png' });
   
 });
+

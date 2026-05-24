@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Visual Regression Testing
  * Takes screenshots and compares visual changes across the financial platform
  */
@@ -379,3 +379,4 @@ test.describe("Financial Platform - Visual Regression", () => {
     expect(hoverTestCount).toBeGreaterThanOrEqual(0);
   });
 });
+

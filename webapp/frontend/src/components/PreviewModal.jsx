@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -168,7 +168,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
           </div>
         ) : success ? (
           <div className="modal-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✓</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>âœ“</div>
             <h3>Trade Created Successfully</h3>
             <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
               {tradeType.toUpperCase()} {shares} shares of {symbol} @ ${entryPrice}
@@ -210,3 +210,4 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     </div>
   );
 }
+
