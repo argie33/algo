@@ -19,6 +19,8 @@ This workspace supports multiple projects. When working in this repo, **read the
 5. Update steering doc in same commit as system changes
 6. No layering (all steering in `steering/`, not in subdirs)
 
+**Quick reference:** `STEERING_CHECKLIST.md` lists red flags before committing steering edits.
+
 ## Where Each Thing Goes
 | What | Where | Why |
 |------|-------|-----|
