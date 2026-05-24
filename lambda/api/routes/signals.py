@@ -23,21 +23,29 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return error_response(404, 'not_found', f'No signals handler for {path}')
 
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
-        """Get stock trading signals with technical enrichment from normalized tables."""
+        """Get stock trading signals with all available technical and analytical data."""
         try:
             where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
             params = [limit]
 
             if symbol_filter:
                 where_clause += " AND bsd.symbol = %s"
-                params.insert(0, symbol_filter.upper())  # Insert at beginning for parameter order
+                params.insert(0, symbol_filter.upper())
 
             cur.execute("""
                 SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date, bsd.strength, bsd.reason
+                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
+                    bsd.entry_quality_score, bsd.signal_quality_score,
+                    bsd.entry_price, bsd.close, bsd.rsi, bsd.adx,
+                    bsd.sma_50, bsd.sma_200, bsd.mansfield_rs,
+                    bsd.base_type, bsd.base_length_days, bsd.breakout_quality,
+                    bsd.risk_reward_ratio, bsd.risk_pct,
+                    bsd.stage_number, bsd.substage, bsd.market_stage,
+                    bsd.rs_rating, bsd.volume, bsd.avg_volume_50d,
+                    bsd.reason, bsd.updated_at
                 FROM buy_sell_daily bsd
                 """ + where_clause + """
-                ORDER BY bsd.date DESC, bsd.symbol ASC
+                ORDER BY bsd.date DESC, bsd.entry_quality_score DESC, bsd.symbol ASC
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()

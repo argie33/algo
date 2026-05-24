@@ -1,7 +1,5 @@
 # Stock Analytics Platform — Algo
 
-**Current status:** Check GitHub Actions (tests), AWS ECS (loaders), RDS (row counts). Not tracked here.
-
 ## SYSTEM MAP
 | Component | Code | Deploy | Trigger |
 |-----------|------|--------|---------|
@@ -41,6 +39,14 @@
 
 Monitor: https://github.com/argie33/algo/actions
 
+## LIVE TRADING CONFIG
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| ALGO_LIVE_TRADING | I_UNDERSTAND_REAL_MONEY | Required for live trades |
+| ALPACA_PAPER_TRADING | false | Disable paper mode |
+| APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
+| execution_mode | auto | Auto-detect live intent |
+
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
 - 9:30A ET: Morning orchestrator (fresh prices + technicals)
@@ -62,7 +68,6 @@ Monitor: https://github.com/argie33/algo/actions
 | API 401 | Token expired? Cognito env var set? |
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
 | Signals missing | Data in `technical_data_daily`? Rules in code? |
-| Alpaca 401 | Set `ALPACA_PAPER=true` env |
-| **Loader troubleshooting** | **Audit → Fix only FAILING loaders. Never rerun working ones ($$). Spot-check known-good tables before queuing tasks.** |
-| **✅ All Real Data** | All 40+ loaders use real data sources: AAII (Excel), Fear & Greed (CNN API), NAAIM (web scrape), Analyst sentiment/upgrades (Yahoo Finance). No mock data. See `memory/loaders_all_real_data_corrected.md` |
+| Alpaca 401 | Set `ALPACA_PAPER=false` for live trading or `true` for paper |
+| Loader failures | Audit → Fix only FAILING loaders. Never rerun working ones ($$). Spot-check known-good tables before queuing tasks. |
 

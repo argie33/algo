@@ -110,7 +110,7 @@ def get_naaim_data():
     Downloads the NAAIM Exposure Index data from their website.
     Returns a DataFrame with the NAAIM exposure data.
     """
-    logging.info(f"🔄 Starting NAAIM data download from: {NAAIM_URL}")
+    logging.info(f"Starting NAAIM data download from: {NAAIM_URL}")
     
     # Custom headers to mimic a browser request and avoid compression
     headers = {

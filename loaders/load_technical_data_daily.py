@@ -113,7 +113,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["macd_hist"] = df["macd"] - df["macd_signal"]
         df["macd_histogram"] = df["macd_hist"]  # Schema has both names
 
-        # Momentum and rate of change
+        # Momentum and rate of change (clamped to DECIMAL(8,4) range: ±9999.9999)
         df["mom"] = df["close"].diff()
         df["roc"] = df["close"].pct_change() * 100
         df["roc_10d"] = df["close"].pct_change(10) * 100
@@ -121,6 +121,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["roc_60d"] = df["close"].pct_change(60) * 100
         df["roc_120d"] = df["close"].pct_change(120) * 100
         df["roc_252d"] = df["close"].pct_change(252) * 100
+
+        # Clamp ROC values to database field limits to prevent overflow
+        roc_cols = ["roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d"]
+        for col in roc_cols:
+            df[col] = df[col].clip(-9999.9999, 9999.9999)
 
         mas = compute_moving_averages(df["close"])
         for name, values in mas.items():

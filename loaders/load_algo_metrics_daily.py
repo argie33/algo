@@ -43,9 +43,17 @@ class AlgoMetricsDailyLoader:
                 WHERE DATE(created_at) = %s
                 GROUP BY DATE(created_at)
             """, (run_date,))
-            result = cursor.fetchone()
+            row = cursor.fetchone()
             cursor.close()
-            return result or {}
+            if not row:
+                return {}
+            return {
+                'trading_date': row[0],
+                'total_actions': row[1],
+                'entries': row[2],
+                'exits': row[3],
+                'avg_signal_score': row[4]
+            }
         except Exception as e:
             logger.error(f"Failed to compute metrics: {e}")
             return {}

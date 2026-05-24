@@ -48,50 +48,66 @@ class AnalystSentimentLoader(OptimalLoader):
             return None
 
         try:
-            ticker = yf.Ticker(symbol)
-            recs = ticker.recommendations
+            import threading
 
-            if recs is None or recs.empty:
-                return None
+            result = [None]
 
-            # Group by date and aggregate sentiment counts
-            sentiment_by_date = {}
-            for idx, row in recs.iterrows():
-                rec_date = idx.date() if hasattr(idx, 'date') else idx
-                rating = row.get('To Grade', '').lower()
+            def fetch_ticker():
+                try:
+                    ticker = yf.Ticker(symbol)
+                    recs = ticker.recommendations
 
-                if rec_date not in sentiment_by_date:
-                    sentiment_by_date[rec_date] = {
-                        'bullish': 0, 'bearish': 0, 'neutral': 0, 'total': 0
-                    }
+                    if recs is None or recs.empty:
+                        return
 
-                # Categorize rating
-                if rating in ['buy', 'overweight', 'outperform', 'strong buy']:
-                    sentiment_by_date[rec_date]['bullish'] += 1
-                elif rating in ['sell', 'underweight', 'underperform', 'strong sell']:
-                    sentiment_by_date[rec_date]['bearish'] += 1
-                elif rating in ['hold', 'equal weight', 'neutral']:
-                    sentiment_by_date[rec_date]['neutral'] += 1
+                    # Group by date and aggregate sentiment counts
+                    sentiment_by_date = {}
+                    for idx, row in recs.iterrows():
+                        rec_date = idx.date() if hasattr(idx, 'date') else idx
+                        rating = row.get('To Grade', '').lower()
 
-                sentiment_by_date[rec_date]['total'] += 1
+                        if rec_date not in sentiment_by_date:
+                            sentiment_by_date[rec_date] = {
+                                'bullish': 0, 'bearish': 0, 'neutral': 0, 'total': 0
+                            }
 
-            # Convert to result format
-            results = []
-            for rec_date, counts in sentiment_by_date.items():
-                results.append({
-                    'symbol': symbol,
-                    'date': rec_date,
-                    'analyst_count': counts['total'],
-                    'bullish_count': counts['bullish'],
-                    'bearish_count': counts['bearish'],
-                    'neutral_count': counts['neutral'],
-                    'target_price': None,
-                    'current_price': None,
-                    'upside_downside_percent': None
-                })
+                        # Categorize rating
+                        if rating in ['buy', 'overweight', 'outperform', 'strong buy']:
+                            sentiment_by_date[rec_date]['bullish'] += 1
+                        elif rating in ['sell', 'underweight', 'underperform', 'strong sell']:
+                            sentiment_by_date[rec_date]['bearish'] += 1
+                        elif rating in ['hold', 'equal weight', 'neutral']:
+                            sentiment_by_date[rec_date]['neutral'] += 1
 
-            return results if results else None
-        except Exception as e:
+                        sentiment_by_date[rec_date]['total'] += 1
+
+                    # Convert to result format
+                    results = []
+                    for rec_date, counts in sentiment_by_date.items():
+                        results.append({
+                            'symbol': symbol,
+                            'date': rec_date,
+                            'analyst_count': counts['total'],
+                            'bullish_count': counts['bullish'],
+                            'bearish_count': counts['bearish'],
+                            'neutral_count': counts['neutral'],
+                            'target_price': None,
+                            'current_price': None,
+                            'upside_downside_percent': None
+                        })
+
+                    result[0] = results if results else None
+                except Exception:
+                    pass
+
+            # Set 10-second timeout per ticker (yfinance can be slow)
+            thread = threading.Thread(target=fetch_ticker, daemon=True)
+            thread.start()
+            thread.join(timeout=10.0)
+
+            return result[0]
+        except Exception:
+            # Any error - skip this symbol gracefully
             return None
 
     def transform(self, rows):
