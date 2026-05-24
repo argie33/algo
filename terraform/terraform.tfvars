@@ -21,6 +21,7 @@ cognito_enabled             = true # Authorizer exists but not used on routes (a
 
 # Database configuration
 enable_rds_proxy = false # Disable RDS Proxy - use direct RDS connection (proven to work with db-init)
+dev_mode        = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode         = "auto"
