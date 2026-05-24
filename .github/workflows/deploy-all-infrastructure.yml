@@ -117,7 +117,9 @@ jobs:
         run: |
           cd terraform
           terraform init -reconfigure -backend-config="bucket=algo-terraform-state-dev" -backend-config="key=dev/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=algo-terraform-locks-dev" --upgrade
-          terraform state rm module.database.aws_db_parameter_group.main 2>/dev/null || echo "Resource not in state (OK)"
+          # Remove the orphaned parameter group resource from state
+          # Using destroy -target removes it from S3 state (unlike state rm which only affects local state)
+          terraform destroy -target=module.database.aws_db_parameter_group.main -auto-approve 2>&1 | grep -E "Destroy|destroyed|no changes|Error" || true
           echo "State cleanup complete"
         env:
           AWS_REGION: us-east-1
