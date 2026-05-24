@@ -50,7 +50,8 @@
 | ECS Cluster | `algo-cluster` |
 | Orchestrator Λ | `algo-algo-dev` |
 | API Λ | `algo-api-dev` |
-| RDS | `stocks-db.cluster-*.us-east-1.rds.amazonaws.com` |
+| RDS | `algo-db` (endpoint: `algo-db.*.us-east-1.rds.amazonaws.com`) |
+| RDS Secret | `algo-db-credentials-dev` (AWS Secrets Manager) |
 | Tasks | `algo-{loader}-loader` |
 
 Monitor: https://github.com/argie33/algo/actions
@@ -86,6 +87,7 @@ SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
 ## TROUBLESHOOTING
 | Issue | Fix |
 |-------|-----|
+| DB connectivity | Run `diagnose_rds.sh` or see `RDS_CONNECTIVITY_DIAGNOSTIC.md` |
 | Creds fail | PowerShell profile vars? Postgres running? AWS creds valid? |
 | API 401 | Token expired? Cognito env var set? |
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
