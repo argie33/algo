@@ -19,13 +19,16 @@ This workspace supports multiple projects. When working in this repo, **read the
 5. Update steering doc in same commit as system changes
 6. No layering (all steering in `steering/`, not in subdirs)
 
-## Source of Truth
-- **System state** → `steering/algo.md` (updated in-commit, versioned)
-- **Blocking work** → GitHub Issues (trackable, linkable)
-- **History** → `git log` (never stale)
-- **Behavioral rules** → Memory (max 1 file, no status snapshots)
+## Where Each Thing Goes
+| What | Where | Why |
+|------|-------|-----|
+| Static config (paths, ports, credentials, deploy) | `steering/{project}.md` | Versioned, discoverable |
+| Operational status (live errors, deployments, blockers) | GitHub Issues / GitHub Actions | Real-time, not stale |
+| History (commits, changes) | `git log --oneline` | Authoritative |
+| Behavioral guidance (team patterns) | Memory (1 file max, <50 lines) | Evolves with learnings |
 
-❌ NO status in memory, NO incident logs in memory, NO tracking there.
+**NEVER add to steering:** status, blockers, errors, timestamps, "as of X", anything temporary.
+**NEVER add to memory:** status snapshots, incident logs, live state of any kind.
 
 ## Abbreviation Patterns
 
@@ -39,7 +42,7 @@ This workspace supports multiple projects. When working in this repo, **read the
 
 ## Adding Projects
 
-1. Create `steering/{name}.md` with: status, system map, credentials, deploy, resource names, schedule, key files, troubleshooting, local dev
+1. Create `steering/{name}.md` with: system map, credentials, deploy, resource names, schedule, key files, troubleshooting, local dev (**NO status**)
 2. Add row to project table
 3. Verify: root < 50 lines, steering < 150 lines, commit both together
 
