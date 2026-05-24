@@ -117,11 +117,13 @@ jobs:
         run: |
           # Download state from S3 and remove the orphaned parameter group resource
           # CRITICAL: Use the CORRECT state bucket and key (stocks-terraform-state/stocks/terraform.tfstate)
-          aws s3 cp s3://stocks-terraform-state/stocks/terraform.tfstate /tmp/state.json
+          # Handle case where state file may not exist yet
+          if aws s3 ls s3://stocks-terraform-state/stocks/terraform.tfstate 2>/dev/null; then
+            echo "State file found, downloading and cleaning..."
+            aws s3 cp s3://stocks-terraform-state/stocks/terraform.tfstate /tmp/state.json
 
-          # Use Python to remove the entire parameter group resource block from JSON
-          # This is necessary due to state persistence
-          python3 << 'PYEOF'
+            # Use Python to remove the entire parameter group resource block from JSON
+            python3 << 'PYEOF'
 import json
 import sys
 
@@ -158,9 +160,12 @@ except Exception as e:
   sys.exit(1)
 PYEOF
 
-          # Upload cleaned state back to S3
-          aws s3 cp /tmp/state.json s3://stocks-terraform-state/stocks/terraform.tfstate
-          echo "✅ S3 state file cleaned"
+            # Upload cleaned state back to S3
+            aws s3 cp /tmp/state.json s3://stocks-terraform-state/stocks/terraform.tfstate
+            echo "✅ S3 state file cleaned"
+          else
+            echo "⚠️  State file not found in S3, will be created fresh by terraform init"
+          fi
 
       - name: Setup Terraform State Backend
         run: |
