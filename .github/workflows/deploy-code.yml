@@ -81,7 +81,7 @@ jobs:
           # Fall back to listing if TF outputs are empty
           if [ -z "$FRONTEND_BUCKET" ]; then
             FRONTEND_BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, `stocks-frontend`)].Name | [0]' \
+              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$CF_ID" ]; then
@@ -871,7 +871,21 @@ jobs:
             echo "Cognito pool not found — auth will be disabled in frontend"
           fi
           npm install
-          VITE_API_URL="${{ secrets.API_GATEWAY_URL }}" \
+          # Get API endpoint from Terraform output (resolved in resolve-infra job)
+          API_GATEWAY="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
+          if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "***" ]; then
+            echo "WARNING: API Gateway endpoint not resolved, falling back to dynamic lookup"
+            API_GATEWAY=$(aws apigatewayv2 get-apis \
+              --region $AWS_REGION \
+              --query 'Items[0].ApiEndpoint' \
+              --output text 2>/dev/null || echo "")
+          fi
+          if [ -z "$API_GATEWAY" ]; then
+            echo "ERROR: Could not resolve API Gateway endpoint"
+            exit 1
+          fi
+          echo "Using API Gateway: $API_GATEWAY"
+          VITE_API_URL="$API_GATEWAY" \
           VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" \
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
@@ -908,34 +922,74 @@ jobs:
           echo "✅ Generated dist/config.js with API_URL=$API_URL"
           cat webapp/frontend/dist/config.js
 
+      - name: Verify Frontend Build Output
+        working-directory: webapp/frontend
+        run: |
+          echo "=== Checking dist folder ==="
+          if [ -d dist ]; then
+            echo "✅ dist/ exists"
+            ls -lah dist/ | head -20
+            FILE_COUNT=$(find dist -type f | wc -l)
+            echo "Total files: $FILE_COUNT"
+            if [ "$FILE_COUNT" -eq 0 ]; then
+              echo "❌ ERROR: dist/ is empty!"
+              exit 1
+            fi
+          else
+            echo "❌ ERROR: dist/ does not exist"
+            exit 1
+          fi
+
       - name: Sync to S3
         run: |
           BUCKET="${{ needs.resolve-infra.outputs.frontend_bucket }}"
           # Fall back to AWS CLI discovery if output was masked or empty
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "***" ]; then
+            echo "Terraform output masked/empty, discovering bucket..."
             BUCKET=$(aws s3api list-buckets \
               --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "ERROR: frontend bucket not resolved"
+            echo "❌ ERROR: frontend bucket not resolved"
+            echo "Available buckets:"
+            aws s3api list-buckets --query 'Buckets[].Name' --output text
             exit 1
           fi
-          echo "Using bucket: $BUCKET"
+          echo "✅ Using bucket: $BUCKET"
+
+          # Verify bucket is accessible
+          if ! aws s3 ls "s3://${BUCKET}/" >/dev/null 2>&1; then
+            echo "❌ ERROR: Cannot access bucket s3://${BUCKET}/"
+            exit 1
+          fi
+          echo "✅ Bucket is accessible"
 
           # Long-lived assets (hashed filenames) get max cache
-          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
-            --delete \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "*.html"
+          echo "Syncing assets (excluding HTML)..."
+          FILE_COUNT=$(find webapp/frontend/dist -type f ! -name "*.html" | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "⚠️ WARNING: No non-HTML files to sync"
+          else
+            echo "Will sync $FILE_COUNT files"
+            aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+              --delete \
+              --cache-control "public, max-age=31536000, immutable" \
+              --exclude "*.html"
+          fi
 
           # HTML files must not be cached (always fetch fresh)
+          echo "Syncing HTML files..."
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --exclude "*" \
             --include "*.html" \
             --cache-control "no-cache, no-store, must-revalidate"
 
           echo "✅ Frontend synced to s3://${BUCKET}/"
+
+          # Verify files are in S3
+          echo "Verifying S3 contents..."
+          aws s3 ls "s3://${BUCKET}/" --recursive | head -20
 
       - name: Invalidate CloudFront
         run: |
