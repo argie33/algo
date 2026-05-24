@@ -721,6 +721,10 @@ jobs:
             --region $AWS_REGION)
           ROLE_ARN=$(echo "$API_CFG" | jq -r '.Role')
 
+          # Export variables for Python script BEFORE running it
+          export FUNC_NAME="$FUNC"
+          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+
           # Build environment variables JSON
           python3 << 'PYTHON_API_CONFIG'
           import json
@@ -787,9 +791,6 @@ jobs:
             except:
               pass
           PYTHON_API_CONFIG
-
-          export FUNC_NAME="$FUNC"
-          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
 
           echo "✅ API Lambda deployed with environment configuration: $FUNC"
 
