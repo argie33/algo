@@ -129,6 +129,12 @@ variable "psycopg2_layer_arn" {
   default     = ""
 }
 
+variable "lambda_layer_name" {
+  description = "Name of the shared Lambda layer with dependencies"
+  type        = string
+  default     = "algo-orchestrator-layer"
+}
+
 # ============================================================
 # Storage Configuration
 # ============================================================

@@ -464,37 +464,9 @@ locals {
   algo_lambda_use_s3 = var.algo_lambda_s3_bucket != ""
 }
 
-# For local fallback: archive local code (for dev/testing)
-data "archive_file" "algo_function_local" {
-  count             = local.algo_lambda_use_s3 ? 0 : 1
-  type              = "zip"
-  output_path       = "${path.module}/../../${var.algo_lambda_code_file}"
-  source_base_path  = "${path.module}/../.."
-
-  # Include Lambda handler
-  source {
-    content  = file("${path.module}/../../lambda/algo_orchestrator/lambda_function.py")
-    filename = "lambda_function.py"
-  }
-
-  # Include algo module
-  source {
-    path     = "${path.module}/../../algo"
-    zip_path = "algo"
-  }
-
-  # Include config module
-  source {
-    path     = "${path.module}/../../config"
-    zip_path = "config"
-  }
-
-  # Include utils module
-  source {
-    path     = "${path.module}/../../utils"
-    zip_path = "utils"
-  }
-}
+# For local fallback: use pre-built zip file
+# The zip file is built by GitHub Actions deploy workflow before terraform apply
+# It contains: lambda_function.py handler + algo/, config/, utils/ modules
 
 resource "aws_lambda_function" "algo" {
   function_name = local.algo_lambda_name
@@ -505,12 +477,12 @@ resource "aws_lambda_function" "algo" {
   memory_size   = var.algo_lambda_memory
   layers        = [local.shared_deps_layer_arn]  # Use consolidated layer published by deploy workflow
 
-  # Use S3 package if available, otherwise local file
+  # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
   s3_key            = local.algo_lambda_use_s3 ? var.algo_lambda_s3_key : null
   s3_object_version = local.algo_lambda_use_s3 && var.algo_lambda_s3_object_version != "" ? var.algo_lambda_s3_object_version : null
-  filename          = !local.algo_lambda_use_s3 ? data.archive_file.algo_function_local[0].output_path : null
-  source_code_hash  = !local.algo_lambda_use_s3 ? data.archive_file.algo_function_local[0].output_base64sha256 : null
+  filename          = !local.algo_lambda_use_s3 ? "${path.module}/../../${var.algo_lambda_code_file}" : null
+  source_code_hash  = !local.algo_lambda_use_s3 ? filebase64sha256("${path.module}/../../${var.algo_lambda_code_file}") : null
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
