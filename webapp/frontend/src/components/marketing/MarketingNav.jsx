@@ -282,16 +282,19 @@ const MarketingNav = () => {
                         }}
                         disableAutoFocus
                         disableEnforceFocus
+                        BackdropProps={{ style: { pointerEvents: 'none' } }}
                         MenuListProps={{
                           onMouseLeave: () => {
                             setActiveDesktopMenu(null);
                             setDesktopMenuAnchor(null);
                           },
+                          style: { pointerEvents: 'auto' },
                         }}
                         sx={{
                           '& .MuiPaper-root': {
                             mt: 1,
                             minWidth: 200,
+                            pointerEvents: 'auto',
                           },
                         }}
                       >
