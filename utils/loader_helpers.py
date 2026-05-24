@@ -35,6 +35,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
         timeout_secs: Timeout for database query (default: 30 seconds)
     """
     import signal
+    import threading
 
     def timeout_handler(signum, frame):
         raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
@@ -45,7 +46,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_secs)
     except (AttributeError, ValueError):
-        # signal.SIGALRM not available on Windows, skip timeout
+        # signal.SIGALRM not available on Windows, use threading timeout instead
         pass
 
     # Check cache first to reduce database load under parallelism
@@ -60,25 +61,44 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
                 return symbols
 
     try:
-        conn = get_db_connection()
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
-            rows = cur.fetchall()
-            symbols = [row[0] for row in rows]
+        result = {'symbols': None, 'error': None}
 
-            # Cache the result
-            with _cache_lock:
-                _symbols_cache[cache_key] = (time.time(), symbols)
+        def fetch_symbols():
+            try:
+                conn = get_db_connection(max_retries=2, timeout=10)
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+                    rows = cur.fetchall()
+                    result['symbols'] = [row[0] for row in rows]
+                finally:
+                    cur.close()
+                    conn.close()
+            except Exception as e:
+                result['error'] = e
 
-            # Limit to max_symbols if specified
-            if max_symbols and len(symbols) > max_symbols:
-                symbols = symbols[:max_symbols]
+        # Run in thread with timeout for Windows compatibility
+        thread = threading.Thread(target=fetch_symbols, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout_secs)
 
-            return symbols
-        finally:
-            cur.close()
-            conn.close()
+        if thread.is_alive():
+            raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
+
+        if result['error']:
+            raise result['error']
+
+        symbols = result['symbols'] or []
+
+        # Cache the result
+        with _cache_lock:
+            _symbols_cache[cache_key] = (time.time(), symbols)
+
+        # Limit to max_symbols if specified
+        if max_symbols and len(symbols) > max_symbols:
+            symbols = symbols[:max_symbols]
+
+        return symbols
     finally:
         # Cancel alarm
         if old_handler is not None:
