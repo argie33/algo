@@ -45,7 +45,9 @@ jobs:
           echo "Security Group: $SG"
 
       - name: Invoke All Loaders
+        shell: bash {0}
         run: |
+          set +e
           SUBNET="${{ steps.network.outputs.subnet }}"
           SG="${{ steps.network.outputs.security_group }}"
           TEST_MODE="${{ inputs.test_mode }}"
