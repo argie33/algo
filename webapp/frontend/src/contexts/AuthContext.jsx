@@ -180,7 +180,11 @@ export function AuthProvider({ children }) {
 
       return { success: false, error: "No valid tokens" };
     } catch (error) {
-      console.error("Session refresh error:", error);
+      // Only log non-expected errors; "No active session" is expected in dev mode
+      const errorMsg = error?.message || String(error);
+      if (!errorMsg.includes('No active session')) {
+        console.error("Session refresh error:", error);
+      }
       return { success: false, error: getErrorMessage(error) };
     }
   }, []);

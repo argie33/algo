@@ -72,7 +72,7 @@ const menuItems = [
   {
     text: "Market Overview",
     icon: <TrendingUpIcon />,
-    path: "/app/market",
+    path: "/app/markets",
     category: "markets",
   },
   {

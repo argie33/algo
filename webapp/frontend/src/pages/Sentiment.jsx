@@ -88,10 +88,6 @@ export default function Sentiment() {
     { staleTime: 300000, refetchInterval: 300000 }
   );
 
-  if (error) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error}</div>;
-  }
-
   const summaryQ = useApiQuery(
     ['sentiment-summary'],
     () => api.get('/api/sentiment/summary'),
@@ -109,6 +105,10 @@ export default function Sentiment() {
     () => api.get('/api/sentiment/divergence'),
     { refetchInterval: 300000 }
   );
+
+  if (error) {
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error}</div>;
+  }
 
   const rawData = Array.isArray(data) ? data : (data?.items || data?.data || []);
 
