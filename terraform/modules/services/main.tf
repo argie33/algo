@@ -402,12 +402,16 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
           Service = "cloudfront.amazonaws.com"
         }
         Action = [
-          "s3:GetObject"
+          "s3:GetObject",
+          "s3:ListBucket"
         ]
-        Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
+        Resource = [
+          "arn:aws:s3:::${var.frontend_bucket_name}",
+          "arn:aws:s3:::${var.frontend_bucket_name}/*"
+        ]
         Condition = {
           StringEquals = {
-            "aws:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
+            "aws:SourceArn" = "arn:aws:cloudfront::${var.aws_account_id}:distribution/${aws_cloudfront_distribution.frontend[0].id}"
           }
         }
       }
