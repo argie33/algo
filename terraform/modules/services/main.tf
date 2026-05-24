@@ -498,6 +498,7 @@ resource "aws_lambda_function" "algo" {
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE         = var.execution_mode
       ORCHESTRATOR_DRY_RUN      = tostring(var.orchestrator_dry_run)
+      ALGO_LIVE_TRADING         = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"  # Live trading acknowledgment
       APCA_API_BASE_URL         = var.alpaca_api_base_url
       APCA_API_KEY_ID           = var.alpaca_api_key_id
       APCA_API_SECRET_KEY       = var.alpaca_api_secret_key
