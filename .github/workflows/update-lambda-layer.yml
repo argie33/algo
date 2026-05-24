@@ -30,7 +30,7 @@ jobs:
             --layer-name algo-orchestrator-layer \
             --region $AWS_REGION \
             --query 'LayerVersions[0].LayerVersionArn' \
-            --output text)
+            --output text | head -1)
 
           echo "layer_arn=$LAYER_ARN" >> $GITHUB_OUTPUT
           echo "Layer ARN: $LAYER_ARN"
