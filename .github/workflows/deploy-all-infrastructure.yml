@@ -301,12 +301,6 @@ jobs:
           # exit 0 = no changes, 2 = changes, other = error
           if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
 
-      - name: Remove Stale RDS Parameter Group from State
-        run: |
-          # Remove stale parameter group from terraform state to prevent conflicts
-          # (resource was removed from code but still exists in state)
-          terraform state rm module.database.aws_db_parameter_group.main 2>/dev/null || echo "Parameter group not in state (expected)"
-
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
