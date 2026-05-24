@@ -362,6 +362,21 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
   }
 
+  # SPA error responses — redirect 403/404 to index.html for client-side routing
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
