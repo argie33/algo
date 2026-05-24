@@ -681,12 +681,13 @@ jobs:
 
       - name: Publish API Lambda Layer
         run: |
-          LAYER_NAME="algo-api-layer"
-          echo "Publishing API Lambda layer: $LAYER_NAME"
+          # Use shared layer name so both API and Orchestrator Lambdas reference the same layer
+          LAYER_NAME="algo-orchestrator-layer"
+          echo "Publishing API Lambda layer: $LAYER_NAME (shared with orchestrator)"
           LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name "$LAYER_NAME" \
             --zip-file fileb://api_layer.zip \
-            --compatible-runtimes python3.11 \
+            --compatible-runtimes python3.12 \
             --region $AWS_REGION \
             --query 'Version' \
             --output text)

@@ -643,11 +643,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f'Error: {e}', exc_info=True)
+        logger.error(f'Error: {type(e).__name__}: {e}', exc_info=True)
         cors_headers = get_cors_headers(event)
+        import traceback
+        tb = traceback.format_exc()
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'internal_server_error'})
+            'body': json.dumps({
+                'error': 'internal_server_error',
+                'exception': str(type(e).__name__),
+                'message': str(e),
+                'path': path,
+                'method': method,
+                'traceback': tb.split('\n')[:10]  # First 10 lines of traceback
+            })
         }
 
