@@ -109,6 +109,8 @@ jobs:
     name: Deploy Algo Lambda
     needs: resolve-infra
     runs-on: ubuntu-latest
+    env:
+      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
