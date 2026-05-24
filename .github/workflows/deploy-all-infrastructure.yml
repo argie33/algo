@@ -116,48 +116,19 @@ jobs:
       - name: Clean Terraform State (Remove Stale Resources)
         run: |
           cd terraform
-
           # Download current state from S3
           aws s3 cp s3://algo-terraform-state-dev/dev/terraform.tfstate tfstate.json
 
-          # Remove the orphaned parameter group resource from the JSON state file
-          # This avoids terraform's confusion about a resource in state but not in code
-          python3 << 'PYTHON_EOF'
-import json
-import sys
-try:
-  with open('tfstate.json', 'r') as f:
-    state = json.load(f)
-
-  # Find and remove the parameter group resource from resources section
-  if 'resources' in state:
-    state['resources'] = [r for r in state['resources']
-                          if not (r.get('type') == 'aws_db_parameter_group' and
-                                  r.get('name') == 'main' and
-                                  r.get('module') == 'module.database')]
-
-  # Also remove from modules section if it exists there
-  if 'modules' in state:
-    for module in state.get('modules', []):
-      if 'resources' in module:
-        module['resources'] = [r for r in module['resources']
-                               if not (r.get('type') == 'aws_db_parameter_group' and
-                                       r.get('name') == 'main')]
-
-  with open('tfstate.json', 'w') as f:
-    json.dump(state, f)
-  print("✅ Removed orphaned parameter group from state")
-except Exception as e:
-  print(f"⚠️ State modification failed: {e}", file=sys.stderr)
-  sys.exit(1)
-PYTHON_EOF
+          # Remove orphaned parameter group using jq (simpler, more reliable than Python)
+          # Filter out the aws_db_parameter_group.main resource from all resource lists
+          jq 'del(.resources[] | select(.type == "aws_db_parameter_group" and .name == "main"))' tfstate.json > tfstate.tmp && mv tfstate.tmp tfstate.json
 
           # Upload modified state back to S3
           aws s3 cp tfstate.json s3://algo-terraform-state-dev/dev/terraform.tfstate
+          echo "✅ State cleanup: removed orphaned parameter group"
 
           # Now initialize terraform with the cleaned state
           terraform init -reconfigure -backend-config="bucket=algo-terraform-state-dev" -backend-config="key=dev/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=algo-terraform-locks-dev" --upgrade
-          echo "State cleanup complete"
         env:
           AWS_REGION: us-east-1
 
