@@ -443,6 +443,21 @@ data "aws_iam_policy_document" "ecs_task" {
       ]
     }
   }
+
+  # CloudWatch (publish metrics and logs)
+  statement {
+    sid    = "CloudWatch"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData",
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 # ============================================================
