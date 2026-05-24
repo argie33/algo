@@ -14,10 +14,10 @@
 ## CREDENTIALS
 | Env | Store | Keys |
 |-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, APCA, FRED_API_KEY |
-| CI | GitHub Secrets | ALPACA, FRED_API_KEY, AWS |
-| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
-**Rules:** Rotate Q, instant if leaked, ❌ .env
+| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, APCA, FRED_API_KEY, SEC_USER_AGENT |
+| CI | GitHub Secrets | ALPACA, FRED_API_KEY, AWS, SEC_USER_AGENT |
+| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred, sec-user-agent |
+**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT required (SEC policy): `AppName email@domain.com`
 
 ## DEPLOY & RESOURCES
 `git push main` → `deploy-code.yml` (auto: test → scan → Terraform → Λ → EB)
@@ -48,16 +48,17 @@ Monitor: https://github.com/argie33/algo/actions
 | execution_mode | auto | Auto-detect live intent |
 
 ## LOADER STATUS
-**All 24 loaders working.** Rate-limited: financial statements (SEC API), slow: AAII/stock prices (API calls).
+**All 24 loaders working.** SLA issue: SEC API loaders timing out due to missing credentials (SEC_USER_AGENT not set).
 
 | Status | Count | Loaders |
 |--------|-------|---------|
-| Reliable (<30s) | 18 | Algo metrics, analyst sentiment/upgrade, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, signals quality, technical, weight, stock prices* |
-| Rate-limited (30-120s) | 6 | AAII sentiment (54-59s), balance sheet, cash flow, income statement, swing trader scores, trend criteria, value metrics |
+| Reliable (<30s) | 18 | Algo metrics, analyst sentiment/upgrade, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, signals quality, technical, weight, stock prices |
+| SEC credential issue | 3 | Balance sheet, cash flow, income statement (timeout until SEC_USER_AGENT set) |
+| Slow (API) | 3 | AAII sentiment (54s), swing trader scores, trend criteria, value metrics |
 
-*Stock prices: 14-47s (variable per run, 3 intervals × 2 classes)
+**SLA Fix (CRITICAL):** Set SEC_USER_AGENT env var: `algo-trading argeropolos@gmail.com`. Added to PowerShell profile (May 24).
 
-**Fixes:** Analyst loaders use yfinance_wrapper (exponential backoff). 60s+ → 7.4s. SEC financial loaders have built-in 8 req/sec limiter.
+**Other fixes:** Analyst loaders use yfinance_wrapper (exponential backoff). 60s+ → 7.4s.
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
