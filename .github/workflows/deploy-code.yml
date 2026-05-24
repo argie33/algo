@@ -564,18 +564,94 @@ jobs:
 
       - name: Package API Lambda
         run: |
-          mkdir -p api-pkg
-          cp -r lambda/api/. api-pkg/
-          pip install -r lambda/api/requirements.txt \
-            -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
-          cd api-pkg
-          zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*"
-          cd ..
-          echo "Package size: $(du -sh api_lambda.zip | cut -f1)"
+          python3 << 'PYTHON_API'
+          import os
+          import zipfile
+          import subprocess
+          from pathlib import Path
+          import shutil
+
+          app_dir = Path.cwd()
+
+          # ============================================================
+          # PACKAGE 1: API Function Code (handler ONLY)
+          # ============================================================
+          print("=== Building API Lambda Function Code ===\n")
+
+          zip_path = Path("api_lambda.zip")
+          if zip_path.exists():
+            zip_path.unlink()
+
+          with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Add all handler files from lambda/api/ EXCEPT __pycache__ and .pyc
+            api_path = app_dir / "lambda" / "api"
+            for file_path in api_path.rglob("*"):
+              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path)):
+                rel_path = file_path.relative_to(api_path)
+                zf.write(str(file_path), str(rel_path))
+            print(f"  + API handler code ({len(list(api_path.rglob('*.py')))} Python files)")
+
+          print(f"  Result: {zip_path.stat().st_size / 1024:.1f} KB (dependencies via layer)\n")
+
+          # ============================================================
+          # PACKAGE 2: API Lambda Layer (dependencies only)
+          # ============================================================
+          print("=== Building API Lambda Layer ===\n")
+
+          layer_path = Path("api_layer.zip")
+          if layer_path.exists():
+            layer_path.unlink()
+
+          with zipfile.ZipFile(layer_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Install dependencies for layer
+            print("  Installing dependencies...")
+            layer_pkg_temp = Path("/tmp/api_layer_pip")
+            if layer_pkg_temp.exists():
+              shutil.rmtree(layer_pkg_temp)
+            layer_pkg_temp.mkdir()
+
+            subprocess.run([
+              "pip", "install",
+              "-r", "lambda/api/requirements.txt",
+              "-t", str(layer_pkg_temp),
+              "--platform", "manylinux2014_x86_64",
+              "--only-binary=:all:",
+              "--quiet"
+            ], check=True)
+
+            # Add to layer with python/ prefix
+            for file_path in layer_pkg_temp.rglob("*"):
+              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path)):
+                rel_path = file_path.relative_to(layer_pkg_temp)
+                layer_arcname = f"python/{rel_path}"
+                zf.write(str(file_path), layer_arcname)
+            print("  + dependencies")
+
+          print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
+          print("OK - API function code and layer ready")
+          PYTHON_API
+
+      - name: Publish API Lambda Layer
+        run: |
+          LAYER_NAME="algo-api-layer"
+          echo "Publishing API Lambda layer: $LAYER_NAME"
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name "$LAYER_NAME" \
+            --zip-file fileb://api_layer.zip \
+            --compatible-runtimes python3.11 \
+            --region $AWS_REGION \
+            --query 'Version' \
+            --output text)
+
+          echo "✅ API layer published: version $LAYER_VERSION"
+          echo "API_LAYER_ARN=arn:aws:lambda:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:layer:$LAYER_NAME:$LAYER_VERSION" >> $GITHUB_ENV
 
       - name: Deploy API Lambda
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+
+          # Deploy function code (handler only, ~5KB)
+          echo "Deploying API function code..."
           aws lambda update-function-code \
             --function-name "$FUNC" \
             --zip-file fileb://api_lambda.zip \
@@ -583,6 +659,21 @@ jobs:
           aws lambda wait function-updated \
             --function-name "$FUNC" \
             --region $AWS_REGION
+
+          # Get current layer ARN
+          LAYER_ARN=$(aws lambda list-layer-versions \
+            --layer-name algo-api-layer \
+            --region $AWS_REGION \
+            --query 'LayerVersions[0].LayerVersionArn' \
+            --output text)
+
+          # Update configuration with layer
+          echo "Attaching API layer..."
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --layers "$LAYER_ARN" \
+            --region $AWS_REGION > /dev/null
+
           echo "✅ API Lambda deployed: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
