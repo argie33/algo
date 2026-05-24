@@ -42,14 +42,78 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  # 
+  #
   # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
-  # 
+  #
   bootstrap-backend:
-    name: "0. Bootstrap Terraform Backend"
-    uses: ./.github/workflows/bootstrap-terraform-backend.yml
-    secrets:
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+    name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Run Bootstrap Script
+        run: |
+          python3 << 'EOF'
+          import boto3
+          import sys
+
+          s3 = boto3.client('s3', region_name='us-east-1')
+          dynamodb = boto3.client('dynamodb', region_name='us-east-1')
+
+          # Create Terraform state bucket
+          try:
+            s3.head_bucket(Bucket='stocks-terraform-state')
+            print("✅ S3 bucket exists: stocks-terraform-state")
+          except:
+            try:
+              s3.create_bucket(Bucket='stocks-terraform-state')
+              s3.put_bucket_versioning(
+                Bucket='stocks-terraform-state',
+                VersioningConfiguration={'Status': 'Enabled'}
+              )
+              s3.put_bucket_encryption(
+                Bucket='stocks-terraform-state',
+                ServerSideEncryptionConfiguration={
+                  'Rules': [{
+                    'ApplyServerSideEncryptionByDefault': {'SSEAlgorithm': 'AES256'}
+                  }]
+                }
+              )
+              print("✅ Created S3 bucket: stocks-terraform-state")
+            except Exception as e:
+              print(f"⚠️  Could not create bucket: {e}")
+
+          # Create DynamoDB lock table
+          try:
+            dynamodb.describe_table(TableName='terraform-locks')
+            print("✅ DynamoDB table exists: terraform-locks")
+          except:
+            try:
+              dynamodb.create_table(
+                TableName='terraform-locks',
+                KeySchema=[{'AttributeName': 'LockID', 'KeyType': 'HASH'}],
+                AttributeDefinitions=[{'AttributeName': 'LockID', 'AttributeType': 'S'}],
+                BillingMode='PAY_PER_REQUEST'
+              )
+              print("✅ Created DynamoDB table: terraform-locks")
+            except Exception as e:
+              print(f"⚠️  Could not create table: {e}")
+          EOF
+
+      - name: Verify Backend Resources
+        run: |
+          aws s3api head-bucket --bucket stocks-terraform-state && echo "✅ S3 bucket verified"
+          aws dynamodb describe-table --table-name terraform-locks --region us-east-1 && echo "✅ DynamoDB table verified"
 
   # 
   # STEP 1 -- Infrastructure (Terraform)
