@@ -87,7 +87,7 @@ SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
 ## TROUBLESHOOTING
 | Issue | Fix |
 |-------|-----|
-| DB connectivity | Run `diagnose_rds.sh` or see `RDS_CONNECTIVITY_DIAGNOSTIC.md` |
+| DB connectivity | Check: RDS endpoint, Secrets Manager creds match password, Lambda env var DB_SECRET_ARN set, VPC SG allows 5432 |
 | Creds fail | PowerShell profile vars? Postgres running? AWS creds valid? |
 | API 401 | Token expired? Cognito env var set? |
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
