@@ -80,3 +80,21 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "cloudwatch_log_retention_days" {
+  description = "CloudWatch log retention for Step Functions"
+  type        = number
+  default     = 30
+}
+
+variable "execution_mode" {
+  description = "Orchestrator execution mode (auto, manual, dry-run)"
+  type        = string
+  default     = "auto"
+}
+
+variable "orchestrator_dry_run" {
+  description = "Enable dry-run mode for orchestrator (no actual trades)"
+  type        = bool
+  default     = false
+}

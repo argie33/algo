@@ -185,7 +185,12 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
 
 def main():
-    load_env()
+    try:
+        load_env()
+    except Exception as e:
+        logger.error(f"Failed to load environment: {e}", exc_info=True)
+        return 1
+
     parser = argparse.ArgumentParser(description="Load technical indicators")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
@@ -194,23 +199,27 @@ def main():
     try:
         if args.symbols:
             symbols = args.symbols.split(",")
+            logger.info(f"Using {len(symbols)} symbols from command line")
         else:
             # Limit to 100 symbols to prevent timeout in ECS
+            logger.info("Fetching active symbols from database...")
             symbols = get_active_symbols(max_symbols=100, timeout_secs=30)
             if not symbols:
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1
+            logger.info(f"Loaded {len(symbols)} active symbols")
     except Exception as e:
-        logger.error(f"Failed to get symbols: {e}")
+        logger.error(f"Failed to get symbols: {e}", exc_info=True)
         return 1
 
+    logger.info(f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}")
     loader = TechnicalDataDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
-        logger.info(f"Technical data daily load completed")
+        logger.info(f"Technical data daily load completed: {result}")
         return 0
     except Exception as e:
-        logger.error(f"Technical data daily load failed: {e}")
+        logger.error(f"Technical data daily load failed: {e}", exc_info=True)
         return 1
 
 if __name__ == "__main__":

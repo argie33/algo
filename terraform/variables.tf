@@ -783,3 +783,233 @@ variable "require_terraform_tag" {
   default     = true
 }
 
+# ============================================================
+# RDS Proxy & KMS Configuration
+# ============================================================
+
+variable "enable_rds_proxy" {
+  description = "Enable RDS Proxy for connection pooling"
+  type        = bool
+  default     = true
+}
+
+variable "enable_rds_kms_encryption" {
+  description = "Enable KMS encryption for RDS (recommended for prod)"
+  type        = bool
+  default     = false
+}
+
+variable "rds_kms_key_alias" {
+  description = "KMS key alias for RDS encryption (used if enable_rds_kms_encryption=true)"
+  type        = string
+  default     = null
+}
+
+variable "db_port" {
+  description = "PostgreSQL port"
+  type        = number
+  default     = 5432
+}
+
+# ============================================================
+# RDS Alarm Thresholds
+# ============================================================
+
+variable "rds_cpu_alarm_threshold" {
+  description = "RDS CPU alarm threshold (percent)"
+  type        = number
+  default     = 80
+  validation {
+    condition     = var.rds_cpu_alarm_threshold > 0 && var.rds_cpu_alarm_threshold <= 100
+    error_message = "CPU threshold must be 1-100 percent"
+  }
+}
+
+variable "rds_storage_alarm_threshold" {
+  description = "RDS storage alarm threshold (bytes). Default is 10 GiB"
+  type        = number
+  default     = 10737418240
+}
+
+variable "rds_connections_alarm_threshold" {
+  description = "RDS connections alarm threshold"
+  type        = number
+  default     = 50
+}
+
+# ============================================================
+# Execution Monitor Configuration
+# ============================================================
+
+variable "enable_execution_monitor" {
+  description = "Enable execution monitor Lambda (monitors realized vs predicted trades)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_execution_monitor_schedule" {
+  description = "Enable execution monitor schedule (runs every 2 hours during trading hours)"
+  type        = bool
+  default     = true
+}
+
+# ============================================================
+# Security Monitoring Configuration
+# ============================================================
+
+variable "cloudtrail_enabled" {
+  description = "Enable AWS CloudTrail"
+  type        = bool
+  default     = true
+}
+
+variable "guardduty_enabled" {
+  description = "Enable Amazon GuardDuty threat detection"
+  type        = bool
+  default     = true
+}
+
+variable "aws_config_enabled" {
+  description = "Enable AWS Config compliance monitoring"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_flow_logs_enabled" {
+  description = "Enable VPC Flow Logs"
+  type        = bool
+  default     = true
+}
+
+variable "security_log_retention_days" {
+  description = "CloudWatch log retention for security monitoring (CloudTrail, GuardDuty, Config, VPC Flow Logs)"
+  type        = number
+  default     = 90
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.security_log_retention_days)
+    error_message = "Must be a valid CloudWatch retention period"
+  }
+}
+
+# ============================================================
+# Loader & Orchestrator Configuration
+# ============================================================
+
+variable "backfill_days" {
+  description = "Number of days to backfill on first loader run"
+  type        = number
+  default     = 365
+}
+
+variable "disable_provenance_tracking" {
+  description = "Disable provenance tracking in loaders (useful for cost-saving test runs)"
+  type        = bool
+  default     = true
+}
+
+# ============================================================
+# Lambda Configuration
+# ============================================================
+
+variable "lambda_runtime" {
+  description = "Lambda runtime version (e.g., python3.11, python3.12)"
+  type        = string
+  default     = "python3.11"
+}
+
+variable "lambda_layer_name" {
+  description = "Lambda layer name for shared dependencies. If null, computed as ${project_name}-orchestrator-layer"
+  type        = string
+  default     = null
+}
+
+# ============================================================
+# Application Environment Configuration
+# ============================================================
+
+variable "node_env" {
+  description = "Node.js environment (development, production). If empty, inferred from var.environment"
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.node_env == "" || contains(["development", "production"], var.node_env)
+    error_message = "Must be empty (auto-inferred), 'development', or 'production'"
+  }
+}
+
+variable "dev_mode" {
+  description = "Enable dev mode in orchestrator (no actual trades, verbose logging). If empty, inferred as (var.environment == 'dev')"
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.dev_mode == "" || contains(["true", "false"], var.dev_mode)
+    error_message = "Must be empty (auto-inferred), 'true', or 'false'"
+  }
+}
+
+# ============================================================
+# Credentials & Notification Configuration
+# ============================================================
+
+variable "notification_email_from" {
+  description = "Email address to use as 'from' in Secrets Manager metadata (e.g., noreply@company.com). Empty = use default"
+  type        = string
+  default     = ""
+}
+
+variable "cognito_test_user_email" {
+  description = "Email for Cognito test user (empty = don't create test user)"
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.cognito_test_user_email == "" || can(regex("^[^@]+@[^@]+\\.[^@]+$", var.cognito_test_user_email))
+    error_message = "Must be a valid email address or empty"
+  }
+}
+
+# ============================================================
+# Secrets & Rotation Configuration
+# ============================================================
+
+variable "secrets_rotation_days" {
+  description = "Secrets Manager rotation frequency (days)"
+  type        = number
+  default     = 30
+  validation {
+    condition     = var.secrets_rotation_days >= 7 && var.secrets_rotation_days <= 90
+    error_message = "Rotation must be 7-90 days"
+  }
+}
+
+variable "postgres_major_version" {
+  description = "PostgreSQL major version (14, 15, 16)"
+  type        = string
+  default     = "14"
+  validation {
+    condition     = contains(["14", "15", "16"], var.postgres_major_version)
+    error_message = "Must be 14, 15, or 16"
+  }
+}
+
+# ============================================================
+# Batch & Compute Configuration
+# ============================================================
+
+variable "batch_vcpus" {
+  description = "vCPU request for AWS Batch job containers"
+  type        = number
+  default     = 4
+}
+
+variable "batch_memory_mb" {
+  description = "Memory (MB) for AWS Batch job containers"
+  type        = number
+  default     = 4096
+}
+
+variable "ecr_image_count" {
+  description = "Number of ECR images to retain (old images auto-deleted)"
+  type        = number
+  default     = 10
+}
+

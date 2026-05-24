@@ -23,11 +23,12 @@ LOADERS = [
 def get_loader_status(loader_name):
     """Check CloudWatch logs for loader status. Returns (status, error_msg)."""
     log_group = f"/ecs/algo-{loader_name}-loader"
+    aws_path = r"C:\Users\arger\AppData\Local\Programs\Python\Python311\Scripts\aws.cmd"
 
     try:
         # Get latest log streams
         result = subprocess.run(
-            ["aws", "logs", "describe-log-streams",
+            [aws_path, "logs", "describe-log-streams",
              "--log-group-name", log_group,
              "--order-by", "LastEventTime",
              "--descending",
@@ -48,7 +49,7 @@ def get_loader_status(loader_name):
             stream_name = stream["logStreamName"]
 
             result = subprocess.run(
-                ["aws", "logs", "get-log-events",
+                [aws_path, "logs", "get-log-events",
                  "--log-group-name", log_group,
                  "--log-stream-name", stream_name,
                  "--region", "us-east-1"],

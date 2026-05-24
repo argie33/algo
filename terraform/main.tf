@@ -8,7 +8,7 @@ module "iam" {
   project_name     = var.project_name
   environment      = var.environment
   aws_region       = var.aws_region
-  aws_account_id   = data.aws_caller_identity.current.account_id
+  aws_account_id   = local.aws_account_id
   github_org       = local.github_org
   github_repo      = local.github_repo
   bastion_enabled  = var.bastion_enabled
@@ -22,7 +22,7 @@ module "vpc" {
   project_name         = var.project_name
   environment          = var.environment
   aws_region           = var.aws_region
-  aws_account_id       = data.aws_caller_identity.current.account_id
+  aws_account_id       = local.aws_account_id
   vpc_cidr             = var.vpc_cidr
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
@@ -38,7 +38,7 @@ module "storage" {
   project_name                = var.project_name
   environment                 = var.environment
   aws_region                  = var.aws_region
-  aws_account_id              = data.aws_caller_identity.current.account_id
+  aws_account_id              = local.aws_account_id
   enable_versioning           = var.enable_s3_versioning
   code_bucket_expiration_days = var.code_bucket_expiration_days
   data_bucket_expiration_days = var.data_bucket_expiration_days
@@ -67,7 +67,7 @@ module "secrets" {
   alpaca_api_secret = var.alpaca_api_secret_key
   fred_api_key      = var.fred_api_key
   db_host           = module.database.rds_address
-  db_port           = 5432
+  db_port           = local.db_port
   db_name           = var.rds_db_name
   db_user           = var.rds_username
   db_password       = module.database.rds_password
@@ -83,7 +83,7 @@ module "database" {
   project_name                    = var.project_name
   environment                     = var.environment
   aws_region                      = var.aws_region
-  aws_account_id                  = data.aws_caller_identity.current.account_id
+  aws_account_id                  = local.aws_account_id
   vpc_id                          = module.vpc.vpc_id
   private_subnet_ids              = module.vpc.private_subnet_ids
   rds_security_group_id           = module.vpc.rds_security_group_id
@@ -95,15 +95,15 @@ module "database" {
   rds_password                    = var.rds_password
   rds_db_name                     = var.rds_db_name
   db_multi_az                     = var.rds_multi_az
-  enable_rds_proxy                = true
-  enable_rds_kms_encryption       = var.environment == "prod"
-  rds_kms_key_id                  = var.environment == "prod" ? "alias/${var.project_name}-rds" : null
+  enable_rds_proxy                = var.enable_rds_proxy
+  enable_rds_kms_encryption       = var.enable_rds_kms_encryption
+  rds_kms_key_id                  = var.rds_kms_key_alias != null ? "alias/${var.rds_kms_key_alias}" : null
   enable_rds_alarms               = var.enable_rds_alarms
   db_deletion_protection          = var.db_deletion_protection
   alarm_sns_topic_arn             = module.services.sns_alerts_topic_arn
-  rds_cpu_alarm_threshold         = 80
-  rds_storage_alarm_threshold     = 10737418240
-  rds_connections_alarm_threshold = 50
+  rds_cpu_alarm_threshold         = var.rds_cpu_alarm_threshold
+  rds_storage_alarm_threshold     = var.rds_storage_alarm_threshold
+  rds_connections_alarm_threshold = var.rds_connections_alarm_threshold
   rds_backup_window               = var.rds_backup_window
   rds_maintenance_window          = var.rds_maintenance_window
   notification_email              = var.notification_email
@@ -128,7 +128,7 @@ module "compute" {
   project_name                           = var.project_name
   environment                            = var.environment
   aws_region                             = var.aws_region
-  aws_account_id                         = data.aws_caller_identity.current.account_id
+  aws_account_id                         = local.aws_account_id
   vpc_id                                 = module.vpc.vpc_id
   public_subnet_ids                      = module.vpc.public_subnet_ids
   private_subnet_ids                     = module.vpc.private_subnet_ids
@@ -160,14 +160,14 @@ module "batch" {
   project_name                  = var.project_name
   environment                   = var.environment
   aws_region                    = var.aws_region
-  aws_account_id                = data.aws_caller_identity.current.account_id
+  aws_account_id                = local.aws_account_id
   vpc_id                        = module.vpc.vpc_id
   private_subnet_ids            = module.vpc.private_subnet_ids
   ecs_tasks_security_group_id   = module.vpc.ecs_tasks_security_group_id
   data_bucket_name              = module.storage.data_loading_bucket_name
   ecr_repository_uri            = module.compute.ecr_repository_url
   db_host                       = module.database.rds_address
-  db_port                       = 5432
+  db_port                       = local.db_port
   db_name                       = var.rds_db_name
   db_user                       = var.rds_username
   rds_secret_arn                = module.database.rds_credentials_secret_arn
@@ -184,7 +184,7 @@ module "loaders" {
   project_name            = var.project_name
   environment             = var.environment
   aws_region              = var.aws_region
-  aws_account_id          = data.aws_caller_identity.current.account_id
+  aws_account_id          = local.aws_account_id
   ecs_cluster_name        = module.compute.ecs_cluster_name
   ecs_cluster_arn         = module.compute.ecs_cluster_arn
   task_execution_role_arn = module.iam.ecs_task_execution_role_arn
@@ -193,7 +193,7 @@ module "loaders" {
   ecs_tasks_sg_id         = module.vpc.ecs_tasks_security_group_id
   db_secret_arn           = module.database.rds_credentials_secret_arn
   db_host                 = module.database.rds_proxy_endpoint
-  db_port                 = 5432
+  db_port                 = local.db_port
   db_name                 = var.rds_db_name
   ecr_repository_uri      = module.compute.ecr_repository_url
   vpc_id                  = module.vpc.vpc_id
@@ -202,6 +202,11 @@ module "loaders" {
   fred_api_key            = var.fred_api_key
   algo_secrets_arn        = module.database.algo_secrets_arn
   alpaca_paper_trading    = var.alpaca_paper_trading
+  execution_mode          = var.execution_mode
+  orchestrator_dry_run    = var.orchestrator_dry_run
+  orchestrator_log_level  = var.orchestrator_log_level
+  backfill_days           = var.backfill_days
+  disable_provenance_tracking = var.disable_provenance_tracking
 }
 
 module "services" {
@@ -210,7 +215,7 @@ module "services" {
   project_name                      = var.project_name
   environment                       = var.environment
   aws_region                        = var.aws_region
-  aws_account_id                    = data.aws_caller_identity.current.account_id
+  aws_account_id                    = local.aws_account_id
   vpc_id                            = module.vpc.vpc_id
   private_subnet_ids                = module.vpc.private_subnet_ids
   ecs_tasks_security_group_id       = module.vpc.ecs_tasks_security_group_id
@@ -281,8 +286,8 @@ module "services" {
   rds_master_username               = module.database.rds_username
   rds_subnet_ids                    = module.vpc.private_subnet_ids
   rds_security_group_id             = module.vpc.rds_security_group_id
-  enable_execution_monitor          = true
-  enable_execution_monitor_schedule = true
+  enable_execution_monitor          = var.enable_execution_monitor
+  enable_execution_monitor_schedule = var.enable_execution_monitor_schedule
   weight_optimization_task_definition_arn = module.loaders.weight_optimization_task_definition_arn
   algo_lambda_sg_id                 = module.vpc.algo_lambda_security_group_id
   common_tags                       = local.common_tags
@@ -296,11 +301,11 @@ module "security_monitoring" {
   vpc_id       = module.vpc.vpc_id
   aws_region   = var.aws_region
 
-  cloudtrail_enabled    = true
-  guardduty_enabled     = true
-  aws_config_enabled    = true
-  vpc_flow_logs_enabled = true
-  log_retention_days    = 90
+  cloudtrail_enabled    = var.cloudtrail_enabled
+  guardduty_enabled     = var.guardduty_enabled
+  aws_config_enabled    = var.aws_config_enabled
+  vpc_flow_logs_enabled = var.vpc_flow_logs_enabled
+  log_retention_days    = var.security_log_retention_days
   notification_email    = var.notification_email
 
   common_tags = local.common_tags
@@ -312,7 +317,7 @@ module "pipeline" {
   project_name                          = var.project_name
   environment                           = var.environment
   aws_region                            = var.aws_region
-  aws_account_id                        = data.aws_caller_identity.current.account_id
+  aws_account_id                        = local.aws_account_id
   ecs_cluster_arn                       = module.compute.ecs_cluster_arn
   private_subnet_ids                    = module.vpc.private_subnet_ids
   ecs_tasks_sg_id                       = module.vpc.ecs_tasks_security_group_id

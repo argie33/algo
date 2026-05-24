@@ -120,7 +120,7 @@ resource "aws_iam_role_policy" "sfn_pipeline" {
 
 resource "aws_cloudwatch_log_group" "sfn_pipeline" {
   name              = "/aws/states/${var.project_name}-eod-pipeline-${var.environment}"
-  retention_in_days = 30
+  retention_in_days = var.cloudwatch_log_retention_days
   tags              = var.common_tags
 }
 

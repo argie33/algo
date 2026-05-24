@@ -115,3 +115,33 @@ variable "alpaca_paper_trading" {
   default     = true
 }
 
+variable "execution_mode" {
+  description = "Orchestrator execution mode (auto, manual, dry-run)"
+  type        = string
+  default     = "auto"
+}
+
+variable "orchestrator_dry_run" {
+  description = "Enable dry-run mode for orchestrator (no actual trades)"
+  type        = bool
+  default     = false
+}
+
+variable "orchestrator_log_level" {
+  description = "Logging level for orchestrator (debug, info, warning, error)"
+  type        = string
+  default     = "info"
+}
+
+variable "backfill_days" {
+  description = "Number of days to backfill on first loader run"
+  type        = number
+  default     = 365
+}
+
+variable "disable_provenance_tracking" {
+  description = "Disable provenance tracking in loaders"
+  type        = bool
+  default     = true
+}
+

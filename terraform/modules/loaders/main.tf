@@ -516,11 +516,11 @@ resource "aws_ecs_task_definition" "loader" {
         },
         {
           name  = "BACKFILL_DAYS"
-          value = "365"
+          value = tostring(var.backfill_days)
         },
         {
           name  = "DISABLE_PROVENANCE_TRACKING"
-          value = "true"
+          value = tostring(var.disable_provenance_tracking)
         }
       ],
       # Price loader: all intervals + asset classes
@@ -760,9 +760,9 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
         { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) },
-        { name = "ORCHESTRATOR_LOG_LEVEL", value = "info" },
-        { name = "ORCHESTRATOR_EXECUTION_MODE", value = "auto" },
-        { name = "ORCHESTRATOR_DRY_RUN", value = "false" }
+        { name = "ORCHESTRATOR_LOG_LEVEL", value = var.orchestrator_log_level },
+        { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
+        { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) }
       ]
     }
   ])

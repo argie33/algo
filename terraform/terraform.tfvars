@@ -5,12 +5,12 @@ project_name = "algo"
 frontend_origin = "http://localhost:3000"
 # Frontend deployment
 cloudfront_enabled = true # Enable S3 + CloudFront distribution for frontend assets
-# API Gateway CORS configuration - includes both local dev and AWS production origins
+# API Gateway CORS configuration - local dev origins only
+# CloudFront domain is dynamically merged at apply time by services module
 api_cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "http://localhost:5174",
-  "https://d5j1h4wzrkvw7.cloudfront.net"
+  "http://localhost:5174"
 ]
 # ENABLED: Orchestrator runs daily at market open (9:30am ET)
 # This ensures fresh data is loaded and signals evaluated before market opens
