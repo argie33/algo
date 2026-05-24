@@ -73,7 +73,7 @@ jobs:
           # Create Terraform state bucket
           try:
             s3.head_bucket(Bucket='stocks-terraform-state')
-            print("✅ S3 bucket exists: stocks-terraform-state")
+            print("[OK] S3 bucket exists: stocks-terraform-state")
           except:
             try:
               s3.create_bucket(Bucket='stocks-terraform-state')
@@ -89,14 +89,14 @@ jobs:
                   }]
                 }
               )
-              print("✅ Created S3 bucket: stocks-terraform-state")
+              print("[OK] Created S3 bucket: stocks-terraform-state")
             except Exception as e:
-              print(f"⚠️  Could not create bucket: {e}")
+              print(f"[ERROR] Could not create bucket: {e}")
 
           # Create DynamoDB lock table
           try:
             dynamodb.describe_table(TableName='terraform-locks')
-            print("✅ DynamoDB table exists: terraform-locks")
+            print("[OK] DynamoDB table exists: terraform-locks")
           except:
             try:
               dynamodb.create_table(
@@ -105,15 +105,15 @@ jobs:
                 AttributeDefinitions=[{'AttributeName': 'LockID', 'AttributeType': 'S'}],
                 BillingMode='PAY_PER_REQUEST'
               )
-              print("✅ Created DynamoDB table: terraform-locks")
+              print("[OK] Created DynamoDB table: terraform-locks")
             except Exception as e:
-              print(f"⚠️  Could not create table: {e}")
+              print(f"[ERROR] Could not create table: {e}")
           EOF
 
       - name: Verify Backend Resources
         run: |
-          aws s3api head-bucket --bucket stocks-terraform-state && echo "✅ S3 bucket verified"
-          aws dynamodb describe-table --table-name terraform-locks --region us-east-1 && echo "✅ DynamoDB table verified"
+          aws s3api head-bucket --bucket stocks-terraform-state && echo "[OK] S3 bucket verified"
+          aws dynamodb describe-table --table-name terraform-locks --region us-east-1 && echo "[OK] DynamoDB table verified"
 
   # 
   # STEP 1 -- Infrastructure (Terraform)
