@@ -192,16 +192,16 @@ jobs:
           FAILED=0
 
           for TASK_ARN in $STOPPED_TASKS; do
-            TASK_DETAILS=$(aws ecs describe-tasks --cluster algo-cluster --tasks $TASK_ARN --region us-east-1 --query 'tasks[0]')
-            FAMILY=$(echo $TASK_DETAILS | grep -o '"family":"[^"]*"' | cut -d'"' -f4)
-            EXIT_CODE=$(echo $TASK_DETAILS | grep -o '"exitCode":[0-9]*' | cut -d':' -f2)
+            TASK_INFO=$(aws ecs describe-tasks --cluster algo-cluster --tasks $TASK_ARN --region us-east-1 --query 'tasks[0].[taskDefinitionArn,containers[0].exitCode]' --output json)
+            FAMILY=$(echo "$TASK_INFO" | jq -r '.[0]' | grep -o 'algo-[^:]*' | sed 's/algo-//')
+            EXIT_CODE=$(echo "$TASK_INFO" | jq -r '.[1]')
 
-            if [ "$EXIT_CODE" -eq 0 ]; then
+            if [ "$EXIT_CODE" = "0" ] || [ "$EXIT_CODE" = "null" ]; then
               SUCCESS=$((SUCCESS + 1))
-              STATUS="✓ SUCCESS"
+              STATUS="OK"
             else
               FAILED=$((FAILED + 1))
-              STATUS="✗ FAILED ($EXIT_CODE)"
+              STATUS="FAIL ($EXIT_CODE)"
             fi
 
             echo "  $FAMILY: $STATUS"
@@ -211,10 +211,10 @@ jobs:
           echo "Summary: $SUCCESS successful, $FAILED failed"
 
           if [ $FAILED -gt 0 ]; then
-            echo "⚠ Some loaders failed. Check CloudWatch logs for details:"
+            echo "Some loaders failed. Check CloudWatch logs:"
             echo "  aws logs tail /ecs/algo-<loader>-loader --region us-east-1"
             exit 1
           else
-            echo "✓ All recent loaders completed successfully!"
+            echo "All recent loaders completed!"
             exit 0
           fi
