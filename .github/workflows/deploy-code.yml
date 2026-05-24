@@ -850,7 +850,8 @@ jobs:
             exit 0
           fi
 
-          API_URL="https://$API_ENDPOINT/api/health"
+          # Endpoint is already full URL (https://...), don't add https:// again
+          API_URL="$API_ENDPOINT/api/health"
           echo "Testing API endpoint: $API_URL"
 
           # Wait a few seconds for the Lambda to be ready
