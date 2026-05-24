@@ -1,3 +1,8 @@
+variable "project_name" {
+  description = "Project name for resource naming"
+  type        = string
+}
+
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
@@ -19,6 +24,12 @@ variable "domain_name" {
   default     = "example.com"
 }
 
+variable "cognito_test_user_email" {
+  description = "Email for Cognito test user (empty = don't create test user)"
+  type        = string
+  default     = ""
+}
+
 variable "test_user_password" {
   description = "Temporary password for test user (dev only)"
   type        = string
@@ -26,11 +37,8 @@ variable "test_user_password" {
   sensitive   = true
 }
 
-variable "tags" {
+variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)
-  default = {
-    Project = "stocks-trading"
-    IaC     = "terraform"
-  }
+  default     = {}
 }

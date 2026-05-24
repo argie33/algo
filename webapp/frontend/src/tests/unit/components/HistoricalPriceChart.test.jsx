@@ -61,54 +61,7 @@ const mockHistoricalData = Array.from({ length: 5 }, (_, i) => ({
   close: 150.0,
 }));
 
-// Mock recharts components - override global mock
-vi.mock("recharts", async () => {
-  return {
-    ResponsiveContainer: ({ children, ...props }) => (
-      <div data-testid="responsive-container" {...props}>
-        {children}
-      </div>
-    ),
-  LineChart: ({ children, data, ...props }) => (
-    <div
-      data-testid="line-chart"
-      data-chart-data={JSON.stringify(data)}
-      {...props}
-    >
-      {children}
-    </div>
-  ),
-  Line: ({ dataKey, stroke, ...props }) => (
-    <div
-      data-testid="chart-line"
-      data-key={dataKey}
-      data-stroke={stroke}
-      {...props}
-    />
-  ),
-  XAxis: ({ dataKey, ...props }) => (
-    <div data-testid="x-axis" data-key={dataKey} {...props} />
-  ),
-  YAxis: ({ domain, ...props }) => (
-    <div data-testid="y-axis" data-domain={JSON.stringify(domain)} {...props} />
-  ),
-  CartesianGrid: (props) => <div data-testid="cartesian-grid" {...props} />,
-  Tooltip: ({ content, ...props }) => (
-    <div data-testid="chart-tooltip" {...props}>
-      {typeof content === "function" ? "Custom Tooltip" : "Default Tooltip"}
-    </div>
-  ),
-  Legend: (props) => <div data-testid="chart-legend" {...props} />,
-  ReferenceLine: ({ y, stroke, ...props }) => (
-    <div
-      data-testid="reference-line"
-      data-y={y}
-      data-stroke={stroke}
-      {...props}
-    />
-  )
-  };
-});
+// Note: recharts is already mocked in setup.js - no need to re-mock here
 
 describe("HistoricalPriceChart", () => {
   const defaultProps = {

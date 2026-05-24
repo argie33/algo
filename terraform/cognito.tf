@@ -4,16 +4,12 @@
 module "cognito" {
   source = "./modules/cognito"
 
-  environment = var.environment
-  aws_region  = var.aws_region
-  domain_name = try(var.domain_name, "example.com")
-
-  tags = merge(
-    try(var.common_tags, {}),
-    {
-      Module = "cognito"
-    }
-  )
+  project_name                = var.project_name
+  environment                 = var.environment
+  aws_region                  = var.aws_region
+  domain_name                 = try(var.domain_name, "example.com")
+  common_tags                 = local.common_tags
+  cognito_test_user_email     = var.cognito_test_user_email
 }
 
 # Output credentials for frontend configuration

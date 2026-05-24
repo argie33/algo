@@ -292,6 +292,30 @@ vi.mock("recharts", () => ({
       "data-domain": JSON.stringify(domain),
       ...props,
     }),
+  FunnelChart: ({ children, data, ...props }) =>
+    React.createElement(
+      "div",
+      {
+        "data-testid": "funnel-chart",
+        "data-chart-data": JSON.stringify(data),
+        ...props,
+      },
+      children
+    ),
+  Funnel: ({ dataKey, fill, ...props }) =>
+    React.createElement("div", {
+      "data-testid": "funnel",
+      "data-key": dataKey,
+      "data-fill": fill,
+      ...props,
+    }),
+  LabelList: ({ dataKey, position, ...props }) =>
+    React.createElement("div", {
+      "data-testid": "label-list",
+      "data-key": dataKey,
+      "data-position": position,
+      ...props,
+    }),
 }));
 
 // Mock react-chartjs-2 components

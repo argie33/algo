@@ -1,5 +1,8 @@
 /**
  * AWS Amplify Auth Mock
+ * NOTE: These mocks are no longer used since vite.config.js aliases were removed.
+ * The real aws-amplify/auth from node_modules is used instead.
+ * Keeping this file for backwards compatibility.
  */
 
 export const signIn = async () => {

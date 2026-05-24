@@ -2,7 +2,7 @@
 # Provides authentication for web and mobile apps
 
 resource "aws_cognito_user_pool" "stocks_trading" {
-  name                = "stocks-trading-pool-${var.environment}"
+  name                = "${var.project_name}-pool-${var.environment}"
   username_attributes = ["email"]
 
   password_policy {
@@ -36,16 +36,12 @@ resource "aws_cognito_user_pool" "stocks_trading" {
     }
   }
 
-  tags = {
-    Environment = var.environment
-    Service     = "stocks-trading"
-    IaC         = "terraform"
-  }
+  tags = var.common_tags
 }
 
 # User Pool Client for Web App (React/Vite frontend)
 resource "aws_cognito_user_pool_client" "web_app" {
-  name            = "stocks-web-app-${var.environment}"
+  name            = "${var.project_name}-web-app-${var.environment}"
   user_pool_id    = aws_cognito_user_pool.stocks_trading.id
   generate_secret = false # No secret for public frontend apps
 
@@ -102,18 +98,18 @@ resource "aws_cognito_user_pool_client" "web_app" {
 
 # Cognito Domain for OAuth flows
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "stocks-trading-${var.environment}-${data.aws_caller_identity.current.account_id}"
+  domain       = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}"
   user_pool_id = aws_cognito_user_pool.stocks_trading.id
 }
 
 # Test user for development
 resource "aws_cognito_user" "test_user" {
-  count              = var.environment == "dev" ? 1 : 0
+  count              = var.cognito_test_user_email != "" ? 1 : 0
   user_pool_id       = aws_cognito_user_pool.stocks_trading.id
-  username           = "testuser@stocks.local"
+  username           = var.cognito_test_user_email
   temporary_password = var.test_user_password
   attributes = {
-    email          = "testuser@stocks.local"
+    email          = var.cognito_test_user_email
     email_verified = true
   }
 

@@ -328,6 +328,9 @@ module "pipeline" {
   algo_orchestrator_container_name      = "${var.project_name}-algo-orchestrator"
   sns_alert_topic_arn                   = coalesce(module.services.sns_alerts_topic_arn, "")
   sns_alerts_enabled                    = var.sns_alerts_enabled
+  cloudwatch_log_retention_days         = var.cloudwatch_log_retention_days
+  execution_mode                        = var.execution_mode
+  orchestrator_dry_run                  = var.orchestrator_dry_run
   common_tags                           = local.common_tags
 }
 

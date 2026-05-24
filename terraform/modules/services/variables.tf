@@ -637,3 +637,15 @@ variable "algo_lambda_sg_id" {
   type        = string
   default     = ""
 }
+
+variable "node_env" {
+  description = "Node.js environment (development, production)"
+  type        = string
+  default     = "production"
+}
+
+variable "dev_mode" {
+  description = "Enable dev mode in orchestrator"
+  type        = string
+  default     = "false"
+}
