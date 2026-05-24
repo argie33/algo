@@ -104,10 +104,9 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = var.environment == "prod"
   performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
-  # Apply parameter group / config changes immediately rather than at next maintenance window.
-  # Without this, parameter group changes stay in pending-reboot state, blocking terraform apply
-  # from deleting the old parameter group (still "in use" until the pending change applies).
-  apply_immediately = true
+  # Apply parameter group changes at next maintenance window (safer for static params like max_connections)
+  # Static RDS parameters cannot be applied immediately; require instance reboot
+  apply_immediately = false
 
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection
@@ -144,8 +143,9 @@ resource "aws_db_parameter_group" "postgres" {
   description = "Custom parameters for ${var.project_name} parallel loaders"
 
   parameter {
-    name  = "max_connections"
-    value = "500"
+    name         = "max_connections"
+    value        = "500"
+    apply_method = "pending-reboot"
   }
 
   lifecycle {
