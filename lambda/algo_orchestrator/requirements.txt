@@ -9,5 +9,4 @@
 # - pytz
 # - beautifulsoup4
 
-# Lambda specific
-awslambdaric==2.0.6
+# Note: awslambdaric not needed - Lambda runtime provides it automatically
