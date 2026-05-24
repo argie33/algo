@@ -794,6 +794,61 @@ jobs:
 
           echo "✅ API Lambda deployed with environment configuration: $FUNC"
 
+      - name: Verify API Lambda Environment Variables
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          echo "Retrieving API Lambda environment variables for: $FUNC"
+
+          LAMBDA_CONFIG=$(aws lambda get-function-configuration \
+            --function-name "$FUNC" \
+            --region $AWS_REGION)
+
+          echo "✓ Lambda configuration retrieved"
+
+          DB_HOST=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_HOST // "NOT_SET"')
+          DB_PORT=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_PORT // "NOT_SET"')
+          DB_NAME=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_NAME // "NOT_SET"')
+          DB_USER=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_USER // "NOT_SET"')
+          DB_SECRET_ARN=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_SECRET_ARN // "NOT_SET"')
+          DB_SSL=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_SSL // "NOT_SET"')
+
+          if [ "$DB_HOST" = "NOT_SET" ]; then
+            echo "❌ ERROR: DB_HOST not set in Lambda environment"
+            exit 1
+          fi
+
+          echo "Environment variables verified:"
+          echo "  DB_HOST: $DB_HOST"
+          echo "  DB_PORT: $DB_PORT"
+          echo "  DB_NAME: $DB_NAME"
+          echo "  DB_USER: $DB_USER"
+          echo "  DB_SECRET_ARN: ${DB_SECRET_ARN:0:50}..."
+          echo "  DB_SSL: $DB_SSL"
+
+      - name: Test API Health Endpoint
+        run: |
+          API_ID="${{ needs.resolve-infra.outputs.api_gateway_id }}"
+          API_URL="https://$API_ID.execute-api.$AWS_REGION.amazonaws.com/api/health"
+
+          echo "Testing API endpoint: $API_URL"
+
+          # Wait a few seconds for the Lambda to be ready
+          sleep 5
+
+          # Test the health endpoint (should return 200 even without DB connection)
+          RESPONSE=$(curl -s -w "\n%{http_code}" "$API_URL" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response status: $HTTP_CODE"
+          echo "Response body: $BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ API health check passed"
+          else
+            echo "⚠️ API health check returned $HTTP_CODE (expected 200)"
+          fi
+
   # ──────────────────────────────────────────────────────────────
   # Database Init Lambda
   # ──────────────────────────────────────────────────────────────
