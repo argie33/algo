@@ -29,7 +29,7 @@ orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
 alpaca_paper_trading   = false # LIVE trading mode with real Alpaca credentials
-api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
+api_lambda_timeout     = 120   # VPC cold start (15-20s) + DNS resolution + DB connection can be slow
 algo_lambda_timeout    = 600   # Orchestrator needs time to process: 7 phases, data loading, signal generation
 
 # RDS password: MUST match across all systems (Terraform, RDS, Secrets Manager, Lambda env vars)

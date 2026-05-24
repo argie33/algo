@@ -90,7 +90,15 @@ def get_db_connection():
         logger.info('[DB CONNECT 4] Connection successful - RDS ready')
         return _db_conn
     except psycopg2.OperationalError as e:
-        logger.error(f'[DB CONNECT ERROR] OperationalError to {db_host}:{db_port}: {e} - CHECK: RDS running, SG rules, DNS resolution')
+        error_str = str(e)
+        if 'could not translate host name' in error_str.lower():
+            logger.error(f'[DB CONNECT ERROR] DNS RESOLUTION FAILED for {db_host} - CHECK: RDS endpoint is correct, VPC has DNS enabled')
+        elif 'connection refused' in error_str.lower():
+            logger.error(f'[DB CONNECT ERROR] CONNECTION REFUSED to {db_host}:{db_port} - CHECK: RDS is running, security groups allow connection')
+        elif 'timeout' in error_str.lower():
+            logger.error(f'[DB CONNECT ERROR] CONNECTION TIMEOUT to {db_host}:{db_port} - CHECK: Network reachability, RDS responsiveness')
+        else:
+            logger.error(f'[DB CONNECT ERROR] OperationalError: {e}')
         return None
     except psycopg2.ProgrammingError as e:
         logger.error(f'[DB CONNECT ERROR] ProgrammingError: {e}')
@@ -545,6 +553,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if not conn:
             cors_headers = get_cors_headers(event)
             db_host = os.getenv('DB_HOST', 'NOT_SET')
+            db_port = os.getenv('DB_PORT', 'NOT_SET')
+            db_name = os.getenv('DB_NAME', 'NOT_SET')
+            db_user = os.getenv('DB_USER', 'NOT_SET')
             db_secret_arn = os.getenv('DB_SECRET_ARN', 'NOT_SET')
             return {
                 'statusCode': 503,
@@ -553,8 +564,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'error': 'database_unavailable',
                     'debug': {
                         'db_host_configured': db_host != 'NOT_SET',
+                        'db_host_value': db_host if db_host != 'NOT_SET' else 'NOT_SET',
+                        'db_port_value': db_port if db_port != 'NOT_SET' else 'NOT_SET',
+                        'db_name_value': db_name if db_name != 'NOT_SET' else 'NOT_SET',
+                        'db_user_value': db_user if db_user != 'NOT_SET' else 'NOT_SET',
                         'db_secret_arn_configured': db_secret_arn != 'NOT_SET',
-                        'message': 'Unable to establish database connection. Check AWS Secrets Manager and RDS security groups.'
+                        'message': 'Unable to establish database connection. See values above to diagnose.'
                     }
                 })
             }
