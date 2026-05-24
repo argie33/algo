@@ -205,6 +205,7 @@ jobs:
               "-t", str(layer_pkg_temp),
               "--platform", "manylinux2014_x86_64",
               "--only-binary=:all:",
+              "--no-cache-dir",
               "--quiet"
             ], check=True)
 
@@ -664,6 +665,7 @@ jobs:
               "-t", str(layer_pkg_temp),
               "--platform", "manylinux2014_x86_64",
               "--only-binary=:all:",
+              "--no-cache-dir",
               "--quiet"
             ], check=True)
 
