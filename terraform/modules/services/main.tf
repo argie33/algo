@@ -12,20 +12,24 @@ locals {
 }
 
 # ============================================================
-# Lambda Layer for Shared Dependencies (Cost Optimization)
+# Lambda Layers for Dependencies
 # ============================================================
-# One layer with psycopg2, boto3, requests, pandas, etc.
-# Shared by all Lambda functions → smaller packages + faster deploys
+# Separate layers for API and Orchestrator Lambda functions
+# Published by GitHub Actions deploy workflow
 
-# Reference the algo_orchestrator_layer that's published by the deploy workflow
-# Instead of managing layer creation in Terraform
+# API Layer - published as "algo-api-layer"
+data "aws_lambda_layer_version" "api_deps" {
+  layer_name = "algo-api-layer"
+}
+
+# Orchestrator Layer - published as "algo-orchestrator-layer"
 data "aws_lambda_layer_version" "shared_deps" {
   layer_name = var.lambda_layer_name
 }
 
-# For compatibility with code that references aws_lambda_layer_version.shared_deps,
-# create a local that wraps the data source
+# For compatibility with existing code
 locals {
+  api_layer_arn        = data.aws_lambda_layer_version.api_deps.arn
   shared_deps_layer_arn = data.aws_lambda_layer_version.shared_deps.arn
 }
 
@@ -70,7 +74,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  layers        = [local.shared_deps_layer_arn]  # Use consolidated layer published by deploy workflow
+  layers        = [local.api_layer_arn]  # Use API-specific layer published by deploy workflow
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
