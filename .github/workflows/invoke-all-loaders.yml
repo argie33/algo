@@ -125,12 +125,12 @@ jobs:
               --query 'tasks[0].taskArn' \
               --output text 2>&1)
 
-            if [[ "$RESULT" == *"arn:aws:ecs"* ]]; then
+            if echo "$RESULT" | grep -q "arn:aws:ecs"; then
               echo "  ✅ Task launched"
-              ((++SUCCESS))
+              SUCCESS=$((SUCCESS + 1))
             else
               echo "  ❌ Failed: $RESULT"
-              ((++FAILED))
+              FAILED=$((FAILED + 1))
             fi
           done
 
