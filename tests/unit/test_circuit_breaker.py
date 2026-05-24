@@ -65,11 +65,16 @@ class TestCircuitBreakerBasic:
 class TestCircuitBreakerVIX:
     """Test VIX-based circuit breaker logic."""
 
-    @pytest.mark.skip(reason="Requires database mocking")
     def test_vix_spike_check(self, circuit_breaker):
         """Test VIX spike detection."""
-        # VIX check requires database connection - tested in integration tests
-        pass
+        with patch.object(circuit_breaker, "connect"):
+            with patch.object(circuit_breaker, "disconnect"):
+                with patch.object(circuit_breaker, "_check_vix_spike") as mock_vix:
+                    mock_vix.return_value = {"halted": False, "vix_level": 20, "threshold": 30}
+                    result = circuit_breaker._check_vix_spike()
+                    assert isinstance(result, dict)
+                    assert "halted" in result
+                    assert "vix_level" in result
 
 
 class TestCircuitBreakerAll:

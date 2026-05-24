@@ -11,15 +11,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 class TestIntegration:
     """Test integrated functionality across modules."""
 
-    @pytest.mark.skip(reason="Requires database connection")
     def test_end_to_end_signal_generation(self):
-        """Test end-to-end signal generation pipeline."""
-        pass
+        """Test end-to-end signal generation pipeline imports and structure."""
+        try:
+            from algo.algo_signals import SignalGenerator
+            from algo.algo_filter_pipeline import FilterPipeline
+            assert SignalGenerator is not None
+            assert FilterPipeline is not None
+        except ImportError:
+            pytest.skip("Signal generation modules not available")
 
-    @pytest.mark.skip(reason="Requires live market data")
     def test_live_data_pipeline(self):
-        """Test pipeline with live market data."""
-        pass
+        """Test pipeline structure for live market data."""
+        try:
+            from algo.algo_trade_executor import TradeExecutor
+            from algo.algo_circuit_breaker import CircuitBreaker
+            assert TradeExecutor is not None
+            assert CircuitBreaker is not None
+        except ImportError:
+            pytest.skip("Pipeline modules not available")
 
     def test_placeholder(self):
         """Placeholder integration test."""
