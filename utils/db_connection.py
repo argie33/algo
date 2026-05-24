@@ -110,13 +110,13 @@ def _test_dns_resolution(hostname: str) -> None:
         socket.setdefaulttimeout(None)
         if results:
             resolved_ips = [r[4][0] for r in results]
-            logger.info(f"✓ DNS resolution successful: {hostname} → {resolved_ips}")
+            logger.info(f"[OK] DNS resolution successful: {hostname} -> {resolved_ips}")
         else:
-            logger.warning(f"⚠ DNS resolution returned no results for: {hostname}")
+            logger.warning(f"[WARN] DNS resolution returned no results for: {hostname}")
 
     except socket.gaierror as e:
         socket.setdefaulttimeout(None)
-        logger.error(f"✗ DNS resolution failed for {hostname}: {e}")
+        logger.error(f"[ERROR] DNS resolution failed for {hostname}: {e}")
         logger.error(f"  Error code: {e.errno}, {e.strerror}")
 
         # Try to diagnose the issue
@@ -152,11 +152,11 @@ def _test_dns_resolution(hostname: str) -> None:
             try:
                 ips = _try_dns_with_servers(hostname, [ip])
                 if ips:
-                    logger.info(f"  ✓ Resolution via {name} succeeded: {hostname} → {ips}")
+                    logger.info(f"  [OK] Resolution via {name} succeeded: {hostname} -> {ips}")
                     # If we found a resolution via alternative server, log the IP we can use
                     return
             except Exception as err:
-                logger.debug(f"  ✗ DNS resolution via {name} failed: {err}")
+                logger.debug(f"  [ERROR] DNS resolution via {name} failed: {err}")
 
         raise
 
@@ -181,6 +181,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     logger.info(f"[DB] get_db_connection() starting")
     config = get_db_config()
     config["connect_timeout"] = timeout
+    logger.info(f"[DB] Connection config: host={config['host']}, port={config['port']}, db={config['database']}, user={config['user']}")
 
     # In AWS Lambda, skip DNS pre-test (connection attempt will catch DNS issues)
     if not os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
@@ -189,9 +190,11 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     last_error = None
     for attempt in range(max_retries):
         try:
+            logger.info(f"[DB] Connection attempt {attempt + 1}/{max_retries} starting...")
+            t_conn_start = time.time()
             conn = psycopg2.connect(**config)
             t_connected = time.time()
-            logger.info(f"[DB] Connection established in {t_connected-t_start:.2f}s (attempt {attempt + 1})")
+            logger.info(f"[DB] Connection established in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s, attempt {attempt + 1})")
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e
