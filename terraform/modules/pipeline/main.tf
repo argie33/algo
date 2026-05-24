@@ -490,11 +490,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               Environment = [
                 {
                   Name  = "ORCHESTRATOR_EXECUTION_MODE"
-                  Value = "auto"
+                  Value = var.execution_mode
                 },
                 {
                   Name  = "ORCHESTRATOR_DRY_RUN"
-                  Value = "false"
+                  Value = tostring(var.orchestrator_dry_run)
                 }
               ]
             }]
