@@ -74,6 +74,15 @@ SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
 | `config/credential_manager.py` | Secrets fetcher |
 | `terraform/main.tf` | Infra as code |
 
+## DATA FRESHNESS POLICY
+| Table | Fresh | Stale |
+|-------|-------|-------|
+| `price_daily`, `technical_data_daily` | < 1 day | > 7 days |
+| `buy_sell_daily`, `stock_scores` | < 1 day | > 7 days |
+| `company_profile`, `key_metrics` | < 30 days | > 90 days |
+
+**Why:** Circuit breakers halt on stale data. Null fields expected in metrics.
+
 ## TROUBLESHOOTING
 | Issue | Fix |
 |-------|-----|
