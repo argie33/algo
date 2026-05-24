@@ -70,13 +70,13 @@ CREATE TABLE IF NOT EXISTS earnings_estimates (
     earnings_date DATE,
     estimated BOOLEAN,
     eps_actual DECIMAL(12, 4),
-    revenue_actual DECIMAL(16, 2),
+    revenue_actual DECIMAL(20, 2),
     eps_estimate DECIMAL(12, 4),
-    revenue_estimate DECIMAL(16, 2),
+    revenue_estimate DECIMAL(20, 2),
     eps_surprise_pct DECIMAL(8, 2),
     revenue_surprise_pct DECIMAL(8, 2),
     eps_difference DECIMAL(12, 4),
-    revenue_difference DECIMAL(16, 2),
+    revenue_difference DECIMAL(20, 2),
     beat_miss_flag VARCHAR(20),
     surprise_percent DECIMAL(8, 2),
     estimate_revision_days INTEGER,
@@ -96,13 +96,13 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     earnings_date DATE,
     estimated BOOLEAN,
     eps_actual DECIMAL(12, 4),
-    revenue_actual DECIMAL(16, 2),
+    revenue_actual DECIMAL(20, 2),
     eps_estimate DECIMAL(12, 4),
-    revenue_estimate DECIMAL(16, 2),
+    revenue_estimate DECIMAL(20, 2),
     eps_surprise_pct DECIMAL(8, 2),
     revenue_surprise_pct DECIMAL(8, 2),
     eps_difference DECIMAL(12, 4),
-    revenue_difference DECIMAL(16, 2),
+    revenue_difference DECIMAL(20, 2),
     beat_miss_flag VARCHAR(20),
     surprise_percent DECIMAL(8, 2),
     estimate_revision_days INTEGER,
@@ -132,8 +132,8 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
     announce_time VARCHAR(50),
     eps_estimate DECIMAL(12, 4),
     actual_eps DECIMAL(12, 4),
-    revenue_estimate DECIMAL(16, 2),
-    actual_revenue DECIMAL(16, 2),
+    revenue_estimate DECIMAL(20, 2),
+    actual_revenue DECIMAL(20, 2),
     fiscal_period VARCHAR(20),
     company_name VARCHAR(255),
     status VARCHAR(50),
@@ -807,8 +807,8 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
     id SERIAL PRIMARY KEY,
     user_id INTEGER,
     date DATE,
-    total_value DECIMAL(16, 2),
-    total_gain_loss DECIMAL(16, 2),
+    total_value DECIMAL(20, 2),
+    total_gain_loss DECIMAL(20, 2),
     total_return_pct DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1033,11 +1033,11 @@ CREATE TABLE IF NOT EXISTS annual_income_statement (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
     fiscal_year INTEGER,
-    revenue DECIMAL(16, 2),
-    cost_of_revenue DECIMAL(16, 2),
-    gross_profit DECIMAL(16, 2),
-    operating_income DECIMAL(16, 2),
-    net_income DECIMAL(16, 2),
+    revenue DECIMAL(20, 2),
+    cost_of_revenue DECIMAL(20, 2),
+    gross_profit DECIMAL(20, 2),
+    operating_income DECIMAL(20, 2),
+    net_income DECIMAL(20, 2),
     earnings_per_share DECIMAL(12, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year)
@@ -1048,17 +1048,17 @@ CREATE TABLE IF NOT EXISTS annual_balance_sheet (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
     fiscal_year INTEGER,
-    total_assets DECIMAL(16, 2),
-    current_assets DECIMAL(16, 2),
-    total_liabilities DECIMAL(16, 2),
-    current_liabilities DECIMAL(16, 2),
-    stockholders_equity DECIMAL(16, 2),
-    inventory DECIMAL(16, 2),
-    cash_and_equivalents DECIMAL(16, 2),
-    accounts_receivable DECIMAL(16, 2),
-    ppe_net DECIMAL(16, 2),
-    goodwill DECIMAL(16, 2),
-    long_term_debt DECIMAL(16, 2),
+    total_assets DECIMAL(20, 2),
+    current_assets DECIMAL(20, 2),
+    total_liabilities DECIMAL(20, 2),
+    current_liabilities DECIMAL(20, 2),
+    stockholders_equity DECIMAL(20, 2),
+    inventory DECIMAL(20, 2),
+    cash_and_equivalents DECIMAL(20, 2),
+    accounts_receivable DECIMAL(20, 2),
+    ppe_net DECIMAL(20, 2),
+    goodwill DECIMAL(20, 2),
+    long_term_debt DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year)
 );
@@ -1068,10 +1068,10 @@ CREATE TABLE IF NOT EXISTS annual_cash_flow (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
     fiscal_year INTEGER,
-    operating_cash_flow DECIMAL(16, 2),
-    investing_cash_flow DECIMAL(16, 2),
-    financing_cash_flow DECIMAL(16, 2),
-    free_cash_flow DECIMAL(16, 2),
+    operating_cash_flow DECIMAL(20, 2),
+    investing_cash_flow DECIMAL(20, 2),
+    financing_cash_flow DECIMAL(20, 2),
+    free_cash_flow DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year)
 );
@@ -1082,8 +1082,8 @@ CREATE TABLE IF NOT EXISTS quarterly_income_statement (
     symbol VARCHAR(20),
     fiscal_year INTEGER,
     fiscal_quarter INTEGER,
-    revenue DECIMAL(16, 2),
-    net_income DECIMAL(16, 2),
+    revenue DECIMAL(20, 2),
+    net_income DECIMAL(20, 2),
     earnings_per_share DECIMAL(12, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year, fiscal_quarter)
@@ -1095,11 +1095,11 @@ CREATE TABLE IF NOT EXISTS quarterly_balance_sheet (
     symbol VARCHAR(20),
     fiscal_year INTEGER,
     fiscal_quarter INTEGER,
-    total_assets DECIMAL(16, 2),
-    current_assets DECIMAL(16, 2),
-    total_liabilities DECIMAL(16, 2),
-    current_liabilities DECIMAL(16, 2),
-    stockholders_equity DECIMAL(16, 2),
+    total_assets DECIMAL(20, 2),
+    current_assets DECIMAL(20, 2),
+    total_liabilities DECIMAL(20, 2),
+    current_liabilities DECIMAL(20, 2),
+    stockholders_equity DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year, fiscal_quarter)
 );
@@ -1110,10 +1110,10 @@ CREATE TABLE IF NOT EXISTS quarterly_cash_flow (
     symbol VARCHAR(20),
     fiscal_year INTEGER,
     fiscal_quarter INTEGER,
-    operating_cash_flow DECIMAL(16, 2),
-    investing_cash_flow DECIMAL(16, 2),
-    financing_cash_flow DECIMAL(16, 2),
-    free_cash_flow DECIMAL(16, 2),
+    operating_cash_flow DECIMAL(20, 2),
+    investing_cash_flow DECIMAL(20, 2),
+    financing_cash_flow DECIMAL(20, 2),
+    free_cash_flow DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, fiscal_year, fiscal_quarter)
 );
@@ -1124,7 +1124,7 @@ CREATE TABLE IF NOT EXISTS ttm_income_statement (
     symbol VARCHAR(20),
     date DATE,
     item_name VARCHAR(255),
-    value DECIMAL(16, 2),
+    value DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
@@ -1135,7 +1135,7 @@ CREATE TABLE IF NOT EXISTS ttm_cash_flow (
     symbol VARCHAR(20),
     date DATE,
     item_name VARCHAR(255),
-    value DECIMAL(16, 2),
+    value DECIMAL(20, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
@@ -2841,44 +2841,44 @@ END $$;
 -- Add missing columns to annual_balance_sheet
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'current_liabilities') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN current_liabilities DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN current_liabilities DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'inventory') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN inventory DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN inventory DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'cash_and_equivalents') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN cash_and_equivalents DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN cash_and_equivalents DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'accounts_receivable') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN accounts_receivable DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN accounts_receivable DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'ppe_net') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN ppe_net DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN ppe_net DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'goodwill') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN goodwill DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN goodwill DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_balance_sheet' AND column_name = 'long_term_debt') THEN
-        ALTER TABLE annual_balance_sheet ADD COLUMN long_term_debt DECIMAL(16, 2);
+        ALTER TABLE annual_balance_sheet ADD COLUMN long_term_debt DECIMAL(20, 2);
     END IF;
 END $$;
 
 -- Add missing columns to quarterly_balance_sheet
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_balance_sheet' AND column_name = 'current_assets') THEN
-        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_assets DECIMAL(16, 2);
+        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_assets DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_balance_sheet' AND column_name = 'current_liabilities') THEN
-        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_liabilities DECIMAL(16, 2);
+        ALTER TABLE quarterly_balance_sheet ADD COLUMN current_liabilities DECIMAL(20, 2);
     END IF;
 END $$;
 
 -- Add missing columns to quarterly_cash_flow
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'investing_cash_flow') THEN
-        ALTER TABLE quarterly_cash_flow ADD COLUMN investing_cash_flow DECIMAL(16, 2);
+        ALTER TABLE quarterly_cash_flow ADD COLUMN investing_cash_flow DECIMAL(20, 2);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'financing_cash_flow') THEN
-        ALTER TABLE quarterly_cash_flow ADD COLUMN financing_cash_flow DECIMAL(16, 2);
+        ALTER TABLE quarterly_cash_flow ADD COLUMN financing_cash_flow DECIMAL(20, 2);
     END IF;
 END $$;
