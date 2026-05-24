@@ -17,8 +17,29 @@ jobs:
             exit 1
           } || exit 0
       
-      - name: Audit steering changes
+      - name: Enforce steering doc line limits
+        run: |
+          for file in steering/*.md; do
+            [ -f "$file" ] || continue
+            lines=$(wc -l < "$file")
+            if [ "$lines" -gt 150 ]; then
+              echo "REJECTED: $file has $lines lines (max 150)"
+              exit 1
+            fi
+          done
+
+      - name: Block session docs at root
+        run: |
+          if git diff origin/main...HEAD --name-only | grep -iE '^(FINAL_|EXECUTION_|CURRENT_|_STATUS|_REPORT|_SUMMARY|_VERIFICATION)'; then
+            echo "REJECTED: Session docs found at root (must go to memory/)"
+            exit 1
+          fi
+
+      - name: Audit all changes
         if: success()
         run: |
-          echo "=== Steering doc changes in this PR ==="
-          git diff origin/main...HEAD -- steering/ || echo "No changes"
+          echo "=== Files changed in this PR ==="
+          git diff origin/main...HEAD --name-only | head -20
+          echo ""
+          echo "=== Steering doc changes ==="
+          git diff origin/main...HEAD -- steering/ | head -30 || echo "No steering changes"
