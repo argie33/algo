@@ -136,7 +136,7 @@ class SecEdgarClient:
     def _refresh_ticker_cache(self) -> Dict[str, str]:
         """Download SEC's ticker→CIK mapping (one file, all listed companies).
 
-        With retry logic for 429 rate limit errors. Uses much longer backoff for parallel ECS tasks.
+        With retry logic for 429/403 errors. Uses much longer backoff for parallel ECS tasks.
         With 8+ parallel loaders, we need 60s+ total wait time to avoid thundering herd.
         """
         import random
@@ -146,20 +146,20 @@ class SecEdgarClient:
                 self._rate_limiter.wait()
                 resp = self._session.get(TICKER_URL, timeout=self.timeout)
 
-                # Handle rate limiting with aggressive exponential backoff + jitter
-                if resp.status_code == 429:
+                # Handle 429 (rate limit) and 403 (forbidden) with aggressive exponential backoff
+                if resp.status_code in (429, 403):
                     if attempt < max_retries - 1:
                         # Much longer exponential backoff: 4s, 8s, 16s, 32s, 64s, 128s, 256s
                         # With 8 parallel tasks, stagger the retries to avoid thundering herd
                         base_wait = 4 * (2 ** attempt)
                         jitter = random.uniform(0, base_wait * 0.3)  # Add 0-30% jitter
                         wait_time = base_wait + jitter
-                        total_wait = sum(4 * (2 ** i) for i in range(attempt + 1))
-                        log.warning(f"SEC ticker endpoint rate limited (429). Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries}, total wait so far: {total_wait}s)")
+                        status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
+                        log.warning(f"SEC ticker endpoint {status_name}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                         time.sleep(wait_time)
                         continue
                     else:
-                        log.error("SEC ticker cache failed after 8 retries (total ~500s): 429 Too Many Requests - will use cached data if available")
+                        log.error(f"SEC ticker cache failed after {max_retries} retries: {resp.status_code} {resp.reason}")
                         return {}
 
                 resp.raise_for_status()
@@ -175,7 +175,7 @@ class SecEdgarClient:
                 log.info("SEC ticker cache loaded: %d symbols", len(mapping))
                 return mapping
             except requests.HTTPError as e:
-                if resp.status_code != 429:
+                if resp.status_code not in (429, 403):
                     log.error(f"SEC ticker cache request failed: {e}")
                     return {}
 
