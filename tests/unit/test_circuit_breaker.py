@@ -51,18 +51,15 @@ class TestCircuitBreakerBasic:
 
     def test_check_all(self, circuit_breaker):
         """Test overall circuit breaker check."""
-        # Mock the connection
-        circuit_breaker.conn = Mock()
-        circuit_breaker.cur = Mock()
-
-        # check_all should return a dictionary with results
-        with patch.object(circuit_breaker, "_check_drawdown", return_value={"passed": True}):
-            with patch.object(circuit_breaker, "_check_daily_loss", return_value={"passed": True}):
-                with patch.object(circuit_breaker, "_check_consecutive_losses", return_value={"passed": True}):
-                    with patch.object(circuit_breaker, "_check_vix_spike", return_value={"passed": True}):
-                        with patch.object(circuit_breaker, "_check_market_stage", return_value={"passed": True}):
-                            result = circuit_breaker.check_all()
-                            assert isinstance(result, dict) or result is None
+        with patch.object(circuit_breaker, "connect"):
+            with patch.object(circuit_breaker, "disconnect"):
+                with patch.object(circuit_breaker, "_check_drawdown", return_value={"halted": False}):
+                    with patch.object(circuit_breaker, "_check_daily_loss", return_value={"halted": False}):
+                        with patch.object(circuit_breaker, "_check_consecutive_losses", return_value={"halted": False}):
+                            with patch.object(circuit_breaker, "_check_vix_spike", return_value={"halted": False}):
+                                with patch.object(circuit_breaker, "_check_market_stage", return_value={"halted": False}):
+                                    result = circuit_breaker.check_all()
+                                    assert isinstance(result, dict) or result is None
 
 
 class TestCircuitBreakerVIX:
