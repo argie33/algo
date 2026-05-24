@@ -1,0 +1,3389 @@
+{
+  "issues": [
+    "[CLICK ERROR] elementHandle.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div aria-hidden=\"true\" class=\"MuiBackdrop-root MuiBackdrop-invisible MuiModal-backdrop css-g3hgs1-MuiBackdrop-root-MuiModal-backdrop\"></div> from <div role=\"presentation\" class=\"MuiPopover-root MuiMenu-root MuiModal-root css-an57m0-MuiModal-root-MuiPopover-root-MuiMenu-root\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div aria-hidden=\"true\" class=\"MuiBackdrop-root MuiBackdrop-invisible MuiModal-backdrop css-g3hgs1-MuiBackdrop-root-MuiModal-backdrop\"></div> from <div role=\"presentation\" class=\"MuiPopover-root MuiMenu-root MuiModal-root css-an57m0-MuiModal-root-MuiPopover-root-MuiMenu-root\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    57 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div aria-hidden=\"true\" class=\"MuiBackdrop-root MuiBackdrop-invisible MuiModal-backdrop css-g3hgs1-MuiBackdrop-root-MuiModal-backdrop\"></div> from <div role=\"presentation\" class=\"MuiPopover-root MuiMenu-root MuiModal-root css-an57m0-MuiModal-root-MuiPopover-root-MuiMenu-root\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n"
+  ],
+  "consoleLogs": [
+    {
+      "level": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "level": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold"
+    },
+    {
+      "level": "log",
+      "text": "ℹ️ Main: React application initialization starting undefined"
+    },
+    {
+      "level": "log",
+      "text": "ℹ️ Main: React root created successfully undefined"
+    },
+    {
+      "level": "log",
+      "text": "✅ Main - React application render initiated succeeded {timestamp: 2026-05-24T12:51:28.292Z, component: Main, operation: React application render initiated, resultSize: N/A, context: Object}"
+    },
+    {
+      "level": "log",
+      "text": "✅ Main - React application rendered successfully succeeded {timestamp: 2026-05-24T12:51:30.309Z, component: Main, operation: React application rendered successfully, resultSize: 2, context: Object}"
+    }
+  ],
+  "apiCalls": [
+    {
+      "url": "http://localhost:5176/",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/@vite/client",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/main.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/vite/dist/client/env.mjs",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/config.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/@react-refresh",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/react-dom_client.js?v=72b3726f",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/theme.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=10635e47",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/index.css",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/@mui_material_styles.js?v=7c500221",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/config/amplify.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/react-router-dom.js?v=75980df4",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/App.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/contexts/AuthContext.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/@tanstack_react-query.js?v=e4025c1c",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/utils/errorLogger.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/ErrorBoundary.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/theme/modernTheme.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-7ZNOTH45.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-V4OQ3NZ2.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-EXOAFPCI.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-PLXMHLGL.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-FCSS27DJ.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-R5GMY5Q2.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-B5VYJHSW.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-5AS2WWO4.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-JVEZ37J4.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/react.js?v=10635e47",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/dist/esm/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-3DU4CGOE.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-HDUOPENR.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-KVTTSGCY.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-S3YQRFUT.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-MNF4PNE3.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/ProtectedRoute.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/AuthModal.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/APIHealthCheck.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/AppLayout.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/dist/esm/auth/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/tokenManager.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/devAuth.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/SessionWarningDialog.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/sessionManager.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/api.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/dist/esm/initSingleton.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/LoginForm.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/RegisterForm.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/ForgotPasswordForm.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/ConfirmationForm.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/ResetPasswordForm.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/auth/MFAChallenge.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/@mui_material.js?v=10635e47",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/services/dataCache.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/libraryUtils.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/axios.js?v=e99822dc",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-J6POAYNW.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/chunk-VUQFELB6.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signUp.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/resetPassword.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/confirmResetPassword.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/lucide-react.js?v=7998e0b2",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signIn.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/confirmSignUp.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/resendSignUpCode.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/confirmSignIn.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/updateMFAPreference.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/fetchMFAPreference.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/verifyTOTPSetup.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/updatePassword.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/setUpTOTP.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/updateUserAttributes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/updateUserAttribute.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/getCurrentUser.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/confirmUserAttribute.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/fetchUserAttributes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithRedirect.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signOut.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/sendUserAttributeVerificationCode.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/deleteUserAttributes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/deleteUser.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/rememberDevice.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/forgetDevice.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/fetchDevices.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/autoSignIn.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/IdentityIdStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/credentialsProvider.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/refreshAuthTokens.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/errors/AuthError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/tokenProvider.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/sha256-js/build/module/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/errors/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/Errors.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/types/Auth.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/common/AuthErrorStrings.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/apis/associateWebAuthnCredential.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/apis/listWebAuthnCredentials.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Hub/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/apis/fetchAuthSession.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/apis/clearCredentials.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/createGetCredentialsForIdentityClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/createGetIdClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/cognitoIdentityPoolEndpointResolver.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/apis/deleteWebAuthnCredential.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/Auth/utils/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/Amplify.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/I18n/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Logger/ConsoleLogger.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/ServiceWorker/ServiceWorker.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/CookieStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/generateRandomString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/getClientInfo/getClientInfo.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/isBrowser.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/isWebWorker.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/NonRetryableError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/isNonRetryableError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/urlSafeDecode.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/jitteredBackoff.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/jitteredExponentialRetry.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/urlSafeEncode.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/haveCredentialsChanged.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/amplifyUuid/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/errors/AmplifyError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/errors/createAssertionFunction.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/amplifyUrl/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/parseAWSExports.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Signer/Signer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/errors/PlatformNotSupportedError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/deviceName/getDeviceName.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/retry.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/convert/base64/base64Decoder.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/errors/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/isTokenExpired.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/errors/utils/assertValidationError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/convert/base64/base64Encoder.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithCustomSRPAuth.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/errors/utils/assertServiceError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/parsers/regionParsers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/getRedirectUrl.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/customUserAgent.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/validateState.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/apis/internal/fetchAuthSession.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/cryptoSecureRandomInt.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/apiHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/parseAmplifyConfig.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/errors/APIError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/shared/handler/cognitoUserPoolTransferHandler.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/userContextData.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/sessionListener/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createResendConfirmationCodeClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/generateState.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithUserPassword.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/signUpHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/internal/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/BackgroundProcessManager/BackgroundProcessManager.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createConfirmForgotPasswordClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithCustomAuth.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/generateCodeVerifier.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/TokenStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/errors/types/validation.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/types/errors.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithSRP.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Reachability/Reachability.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/TokenOrchestrator.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/globalHelpers/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/signInWithUserAuth.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/signInHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createConfirmSignUpClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/utils/getAuthUserAgentValue.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/sessionListener/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/WordArray.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createSignUpClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/parseAmplifyOutputs.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createForgotPasswordClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Mutex/Mutex.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/factories/createCognitoUserPoolEndpointResolver.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/store/signInStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/deDupeAsyncFunction.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/store/autoSignInStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/cacheTokens.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/dispatchSignedInHubEvent.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/types/errors.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createSetUserMFAPreferenceClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/getNewDeviceMetadata.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createGetUserClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createVerifySoftwareTokenClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createChangePasswordClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createUpdateUserAttributesClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createAssociateSoftwareTokenClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createVerifyUserAttributeClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/internal/getCurrentUser.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/apis/internal/fetchUserAttributes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/enableOAuthListener.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/types/models.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/utils/openAuthSession.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/oAuthStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/handleFailure.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/createOAuthError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/cancelOAuthFlow.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/handleOAuthSignOut.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/completeOAuthFlow.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/signInWithRedirectStore.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createRevokeTokenClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createGlobalSignOutClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createGetUserAttributeVerificationCodeClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createDeleteUserAttributesClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createDeleteUserClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createUpdateDeviceStatusClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createForgetDeviceClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createListDevicesClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/factories/createCognitoIdentityPoolEndpointResolver.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/IdentityIdProvider.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/credentialsProvider/utils.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createGetTokensFromRefreshTokenClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/CognitoUserPoolsTokenProvider.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/sha256-js/build/module/jsSha256.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/registerPasskey.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/types/shared.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/errors/passkeyError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createStartWebAuthnRegistrationClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createCompleteWebAuthnRegistrationClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/apis/listWebAuthnCredentials.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/Auth/utils/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@smithy/util-hex-encoding/dist-es/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/BackgroundProcessManager/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/serde/responseInfo.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/serde/json.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/internal/composeServiceApi.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/handler/cognitoIdentityTransferHandler.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/.vite/deps/@mui_icons-material.js?v=10635e47",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/serviceClients/cognitoIdentity/serde/createClientSerializer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/endpoints/getDnsSuffix.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/apis/deleteWebAuthnCredential.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/DefaultStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/InMemoryStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/KeyValueStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/SessionStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/SyncSessionStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/deepFreeze.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/StorageCache.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/singleton/Auth/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/I18n/I18n.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/I18n/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Logger/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/awsClients/pinpoint/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/apis/record.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/PinpointEventBuffer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/types/errors.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/ServiceWorker/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/retry/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/js-cookie/dist/js.cookie.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detectFramework.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/version.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/signRequest.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/presignUrl.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/convert/base64/bytesToString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Signer/DateUtils.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/handlers/aws/unauthenticated.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/handlers/fetch.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/handlers/aws/authenticated.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getHashedPayload.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/utils/extendedEncodeURIComponent.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/middleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/retryMiddleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/jitteredBackoff.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/defaultRetryDecider.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/shared/serde/createUserPoolSerializer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/userAgent/middleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/retryOnResourceNotFoundException.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/internal/composeTransferHandler.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/tokenProvider/types.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/amzSdkRequestHeaderMiddleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/utils/memoization.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/amzSdkInvocationIdHeaderMiddleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createRespondToAuthChallengeClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/shared/serde/createUserPoolDeserializer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/inflightPromise.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createInitiateAuthClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/userAuth/handleSelectChallengeWithPassword.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getAuthenticationHelper.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/userAuth/handleSelectChallengeWithPasswordSRP.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/BackgroundProcessManager/BackgroundManagerNotOpenError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/shared/handlePasswordSRP.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/userAuth/handleSelectChallenge.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/userAuth/handleWebAuthnSignInResult.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/nil.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v6ToV1.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/handlePasswordVerifierChallenge.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/flows/userAuth/handleUserAuthFlow.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/shared/serde/createEmptyResponseDeserializer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/utils/sessionListener/SessionListener.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/parse.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v5.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/serde.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/cognitoUserPoolEndpointResolver.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/getIsPasskeySupported.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/handleDeviceSRPAuth.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/types/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/attemptCompleteOAuthFlow.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/util/build/module/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/tslib/tslib.es6.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createListWebAuthnCredentialsClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/errors/handlePasskeyRegistrationError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/oAuthSignOutRedirect.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/stringify.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/max.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/sha256-js/build/module/RawSha256.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/setActiveSignInUsername.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/errors/passkeyErrorPlatformConstants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createConfirmDeviceClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getBytesFromHex.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/sha256-js/build/module/constants.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v4.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v6.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/oauth/completeOAuthSignOut.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v1ToV6.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v1.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v3.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/validate.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v7.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/version.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/endpoints/partitions.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/factories/serviceClients/cognitoIdentityProvider/createDeleteWebAuthnCredentialClient.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/utils.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/foundation/factories/middleware/createDisableCacheMiddleware.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/storage/SyncKeyValueStorage.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/utils/errorHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/utils/cacheHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Cache/StorageCacheCommon.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/resolveEndpointId.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/getEventBuffer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/awsClients/pinpoint/putEvents.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getSignedHeaders.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getSigningValues.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getSignature.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/dataHashHelpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/utils/getSkewCorrectedDate.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/constants.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/utils/getUpdatedSystemClockOffset.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/retry/isClockSkewError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/AuthenticationHelper/AuthenticationHelper.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/calculate/calculateA.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/BigInteger/BigInteger.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Observable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getHexFromBytes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getRandomBytes.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/ConnectableObservable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/symbol/observable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/dom/animationFrames.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/BehaviorSubject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Subject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/ReplaySubject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/AsyncSubject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/asap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/async.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/queue.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/animationFrame.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/VirtualTimeScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Scheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Subscription.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Subscriber.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/Notification.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/pipe.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/noop.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/identity.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isObservable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/lastValueFrom.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/ArgumentOutOfRangeError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/firstValueFrom.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/EmptyError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/NotFoundError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/ObjectUnsubscribedError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/SequenceError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/timeout.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/UnsubscriptionError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/bindCallback.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/bindNodeCallback.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/combineLatest.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/concat.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/connectable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/defer.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/empty.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/from.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/forkJoin.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/fromEvent.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/fromEventPattern.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/generate.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/iif.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/interval.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/merge.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/never.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/of.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/onErrorResumeNext.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/pairs.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/partition.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/race.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/range.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/throwError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/timer.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/using.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduled.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/zip.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/types.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/config.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/audit.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/auditTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/buffer.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/bufferCount.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/bufferTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/bufferToggle.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/bufferWhen.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/catchError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/combineAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/combineLatestAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/combineLatestWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/concatAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/concatMap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/concatMapTo.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/concatWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/connect.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/count.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/debounce.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/debounceTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/defaultIfEmpty.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/delay.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/dematerialize.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/delayWhen.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/distinct.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/distinctUntilChanged.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/distinctUntilKeyChanged.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/endWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/every.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/exhaust.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/elementAt.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/exhaustAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/expand.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/filter.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/finalize.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/find.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/exhaustMap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/findIndex.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/first.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/ignoreElements.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mapTo.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/materialize.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/map.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/onErrorResumeNextWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/publishLast.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/groupBy.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeMap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/publishBehavior.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/multicast.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeMapTo.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/pairwise.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/publish.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/pluck.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/raceWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/publishReplay.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/repeatWhen.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/single.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/shareReplay.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/skipWhile.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/retry.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/retryWhen.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/sample.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/switchMap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/repeat.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/throttle.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/reduce.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/skip.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/skipUntil.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/sampleTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/refCount.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/throttleTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/timeoutWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/sequenceEqual.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/scan.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/subscribeOn.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/skipLast.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/share.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/takeWhile.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/switchScan.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/startWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/throwIfEmpty.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/take.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/switchMapTo.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/takeUntil.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/switchAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/timeInterval.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/isEmpty.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/max.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/takeLast.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/tap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/flatMap.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/toArray.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeScan.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/last.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/min.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/timestamp.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/observeOn.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/window.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/windowCount.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/windowTime.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/windowWhen.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/zipWith.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/rng.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/native.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/util/build/module/uint32ArrayFrom.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getSignatureString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/util/build/module/isEmptyData.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/windowToggle.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/withLatestFrom.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/regex.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/md5.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/errors/handlePasskeyError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/zipAll.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/getEndpointId.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Svelte.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/v35.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/React.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/uuid/dist/esm-browser/sha1.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Web.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Vue.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/ReactNative.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/apis/updateEndpoint.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Next.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/util/build/module/numToUint8.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Nuxt.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getNowString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Angular.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/convert/base64url/convertBase64UrlToArrayBuffer.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/foundation/convert/base64url/convertArrayBufferToBase64Url.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/getPasskey.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/Expo.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getCredentialScope.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-crypto/util/build/module/convertToBuffer.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/awsClients/pinpoint/base.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getFormattedDates.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getCanonicalRequest.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getSigningKey.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getStringToSign.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/utils/isClockSkewed.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/textEncoder/index.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/calculate/calculateS.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/calculate/calculateU.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getHashFromHex.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getHashFromData.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getHkdfKey.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getPaddedHex.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/providers/cognito/utils/srp/getRandomString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isFunction.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/errorContext.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/lift.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/OperatorSubscriber.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/performanceTimestampProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/animationFrameProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/arrRemove.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/dateTimestampProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AsapAction.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AsapScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AsyncScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AsyncAction.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/QueueAction.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/QueueScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AnimationFrameAction.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/AnimationFrameScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/reportUnhandledError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/timeoutProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/NotificationFactories.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/createErrorClass.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isDate.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/executeSchedule.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/argsArgArrayOrObject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/innerFrom.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/mapOneOrManyArgs.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/bindCallbackInternals.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/args.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/createObject.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isArrayLike.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isScheduler.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/argsOrArgArray.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduleIterable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/not.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduleObservable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/schedulePromise.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduleArray.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduleAsyncIterable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isInteropObservable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isPromise.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isIterable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isAsyncIterable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/throwUnobservableError.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/isReadableStreamLike.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduled/scheduleReadableStreamLike.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/joinAllInternals.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/combineLatest.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/concat.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/observable/fromSubscribable.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/mergeInternals.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/scanInternals.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/zip.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/operators/merge.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/getCacheKey.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/Platform/detection/helpers.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/awsClients/pinpoint/updateEndpoint.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/cacheEndpointId.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/providers/pinpoint/utils/createEndpointId.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/aws-amplify/node_modules/@aws-amplify/auth/dist/esm/client/utils/passkey/errors/handlePasskeyAuthenticationError.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@smithy/util-utf8/dist-es/index.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getCanonicalHeaders.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getCanonicalUri.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@aws-amplify/core/dist/esm/clients/middleware/signing/signer/signatureV4/utils/getCanonicalQueryString.mjs?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/immediateProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/Action.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/scheduler/intervalProvider.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/symbol/iterator.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@smithy/util-utf8/dist-es/fromUtf8.browser.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@smithy/util-utf8/dist-es/toUint8Array.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/@smithy/util-utf8/dist-es/toUtf8.browser.js",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/node_modules/rxjs/dist/esm5/internal/util/Immediate.js?v=646081fa",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/pages/marketing/Home.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/MarketingLayout.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/HeroSection.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/FeatureGrid.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/ImagePlaceholder.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/CTASection.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/CommunitySignup.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/Footer.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "http://localhost:5176/src/components/marketing/MarketingNav.jsx",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1518391846015-55a9cc003b25?w=1200&h=700&fit=crop&auto=format&q=80",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/inter.css",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/dmsans/v17/rP2Hp2ywxg089UriCZOIHQ.woff2",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/dmsans/v17/rP2Wp2ywxg089UriCZaSExdy3sGt9zz86GPwyKy58Q.woff2",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/font-files/Inter-Medium.woff2?v=4.1",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/font-files/Inter-ExtraBold.woff2?v=4.1",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/font-files/Inter-Regular.woff2?v=4.1",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=4.1",
+      "status": 200,
+      "method": "response"
+    },
+    {
+      "url": "https://rsms.me/inter/font-files/Inter-Bold.woff2?v=4.1",
+      "status": 200,
+      "method": "response"
+    }
+  ],
+  "interactions": [
+    {
+      "action": "click",
+      "element": "button",
+      "text": "Home"
+    },
+    {
+      "action": "click",
+      "element": "button",
+      "text": "Firm▼"
+    }
+  ]
+}

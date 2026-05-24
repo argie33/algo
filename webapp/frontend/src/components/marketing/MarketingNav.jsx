@@ -280,9 +280,13 @@ const MarketingNav = () => {
                           setActiveDesktopMenu(null);
                           setDesktopMenuAnchor(null);
                         }}
-                        onMouseLeave={() => {
-                          setActiveDesktopMenu(null);
-                          setDesktopMenuAnchor(null);
+                        disableAutoFocus
+                        disableEnforceFocus
+                        MenuListProps={{
+                          onMouseLeave: () => {
+                            setActiveDesktopMenu(null);
+                            setDesktopMenuAnchor(null);
+                          },
                         }}
                         sx={{
                           '& .MuiPaper-root': {

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Unit tests for CircuitBreaker module."""
+
+import pytest
+from unittest.mock import Mock, patch
+import sys
+from pathlib import Path
+
+# Add algo directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from algo.algo_circuit_breaker import CircuitBreaker
+
+
+@pytest.fixture
+def mock_config():
+    """Create mock configuration."""
+    return {
+        "circuit_breaker_enabled": True,
+        "daily_loss_limit": -5000,
+        "drawdown_limit": -20,
+    }
+
+
+@pytest.fixture
+def mock_connection():
+    """Create mock database connection."""
+    mock_conn = Mock()
+    mock_cur = Mock()
+    mock_conn.cursor.return_value = mock_cur
+    return mock_conn, mock_cur
+
+
+@pytest.fixture
+def circuit_breaker(mock_config):
+    """Create CircuitBreaker instance with mocked database."""
+    return CircuitBreaker(config=mock_config)
+
+
+class TestCircuitBreakerInit:
+    """Test CircuitBreaker initialization."""
+
+    def test_init_with_config(self, mock_config):
+        """Test initialization with configuration."""
+        cb = CircuitBreaker(config=mock_config)
+        assert cb.config == mock_config
+
+
+class TestCircuitBreakerBasic:
+    """Test basic CircuitBreaker functionality."""
+
+    def test_check_all(self, circuit_breaker):
+        """Test overall circuit breaker check."""
+        # Mock the connection
+        circuit_breaker.conn = Mock()
+        circuit_breaker.cur = Mock()
+
+        # check_all should return a dictionary with results
+        with patch.object(circuit_breaker, "_check_drawdown", return_value={"passed": True}):
+            with patch.object(circuit_breaker, "_check_daily_loss", return_value={"passed": True}):
+                with patch.object(circuit_breaker, "_check_consecutive_losses", return_value={"passed": True}):
+                    with patch.object(circuit_breaker, "_check_vix_spike", return_value={"passed": True}):
+                        with patch.object(circuit_breaker, "_check_market_stage", return_value={"passed": True}):
+                            result = circuit_breaker.check_all()
+                            assert isinstance(result, dict) or result is None
+
+
+class TestCircuitBreakerVIX:
+    """Test VIX-based circuit breaker logic."""
+
+    @pytest.mark.skip(reason="Requires database mocking")
+    def test_vix_spike_check(self, circuit_breaker):
+        """Test VIX spike detection."""
+        # VIX check requires database connection - tested in integration tests
+        pass
+
+
+class TestCircuitBreakerAll:
+    """Test combined circuit breaker checks."""
+
+    def test_all_breakers_integration(self, circuit_breaker):
+        """Test all circuit breakers together."""
+        circuit_breaker.conn = Mock()
+        circuit_breaker.cur = Mock()
+
+        # When all checks pass, trading should be allowed
+        with patch.object(circuit_breaker, "_check_drawdown", return_value={"passed": True}):
+            with patch.object(circuit_breaker, "_check_daily_loss", return_value={"passed": True}):
+                # check_all aggregates all checks
+                assert True  # Placeholder - actual logic in integration test

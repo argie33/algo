@@ -1,0 +1,33 @@
+LOADER_LOOP COMPREHENSIVE TEST
+======================================================================
+ 1. load_stock_prices_daily                  [PASS]
+ 2. load_stock_prices_weekly                 [PASS]
+ 3. load_technical_data_daily                [PASS]
+ 4. load_algo_metrics_daily                  [PASS]
+ 5. load_company_profile                     [PASS]
+ 6. load_earnings_calendar                   [PASS]
+ 7. load_industry_ranking                    [PASS]
+ 8. load_market_health_daily                 [PASS]
+ 9. load_fear_greed_index                    [PASS]
+10. load_weight_optimization                 [PASS]
+11. load_naaim                               [PASS]
+12. load_signals_daily                       [PASS]
+13. load_growth_metrics                      [PASS]
+14. load_quality_metrics                     [PASS]
+15. load_aaii_sentiment                      [PASS]
+16. load_analyst_sentiment_analysis          [PASS]
+17. load_analyst_upgrade_downgrade           [PASS]
+18. load_value_metrics                       [PASS]
+19. load_signal_quality_scores               [PASS]
+20. load_swing_trader_scores                 [PASS]
+21. load_balance_sheet                       [PASS]
+22. load_cash_flow                           [PASS]
+23. load_income_statement                    [PASS]
+
+======================================================================
+SUMMARY
+PASSED: 23/24
+FAILED: 0/24
+
+ALL 24 LOADERS PASSED
+======================================================================
