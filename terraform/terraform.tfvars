@@ -29,10 +29,10 @@ alpaca_paper_trading   = false # LIVE trading mode with real Alpaca credentials
 api_lambda_timeout     = 60    # VPC cold start (15-20s) + DB init requires >30s default
 algo_lambda_timeout    = 600   # Orchestrator needs time to process: 7 phases, data loading, signal generation
 
-# RDS password: set via TF_VAR_rds_password GitHub Secret in CI
-# Must be stored in GitHub Secrets as RDS_PASSWORD and passed to Terraform
-# This ensures single source of truth for database credentials
-rds_password = "" # Empty = use env var TF_VAR_rds_password (required in CI)
+# RDS password: MUST match across all systems (Terraform, RDS, Secrets Manager, Lambda env vars)
+# For dev environment: explicitly set here to ensure consistency
+# Production: use GitHub Secret TF_VAR_rds_password (never commit passwords)
+rds_password = "AlgoTrading2024!Dev$Secure#Pwd"  # Dev-only: stored in state, synced to Secrets Manager, passed to Lambda
 
 # Dev cost savings: shorter backup retention (30d default is overkill in dev)
 rds_backup_retention_period = 7
