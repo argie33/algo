@@ -134,14 +134,10 @@ resource "aws_db_instance" "main" {
 # attempting to reconcile it, which would fail with RDS API errors.
 # The database uses default.postgres${var.postgres_major_version} instead.
 
-resource "aws_db_parameter_group" "main" {
-  name   = "algo-pg14-params"
-  family = "postgres14"
-
-  lifecycle {
-    ignore_changes = all
-    prevent_destroy = true
-  }
+# The orphaned parameter group exists in AWS and state but is not actively managed.
+# Using a data source instead of resource to avoid modification attempts.
+data "aws_db_parameter_group" "orphaned" {
+  name = "algo-pg14-params"
 }
 
 # ============================================================
