@@ -30,10 +30,21 @@ class AlgoMetricsDailyLoader:
 
     def ensure_table_exists(self):
         """Create algo_metrics_daily table if it doesn't exist."""
+        cursor = self.conn.cursor()
         try:
-            cursor = self.conn.cursor()
+            # First check if table exists
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS algo_metrics_daily (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'algo_metrics_daily'
+            """)
+            if cursor.fetchone():
+                logger.info("algo_metrics_daily table exists")
+                return
+
+            # Table doesn't exist, create it
+            logger.info("Creating algo_metrics_daily table...")
+            cursor.execute("""
+                CREATE TABLE algo_metrics_daily (
                     date DATE PRIMARY KEY,
                     total_actions INTEGER,
                     entries INTEGER,
@@ -44,10 +55,13 @@ class AlgoMetricsDailyLoader:
                 )
             """)
             self.conn.commit()
-            cursor.close()
-            logger.info("algo_metrics_daily table ensured")
+            logger.info("algo_metrics_daily table created successfully")
         except Exception as e:
-            logger.warning(f"Could not create table: {e}")
+            logger.error(f"Failed to ensure table: {e}", exc_info=True)
+            self.conn.rollback()
+            raise
+        finally:
+            cursor.close()
 
     def compute_daily_metrics(self, run_date: date) -> Dict:
         """Compute portfolio stats from algo_audit_log for the trading day."""
