@@ -35,6 +35,13 @@
 - OIDC exchanges GitHub token → AWS role → temporary credentials
 - **Never commit AWS keys to repo**
 
+**Database Lambdas must use psycopg2 Layer (built in CI on Linux):**
+- Layer: `terraform/modules/database/python-psycopg2-layer.zip` (built via `deploy-code.yml` step "Build psycopg2 Lambda Layer")
+- Attach via: `aws lambda update-function-configuration --layers <LAYER_ARN>` (in workflow before invoke)
+- Reason: ❌ Don't bundle psycopg[binary] in zip (platform mismatch; CI produces Linux binaries incompatible with local Windows dev)
+- Layer runtime: Python 3.11, 3.12 (set in `modules/database/main.tf`)
+- Lambdas using it: `algo-db-init-dev` (required)
+
 **Deployment triggers:**
 `git push main` → `deploy-code.yml` (auto: test, scan, code) OR `deploy-all-infrastructure.yml` (manual: terraform, Λ, ECS)
 
