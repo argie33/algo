@@ -112,10 +112,10 @@ class MockAPIHandler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def _get_allowed_origin(self):
-        """Get allowed origin from request or default."""
+        """Get allowed origin from request or default - accept any localhost in dev."""
         origin = self.headers.get('Origin', '')
-        allowed_origins = {'http://localhost:5173', 'http://localhost:5176', 'http://127.0.0.1:5173', 'http://127.0.0.1:5176'}
-        if origin and origin in allowed_origins:
+        # In development, accept any localhost origin (any port)
+        if origin and (origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:')):
             return origin
         return 'http://localhost:5173'
 

@@ -48,10 +48,10 @@ class APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _set_cors_headers(self):
-        """Set CORS headers."""
+        """Set CORS headers - accept any localhost origin in dev."""
         origin = self.headers.get('Origin', '')
-        allowed_origins = {'http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5176', 'http://127.0.0.1:3000'}
-        if origin and origin in allowed_origins:
+        # In development, accept any localhost origin (5173, 5176, 5177, etc.)
+        if origin and (origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:')):
             self.send_header('Access-Control-Allow-Origin', origin)
         elif not origin:
             self.send_header('Access-Control-Allow-Origin', 'http://localhost:5173')
