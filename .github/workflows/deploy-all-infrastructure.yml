@@ -89,13 +89,14 @@ jobs:
       - name: Delete Orphaned RDS Parameter Group
         run: |
           # Check if DB instance exists and is using this parameter group
-          DB_ID=$(aws rds describe-db-instances --region us-east-1 --query "DBInstances[?DBInstanceIdentifier=='algo-rds-dev'].DBInstanceIdentifier" --output text 2>/dev/null || echo "")
+          # DB identifier is ${project_name}-db = algo-db (from terraform)
+          DB_ID=$(aws rds describe-db-instances --region us-east-1 --query "DBInstances[?DBInstanceIdentifier=='algo-db'].DBInstanceIdentifier" --output text 2>/dev/null || echo "")
           if [ -n "$DB_ID" ]; then
-            CURRENT_PG=$(aws rds describe-db-instances --db-instance-identifier algo-rds-dev --region us-east-1 --query "DBInstances[0].DBParameterGroups[0].DBParameterGroupName" --output text 2>/dev/null || echo "")
+            CURRENT_PG=$(aws rds describe-db-instances --db-instance-identifier algo-db --region us-east-1 --query "DBInstances[0].DBParameterGroups[0].DBParameterGroupName" --output text 2>/dev/null || echo "")
             if [ "$CURRENT_PG" == "algo-pg14-params" ]; then
               echo "DB is using algo-pg14-params, changing to default.postgres14..."
               aws rds modify-db-instance \
-                --db-instance-identifier algo-rds-dev \
+                --db-instance-identifier algo-db \
                 --db-parameter-group-name default.postgres14 \
                 --region us-east-1 \
                 --apply-immediately || echo "Modify failed, continuing..."
