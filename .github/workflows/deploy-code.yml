@@ -311,7 +311,7 @@ jobs:
           LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name "$LAYER_NAME" \
             --zip-file fileb://algo_layer.zip \
-            --compatible-runtimes python3.11 \
+            --compatible-runtimes python3.12 \
             --region $AWS_REGION \
             --query 'Version' \
             --output text | xargs)
