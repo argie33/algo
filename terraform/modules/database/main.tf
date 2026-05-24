@@ -127,11 +127,23 @@ resource "aws_db_instance" "main" {
 }
 
 # ============================================================
-# 3. RDS Parameter Group
+# 3. RDS Parameter Group (Legacy - do not modify)
 # ============================================================
-# Using default.postgres${var.postgres_major_version} parameter group
-# Custom parameter modifications are managed outside terraform to avoid
-# 'cannot use immediate apply method for static parameter' conflicts.
+# This resource exists in state but is no longer actively managed.
+# It's defined here with ignore_changes to prevent terraform from
+# attempting to reconcile it, which would fail with RDS API errors.
+# The database uses default.postgres${var.postgres_major_version} instead.
+
+resource "aws_db_parameter_group" "main" {
+  name   = "algo-pg14-params"
+  family = "postgres14"
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  tags = var.common_tags
+}
 
 # ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)
