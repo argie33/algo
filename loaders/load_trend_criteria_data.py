@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 
 class TrendCriteriaLoader(OptimalLoader):
-    table_name = "trend_criteria_data"
+    table_name = "trend_template_data"
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
