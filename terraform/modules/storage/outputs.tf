@@ -56,3 +56,8 @@ output "frontend_bucket_arn" {
   description = "ARN of frontend bucket"
   value       = aws_s3_bucket.frontend.arn
 }
+
+output "frontend_bucket_public_access_block_id" {
+  description = "ID of frontend bucket public access block (for dependency ordering)"
+  value       = aws_s3_bucket_public_access_block.frontend.id
+}

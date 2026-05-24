@@ -404,6 +404,10 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
       }
     ]
   })
+
+  # Ensure S3 block public access is updated before setting bucket policy
+  # This prevents race conditions where AWS hasn't reflected the BlockPublicPolicy=false change yet
+  depends_on = [var.frontend_bucket_public_access_block_id]
 }
 
 # ============================================================

@@ -144,6 +144,11 @@ variable "frontend_bucket_name" {
   type        = string
 }
 
+variable "frontend_bucket_public_access_block_id" {
+  description = "ID of frontend bucket public access block (for dependency ordering)"
+  type        = string
+}
+
 variable "code_bucket_name" {
   description = "S3 bucket for Lambda code artifacts"
   type        = string

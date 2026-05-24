@@ -233,6 +233,7 @@ module "services" {
   algo_secrets_arn                  = module.database.algo_secrets_arn
   psycopg2_layer_arn                = module.database.psycopg2_layer_arn
   frontend_bucket_name              = module.storage.frontend_bucket_name
+  frontend_bucket_public_access_block_id = module.storage.frontend_bucket_public_access_block_id
   code_bucket_name                  = module.storage.code_bucket_name
   data_loading_bucket_name          = module.storage.data_loading_bucket_name
   lambda_artifacts_bucket_name      = module.storage.lambda_artifacts_bucket_name
