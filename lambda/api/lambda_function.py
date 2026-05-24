@@ -63,8 +63,10 @@ def get_db_connection():
             logger.error('No database password')
             return None
 
-        # RDS Proxy requires SSL/TLS connections
-        sslmode = os.getenv('DB_SSL', 'require')
+        # RDS Proxy requires SSL/TLS connections (but localhost dev doesn't need it)
+        db_ssl_env = os.getenv('DB_SSL', 'require').lower()
+        # Convert string "false"/"true" to "disable"/"require" for psycopg2
+        sslmode = 'disable' if db_ssl_env in ('false', '0', 'no', 'off') else db_ssl_env
 
         _db_conn = psycopg2.connect(
             host=db_host,
@@ -343,23 +345,19 @@ def require_auth(event: Dict, path: str) -> tuple:
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
-    # Public endpoints (no auth required)
-    PUBLIC_PATHS = {
+    # Public endpoints (no auth required) - use path.startswith() for prefix matching
+    PUBLIC_PREFIXES = {
         '/health',
         '/api/health',
-        '/health/detailed',
-        '/api/health/detailed',
-        '/health/pipeline',
-        '/api/health/pipeline',
-        '/api/contact',  # Contact form is public — no account required
-        '/api/signals',  # Trading signals are public data
-        '/api/scores',  # Stock scores are public data
-        '/api/market',  # Market data is public data
-        '/api/economic',  # Economic data is public data
+        '/api/contact',
+        '/api/signals',  # /api/signals/stocks, /api/signals/etf, etc.
+        '/api/scores',
+        '/api/market',
+        '/api/economic',
     }
 
-    # All other /api endpoints require auth
-    if path in PUBLIC_PATHS:
+    # Check if path matches any public prefix
+    if any(path == prefix or path.startswith(prefix + '/') or path.startswith(prefix + '?') for prefix in PUBLIC_PREFIXES):
         return (False, True, None, None)  # No auth required, so authorized
 
     if not path.startswith('/api/'):

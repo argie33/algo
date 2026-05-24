@@ -65,26 +65,42 @@ class AnalystRatingsLoader(OptimalLoader):
             return None
 
         try:
-            ticker = yf.Ticker(symbol)
-            upgrades_downgrades = ticker.upgrades_downgrades
+            import threading
 
-            if upgrades_downgrades is None or upgrades_downgrades.empty:
-                return None
+            result = [None]
 
-            results = []
-            for idx, row in upgrades_downgrades.iterrows():
-                ud_date = idx.date() if hasattr(idx, 'date') else idx
-                results.append({
-                    'symbol': symbol,
-                    'action_date': ud_date,
-                    'firm': row.get('Firm', ''),
-                    'new_rating': row.get('To Grade', ''),
-                    'old_rating': row.get('From Grade'),
-                    'action': row.get('Action', '')
-                })
+            def fetch_ticker():
+                try:
+                    ticker = yf.Ticker(symbol)
+                    upgrades_downgrades = ticker.upgrades_downgrades
 
-            return results if results else None
-        except Exception as e:
+                    if upgrades_downgrades is None or upgrades_downgrades.empty:
+                        return
+
+                    results = []
+                    for idx, row in upgrades_downgrades.iterrows():
+                        ud_date = idx.date() if hasattr(idx, 'date') else idx
+                        results.append({
+                            'symbol': symbol,
+                            'action_date': ud_date,
+                            'firm': row.get('Firm', ''),
+                            'new_rating': row.get('To Grade', ''),
+                            'old_rating': row.get('From Grade'),
+                            'action': row.get('Action', '')
+                        })
+
+                    result[0] = results if results else None
+                except Exception:
+                    pass
+
+            # Set 10-second timeout per ticker (yfinance can be slow)
+            thread = threading.Thread(target=fetch_ticker, daemon=True)
+            thread.start()
+            thread.join(timeout=10.0)
+
+            return result[0]
+        except Exception:
+            # Any error - skip this symbol gracefully
             return None
 
     def transform(self, rows):
