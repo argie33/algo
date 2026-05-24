@@ -53,14 +53,18 @@ def get_db_connection():
 
         if db_secret_arn and not db_password:
             import boto3
-            secrets = boto3.client('secretsmanager', region_name='us-east-1')
-            response = secrets.get_secret_value(SecretId=db_secret_arn)
-            secret = json.loads(response['SecretString'])
-            db_password = secret.get('password')
-            db_user = secret.get('username', db_user)
+            try:
+                secrets = boto3.client('secretsmanager', region_name='us-east-1')
+                response = secrets.get_secret_value(SecretId=db_secret_arn)
+                secret = json.loads(response['SecretString'])
+                db_password = secret.get('password')
+                db_user = secret.get('username', db_user)
+            except Exception as e:
+                logger.error(f'Failed to fetch secret from {db_secret_arn}: {e}')
+                return None
 
         if not db_password:
-            logger.error('No database password')
+            logger.error('No database password available')
             return None
 
         # RDS Proxy requires SSL/TLS connections (but localhost dev doesn't need it)
@@ -68,6 +72,7 @@ def get_db_connection():
         # Convert string "false"/"true" to "disable"/"require" for psycopg2
         sslmode = 'disable' if db_ssl_env in ('false', '0', 'no', 'off') else db_ssl_env
 
+        logger.info(f'Connecting to DB: host={db_host}:{db_port}, db={db_name}, user={db_user}, ssl={sslmode}')
         _db_conn = psycopg2.connect(
             host=db_host,
             port=db_port,
@@ -78,9 +83,10 @@ def get_db_connection():
             cursor_factory=RealDictCursor,
             connect_timeout=10
         )
+        logger.info('DB connection successful')
         return _db_conn
     except Exception as e:
-        logger.error(f'DB connection failed: {e}')
+        logger.error(f'DB connection failed to {db_host}:{db_port}: {type(e).__name__}: {e}')
         return None
 
 
