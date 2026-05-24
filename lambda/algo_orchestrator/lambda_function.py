@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import the orchestrator
 from algo.algo_orchestrator import Orchestrator
-from config.credential_helper import load_env
+from config.env_loader import load_env
 
 
 def lambda_handler(event, context):
