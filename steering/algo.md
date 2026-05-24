@@ -14,10 +14,10 @@
 ## CREDENTIALS
 | Env | Store | Keys |
 |-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PASSWORD, DB_NAME, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, SEC_USER_AGENT |
-| CI | GitHub Secrets | AWS_*, ALPACA_*, FRED_API_KEY, SEC_USER_AGENT |
-| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred, sec-user-agent |
-**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT: `algo-trading argeropolos@gmail.com`
+| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
+| CI | GitHub Secrets | APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, AWS_SECRET_ACCESS_KEY |
+| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
+**Rules:** Rotate Q, instant if leaked, ❌ .env. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading email@example.com`
 
 ## DEPLOY & RESOURCES
 `git push main` → `deploy-code.yml` (auto: test → scan) OR `deploy-all-infrastructure.yml` (terraform + Λ + EB)
