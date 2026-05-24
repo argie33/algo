@@ -121,10 +121,10 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Python 3.11
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -604,10 +604,10 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Python 3.11
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Package API Lambda
         run: |
@@ -868,10 +868,10 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Python 3.11
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Package DB Init Lambda
         run: |
@@ -884,7 +884,7 @@ jobs:
           # Required modules
           cp credential_manager.py db-init-pkg/ || true
           cp init_database.py db-init-pkg/ || true
-          # Dependencies - using binary packages for Lambda Python 3.11
+          # Dependencies - using binary packages for Lambda Python 3.12
           pip install -r lambda/db-init/requirements.txt \
             -t db-init-pkg/ --platform manylinux2014_x86_64 --only-binary=:all:
           cd db-init-pkg
@@ -931,7 +931,7 @@ jobs:
             echo "Creating Lambda: $FUNC_NAME"
             aws lambda create-function \
               --function-name "$FUNC_NAME" \
-              --runtime python3.11 \
+              --runtime python3.12 \
               --role "$ROLE_ARN" \
               --handler lambda_function.lambda_handler \
               --timeout 120 \
