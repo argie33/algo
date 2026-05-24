@@ -150,13 +150,13 @@ jobs:
           import shutil
 
           # Create TWO packages:
-          # 1. algo_lambda.zip - handler + dependencies (for function code)
-          # 2. algo_layer.zip - config/, algo/, utils/ (for Lambda layer, extracted to /opt/python)
+          # 1. algo_lambda.zip - handler ONLY (no dependencies - they come from layer)
+          # 2. algo_layer.zip - all dependencies + config/, algo/, utils/
 
           app_dir = Path.cwd()
 
           # ============================================================
-          # PACKAGE 1: Function Code (handler + dependencies)
+          # PACKAGE 1: Function Code (handler ONLY - dependencies via layer)
           # ============================================================
           print("=== Building Lambda Function Code Package ===\n")
 
@@ -165,38 +165,15 @@ jobs:
             zip_path.unlink()
 
           with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Add lambda handler
+            # Add lambda handler ONLY
             handler_path = Path("lambda/algo_orchestrator/lambda_function.py")
             if handler_path.exists():
               zf.write(handler_path, "lambda_function.py")
-              print("  + lambda_function.py")
+              print("  + lambda_function.py (handler only)")
             else:
               raise Exception(f"Handler not found: {handler_path}")
 
-            # Install pip dependencies
-            pkg_temp = Path("/tmp/pip_packages")
-            if pkg_temp.exists():
-              shutil.rmtree(pkg_temp)
-            pkg_temp.mkdir()
-
-            print("  Installing dependencies...")
-            subprocess.run([
-              "pip", "install",
-              "-r", "lambda/algo_orchestrator/requirements.txt",
-              "-t", str(pkg_temp),
-              "--only-binary=:all:",
-              "--quiet"
-            ], check=True)
-
-            # Add dependencies to ZIP
-            for file_path in pkg_temp.rglob("*"):
-              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path) or ".dist-info" in str(file_path)):
-                arcname = str(file_path.relative_to(pkg_temp.resolve()))
-                zf.write(str(file_path), arcname)
-
-            print("  + dependencies")
-
-          print(f"  Result: {zip_path.stat().st_size / (1024*1024):.1f} MB\n")
+          print(f"  Result: {zip_path.stat().st_size / 1024:.1f} KB (dependencies via layer)\n")
 
           # ============================================================
           # PACKAGE 2: Lambda Layer (dependencies + config/, algo/, utils/)
@@ -268,12 +245,17 @@ jobs:
 
           print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
 
-          # Verify both packages
+          # Verify packages
           print("=== Verification ===")
           with zipfile.ZipFile(zip_path, 'r') as zf:
-            print(f"Function code: {len(zf.namelist())} files")
-            if "lambda_function.py" not in zf.namelist():
+            files = zf.namelist()
+            print(f"Function code: {len(files)} files")
+            if "lambda_function.py" not in files:
               raise Exception("lambda_function.py missing!")
+            # Ensure no heavy dependencies in function code
+            has_deps = any(f.startswith(('boto', 'pandas', 'numpy', 'psycopg2', 'requests')) for f in files)
+            if has_deps:
+              raise Exception("ERROR: Dependencies found in function code! They should be in layer only.")
 
           with zipfile.ZipFile(layer_path, 'r') as zf:
             names = zf.namelist()
@@ -283,26 +265,38 @@ jobs:
               if req not in names:
                 raise Exception(f"Missing in layer: {req}")
 
-          print("OK - both packages ready for deployment")
+          print("OK - function code and layer ready for deployment")
           PYTHON_SCRIPT
 
       - name: Verify ZIP Contents with unzip
         run: |
-          echo "=== Function Code ZIP ==="
-          echo "Files: $(unzip -l algo_lambda.zip | tail -1 | awk '{print $2}')"
-          unzip -l algo_lambda.zip | grep "lambda_function.py" && echo "OK - lambda_function.py found"
+          echo "=== Function Code ZIP (handler only) ==="
+          SIZE_KB=$(du -k algo_lambda.zip | cut -f1)
+          echo "Size: ${SIZE_KB}KB"
+          unzip -l algo_lambda.zip
+          echo ""
+          unzip -l algo_lambda.zip | grep -q "lambda_function.py" && echo "✅ lambda_function.py found"
+
+          # Verify no heavy dependencies in function code
+          if unzip -l algo_lambda.zip | grep -qE 'boto|pandas|numpy|psycopg2'; then
+            echo "❌ ERROR: Dependencies found in function code!"
+            exit 1
+          fi
+          echo "✅ No dependencies bundled (they come from layer)"
 
           echo ""
-          echo "=== Lambda Layer ZIP ==="
-          echo "Files: $(unzip -l algo_layer.zip | tail -1 | awk '{print $2}')"
+          echo "=== Lambda Layer ZIP (dependencies + code) ==="
+          SIZE_MB=$(du -m algo_layer.zip | cut -f1)
+          echo "Size: ${SIZE_MB}MB"
           for pattern in "python/config/__init__" "python/algo/__init__" "python/utils/__init__"; do
             if unzip -l algo_layer.zip | grep -q "$pattern"; then
-              echo "OK - $pattern found"
+              echo "✅ $pattern found"
             else
-              echo "MISSING - $pattern"
+              echo "❌ MISSING - $pattern"
               exit 1
             fi
           done
+          echo "✅ All required layer components present"
 
       - name: Publish Lambda Layer
         run: |
