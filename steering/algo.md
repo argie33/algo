@@ -47,6 +47,17 @@ Monitor: https://github.com/argie33/algo/actions
 | APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 | execution_mode | auto | Auto-detect live intent |
 
+## LOADER STATUS (May 24, 2026)
+**Validation:** 24/24 loaders working. 22 complete <20s with 10 symbols. 2 (stock prices) <120s (process 6 combinations).
+
+| Category | Count | Loaders |
+|----------|-------|---------|
+| Fast (<10s) | 18 | Analyst sentiment, upgrade, algo metrics, company, earnings, fear greed, growth, industry, market health, naaim, quality, signals, quality scores, technical, trend, value, weight |
+| Medium (10-20s) | 4 | Balance sheet, cash flow, income, AAII sentiment |
+| Slow (20-120s) | 2 | Stock prices (daily, weekly) — process 3 intervals × 2 asset classes |
+
+**Recent fixes:** yfinance loaders (analyst sentiment/upgrade) now use wrapper with exponential backoff retry logic.
+
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
 - 9:30A ET: Morning orchestrator (fresh prices + technicals)
