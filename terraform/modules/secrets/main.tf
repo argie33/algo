@@ -18,10 +18,6 @@ resource "aws_secretsmanager_secret_version" "alpaca" {
     api_key    = var.alpaca_api_key
     api_secret = var.alpaca_api_secret
   })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
 }
 
 # FRED Economic Data API Key
@@ -38,10 +34,6 @@ resource "aws_secretsmanager_secret_version" "fred" {
   secret_string = jsonencode({
     api_key = var.fred_api_key
   })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
 }
 
 # PostgreSQL Database Credentials
@@ -62,10 +54,6 @@ resource "aws_secretsmanager_secret_version" "database" {
     username = var.db_user
     password = var.db_password
   })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
 }
 
 # JWT Secret
@@ -82,10 +70,6 @@ resource "aws_secretsmanager_secret_version" "jwt" {
   secret_string = jsonencode({
     jwt_secret = var.jwt_secret
   })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
 }
 
 # Output secret ARNs for Lambda IAM policies
