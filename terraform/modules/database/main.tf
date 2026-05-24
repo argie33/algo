@@ -153,6 +153,12 @@ resource "aws_db_parameter_group" "main" {
     value = "524288"  # 512 MB
   }
 
+  # Increase max_connections for 40+ concurrent loaders
+  parameter {
+    name  = "max_connections"
+    value = "200"
+  }
+
   tags = var.common_tags
 
   lifecycle {
