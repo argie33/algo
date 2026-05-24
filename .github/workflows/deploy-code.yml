@@ -467,6 +467,8 @@ jobs:
                 "APCA_API_KEY_ID": alpaca_api_key,
                 "APCA_API_SECRET_KEY": alpaca_api_secret,
                 "APCA_API_BASE_URL": apca_base_url,
+                "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
+                "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
                 "ORCHESTRATOR_DRY_RUN": "false",
                 "EXECUTION_MODE": exec_mode
               }
