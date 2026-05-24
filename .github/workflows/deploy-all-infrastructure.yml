@@ -119,8 +119,7 @@ jobs:
 
       - name: Setup Terraform State Backend
         run: |
-          cd terraform
-          # Initialize terraform with cleaned state
+          # Initialize terraform with cleaned state (working-directory is already terraform)
           # CRITICAL: Use correct state bucket (stocks-terraform-state, not algo-terraform-state-dev)
           terraform init -reconfigure \
             -backend-config="bucket=stocks-terraform-state" \
