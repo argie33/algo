@@ -67,45 +67,33 @@ class AnalystRatingsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch analyst upgrades/downgrades from yfinance."""
         try:
-            import yfinance as yf
+            from utils.yfinance_wrapper import get_ticker
         except ImportError:
             return None
 
+        ticker = get_ticker(symbol)
+        if not ticker:
+            return None
+
         try:
-            import threading
+            upgrades_downgrades = ticker.upgrades_downgrades
 
-            result = [None]
+            if upgrades_downgrades is None or upgrades_downgrades.empty:
+                return None
 
-            def fetch_ticker():
-                try:
-                    ticker = yf.Ticker(symbol)
-                    upgrades_downgrades = ticker.upgrades_downgrades
+            results = []
+            for idx, row in upgrades_downgrades.iterrows():
+                ud_date = idx.date() if hasattr(idx, 'date') else idx
+                results.append({
+                    'symbol': symbol,
+                    'action_date': ud_date,
+                    'firm': row.get('Firm', ''),
+                    'new_rating': row.get('To Grade', ''),
+                    'old_rating': row.get('From Grade'),
+                    'action': row.get('Action', '')
+                })
 
-                    if upgrades_downgrades is None or upgrades_downgrades.empty:
-                        return
-
-                    results = []
-                    for idx, row in upgrades_downgrades.iterrows():
-                        ud_date = idx.date() if hasattr(idx, 'date') else idx
-                        results.append({
-                            'symbol': symbol,
-                            'action_date': ud_date,
-                            'firm': row.get('Firm', ''),
-                            'new_rating': row.get('To Grade', ''),
-                            'old_rating': row.get('From Grade'),
-                            'action': row.get('Action', '')
-                        })
-
-                    result[0] = results if results else None
-                except Exception:
-                    pass
-
-            # Set 10-second timeout per ticker (yfinance can be slow)
-            thread = threading.Thread(target=fetch_ticker, daemon=True)
-            thread.start()
-            thread.join(timeout=10.0)
-
-            return result[0]
+            return results if results else None
         except Exception:
             # Any error - skip this symbol gracefully
             return None
