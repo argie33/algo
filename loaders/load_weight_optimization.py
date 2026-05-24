@@ -182,7 +182,7 @@ def main():
         from config.algo_config import AlgoConfig
         config = AlgoConfig.load()
         result = run_weight_optimization_cycle(config, run_date=_date.today(), dry_run=args.dry_run)
-        print(f"\nResult: {result}")
+        logger.info(f"Weight optimization result: {result}")
         return 0 if result['success'] else 1
     except ImportError as e:
         logging.warning(f"Weight optimization skipped - algo modules not available: {e}")

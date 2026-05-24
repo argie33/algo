@@ -616,7 +616,7 @@ jobs:
           DB_NAME=$(echo "$API_CFG" | jq -r '.Environment.Variables.DB_NAME // "stocks"')
 
           VPC_JSON=$(echo "$API_CFG" | jq '{SubnetIds: .VpcConfig.SubnetIds, SecurityGroupIds: .VpcConfig.SecurityGroupIds}')
-          ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\",\"DB_MASTER_USER\":\"postgres\",\"DB_MASTER_PASSWORD\":\"${RDS_PASSWORD}\",\"AWS_REGION\":\"${AWS_REGION}\"}}"
+          ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\",\"DB_MASTER_USER\":\"postgres\",\"DB_MASTER_PASSWORD\":\"${RDS_PASSWORD}\"}}"
 
           echo "Role: $ROLE_ARN"
           echo "VPC: $VPC_JSON"
