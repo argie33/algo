@@ -15,7 +15,7 @@ from datetime import date as _date
 
 # Setup logging
 logger = logging.getLogger()
-logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
+logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO').upper())
 
 # Add project root to path so imports work
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
