@@ -8,20 +8,34 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 
-// Get API URL and environment name from command line, env vars, or use defaults
-// DEVELOPMENT: Always use localhost:8000 (dev_server.py), never production AWS in config
+// Get values from environment variables or defaults
 const isDev = process.env.NODE_ENV !== "production" && !process.argv.includes("--production");
+
 const apiUrl = isDev
-  ? "http://localhost:8000"  // Match dev_server.py port
-  : (process.argv[2] || process.env.API_URL || process.env.VITE_API_URL || "http://localhost:8000");
-const environment = process.argv[3] || process.env.ENVIRONMENT || "development";
+  ? (process.env.VITE_API_URL || "http://localhost:8000")
+  : (process.env.API_URL || process.env.VITE_API_URL || "http://localhost:8000");
+
+const environment = process.env.ENVIRONMENT || "development";
+
+// Cognito values must come from env vars, never hardcoded
+const userPoolId = isDev
+  ? (process.env.VITE_USER_POOL_ID || 'us-east-1_DUMMY')
+  : (process.env.USER_POOL_ID || 'us-east-1_XJpLb9SKX');
+
+const userPoolClientId = isDev
+  ? (process.env.VITE_USER_POOL_CLIENT_ID || 'dummy-client-id')
+  : (process.env.USER_POOL_CLIENT_ID || '6smb0vrcidd9kvhju2kn2a3qrl');
+
+const userPoolDomain = isDev
+  ? (process.env.VITE_USER_POOL_DOMAIN || 'dummy-domain')
+  : (process.env.USER_POOL_DOMAIN || 'stocks-trading-dev-626216981288.auth.626216981288.amazoncognito.com');
 
 // Create environment configuration
 const devConfig = {
   API_URL: apiUrl,
-  USER_POOL_ID: isDev ? 'us-east-1_DUMMY' : 'us-east-1_XJpLb9SKX',
-  USER_POOL_CLIENT_ID: isDev ? 'dummy-client-id' : '6smb0vrcidd9kvhju2kn2a3qrl',
-  USER_POOL_DOMAIN: isDev ? 'dummy-domain' : 'stocks-trading-dev-626216981288.auth.626216981288.amazoncognito.com',
+  USER_POOL_ID: userPoolId,
+  USER_POOL_CLIENT_ID: userPoolClientId,
+  USER_POOL_DOMAIN: userPoolDomain,
   BUILD_TIME: new Date().toISOString(),
   VERSION: "1.0.0-dev",
   ENVIRONMENT: environment,
