@@ -92,6 +92,15 @@ jobs:
           terraform_version: 1.7.0
           terraform_wrapper: false
 
+      - name: Clean Terraform State (Remove Stale Resources)
+        run: |
+          cd terraform
+          terraform init -reconfigure -backend-config="bucket=algo-terraform-state-dev" -backend-config="key=dev/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=algo-terraform-locks-dev" --upgrade
+          terraform state rm module.database.aws_db_parameter_group.main 2>/dev/null || echo "Resource not in state (OK)"
+          echo "State cleanup complete"
+        env:
+          AWS_REGION: us-east-1
+
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
