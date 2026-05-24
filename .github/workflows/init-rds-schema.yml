@@ -33,7 +33,7 @@ jobs:
           DB_USER: stocks
           DB_PASSWORD: stocks
           DB_NAME: stocks
-        run: python3 init_database.py
+        run: python3 scripts/init_database.py
 
       - name: Verify Tables
         env:
