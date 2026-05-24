@@ -47,26 +47,28 @@ def get_db_connection():
         db_user = os.getenv('DB_USER', 'stocks')
         db_password = os.getenv('DB_PASSWORD')
 
-        logger.info(f'DB config: secret_arn={bool(db_secret_arn)}, host={db_host}, port={db_port}, db={db_name}, user={db_user}')
+        logger.info(f'[DB CONNECT 1] Config read: secret_arn={bool(db_secret_arn)}, host={db_host}, port={db_port}, db={db_name}, user={db_user}')
 
         if not db_host:
-            logger.error('DB_HOST environment variable is required')
+            logger.error('[DB CONNECT ERROR] DB_HOST environment variable is required - CHECK LAMBDA CONFIG')
             return None
 
         if db_secret_arn and not db_password:
             import boto3
             try:
+                logger.info(f'[DB CONNECT 2] Fetching password from Secrets Manager: {db_secret_arn}')
                 secrets = boto3.client('secretsmanager', region_name='us-east-1')
                 response = secrets.get_secret_value(SecretId=db_secret_arn)
                 secret = json.loads(response['SecretString'])
                 db_password = secret.get('password')
                 db_user = secret.get('username', db_user)
+                logger.info(f'[DB CONNECT 2] Secret fetched OK, password length={len(db_password) if db_password else 0}')
             except Exception as e:
-                logger.error(f'Failed to fetch secret from {db_secret_arn}: {e}')
+                logger.error(f'[DB CONNECT ERROR] Failed to fetch secret from {db_secret_arn}: {type(e).__name__}: {e}', exc_info=True)
                 return None
 
         if not db_password:
-            logger.error('No database password available')
+            logger.error('[DB CONNECT ERROR] No database password available - CHECK SECRETS MANAGER')
             return None
 
         # RDS Proxy requires SSL/TLS connections (but localhost dev doesn't need it)
@@ -74,7 +76,7 @@ def get_db_connection():
         # Convert string "false"/"true" to "disable"/"require" for psycopg2
         sslmode = 'disable' if db_ssl_env in ('false', '0', 'no', 'off') else db_ssl_env
 
-        logger.info(f'Connecting to DB: host={db_host}:{db_port}, db={db_name}, user={db_user}, ssl={sslmode}')
+        logger.info(f'[DB CONNECT 3] Attempting connection: host={db_host}:{db_port}, db={db_name}, user={db_user}, ssl={sslmode}')
         _db_conn = psycopg2.connect(
             host=db_host,
             port=db_port,
@@ -85,16 +87,16 @@ def get_db_connection():
             cursor_factory=RealDictCursor,
             connect_timeout=10
         )
-        logger.info('DB connection successful')
+        logger.info('[DB CONNECT 4] Connection successful - RDS ready')
         return _db_conn
     except psycopg2.OperationalError as e:
-        logger.error(f'DB Operational Error: host={db_host}:{db_port}, user={db_user}: {e}')
+        logger.error(f'[DB CONNECT ERROR] OperationalError to {db_host}:{db_port}: {e} - CHECK: RDS running, SG rules, DNS resolution')
         return None
     except psycopg2.ProgrammingError as e:
-        logger.error(f'DB Programming Error: {e}')
+        logger.error(f'[DB CONNECT ERROR] ProgrammingError: {e}')
         return None
     except Exception as e:
-        logger.error(f'DB connection failed to {db_host}:{db_port}: {type(e).__name__}: {str(e)}', exc_info=True)
+        logger.error(f'[DB CONNECT ERROR] Unexpected error to {db_host}:{db_port}: {type(e).__name__}: {str(e)}', exc_info=True)
         return None
 
 
