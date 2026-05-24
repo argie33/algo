@@ -612,7 +612,7 @@ jobs:
               "pip", "install",
               "-r", "lambda/api/requirements.txt",
               "-t", str(layer_pkg_temp),
-              "--platform", "manylinux2014_x86_64",
+              "--platform", "manylinux_2_17_x86_64",
               "--only-binary=:all:",
               "--no-cache-dir",
               "--quiet"
