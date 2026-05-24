@@ -166,6 +166,39 @@ jobs:
           echo "✅ data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
           unzip -l $TERRAFORM_LAMBDA/lambda_function.zip | head -20
 
+      - name: Build Algo Orchestrator Lambda
+        run: |
+          # Build orchestrator Lambda ZIP with all required modules (algo, config, utils)
+          # Must run before Terraform so the ZIP is available for filebase64sha256()
+          PKG_DIR=/tmp/algo-lambda-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy Lambda handler
+          cp $GITHUB_WORKSPACE/lambda/algo_orchestrator/lambda_function.py $PKG_DIR/
+
+          # Copy all required modules
+          cp -r $GITHUB_WORKSPACE/algo $PKG_DIR/
+          cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
+          cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+
+          # Remove pycache and build artifacts
+          find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PKG_DIR -type f -name "*.pyc" -delete
+
+          # Install dependencies
+          python3.11 -m pip install -r $GITHUB_WORKSPACE/lambda/algo_orchestrator/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP in terraform directory (where Terraform expects it)
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_algo.zip
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_algo.zip . -q -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
+          cd $GITHUB_WORKSPACE
+
+          echo "✅ Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_algo.zip | head -20
+
       - name: Terraform Init
         run: |
           terraform init \
@@ -441,38 +474,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Package
+      - name: Deploy Algo Lambda
         run: |
-          mkdir -p lambda-pkg
-          # Copy Lambda handler
-          cp lambda/algo_orchestrator/lambda_function.py lambda-pkg/
-          # Copy all project modules required by orchestrator
-          cp -r algo lambda-pkg/
-          cp -r config lambda-pkg/
-          cp -r utils lambda-pkg/
-          # Install dependencies
-          pip install -r lambda/algo_orchestrator/requirements.txt \
-            -t lambda-pkg/ --only-binary=:all: --quiet
-          # Remove unnecessary files to reduce size
-          find lambda-pkg -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-          find lambda-pkg -type d -name "*.dist-info" -path "*/tests/*" -exec rm -rf {} + 2>/dev/null || true
-          find lambda-pkg -type f -name "*.pyc" -delete
-          # Create zip
-          cd lambda-pkg
-          zip -r ../algo_lambda.zip . -x "*/tests/*" "*/test/*" "*/.git/*"
-          cd ..
-          echo "Lambda package size: $(du -sh algo_lambda.zip | cut -f1)"
-
-      - name: Deploy
-        run: |
+          # Algo zip is already built in terraform step. Just deploy it.
           FUNC="${{ needs.terraform.outputs.algo_lambda_name }}"
-          [ -z "$FUNC" ] && FUNC="stocks-algo-dev"
+          [ -z "$FUNC" ] && FUNC="algo-algo-dev"
+
+          if [ ! -f terraform/lambda_algo.zip ]; then
+            echo "ERROR: lambda_algo.zip not found!"
+            exit 1
+          fi
+
+          echo "Deploying algo Lambda: $FUNC"
           aws lambda update-function-code \
             --function-name "$FUNC" \
-            --zip-file fileb://algo_lambda.zip \
+            --zip-file fileb://terraform/lambda_algo.zip \
             --region $AWS_REGION
+
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
-          echo "✅ Algo Lambda: $FUNC"
+          echo "✅ Algo Lambda updated: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2c — API Lambda
