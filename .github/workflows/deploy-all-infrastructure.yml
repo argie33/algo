@@ -86,6 +86,12 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Delete Orphaned RDS Parameter Group
+        run: |
+          aws rds delete-db-parameter-group \
+            --db-parameter-group-name algo-pg14-params \
+            --region us-east-1 2>/dev/null || echo "Parameter group already deleted or doesn't exist (OK)"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
