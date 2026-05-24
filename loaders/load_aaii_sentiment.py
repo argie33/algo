@@ -99,7 +99,7 @@ COL_LIST = ", ".join(SENTIMENT_COLUMNS)
 # -------------------------------
 # Direct URL to the AAII sentiment survey Excel file
 # -------------------------------
-AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
+AAII_EXCEL_URL = os.getenv("AAII_SENTIMENT_URL", "https://www.aaii.com/files/surveys/sentiment.xls")
 
 # -------------------------------
 # DB config loader

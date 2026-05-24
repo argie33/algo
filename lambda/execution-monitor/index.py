@@ -87,7 +87,8 @@ def get_alpaca_trades():
         if not api_key or not secret_key:
             return {'error': 'Alpaca credentials not configured', 'status': 'skipped'}
 
-        api = tradeapi.REST(api_key, secret_key, base_url='https://paper-api.alpaca.markets')
+        base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        api = tradeapi.REST(api_key, secret_key, base_url=base_url)
 
         account = api.get_account()
         orders = api.list_orders(status='closed', limit=20)

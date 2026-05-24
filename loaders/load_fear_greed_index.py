@@ -108,7 +108,7 @@ def _value_to_label(v):
 # -------------------------------
 # CNN Fear & Greed API URL
 # -------------------------------
-FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+FEAR_GREED_URL = os.getenv("FEAR_GREED_URL", "https://production.dataviz.cnn.io/index/fearandgreed/graphdata")
 
 # -------------------------------
 # DB config loader

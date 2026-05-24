@@ -560,7 +560,10 @@ class PositionMonitor:
             """)
             positions = self.cur.fetchall()
 
-            alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            alpaca_base_url = os.getenv('APCA_API_BASE_URL')
+            if not alpaca_base_url:
+                logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
+                alpaca_base_url = 'https://paper-api.alpaca.markets'
             try:
                 cm = get_credential_manager()
                 creds = cm.get_alpaca_credentials()

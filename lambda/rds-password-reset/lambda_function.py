@@ -15,22 +15,40 @@ logger.setLevel(logging.INFO)
 def lambda_handler(event, context):
     """Reset RDS master password by connecting and running SQL."""
 
-    # Current credentials (what we know should work - default from Terraform)
-    db_host = os.environ.get('DB_HOST', 'algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com')
-    db_port = int(os.environ.get('DB_PORT', '5432'))
-    db_user = 'stocks'  # Master user
-    db_name = 'postgres'  # System database
+    # Credentials must be explicitly provided - no defaults for safety
+    db_host = os.environ.get('DB_HOST')
+    db_port_str = os.environ.get('DB_PORT', '5432')
+    db_user = os.environ.get('DB_USER', 'stocks')
+    db_name = os.environ.get('DB_SYSTEM_DB', 'postgres')
+    new_password = os.environ.get('NEW_PASSWORD')
 
-    # Try multiple known passwords in order
-    known_passwords = [
-        'password',  # Default
+    # Validate required credentials
+    if not db_host:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({
+                'error': 'DB_HOST environment variable is required'
+            })
+        }
+
+    if not new_password:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({
+                'error': 'NEW_PASSWORD environment variable is required'
+            })
+        }
+
+    db_port = int(db_port_str)
+
+    # Try passwords from environment, fall back to known common defaults if not specified
+    env_passwords = os.environ.get('KNOWN_PASSWORDS', '').split(',')
+    known_passwords = [p.strip() for p in env_passwords if p.strip()] or [
+        'password',  # Terraform default
         'stocks',    # Common choice
-        'postgres',  # Default postgres password
+        'postgres',  # PostgreSQL default
         '',          # Empty password
     ]
-
-    # New password to set
-    new_password = os.environ.get('NEW_PASSWORD', 'Q6JO2ZiFPsKOfpwb0WGVgmcV0yUg6NAO')
 
     logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
     logger.info(f"Trying known passwords...")

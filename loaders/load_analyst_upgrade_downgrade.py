@@ -35,9 +35,16 @@ try:
     from utils.loader_helpers import get_active_symbols
 except ImportError:
     # Fallback if config modules don't exist - use env vars directly
+    # DB_HOST is REQUIRED - no localhost fallback
+    def _get_db_host():
+        host = os.getenv('DB_HOST')
+        if not host:
+            raise ValueError("DB_HOST environment variable is required")
+        return host
+
     get_db_password = lambda: os.getenv('DB_PASSWORD')
     get_db_config = lambda: {
-        'host': os.getenv('DB_HOST', 'localhost'),
+        'host': _get_db_host(),
         'port': int(os.getenv('DB_PORT', 5432)),
         'user': os.getenv('DB_USER', 'postgres'),
         'database': os.getenv('DB_NAME', 'stocks'),

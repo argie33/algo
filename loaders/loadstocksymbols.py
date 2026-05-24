@@ -24,8 +24,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s] %(levelname)s %(nam
 logger = logging.getLogger("loadstocksymbols")
 
 # ─── Data Source URLs ──────────────────────────────────────────────────────────
-NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-OTHER_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+NASDAQ_URL = os.getenv("NASDAQ_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt")
+OTHER_URL = os.getenv("OTHER_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt")
 
 # ─── Exclusion patterns ────────────────────────────────────────────────────────
 PATTERNS = [

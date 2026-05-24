@@ -576,7 +576,10 @@ class DataPatrol:
             logger.debug(f"Alpaca credentials not available: {e}")
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
             return
-        base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        base = os.getenv('APCA_API_BASE_URL')
+        if not base:
+            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
+            base = 'https://paper-api.alpaca.markets'
         if not key or not secret:
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
             return

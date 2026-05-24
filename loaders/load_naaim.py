@@ -99,7 +99,7 @@ COL_LIST = ", ".join(NAAIM_COLUMNS)
 # -------------------------------
 # NAAIM Exposure Index URL
 # -------------------------------
-NAAIM_URL = "https://www.naaim.org/programs/naaim-exposure-index/"
+NAAIM_URL = os.getenv("NAAIM_EXPOSURE_URL", "https://www.naaim.org/programs/naaim-exposure-index/")
 
 # -------------------------------
 # DB config loader

@@ -104,7 +104,10 @@ class PositionSizer:
         except Exception:
             key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
             secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_SECRET_KEY")
-        base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        base = os.getenv('APCA_API_BASE_URL')
+        if not base:
+            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
+            base = 'https://paper-api.alpaca.markets'
         if not key or not secret:
             return None
         try:

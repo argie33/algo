@@ -38,8 +38,8 @@ class AlertManager:
     def __init__(self):
         self.email_from = os.getenv('ALERT_EMAIL_FROM', 'noreply@algo.local')
         self.email_to = [e.strip() for e in os.getenv('ALERT_EMAIL_TO', '').split(',') if e.strip()]
-        self.smtp_host = os.getenv('ALERT_SMTP_HOST', 'smtp.gmail.com')
-        self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', 587))
+        self.smtp_host = os.getenv('ALERT_SMTP_HOST')
+        self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', '587'))
         self.smtp_user = os.getenv('ALERT_SMTP_USER', '')
         self.smtp_password = self._load_smtp_password()
         self.webhook_url = os.getenv('ALERT_WEBHOOK_URL', '')

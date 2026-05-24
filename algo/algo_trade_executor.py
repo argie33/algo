@@ -67,7 +67,10 @@ class TradeExecutor:
         alpaca_creds = get_alpaca_credentials()
         self.alpaca_key = alpaca_creds.get("key") or os.getenv("APCA_API_KEY_ID")
         self.alpaca_secret = alpaca_creds.get("secret") or os.getenv("APCA_API_SECRET_KEY")
-        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL')
+        if not self.alpaca_base_url:
+            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
+            self.alpaca_base_url = 'https://paper-api.alpaca.markets'
         self.conn = None
         self.cur = None
 
