@@ -90,7 +90,7 @@ class PriceLoader(OptimalLoader):
 
         return None
 
-    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 3):
+    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
         import time
         for attempt in range(max_retries):
@@ -98,14 +98,19 @@ class PriceLoader(OptimalLoader):
                 return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
             except Exception as e:
                 error_str = str(e).lower()
-                # Rate limit errors - don't re-raise, just return None
+                # Rate limit errors - retry with exponential backoff
                 if "rate" in error_str or "429" in error_str or "too many" in error_str:
-                    logger.debug(f"[{symbol}] Rate limited: {e}")
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 5  # 5s, 10s, 20s, 40s, 80s
+                        logger.warning(f"[{symbol}] Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    logger.warning(f"[{symbol}] Rate limited after {max_retries} attempts, giving up")
                     return None
-                # Network/timeout errors in AWS - retry with backoff
+                # Network/timeout errors - retry with backoff
                 if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt  # 1s, 2s, 4s
+                        wait_time = 2 ** attempt
                         logger.warning(f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
                         time.sleep(wait_time)
                         continue
