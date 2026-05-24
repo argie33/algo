@@ -696,6 +696,7 @@ jobs:
       - name: Deploy API Lambda
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
 
           # Deploy function code (handler only, ~5KB)
           echo "Deploying API function code..."
@@ -714,14 +715,83 @@ jobs:
             --query 'LayerVersions[0].LayerVersionArn' \
             --output text)
 
-          # Update configuration with layer
-          echo "Attaching API layer..."
-          aws lambda update-function-configuration \
+          # Get API Lambda current configuration (for VPC, role, etc.)
+          API_CFG=$(aws lambda get-function-configuration \
             --function-name "$FUNC" \
-            --layers "$LAYER_ARN" \
-            --region $AWS_REGION > /dev/null
+            --region $AWS_REGION)
+          ROLE_ARN=$(echo "$API_CFG" | jq -r '.Role')
 
-          echo "✅ API Lambda deployed: $FUNC"
+          # Build environment variables JSON
+          python3 << 'PYTHON_API_CONFIG'
+          import json
+          import subprocess
+          import os
+
+          region = os.environ['AWS_REGION']
+          account_id = os.environ['AWS_ACCOUNT_ID']
+          func_name = os.environ['FUNC_NAME']
+
+          # Read Terraform tfvars to get database config
+          with open('terraform/terraform.tfvars') as f:
+            tfvars = f.read()
+            project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
+            environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+
+          secret_id = f"{project}-db-credentials-{environment}"
+
+          # Retrieve RDS configuration from Secrets Manager
+          try:
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', secret_id, '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True, check=True)
+            db_creds = json.loads(result.stdout.strip())
+          except Exception as e:
+            print(f"ERROR: Could not retrieve database secret: {e}")
+            exit(1)
+
+          db_host = db_creds.get('host', 'localhost')
+          db_port = db_creds.get('port', 5432)
+          db_name = db_creds.get('dbname', 'stocks')
+          db_user = db_creds.get('username', 'stocks')
+
+          # Build environment config
+          env_config = {
+            "FunctionName": func_name,
+            "Environment": {
+              "Variables": {
+                "DB_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}",
+                "DB_HOST": db_host,
+                "DB_PORT": str(db_port),
+                "DB_NAME": db_name,
+                "DB_USER": db_user,
+                "DB_SSL": "prefer"
+              }
+            }
+          }
+
+          print("Updating API Lambda environment variables...")
+          import tempfile
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, dir='/tmp', newline='') as f:
+            f.write(json.dumps(env_config))
+            config_file = f.name
+
+          try:
+            subprocess.run(['aws', 'lambda', 'update-function-configuration',
+              '--cli-input-json', f'file://{config_file}',
+              '--region', region], check=True)
+            print("✅ API Lambda environment variables set")
+          finally:
+            try:
+              os.unlink(config_file)
+            except:
+              pass
+          PYTHON_API_CONFIG
+
+          export FUNC_NAME="$FUNC"
+          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+
+          echo "✅ API Lambda deployed with environment configuration: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
   # Database Init Lambda
