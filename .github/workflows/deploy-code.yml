@@ -327,8 +327,8 @@ jobs:
           rds_password = os.environ.get('RDS_PASSWORD', '')
 
           if not rds_password:
-            print("ERROR: RDS_PASSWORD not found in environment")
-            exit(1)
+            print("⚠️  RDS_PASSWORD not provided (optional - using existing credentials from Secrets Manager)")
+            exit(0)  # Non-fatal - credentials are already in Secrets Manager
 
           # Read project/environment from terraform.tfvars
           with open('terraform/terraform.tfvars') as f:
