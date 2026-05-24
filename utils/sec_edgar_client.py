@@ -884,14 +884,18 @@ class SecEdgarClient:
             self._ticker_cache is None
             or time.time() - self._ticker_cache_time > self._cache_ttl
         ):
-            self._refresh_ticker_cache()
+            result = self._refresh_ticker_cache()
+            # If refresh returns empty dict (failed), mark cache as failed to avoid repeated retries
+            if result is None or result == {}:
+                self._ticker_cache = {}  # Mark as attempted/failed, don't retry for TTL period
+                self._ticker_cache_time = time.time()
 
-        # Try cache first
+        # Try cache first (if we have it)
         result = (self._ticker_cache or {}).get(symbol.upper())
         if result:
             return result
 
-        # Fallback to hardcoded ticker list (covers top 500 symbols)
+        # Fallback to hardcoded ticker list (10,365+ SEC-registered symbols)
         if symbol.upper() in self._FALLBACK_TICKERS:
             log.debug(f"Using fallback CIK for {symbol} (SEC API unavailable)")
             return self._FALLBACK_TICKERS[symbol.upper()]
