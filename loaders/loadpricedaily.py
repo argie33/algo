@@ -261,8 +261,8 @@ def main():
         else:
             # On first run with many symbols, limit to prevent timeout
             # Watermark system ensures we process all symbols eventually
-            symbols = get_active_symbols(max_symbols=100, timeout_secs=60)
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database (max 100 for timeout protection)")
+            symbols = get_active_symbols(max_symbols=30, timeout_secs=60)
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database (max 30 for timeout protection)")
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
                 return 1
