@@ -42,7 +42,7 @@ fi
 
 echo ""
 echo "📦 Checking Terraform state bucket..."
-BUCKET_NAME="algo-terraform-state-dev"
+BUCKET_NAME="stocks-terraform-state"
 
 if aws s3 ls "s3://${BUCKET_NAME}" --region "$REGION" 2>/dev/null; then
   echo "✅ S3 state bucket exists: $BUCKET_NAME"
@@ -94,7 +94,7 @@ echo "✅ S3 state bucket configured"
 
 echo ""
 echo "🔐 Checking DynamoDB lock table..."
-TABLE_NAME="algo-terraform-locks-dev"
+TABLE_NAME="stocks-terraform-locks"
 
 if aws dynamodb describe-table \
   --table-name "$TABLE_NAME" \
