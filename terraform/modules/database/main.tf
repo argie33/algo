@@ -131,7 +131,7 @@ resource "aws_db_instance" "main" {
 # 3. RDS Parameter Group (Custom PostgreSQL Parameters)
 # ============================================================
 # Custom parameter group to support parallel loaders (24 tasks × multiple connections)
-# Default max_connections=100 is insufficient; set to 300 for 24 loaders + API + headroom
+# Default max_connections=100 is insufficient; set to 500 for 24 loaders + API + headroom
 
 resource "aws_db_parameter_group" "postgres" {
   name_prefix = "${var.project_name}-pg-"
@@ -140,7 +140,7 @@ resource "aws_db_parameter_group" "postgres" {
 
   parameter {
     name  = "max_connections"
-    value = "300"
+    value = "500"
   }
 
   parameter {
