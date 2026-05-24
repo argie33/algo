@@ -45,100 +45,14 @@ jobs:
           echo "Security Group: $SG"
 
       - name: Invoke All Loaders
-        shell: bash {0}
         run: |
-          set +e
           SUBNET="${{ steps.network.outputs.subnet }}"
           SG="${{ steps.network.outputs.security_group }}"
           TEST_MODE="${{ inputs.test_mode }}"
 
-          echo "=== Invoking All Loaders ==="
-          echo "Test Mode: $TEST_MODE"
-          echo ""
-
-          # All 43 loaders
-          LOADERS=(
-            "stock_symbols"
-            "stock_prices_daily"
-            "etf_prices_daily"
-            "etf_prices_weekly"
-            "etf_prices_monthly"
-            "trend_template_data"
-            "financials_annual_income"
-            "financials_annual_balance"
-            "financials_annual_cashflow"
-            "financials_quarterly_income"
-            "financials_quarterly_balance"
-            "financials_quarterly_cashflow"
-            "financials_ttm_income"
-            "financials_ttm_cashflow"
-            "growth_metrics"
-            "quality_metrics"
-            "value_metrics"
-            "earnings_history"
-            "earnings_revisions"
-            "earnings_surprise"
-            "earnings_calendar"
-            "company_profile"
-            "analyst_sentiment"
-            "analyst_upgrades_downgrades"
-            "sectors"
-            "industry_ranking"
-            "seasonality"
-            "signals_daily"
-            "signals_weekly"
-            "signals_monthly"
-            "signals_etf_daily"
-            "signals_etf_weekly"
-            "signals_etf_monthly"
-            "algo_metrics_daily"
-            "market_data_batch"
-            "technical_data_daily"
-            "market_health_daily"
-            "swing_trader_scores"
-            "feargreed"
-            "aaiidata"
-            "naaim_data"
-            "stock_scores"
-            "eod_bulk_refresh"
-          )
-
-          # If test mode, only invoke first 3 loaders
-          if [ "$TEST_MODE" = "true" ]; then
-            LOADERS=("${LOADERS[@]:0:3}")
-          fi
-
-          SUCCESS=0
-          FAILED=0
-
-          for LOADER in "${LOADERS[@]}"; do
-            echo "Invoking $LOADER..."
-            TASK_DEF="algo-${LOADER}-loader"
-
-            # Invoke the ECS task
-            RESULT=$(aws ecs run-task \
-              --cluster algo-cluster \
-              --task-definition "$TASK_DEF" \
-              --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET],securityGroups=[$SG],assignPublicIp=ENABLED}" \
-              --region $AWS_REGION \
-              --query 'tasks[0].taskArn' \
-              --output text 2>&1)
-
-            if echo "$RESULT" | grep -q "arn:aws:ecs"; then
-              echo "  ✅ Task launched"
-              SUCCESS=$((SUCCESS + 1))
-            else
-              echo "  ❌ Failed: $RESULT"
-              FAILED=$((FAILED + 1))
-            fi
-          done
-
-          echo ""
-          echo "=== Summary ==="
-          echo "Launched: $SUCCESS"
-          echo "Failed: $FAILED"
-          echo "Total: $((SUCCESS + FAILED))"
+          echo "=== Invoking All Loaders (Python) ==="
+          python3 scripts/invoke_all_loaders.py "$SUBNET" "$SG"
+          exit $?
 
       - name: Wait and Check Status
         run: |
