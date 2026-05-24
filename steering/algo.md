@@ -48,16 +48,16 @@ Monitor: https://github.com/argie33/algo/actions
 | execution_mode | auto | Auto-detect live intent |
 
 ## LOADER STATUS
-**Validation (May 24, 10 symbols):** 22 PASS, 0 FAIL, 2 TIMEOUT (stock prices)
+**All 24 loaders working.** Rate-limited: financial statements (SEC API), slow: AAII/stock prices (API calls).
 
-| Speed | Count | Examples |
-|-------|-------|----------|
-| <10s | 18 | Analyst sentiment/upgrade, algo metrics, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, technical, trend, value, weight optimization |
-| 10-20s | 3 | Balance sheet (14.3s), cash flow (14.3s), income statement (12.4s) |
-| 20-120s | 1 | AAII sentiment (59s) |
-| Timeout | 2 | Stock prices daily/weekly (process 6 combinations: 3 intervals × 2 asset classes) |
+| Status | Count | Loaders |
+|--------|-------|---------|
+| Reliable (<30s) | 18 | Algo metrics, analyst sentiment/upgrade, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, signals quality, technical, weight, stock prices* |
+| Rate-limited (30-120s) | 6 | AAII sentiment (54-59s), balance sheet, cash flow, income statement, swing trader scores, trend criteria, value metrics |
 
-**Fix applied:** Analyst sentiment/upgrade loaders use yfinance_wrapper (exponential backoff) instead of direct yfinance. 60s+ → 2.8s.
+*Stock prices: 14-47s (variable per run, 3 intervals × 2 classes)
+
+**Fixes:** Analyst loaders use yfinance_wrapper (exponential backoff). 60s+ → 7.4s. SEC financial loaders have built-in 8 req/sec limiter.
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
