@@ -58,6 +58,11 @@ class AlgoMetricsDailyLoader:
             logger.info("algo_metrics_daily table created successfully")
         except Exception as e:
             logger.error(f"Failed to ensure table: {e}", exc_info=True)
+            try:
+                self.conn.rollback()
+            except:
+                pass
+            raise
             self.conn.rollback()
             raise
         finally:
