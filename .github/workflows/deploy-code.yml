@@ -489,7 +489,7 @@ jobs:
                 "APCA_API_BASE_URL": apca_base_url,
                 "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
                 "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
-                "ORCHESTRATOR_DRY_RUN": "true",
+                "ORCHESTRATOR_DRY_RUN": "false",
                 "EXECUTION_MODE": exec_mode
               }
             },
@@ -678,84 +678,49 @@ jobs:
           export FUNC_NAME="$FUNC"
           export AWS_ACCOUNT_ID="$ACCOUNT_ID"
 
-          # Build environment variables JSON
-          python3 << 'PYTHON_API_CONFIG'
-          import json
-          import subprocess
-          import os
+          # Get project and environment from terraform.tfvars for secret ID
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          SECRET_ID="${PROJECT}-db-credentials-${ENV}"
 
-          region = os.environ['AWS_REGION']
-          account_id = os.environ['AWS_ACCOUNT_ID']
-          func_name = os.environ['FUNC_NAME']
+          # Retrieve database credentials from Secrets Manager
+          echo "Retrieving database credentials: $SECRET_ID"
+          DB_CREDS=$(aws secretsmanager get-secret-value \
+            --secret-id "$SECRET_ID" \
+            --region $AWS_REGION \
+            --query 'SecretString' \
+            --output text 2>&1)
 
-          # Read Terraform tfvars to get database config
-          with open('terraform/terraform.tfvars') as f:
-            tfvars = f.read()
-            project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
-            environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Could not retrieve database secret"
+            echo "$DB_CREDS"
+            exit 1
+          fi
 
-          secret_id = f"{project}-db-credentials-{environment}"
+          # Extract database configuration
+          DB_HOST=$(echo "$DB_CREDS" | jq -r '.host // "localhost"')
+          DB_PORT=$(echo "$DB_CREDS" | jq -r '.port // 5432')
+          DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname // "stocks"')
+          DB_USER=$(echo "$DB_CREDS" | jq -r '.username // "stocks"')
+          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          DB_SECRET_ARN="arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:${SECRET_ID}"
 
-          # Retrieve RDS configuration from Secrets Manager
-          try:
-            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
-              '--secret-id', secret_id, '--region', region,
-              '--query', 'SecretString', '--output', 'text'],
-              capture_output=True, text=True, check=True)
-            db_creds = json.loads(result.stdout.strip())
-          except Exception as e:
-            print(f"ERROR: Could not retrieve database secret: {e}")
-            exit(1)
+          echo "Updating API Lambda configuration..."
+          echo "  DB_HOST: $DB_HOST"
+          echo "  DB_PORT: $DB_PORT"
+          echo "  DB_NAME: $DB_NAME"
+          echo "  DB_USER: $DB_USER"
+          echo "  DB_SECRET_ARN: $DB_SECRET_ARN"
+          echo "  Layer: $API_LAYER_ARN"
 
-          db_host = db_creds.get('host', 'localhost')
-          db_port = db_creds.get('port', 5432)
-          db_name = db_creds.get('dbname', 'stocks')
-          db_user = db_creds.get('username', 'stocks')
+          # Update function configuration with environment variables and layers
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --environment "Variables={DB_SECRET_ARN=$DB_SECRET_ARN,DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_SSL=prefer}" \
+            --layers "$API_LAYER_ARN" \
+            --region $AWS_REGION || { echo "ERROR: Failed to update API Lambda configuration"; exit 1; }
 
-          # Get current layer ARN for API Lambda (published earlier in this workflow)
-          api_layer_arn = os.environ.get('API_LAYER_ARN', '')
-
-          # Build environment config
-          env_config = {
-            "FunctionName": func_name,
-            "Environment": {
-              "Variables": {
-                "DB_SECRET_ARN": f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}",
-                "DB_HOST": db_host,
-                "DB_PORT": str(db_port),
-                "DB_NAME": db_name,
-                "DB_USER": db_user,
-                "DB_SSL": "prefer"
-              }
-            }
-          }
-
-          # Include layers if available (psycopg2 + dependencies)
-          if api_layer_arn:
-            env_config["Layers"] = [api_layer_arn]
-            print(f"[INFO] Including psycopg2 layer: {api_layer_arn[:80]}...")
-          else:
-            print("[WARNING] API_LAYER_ARN not found in environment")
-
-          print("Updating API Lambda environment variables...")
-          import tempfile
-          with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, dir='/tmp', newline='') as f:
-            f.write(json.dumps(env_config))
-            config_file = f.name
-
-          try:
-            subprocess.run(['aws', 'lambda', 'update-function-configuration',
-              '--cli-input-json', f'file://{config_file}',
-              '--region', region], check=True)
-            print("✅ API Lambda environment variables set")
-          finally:
-            try:
-              os.unlink(config_file)
-            except:
-              pass
-          PYTHON_API_CONFIG
-
-          echo "✅ API Lambda deployed with environment configuration: $FUNC"
+          echo "✅ API Lambda deployed with database configuration"
 
       - name: Verify API Lambda Environment Variables
         run: |

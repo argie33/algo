@@ -157,7 +157,7 @@ locals {
     "sectors"                       = "loadsectors.py"
     "industry_ranking"              = "load_industry_ranking.py"
     "trend_template_data"           = "load_trend_criteria_data.py"
-    "signals_daily"                 = "load_signal_quality_scores.py"
+    "signals_daily"                 = "load_signals_daily.py"
     "signals_weekly"                = "load_signal_quality_scores.py"
     "signals_monthly"               = "load_signal_quality_scores.py"
     "signals_etf_daily"             = "load_signal_quality_scores.py"
