@@ -1,8 +1,8 @@
 # Lambda Layer Dependencies for algo-orchestrator
 # Install into Lambda layer to reduce cold-start time
 
-# Database
-psycopg2-binary>=3.1.0
+# Database - use 2.9.12 (latest available) with Python 3.12 wheels
+psycopg2-binary==2.9.12
 
 # Web/API clients
 requests==2.33.0
