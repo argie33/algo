@@ -359,7 +359,7 @@ jobs:
           secret_dict['password'] = rds_password
 
           # Update secret in Secrets Manager
-          subprocess.run(['aws', 'secretsmanager', 'update-secret',
+          subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
             '--secret-id', secret_id,
             '--secret-string', json.dumps(secret_dict),
             '--region', region], check=True)
