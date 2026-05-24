@@ -16,6 +16,10 @@ on:
   workflow_dispatch:
   workflow_call:
 
+concurrency:
+  group: deploy-code
+  cancel-in-progress: true
+
 permissions:
   id-token: write
   contents: read
