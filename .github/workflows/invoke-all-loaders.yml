@@ -1,0 +1,151 @@
+name: Invoke All Loaders (Direct)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (single loader sample)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  invoke-loaders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Network Config
+        id: network
+        run: |
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
+
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
+
+          echo "VPC: $VPC_ID"
+          echo "Subnet: $SUBNET"
+          echo "Security Group: $SG"
+
+      - name: Invoke All Loaders
+        run: |
+          SUBNET="${{ steps.network.outputs.subnet }}"
+          SG="${{ steps.network.outputs.security_group }}"
+          TEST_MODE="${{ inputs.test_mode }}"
+
+          echo "=== Invoking All Loaders ==="
+          echo "Test Mode: $TEST_MODE"
+          echo ""
+
+          # All 43 loaders
+          LOADERS=(
+            "stock_symbols"
+            "stock_prices_daily"
+            "etf_prices_daily"
+            "etf_prices_weekly"
+            "etf_prices_monthly"
+            "trend_template_data"
+            "financials_annual_income"
+            "financials_annual_balance"
+            "financials_annual_cashflow"
+            "financials_quarterly_income"
+            "financials_quarterly_balance"
+            "financials_quarterly_cashflow"
+            "financials_ttm_income"
+            "financials_ttm_cashflow"
+            "growth_metrics"
+            "quality_metrics"
+            "value_metrics"
+            "earnings_history"
+            "earnings_revisions"
+            "earnings_surprise"
+            "earnings_calendar"
+            "company_profile"
+            "analyst_sentiment"
+            "analyst_upgrades_downgrades"
+            "sectors"
+            "industry_ranking"
+            "seasonality"
+            "signals_daily"
+            "signals_weekly"
+            "signals_monthly"
+            "signals_etf_daily"
+            "signals_etf_weekly"
+            "signals_etf_monthly"
+            "algo_metrics_daily"
+            "market_data_batch"
+            "technical_data_daily"
+            "market_health_daily"
+            "swing_trader_scores"
+            "feargreed"
+            "aaiidata"
+            "naaim_data"
+            "stock_scores"
+            "eod_bulk_refresh"
+          )
+
+          # If test mode, only invoke first 3 loaders
+          if [ "$TEST_MODE" = "true" ]; then
+            LOADERS=("${LOADERS[@]:0:3}")
+          fi
+
+          SUCCESS=0
+          FAILED=0
+
+          for LOADER in "${LOADERS[@]}"; do
+            echo "Invoking $LOADER..."
+            TASK_DEF="algo-${LOADER}-loader"
+
+            # Invoke the ECS task
+            RESULT=$(aws ecs run-task \
+              --cluster algo-cluster \
+              --task-definition "$TASK_DEF" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+              --region $AWS_REGION \
+              --query 'tasks[0].taskArn' \
+              --output text 2>&1)
+
+            if [[ "$RESULT" == *"arn:aws:ecs"* ]]; then
+              echo "  ✅ Task launched"
+              ((SUCCESS++))
+            else
+              echo "  ❌ Failed: $RESULT"
+              ((FAILED++))
+            fi
+          done
+
+          echo ""
+          echo "=== Summary ==="
+          echo "Launched: $SUCCESS"
+          echo "Failed: $FAILED"
+          echo "Total: $((SUCCESS + FAILED))"
+
+      - name: Wait and Check Status
+        run: |
+          echo "=== Waiting for Loaders ==="
+          sleep 30
+
+          RUNNING=$(aws ecs list-tasks --cluster algo-cluster --desired-status RUNNING --region us-east-1 --query 'length(taskArns)' --output text)
+          echo "Currently running: $RUNNING tasks"
+
+          echo ""
+          echo "Wait for loaders to complete in CloudWatch logs:"
+          echo "  aws logs tail /ecs/algo-{loader}-loader --region us-east-1"
