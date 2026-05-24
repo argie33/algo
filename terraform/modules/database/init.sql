@@ -2064,7 +2064,7 @@ CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_symbol ON safeguard_audit_log
 CREATE INDEX IF NOT EXISTS idx_safeguard_audit_log_timestamp ON safeguard_audit_log(timestamp);
 
 -- Indexes for sentiment tables
-CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
+-- idx_market_sentiment_date removed (market_sentiment becomes a view, not a table)
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol_date ON sentiment_social(symbol, date DESC);
 CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON sentiment_social(date DESC);
 
@@ -2653,8 +2653,8 @@ ON algo_positions (symbol, status, entry_date DESC)
 WHERE status = 'open';
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_exit_conditions
-ON algo_positions (status, exit_reason IS NULL, created_at)
-WHERE status = 'open';
+ON algo_positions (status, created_at)
+WHERE status = 'open' AND exit_reason IS NULL;
 
 -- TRADE EXECUTION INDEXES — Trade history and reconciliation
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_status_date
