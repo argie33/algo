@@ -144,21 +144,8 @@ resource "aws_db_parameter_group" "postgres" {
   description = "Custom parameters for ${var.project_name} parallel loaders"
 
   parameter {
-    name         = "max_connections"
-    value        = "500"
-    apply_method = "pending-reboot"
-  }
-
-  parameter {
-    name         = "shared_buffers"
-    value        = "{DBInstanceClassMemory/32768}"
-    apply_method = "pending-reboot"
-  }
-
-  parameter {
-    name         = "log_connections"
-    value        = "0"
-    apply_method = "immediate"
+    name  = "max_connections"
+    value = "500"
   }
 
   lifecycle {
