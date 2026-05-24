@@ -4,7 +4,7 @@ project_name = "algo"
 # CORS origin for frontend (set to CloudFront domain in production, localhost in dev)
 frontend_origin = "http://localhost:3000"
 # Frontend deployment
-cloudfront_enabled = false # Disable CloudFront to break terraform cycle (API Lambda → CloudFront → API Gateway → API Lambda)
+cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
 # API Gateway CORS configuration - local dev origins only
 # CloudFront domain is dynamically merged at apply time by services module
 api_cors_allowed_origins = [

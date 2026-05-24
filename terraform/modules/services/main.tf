@@ -10,8 +10,11 @@ locals {
   api_lambda_role_name  = "${var.project_name}-svc-api-${var.environment}"
   algo_lambda_role_name = "${var.project_name}-svc-algo-${var.environment}"
 
-  # CORS origins (CloudFront domain added later to avoid circular dependency)
-  api_cors_origins = var.api_cors_allowed_origins
+  # CORS origins include CloudFront domain if enabled (avoids circular dependency by using conditional reference)
+  api_cors_origins = concat(
+    var.api_cors_allowed_origins,
+    var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : []
+  )
 }
 
 # ============================================================
