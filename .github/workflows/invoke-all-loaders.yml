@@ -125,10 +125,10 @@ jobs:
 
             if [[ "$RESULT" == *"arn:aws:ecs"* ]]; then
               echo "  ✅ Task launched"
-              ((SUCCESS++))
+              ((++SUCCESS))
             else
               echo "  ❌ Failed: $RESULT"
-              ((FAILED++))
+              ((++FAILED))
             fi
           done
 
