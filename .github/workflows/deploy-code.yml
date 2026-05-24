@@ -759,6 +759,9 @@ jobs:
           db_name = db_creds.get('dbname', 'stocks')
           db_user = db_creds.get('username', 'stocks')
 
+          # Get current layer ARN for API Lambda (published earlier in this workflow)
+          api_layer_arn = os.environ.get('API_LAYER_ARN', '')
+
           # Build environment config
           env_config = {
             "FunctionName": func_name,
@@ -773,6 +776,13 @@ jobs:
               }
             }
           }
+
+          # Include layers if available (psycopg2 + dependencies)
+          if api_layer_arn:
+            env_config["Layers"] = [api_layer_arn]
+            print(f"[INFO] Including psycopg2 layer: {api_layer_arn[:80]}...")
+          else:
+            print("[WARNING] API_LAYER_ARN not found in environment")
 
           print("Updating API Lambda environment variables...")
           import tempfile
