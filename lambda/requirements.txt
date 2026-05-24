@@ -2,7 +2,7 @@
 # Install into Lambda layer to reduce cold-start time
 
 # Database
-psycopg2-binary==2.9.9
+psycopg2-binary>=3.1.0
 
 # Web/API clients
 requests==2.33.0
