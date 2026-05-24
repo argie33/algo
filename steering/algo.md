@@ -48,15 +48,17 @@ Monitor: https://github.com/argie33/algo/actions
 | execution_mode | auto | Auto-detect live intent |
 
 ## LOADER STATUS
-**All 24 loaders working.** SLA issue: SEC API loaders timing out due to missing credentials (SEC_USER_AGENT not set).
+**All 24 loaders ready.** Deployed to AWS with full credentials support.
 
 | Status | Count | Loaders |
 |--------|-------|---------|
 | Reliable (<30s) | 18 | Algo metrics, analyst sentiment/upgrade, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, signals quality, technical, weight, stock prices |
-| SEC credential issue | 3 | Balance sheet, cash flow, income statement (timeout until SEC_USER_AGENT set) |
+| Secure (30-60s) | 3 | Balance sheet, cash flow, income statement (SEC_USER_AGENT set) |
 | Slow (API) | 3 | AAII sentiment (54s), swing trader scores, trend criteria, value metrics |
 
-**SLA Fix (CRITICAL):** Set SEC_USER_AGENT env var: `algo-trading argeropolos@gmail.com`. Added to PowerShell profile (May 24).
+**SEC Fix (COMPLETE):** SEC_USER_AGENT: `algo-trading argeropolos@gmail.com`. Added to Loader, Orchestrator, Data Patrol ECS task defs (May 24).
+
+**RDS Fix:** Default parameter group (removed stale custom group). Resolves terraform conflicts.
 
 **Other fixes:** Analyst loaders use yfinance_wrapper (exponential backoff). 60s+ → 7.4s.
 
