@@ -1519,6 +1519,17 @@ CREATE TABLE IF NOT EXISTS algo_audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Daily algo performance metrics (computed from audit_log)
+CREATE TABLE IF NOT EXISTS algo_metrics_daily (
+    date DATE PRIMARY KEY,
+    total_actions INTEGER,
+    entries INTEGER,
+    exits INTEGER,
+    avg_signal_score DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Pyramid add tracking (for position scaling)
 CREATE TABLE IF NOT EXISTS algo_trade_adds (
     id SERIAL PRIMARY KEY,
