@@ -127,18 +127,11 @@ resource "aws_db_instance" "main" {
 }
 
 # ============================================================
-# 3. RDS Parameter Group (Legacy - do not modify)
+# 3. RDS Parameter Group (Legacy - REMOVED)
 # ============================================================
-# This resource exists in state but is no longer actively managed.
-# It's defined here with ignore_changes to prevent terraform from
-# attempting to reconcile it, which would fail with RDS API errors.
-# The database uses default.postgres${var.postgres_major_version} instead.
-
-# The orphaned parameter group exists in AWS and state but is not actively managed.
-# Using a data source instead of resource to avoid modification attempts.
-data "aws_db_parameter_group" "orphaned" {
-  name = "algo-pg14-params"
-}
+# Previously custom parameter group algo-pg14-params was used but has been removed.
+# The database now uses default.postgres${var.postgres_major_version} parameter group.
+# Data source removed to prevent terraform from trying to read the deleted parameter group.
 
 # ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)
