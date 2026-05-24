@@ -84,7 +84,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
   handler       = "lambda_function.lambda_handler"
   timeout       = 60
   memory_size   = 256
-  runtime       = "python3.11"
+  runtime       = "python3.12"
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids

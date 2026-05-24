@@ -352,7 +352,7 @@ resource "aws_lambda_function" "bastion_stop" {
   role             = aws_iam_role.bastion_stop[0].arn
   handler          = "index.handler"
   source_code_hash = data.archive_file.bastion_stop_zip[0].output_base64sha256
-  runtime          = "python3.11"
+  runtime          = "python3.12"
   timeout          = 60
 
   tags = merge(var.common_tags, {

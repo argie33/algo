@@ -673,7 +673,7 @@ resource "aws_lambda_function" "rds_rotation" {
   function_name = "${var.project_name}-rds-rotation-${var.environment}"
   role          = aws_iam_role.rds_rotation.arn
   handler       = "index.handler"
-  runtime       = "python3.11"
+  runtime       = "python3.12"
   timeout       = 60
   layers        = try([aws_lambda_layer_version.psycopg2[0].arn], [])
 

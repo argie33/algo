@@ -14,7 +14,7 @@ resource "aws_lambda_function" "execution_monitor" {
   function_name    = "${var.project_name}-execution-monitor-${var.environment}"
   role             = aws_iam_role.execution_monitor[0].arn
   handler          = "index.lambda_handler"
-  runtime          = "python3.11"
+  runtime          = "python3.12"
   timeout          = 30
   memory_size      = 256
   source_code_hash = data.archive_file.execution_monitor_zip[0].output_base64sha256
