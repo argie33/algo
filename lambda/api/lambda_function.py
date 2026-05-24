@@ -5,7 +5,6 @@ Deployment: Fixed Secrets Manager secret name for password sync.
 """
 
 import os
-import sys
 import json
 import logging
 from typing import Dict, Any, Optional
@@ -409,8 +408,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
-        print(f'DEBUG: Path={repr(path)}, method={method}', file=sys.stderr)
-        logger.debug(f'Path check: path={repr(path)}, in health paths={path in ["/health", "/api/health"]}')
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
@@ -438,16 +435,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
 
         # Health check
-        logger.debug(f'Checking if {repr(path)} in ["/health", "/api/health"]')
         if path in ['/health', '/api/health']:
-            logger.debug(f'Health check matched for {path}')
             cors_headers = get_cors_headers(event)
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                 'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
             }
-        logger.debug(f'Health check did not match for {path}')
 
         # Detailed health check
         if path in ['/health/detailed', '/api/health/detailed']:
