@@ -1,0 +1,24 @@
+name: Steering Integrity Check
+on: [pull_request]
+
+jobs:
+  check-steering:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Reject steering doc changes with status info
+        run: |
+          git diff origin/main...HEAD -- steering/ | grep -E '^\+.*(BLOCKED|BLOCKER|status|NO_RECENT|CURRENT|FAILED|Error)' && {
+            echo "REJECTED: Steering doc contains live status"
+            echo "Steering docs are static only. Use GitHub Issues for blockers."
+            exit 1
+          } || exit 0
+      
+      - name: Audit steering changes
+        if: success()
+        run: |
+          echo "=== Steering doc changes in this PR ==="
+          git diff origin/main...HEAD -- steering/ || echo "No changes"
