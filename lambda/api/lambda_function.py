@@ -363,6 +363,7 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/api/scores',
         '/api/market',
         '/api/economic',
+        '/api/algo',  # Algo trading endpoints - data is public (no user-specific data)
     }
 
     # Check if path matches any public prefix
