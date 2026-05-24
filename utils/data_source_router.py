@@ -298,22 +298,15 @@ class DataSourceRouter:
                 for i, symbol in enumerate(symbols):
                     try:
                         yf_symbol = yf_symbols[i]
-                        # When multiple symbols, yfinance returns MultiIndex columns (symbol, price_type)
-                        if hasattr(row.index, '__iter__'):
-                            open_val = row.get((yf_symbol, "Open")) or row.get(f"{yf_symbol} Open")
-                            high_val = row.get((yf_symbol, "High")) or row.get(f"{yf_symbol} High")
-                            low_val = row.get((yf_symbol, "Low")) or row.get(f"{yf_symbol} Low")
-                            close_val = row.get((yf_symbol, "Close")) or row.get(f"{yf_symbol} Close")
-                            volume_val = row.get((yf_symbol, "Volume")) or row.get(f"{yf_symbol} Volume")
-                        else:
-                            # Single column case shouldn't happen in batch, but handle it
-                            open_val = row.get("Open")
-                            high_val = row.get("High")
-                            low_val = row.get("Low")
-                            close_val = row.get("Close")
-                            volume_val = row.get("Volume")
+                        # yfinance batch returns MultiIndex columns: (Price_Type, Symbol)
+                        # E.g., ('Open', 'AAPL'), ('Close', 'AAPL'), etc.
+                        open_val = row.get(("Open", yf_symbol))
+                        high_val = row.get(("High", yf_symbol))
+                        low_val = row.get(("Low", yf_symbol))
+                        close_val = row.get(("Close", yf_symbol))
+                        volume_val = row.get(("Volume", yf_symbol))
 
-                        # Skip if any required value is missing
+                        # Skip if any required value is missing or is NaN
                         if any(v is None or (isinstance(v, float) and v != v) for v in [open_val, high_val, low_val, close_val, volume_val]):
                             continue
 
