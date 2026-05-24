@@ -116,10 +116,11 @@ jobs:
       - name: Clean S3 State Before Terraform
         run: |
           # Download state from S3 and remove the orphaned parameter group resource
-          aws s3 cp s3://algo-terraform-state-dev/dev/terraform.tfstate /tmp/state.json
+          # CRITICAL: Use the CORRECT state bucket and key (stocks-terraform-state/stocks/terraform.tfstate)
+          aws s3 cp s3://stocks-terraform-state/stocks/terraform.tfstate /tmp/state.json
 
-          # Use sed to remove the entire parameter group resource block from JSON
-          # This is a forceful approach but necessary due to state persistence
+          # Use Python to remove the entire parameter group resource block from JSON
+          # This is necessary due to state persistence
           python3 << 'PYEOF'
 import json
 import sys
@@ -138,9 +139,9 @@ try:
     if len(state['resources']) < original_count:
       print(f'✅ Removed parameter group from resources ({original_count} → {len(state["resources"])})')
 
-  # Also check modules
+  # Also check modules (parameter group likely exists here)
   if 'modules' in state:
-    for module in state['modules']:
+    for module in state.get('modules', []):
       if 'resources' in module:
         before = len(module['resources'])
         module['resources'] = [
@@ -158,18 +159,19 @@ except Exception as e:
 PYEOF
 
           # Upload cleaned state back to S3
-          aws s3 cp /tmp/state.json s3://algo-terraform-state-dev/dev/terraform.tfstate
+          aws s3 cp /tmp/state.json s3://stocks-terraform-state/stocks/terraform.tfstate
           echo "✅ S3 state file cleaned"
 
       - name: Setup Terraform State Backend
         run: |
           cd terraform
           # Initialize terraform with cleaned state
+          # CRITICAL: Use correct state bucket (stocks-terraform-state, not algo-terraform-state-dev)
           terraform init -reconfigure \
-            -backend-config="bucket=algo-terraform-state-dev" \
-            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="bucket=stocks-terraform-state" \
+            -backend-config="key=stocks/terraform.tfstate" \
             -backend-config="region=us-east-1" \
-            -backend-config="dynamodb_table=algo-terraform-locks-dev" \
+            -backend-config="encrypt=true" \
             --upgrade
           echo "✅ Terraform backend initialized with cleaned state"
         env:
@@ -282,13 +284,6 @@ PYEOF
           echo "✅ Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/lambda_algo.zip | head -20
 
-      - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="bucket=stocks-terraform-state" \
-            -backend-config="key=stocks/terraform.tfstate" \
-            -backend-config="region=us-east-1" \
-            -backend-config="encrypt=true"
 
       - name: Terraform Validate
         run: terraform validate
