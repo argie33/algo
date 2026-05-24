@@ -285,8 +285,12 @@ export function AuthProvider({ children }) {
           const session = await devAuth.fetchAuthSession();
 
           if (user && session.tokens) {
-            // Store access token for API requests
-            sessionStorage.setItem("accessToken", session.tokens.accessToken);
+            // Store tokens using tokenManager (proper key handling)
+            tokenManager.setTokens({
+              access: session.tokens.accessToken,
+              id: session.tokens.idToken,
+              refresh: session.tokens.refreshToken
+            });
 
             dispatch({
               type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -475,8 +479,12 @@ export function AuthProvider({ children }) {
             return { success: false, error: errorMsg };
           }
 
-          // Store access token for API requests (sessionStorage, cleared on browser close)
-          sessionStorage.setItem("accessToken", result.tokens.accessToken);
+          // Store tokens using tokenManager (proper key handling)
+          tokenManager.setTokens({
+            access: result.tokens.accessToken,
+            id: result.tokens.idToken,
+            refresh: result.tokens.refreshToken
+          });
 
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,
