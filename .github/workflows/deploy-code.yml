@@ -199,7 +199,7 @@ jobs:
           print(f"  Result: {zip_path.stat().st_size / (1024*1024):.1f} MB\n")
 
           # ============================================================
-          # PACKAGE 2: Lambda Layer (config/, algo/, utils/)
+          # PACKAGE 2: Lambda Layer (dependencies + config/, algo/, utils/)
           # Lambda layers are extracted to /opt/python automatically
           # ============================================================
           print("=== Building Lambda Layer Package ===\n")
@@ -211,6 +211,30 @@ jobs:
           with zipfile.ZipFile(layer_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             # Layer structure: everything goes in python/ subdirectory
             # Lambda extracts /python/ to /opt/python automatically
+
+            # Add pip dependencies first
+            print("  Installing dependencies for layer...")
+            layer_pkg_temp = Path("/tmp/layer_pip_packages")
+            if layer_pkg_temp.exists():
+              shutil.rmtree(layer_pkg_temp)
+            layer_pkg_temp.mkdir()
+
+            # Install from requirements.txt
+            subprocess.run([
+              "pip", "install",
+              "-r", "lambda/algo_orchestrator/requirements.txt",
+              "-t", str(layer_pkg_temp),
+              "--only-binary=:all:",
+              "--quiet"
+            ], check=True)
+
+            # Add dependencies to layer
+            for file_path in layer_pkg_temp.rglob("*"):
+              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path)):
+                rel_path = file_path.relative_to(layer_pkg_temp)
+                layer_arcname = f"python/{rel_path}"
+                zf.write(str(file_path), layer_arcname)
+            print("  + pip dependencies")
 
             # Add config package
             config_path = app_dir / "config"
