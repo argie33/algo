@@ -19,6 +19,9 @@ algo_schedule_expression    = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 
 enable_morning_orchestrator = true
 cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
 
+# Database configuration
+enable_rds_proxy = false # Disable RDS Proxy - use direct RDS connection (proven to work with db-init)
+
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode         = "auto"
 orchestrator_dry_run   = false
