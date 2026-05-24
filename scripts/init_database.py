@@ -14,8 +14,8 @@ def init_database():
     if not all([host, user, password, db_name]):
         raise ValueError("Missing required environment variables: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME")
 
-    # Read the init.sql file
-    sql_file = Path(__file__).parent / "terraform" / "modules" / "database" / "init.sql"
+    # Read the init.sql file (navigate up to repo root, then to terraform/)
+    sql_file = Path(__file__).parent.parent / "terraform" / "modules" / "database" / "init.sql"
     if not sql_file.exists():
         raise FileNotFoundError(f"init.sql not found at {sql_file}")
 
