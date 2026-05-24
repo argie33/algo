@@ -827,8 +827,6 @@ jobs:
     name: Deploy DB Init Lambda
     needs: resolve-infra
     runs-on: ubuntu-latest
-    env:
-      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -856,8 +854,9 @@ jobs:
           cp credential_manager.py db-init-pkg/ || true
           cp init_database.py db-init-pkg/ || true
           # Dependencies - using binary packages for Lambda Python 3.12
+          # Use manylinux_2_17 (glibc 2.17) for AL2023 Lambda runtime, not manylinux2014 (2.14)
           pip install -r lambda/db-init/requirements.txt \
-            -t db-init-pkg/ --platform manylinux2014_x86_64 --only-binary=:all:
+            -t db-init-pkg/ --platform manylinux_2_17_x86_64 --only-binary=:all: --quiet
           cd db-init-pkg
           zip -r ../db_init_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
@@ -877,7 +876,7 @@ jobs:
           DB_NAME=$(echo "$API_CFG" | jq -r '.Environment.Variables.DB_NAME // "stocks"')
 
           VPC_JSON=$(echo "$API_CFG" | jq '{SubnetIds: .VpcConfig.SubnetIds, SecurityGroupIds: .VpcConfig.SecurityGroupIds}')
-          ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\",\"DB_MASTER_USER\":\"postgres\",\"DB_MASTER_PASSWORD\":\"${RDS_PASSWORD}\"}}"
+          ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\",\"DB_MASTER_USER\":\"postgres\"}}"
 
           echo "Role: $ROLE_ARN"
           echo "VPC: $VPC_JSON"

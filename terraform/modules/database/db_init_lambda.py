@@ -19,17 +19,15 @@ def lambda_handler(event, context):
     from psycopg2 import OperationalError
     import boto3
 
-    db_host = os.environ.get('DB_HOST')
-    db_port = int(os.environ.get('DB_PORT', 5432))
-    db_name = os.environ.get('DB_NAME')
-    db_master_user = os.environ.get('DB_MASTER_USER', 'postgres')
     db_secret_arn = os.environ.get('DB_SECRET_ARN')
+    db_master_user = os.environ.get('DB_MASTER_USER', 'postgres')
     db_user = os.environ.get('DB_USER', 'stocks')
 
-    if not all([db_host, db_name, db_master_user, db_secret_arn, db_user]):
+    # Validate minimal required parameters
+    if not db_secret_arn:
         return {
             'statusCode': 400,
-            'body': json.dumps('Missing required database connection parameters (need DB_HOST, DB_NAME, DB_MASTER_USER, DB_SECRET_ARN, DB_USER)')
+            'body': json.dumps('Missing DB_SECRET_ARN environment variable')
         }
 
     try:
@@ -39,13 +37,23 @@ def lambda_handler(event, context):
         try:
             secret_response = sm.get_secret_value(SecretId=db_secret_arn)
             secret = json.loads(secret_response['SecretString'])
+            db_host = secret.get('host') or os.environ.get('DB_HOST')
+            db_port = int(secret.get('port', os.environ.get('DB_PORT', 5432)))
+            db_name = secret.get('dbname') or os.environ.get('DB_NAME')
             db_master_password = secret['password']
-            logger.info("Retrieved master password from Secrets Manager")
+            logger.info(f"Retrieved credentials from Secrets Manager for {db_name}@{db_host}")
         except Exception as e:
             logger.error(f"Could not get credentials from Secrets Manager: {e}")
             return {
                 'statusCode': 500,
                 'body': json.dumps(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+            }
+
+        # Validate we have all required connection parameters
+        if not all([db_host, db_name, db_master_password]):
+            return {
+                'statusCode': 400,
+                'body': json.dumps(f'Invalid Secrets Manager secret: missing host, dbname, or password. Got: host={db_host}, dbname={db_name}')
             }
 
         # Use the same password for stocks user (shared master credentials)
