@@ -15,18 +15,19 @@ const apiUrl = isDev
 
 const environment = process.env.ENVIRONMENT || "development";
 
-// Cognito values must come from env vars, never hardcoded
+// Cognito values MUST come from environment variables (set by CI/CD or manually)
+// NEVER hardcode production credentials
 const userPoolId = isDev
-  ? (process.env.VITE_USER_POOL_ID || 'us-east-1_DUMMY')
-  : (process.env.USER_POOL_ID || 'us-east-1_XJpLb9SKX');
+  ? (process.env.VITE_COGNITO_USER_POOL_ID || 'us-east-1_DUMMY')
+  : (process.env.VITE_COGNITO_USER_POOL_ID || '');
 
 const userPoolClientId = isDev
-  ? (process.env.VITE_USER_POOL_CLIENT_ID || 'dummy-client-id')
-  : (process.env.USER_POOL_CLIENT_ID || '6smb0vrcidd9kvhju2kn2a3qrl');
+  ? (process.env.VITE_COGNITO_CLIENT_ID || 'dummy-client-id')
+  : (process.env.VITE_COGNITO_CLIENT_ID || '');
 
 const userPoolDomain = isDev
-  ? (process.env.VITE_USER_POOL_DOMAIN || 'dummy-domain')
-  : (process.env.USER_POOL_DOMAIN || 'stocks-trading-dev-626216981288.auth.626216981288.amazoncognito.com');
+  ? (process.env.VITE_COGNITO_DOMAIN || 'dummy-domain')
+  : (process.env.VITE_COGNITO_DOMAIN || '');
 
 // Create environment configuration
 const devConfig = {
