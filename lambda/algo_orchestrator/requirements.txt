@@ -1,0 +1,13 @@
+# Lambda orchestrator dependencies (minimal - most are in the shared layer)
+# The shared layer (algo-orchestrator-layer) provides:
+# - psycopg2-binary
+# - boto3
+# - requests
+# - pandas
+# - numpy
+# - python-dateutil
+# - pytz
+# - beautifulsoup4
+
+# Lambda specific
+awslambdaric==2.0.6
