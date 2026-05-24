@@ -238,17 +238,17 @@ def get_naaim_data():
             raise ValueError("No valid NAAIM data tables found on the page")
             
         except Exception as e:
-            logging.error(f"❌ Download attempt {attempt} failed: {e}")
-            logging.error(f"❌ Error type: {type(e).__name__}")
+            logging.error(f"[FAIL] Download attempt {attempt} failed: {e}")
+            logging.error(f"[FAIL] Error type: {type(e).__name__}")
             import traceback
-            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
+            logging.error(f"[FAIL] Stack trace: {traceback.format_exc()}")
             if attempt < MAX_DOWNLOAD_RETRIES:
                 retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
-                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
+                logging.info(f"[WAIT] Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
                 time.sleep(retry_delay)
             else:
-                logging.error(f"❌ CRITICAL: Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts")
-                logging.error(f"❌ Final error: {e}")
+                logging.error(f"[FAIL] CRITICAL: Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts")
+                logging.error(f"[FAIL] Final error: {e}")
                 raise Exception(f"Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
 # -------------------------------
@@ -303,7 +303,7 @@ def load_naaim_data(cur, conn):
 def main():
     load_env()
     """Main synchronous function to run NAAIM data loading."""
-    logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+    logging.info(f"[RUN] Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
     # Connect to DB
@@ -375,7 +375,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in NAAIM loader: {e}")
+        logging.error(f"[FAIL] CRITICAL ERROR in NAAIM loader: {e}")
         import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logging.error(f"[FAIL] Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

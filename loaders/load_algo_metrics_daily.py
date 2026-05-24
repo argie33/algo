@@ -34,14 +34,14 @@ class AlgoMetricsDailyLoader:
             cursor = self.conn.cursor()
             cursor.execute("""
                 SELECT
-                    DATE(timestamp) as trading_date,
+                    DATE(created_at) as trading_date,
                     COUNT(*) as total_actions,
-                    SUM(CASE WHEN action = 'BUY' THEN 1 ELSE 0 END) as entries,
-                    SUM(CASE WHEN action = 'SELL' THEN 1 ELSE 0 END) as exits,
+                    SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
+                    SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
                     AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
                 FROM algo_audit_log
-                WHERE DATE(timestamp) = %s
-                GROUP BY DATE(timestamp)
+                WHERE DATE(created_at) = %s
+                GROUP BY DATE(created_at)
             """, (run_date,))
             result = cursor.fetchone()
             cursor.close()
