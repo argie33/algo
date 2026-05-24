@@ -7,8 +7,6 @@ import {
   Button,
   Container,
   IconButton,
-  Menu,
-  MenuItem,
   Drawer,
   List,
   ListItem,
@@ -271,35 +269,28 @@ const MarketingNav = () => {
                       )}
                     </Button>
 
-                    {/* Desktop Dropdown Menu */}
-                    {item.submenu && (
-                      <Menu
-                        anchorEl={activeDesktopMenu === item.label ? desktopMenuAnchor : null}
-                        open={activeDesktopMenu === item.label}
-                        onClose={() => {
+                    {/* Desktop Dropdown Menu - CSS based, no MUI Modal */}
+                    {item.submenu && activeDesktopMenu === item.label && (
+                      <Box
+                        onMouseLeave={() => {
                           setActiveDesktopMenu(null);
                           setDesktopMenuAnchor(null);
                         }}
-                        disableAutoFocus
-                        disableEnforceFocus
-                        modal={false}
-                        slotProps={{
-                          paper: {
-                            onMouseLeave: () => {
-                              setActiveDesktopMenu(null);
-                              setDesktopMenuAnchor(null);
-                            }
-                          }
-                        }}
                         sx={{
-                          '& .MuiPaper-root': {
-                            mt: 1,
-                            minWidth: 200,
-                          },
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          mt: 1,
+                          minWidth: 200,
+                          backgroundColor: theme.palette.background.paper,
+                          border: `1px solid ${theme.palette.divider}`,
+                          borderRadius: 1,
+                          boxShadow: theme.shadows[8],
+                          zIndex: 1200,
                         }}
                       >
                         {item.submenu.map((subitem) => (
-                          <MenuItem
+                          <Box
                             key={subitem.label}
                             onClick={() => {
                               handleNavClick(subitem.path);
@@ -307,14 +298,25 @@ const MarketingNav = () => {
                               setDesktopMenuAnchor(null);
                             }}
                             sx={{
-                              fontSize: '0.9rem',
+                              px: 2,
                               py: 1,
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                              },
+                              '&:first-of-type': {
+                                borderRadius: '4px 4px 0 0',
+                              },
+                              '&:last-of-type': {
+                                borderRadius: '0 0 4px 4px',
+                              },
                             }}
                           >
                             {subitem.label}
-                          </MenuItem>
+                          </Box>
                         ))}
-                      </Menu>
+                      </Box>
                     )}
                   </Box>
                 ))}
