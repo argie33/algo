@@ -841,8 +841,8 @@ jobs:
 
       - name: Test API Health Endpoint
         run: |
-          API_ID="${{ needs.resolve-infra.outputs.api_gateway_id }}"
-          API_URL="https://$API_ID.execute-api.$AWS_REGION.amazonaws.com/api/health"
+          API_ENDPOINT="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
+          API_URL="https://$API_ENDPOINT/api/health"
 
           echo "Testing API endpoint: $API_URL"
 
