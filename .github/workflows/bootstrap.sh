@@ -31,6 +31,8 @@ if aws iam get-role --role-name "$ROLE_NAME" --region "$REGION" 2>/dev/null; the
   echo "✅ OIDC role exists: $ROLE_ARN"
 else
   echo "❌ ERROR: OIDC role '$ROLE_NAME' not found!"
+  echo "   Attempting to list available roles for debugging..."
+  aws iam list-roles --query 'Roles[?contains(RoleName, `github`)].RoleName' --output text || echo "Failed to list roles"
   echo "   Please create the OIDC role via Terraform:"
   echo "   terraform init && terraform plan && terraform apply"
   exit 1
@@ -48,11 +50,14 @@ if aws s3 ls "s3://${BUCKET_NAME}" --region "$REGION" 2>/dev/null; then
   echo "✅ S3 state bucket exists: $BUCKET_NAME"
 else
   echo "⚠️  S3 state bucket not found, creating..."
-  aws s3 mb "s3://${BUCKET_NAME}" --region "$REGION" || {
+  aws s3 mb "s3://${BUCKET_NAME}" --region "$REGION" 2>&1 | tee /tmp/s3_create.log || {
+    echo "First creation attempt failed, checking if bucket exists..."
     if aws s3 ls "s3://${BUCKET_NAME}" --region "$REGION" 2>/dev/null; then
-      echo "✅ S3 bucket created (or already exists)"
+      echo "✅ S3 bucket exists (was created or already exists)"
     else
       echo "❌ Failed to create S3 bucket"
+      echo "Creation output:"
+      cat /tmp/s3_create.log
       exit 1
     fi
   }
