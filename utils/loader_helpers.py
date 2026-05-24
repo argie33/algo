@@ -10,8 +10,15 @@ import os
 from utils.db_connection import get_db_connection
 from typing import List
 from pathlib import Path
+import time
+import threading
 
 # Load .env for local development
+
+# Cache for active symbols to reduce database load under parallelism
+_symbols_cache = {}
+_cache_lock = threading.Lock()
+_CACHE_TTL_SECS = 300  # 5 minute cache
 
 
 def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[str]:
@@ -41,6 +48,17 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
         # signal.SIGALRM not available on Windows, skip timeout
         pass
 
+    # Check cache first to reduce database load under parallelism
+    cache_key = 'all_symbols'
+    with _cache_lock:
+        if cache_key in _symbols_cache:
+            cached_time, cached_symbols = _symbols_cache[cache_key]
+            if time.time() - cached_time < _CACHE_TTL_SECS:
+                symbols = cached_symbols
+                if max_symbols and len(symbols) > max_symbols:
+                    symbols = symbols[:max_symbols]
+                return symbols
+
     try:
         conn = get_db_connection()
         try:
@@ -48,6 +66,10 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
             cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
             rows = cur.fetchall()
             symbols = [row[0] for row in rows]
+
+            # Cache the result
+            with _cache_lock:
+                _symbols_cache[cache_key] = (time.time(), symbols)
 
             # Limit to max_symbols if specified
             if max_symbols and len(symbols) > max_symbols:
