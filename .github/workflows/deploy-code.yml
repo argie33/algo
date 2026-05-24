@@ -317,6 +317,8 @@ jobs:
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
       - name: Sync RDS Password with Secrets Manager
+        env:
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
         run: |
           python3 << 'PYTHON_SYNC'
           import json
