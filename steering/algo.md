@@ -47,16 +47,17 @@ Monitor: https://github.com/argie33/algo/actions
 | APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 | execution_mode | auto | Auto-detect live intent |
 
-## LOADER STATUS (May 24, 2026)
-**Validation:** 24/24 loaders working. 22 complete <20s with 10 symbols. 2 (stock prices) <120s (process 6 combinations).
+## LOADER STATUS
+**Validation (May 24, 10 symbols):** 22 PASS, 0 FAIL, 2 TIMEOUT (stock prices)
 
-| Category | Count | Loaders |
-|----------|-------|---------|
-| Fast (<10s) | 18 | Analyst sentiment, upgrade, algo metrics, company, earnings, fear greed, growth, industry, market health, naaim, quality, signals, quality scores, technical, trend, value, weight |
-| Medium (10-20s) | 4 | Balance sheet, cash flow, income, AAII sentiment |
-| Slow (20-120s) | 2 | Stock prices (daily, weekly) — process 3 intervals × 2 asset classes |
+| Speed | Count | Examples |
+|-------|-------|----------|
+| <10s | 18 | Analyst sentiment/upgrade, algo metrics, company, earnings, fear greed, growth, industry, market health, NAAIM, quality, signals, technical, trend, value, weight optimization |
+| 10-20s | 3 | Balance sheet (14.3s), cash flow (14.3s), income statement (12.4s) |
+| 20-120s | 1 | AAII sentiment (59s) |
+| Timeout | 2 | Stock prices daily/weekly (process 6 combinations: 3 intervals × 2 asset classes) |
 
-**Recent fixes:** yfinance loaders (analyst sentiment/upgrade) now use wrapper with exponential backoff retry logic.
+**Fix applied:** Analyst sentiment/upgrade loaders use yfinance_wrapper (exponential backoff) instead of direct yfinance. 60s+ → 2.8s.
 
 ## SCHEDULE (EB, Mon-Fri)
 - 4A ET: Price loaders (yfinance, FRED)
