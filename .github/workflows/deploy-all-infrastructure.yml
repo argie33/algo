@@ -139,7 +139,7 @@ try:
       if not (r.get('type') == 'aws_db_parameter_group' and r.get('name') == 'main')
     ]
     if len(state['resources']) < original_count:
-      print(f'✅ Removed parameter group from resources ({original_count} → {len(state["resources"])})')
+      print(f'[OK] Removed parameter group from resources ({original_count} -> {len(state["resources"])})')
 
   # Also check modules (parameter group likely exists here)
   if 'modules' in state:
@@ -151,7 +151,7 @@ try:
           if not (r.get('type') == 'aws_db_parameter_group' and r.get('name') == 'main')
         ]
         if len(module['resources']) < before:
-          print(f'✅ Removed from module resources')
+          print(f'[OK] Removed from module resources')
 
   with open('/tmp/state.json', 'w') as f:
     json.dump(state, f)
@@ -162,9 +162,9 @@ PYEOF
 
             # Upload cleaned state back to S3
             aws s3 cp /tmp/state.json s3://stocks-terraform-state/stocks/terraform.tfstate
-            echo "✅ S3 state file cleaned"
+            echo "[OK] S3 state file cleaned"
           else
-            echo "⚠️  State file not found in S3, will be created fresh by terraform init"
+            echo "[WARN]️  State file not found in S3, will be created fresh by terraform init"
           fi
 
       - name: Setup Terraform State Backend
@@ -178,7 +178,7 @@ PYEOF
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true" \
             --upgrade
-          echo "✅ Terraform backend initialized with cleaned state"
+          echo "[OK] Terraform backend initialized with cleaned state"
         env:
           AWS_REGION: us-east-1
 
@@ -225,7 +225,7 @@ PYEOF
           cd $PKG_DIR
           zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
 
-          echo "✅ API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
+          echo "[OK] API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -15
 
       - name: Build Data Freshness Monitor Lambda
@@ -253,7 +253,7 @@ PYEOF
           cd $PKG_DIR
           zip -r $TERRAFORM_LAMBDA/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
 
-          echo "✅ data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
+          echo "[OK] data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
           unzip -l $TERRAFORM_LAMBDA/lambda_function.zip | head -20
 
       - name: Build Algo Orchestrator Lambda
@@ -286,7 +286,7 @@ PYEOF
           zip -r $GITHUB_WORKSPACE/terraform/lambda_algo.zip . -q -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
           cd $GITHUB_WORKSPACE
 
-          echo "✅ Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
+          echo "[OK] Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/lambda_algo.zip | head -20
 
 
@@ -311,7 +311,7 @@ PYEOF
             if terraform state list | grep -qF "$resource"; then
               echo "✓ SKIP: $resource already in state"
             else
-              echo "→ IMPORT: $resource as $id"
+              echo "-> IMPORT: $resource as $id"
               terraform import -var-file=terraform.tfvars "$resource" "$id" 2>&1 | grep -E "Import|Error" || true
             fi
           }
@@ -346,7 +346,7 @@ PYEOF
               fi
             done
           else
-            echo "⚠️  Terraform VPC not found (will be created)"
+            echo "[WARN]️  Terraform VPC not found (will be created)"
           fi
 
           # Import API Gateway $default route (AWS auto-creates it; Terraform CREATE causes 409 conflict)
@@ -372,7 +372,7 @@ PYEOF
               echo "ℹ️  No existing ${DEFAULT_ROUTE_KEY} route found — Terraform will create it"
             fi
           else
-            echo "⚠️  API Gateway not found yet — will be created by Terraform"
+            echo "[WARN]️  API Gateway not found yet — will be created by Terraform"
           fi
 
       - name: Destroy Stale RDS Parameter Group
@@ -428,8 +428,8 @@ PYEOF
             if [ -n "$id" ] && [ "$id" != "$ACTIVE_ID" ]; then
               echo "Deleting orphaned API Gateway: $id"
               aws apigatewayv2 delete-api --api-id "$id" --region $AWS_REGION 2>/dev/null \
-                && echo "✅ Deleted: $id" \
-                || echo "⚠️  Failed to delete: $id"
+                && echo "[OK] Deleted: $id" \
+                || echo "[WARN]️  Failed to delete: $id"
             fi
           done || echo "No orphaned API Gateways found"
 
@@ -533,11 +533,11 @@ PYEOF
           docker build -t "${ECR}:dev-${SHA}" -t "${ECR}:dev-latest" .
           docker push "${ECR}:dev-${SHA}"
           docker push "${ECR}:dev-latest"
-          echo "✅ Pushed: ${ECR}:dev-${SHA}"
+          echo "[OK] Pushed: ${ECR}:dev-${SHA}"
 
       - name: Skip image build
         if: steps.ecr.outputs.ecr_url == ''
-        run: echo "⚠️  Skipping Docker image build — ECR URL not resolved"
+        run: echo "[WARN]️  Skipping Docker image build — ECR URL not resolved"
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2b — Algo Lambda
@@ -582,7 +582,7 @@ PYEOF
             --region $AWS_REGION
 
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
-          echo "✅ Algo Lambda updated: $FUNC"
+          echo "[OK] Algo Lambda updated: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2c — API Lambda
@@ -626,7 +626,7 @@ PYEOF
             --zip-file fileb://api_lambda.zip \
             --region $AWS_REGION
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
-          echo "✅ API Lambda: $FUNC"
+          echo "[OK] API Lambda: $FUNC"
 
   # ──────────────────────────────────────────────────────────────
   # STEP 2d — Frontend
@@ -684,7 +684,7 @@ PYEOF
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --exclude "*" --include "*.html" \
             --cache-control "no-cache, no-store, must-revalidate"
-          echo "✅ Frontend synced to s3://${BUCKET}/"
+          echo "[OK] Frontend synced to s3://${BUCKET}/"
 
       - name: Invalidate CloudFront
         run: |
@@ -693,7 +693,7 @@ PYEOF
             aws cloudfront create-invalidation \
               --distribution-id "$CF_ID" --paths "/*" \
               --query 'Invalidation.Id' --output text
-            echo "✅ CloudFront invalidation created"
+            echo "[OK] CloudFront invalidation created"
           fi
 
   # ──────────────────────────────────────────────────────────────
