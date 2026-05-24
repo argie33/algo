@@ -21,19 +21,26 @@ jobs:
       - name: Invoke DB Init Lambda
         run: |
           echo "Invoking DB Init Lambda to initialize RDS schema..."
+
+          # Create payload file with proper encoding
+          cat > /tmp/payload.json << 'EOF'
+          {}
+          EOF
+
           aws lambda invoke \
             --function-name algo-db-init-dev \
             --region us-east-1 \
             --invocation-type RequestResponse \
-            --payload '{"action":"init_schema"}' \
+            --cli-binary-format raw-in-base64-out \
+            --payload file:///tmp/payload.json \
             /tmp/db_init_response.json
 
           echo "Lambda response:"
           cat /tmp/db_init_response.json
 
-          # Check if Lambda succeeded
-          if grep -q "ErrorMessage" /tmp/db_init_response.json; then
-            echo "ERROR: Lambda invocation failed"
+          # Check if Lambda succeeded (check for FunctionError)
+          if grep -q "FunctionError" /tmp/db_init_response.json; then
+            echo "ERROR: Lambda execution failed"
             cat /tmp/db_init_response.json
             exit 1
           fi
