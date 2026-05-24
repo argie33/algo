@@ -254,9 +254,13 @@ def main():
             symbols = [s.strip().upper() for s in symbols_str.split(",")]
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from environment")
         else:
-            symbols = get_active_symbols()
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
-            logger.info(f"[MAIN] Loading ALL {len(symbols)} symbols (watermark tracks incremental progress)")
+            # On first run with many symbols, limit to prevent timeout
+            # Watermark system ensures we process all symbols eventually
+            symbols = get_active_symbols(max_symbols=100, timeout_secs=30)
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database (max 100 for timeout protection)")
+            if len(symbols) == 0:
+                logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
+                return 1
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         return 1

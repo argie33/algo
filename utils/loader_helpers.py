@@ -14,24 +14,54 @@ from pathlib import Path
 # Load .env for local development
 
 
-def get_active_symbols() -> List[str]:
-    """Get list of active stock symbols from database.
+def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[str]:
+    """Get list of active stock symbols from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
              load_income_statement.py, load_key_metrics.py, loadpricedaily.py,
              load_quality_metrics.py, and others
 
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
+
+    Args:
+        max_symbols: Limit results to N symbols (default: None = all)
+        timeout_secs: Timeout for database query (default: 30 seconds)
     """
-    conn = get_db_connection()
+    import signal
+
+    def timeout_handler(signum, frame):
+        raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
+
+    # Set alarm signal only on Unix-like systems
+    old_handler = None
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
-        symbols = [row[0] for row in cur.fetchall()]
-        return symbols
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_secs)
+    except (AttributeError, ValueError):
+        # signal.SIGALRM not available on Windows, skip timeout
+        pass
+
+    try:
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+            rows = cur.fetchall()
+            symbols = [row[0] for row in rows]
+
+            # Limit to max_symbols if specified
+            if max_symbols and len(symbols) > max_symbols:
+                symbols = symbols[:max_symbols]
+
+            return symbols
+        finally:
+            cur.close()
+            conn.close()
     finally:
-        cur.close()
-        conn.close()
+        # Cancel alarm
+        if old_handler is not None:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
 
 
 def _resolve_timeframe(cli_arg: str = None) -> str:

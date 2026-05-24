@@ -161,7 +161,19 @@ def main():
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
     args = parser.parse_args()
 
-    symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
+    try:
+        if args.symbols:
+            symbols = args.symbols.split(",")
+        else:
+            # Limit to 100 symbols to prevent timeout in ECS
+            symbols = get_active_symbols(max_symbols=100, timeout_secs=30)
+            if not symbols:
+                logger.warning("No symbols found in stock_symbols table - exiting")
+                return 1
+    except Exception as e:
+        logger.error(f"Failed to get symbols: {e}")
+        return 1
+
     loader = SignalsDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
