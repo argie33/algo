@@ -4,9 +4,9 @@ This workspace supports multiple projects. When working in this repo, **read the
 
 ## Projects
 
-| Project | Location | Steering Doc | Description |
-|---------|----------|--------------|-------------|
-| **algo** | `.` | `steering/algo.md` | Live stock trading platform (Alpaca + AWS) |
+| Project | Location | Steering | Checklists |
+|---------|----------|----------|-----------|
+| **algo** | `.` | `steering/algo.md` | `DEPLOY_CHECKLIST.md`, `LIVE_TRADING_CHECKLIST.md` |
 
 ## ⚠️ STEERING COMMANDMENTS
 
