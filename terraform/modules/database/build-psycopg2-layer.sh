@@ -13,11 +13,12 @@ echo "Output: ${OUTPUT_ZIP}"
 
 # Clean old layer
 rm -rf "${LAYER_DIR}" "${OUTPUT_ZIP}"
-mkdir -p "${LAYER_DIR}/python/lib/python3.11/site-packages"
+# Build for Python 3.12 (DB Init Lambda uses 3.12)
+mkdir -p "${LAYER_DIR}/python/lib/python3.12/site-packages"
 
 # Option 1: Use psycopg[binary] (recommended - single binary)
-echo "Installing psycopg[binary]..."
-pip install -t "${LAYER_DIR}/python/lib/python3.11/site-packages" psycopg[binary] --no-cache-dir
+echo "Installing psycopg[binary] for Python 3.12..."
+pip install -t "${LAYER_DIR}/python/lib/python3.12/site-packages" psycopg[binary] --no-cache-dir
 
 # Remove unnecessary files to reduce size
 find "${LAYER_DIR}" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true

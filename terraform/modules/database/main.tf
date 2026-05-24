@@ -662,7 +662,7 @@ resource "aws_lambda_layer_version" "psycopg2" {
   count                    = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
   filename                 = "${path.module}/python-psycopg2-layer.zip"
   layer_name               = "${var.project_name}-psycopg2-layer-${var.environment}"
-  compatible_runtimes      = ["python3.11"]
+  compatible_runtimes      = ["python3.11", "python3.12"]
   source_code_hash         = fileexists("${path.module}/python-psycopg2-layer.zip") ? filebase64sha256("${path.module}/python-psycopg2-layer.zip") : null
   compatible_architectures = ["x86_64"]
 }

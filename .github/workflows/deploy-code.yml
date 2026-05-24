@@ -837,10 +837,24 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Build psycopg2 Lambda Layer
+        run: |
+          cd terraform/modules/database
+          # Build for Python 3.12 (DB Init Lambda uses 3.12)
+          mkdir -p .psycopg2-layer/python/lib/python3.12/site-packages
+          pip install -t .psycopg2-layer/python/lib/python3.12/site-packages psycopg[binary] --no-cache-dir --quiet
+          # Remove unnecessary files
+          find .psycopg2-layer -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+          find .psycopg2-layer -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find .psycopg2-layer -type f -name "*.pyc" -delete
+          find .psycopg2-layer -type f -name "*.dist-info" -delete 2>/dev/null || true
+          # Create zip file
+          cd .psycopg2-layer
+          zip -r ../python-psycopg2-layer.zip . -q
+          cd ..
+          SIZE_MB=$(du -sh python-psycopg2-layer.zip | cut -f1)
+          echo "Layer created: $SIZE_MB"
+          cd ../../..
 
       - name: Package DB Init Lambda
         run: |
@@ -853,10 +867,6 @@ jobs:
           # Required modules
           cp credential_manager.py db-init-pkg/ || true
           cp init_database.py db-init-pkg/ || true
-          # Dependencies - using binary packages for Lambda Python 3.12
-          # Use manylinux_2_17 (glibc 2.17) for AL2023 Lambda runtime, not manylinux2014 (2.14)
-          pip install -r lambda/db-init/requirements.txt \
-            -t db-init-pkg/ --platform manylinux_2_17_x86_64 --only-binary=:all: --quiet
           cd db-init-pkg
           zip -r ../db_init_lambda.zip . -x "*.pyc" -x "__pycache__/*"
           cd ..
@@ -878,6 +888,16 @@ jobs:
           VPC_JSON=$(echo "$API_CFG" | jq '{SubnetIds: .VpcConfig.SubnetIds, SecurityGroupIds: .VpcConfig.SecurityGroupIds}')
           ENV_JSON="{\"Variables\":{\"DB_SECRET_ARN\":\"${DB_SECRET_ARN}\",\"DB_ENDPOINT\":\"${DB_ENDPOINT}\",\"DB_NAME\":\"${DB_NAME}\",\"DB_MASTER_USER\":\"postgres\"}}"
 
+          # Get psycopg2 Lambda Layer ARN (created by Terraform)
+          LAYER_ARN=$(aws lambda list-layer-versions --layer-name algo-psycopg2-layer-dev --region $AWS_REGION --query 'LayerVersions[0].LayerVersionArn' --output text 2>/dev/null || echo "")
+          LAYERS_JSON=""
+          if [ -n "$LAYER_ARN" ] && [ "$LAYER_ARN" != "None" ]; then
+            echo "Using psycopg2 layer: $LAYER_ARN"
+            LAYERS_JSON="--layers $LAYER_ARN"
+          else
+            echo "⚠️ psycopg2 layer not found (Terraform may need to run first)"
+          fi
+
           echo "Role: $ROLE_ARN"
           echo "VPC: $VPC_JSON"
           echo "DB_SECRET_ARN: $DB_SECRET_ARN"
@@ -889,13 +909,14 @@ jobs:
               --zip-file fileb://db_init_lambda.zip \
               --region $AWS_REGION
             aws lambda wait function-updated --function-name "$FUNC_NAME" --region $AWS_REGION
-            # Update role, VPC config, timeout, and env vars to match API Lambda
+            # Update role, VPC config, timeout, env vars, and layer
             aws lambda update-function-configuration \
               --function-name "$FUNC_NAME" \
               --role "$ROLE_ARN" \
               --vpc-config "$VPC_JSON" \
               --environment "$ENV_JSON" \
               --timeout 300 \
+              $LAYERS_JSON \
               --region $AWS_REGION || echo "⚠️ Config update failed (non-fatal)"
           else
             echo "Creating Lambda: $FUNC_NAME"
@@ -908,6 +929,7 @@ jobs:
               --zip-file fileb://db_init_lambda.zip \
               --vpc-config "$VPC_JSON" \
               --environment "$ENV_JSON" \
+              $LAYERS_JSON \
               --region $AWS_REGION || { echo "ERROR: Failed to create Lambda"; exit 1; }
           fi
 
