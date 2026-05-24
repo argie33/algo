@@ -24,7 +24,7 @@ enable_rds_proxy = false # Disable RDS Proxy - use direct RDS connection (proven
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode         = "auto"
-orchestrator_dry_run   = false
+orchestrator_dry_run   = true
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
