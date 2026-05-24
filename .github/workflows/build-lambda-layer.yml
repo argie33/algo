@@ -1,0 +1,155 @@
+name: Build & Publish Lambda Layer
+
+on:
+  workflow_dispatch:
+    inputs:
+      layer_name:
+        description: 'Lambda layer name (default: algo-orchestrator-layer)'
+        required: false
+        default: 'algo-orchestrator-layer'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-layer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build Lambda Layer
+        run: |
+          set -e
+
+          LAYER_NAME="${{ inputs.layer_name }}"
+          REQUIREMENTS_FILE="terraform/lambda-layer-requirements.txt"
+          BUILD_DIR="lambda_layer_build"
+
+          echo "=== Building Lambda Layer: $LAYER_NAME ==="
+          echo "Region: $AWS_REGION"
+          echo ""
+
+          # Clean up
+          rm -rf "$BUILD_DIR" layer.zip
+
+          # Create layer structure
+          mkdir -p "$BUILD_DIR/python"
+          cd "$BUILD_DIR"
+
+          # Install dependencies for Lambda Python 3.11 on Linux (manylinux2014)
+          echo "Installing dependencies from $REQUIREMENTS_FILE..."
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.11 \
+            --only-binary=:all: \
+            --upgrade \
+            --target ./python \
+            -r "../$REQUIREMENTS_FILE" 2>&1 | tail -20
+
+          echo ""
+          echo "Dependencies installed. Checking contents..."
+          ls -la ./python/ | head -20
+          echo ""
+          echo "Total files: $(find ./python -type f | wc -l)"
+
+          # Create layer zip
+          cd ..
+          echo "Creating layer.zip..."
+          cd "$BUILD_DIR"
+          zip -r ../layer.zip python/ > /dev/null 2>&1
+          cd ..
+
+          echo "Layer package created"
+          echo "Layer size: $(du -h layer.zip | cut -f1)"
+
+      - name: Publish Layer to AWS Lambda
+        id: publish
+        run: |
+          LAYER_NAME="${{ inputs.layer_name }}"
+
+          echo "Publishing layer to AWS Lambda..."
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name "$LAYER_NAME" \
+            --zip-file fileb://layer.zip \
+            --compatible-runtimes python3.11 \
+            --region $AWS_REGION \
+            --query 'Version' \
+            --output text)
+
+          LAYER_ARN=$(aws lambda publish-layer-version \
+            --layer-name "$LAYER_NAME" \
+            --zip-file fileb://layer.zip \
+            --compatible-runtimes python3.11 \
+            --region $AWS_REGION \
+            --query 'LayerVersionArn' \
+            --output text)
+
+          echo "LAYER_VERSION=$LAYER_VERSION" >> $GITHUB_OUTPUT
+          echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_OUTPUT
+
+          echo "✅ Layer published!"
+          echo "  Name: $LAYER_NAME"
+          echo "  Version: $LAYER_VERSION"
+          echo "  ARN: $LAYER_ARN"
+
+      - name: Verify Lambda Functions Can Use Layer
+        run: |
+          LAYER_NAME="${{ inputs.layer_name }}"
+
+          echo "Verifying that Lambda functions can access the layer..."
+
+          # List all Lambda functions
+          FUNCTIONS=$(aws lambda list-functions \
+            --region $AWS_REGION \
+            --query 'Functions[?contains(FunctionName, `algo`)].FunctionName' \
+            --output text)
+
+          echo "Found Lambda functions: $FUNCTIONS"
+          echo ""
+
+          # For each function, check if we need to update the layers
+          for FUNC in $FUNCTIONS; do
+            echo "Checking $FUNC..."
+            CURRENT_LAYERS=$(aws lambda get-function-configuration \
+              --function-name "$FUNC" \
+              --region $AWS_REGION \
+              --query 'Layers[*].Arn' \
+              --output text)
+
+            if [ -n "$CURRENT_LAYERS" ]; then
+              echo "  Current layers: $(echo $CURRENT_LAYERS | wc -w) layer(s)"
+            else
+              echo "  No layers currently attached"
+            fi
+          done
+
+      - name: Output Summary
+        run: |
+          LAYER_ARN="${{ steps.publish.outputs.LAYER_ARN }}"
+          echo ""
+          echo "=== Lambda Layer Build Complete ==="
+          echo ""
+          echo "✅ Layer ARN: $LAYER_ARN"
+          echo ""
+          echo "To use this in Terraform, update:"
+          echo "  variable \"lambda_layer_name\":"
+          echo "    default = \"${{ inputs.layer_name }}\""
+          echo ""
+          echo "Next: Deploy Lambda functions with 'terraform apply' to attach the layer"
