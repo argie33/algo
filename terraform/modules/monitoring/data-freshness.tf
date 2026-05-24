@@ -57,8 +57,7 @@ resource "aws_iam_role_policy" "data_freshness_metrics" {
           "secretsmanager:GetSecretValue",
         ]
         Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:*:secret:rds-*",
-          "arn:aws:secretsmanager:${var.aws_region}:*:secret:algo-db-*"
+          "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-credentials-*"
         ]
       },
       {

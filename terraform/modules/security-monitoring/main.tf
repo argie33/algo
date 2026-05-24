@@ -113,7 +113,7 @@ resource "aws_cloudtrail" "main" {
     include_management_events = true
     data_resource {
       type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::algo-*/*", "arn:aws:s3:::stocks-*/*"]
+      values = ["arn:aws:s3:::${var.project_name}-*/*"]
     }
   }
 

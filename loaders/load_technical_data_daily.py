@@ -203,7 +203,7 @@ def main():
         else:
             # Limit to 100 symbols to prevent timeout in ECS
             logger.info("Fetching active symbols from database...")
-            symbols = get_active_symbols(max_symbols=100, timeout_secs=30)
+            symbols = get_active_symbols(max_symbols=100, timeout_secs=60)
             if not symbols:
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1

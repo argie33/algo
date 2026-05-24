@@ -324,3 +324,21 @@ variable "data_patrol_timeout_ms" {
   type        = number
   default     = 30000
 }
+
+variable "notification_email_from" {
+  description = "Email address to use as 'from' in Secrets Manager metadata"
+  type        = string
+  default     = "noreply@example.com"
+}
+
+variable "secrets_rotation_days" {
+  description = "Secrets Manager rotation frequency (days)"
+  type        = number
+  default     = 30
+}
+
+variable "postgres_major_version" {
+  description = "PostgreSQL major version"
+  type        = string
+  default     = "14"
+}

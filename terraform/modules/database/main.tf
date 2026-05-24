@@ -70,7 +70,7 @@ resource "aws_db_instance" "main" {
   identifier            = "${var.project_name}-db"
   db_name               = var.rds_db_name
   engine                = "postgres"
-  engine_version        = "14" # PostgreSQL 14
+  engine_version        = var.postgres_major_version
   instance_class        = var.db_instance_class
   allocated_storage     = var.db_allocated_storage
   max_allocated_storage = var.db_max_allocated_storage > 0 ? var.db_max_allocated_storage : null
@@ -131,9 +131,9 @@ resource "aws_db_instance" "main" {
 # ============================================================
 
 resource "aws_db_parameter_group" "main" {
-  name        = "${var.project_name}-pg14-params"
-  description = "PostgreSQL 14 parameter group for ${var.project_name} (TimescaleDB-enabled)"
-  family      = "postgres14"
+  name        = "${var.project_name}-pg${var.postgres_major_version}-params"
+  description = "PostgreSQL ${var.postgres_major_version} parameter group for ${var.project_name} (TimescaleDB-enabled)"
+  family      = "postgres${var.postgres_major_version}"
 
   parameter {
     name  = "shared_preload_libraries"
@@ -319,7 +319,7 @@ resource "aws_secretsmanager_secret_version" "email_config" {
   secret_id = aws_secretsmanager_secret.email_config.id
   secret_string = jsonencode({
     contact_notification_email = var.notification_email
-    email_from                 = "noreply@bullseyefinancial.com"
+    email_from                 = var.notification_email_from
   })
 }
 
@@ -717,7 +717,7 @@ resource "aws_secretsmanager_secret_rotation" "rds_credentials" {
   rotation_lambda_arn = aws_lambda_function.rds_rotation.arn
 
   rotation_rules {
-    automatically_after_days = 30
+    automatically_after_days = var.secrets_rotation_days
   }
 
   depends_on = [aws_lambda_permission.rds_rotation_secrets_manager]

@@ -24,7 +24,7 @@ locals {
 # Reference the algo_orchestrator_layer that's published by the deploy workflow
 # Instead of managing layer creation in Terraform
 data "aws_lambda_layer_version" "shared_deps" {
-  layer_name = "algo-orchestrator-layer"
+  layer_name = var.lambda_layer_name
 }
 
 # For compatibility with code that references aws_lambda_layer_version.shared_deps,
@@ -103,7 +103,7 @@ resource "aws_lambda_function" "api" {
       DB_SSL               = "require"
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
-      NODE_ENV             = "production"
+      NODE_ENV             = var.node_env
       CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
       FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
@@ -523,7 +523,7 @@ resource "aws_lambda_function" "algo" {
       LOG_LEVEL                 = var.orchestrator_log_level
       DATA_PATROL_ENABLED       = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS    = tostring(var.data_patrol_timeout_ms)
-      DEV_MODE                  = "false"
+      DEV_MODE                  = var.dev_mode
     }
   }
 

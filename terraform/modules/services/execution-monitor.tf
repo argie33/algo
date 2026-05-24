@@ -111,7 +111,7 @@ data "archive_file" "execution_monitor_zip" {
 resource "aws_cloudwatch_log_group" "execution_monitor" {
   count             = var.enable_execution_monitor ? 1 : 0
   name              = "/aws/lambda/${aws_lambda_function.execution_monitor[0].function_name}"
-  retention_in_days = 7
+  retention_in_days = var.cloudwatch_log_retention_days
 
   tags = var.common_tags
 }

@@ -271,3 +271,43 @@ output "execution_mode" {
   description = "Orchestrator execution mode (auto, paper, or live)"
   value       = var.execution_mode
 }
+
+# ============================================================
+# Critical Deployment Outputs (for GitHub Actions & CI)
+# ============================================================
+
+output "github_actions_role_arn" {
+  description = "ARN of GitHub Actions OIDC role for deployments"
+  value       = module.iam.github_actions_role_arn
+}
+
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint (Lambda connects here, not direct RDS)"
+  value       = module.database.rds_proxy_endpoint
+  sensitive   = true
+}
+
+output "api_gateway_stage_name" {
+  description = "API Gateway stage name (for frontend .env)"
+  value       = module.services.api_gateway_stage_name
+}
+
+output "algo_orchestrator_task_definition_arn" {
+  description = "Algo orchestrator ECS task definition ARN"
+  value       = module.loaders.algo_orchestrator_task_definition_arn
+}
+
+output "data_patrol_task_definition_arn" {
+  description = "Data patrol ECS task definition ARN"
+  value       = module.loaders.data_patrol_task_definition_arn
+}
+
+output "pipeline_state_machine_arn" {
+  description = "Step Functions state machine ARN for EOD pipeline"
+  value       = module.pipeline.state_machine_arn
+}
+
+output "aws_region" {
+  description = "AWS region (for deployments & frontend config)"
+  value       = var.aws_region
+}

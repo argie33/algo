@@ -119,6 +119,9 @@ module "database" {
   orchestrator_log_level          = var.orchestrator_log_level
   data_patrol_enabled             = var.data_patrol_enabled
   data_patrol_timeout_ms          = var.data_patrol_timeout_ms
+  notification_email_from         = var.notification_email_from
+  secrets_rotation_days           = var.secrets_rotation_days
+  postgres_major_version          = var.postgres_major_version
   common_tags                     = local.common_tags
 }
 
@@ -290,6 +293,9 @@ module "services" {
   enable_execution_monitor_schedule = var.enable_execution_monitor_schedule
   weight_optimization_task_definition_arn = module.loaders.weight_optimization_task_definition_arn
   algo_lambda_sg_id                 = module.vpc.algo_lambda_security_group_id
+  lambda_layer_name                 = local.lambda_layer_name
+  node_env                          = local.node_env
+  dev_mode                          = local.dev_mode
   common_tags                       = local.common_tags
 }
 
@@ -337,10 +343,11 @@ module "pipeline" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_name = var.project_name
-  environment  = var.environment
-  aws_region   = var.aws_region
-  common_tags  = local.common_tags
+  project_name     = var.project_name
+  environment      = var.environment
+  aws_region       = var.aws_region
+  aws_account_id   = local.aws_account_id
+  common_tags      = local.common_tags
 
   # API & Lambda configuration
   api_lambda_name  = module.services.api_lambda_function_name
