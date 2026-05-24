@@ -918,7 +918,7 @@ variable "lambda_runtime" {
 }
 
 variable "lambda_layer_name" {
-  description = "Lambda layer name for shared dependencies. If null, computed as <project_name>-orchestrator-layer"
+  description = "Lambda layer name for shared dependencies. If null, computed as project-name-orchestrator-layer"
   type        = string
   default     = null
 }
