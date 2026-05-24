@@ -293,7 +293,6 @@ module "services" {
   enable_execution_monitor_schedule = var.enable_execution_monitor_schedule
   weight_optimization_task_definition_arn = module.loaders.weight_optimization_task_definition_arn
   algo_lambda_sg_id                 = module.vpc.algo_lambda_security_group_id
-  lambda_layer_name                 = local.lambda_layer_name
   node_env                          = local.node_env
   dev_mode                          = local.dev_mode
   common_tags                       = local.common_tags
