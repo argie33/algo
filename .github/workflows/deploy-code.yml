@@ -808,32 +808,6 @@ jobs:
 
           echo "✅ API Lambda deployed with environment configuration: $FUNC"
 
-      - name: Attach API Layer to Lambda
-        run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
-
-          # Get the API layer ARN
-          LAYER_ARN=$(aws lambda list-layer-versions \
-            --layer-name algo-api-layer \
-            --region $AWS_REGION \
-            --query 'LayerVersions[0].LayerVersionArn' \
-            --output text)
-
-          if [ -z "$LAYER_ARN" ] || [ "$LAYER_ARN" = "None" ]; then
-            echo "❌ ERROR: Could not find algo-api-layer"
-            exit 1
-          fi
-
-          echo "Attaching layer to API Lambda: $LAYER_ARN"
-
-          # Update Lambda configuration to attach the layer
-          aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --layers "$LAYER_ARN" \
-            --region $AWS_REGION > /dev/null
-
-          echo "✅ API layer attached to Lambda"
-
       - name: Verify API Lambda Environment Variables
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
