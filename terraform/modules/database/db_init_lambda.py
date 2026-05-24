@@ -23,28 +23,34 @@ def lambda_handler(event, context):
     db_port = int(os.environ.get('DB_PORT', 5432))
     db_name = os.environ.get('DB_NAME')
     db_master_user = os.environ.get('DB_MASTER_USER', 'postgres')
-    db_master_password = os.environ.get('DB_MASTER_PASSWORD')
-    db_user = os.environ.get('DB_USER')
+    db_secret_arn = os.environ.get('DB_SECRET_ARN')
+    db_user = os.environ.get('DB_USER', 'stocks')
 
-    if not all([db_host, db_name, db_master_user, db_master_password, db_user]):
+    if not all([db_host, db_name, db_master_user, db_secret_arn, db_user]):
         return {
             'statusCode': 400,
-            'body': json.dumps('Missing required database connection parameters')
+            'body': json.dumps('Missing required database connection parameters (need DB_HOST, DB_NAME, DB_MASTER_USER, DB_SECRET_ARN, DB_USER)')
         }
 
     try:
-        # First: Ensure stocks user exists with correct password from Secrets Manager
-        logger.info("Step 1: Ensuring stocks user exists with correct password...")
-
-        # Get stocks password from Secrets Manager
+        # First: Get database credentials from Secrets Manager
+        logger.info("Step 1: Fetching database credentials from Secrets Manager...")
         sm = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
         try:
-            secret = json.loads(sm.get_secret_value(SecretId='algo-db-credentials-dev')['SecretString'])
-            stocks_password = secret['password']
-            logger.info(f"Retrieved stocks password from Secrets Manager")
+            secret_response = sm.get_secret_value(SecretId=db_secret_arn)
+            secret = json.loads(secret_response['SecretString'])
+            db_master_password = secret['password']
+            logger.info("Retrieved master password from Secrets Manager")
         except Exception as e:
-            logger.warning(f"Could not get stocks password from Secrets Manager: {e}")
-            stocks_password = db_password  # Fall back to provided password
+            logger.error(f"Could not get credentials from Secrets Manager: {e}")
+            return {
+                'statusCode': 500,
+                'body': json.dumps(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+            }
+
+        # Use the same password for stocks user (shared master credentials)
+        logger.info("Step 2: Ensuring stocks user exists with correct password...")
+        stocks_password = db_master_password
 
         # Connect as master user
         logger.info(f"Connecting to RDS as {db_master_user}: {db_host}:{db_port}/{db_name}")
@@ -83,8 +89,8 @@ def lambda_handler(event, context):
         master_conn.close()
         logger.info("✅ Stocks user setup complete")
 
-        # Second: Initialize schema by connecting as stocks user
-        logger.info("Step 2: Initializing database schema...")
+        # Third: Initialize schema by connecting as stocks user
+        logger.info("Step 3: Initializing database schema...")
 
         logger.info(f"Connecting to RDS as {db_user}: {db_host}:{db_port}/{db_name}")
         conn = psycopg2.connect(

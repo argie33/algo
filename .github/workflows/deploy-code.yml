@@ -109,8 +109,6 @@ jobs:
     name: Deploy Algo Lambda
     needs: resolve-infra
     runs-on: ubuntu-latest
-    env:
-      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -319,55 +317,6 @@ jobs:
           echo "Layer published: version $LAYER_VERSION"
           LAYER_ARN="arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION"
           echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
-
-      - name: Sync RDS Password with Secrets Manager
-        env:
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-        run: |
-          python3 << 'PYTHON_SYNC'
-          import json
-          import subprocess
-          import os
-
-          region = os.environ['AWS_REGION']
-          rds_password = os.environ.get('RDS_PASSWORD', '')
-
-          if not rds_password:
-            print("⚠️  RDS_PASSWORD not provided (optional - using existing credentials from Secrets Manager)")
-            exit(0)  # Non-fatal - credentials are already in Secrets Manager
-
-          # Read project/environment from terraform.tfvars
-          with open('terraform/terraform.tfvars') as f:
-            tfvars = f.read()
-            project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
-            environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
-
-          secret_id = f"{project}-db-credentials-{environment}"
-
-          print(f"Syncing RDS password to Secrets Manager secret: {secret_id}")
-
-          # Get current secret
-          try:
-            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
-              '--secret-id', secret_id, '--region', region,
-              '--query', 'SecretString', '--output', 'text'],
-              capture_output=True, text=True, check=True)
-            secret_dict = json.loads(result.stdout.strip())
-          except:
-            print("Could not retrieve existing secret, creating new one")
-            secret_dict = {'host': 'localhost', 'port': 5432, 'dbname': 'stocks', 'username': 'stocks'}
-
-          # Update password
-          secret_dict['password'] = rds_password
-
-          # Update secret in Secrets Manager
-          subprocess.run(['aws', 'secretsmanager', 'put-secret-value',
-            '--secret-id', secret_id,
-            '--secret-string', json.dumps(secret_dict),
-            '--region', region], check=True)
-
-          print(f"✅ Password synced to {secret_id}")
-          PYTHON_SYNC
 
       - name: Verify RDS and Secrets Manager Configuration
         run: |

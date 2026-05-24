@@ -134,7 +134,6 @@ jobs:
       cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
       api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
     env:
-      TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
       TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
       TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
       TF_VAR_notification_email: ${{ secrets.ALERT_EMAIL_ADDRESS }}

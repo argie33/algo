@@ -81,6 +81,12 @@ output "rds_credentials_secret_arn" {
   sensitive   = true
 }
 
+output "rds_credentials_secret_name" {
+  description = "Name of RDS credentials secret (for dynamic reference in workflows)"
+  value       = module.database.rds_credentials_secret_name
+  sensitive   = true
+}
+
 output "rds_password" {
   description = "RDS master password (from Terraform - used for GitHub Secrets)"
   value       = module.database.rds_password
