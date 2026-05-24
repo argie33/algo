@@ -407,7 +407,7 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
         Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
         Condition = {
           StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
+            "aws:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
           }
         }
       }
