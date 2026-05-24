@@ -467,12 +467,33 @@ locals {
 
 # For local fallback: archive local code (for dev/testing)
 data "archive_file" "algo_function_local" {
-  count       = local.algo_lambda_use_s3 ? 0 : 1
-  type        = "zip"
-  output_path = "${path.module}/../../${var.algo_lambda_code_file}"
+  count             = local.algo_lambda_use_s3 ? 0 : 1
+  type              = "zip"
+  output_path       = "${path.module}/../../${var.algo_lambda_code_file}"
+  source_base_path  = "${path.module}/../.."
+
+  # Include Lambda handler
   source {
-    content  = "# Algo Lambda stub - use S3 for production"
+    content  = file("${path.module}/../../lambda/algo_orchestrator/lambda_function.py")
     filename = "lambda_function.py"
+  }
+
+  # Include algo module
+  source {
+    path     = "${path.module}/../../algo"
+    zip_path = "algo"
+  }
+
+  # Include config module
+  source {
+    path     = "${path.module}/../../config"
+    zip_path = "config"
+  }
+
+  # Include utils module
+  source {
+    path     = "${path.module}/../../utils"
+    zip_path = "utils"
   }
 }
 
