@@ -521,6 +521,10 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "DISABLE_PROVENANCE_TRACKING"
           value = tostring(var.disable_provenance_tracking)
+        },
+        {
+          name  = "SEC_USER_AGENT"
+          value = "algo-trading argeropolos@gmail.com"
         }
       ],
       # Price loader: all intervals + asset classes
@@ -762,7 +766,8 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) },
         { name = "ORCHESTRATOR_LOG_LEVEL", value = var.orchestrator_log_level },
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
-        { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) }
+        { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) },
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
       ]
     }
   ])
@@ -820,7 +825,8 @@ resource "aws_ecs_task_definition" "data_patrol" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
-        { name = "DB_NAME", value = var.db_name }
+        { name = "DB_NAME", value = var.db_name },
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
       ]
     }
   ])
