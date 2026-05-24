@@ -935,10 +935,11 @@ class SecEdgarClient:
         return self._get_json(url)
 
     def _get_json(self, url: str) -> Dict[str, Any]:
-        """Fetch JSON from SEC API with retry logic for rate limiting.
+        """Fetch JSON from SEC API with retry logic for rate limiting & 403 errors.
 
         With 8+ parallel ECS tasks hitting the 10 req/sec SEC limit, we need
-        much longer backoff times to avoid cascading failures.
+        much longer backoff times to avoid cascading failures. Also handles
+        403 Forbidden errors with exponential backoff (likely temporary throttling).
         """
         import random
         max_retries = 8
@@ -950,18 +951,18 @@ class SecEdgarClient:
             if resp.status_code == 404:
                 return {}
 
-            # Handle rate limiting with exponential backoff + jitter
-            if resp.status_code == 429:
+            # Handle 429 (rate limit) and 403 (forbidden/throttle) with exponential backoff
+            if resp.status_code in (429, 403):
                 if attempt < max_retries - 1:
-                    # Much longer exponential backoff: 4s, 8s, 16s, 32s, 64s, 128s, 256s
                     base_wait = 4 * (2 ** attempt)
-                    jitter = random.uniform(0, base_wait * 0.3)  # Add 0-30% jitter
+                    jitter = random.uniform(0, base_wait * 0.3)
                     wait_time = base_wait + jitter
-                    log.debug(f"SEC API rate limited (429) for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+                    status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
+                    log.debug(f"SEC API {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 else:
-                    log.warning(f"SEC API failed after {max_retries} retries (total ~500s): {url}")
+                    log.warning(f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}")
                     return {}
 
             # Other HTTP errors
