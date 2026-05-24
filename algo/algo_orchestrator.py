@@ -106,13 +106,13 @@ class Orchestrator:
         self.skip_freshness = False  # Latent feature: skip data freshness checks
         self.alerts = AlertManager()
 
-        # maxconn=25 supports 40+ concurrent loaders (typical max concurrent = ~30-35)
+        # maxconn=100 supports 40+ concurrent loaders with buffer
         # In dry-run mode, database is optional; fail gracefully if unavailable
         self.db_pool = None
         try:
-            logger.info("[POOL] Creating ThreadedConnectionPool with minconn=1, maxconn=25")
+            logger.info("[POOL] Creating ThreadedConnectionPool with minconn=1, maxconn=100")
             self.db_pool = psycopg2_pool.ThreadedConnectionPool(
-                minconn=1, maxconn=25, **get_db_config()
+                minconn=1, maxconn=100, **get_db_config()
             )
             logger.info("[POOL] ThreadedConnectionPool created successfully")
         except Exception as e:
