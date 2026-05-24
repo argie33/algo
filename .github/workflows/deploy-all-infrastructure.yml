@@ -514,9 +514,43 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Build Algo Lambda
+        run: |
+          set -e
+          PKG_DIR=/tmp/algo-lambda-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy Lambda handler
+          cp lambda/algo_orchestrator/lambda_function.py $PKG_DIR/
+
+          # Copy all required modules
+          cp -r algo $PKG_DIR/
+          cp -r config $PKG_DIR/
+          cp -r utils $PKG_DIR/
+
+          # Remove pycache
+          find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PKG_DIR -type f -name "*.pyc" -delete
+
+          # Install dependencies
+          python3.11 -m pip install -r lambda/algo_orchestrator/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP
+          rm -f terraform/lambda_algo.zip
+          cd $PKG_DIR
+          zip -r ${{ github.workspace }}/terraform/lambda_algo.zip . -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
+          cd ${{ github.workspace }}
+
+          if [ ! -f terraform/lambda_algo.zip ]; then
+            echo "ERROR: Failed to create lambda_algo.zip!"
+            exit 1
+          fi
+          echo "[OK] Algo Lambda ZIP: $(du -sh terraform/lambda_algo.zip | cut -f1)"
+
       - name: Deploy Algo Lambda
         run: |
-          # Algo zip is already built in terraform step. Just deploy it.
           FUNC="${{ needs.terraform.outputs.algo_lambda_name }}"
           [ -z "$FUNC" ] && FUNC="algo-algo-dev"
 
@@ -559,13 +593,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Package
+      - name: Package API Lambda
         run: |
+          set -e
           mkdir -p api-pkg
           cp -r lambda/api/. api-pkg/
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
           cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
+          if [ ! -f api_lambda.zip ]; then
+            echo "ERROR: Failed to create api_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] API Lambda ZIP: $(du -sh api_lambda.zip | cut -f1)"
 
       - name: Deploy
         run: |
