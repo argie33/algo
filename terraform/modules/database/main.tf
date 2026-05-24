@@ -140,9 +140,8 @@ resource "aws_db_parameter_group" "main" {
 
   lifecycle {
     ignore_changes = all
+    prevent_destroy = true
   }
-
-  tags = var.common_tags
 }
 
 # ============================================================
