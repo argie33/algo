@@ -534,10 +534,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         conn = get_db_connection()
         if not conn:
             cors_headers = get_cors_headers(event)
+            db_host = os.getenv('DB_HOST', 'NOT_SET')
+            db_secret_arn = os.getenv('DB_SECRET_ARN', 'NOT_SET')
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
-                'body': json.dumps({'error': 'database_unavailable'})
+                'body': json.dumps({
+                    'error': 'database_unavailable',
+                    'debug': {
+                        'db_host_configured': db_host != 'NOT_SET',
+                        'db_secret_arn_configured': db_secret_arn != 'NOT_SET',
+                        'message': 'Unable to establish database connection. Check AWS Secrets Manager and RDS security groups.'
+                    }
+                })
             }
 
         # Reset any failed transaction state from a previous Lambda invocation
