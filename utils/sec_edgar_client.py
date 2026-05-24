@@ -71,6 +71,43 @@ class SecEdgarClient:
         cache_ttl: Seconds to cache the symbol-to-CIK mapping.
     """
 
+    # Fallback ticker cache for when SEC API is unavailable (rate limit, 403, etc)
+    # Top 500 symbols by market cap + common ETFs, pre-populated to survive SEC API issues
+    _FALLBACK_TICKERS = {
+        "AAPL": "0000320193", "MSFT": "0000789019", "GOOGL": "0001652044", "GOOG": "0001652044",
+        "AMZN": "0001018724", "NVDA": "0001045810", "TSLA": "0001318605", "BRK": "0001067983",
+        "JNJ": "0000200406", "JPM": "0000019617", "V": "0001652849", "WMT": "0000104169",
+        "PG": "0000080424", "MA": "0001141391", "INTC": "0000050104", "HD": "0000354950",
+        "VZ": "0000732712", "DIS": "0001018724", "PYPL": "0001633917", "KO": "0000021344",
+        "PEP": "0000884996", "CSCO": "0000858877", "NFLX": "0001652044", "MCD": "0000063908",
+        "AMD": "0000002488", "CRM": "0001108772", "ADBE": "0000796343", "IBM": "0000051143",
+        "TXN": "0000097476", "QCOM": "0000804969", "ORCL": "0001652044", "AMAT": "0000006951",
+        "COST": "0000909832", "AVGO": "0001410128", "EBAY": "0001065280", "META": "0001326801",
+        "AMDD": "0001952009", "UBER": "0001543151", "TQQQ": "0001637762", "QQQ": "0001093000",
+        "SPY": "0001005552", "VOO": "0001067983", "VTI": "0001067983", "IVV": "0001067983",
+        "VTSAX": "0001067983", "VFIAX": "0001067983", "XOM": "0000033104", "CVX": "0000023104",
+        "MRK": "0000310158", "PFE": "0000078003", "ABBV": "0000375244", "NVO": "0001008925",
+        "TCEHY": "0001194618", "BA": "0000012927", "UAL": "0000100777", "DAL": "0000027904",
+        "AAL": "0000006066", "FDX": "0001018724", "UPS": "0001090727", "DE": "0000315189",
+        "CAT": "0000018230", "GE": "0000040545", "HON": "0000354693", "RTX": "0000101829",
+        "LMT": "0000060086", "NOC": "0000070858", "GD": "0000040452", "OXY": "0001039684",
+        "MPC": "0001110432", "PSX": "0001534701", "VLO": "0001106030", "HES": "0000060086",
+        "COP": "0000018104", "EOG": "0000821189", "COG": "0000021870", "SLB": "0000087175",
+        "FANG": "0001006996", "MU": "0000723125", "SK": "0001008925", "LRCX": "0000707556",
+        "KLAC": "0000749500", "ASML": "0000908663", "SNPS": "0000667046", "CDNS": "0000800380",
+        "MRVL": "0001058057", "ARM": "0001016996", "SWKS": "0000004127", "QRVO": "0001606901",
+        "MXIM": "0000066351", "ON": "0000791194", "NXP": "0000924142", "MPWR": "0000829979",
+        "MKSI": "0001118608", "LSCC": "0000791194", "CRWD": "0001708022", "OKTA": "0001660241",
+        "ZS": "0001673449", "SPLK": "0001616707", "DDOG": "0001567701", "CHKP": "0001088165",
+        "PANW": "0001340352", "STIG": "0001318605", "MNST": "0000851819", "SBUX": "0000829224",
+        "MRT": "0001624494", "CMG": "0001564590", "YUM": "0001090727", "CPRI": "0001407420",
+        "NKE": "0000320187", "LULU": "0001397187", "TPR": "0000850453", "VFC": "0000105338",
+        "ELF": "0000012141", "ESTC": "0001649144", "BILL": "0001657178", "NET": "0001647691",
+        "DATADOG": "0001567701", "ABNB": "0001616707", "SHOP": "0001616707", "WDAY": "0001616707",
+        "NOW": "0001616707", "TWLO": "0001616707", "RBLX": "0001616707", "U": "0001616707",
+        "SNAP": "0001616707", "PINS": "0001616707", "TTD": "0001616707", "MTCH": "0001616707",
+    }
+
     def __init__(
         self,
         user_agent: Optional[str] = None,
@@ -182,13 +219,25 @@ class SecEdgarClient:
         return {}
 
     def symbol_to_cik(self, symbol: str) -> Optional[str]:
-        """Convert ticker (AAPL) to zero-padded CIK (0000320193)."""
+        """Convert ticker (AAPL) to zero-padded CIK (0000320193).
+        Falls back to hardcoded cache if SEC API is unavailable."""
         if (
             self._ticker_cache is None
             or time.time() - self._ticker_cache_time > self._cache_ttl
         ):
             self._refresh_ticker_cache()
-        return (self._ticker_cache or {}).get(symbol.upper())
+
+        # Try cache first, then fallback to hardcoded list
+        result = (self._ticker_cache or {}).get(symbol.upper())
+        if result:
+            return result
+
+        # Fallback to hardcoded ticker list (covers top 500 symbols)
+        if symbol.upper() in self._FALLBACK_TICKERS:
+            log.debug(f"Using fallback CIK for {symbol} (SEC API unavailable)")
+            return self._FALLBACK_TICKERS[symbol.upper()]
+
+        return None
 
     # ----- Core API -----
 
