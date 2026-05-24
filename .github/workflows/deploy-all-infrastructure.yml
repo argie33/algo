@@ -88,9 +88,24 @@ jobs:
 
       - name: Delete Orphaned RDS Parameter Group
         run: |
+          # Check if DB instance exists and is using this parameter group
+          DB_ID=$(aws rds describe-db-instances --region us-east-1 --query "DBInstances[?DBInstanceIdentifier=='algo-rds-dev'].DBInstanceIdentifier" --output text 2>/dev/null || echo "")
+          if [ -n "$DB_ID" ]; then
+            CURRENT_PG=$(aws rds describe-db-instances --db-instance-identifier algo-rds-dev --region us-east-1 --query "DBInstances[0].DBParameterGroups[0].DBParameterGroupName" --output text 2>/dev/null || echo "")
+            if [ "$CURRENT_PG" == "algo-pg14-params" ]; then
+              echo "DB is using algo-pg14-params, changing to default.postgres14..."
+              aws rds modify-db-instance \
+                --db-instance-identifier algo-rds-dev \
+                --db-parameter-group-name default.postgres14 \
+                --region us-east-1 \
+                --apply-immediately || echo "Modify failed, continuing..."
+              sleep 5
+            fi
+          fi
+          # Now delete the parameter group
           aws rds delete-db-parameter-group \
             --db-parameter-group-name algo-pg14-params \
-            --region us-east-1 2>/dev/null || echo "Parameter group already deleted or doesn't exist (OK)"
+            --region us-east-1 || echo "Parameter group deletion failed or already deleted"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
