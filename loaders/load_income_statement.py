@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Income Statement Loader — annual and quarterly from SEC EDGAR.
+Income Statement Loader â€” annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_PERIOD env var (financials_annual_income / financials_quarterly_income)
 or --period CLI flag for manual runs.
@@ -175,7 +175,7 @@ def main():
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
 
     loader = IncomeStatementLoader(period)
     try:
@@ -192,4 +192,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

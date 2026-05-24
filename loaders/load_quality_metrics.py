@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -171,7 +171,7 @@ def main():
     parser.add_argument("--parallelism", type=int, default=8)
     args = parser.parse_args()
 
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
 
     loader = QualityMetricsLoader()
     try:
@@ -188,3 +188,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Swing Trader Scores Loader - Computes swing trading quality scores.
 
@@ -156,7 +156,7 @@ def main():
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
-    symbols = args.symbols.split(",") if args.symbols else get_active_symbols()
+    symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
     loader = SwingTraderScoresLoader()
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
@@ -172,3 +172,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

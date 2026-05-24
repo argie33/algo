@@ -171,7 +171,7 @@ def main():
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
 
     loader = BalanceSheetLoader(period)
     try:

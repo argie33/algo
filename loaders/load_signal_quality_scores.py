@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Signal Quality Scores Loader — Signal strength confirmation from multiple sources.
+﻿#!/usr/bin/env python3
+"""Signal Quality Scores Loader â€” Signal strength confirmation from multiple sources.
 
 Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.
 Required by Phase 1 data freshness check as tier-2 gate for filtering.
@@ -193,7 +193,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols())
+        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60))
         loader = SignalQualityScoresLoader()
         loader.run(symbols, parallelism=args.parallelism)
         logger.info("Signal quality scores load completed")
@@ -204,3 +204,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

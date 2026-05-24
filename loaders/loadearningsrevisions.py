@@ -106,7 +106,7 @@ def main() -> int:
     parser.add_argument("--parallelism", type=int, default=4)
     args = parser.parse_args()
 
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
 
     loader = EarningsRevisionsLoader()
     try:

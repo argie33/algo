@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Cash Flow Loader — annual and quarterly from SEC EDGAR.
+Cash Flow Loader â€” annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financials_quarterly_cashflow)
 or --period CLI flag for manual runs.
@@ -174,7 +174,7 @@ def main():
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols()
+    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
 
     loader = CashFlowLoader(period)
     try:
@@ -191,4 +191,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

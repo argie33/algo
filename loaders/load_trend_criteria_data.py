@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Trend Criteria Data Loader — Minervini 8-point, Weinstein stage, consolidation.
+﻿#!/usr/bin/env python3
+"""Trend Criteria Data Loader â€” Minervini 8-point, Weinstein stage, consolidation.
 
 Computes trend confirmation metrics from price and technical data.
 Required by Phase 1 data freshness check.
@@ -175,7 +175,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        symbols = args.symbols.split(",") if args.symbols else get_active_symbols()
+        symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
         loader = TrendCriteriaLoader()
         loader.run(symbols, parallelism=args.parallelism)
         logger.info("Trend criteria data load completed")
@@ -186,3 +186,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

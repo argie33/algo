@@ -128,7 +128,7 @@ def main():
     if args.symbols:
         symbols = [s.strip().upper() for s in args.symbols.split(",")]
     else:
-        symbols = get_active_symbols()
+        symbols = get_active_symbols(timeout_secs=60)
 
     loader = AnalystSentimentLoader()
     try:
