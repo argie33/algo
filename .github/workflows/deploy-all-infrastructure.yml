@@ -32,7 +32,7 @@ permissions:
   id-token: write
   contents: read
 
-# Prevent concurrent Terraform runs — stale plan errors occur when two runs
+# Prevent concurrent Terraform runs -- stale plan errors occur when two runs
 # modify state between plan and apply steps.
 concurrency:
   group: terraform-deploy
@@ -42,18 +42,18 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  # ──────────────────────────────────────────────────────────────
-  # STEP 0 — Bootstrap Terraform Backend (S3 + DynamoDB)
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
+  # 
   bootstrap-backend:
     name: "0. Bootstrap Terraform Backend"
     uses: ./.github/workflows/bootstrap-terraform-backend.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
-  # ──────────────────────────────────────────────────────────────
-  # STEP 1 — Infrastructure (Terraform)
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 1 -- Infrastructure (Terraform)
+  # 
   terraform:
     name: "1. Terraform Apply"
     runs-on: ubuntu-latest
@@ -164,7 +164,7 @@ PYEOF
             aws s3 cp /tmp/state.json s3://stocks-terraform-state/stocks/terraform.tfstate
             echo "[OK] S3 state file cleaned"
           else
-            echo "[WARN]️  State file not found in S3, will be created fresh by terraform init"
+            echo "[WARN]  State file not found in S3, will be created fresh by terraform init"
           fi
 
       - name: Setup Terraform State Backend
@@ -309,7 +309,7 @@ PYEOF
             local resource=$1
             local id=$2
             if terraform state list | grep -qF "$resource"; then
-              echo "✓ SKIP: $resource already in state"
+              echo " SKIP: $resource already in state"
             else
               echo "-> IMPORT: $resource as $id"
               terraform import -var-file=terraform.tfvars "$resource" "$id" 2>&1 | grep -E "Import|Error" || true
@@ -346,11 +346,11 @@ PYEOF
               fi
             done
           else
-            echo "[WARN]️  Terraform VPC not found (will be created)"
+            echo "[WARN]  Terraform VPC not found (will be created)"
           fi
 
           # Import API Gateway $default route (AWS auto-creates it; Terraform CREATE causes 409 conflict)
-          # Use variable to hold literal '$default' — avoid shell expansion of $default as a variable
+          # Use variable to hold literal '$default' -- avoid shell expansion of $default as a variable
           DEFAULT_ROUTE_KEY='$default'
           echo ""
           echo "Querying AWS for API Gateway ${DEFAULT_ROUTE_KEY} route..."
@@ -369,10 +369,10 @@ PYEOF
             if [ -n "$DEFAULT_ROUTE_ID" ] && [ "$DEFAULT_ROUTE_ID" != "None" ]; then
               import_if_missing "module.services.aws_apigatewayv2_route.api_default" "${API_ID}/${DEFAULT_ROUTE_ID}"
             else
-              echo "ℹ️  No existing ${DEFAULT_ROUTE_KEY} route found — Terraform will create it"
+              echo "  No existing ${DEFAULT_ROUTE_KEY} route found -- Terraform will create it"
             fi
           else
-            echo "[WARN]️  API Gateway not found yet — will be created by Terraform"
+            echo "[WARN]  API Gateway not found yet -- will be created by Terraform"
           fi
 
       - name: Destroy Stale RDS Parameter Group
@@ -429,7 +429,7 @@ PYEOF
               echo "Deleting orphaned API Gateway: $id"
               aws apigatewayv2 delete-api --api-id "$id" --region $AWS_REGION 2>/dev/null \
                 && echo "[OK] Deleted: $id" \
-                || echo "[WARN]️  Failed to delete: $id"
+                || echo "[WARN]  Failed to delete: $id"
             fi
           done || echo "No orphaned API Gateways found"
 
@@ -470,9 +470,9 @@ PYEOF
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Authentication**: Using GitHub Actions OIDC (secure, no long-lived secrets)" >> $GITHUB_STEP_SUMMARY
 
-  # ──────────────────────────────────────────────────────────────
-  # STEP 2a — Docker image for ECS loaders
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 2a -- Docker image for ECS loaders
+  # 
   build-image:
     name: "2a. Build & Push Loader Image"
     needs: terraform
@@ -537,11 +537,11 @@ PYEOF
 
       - name: Skip image build
         if: steps.ecr.outputs.ecr_url == ''
-        run: echo "[WARN]️  Skipping Docker image build — ECR URL not resolved"
+        run: echo "[WARN]  Skipping Docker image build -- ECR URL not resolved"
 
-  # ──────────────────────────────────────────────────────────────
-  # STEP 2b — Algo Lambda
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 2b -- Algo Lambda
+  # 
   deploy-algo:
     name: "2b. Deploy Algo Lambda"
     needs: terraform
@@ -584,9 +584,9 @@ PYEOF
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
           echo "[OK] Algo Lambda updated: $FUNC"
 
-  # ──────────────────────────────────────────────────────────────
-  # STEP 2c — API Lambda
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 2c -- API Lambda
+  # 
   deploy-api:
     name: "2c. Deploy API Lambda"
     needs: terraform
@@ -628,9 +628,9 @@ PYEOF
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
           echo "[OK] API Lambda: $FUNC"
 
-  # ──────────────────────────────────────────────────────────────
-  # STEP 2d — Frontend
-  # ──────────────────────────────────────────────────────────────
+  # 
+  # STEP 2d -- Frontend
+  # 
   deploy-frontend:
     name: "2d. Build & Deploy Frontend"
     needs: terraform
@@ -696,9 +696,9 @@ PYEOF
             echo "[OK] CloudFront invalidation created"
           fi
 
-  # ──────────────────────────────────────────────────────────────
+  # 
   # Final Summary
-  # ──────────────────────────────────────────────────────────────
+  # 
   summary:
     name: Deployment Summary
     needs: [terraform, build-image, deploy-algo, deploy-api, deploy-frontend]
