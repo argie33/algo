@@ -74,7 +74,6 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  reserved_concurrent_executions = 1
   layers        = [local.api_layer_arn, var.psycopg2_layer_arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
@@ -131,9 +130,6 @@ resource "aws_lambda_function" "api" {
   })
 }
 
-# Reserved concurrency enabled: 1 warm instance running at all times
-# Eliminates 15-40s VPC cold-start delays that would exceed API Gateway's 29s timeout
-# Cost: ~$0.015/hour per concurrent execution
 
 # ============================================================
 # API Gateway HTTP API
@@ -471,6 +467,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
+  reserved_concurrent_executions = 1
   layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn]  # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
@@ -497,17 +494,13 @@ resource "aws_lambda_function" "algo" {
       DB_PORT                = "5432"
       DB_NAME                = var.rds_database_name
       DB_USER                = var.rds_username
-      DB_PASSWORD            = var.rds_password
       DB_SSL                 = "prefer"
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE         = var.execution_mode
       ORCHESTRATOR_DRY_RUN      = tostring(var.orchestrator_dry_run)
-      ALGO_LIVE_TRADING         = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"  # Live trading acknowledgment
+      ALGO_LIVE_TRADING         = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
       APCA_API_BASE_URL         = var.alpaca_api_base_url
-      APCA_API_KEY_ID           = var.alpaca_api_key_id
-      APCA_API_SECRET_KEY       = var.alpaca_api_secret_key
       ALPACA_PAPER_TRADING      = tostring(var.alpaca_paper_trading)
-      FRED_API_KEY              = var.fred_api_key
       LOG_LEVEL                 = var.orchestrator_log_level
       DATA_PATROL_ENABLED       = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS    = tostring(var.data_patrol_timeout_ms)

@@ -33,8 +33,15 @@ class SwingTraderScoresLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute swing trader scores from buy_sell_daily signals."""
+        from algo.algo_market_calendar import MarketCalendar
+
         try:
             end = date.today()
+            # If today is not a trading day, use yesterday instead
+            # (prevents computing scores for non-trading days when no new signals exist)
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
+
             if since is None:
                 start = end - timedelta(days=5 * 365)  # 5 years initial load
             else:

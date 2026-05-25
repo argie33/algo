@@ -127,8 +127,16 @@ class AlgoMetricsDailyLoader:
 
 
 def main():
+    from algo.algo_market_calendar import MarketCalendar
+    from datetime import timedelta
+
     load_env()
     run_date = date.today()
+    # If today is not a trading day, use yesterday instead
+    # (prevents computing metrics for non-trading days when no new data exists)
+    while run_date > date(2020, 1, 1) and not MarketCalendar.is_trading_day(run_date):
+        run_date = run_date - timedelta(days=1)
+
     loader = AlgoMetricsDailyLoader()
 
     try:
