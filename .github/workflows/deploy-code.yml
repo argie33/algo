@@ -761,32 +761,15 @@ jobs:
           # Also provide secret name as fallback (boto3 can fetch if needed)
           DB_SECRET_ARN="$SECRET_ID"
 
-          # Get CloudFront domain for CORS whitelist
-          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
-          if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
-            CF_ID=$(aws cloudfront list-distributions \
-              --query 'DistributionList.Items[0].Id' \
-              --output text 2>/dev/null || echo "")
-          fi
-          CLOUDFRONT_DOMAIN=""
-          if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
-            CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
-              --id "$CF_ID" \
-              --region $AWS_REGION \
-              --query 'Distribution.DomainName' \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          # Build ALLOWED_ORIGINS with localhost + CloudFront domain
+          # Build ALLOWED_ORIGINS using CloudFront domain from Terraform outputs (fully dynamic)
+          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_domain }}"
           ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
+          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ] && [ "$CLOUDFRONT_DOMAIN" != "null" ]; then
             ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
             echo "Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
           else
-            echo "WARNING: CloudFront domain not resolved dynamically"
+            echo "WARNING: CloudFront domain not in Terraform outputs - CORS only allows localhost"
           fi
-          # Add fallback known CloudFront domains (development/production)
-          ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://d2u93283nn45h2.cloudfront.net"
           echo "CORS whitelist configured: $ALLOWED_ORIGINS"
 
           echo "Updating API Lambda configuration..."
