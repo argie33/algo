@@ -332,34 +332,6 @@ output "api_lambda_layer_name" {
   value       = module.services.api_lambda_layer_name
 }
 
-# ============================================================
-# Database Secrets Configuration
-# ============================================================
-
-output "rds_credentials_secret_name" {
-  description = "Name of RDS credentials secret (for GitHub Actions)"
-  value       = module.database.rds_credentials_secret_name
-  sensitive   = true
-}
-
-# ============================================================
-# Cognito Configuration
-# ============================================================
-
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID"
-  value       = module.cognito.user_pool_id
-}
-
-output "cognito_client_id" {
-  description = "Cognito User Pool Client ID"
-  value       = module.cognito.user_pool_client_id
-}
-
-output "cognito_domain_url" {
-  description = "Cognito domain URL"
-  value       = module.cognito.domain_url
-}
 
 # ============================================================
 # Terraform Backend Configuration (for GitHub Actions)
