@@ -42,21 +42,41 @@ FRED_API_KEY (economic data)
 - Never commit `.env` files
 - CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
+## CREDENTIAL FLOW (IaC)
+
+Credentials flow through a single pipeline — never lose them, never hardcode them:
+
+```
+GitHub Secrets (source of truth)
+    ↓  .github/workflows/update-credentials.yml
+AWS Secrets Manager (algo/alpaca, algo/fred)
+    ↓  .github/workflows/deploy-code.yml reads and sets Lambda env
+Lambda env vars: APCA_API_KEY_ID, APCA_API_SECRET_KEY, APCA_API_BASE_URL
+```
+
+**Standard variable names:** `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY` (always these, not ALPACA_API_KEY/ALPACA_SECRET_KEY).
+
+**Rotation procedure:**
+1. Generate new keys in Alpaca dashboard (alpaca.markets → API Keys)
+2. `gh secret set ALPACA_API_KEY_ID --body "new_id"` (paper) or `ALPACA_API_KEY` (live)
+3. `gh secret set ALPACA_API_SECRET_KEY --body "new_secret"` (paper) or `ALPACA_SECRET_KEY` (live)
+4. `gh workflow run update-credentials.yml -f trading_mode=paper` (or live)
+5. Update local PowerShell profile: APCA_API_KEY_ID + APCA_API_SECRET_KEY
+
 ## LIVE TRADING CONFIG
 
-Set these in PowerShell profile for live trading (real money):
+To switch from paper to live trading:
+1. Get valid live keys from alpaca.markets → API Keys → Live Trading
+2. Store live keys in GitHub Secrets: `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`
+3. `gh workflow run update-credentials.yml -f trading_mode=live`
+4. Edit `terraform/terraform.tfvars`: set `alpaca_paper_trading = false`
+5. `git push` — deploy-all-infrastructure.yml applies Terraform and redeploys Lambda
 
+For paper trading (testing):
 ```
-ALGO_LIVE_TRADING = I_UNDERSTAND_REAL_MONEY    (required, exact string)
-ALPACA_PAPER_TRADING = false                     (disables paper mode)
-APCA_API_BASE_URL = https://api.alpaca.markets  (live endpoint, not paper)
+alpaca_paper_trading = true  (in terraform.tfvars)
 ```
-
-For paper trading (testing), set:
-```
-ALPACA_PAPER_TRADING = true
-APCA_API_BASE_URL = https://paper-api.alpaca.markets
-```
+Lambda endpoint and keys are set automatically by deploy based on tfvars value.
 
 ## DEPLOYMENT ARCHITECTURE
 
