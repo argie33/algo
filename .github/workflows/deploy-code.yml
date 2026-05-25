@@ -767,30 +767,19 @@ jobs:
           export DB_SECRET_ARN DB_HOST DB_PORT DB_NAME DB_USER ALLOWED_ORIGINS
           export COGNITO_POOL_ID COGNITO_CLIENT_ID FUNC API_LAYER_ARN AWS_REGION
 
-          # Update function configuration with environment variables using AWS CLI
-          echo "Building environment variables..."
+          # Update function configuration with environment variables
+          echo "Updating API Lambda configuration..."
 
-          # Use --cli-input-json to pass all settings at once, avoiding heredoc/quoting issues
+          # Build environment string for --environment flag
+          ENV_VARS="DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION"
+
+          # Update function configuration using simple format
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
-            --cli-input-json "{
-              \"FunctionName\": \"$FUNC\",
-              \"Environment\": {
-                \"Variables\": {
-                  \"DB_HOST\": \"$DB_HOST\",
-                  \"DB_PORT\": \"$DB_PORT\",
-                  \"DB_NAME\": \"$DB_NAME\",
-                  \"DB_USER\": \"$DB_USER\",
-                  \"DB_PASSWORD\": \"$DB_PASSWORD\",
-                  \"DB_SECRET_ARN\": \"$DB_SECRET_ARN\",
-                  \"DB_SSL\": \"prefer\",
-                  \"ALLOWED_ORIGINS\": \"$ALLOWED_ORIGINS\",
-                  \"COGNITO_REGION\": \"$AWS_REGION\"
-                }
-              },
-              \"Layers\": [\"$API_LAYER_ARN\"]
-            }" \
-            --region $AWS_REGION || { echo "ERROR: Failed to update API Lambda configuration"; exit 1; }
+            --environment "Variables={DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION}" \
+            --timeout 300 \
+            --layers "$API_LAYER_ARN" \
+            --region $AWS_REGION || { echo "ERROR updating Lambda config"; exit 1; }
 
           echo "✅ API Lambda environment and layers updated"
 
