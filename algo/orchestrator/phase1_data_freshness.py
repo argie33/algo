@@ -305,9 +305,23 @@ def run(
         }
         # In DEV_MODE, be lenient about data staleness (allow up to 7 days old)
         is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
-        # Use config max_data_staleness_days (default 3 days for production, 7 for DEV)
-        max_stale = config.max_data_staleness_days if hasattr(config, 'max_data_staleness_days') else (7 if is_dev_mode else 3)
         stale_items = []
+
+        # Compute the most recent trading day before run_date as the expected data date.
+        # Using trading-day comparison prevents false halts after 3-day weekends where
+        # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
+        try:
+            from algo.algo_market_calendar import MarketCalendar
+            expected_date = run_date - timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
+                    break
+                expected_date -= timedelta(days=1)
+        except Exception:
+            # Fallback: step back over weekends only
+            expected_date = run_date - timedelta(days=1)
+            while expected_date.weekday() >= 5:
+                expected_date -= timedelta(days=1)
 
         try:
             from algo.algo_metrics import MetricsPublisher
@@ -325,10 +339,11 @@ def run(
                 age = (run_date - d).days
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], age)
-                if age > max_stale and not is_dev_mode:
-                    stale_items.append(f"{name}: {age}d old")
+                is_stale = d < expected_date and not is_dev_mode
+                if is_stale:
+                    stale_items.append(f"{name}: {age}d old (expected {expected_date})")
                 if verbose:
-                    flag = '[OK]' if age <= max_stale else '[STALE]'
+                    flag = '[OK]' if not is_stale else '[STALE]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
         if _metrics:
@@ -339,7 +354,7 @@ def run(
                 'DATA',
                 'STALE_DATA_HALT',
                 f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
-                {'stale_items': stale_items, 'max_age_days': max_stale}
+                {'stale_items': stale_items, 'expected_date': str(expected_date)}
             )
             log_phase_result_fn(1, 'data_freshness', 'fail',
                                f'Stale: {"; ".join(stale_items)}')

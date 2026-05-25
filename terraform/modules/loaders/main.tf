@@ -188,10 +188,11 @@ locals {
       description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
     }
 
-    # 3:30am ET = 8:30am UTC Mon-Fri — 8 tiny loaders consolidated into one task
+    # 4:30am ET = 9:30am UTC Mon-Fri — runs AFTER stock_prices_daily (4:00am UTC 9:00)
+    # so market health is computed from freshly loaded prices, not yesterday's prices
     "market_data_batch" = {
-      schedule    = "cron(30 8 ? * MON-FRI *)"
-      description = "Market data batch: 8 tiny loaders in parallel - 3:30am ET"
+      schedule    = "cron(30 9 ? * MON-FRI *)"
+      description = "Market data batch: 8 tiny loaders in parallel - 4:30am ET"
     }
 
     # NOTE: technicals_daily and trend_template_data are now managed by the

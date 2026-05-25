@@ -474,7 +474,11 @@ class CircuitBreaker:
         }
 
     def _check_data_freshness(self, current_date: Any) -> Dict[str, Any]:
-        """Block if our market data is too stale."""
+        """Block if our market data is too stale.
+
+        Compares against the previous trading day (not a fixed calendar threshold)
+        so 3-day holiday weekends don't cause false halts.
+        """
         self.cur.execute(
             "SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'"
         )
@@ -483,12 +487,28 @@ class CircuitBreaker:
             return {'halted': True, 'reason': 'No SPY data at all'}
         latest = row[0]
         days_stale = (current_date - latest).days
-        threshold = int(self.config.get('max_data_staleness_days', 3))
+
+        # Compute the previous trading day as the freshness reference point.
+        # Using trading-day comparison prevents false halts after 3-day weekends
+        # where the calendar gap (e.g. Friday → Tuesday = 4 days) would exceed a
+        # fixed threshold even though the data is from the last trading day.
+        from datetime import timedelta
+        expected = current_date - timedelta(days=1)
+        try:
+            from algo.algo_market_calendar import MarketCalendar
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected):
+                    break
+                expected -= timedelta(days=1)
+        except Exception:
+            while expected.weekday() >= 5:
+                expected -= timedelta(days=1)
+        is_stale = latest < expected
+
         return {
-            'halted': days_stale > threshold,
-            'reason': f'Data {days_stale}d stale > {threshold}d max' if days_stale > threshold else f'{days_stale}d old',
+            'halted': is_stale,
+            'reason': f'Data {days_stale}d stale (latest {latest}, expected {expected})' if is_stale else f'{days_stale}d old',
             'value': days_stale,
-            'threshold': threshold,
         }
 
     def _check_intraday_market_health(self, current_date: Any) -> Dict[str, Any]:
