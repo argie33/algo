@@ -131,11 +131,6 @@ resource "aws_lambda_function" "api" {
   })
 }
 
-# NOTE: Provisioned concurrency requires published versions, not $LATEST.
-# Since reserved_concurrent_executions = 10 is already configured above,
-# and API Gateway timeout is 29s (sufficient for Lambda cold-start + imports),
-# provisioned concurrency is not needed for this setup.
-
 # ============================================================
 # API Gateway HTTP API
 # ============================================================
@@ -472,7 +467,6 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
-  reserved_concurrent_executions = 1
   layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn]  # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
