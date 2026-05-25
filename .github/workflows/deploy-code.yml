@@ -638,7 +638,7 @@ jobs:
           LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name "$LAYER_NAME" \
             --zip-file fileb://api_layer.zip \
-            --compatible-runtimes python3.12 \
+            --compatible-runtimes python3.11 python3.12 \
             --region $AWS_REGION \
             --query 'Version' \
             --output text)
@@ -650,6 +650,7 @@ jobs:
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          API_LAYER_ARN="${{ env.API_LAYER_ARN }}"
 
           # Get environment from terraform.tfvars
           ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
@@ -664,12 +665,8 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION
 
-          # Get current layer ARN
-          API_LAYER_ARN=$(aws lambda list-layer-versions \
-            --layer-name algo-api-layer \
-            --region $AWS_REGION \
-            --query 'LayerVersions[0].LayerVersionArn' \
-            --output text | tr -d '\n' | xargs)
+          # Use layer ARN from publish step
+          echo "Using layer ARN: $API_LAYER_ARN"
 
           # Get API Lambda current configuration (for VPC, role, etc.)
           API_CFG=$(aws lambda get-function-configuration \

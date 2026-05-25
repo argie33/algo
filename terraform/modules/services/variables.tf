@@ -135,6 +135,12 @@ variable "lambda_layer_name" {
   default     = "algo-orchestrator-layer"
 }
 
+variable "api_lambda_layer_name" {
+  description = "Name of the API Lambda layer with dependencies"
+  type        = string
+  default     = "algo-api-layer"
+}
+
 # ============================================================
 # Storage Configuration
 # ============================================================
