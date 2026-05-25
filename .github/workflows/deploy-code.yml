@@ -400,7 +400,7 @@ jobs:
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_function_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           # Export variables for Python script
           export FUNC_NAME="$FUNC"
@@ -702,7 +702,7 @@ jobs:
 
       - name: Deploy API Lambda
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           API_LAYER_ARN="${{ env.API_LAYER_ARN }}"
 
@@ -899,6 +899,31 @@ jobs:
             echo "✅ API health check passed"
           else
             echo "⚠️ API health check returned $HTTP_CODE (expected 200)"
+          fi
+
+      - name: Add Provisioned Concurrency to API Lambda
+        continue-on-error: true
+        run: |
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          echo "Adding provisioned concurrency to API Lambda: $FUNC"
+
+          # Check if provisioned concurrency already exists
+          EXISTING=$(aws lambda get-provisioned-concurrency-config \
+            --function-name "$FUNC" \
+            --region $AWS_REGION \
+            --query 'ProvisionedConcurrentExecutions' \
+            --output text 2>/dev/null || echo "None")
+
+          if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
+            echo "✓ Provisioned concurrency already configured: $EXISTING"
+          else
+            echo "Setting provisioned concurrency to 10 instances..."
+            aws lambda put-provisioned-concurrency-config \
+              --function-name "$FUNC" \
+              --provisioned-concurrent-executions 10 \
+              --region $AWS_REGION
+            echo "✅ Provisioned concurrency set to 10 instances"
+            echo "   This will keep Lambda warm and eliminate cold-start timeouts (cost: ~$0.015/hour)"
           fi
 
   # ──────────────────────────────────────────────────────────────
