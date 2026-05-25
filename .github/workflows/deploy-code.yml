@@ -767,7 +767,7 @@ jobs:
 
           # Update function configuration with environment variables using Python
           echo "Building environment variables JSON..."
-          python3 <<'PYSCRIPT'
+          python3 << EOF
 import json, os
 vars_dict = {
     "DB_SECRET_ARN": os.environ.get("DB_SECRET_ARN", ""),
@@ -787,7 +787,7 @@ if cognito_client and cognito_client != "None":
     vars_dict["COGNITO_CLIENT_ID"] = cognito_client
 with open("/tmp/api_env.json", "w") as f:
     json.dump({"Variables": vars_dict}, f, indent=2)
-PYSCRIPT
+EOF
 
           echo "Updating API Lambda configuration..."
 
