@@ -183,8 +183,8 @@ class DataPatrol:
                 col_safe = assert_safe_column(col)
                 count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
                 if not latest_str:
-                    # Use severity from config for empty tables (INFO for optional, CRIT for critical)
-                    empty_severity = sev_on_stale if sev_on_stale in (INFO, WARN) else CRIT
+                    # Empty tables log as INFO/WARN, never CRITICAL (loaders may not have run yet)
+                    empty_severity = INFO if sev_on_stale == CRIT else sev_on_stale
                     self.log('staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
                 # Handle both date and datetime formats
