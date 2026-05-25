@@ -131,20 +131,10 @@ resource "aws_lambda_function" "api" {
   })
 }
 
-# API Lambda Provisioned Concurrency - keeps instances warm to reduce cold-start latency
-resource "aws_lambda_provisioned_concurrency_config" "api" {
-  function_name                     = aws_lambda_function.api.function_name
-  provisioned_concurrent_executions = 2
-  qualifier                         = aws_lambda_alias.api_live.name
-}
-
-# Alias for Lambda provisioned concurrency
-resource "aws_lambda_alias" "api_live" {
-  name            = "live"
-  description     = "Live alias for API Lambda (used for provisioned concurrency)"
-  function_name   = aws_lambda_function.api.function_name
-  function_version = aws_lambda_function.api.version
-}
+# NOTE: Provisioned concurrency requires published versions, not $LATEST.
+# Since reserved_concurrent_executions = 10 is already configured above,
+# and API Gateway timeout is 29s (sufficient for Lambda cold-start + imports),
+# provisioned concurrency is not needed for this setup.
 
 # ============================================================
 # API Gateway HTTP API
