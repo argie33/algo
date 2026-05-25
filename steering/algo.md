@@ -93,13 +93,25 @@ APCA_API_BASE_URL = https://paper-api.alpaca.markets
 | Secrets Manager | `algo-db-credentials-dev` | Database password (auto-synced from Terraform) |
 | ECS Task Defs | `algo-<loader>-loader` | 24 individual loaders for data (prices, technicals, fundamentals, etc.) |
 
-## SCHEDULE (EventBridge, Mon-Fri Trading Days Only)
+## SCHEDULE (EventBridge, Mon-Fri Only — UTC Times)
 
-- **4:00 AM ET:** Price loaders run (yfinance daily/weekly prices, FRED economic indicators)
-- **9:30 AM ET:** Morning orchestrator runs (market opens, fresh data available; generates buy signals for swing traders)
-- **5:30 PM ET:** Evening orchestrator runs (market closes; calculates end-of-day metrics, swing trade reconciliation)
+All times are UTC (EventBridge has no concept of US holidays).
+The orchestrator exits early on market holidays via `MarketCalendar.is_trading_day()`.
 
-Holiday dates skip all tasks (Memorial Day, July 4th, Thanksgiving, Christmas).
+| UTC Time | Event | ET Equivalent |
+|----------|-------|---------------|
+| 08:25 | stock_symbols loader | 4:25 AM EST / 5:25 AM EDT |
+| 09:00 | stock_prices_daily loader (prices first, so downstream loaders see fresh data) | 4:00 AM EST / 5:00 AM EDT |
+| 09:30 | market_data_batch (market health — runs AFTER prices to read from price_daily) | 4:30 AM EST / 5:30 AM EDT |
+| 09:30 | Morning Step Functions pipeline starts (eod_bulk_refresh → technicals → signals → ECS orchestrator invoked) | 4:30 AM EST / 5:30 AM EDT |
+| 14:30 | Morning orchestrator Lambda (EventBridge Scheduler, 9:30 AM ET) | 9:30 AM ET |
+| 21:00 | EOD Step Functions pipeline (5:00 PM ET) | 5:00 PM ET |
+| 22:30 | Evening orchestrator Lambda (EventBridge Scheduler, 5:30 PM ET) | 5:30 PM ET |
+
+**Important:** market_data_batch schedule must stay at UTC 09:30 (after stock_prices_daily at UTC 09:00).
+`load_market_health_daily.py` reads from `price_daily`, so it must run after prices are loaded.
+If it runs before prices, market health will reflect yesterday's data, causing Phase 1 to halt
+after any multi-day weekend because the calendar gap exceeds the staleness threshold.
 
 ## LOADERS
 
@@ -124,15 +136,18 @@ Holiday dates skip all tasks (Memorial Day, July 4th, Thanksgiving, Christmas).
 
 ## DATA FRESHNESS POLICY
 
-Circuit breakers halt trading if data is stale:
+Phase 1 and Phase 2 (circuit breaker) compare each table's latest date against the **previous trading day** (not a fixed calendar threshold). This handles multi-day holiday weekends correctly — e.g., after Memorial Day, the gap from Friday to Tuesday is 4 calendar days but the data is still from the most recent trading day.
 
-| Table | Fresh | Stale | Consequence |
-|-------|-------|-------|-------------|
-| `price_daily`, `technical_data_daily` | < 1 day | > 7 days | Phase 1 halts (no trading) |
-| `buy_sell_daily`, `stock_scores` | < 1 day | > 7 days | Phase 1 halts (no trading) |
-| `company_profile`, `key_metrics` | < 30 days | > 90 days | Warning logged (trading continues) |
+| Table | Expected | Consequence if stale |
+|-------|----------|----------------------|
+| `price_daily` (SPY) | Most recent trading day | Phase 1 halts (fail-closed) |
+| `market_health_daily` | Most recent trading day | Phase 1 halts (fail-closed) |
+| `trend_template_data` | Most recent trading day | Phase 1 halts (fail-closed) |
+| `signal_quality_scores` | Most recent trading day | Phase 1 halts (fail-closed) |
+| `buy_sell_daily` | Most recent trading day | Phase 1 halts (fail-closed) |
+| `company_profile`, `key_metrics` | Within 30 days | Warning logged (trading continues) |
 
-**Why:** Prevents trading on stale market data. Null fields in metrics are expected (not all stocks have all indicators).
+**Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` and `algo/algo_circuit_breaker.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
 
 ## DEBUGGING & TROUBLESHOOTING
 
