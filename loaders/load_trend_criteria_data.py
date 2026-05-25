@@ -145,8 +145,9 @@ class TrendCriteriaLoader(OptimalLoader):
             # Consolidation: price within 10% range over 10 days
             if idx >= 10:
                 recent = df["close"].iloc[idx-10:idx+1]
-                rng = (recent.max() - recent.min()) / recent.mean()
-                consolidation = bool(rng < 0.10)
+                mean_price = recent.mean()
+                rng = (recent.max() - recent.min()) / mean_price if mean_price > 0 else None
+                consolidation = bool(rng is not None and rng < 0.10)
             else:
                 consolidation = False
 

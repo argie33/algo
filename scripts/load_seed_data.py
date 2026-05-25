@@ -70,12 +70,12 @@ def load_seed_data():
 
         # 3. Populate technical_data_daily (required for signals)
         logger.info("Loading technical_data_daily...")
-        for symbol in symbols:
+        for i, symbol in enumerate(symbols):
             for day_offset in range(5, 0, -1):
                 d = today - timedelta(days=day_offset)
                 cur.execute("""
                     INSERT INTO technical_data_daily
-                    (symbol, date, sma_50, sma_200, rsi_14, atr_14, macd, signal_line)
+                    (symbol, date, sma_50, sma_200, rsi_14, atr_14, macd, macd_signal)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol, date) DO NOTHING
                 """, (
@@ -96,13 +96,13 @@ def load_seed_data():
             d = today - timedelta(days=day_offset)
             cur.execute("""
                 INSERT INTO market_health_daily
-                (date, advance_decline_ratio, breadth_10day, distribution_days,
-                 vix_close, market_stage, bull_points)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (date, advance_decline_ratio, breadth_momentum_10d, distribution_days_4w,
+                 vix_level, market_stage)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO NOTHING
             """, (
                 d, 1.5, 0.65, 0,
-                15.5, 2, 7
+                15.5, 2
             ))
         conn.commit()
         logger.info("✓ market_health_daily loaded")
