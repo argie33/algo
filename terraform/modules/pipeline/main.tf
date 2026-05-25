@@ -408,14 +408,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "StockScores"
       }
 
-      # ── Step 6: Stock quality scores (depends on signals_daily populating buy_sell_daily) ──
-      StockScores = {
+      # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
+      SignalQualityScores = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
+          TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{

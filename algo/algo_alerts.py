@@ -123,15 +123,12 @@ class AlertManager:
         # SMS message (short version)
         sms_text = f"[ALGO {severity}] Data Patrol: {critical} critical, {error} error. Check email for details."
 
-        # Send email
         if self.email_to:
             self._send_email(subject, body_text)
 
-        # Send SMS
         if self.phone_numbers and self.twilio_client:
             self._send_sms(sms_text)
 
-        # Send webhook (Slack-compatible format)
         if self.webhook_url:
             self._send_webhook(subject, critical, error, warn, flagged_findings)
 
