@@ -1,103 +1,192 @@
 # Stock Analytics Platform — Algo
 
+Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. 3 concurrent positions max. Reconciles with Alpaca daily.
+
 ## SYSTEM MAP
-| Component | Code | Deploy | Trigger |
-|-----------|------|--------|---------|
-| Orchestrator | `algo/algo_orchestrator.py` | Λ + Local | Schedule/manual |
-| Loaders | `loaders/load_*.py` | ECS Fargate | EventBridge |
-| API | `lambda/api/lambda_function.py` | Λ HTTP | API Gateway |
-| Frontend | `webapp/frontend/src/` | React + S3/CF | npm build |
-| Signals | `algo/algo_signals.py` | Λ (Phase 5) | Orchestrator |
 
-**DB:** `terraform/modules/database/init.sql` → Terraform → RDS. Schema enforced in-repo, docker-compose reuses.
+| Component | Code | Deployment | Trigger |
+|-----------|------|------------|---------|
+| Orchestrator (main loop) | `algo/algo_orchestrator.py` | Lambda (algo-algo-dev) | EventBridge schedule: 9:30 AM ET, 5:30 PM ET Mon-Fri |
+| Loaders (data fetchers) | `loaders/load_*.py` (24 scripts) | ECS Fargate tasks | EventBridge: 4:00 AM ET for prices, others per schedule |
+| API (REST endpoints) | `lambda/api/lambda_function.py` | Lambda (algo-api-dev) | API Gateway HTTP requests |
+| Frontend (dashboard) | `webapp/frontend/src/` | S3 + CloudFront | npm run build (React app) |
+| Signals (Phase 5) | `algo/algo_signals.py` | Lambda Phase 5 | Called by orchestrator |
+| Database (data storage) | PostgreSQL | RDS (algo-db) | Schema: `terraform/modules/database/init.sql` |
 
-## CREDENTIALS
-| Env | Store | Keys |
-|-----|-------|------|
-| Local | PowerShell profile | DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_PAPER_TRADING, FRED_API_KEY |
-| CI/GitHub Actions | **OIDC** (no static keys!) | AWS role: `algo-svc-github-actions-dev`. Uses OIDC token, not credentials |
-| CI/GitHub Secrets | GitHub Secrets | APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, RDS_PASSWORD, AWS_ACCOUNT_ID |
-| Prod | AWS Secrets Manager | algo/database, algo/alpaca, algo/fred |
+## CREDENTIALS & SECRETS
 
-**Rules:** Rotate Q, instant if leaked, ❌ .env, ❌ static AWS keys in CI. Use OIDC only. SEC_USER_AGENT hardcoded in loader_loop.py: `algo-trading argeropolos@gmail.com`
+**Local Development (PowerShell profile):**
+```
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL
+APCA_API_KEY_ID, APCA_API_SECRET_KEY (Alpaca paper keys)
+ALPACA_API_KEY, ALPACA_API_SECRET (Alpaca account)
+ALPACA_PAPER_TRADING = true or false (paper vs live)
+FRED_API_KEY (economic data)
+```
+
+**GitHub CI (GitHub Secrets):**
+- `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY` — Alpaca API keys
+- `ALPACA_API_KEY`, `ALPACA_API_SECRET` — Alpaca trading keys
+- `FRED_API_KEY` — Federal Reserve economic data
+- `RDS_PASSWORD` — Database password
+- `AWS_ACCOUNT_ID` — AWS account number
+
+**Production (AWS Secrets Manager):**
+- `algo/database` — RDS password (synced from Terraform)
+- `algo/alpaca` — Alpaca API/trading keys
+- `algo/fred` — FRED API key
+
+**Rules:**
+- Rotate credentials quarterly
+- If leaked to git history, rotate immediately
+- Never commit `.env` files
+- CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
 ## LIVE TRADING CONFIG
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| ALGO_LIVE_TRADING | I_UNDERSTAND_REAL_MONEY | Required for live trades |
-| ALPACA_PAPER_TRADING | false | Disable paper mode |
-| APCA_API_BASE_URL | https://api.alpaca.markets | Live API endpoint |
 
-## DEPLOY & AUTHENTICATION
-**GitHub Actions uses OIDC (no static credentials):**
+Set these in PowerShell profile for live trading (real money):
+
+```
+ALGO_LIVE_TRADING = I_UNDERSTAND_REAL_MONEY    (required, exact string)
+ALPACA_PAPER_TRADING = false                     (disables paper mode)
+APCA_API_BASE_URL = https://api.alpaca.markets  (live endpoint, not paper)
+```
+
+For paper trading (testing), set:
+```
+ALPACA_PAPER_TRADING = true
+APCA_API_BASE_URL = https://paper-api.alpaca.markets
+```
+
+## DEPLOYMENT ARCHITECTURE
+
+**GitHub Actions → AWS:**
 - Workflow: `aws-actions/configure-aws-credentials@v4`
-- Role: `arn:aws:iam::<ACCOUNT>:role/algo-svc-github-actions-dev`
-- OIDC exchanges GitHub token → AWS role → temporary credentials
-- **Never commit AWS keys to repo**
+- Authentication: OIDC (OpenID Connect) — GitHub token exchanges for temporary AWS credentials
+- IAM Role: `arn:aws:iam::<ACCOUNT_ID>:role/algo-svc-github-actions-dev`
+- No static AWS keys in repo
 
-**Database Lambdas use psycopg2 Layer (built in Terraform):**
-- Layer: `algo-psycopg2-layer-{env}` (created by Terraform in `modules/database/main.tf`)
-- Reason: Platform isolation (Linux wheels built in CI, incompatible with local Windows dev)
+**Lambda Layer (psycopg2):**
+- Name: `algo-psycopg2-layer-dev` (created by Terraform)
+- Why: Python wheels built on Linux; Windows dev wheels incompatible. Layer built once, reused.
 - Runtime: Python 3.12
-- Lambdas using it: `algo-db-init-dev`, `algo-api-dev`
+- Used by: `algo-api-dev`, `algo-db-init-dev` Lambdas
+- Deploy: Via `deploy-all-infrastructure.yml`
 
-**Deployment triggers:**
-`git push main` → `deploy-code.yml` (auto: test, scan, code) OR `deploy-all-infrastructure.yml` (manual: terraform, Λ, ECS)
+**Workflows & Deployment:**
 
-| Workflow | Type | Scope |
-|----------|------|-------|
-| deploy-code.yml | Auto | Tests, scan, code |
-| deploy-all-infrastructure.yml | Manual | Terraform, Λ layers, ECS |
-| test-orchestrator.yml | Manual | Invoke Λ |
-| manual-invoke-loaders.yml | Manual | ECS tasks |
+| Workflow | Trigger | What It Does |
+|----------|---------|-------------|
+| `deploy-code.yml` | `git push main` (automatic) | Run tests, lint, security scan, deploy code to Lambdas |
+| `deploy-all-infrastructure.yml` | Manual dispatch | Terraform apply, rebuild Lambda layers, deploy ECS tasks |
+| `test-orchestrator.yml` | Manual dispatch | Invoke orchestrator Lambda directly |
+| `manual-invoke-loaders.yml` | Manual dispatch | Manually run individual ECS loader tasks |
 
-| Resource | Name |
-|----------|------|
-| ECS Cluster | `algo-cluster` |
-| Orchestrator Λ | `algo-algo-dev` |
-| API Λ | `algo-api-dev` |
-| RDS | `algo-db` (endpoint: `algo-db.*.us-east-1.rds.amazonaws.com`) |
-| RDS Secret | `algo-db-credentials-dev` (AWS Secrets Manager) |
-| Tasks | `algo-{loader}-loader` |
+## AWS RESOURCES (us-east-1)
 
-Monitor: https://github.com/argie33/algo/actions
+| Resource Type | Name | Purpose |
+|---------------|------|---------|
+| ECS Cluster | `algo-cluster` | Container orchestration for loader tasks |
+| Lambda Function | `algo-algo-dev` | Orchestrator (7-phase workflow) |
+| Lambda Function | `algo-api-dev` | HTTP REST API endpoints |
+| RDS Database | `algo-db` | PostgreSQL database (endpoint: `algo-db.<random>.us-east-1.rds.amazonaws.com`) |
+| Secrets Manager | `algo-db-credentials-dev` | Database password (auto-synced from Terraform) |
+| ECS Task Defs | `algo-<loader>-loader` | 24 individual loaders for data (prices, technicals, fundamentals, etc.) |
 
-## LOADER CONFIGURATION
-24 loaders: `loaders/load_*.py` — prices, technicals, metrics, fundamentals, sentiment, signals
+## SCHEDULE (EventBridge, Mon-Fri Trading Days Only)
 
-SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
+- **4:00 AM ET:** Price loaders run (yfinance daily/weekly prices, FRED economic indicators)
+- **9:30 AM ET:** Morning orchestrator runs (market opens, fresh data available; generates buy signals for swing traders)
+- **5:30 PM ET:** Evening orchestrator runs (market closes; calculates end-of-day metrics, swing trade reconciliation)
 
-## SCHEDULE (EB, Mon-Fri)
-- 4A ET: Price loaders (yfinance, FRED)
-- 9:30A ET: Morning orchestrator (fresh prices + technicals)
-- 5:30P ET: Evening orchestrator (swing trades)
+Holiday dates skip all tasks (Memorial Day, July 4th, Thanksgiving, Christmas).
 
-## KEY FILES
+## LOADERS
+
+24 loader scripts in `loaders/load_*.py`:
+- **Prices:** `load_price_daily.py`, `load_price_weekly.py`, `load_price_monthly.py` (yfinance)
+- **Technicals:** RSI, SMA, EMA, ATR, ADX, Bollinger Bands (calculated, stored in `technical_data_daily`)
+- **Fundamentals:** PE ratio, earnings, revenue, margins (via Yahoo Finance API)
+- **Market health:** Distribution days, advance/decline, breadth, VIX (via Yahoo, CBOE)
+- **Signals:** Quality scores, buy/sell rankings (calculated by orchestrator Phase 5)
+
+**SEC/EDGAR Request Header:** `User-Agent: algo-trading argeropolos@gmail.com` (required for SEC rate limits, hardcoded in `loaders/loader_loop.py`)
+
+## KEY FILES & ENTRYPOINTS
+
 | File | Purpose |
 |------|---------|
-| `algo/algo_orchestrator.py` | 7-phase main loop |
-| `lambda/api/lambda_function.py` | HTTP API, auth, CORS |
-| `algo/algo_signals.py` | Phase 5 signal rules |
-| `config/credential_manager.py` | Secrets fetcher |
-| `terraform/main.tf` | Infra as code |
+| `algo/algo_orchestrator.py` | Main 7-phase orchestrator (data freshness → circuit breakers → position monitor → exits → signals → entries → reconciliation) |
+| `algo/algo_signals.py` | Signal generation logic (Minervini trend + technical filters + fundamental screening) |
+| `lambda/api/lambda_function.py` | REST API: `/api/stocks`, `/api/signals`, `/api/positions`, `/api/health`, etc. |
+| `config/credential_manager.py` | Fetches secrets from AWS Secrets Manager (production) or env vars (local) |
+| `terraform/main.tf` | Infrastructure as code (Lambdas, RDS, ECS, IAM, secrets) |
 
 ## DATA FRESHNESS POLICY
-| Table | Fresh | Stale |
-|-------|-------|-------|
-| `price_daily`, `technical_data_daily` | < 1 day | > 7 days |
-| `buy_sell_daily`, `stock_scores` | < 1 day | > 7 days |
-| `company_profile`, `key_metrics` | < 30 days | > 90 days |
 
-**Why:** Circuit breakers halt on stale data. Null fields expected in metrics.
+Circuit breakers halt trading if data is stale:
 
-## TROUBLESHOOTING
-| Issue | Fix |
-|-------|-----|
-| Phase 1 schema errors | Ensure DB tables exist: `data_patrol_log`, `data_loader_status`. Rebuild via `deploy-code.yml` if missing |
-| API returns 500 | Check RDS VPC SG, Lambda env vars, API CloudWatch logs |
-| DB connectivity | Check: RDS endpoint, Secrets Manager creds match password, Lambda env var DB_SECRET_ARN set, VPC SG allows 5432 |
-| Creds fail | ❌ Don't use local AWS credentials. Use GitHub Actions workflows (OIDC auto-authenticates) |
-| Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
-| Signals missing | Data in `technical_data_daily`? Rules in code? |
-| Alpaca 401 | Set `ALPACA_PAPER_TRADING=false` for live, `true` for paper |
+| Table | Fresh | Stale | Consequence |
+|-------|-------|-------|-------------|
+| `price_daily`, `technical_data_daily` | < 1 day | > 7 days | Phase 1 halts (no trading) |
+| `buy_sell_daily`, `stock_scores` | < 1 day | > 7 days | Phase 1 halts (no trading) |
+| `company_profile`, `key_metrics` | < 30 days | > 90 days | Warning logged (trading continues) |
 
+**Why:** Prevents trading on stale market data. Null fields in metrics are expected (not all stocks have all indicators).
+
+## DEBUGGING & TROUBLESHOOTING
+
+**Schema validation:** Verify these tables exist in RDS:
+- `data_patrol_log` — data quality checks
+- `data_loader_status` — loader execution history
+- `algo_audit_log` — orchestrator decisions
+
+If missing, rebuild schema via `deploy-code.yml` (loads `terraform/modules/database/init.sql` to RDS).
+
+**Lambda environment variables:** All Lambdas require:
+- `DB_SECRET_ARN` — Points to RDS password in Secrets Manager (must match actual Secrets Manager path)
+- Check: Lambda config (not in code), CloudWatch Logs for `algo-api-dev` and `algo-algo-dev`
+
+**Database connectivity from Lambda:**
+- Lambdas run in VPC (security group controls). Requirements:
+  - RDS endpoint in env var matches actual RDS instance
+  - Secrets Manager password synced with RDS actual password
+  - VPC Security Group allows outbound port 5432 to RDS subnet
+  - RDS is in same VPC/subnet as Lambda
+
+**Loader execution:**
+- ECS tasks need: IAM task role with ECS permissions, internet access (NAT gateway), RDS access (VPC)
+- Timeouts usually indicate: API rate limits (yfinance, SEC, Alpaca), no internet access, or RDS unreachable
+- Check CloudWatch Logs for specific errors
+
+**Signal generation:**
+- Requires recent data in `technical_data_daily`
+- If `buy_sell_daily` is empty: verify loaders ran successfully, price data exists, technicals were calculated
+- Check `data_loader_status` table for which loaders succeeded/failed
+
+**Alpaca authentication errors (401):**
+- Live trading: `ALPACA_PAPER_TRADING=false`, `APCA_API_BASE_URL=https://api.alpaca.markets` in PowerShell profile
+- Paper trading: `ALPACA_PAPER_TRADING=true`, `APCA_API_BASE_URL=https://paper-api.alpaca.markets`
+- Verify in PowerShell: `$env:ALPACA_PAPER_TRADING`, `$env:APCA_API_BASE_URL`
+
+**API Lambda cold-start timeout (500 errors on first request):**
+- Lambda in VPC takes 15-40s to initialize (ENI provisioning + imports) on cold-start
+- API Gateway timeout: 29 seconds (hard limit)
+- Solution: Reserved concurrency = 1 in Terraform (costs ~$0.015/hour, keeps instance warm)
+- Workaround: Retry requests; second request works (instance warm)
+
+**"Phase 7 reconciliation timeout":**
+- Alpaca API calls have 30-second thread-based timeout wrapper (since May 26 fix)
+- If orchestrator still hangs: check if Alpaca API endpoint is reachable, network issues
+
+## ORCHESTRATOR PHASES
+
+1. **Phase 1 — Data Freshness:** Verify price_daily, technical_data_daily recent (< 7 days). Halt if stale.
+2. **Phase 2 — Circuit Breakers:** Check drawdown, daily loss, consecutive losses, VIX, market stage. Halt if any triggered.
+3. **Phase 3 — Position Monitor:** Evaluate each open position (price, P&L, trailing stop, health score). Propose: HOLD, RAISE_STOP, or EARLY_EXIT.
+4. **Phase 4 — Exit Execution:** Execute exits from Phase 3 + exit_engine rules (trailing stops, tiered targets, time decay).
+5. **Phase 5 — Signal Generation:** Evaluate today's BUY signals through Tier 1-6 filters (data quality, market, trend, SQS, portfolio, advanced). Rank and take top N.
+6. **Phase 6 — Entry Execution:** Execute trades for ranked candidates (final checks, position sizing, order placement).
+7. **Phase 7 — Reconciliation:** Pull live Alpaca account, sync positions, calculate P&L, write portfolio snapshot to `algo_audit_log`.
+
+All phases write audit logs. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).

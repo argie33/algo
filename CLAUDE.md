@@ -4,60 +4,54 @@ This workspace supports multiple projects. When working in this repo, **read the
 
 ## Projects
 
-| Project | Location | Steering | Checklists |
-|---------|----------|----------|-----------|
-| **algo** | `.` | `steering/algo.md` | `DEPLOY_CHECKLIST.md`, `LIVE_TRADING_CHECKLIST.md` |
+| Project | Location | Steering |
+|---------|----------|----------|
+| **algo** | `.` | `steering/algo.md` |
 
-## ⚠️ STEERING COMMANDMENTS
+## STEERING PRINCIPLES
 
-**Future Claudes: Do not deviate. Follow these rules exactly.**
+**Goal:** Steering docs are the single source of truth for how systems work. They must be clear, complete, and verifiable so people can understand and debug the system without relying on stale memory.
 
-1. No live status/counts (only guidance: system map, credentials, deploy, resources, schedule, key files, troubleshooting). Live state → GitHub Actions, AWS, git log
-2. No prose (tables, bullets, one-liners only — no paragraphs)
-3. Stay under limits: Root < 50 lines, steering docs < 150 lines
-4. Abbreviate aggressively (token burn is critical; see patterns below)
-5. Update steering doc in same commit as system changes
-6. No layering (all steering in `steering/`, not in subdirs)
+**Rules:**
 
-**Quick reference:** `STEERING_CHECKLIST.md` lists red flags before committing steering edits.
+1. **Content:** System map, credentials, deploy procedures, resources, schedule, key files, and debugging/troubleshooting procedures. NO live operational status ("currently broken", "just deployed", "as of 3pm"). That goes in GitHub Actions logs.
+2. **Clarity over brevity:** Write for understanding first. Spell out times (4:00 AM ET, not 4A ET). Say "Lambda" not "Λ". If an abbreviation requires decoding, don't use it. Long sentences that are clear beat short sentences that confuse.
+3. **Length:** No arbitrary limits. A 250-line steering doc that's clear is better than a 100-line one that requires guessing.
+4. **Procedures, not status:** Document "how to debug X" (verifiable steps), not "X is broken" (stale status).
+5. **Update in same commit:** When code changes, update steering doc in the same commit. No async updates.
 
-## Where Each Thing Goes
+## Where Information Goes
+
 | What | Where | Why |
 |------|-------|-----|
-| Static config (paths, ports, credentials, deploy) | `steering/{project}.md` | Versioned, discoverable |
-| Operational status (live errors, deployments, blockers) | GitHub Issues / GitHub Actions | Real-time, not stale |
-| History (commits, changes) | `git log --oneline` | Authoritative |
-| Behavioral guidance (team patterns) | Memory (1 file max, <50 lines) | Evolves with learnings |
+| How systems work, procedures, credentials | `steering/{project}.md` | Single source of truth, versioned with code |
+| Current operational state, errors happening now | GitHub Actions logs, AWS console | Real-time, authoritative, automatic |
+| Git history and commits | `git log` with good commit messages | Permanent, immutable record |
 
-**NEVER add to steering:** status, blockers, errors, timestamps, "as of X", anything temporary.
-**NEVER add to memory:** status snapshots, incident logs, live state of any kind.
-
-## Abbreviation Patterns
-
-- Times: `4A ET` not `4:00 AM Eastern Time`
-- Arrows: `data → DB` not `data goes to database`
-- Paths: `algo/algo_orchestrator.py — 7-phase runner` (path + one-word purpose)
-- Emoji: `✅ local`, `❌ AWS` (not prose status)
-- Commands: `python3 -m pytest tests/` (actual, runnable)
-- Tables: Use for maps, not prose descriptions
-- Lists: `RSI, SMA, EMA, ATR` (comma-sep, scannable)
-
-## Adding Projects
-
-1. Create `steering/{name}.md` with: system map, credentials, deploy, resource names, schedule, key files, troubleshooting, local dev (**NO status**)
-2. Add row to project table
-3. Verify: root < 50 lines, steering < 150 lines, commit both together
+**NEVER in steering:** Live status, timestamps, incident logs, "as of", blockers.
 
 ## Code Cleanliness (Pre-Commit Enforced)
-⚠️ **Violations block commit:** .env, session docs at root, test files, `print()` in lib code, pdb/breakpoint, 1-way scripts at root, >1MB files.
-**Exempt from print():** `algo_loader_*.py`, `algo_daily_report.py`, `scripts/`, `tests/`. See `.git/hooks/pre-commit`.
+
+**Blocks commits:**
+- `.env` files (use AWS Secrets Manager instead)
+- Session-specific docs at root (`EXECUTION_*.md`, `*_STATUS.md`, etc.)
+- One-time scripts at root (put in `scripts/` or `tests/`)
+- `pdb`, `ipdb`, `breakpoint()` left in code
+- `print()` statements in library code (use logging instead)
+- Files > 1MB (binaries, artifacts, dumps)
+
+**Allowed:**
+- `print()` in: `algo_loader_*.py`, `algo_daily_report.py`, `scripts/`, `tests/`
+- Configuration files that are generated/static
 
 ## Security Baseline
 
-⚠️ **All projects follow:**
+All projects follow:
 - ❌ NO `.env` files. Ever.
-- ✅ Local: PowerShell profile, CI: GitHub Secrets, Production: AWS Secrets Manager
+- ✅ Local: PowerShell profile env vars
+- ✅ CI: GitHub Secrets (for deploy tokens only)
+- ✅ Production: AWS Secrets Manager
 - ✅ Rotate credentials quarterly
-- ✅ If secrets leak to git history, rotate immediately
+- ✅ If leaked: rotate immediately
 
-See project steering docs for credential-specific paths and policies.
+See project steering docs for specifics.
