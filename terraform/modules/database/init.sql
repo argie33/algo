@@ -2884,3 +2884,64 @@ DO $$ BEGIN
         ALTER TABLE quarterly_cash_flow ADD COLUMN financing_cash_flow DECIMAL(20, 2);
     END IF;
 END $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ENHANCED AUDIT LOGGING FOR REAL MONEY TRADING
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Position sizing audit: track all multipliers and cascade effect
+CREATE TABLE IF NOT EXISTS algo_position_sizing_audit (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    signal_date DATE NOT NULL,
+    entry_price DECIMAL(15, 4) NOT NULL,
+    stop_loss_price DECIMAL(15, 4) NOT NULL,
+    base_shares INTEGER NOT NULL,
+    final_shares INTEGER NOT NULL,
+    position_size_pct DECIMAL(8, 4) NOT NULL,
+    cascade_multiplier DECIMAL(10, 4) NOT NULL DEFAULT 1.0,
+    multipliers_json TEXT,
+    reasons_json TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_position_sizing_symbol_date
+    ON algo_position_sizing_audit(symbol, signal_date DESC);
+CREATE INDEX IF NOT EXISTS idx_position_sizing_created_at
+    ON algo_position_sizing_audit(created_at DESC);
+
+-- Stop loss calculation audit: why was each stop chosen
+CREATE TABLE IF NOT EXISTS algo_stop_loss_audit (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    signal_date DATE NOT NULL,
+    entry_price DECIMAL(15, 4) NOT NULL,
+    stop_loss_price DECIMAL(15, 4) NOT NULL,
+    distance_pct DECIMAL(8, 4) NOT NULL,
+    stop_method VARCHAR(50) NOT NULL,
+    stop_reasoning TEXT,
+    candidates_json TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_stop_loss_symbol_date
+    ON algo_stop_loss_audit(symbol, signal_date DESC);
+CREATE INDEX IF NOT EXISTS idx_stop_loss_created_at
+    ON algo_stop_loss_audit(created_at DESC);
+
+-- Exit rules distribution: track which exits fire most
+CREATE TABLE IF NOT EXISTS algo_exit_rules_distribution (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    position_id VARCHAR(50),
+    exit_rule VARCHAR(50) NOT NULL,
+    exit_reason TEXT,
+    entry_price DECIMAL(15, 4),
+    exit_price DECIMAL(15, 4),
+    pnl_dollars DECIMAL(15, 2),
+    pnl_pct DECIMAL(8, 2),
+    r_multiple DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_exit_rules_created_at
+    ON algo_exit_rules_distribution(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
+    ON algo_exit_rules_distribution(exit_rule, created_at DESC);

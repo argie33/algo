@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from routes import (algo, financials, earnings, signals, prices, stocks,
                     sectors, industries, market, economic, sentiment,
-                    scores, research, audit, trades, admin, contact, settings, health)
+                    scores, research, audit, trades, admin, contact, settings, health, risk_dashboard)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ HANDLERS = {
     '/api/scores': scores, '/api/research': research, '/api/audit': audit,
     '/api/trades': trades, '/api/admin': admin,
     '/api/contact': contact, '/api/settings': settings,
+    '/api/algo/risk-dashboard': risk_dashboard,
 }
 
 # Pre-compute which handlers accept jwt_claims (avoids TypeError fallback hacks)

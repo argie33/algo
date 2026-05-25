@@ -768,7 +768,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 }
 
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
-            stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
+            stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
+            stop_loss_price = stop_info.get('stop_price') if isinstance(stop_info, dict) else stop_info
 
             # Fail if no valid stop can be computed (insufficient structural levels)
             if stop_loss_price is None:
@@ -777,6 +778,22 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     'reason': 'No valid stop loss available (insufficient technical indicators)',
                     'trend_score': trend_score,
                 }
+
+            # Log stop loss calculation for audit trail
+            if isinstance(stop_info, dict):
+                try:
+                    from algo.algo_trade_audit_logger import TradeAuditLogger
+                    audit = TradeAuditLogger()
+                    audit.log_stop_loss_calculation(
+                        symbol, signal_date, entry_price if 'entry_price' in dir() else None,
+                        stop_loss_price,
+                        stop_info.get('method', 'unknown'),
+                        stop_info.get('reasoning', ''),
+                        stop_info.get('candidates', {}),
+                    )
+                    audit.disconnect()
+                except Exception as e:
+                    logger.debug(f"Stop loss audit logging failed: {e}")
 
             return {
                 'pass': True,
@@ -988,6 +1005,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         VCP uses last contraction, etc — research-backed per pattern). If
         that's not available, uses best of (50-DMA, swing low, 2x ATR)
         capped at 8% below entry.
+
+        Returns dict with keys: stop_price, method, reasoning, candidates
         """
         self.cur.execute(
             "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
@@ -995,7 +1014,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         )
         row = self.cur.fetchone()
         if not row:
-            return None
+            return {'stop_price': None, 'method': 'none', 'reasoning': 'No price data', 'candidates': {}}
         entry = float(row[0])
 
         # Try base-type-specific stop first (most accurate per the canon)
@@ -1010,7 +1029,12 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 self._last_stop_base_type = base_stop_info['base_type']
                 # Only use base-type stop if it's NOT the fallback (real base detected)
                 if 'fallback' not in base_stop_info['method'] and 'sanity' not in base_stop_info['method']:
-                    return base_stop_info['stop_price']
+                    return {
+                        'stop_price': base_stop_info['stop_price'],
+                        'method': base_stop_info['method'],
+                        'reasoning': base_stop_info['reasoning'],
+                        'candidates': {'base_type': base_stop_info['stop_price']},
+                    }
         except Exception as e:
             logger.error(f"  (base_type_stop failed for {symbol}: {e})")
 
@@ -1030,19 +1054,36 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         max_stop_pct = float(self.config.get('max_stop_distance_pct', 8.0)) / 100.0
         floor_stop = entry * (1.0 - max_stop_pct)
 
+        candidates_dict = {
+            'sma_50': sma_50,
+            'swing_low_10d': swing_low,
+            'atr_2x': atr_stop,
+            'floor_stop_8pct': floor_stop,
+        }
+
         candidates = [c for c in (sma_50, swing_low, atr_stop) if c is not None and 0 < c < entry]
         if not candidates:
             # FAIL-CLOSED: No structural stops available (data quality issue)
             self._last_stop_method = 'none'
             self._last_stop_reasoning = 'No structural levels available (SMA-50, swing low, ATR all missing)'
             logger.error(f'[Stop] No structural levels for {symbol} on {signal_date} (sma_50={sma_50}, swing={swing_low}, atr_stop={atr_stop})')
-            return None
+            return {
+                'stop_price': None,
+                'method': 'none',
+                'reasoning': self._last_stop_reasoning,
+                'candidates': candidates_dict,
+            }
 
         viable = [c for c in candidates if c >= floor_stop]
         stop = max(viable) if viable else floor_stop
         self._last_stop_method = 'best_of_ma_swing_atr'
         self._last_stop_reasoning = f'Best of (50-DMA, swing low, 2×ATR), capped at 8%'
-        return round(stop, 2)
+        return {
+            'stop_price': round(stop, 2),
+            'method': self._last_stop_method,
+            'reasoning': self._last_stop_reasoning,
+            'candidates': candidates_dict,
+        }
 
     def _tier4_signal_quality(self, symbol, signal_date) -> Dict[str, Any]:
         try:

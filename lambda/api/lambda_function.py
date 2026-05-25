@@ -177,6 +177,11 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
     }
 
 
+def get_json_content_type() -> str:
+    """Return JSON content-type with proper UTF-8 charset declaration."""
+    return 'application/json; charset=utf-8'
+
+
 def get_security_headers() -> Dict[str, str]:
     """Return security headers for all responses."""
     allowed_origins_list = ' '.join(_build_allowed_origins())
@@ -479,7 +484,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             log_api_request(event, 401, error_msg=auth_error)
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({'error': 'unauthorized', 'message': auth_error})
             }
 
@@ -491,7 +496,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             log_api_request(event, 429, error_msg='rate_limit_exceeded')
             return {
                 'statusCode': 429,
-                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers(),
+                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers(),
                            'Retry-After': '60'},
                 'body': json.dumps({'error': 'rate_limit_exceeded', 'message': 'Too many requests. Please try again later.'})
             }
@@ -501,7 +506,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             cors_headers = get_cors_headers(event)
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
             }
 
@@ -513,7 +518,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     cors_headers = get_cors_headers(event)
                     return {
                         'statusCode': 503,
-                        'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                         'body': json.dumps({'status': 'unhealthy', 'dbStatus': 'disconnected'})
                     }
 
@@ -535,14 +540,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
                 }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 503,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'unhealthy', 'error': 'internal_error'})
                 }
 
@@ -554,7 +559,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     cors_headers = get_cors_headers(event)
                     return {
                         'statusCode': 503,
-                        'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                         'body': json.dumps({'status': 'unhealthy', 'error': 'db_unavailable'})
                     }
                 cur = conn.cursor()
@@ -577,14 +582,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
                 }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 500,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
 
@@ -598,7 +603,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             db_secret_arn = os.getenv('DB_SECRET_ARN', 'NOT_SET')
             return {
                 'statusCode': 503,
-                'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'database_unavailable',
                     'debug': {
@@ -623,7 +628,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 cors_headers = get_cors_headers(event)
                 return {
                     'statusCode': 503,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'error': 'database_unavailable'})
                 }
 
@@ -639,7 +644,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 log_api_request(event, 413, error_msg='request_entity_too_large')
                 return {
                     'statusCode': 413,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
                 }
             try:
@@ -650,7 +655,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 log_api_request(event, 400, error_msg='invalid_json')
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
                 }
             except Exception:
@@ -675,7 +680,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if isinstance(response, dict):
             status = response.get('statusCode', 200)
             cors_headers = get_cors_headers(event)
-            headers = {'Content-Type': 'application/json', **cors_headers, **get_security_headers()}
+            headers = {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()}
             if 'body' in response:
                 body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'], default=_json_default)
             else:
@@ -695,7 +700,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cors_headers = get_cors_headers(event)
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'invalid_response'})
         }
 
@@ -705,7 +710,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cors_headers = get_cors_headers(event)
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({
                 'error': 'internal_server_error',
                 'message': 'An unexpected error occurred'
