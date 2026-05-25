@@ -410,6 +410,16 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/api/market',
         '/api/economic',
         '/api/algo',  # Algo trading endpoints - data is public (no user-specific data)
+        '/api/sectors',  # Sector analysis pages
+        '/api/sentiment',  # Market sentiment dashboard
+        '/api/industries',  # Industry analysis
+        '/api/prices',  # Historical prices
+        '/api/stocks',  # Stock data
+        '/api/trades',  # Trade history
+        '/api/financials',  # Company financials
+        '/api/earnings',  # Earnings data
+        '/api/research',  # Research endpoints
+        '/api/audit',  # Audit viewer
     }
 
     # Check if path matches any public prefix
