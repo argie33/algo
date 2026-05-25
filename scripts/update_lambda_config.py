@@ -67,7 +67,7 @@ def update_lambda_config(func_name, region, db_host, db_port, db_name, db_user, 
         return 1
 
 if __name__ == "__main__":
-    if len(sys.argv) < 10:
+    if len(sys.argv) < 11:
         print("Usage: update_lambda_config.py FUNC REGION DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD ALLOWED_ORIGINS COGNITO_REGION LAYER_ARN", file=sys.stderr)
         sys.exit(1)
 
