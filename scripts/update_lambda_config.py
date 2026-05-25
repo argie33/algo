@@ -50,7 +50,8 @@ def update_lambda_config(func_name, region, db_host, db_port, db_name, db_user, 
     }
 
     # Only include Layers if layer_arn is provided and non-empty
-    if layer_arn and layer_arn.strip():
+    layer_arn = layer_arn.strip() if layer_arn else ""
+    if layer_arn:
         config["Layers"] = [layer_arn]
         print(f"Attaching layer: {layer_arn}")
     else:
