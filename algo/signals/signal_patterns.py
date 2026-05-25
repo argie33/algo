@@ -130,7 +130,7 @@ class SignalPatternsMixin:
             if self._owned:
                 try:
                     self._owned.rollback()
-                except:
+                except Exception:
                     pass
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {'in_base': False, 'reason': 'Unexpected error'}

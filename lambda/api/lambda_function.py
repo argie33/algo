@@ -528,7 +528,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         )
                         cur.execute(query)
                         table_counts[table] = cur.fetchone()[0]
-                    except:
+                    except Exception:
                         table_counts[table] = 0
                 cur.close()
 

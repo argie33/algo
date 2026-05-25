@@ -113,7 +113,7 @@ class IndustryRankingLoader:
             if self.conn:
                 try:
                     self.conn.rollback()
-                except:
+                except Exception:
                     pass
             return {"success": False, "error": str(e)}
         finally:

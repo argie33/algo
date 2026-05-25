@@ -490,20 +490,30 @@ jobs:
           except Exception as e:
             print(f"  No alert config in Secrets Manager (this is OK - can be set manually)")
 
-          # Get Terraform outputs
+          # Read trading configuration from terraform.tfvars directly
+          # (alpaca_paper_trading is a variable, not a Terraform output)
+          paper_trading = True  # default to paper (safe)
+          exec_mode = 'auto'
+          orchestrator_dry_run = False
           try:
-            result = subprocess.run(['terraform', 'output', '-raw', 'alpaca_paper_trading'],
-              cwd='terraform', capture_output=True, text=True)
-            paper_trading = result.stdout.strip().lower() == 'true'
-          except:
-            paper_trading = False
-
-          try:
-            result = subprocess.run(['terraform', 'output', '-raw', 'execution_mode'],
-              cwd='terraform', capture_output=True, text=True)
-            exec_mode = result.stdout.strip() or 'auto'
-          except:
-            exec_mode = 'auto'
+            with open('terraform/terraform.tfvars') as f:
+              for line in f:
+                stripped = line.strip()
+                if stripped.startswith('#'):
+                  continue
+                if '=' in stripped:
+                  key, _, val = stripped.partition('=')
+                  key = key.strip()
+                  val = val.strip().split('#')[0].strip().strip('"')
+                  if key == 'alpaca_paper_trading':
+                    paper_trading = val.lower() == 'true'
+                  elif key == 'execution_mode':
+                    exec_mode = val or 'auto'
+                  elif key == 'orchestrator_dry_run':
+                    orchestrator_dry_run = val.lower() == 'true'
+            print(f"  Read from tfvars: paper_trading={paper_trading}, exec_mode={exec_mode}, dry_run={orchestrator_dry_run}")
+          except Exception as e:
+            print(f"WARNING: Could not read terraform.tfvars: {e} — using safe defaults (paper=True)")
 
           apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
           trading_mode = "PAPER" if paper_trading else "LIVE"
@@ -547,7 +557,7 @@ jobs:
                 "APCA_API_BASE_URL": apca_base_url,
                 "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
                 "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
-                "ORCHESTRATOR_DRY_RUN": "true",
+                "ORCHESTRATOR_DRY_RUN": "true" if orchestrator_dry_run else "false",
                 "EXECUTION_MODE": exec_mode,
                 "ALERT_WEBHOOK_URL": alert_webhook_url,
                 "ALERT_EMAIL_TO": alert_email_to

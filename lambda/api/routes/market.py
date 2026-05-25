@@ -198,7 +198,7 @@ def _get_market_latest(cur) -> Dict:
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
         return int((params.get('range', [None])[0] or params.get('days', [default])[0]))
-    except:
+    except (ValueError, TypeError, IndexError):
         return default
 
 INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']

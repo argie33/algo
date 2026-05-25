@@ -1203,7 +1203,7 @@ class SwingTraderScore:
             if self._owned:
                 try:
                     self._owned.rollback()
-                except:
+                except Exception:
                     pass
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 

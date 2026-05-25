@@ -60,7 +60,7 @@ class AlgoMetricsDailyLoader:
             logger.error(f"Failed to ensure table: {e}", exc_info=True)
             try:
                 self.conn.rollback()
-            except:
+            except Exception:
                 pass
             raise
             self.conn.rollback()
