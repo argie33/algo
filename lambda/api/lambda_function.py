@@ -33,11 +33,14 @@ logger.setLevel(logging.INFO)
 
 _db_conn = None
 
-# Rate limiting state (in-memory for this Lambda instance)
-_request_history = defaultdict(list)
-RATE_LIMIT_REQUESTS = 100  # requests per second per IP (tightened from 1000 for trading platform)
-RATE_LIMIT_WINDOW = 1  # seconds
-MAX_REQUEST_BODY_SIZE = 1024 * 100  # 100KB max request body
+# Rate limiting state (in-memory for this Lambda instance) - only if imports succeeded
+if not IMPORT_ERROR:
+    _request_history = defaultdict(list)
+else:
+    _request_history = {}
+RATE_LIMIT_REQUESTS = 100
+RATE_LIMIT_WINDOW = 1
+MAX_REQUEST_BODY_SIZE = 1024 * 100
 
 
 def get_db_connection():
