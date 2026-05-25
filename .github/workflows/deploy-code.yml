@@ -400,7 +400,7 @@ jobs:
 
       - name: Deploy Algo Lambda  (Code + Config + Layer)
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.algo_lambda_function_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           # Export variables for Python script
           export FUNC_NAME="$FUNC"
@@ -702,7 +702,7 @@ jobs:
 
       - name: Deploy API Lambda
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           API_LAYER_ARN="${{ env.API_LAYER_ARN }}"
 
@@ -762,7 +762,7 @@ jobs:
           DB_SECRET_ARN="$SECRET_ID"
 
           # Get CloudFront domain for CORS whitelist
-          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
+          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
           if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
             CF_ID=$(aws cloudfront list-distributions \
               --query 'DistributionList.Items[0].Id' \
@@ -840,7 +840,7 @@ jobs:
 
       - name: Verify API Lambda Environment Variables
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           echo "Retrieving API Lambda environment variables for: $FUNC"
 
           LAMBDA_CONFIG=$(aws lambda get-function-configuration \
@@ -1066,7 +1066,7 @@ jobs:
 
       - name: Sync to S3
         run: |
-          BUCKET="${{ needs.resolve-infra.outputs.frontend_bucket }}"
+          BUCKET="${{ needs.resolve-infra.outputs.frontend_bucket_name }}"
           # Fall back to AWS CLI discovery if output was masked or empty
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "***" ]; then
             echo "Terraform output masked/empty, discovering bucket..."
@@ -1117,7 +1117,7 @@ jobs:
 
       - name: Invalidate CloudFront
         run: |
-          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
+          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
           # Fall back to discovery if output was masked
           if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
             CF_ID=$(aws cloudfront list-distributions \
@@ -1215,7 +1215,7 @@ jobs:
           echo "=========================================="
           echo ""
           echo "Infrastructure:"
-          echo "  Lambda: ${{ needs.resolve-infra.outputs.algo_lambda_name }}"
+          echo "  Lambda: ${{ needs.resolve-infra.outputs.algo_lambda_function_name }}"
           echo "  Region: ${{ env.AWS_REGION }}"
           echo ""
           echo "Developer Credentials (for programmatic access):"
@@ -1238,7 +1238,7 @@ jobs:
             echo "Next: Configure credentials and invoke orchestrator"
             echo "  export AWS_ACCESS_KEY_ID=<key>"
             echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
-            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
+            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_function_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
           else
             echo "  ⚠️ Retrieving credentials..."
           fi
