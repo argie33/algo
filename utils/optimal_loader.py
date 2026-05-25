@@ -481,12 +481,12 @@ class OptimalLoader(ABC):
             conn = self._connect()
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_audit_at)
+                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
                 VALUES (%s, %s, %s, NOW())
                 ON CONFLICT (table_name) DO UPDATE SET
                   row_count = EXCLUDED.row_count,
                   latest_date = EXCLUDED.latest_date,
-                  last_audit_at = NOW()
+                  last_updated = NOW()
             """, (self.table_name, self._stats['rows_inserted'], date_type.today()))
             conn.commit()
             cur.close()

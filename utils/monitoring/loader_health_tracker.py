@@ -158,14 +158,14 @@ class LoaderHealthTracker:
             self.cur.execute("""
                 INSERT INTO data_loader_status
                 (table_name, frequency, role, latest_date, age_days, row_count,
-                 stale_threshold_days, status, last_audit_at, error_message)
+                 stale_threshold_days, status, last_updated, error_message)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (table_name) DO UPDATE SET
                     latest_date = EXCLUDED.latest_date,
                     age_days = EXCLUDED.age_days,
                     row_count = EXCLUDED.row_count,
                     status = EXCLUDED.status,
-                    last_audit_at = EXCLUDED.last_audit_at,
+                    last_updated = EXCLUDED.last_updated,
                     error_message = EXCLUDED.error_message
             """, (
                 health_check['table_name'],

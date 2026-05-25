@@ -266,7 +266,7 @@ class PipelineHealth:
                 self.cur.execute(
                     """
                     INSERT INTO data_loader_status
-                    (table_name, status, row_count, latest_date, age_days, last_audit_at)
+                    (table_name, status, row_count, latest_date, age_days, last_updated)
                     VALUES (%s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (table_name)
                     DO UPDATE SET
@@ -274,7 +274,7 @@ class PipelineHealth:
                         row_count = EXCLUDED.row_count,
                         latest_date = EXCLUDED.latest_date,
                         age_days = EXCLUDED.age_days,
-                        last_audit_at = NOW()
+                        last_updated = NOW()
                     """,
                     (
                         table_health.table_name,

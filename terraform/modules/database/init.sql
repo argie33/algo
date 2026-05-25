@@ -1555,7 +1555,7 @@ CREATE TABLE IF NOT EXISTS data_loader_status (
     row_count BIGINT,
     stale_threshold_days INTEGER,
     status VARCHAR(20),
-    last_audit_at TIMESTAMP,
+    last_updated TIMESTAMP,
     error_message TEXT
 );
 
