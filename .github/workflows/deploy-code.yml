@@ -901,7 +901,7 @@ jobs:
             exit 1
           fi
           echo "Using API Gateway: $API_GATEWAY"
-          VITE_API_URL="$API_GATEWAY/api" \
+          VITE_API_URL="$API_GATEWAY" \
           VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" \
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
@@ -922,10 +922,10 @@ jobs:
 
           if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
             # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
-            # API Gateway routes are under /api, so append it
-            API_URL="${API_BASE}/api"
+            # Do NOT append /api here - endpoints in api.js already include /api/...
+            API_URL="${API_BASE}"
           else
-            API_URL="${{ secrets.API_GATEWAY_URL }}/api"
+            API_URL="${{ secrets.API_GATEWAY_URL }}"
           fi
 
           # Get Cognito credentials from Terraform outputs or AWS
