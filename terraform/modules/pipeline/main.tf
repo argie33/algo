@@ -225,7 +225,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "ParallelEnrichment"
       }
 
-      # ── Step 3: Parallel enrichment (trend template + stock scores) ────────
+      # ── Step 3: Parallel enrichment (trend template only — stock_scores moved after signals) ────────
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -239,28 +239,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
                   TaskDefinition       = var.loader_task_definition_arns["trend_template_data"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "StockScores"
-            States = {
-              StockScores = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -424,10 +402,34 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
         }]
+        Next = "StockScores"
+      }
+
+      # ── Step 6: Stock quality scores (depends on signals_daily populating buy_sell_daily) ──
+      StockScores = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
         Next = "AlgoMetrics"
       }
 
-      # ── Step 6: Summarize signal quality metrics ──────────────────────────
+      # ── Step 7: Summarize signal quality metrics ──────────────────────────
       AlgoMetrics = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
@@ -451,7 +453,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "SwingScores"
       }
 
-      # ── Step 6: Swing trader scores (depends on signals + metrics) ───────
+      # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
       SwingScores = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
