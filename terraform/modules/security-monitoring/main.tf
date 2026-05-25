@@ -131,20 +131,23 @@ resource "aws_guardduty_detector" "main" {
   enable           = true
   finding_publishing_frequency = "FIFTEEN_MINUTES"
 
-  datasources {
-    s3_logs {
-      enable = true
-    }
-    kubernetes {
-      audit_logs {
-        enable = true
-      }
-    }
-  }
-
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-guardduty"
   })
+}
+
+resource "aws_guardduty_detector_feature" "s3_logs" {
+  count       = var.guardduty_enabled ? 1 : 0
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "S3_DATA_EVENTS"
+  status      = "ENABLED"
+}
+
+resource "aws_guardduty_detector_feature" "k8s_logs" {
+  count       = var.guardduty_enabled ? 1 : 0
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "EKS_AUDIT_LOGS"
+  status      = "ENABLED"
 }
 
 # ============================================================
