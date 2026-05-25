@@ -398,14 +398,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 End = true
               }
             }
-          },
+          }
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
         }]
-        Next = "StockScores"
+        Next = "SignalQualityScores"
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
