@@ -1,0 +1,123 @@
+name: Test Orchestrator Execution
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test:
+    name: Execute & Verify Orchestrator
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve Algo Lambda Function Name
+        id: resolve
+        run: |
+          # Get function name from Terraform outputs (if deployed)
+          FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?contains(FunctionName, 'algo')].FunctionName" --output text | head -1)
+          if [ -z "$FUNC" ]; then
+            FUNC="algo-algo-dev"
+          fi
+          echo "algo_function_name=${FUNC}" >> $GITHUB_OUTPUT
+          echo "Using Lambda function: ${FUNC}"
+
+      - name: Invoke Orchestrator Lambda (Synchronous)
+        id: invoke
+        run: |
+          FUNC="${{ steps.resolve.outputs.algo_function_name }}"
+          echo "Invoking $FUNC with trading day date (May 26, 2026)..."
+
+          # Create JSON payload with trading day date (May 25 is Memorial Day, use May 26)
+          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-26"}'
+          ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
+
+          # Synchronous invocation with RequestResponse
+          timeout 180 aws lambda invoke \
+            --function-name "$FUNC" \
+            --invocation-type RequestResponse \
+            --payload "$ENCODED" \
+            --region $AWS_REGION \
+            /tmp/response.json || {
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 124 ]; then
+                echo "⏱️  Lambda invocation timed out after 3 minutes"
+              else
+                echo "❌ Lambda invocation failed with exit code: $EXIT_CODE"
+              fi
+              exit 0
+            }
+
+          echo "Orchestrator invoked at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Check response
+          if [ -f /tmp/response.json ]; then
+            echo "Lambda Response:"
+            cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
+            echo ""
+          fi
+
+      - name: Retrieve CloudWatch Logs
+        if: always()
+        run: |
+          FUNC="${{ steps.resolve.outputs.algo_function_name }}"
+          LOG_GROUP="/aws/lambda/$FUNC"
+
+          echo "Retrieving logs from: $LOG_GROUP"
+
+          # Get latest log stream
+          LATEST=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 1 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$LATEST" ] && [ "$LATEST" != "None" ]; then
+            echo "=== ORCHESTRATOR EXECUTION LOG ==="
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LATEST" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text | tail -100
+          else
+            echo "No logs found for function: $FUNC"
+          fi
+
+      - name: Verify Orchestrator Success
+        run: |
+          if [ -f /tmp/response.json ]; then
+            STATUS=$(cat /tmp/response.json | jq -r '.statusCode // 500')
+            BODY=$(cat /tmp/response.json | jq -r '.body // "{}"')
+            SUCCESS=$(echo "$BODY" | jq -r '.status // "error"')
+
+            echo "Status Code: $STATUS"
+            echo "Response Status: $SUCCESS"
+
+            if [ "$STATUS" = "200" ] && [ "$SUCCESS" = "success" ]; then
+              echo "✅ Orchestrator execution completed successfully"
+              exit 0
+            else
+              echo "⚠️ Orchestrator returned errors - check logs above"
+              exit 1
+            fi
+          else
+            echo "⚠️ No response file found"
+            exit 1
+          fi

@@ -71,7 +71,7 @@ jobs:
           echo "Invoking orchestrator (async): $FUNC"
 
           # Create JSON payload and encode as base64
-          PAYLOAD='{"source":"manual","run_date":"now","run_identifier":"manual-live-test"}'
+          PAYLOAD='{"source":"manual","date":"2026-05-26","run_identifier":"manual-live-test"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
           # Use Event (async) instead of RequestResponse to avoid timeout
