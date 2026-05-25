@@ -82,7 +82,7 @@ const _checkApiHealth = async () => {
   }
 
   try {
-    const response = await fetch(`${currentConfig.baseURL}/health`, {
+    const response = await fetch(`${currentConfig.baseURL}/api/health`, {
       method: "GET",
       signal: AbortSignal.timeout(3000),
     });
@@ -251,7 +251,7 @@ const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") =
 
 export const getMarketTechnicals = async () => {
   try {
-    const response = await api.get("/market/technicals");
+    const response = await api.get("/api/market/technicals");
     // Cache successful response
     if (response.data?.success !== false) {
       dataCache.set("market_technicals", response.data);
@@ -276,7 +276,7 @@ export const getMarketSentimentData = async (range = "1d") => {
 
 export const getMarketSeasonalityData = async () => {
   try {
-    const response = await api.get("/market/seasonality");
+    const response = await api.get("/api/market/seasonality");
     return response.data;
   } catch (error) {
     console.error("Error fetching market seasonality:", error);
@@ -297,7 +297,7 @@ export const getMarketCorrelation = async (symbols = null) => {
 
 export const getMarketIndices = async () => {
   try {
-    const response = await api.get("/market/indices");
+    const response = await api.get("/api/market/indices");
     return response.data;
   } catch (error) {
     console.error("Error fetching market indices:", error);
@@ -307,7 +307,7 @@ export const getMarketIndices = async () => {
 
 export const getMarketTopMovers = async () => {
   try {
-    const response = await api.get("/market/top-movers");
+    const response = await api.get("/api/market/top-movers");
     return response.data;
   } catch (error) {
     console.error("Error fetching market top movers:", error);
@@ -317,7 +317,7 @@ export const getMarketTopMovers = async () => {
 
 export const getMarketCapDistribution = async () => {
   try {
-    const response = await api.get("/market/cap-distribution");
+    const response = await api.get("/api/market/cap-distribution");
     return response.data;
   } catch (error) {
     console.error("Error fetching market cap distribution:", error);
@@ -332,7 +332,7 @@ export const getMarketCapDistribution = async () => {
 export const getStocks = async (params = {}) => {
   try {
     const queryStr = new URLSearchParams(params).toString();
-    const url = queryStr ? `/api/stocks?${queryStr}` : "stocks";
+    const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
     const response = await api.get(url);
     // Transform response format for consistency with frontend expectations
     // API returns { items: [...] }, but frontend expects { data: [...] }
@@ -405,7 +405,7 @@ export const getKeyMetrics = async (ticker) => {
 
 export const getContactSubmissions = async () => {
   try {
-    const response = await api.get("/contact/submissions");
+    const response = await api.get("/api/contact/submissions");
     return response.data;
   } catch (error) {
     console.error("Error fetching contact submissions:", error);
@@ -415,7 +415,7 @@ export const getContactSubmissions = async () => {
 
 export const submitContact = async (data) => {
   try {
-    const response = await api.post("/contact", data);
+    const response = await api.post("/api/contact", data);
     return response.data;
   } catch (error) {
     console.error("Error submitting contact form:", error);
@@ -429,7 +429,7 @@ export const submitContact = async (data) => {
 
 export const getSettings = async () => {
   try {
-    const response = await api.get("/settings");
+    const response = await api.get("/api/settings");
     return response.data;
   } catch (error) {
     console.error("Error fetching settings:", error);
@@ -439,7 +439,7 @@ export const getSettings = async () => {
 
 export const updateSettings = async (settings) => {
   try {
-    const response = await api.post("/settings", settings);
+    const response = await api.post("/api/settings", settings);
     return response.data;
   } catch (error) {
     console.error("Error updating settings:", error);
@@ -477,7 +477,7 @@ export const getCurrentBaseURL = () => {
 
 export const healthCheck = async () => {
   try {
-    const response = await api.get("/health");
+    const response = await api.get("/api/health");
     return response.data;
   } catch (error) {
     console.error("Error fetching health check:", error);
@@ -487,7 +487,7 @@ export const healthCheck = async () => {
 
 export const testApiConnection = async () => {
   try {
-    const response = await api.get("/test");
+    const response = await api.get("/api/health");
     return response.data;
   } catch (error) {
     console.error("Error testing API connection:", error);
@@ -501,7 +501,7 @@ export const testApiConnection = async () => {
 
 export const getNaaimData = async () => {
   try {
-    const response = await api.get("/market/naaim");
+    const response = await api.get("/api/market/naaim");
     return response.data;
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);

@@ -17,7 +17,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post('/algo/preview', {
+      const response = await api.post('/api/algo/preview', {
         symbol: symbol.toUpperCase(),
         entry_price: parseFloat(entryPrice),
         stop_loss_price: parseFloat(stopPrice)
