@@ -1,0 +1,91 @@
+name: Reset Cognito Test User Password
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_password:
+        description: 'New permanent password (min 12 chars, upper+lower+number+symbol)'
+        required: true
+        type: string
+      user_email:
+        description: 'Email of user to reset (default: testuser@stocks.local)'
+        required: false
+        default: 'testuser@stocks.local'
+        type: string
+
+jobs:
+  reset-password:
+    name: Reset Cognito User Password
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Get Cognito User Pool ID
+        id: pool
+        run: |
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 10 \
+            --query 'UserPools[?Name==`algo-user-pool-dev`].Id | [0]' \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            POOL_ID=$(aws cognito-idp list-user-pools --max-results 10 \
+              --query 'UserPools[0].Id' --output text)
+          fi
+          echo "pool_id=$POOL_ID" >> $GITHUB_OUTPUT
+          echo "Using pool: $POOL_ID"
+
+      - name: Find user by email
+        id: user
+        run: |
+          POOL_ID="${{ steps.pool.outputs.pool_id }}"
+          EMAIL="${{ inputs.user_email }}"
+          USERNAME=$(aws cognito-idp list-users \
+            --user-pool-id "$POOL_ID" \
+            --filter "email = \"$EMAIL\"" \
+            --query 'Users[0].Username' --output text 2>/dev/null || echo "")
+          if [ -z "$USERNAME" ] || [ "$USERNAME" = "None" ]; then
+            # Fallback: list all and find by email attribute
+            USERNAME=$(aws cognito-idp list-users \
+              --user-pool-id "$POOL_ID" \
+              --query "Users[?Attributes[?Name=='email' && Value=='$EMAIL']].Username | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          echo "Found user: $USERNAME"
+
+      - name: Set permanent password
+        run: |
+          POOL_ID="${{ steps.pool.outputs.pool_id }}"
+          USERNAME="${{ steps.user.outputs.username }}"
+          if [ -z "$USERNAME" ] || [ "$USERNAME" = "None" ]; then
+            echo "ERROR: User '${{ inputs.user_email }}' not found in pool $POOL_ID"
+            exit 1
+          fi
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id "$POOL_ID" \
+            --username "$USERNAME" \
+            --password "${{ inputs.new_password }}" \
+            --permanent
+          echo "✅ Password set permanently for ${{ inputs.user_email }}"
+
+      - name: Verify user status
+        run: |
+          POOL_ID="${{ steps.pool.outputs.pool_id }}"
+          USERNAME="${{ steps.user.outputs.username }}"
+          STATUS=$(aws cognito-idp admin-get-user \
+            --user-pool-id "$POOL_ID" \
+            --username "$USERNAME" \
+            --query 'UserStatus' --output text)
+          echo "User status: $STATUS"
+          if [ "$STATUS" = "CONFIRMED" ]; then
+            echo "✅ User is CONFIRMED and ready to log in"
+          else
+            echo "⚠️ User status is $STATUS — may need additional confirmation"
+          fi
