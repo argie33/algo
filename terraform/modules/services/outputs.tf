@@ -104,3 +104,33 @@ output "api_gateway_log_group_name" {
   description = "CloudWatch log group for API Gateway"
   value       = var.api_gateway_logging_enabled ? aws_cloudwatch_log_group.api_gateway[0].name : null
 }
+
+# ============================================================
+# Lambda Layer Names (for GitHub Actions deployment)
+# ============================================================
+# These names are published by GitHub Actions, not created by Terraform
+# But we output the canonical names so deployment scripts use the same values
+
+output "algo_orchestrator_layer_name" {
+  description = "Name for algo orchestrator Lambda layer (published by GitHub Actions)"
+  value       = "${var.project_name}-orchestrator-layer"
+}
+
+output "api_lambda_layer_name" {
+  description = "Name for API Lambda layer (published by GitHub Actions)"
+  value       = "${var.project_name}-api-layer"
+}
+
+# ============================================================
+# Deployment Configuration (for GitHub Actions)
+# ============================================================
+
+output "terraform_backend_bucket" {
+  description = "S3 bucket name for Terraform state"
+  value       = "${var.project_name}-terraform-state"
+}
+
+output "terraform_backend_key" {
+  description = "S3 key path for Terraform state"
+  value       = "${var.project_name}/terraform.tfstate"
+}

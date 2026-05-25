@@ -24,6 +24,12 @@ variable "domain_name" {
   default     = "example.com"
 }
 
+variable "cloudfront_domain" {
+  description = "CloudFront domain for OAuth callbacks (e.g., d2u93283nn45h2.cloudfront.net)"
+  type        = string
+  default     = ""
+}
+
 variable "cognito_test_user_email" {
   description = "Email for Cognito test user (empty = don't create test user)"
   type        = string

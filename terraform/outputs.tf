@@ -317,3 +317,60 @@ output "aws_region" {
   description = "AWS region (for deployments & frontend config)"
   value       = var.aws_region
 }
+
+# ============================================================
+# Lambda Layer Names (for GitHub Actions)
+# ============================================================
+
+output "algo_orchestrator_layer_name" {
+  description = "Name for algo orchestrator Lambda layer"
+  value       = module.services.algo_orchestrator_layer_name
+}
+
+output "api_lambda_layer_name" {
+  description = "Name for API Lambda layer"
+  value       = module.services.api_lambda_layer_name
+}
+
+# ============================================================
+# Database Secrets Configuration
+# ============================================================
+
+output "rds_credentials_secret_name" {
+  description = "Name of RDS credentials secret (for GitHub Actions)"
+  value       = module.database.rds_credentials_secret_name
+  sensitive   = true
+}
+
+# ============================================================
+# Cognito Configuration
+# ============================================================
+
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "Cognito User Pool Client ID"
+  value       = module.cognito.user_pool_client_id
+}
+
+output "cognito_domain_url" {
+  description = "Cognito domain URL"
+  value       = module.cognito.domain_url
+}
+
+# ============================================================
+# Terraform Backend Configuration (for GitHub Actions)
+# ============================================================
+
+output "terraform_backend_bucket" {
+  description = "S3 bucket for Terraform state"
+  value       = module.services.terraform_backend_bucket
+}
+
+output "terraform_backend_key" {
+  description = "S3 key path for Terraform state"
+  value       = module.services.terraform_backend_key
+}

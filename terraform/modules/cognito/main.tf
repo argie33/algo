@@ -71,13 +71,15 @@ resource "aws_cognito_user_pool_client" "web_app" {
     var.environment == "dev" ? [
       "http://localhost:5173/",
       "http://localhost:5173/auth/callback",
-      "http://127.0.0.1:5173/",
-      "https://d2u93283nn45h2.cloudfront.net/",
-      "https://d2u93283nn45h2.cloudfront.net/auth/callback"
+      "http://127.0.0.1:5173/"
     ] : [],
-    var.environment == "prod" ? [
-      "https://d2u93283nn45h2.cloudfront.net/",
-      "https://d2u93283nn45h2.cloudfront.net/auth/callback"
+    var.environment == "dev" && var.cloudfront_domain != "" ? [
+      "https://${var.cloudfront_domain}/",
+      "https://${var.cloudfront_domain}/auth/callback"
+    ] : [],
+    var.environment == "prod" && var.cloudfront_domain != "" ? [
+      "https://${var.cloudfront_domain}/",
+      "https://${var.cloudfront_domain}/auth/callback"
     ] : []
   )
 
@@ -86,13 +88,15 @@ resource "aws_cognito_user_pool_client" "web_app" {
     var.environment == "dev" ? [
       "http://localhost:5173/",
       "http://localhost:5173/login",
-      "http://127.0.0.1:5173/",
-      "https://d2u93283nn45h2.cloudfront.net/",
-      "https://d2u93283nn45h2.cloudfront.net/login"
+      "http://127.0.0.1:5173/"
     ] : [],
-    var.environment == "prod" ? [
-      "https://d2u93283nn45h2.cloudfront.net/",
-      "https://d2u93283nn45h2.cloudfront.net/login"
+    var.environment == "dev" && var.cloudfront_domain != "" ? [
+      "https://${var.cloudfront_domain}/",
+      "https://${var.cloudfront_domain}/login"
+    ] : [],
+    var.environment == "prod" && var.cloudfront_domain != "" ? [
+      "https://${var.cloudfront_domain}/",
+      "https://${var.cloudfront_domain}/login"
     ] : []
   )
 

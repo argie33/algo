@@ -466,6 +466,12 @@ variable "domain_name" {
   default     = "example.com"
 }
 
+variable "cloudfront_domain" {
+  description = "CloudFront domain name for frontend (e.g., d2u93283nn45h2.cloudfront.net). Used for Cognito callback and logout URLs."
+  type        = string
+  default     = "d2u93283nn45h2.cloudfront.net"
+}
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
