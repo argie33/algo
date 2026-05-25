@@ -802,7 +802,6 @@ cmd = [
     "aws", "lambda", "update-function-configuration",
     "--function-name", os.environ["FUNC"],
     "--environment", f"file:///tmp/env.json",
-    "--layers", os.environ["API_LAYER_ARN"],
     "--region", os.environ["AWS_REGION"]
 ]
 result = subprocess.run(cmd, capture_output=True, text=True)
