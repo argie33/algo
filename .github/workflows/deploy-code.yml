@@ -40,6 +40,8 @@ jobs:
       algo_lambda_function_name: ${{ steps.tf_outputs.outputs.algo_lambda_function_name }}
       frontend_bucket_name: ${{ steps.tf_outputs.outputs.frontend_bucket_name }}
       cloudfront_distribution_id: ${{ steps.tf_outputs.outputs.cloudfront_distribution_id }}
+      cloudfront_domain: ${{ steps.tf_outputs.outputs.cloudfront_domain }}
+      website_url: ${{ steps.tf_outputs.outputs.website_url }}
       api_gateway_endpoint: ${{ steps.tf_outputs.outputs.api_gateway_endpoint }}
       algo_orchestrator_layer_name: ${{ steps.tf_outputs.outputs.algo_orchestrator_layer_name }}
       api_lambda_layer_name: ${{ steps.tf_outputs.outputs.api_lambda_layer_name }}
@@ -95,6 +97,8 @@ jobs:
           ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value')
           FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value')
           CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value')
+          CF_DOMAIN=$(echo "$TF_OUT" | jq -r '.cloudfront_domain.value // empty')
+          WEBSITE_URL=$(echo "$TF_OUT" | jq -r '.website_url.value // empty')
           API_GATEWAY=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value')
           ALGO_LAYER=$(echo "$TF_OUT" | jq -r '.algo_orchestrator_layer_name.value')
           API_LAYER=$(echo "$TF_OUT" | jq -r '.api_lambda_layer_name.value')
@@ -119,6 +123,8 @@ jobs:
           echo "algo_lambda_function_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
           echo "frontend_bucket_name=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_distribution_id=${CF_ID}" >> $GITHUB_OUTPUT
+          echo "cloudfront_domain=${CF_DOMAIN}" >> $GITHUB_OUTPUT
+          echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
           echo "api_gateway_endpoint=${API_GATEWAY}" >> $GITHUB_OUTPUT
           echo "algo_orchestrator_layer_name=${ALGO_LAYER}" >> $GITHUB_OUTPUT
           echo "api_lambda_layer_name=${API_LAYER}" >> $GITHUB_OUTPUT
@@ -762,7 +768,7 @@ jobs:
           DB_SECRET_ARN="$SECRET_ID"
 
           # Build ALLOWED_ORIGINS using CloudFront domain from Terraform outputs (fully dynamic)
-          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
+          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_domain }}"
           ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
           if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ] && [ "$CLOUDFRONT_DOMAIN" != "null" ]; then
             ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
@@ -980,7 +986,7 @@ jobs:
 
           # API_URL is the CloudFront website URL from Terraform — all /api/* requests go
           # through CloudFront which forwards to API Gateway (same-origin, no CORS needed).
-          API_URL="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
+          API_URL="${{ needs.resolve-infra.outputs.website_url }}"
           if [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
             echo "Using CloudFront website URL as API base: $API_URL"
           else

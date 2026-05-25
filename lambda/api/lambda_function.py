@@ -458,6 +458,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
 
+        # CORS preflight must be handled before auth check so browsers can complete handshake
+        if method == 'OPTIONS':
+            cors_headers = get_cors_headers(event)
+            return {
+                'statusCode': 200,
+                'headers': {
+                    **cors_headers,
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                    **get_security_headers()
+                }
+            }
+
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
         if requires_auth and not is_authorized:
@@ -574,19 +587,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'headers': {'Content-Type': 'application/json', **cors_headers, **get_security_headers()},
                     'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
-
-        # CORS preflight
-        if method == 'OPTIONS':
-            cors_headers = get_cors_headers(event)
-            return {
-                'statusCode': 200,
-                'headers': {
-                    **cors_headers,
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                    **get_security_headers()
-                }
-            }
 
         conn = get_db_connection()
         if not conn:

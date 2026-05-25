@@ -1,9 +1,11 @@
-// Runtime configuration - Production Environment
+// Runtime configuration placeholder — overwritten at deploy time by GitHub Actions.
+// In production, this file is replaced with dynamically resolved values from AWS.
+// For local dev, use VITE_API_URL env var or the Vite proxy (empty = relative paths).
 window.__CONFIG__ = {
-  "API_URL": "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com",
-  "USER_POOL_ID": "us-east-1_VBNqfLbSp",
-  "USER_POOL_CLIENT_ID": "se2bei2on6u0gkmc974fbalvi",
+  "API_URL": "",
+  "USER_POOL_ID": "",
+  "USER_POOL_CLIENT_ID": "",
   "USER_POOL_DOMAIN": "",
-  "ENVIRONMENT": "production",
+  "ENVIRONMENT": "development",
   "AWS_REGION": "us-east-1"
 };
