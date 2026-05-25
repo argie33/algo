@@ -27,8 +27,8 @@ jobs:
       - name: Resolve Algo Lambda Function Name
         id: resolve
         run: |
-          # Get function name from Terraform outputs (if deployed)
-          FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?contains(FunctionName, 'algo')].FunctionName" --output text | head -1)
+          # Get function name specifically for orchestrator Lambda
+          FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?FunctionName=='algo-algo-dev'].FunctionName" --output text)
           if [ -z "$FUNC" ]; then
             FUNC="algo-algo-dev"
           fi
