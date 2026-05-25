@@ -479,7 +479,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
-  layers        = [local.shared_deps_layer_arn]  # Use consolidated layer published by deploy workflow
+  layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn]  # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
