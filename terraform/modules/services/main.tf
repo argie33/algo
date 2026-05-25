@@ -101,7 +101,7 @@ resource "aws_lambda_function" "api" {
       DB_PORT              = "5432"
       DB_NAME              = var.rds_database_name
       DB_USER              = var.rds_username
-      DB_SSL               = "prefer"
+      DB_SSL               = "require"
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = var.node_env

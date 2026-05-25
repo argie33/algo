@@ -43,7 +43,7 @@ EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")
 TICKER_URL = os.getenv("SEC_TICKER_URL", "https://www.sec.gov/files/company_tickers.json")
 DEFAULT_USER_AGENT = os.getenv(
     "SEC_USER_AGENT",
-    "stocks-platform admin@example.com",  # User MUST override per SEC policy
+    "algo-trading argeropolos@gmail.com",
 )
 
 
