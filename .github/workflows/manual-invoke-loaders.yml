@@ -129,20 +129,6 @@ jobs:
           sleep 120
           echo "Signals daily loader launched."
 
-      - name: Invoke Economic Data Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'economic' }}
-        run: |
-          echo "Invoking econ_data loader..."
-          aws ecs run-task \
-            --cluster algo-cluster \
-            --task-definition algo-econ_data-loader \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --region us-east-1
-
-          sleep 120
-          echo "Economic data loader launched."
-
       - name: Invoke Algo Metrics Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'metrics' }}
         run: |
