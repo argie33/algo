@@ -35,17 +35,15 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
+                    bsd.timeframe, bsd.signal_type, bsd.strength,
                     bsd.entry_quality_score, bsd.signal_quality_score,
-                    bsd.entry_price, bsd.close, bsd.rsi, bsd.adx,
-                    bsd.sma_50, bsd.sma_200, bsd.mansfield_rs,
-                    bsd.base_type, bsd.base_length_days, bsd.breakout_quality,
-                    bsd.risk_reward_ratio, bsd.risk_pct,
-                    bsd.stage_number, bsd.substage, bsd.market_stage,
-                    bsd.rs_rating, bsd.volume, bsd.avg_volume_50d,
-                    bsd.reason, bsd.updated_at
+                    bsd.volume_surge_pct, bsd.risk_reward_ratio,
+                    bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
+                    bsd.atr, bsd.adx, bsd.macd, bsd.macd_signal,
+                    bsd.stage_number, bsd.reason
                 FROM buy_sell_daily bsd
                 """ + where_clause + """
-                ORDER BY bsd.date DESC, bsd.entry_quality_score DESC, bsd.symbol ASC
+                ORDER BY bsd.date DESC, COALESCE(bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()

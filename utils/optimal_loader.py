@@ -476,6 +476,23 @@ class OptimalLoader(ABC):
         except Exception as e:
             log.debug("metrics unavailable: %s", e)
 
+        try:
+            from datetime import date as date_type
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_audit_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (table_name) DO UPDATE SET
+                  row_count = EXCLUDED.row_count,
+                  latest_date = EXCLUDED.latest_date,
+                  last_audit_at = NOW()
+            """, (self.table_name, self._stats['rows_inserted'], date_type.today()))
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            log.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+
         return self._stats
 
     def _run_serial(self, symbols: List[str]) -> None:
