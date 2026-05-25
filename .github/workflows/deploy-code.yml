@@ -761,55 +761,39 @@ jobs:
               --output text 2>/dev/null || echo "")
           fi
 
-          # Build environment variables
-          API_ENV_VARS="DB_SECRET_ARN=$DB_SECRET_ARN,DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION"
+          # Export variables for Python subprocess
+          export DB_SECRET_ARN DB_HOST DB_PORT DB_NAME DB_USER ALLOWED_ORIGINS
+          export COGNITO_POOL_ID COGNITO_CLIENT_ID FUNC API_LAYER_ARN
 
-          if [ -n "$COGNITO_POOL_ID" ] && [ "$COGNITO_POOL_ID" != "None" ]; then
-            API_ENV_VARS="$API_ENV_VARS,COGNITO_USER_POOL_ID=$COGNITO_POOL_ID"
-          fi
-
-          if [ -n "$COGNITO_CLIENT_ID" ] && [ "$COGNITO_CLIENT_ID" != "None" ]; then
-            API_ENV_VARS="$API_ENV_VARS,COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID"
-          fi
-
-          # Update function configuration with environment variables using Python JSON encoding
-          python3 << 'PYTHONEOF'
-import json
-import subprocess
-import os
-
-env_vars = {
-    "DB_SECRET_ARN": os.environ["DB_SECRET_ARN"],
-    "DB_HOST": os.environ["DB_HOST"],
-    "DB_PORT": os.environ["DB_PORT"],
-    "DB_NAME": os.environ["DB_NAME"],
-    "DB_USER": os.environ["DB_USER"],
+          # Update function configuration with environment variables using AWS CLI
+          echo "Building environment variables JSON..."
+          cat > /tmp/api_env.json << ENVJSON
+{
+  "Variables": {
+    "DB_SECRET_ARN": "$DB_SECRET_ARN",
+    "DB_HOST": "$DB_HOST",
+    "DB_PORT": "$DB_PORT",
+    "DB_NAME": "$DB_NAME",
+    "DB_USER": "$DB_USER",
     "DB_SSL": "prefer",
-    "ALLOWED_ORIGINS": os.environ["ALLOWED_ORIGINS"],
-    "COGNITO_REGION": os.environ["AWS_REGION"],
+    "ALLOWED_ORIGINS": "$ALLOWED_ORIGINS",
+    "COGNITO_REGION": "$AWS_REGION"
+    $(if [ -n "$COGNITO_POOL_ID" ] && [ "$COGNITO_POOL_ID" != "None" ]; then echo "    ,\"COGNITO_USER_POOL_ID\": \"$COGNITO_POOL_ID\""; fi)
+    $(if [ -n "$COGNITO_CLIENT_ID" ] && [ "$COGNITO_CLIENT_ID" != "None" ]; then echo "    ,\"COGNITO_CLIENT_ID\": \"$COGNITO_CLIENT_ID\""; fi)
+  }
 }
+ENVJSON
 
-if os.environ.get("COGNITO_POOL_ID") and os.environ["COGNITO_POOL_ID"] != "None":
-    env_vars["COGNITO_USER_POOL_ID"] = os.environ["COGNITO_POOL_ID"]
+          echo "Updating API Lambda configuration..."
 
-if os.environ.get("COGNITO_CLIENT_ID") and os.environ["COGNITO_CLIENT_ID"] != "None":
-    env_vars["COGNITO_CLIENT_ID"] = os.environ["COGNITO_CLIENT_ID"]
+          # Update function code (API_LAYER_ARN should be set from earlier Publish API Lambda Layer step)
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --environment "file:///tmp/api_env.json" \
+            --layers "$API_LAYER_ARN" \
+            --region $AWS_REGION || { echo "ERROR: Failed to update API Lambda configuration"; exit 1; }
 
-with open("/tmp/env.json", "w") as f:
-    json.dump({"Variables": env_vars}, f)
-
-cmd = [
-    "aws", "lambda", "update-function-configuration",
-    "--function-name", os.environ["FUNC"],
-    "--environment", f"file:///tmp/env.json",
-    "--region", os.environ["AWS_REGION"]
-]
-result = subprocess.run(cmd, capture_output=True, text=True)
-if result.returncode != 0:
-    print(f"ERROR: Failed to update API Lambda: {result.stderr}")
-    exit(1)
-print("✅ API Lambda environment updated")
-PYTHONEOF
+          echo "✅ API Lambda environment and layers updated"
 
           echo "✅ API Lambda deployed with database configuration and Cognito settings"
 
