@@ -131,6 +131,38 @@ resource "aws_lambda_function" "api" {
 }
 
 # ============================================================
+# API Lambda Alias for Provisioned Concurrency
+# ============================================================
+# Provisioned concurrency requires an alias (not $LATEST)
+
+resource "aws_lambda_alias" "api_live" {
+  name            = "live"
+  description     = "Live alias for API Lambda with provisioned concurrency"
+  function_name   = aws_lambda_function.api.function_name
+  function_version = aws_lambda_function.api.version
+
+  depends_on = [
+    aws_lambda_function.api
+  ]
+}
+
+# ============================================================
+# API Lambda Provisioned Concurrency
+# ============================================================
+# Keeps 1 Lambda instance warm to eliminate VPC cold-start delays (10-30+ seconds)
+# This prevents API Gateway timeouts (29-second limit) on first invocation
+
+resource "aws_lambda_provisioned_concurrency_config" "api" {
+  function_name                     = aws_lambda_function.api.function_name
+  provisioned_concurrent_executions = 1
+  qualifier                         = aws_lambda_alias.api_live.name
+
+  depends_on = [
+    aws_lambda_alias.api_live
+  ]
+}
+
+# ============================================================
 # API Gateway HTTP API
 # ============================================================
 
@@ -159,7 +191,7 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
   api_id                 = aws_apigatewayv2_api.main.id
   integration_type       = "AWS_PROXY"
   integration_method     = "POST"
-  integration_uri        = aws_lambda_function.api.invoke_arn
+  integration_uri        = aws_lambda_alias.api_live.arn
   payload_format_version = "2.0"
 }
 
@@ -168,9 +200,10 @@ resource "aws_apigatewayv2_integration" "api_lambda" {
 # ============================================================
 
 resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "AllowAPIGatewayInvokeAlias"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api.function_name
+  qualifier     = aws_lambda_alias.api_live.name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
