@@ -86,7 +86,8 @@ class TradeExecutor:
         if isinstance(config, dict):
             execution_mode = config.get('execution_mode', 'paper').lower()
         else:
-            execution_mode = (config.execution_mode or 'paper').lower()
+            # AlgoConfig object has .get() method
+            execution_mode = (config.get('execution_mode', 'paper') or 'paper').lower()
 
         live_ack = os.getenv('ALGO_LIVE_TRADING', '').strip()
         paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'false').strip().lower()
