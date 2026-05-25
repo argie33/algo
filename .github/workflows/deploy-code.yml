@@ -924,7 +924,7 @@ jobs:
             # API Gateway routes are under /api, so append it
             API_URL="${API_BASE}/api"
           else
-            API_URL="${{ secrets.API_GATEWAY_URL }}"
+            API_URL="${{ secrets.API_GATEWAY_URL }}/api"
           fi
 
           # Get Cognito credentials from Terraform outputs or AWS
