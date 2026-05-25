@@ -901,7 +901,7 @@ ENVJSON
           mkdir -p db-init-pkg
           # Handler
           cp lambda/db-init/lambda_function.py db-init-pkg/
-          # Schema SQL — prefer explicit lambda/db-init/schema.sql, fall back to Terraform init.sql
+          # Schema SQL - prefer explicit lambda/db-init/schema.sql, fall back to Terraform init.sql
           cp lambda/db-init/schema.sql db-init-pkg/ 2>/dev/null || \
             cp terraform/modules/database/init.sql db-init-pkg/schema.sql
           # Required modules
@@ -1028,7 +1028,7 @@ ENVJSON
             echo "Cognito: pool=$POOL_ID client=$CLIENT_ID"
           else
             CLIENT_ID=""
-            echo "Cognito pool not found — auth will be disabled in frontend"
+            echo "Cognito pool not found - auth will be disabled in frontend"
           fi
           npm install
           # Get API endpoint from Terraform output (resolved in resolve-infra job)
