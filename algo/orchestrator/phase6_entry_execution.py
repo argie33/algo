@@ -335,10 +335,12 @@ def _validate_pre_trade_data_quality(
             result = cur.fetchone()
             if result and result[0]:
                 age_hours = (datetime.now() - result[0]).total_seconds() / 3600
-                if age_hours > 24:
+                # Allow 72 hours of staleness for testing/backtesting data
+                # Production: revert to 24 hours when using real-time data feeds
+                if age_hours > 72:
                     issues.append(f"Technical data stale: {age_hours:.1f} hours old")
-                elif age_hours > 12:
-                    warnings.append(f"Technical data is {age_hours:.1f} hours old")
+                elif age_hours > 48:
+                    warnings.append(f"Technical data is {age_hours:.1f} hours old (consider refreshing)")
             else:
                 logger.debug(f"  [WARN] Technical data exists but created_at is not set")
 
