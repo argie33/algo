@@ -129,6 +129,7 @@ locals {
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
     "stock_prices_daily"            = "loadpricedaily.py"  # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
+    "stock_prices_weekly"           = "loadpricedaily.py"  # Uses unified loader with env vars for weekly interval
     "etf_prices_daily"              = "loadpricedaily.py"
     "etf_prices_weekly"             = "loadpricedaily.py"
     "etf_prices_monthly"            = "loadpricedaily.py"
@@ -345,6 +346,7 @@ locals {
     # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
     # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
     "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    "stock_prices_weekly" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
 
     # ETF price loaders (daily, weekly, monthly intervals)
     "etf_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
@@ -527,11 +529,20 @@ resource "aws_ecs_task_definition" "loader" {
           value = "algo-trading argeropolos@gmail.com"
         }
       ],
-      # Price loader: all intervals + asset classes
+      # Price loaders: set intervals based on task name
       each.key == "stock_prices_daily" ? [
         {
           name  = "LOADER_INTERVALS"
           value = "1d,1wk,1mo"
+        },
+        {
+          name  = "LOADER_ASSET_CLASSES"
+          value = "stock,etf"
+        }
+      ] : each.key == "stock_prices_weekly" ? [
+        {
+          name  = "LOADER_INTERVALS"
+          value = "1wk"
         },
         {
           name  = "LOADER_ASSET_CLASSES"
