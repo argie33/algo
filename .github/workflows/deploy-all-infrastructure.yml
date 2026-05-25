@@ -198,16 +198,16 @@ jobs:
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Build psycopg2 Lambda layer
         run: |
           # Build psycopg2-binary layer so the db-init Lambda can connect to PostgreSQL.
           # Must run before Terraform so the zip is available for filebase64sha256().
-          # setup-python@v5 above ensures python3.11 is available and matches Lambda runtime.
+          # setup-python@v5 above ensures python3.12 is available and matches Lambda runtime.
           LAYER_DIR=/tmp/psycopg2-layer
           mkdir -p $LAYER_DIR/python
-          python3.11 -m pip install psycopg2-binary \
+          python3.12 -m pip install psycopg2-binary \
             -t $LAYER_DIR/python \
             --no-cache-dir --quiet
           cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip . -q
@@ -228,7 +228,7 @@ jobs:
 
           # Install dependencies into package directory
           if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
-            python3.11 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+            python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
               -t $PKG_DIR/ \
               --no-cache-dir --quiet
           fi
@@ -257,7 +257,7 @@ jobs:
           cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
 
           # Install dependencies
-          python3.11 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+          python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
             -t $PKG_DIR/ \
             --no-cache-dir --quiet
 
@@ -289,7 +289,7 @@ jobs:
           find $PKG_DIR -type f -name "*.pyc" -delete
 
           # Install dependencies
-          python3.11 -m pip install -r $GITHUB_WORKSPACE/lambda/algo_orchestrator/requirements.txt \
+          python3.12 -m pip install -r $GITHUB_WORKSPACE/lambda/algo_orchestrator/requirements.txt \
             -t $PKG_DIR/ \
             --no-cache-dir --quiet
 
@@ -567,7 +567,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Build Algo Lambda
         run: |
@@ -588,7 +588,7 @@ jobs:
           find $PKG_DIR -type f -name "*.pyc" -delete
 
           # Install dependencies
-          python3.11 -m pip install -r lambda/algo_orchestrator/requirements.txt \
+          python3.12 -m pip install -r lambda/algo_orchestrator/requirements.txt \
             -t $PKG_DIR/ \
             --no-cache-dir --quiet
 
@@ -646,7 +646,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Package API Lambda
         run: |
