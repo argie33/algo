@@ -4,7 +4,11 @@
 import boto3
 import json
 import sys
+import io
 from datetime import datetime, timedelta
+
+# Force UTF-8 output to handle Unicode characters properly
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def check_api_lambda():
     """Check API Lambda for errors."""
