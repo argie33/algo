@@ -22,7 +22,7 @@ export const getApiConfig = () => {
   const isDev = import.meta.env?.DEV;
   const apiUrl = "";
 
-  return {
+  const config = {
     baseURL: apiUrl,
     apiUrl: apiUrl,
     isServerless: false,
@@ -30,6 +30,13 @@ export const getApiConfig = () => {
     isDevelopment: isDev,
     isProduction: false,
   };
+
+  // Log if API URL is not available in production
+  if (!config.baseURL && !isDev) {
+    console.error('[API CONFIG ERROR] No API URL available. Check: window.__CONFIG__.API_URL, VITE_API_URL, or falling back to localhost');
+  }
+
+  return config;
 };
 
 // Create API instance that can be updated

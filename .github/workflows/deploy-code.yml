@@ -921,8 +921,8 @@ jobs:
 
           if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
             # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
-            # Frontend endpoints already include /api prefix, so don't append stage
-            API_URL="${API_BASE}"
+            # API Gateway routes are under /api, so append it
+            API_URL="${API_BASE}/api"
           else
             API_URL="${{ secrets.API_GATEWAY_URL }}"
           fi
