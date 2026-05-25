@@ -957,10 +957,7 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date,
-                       market_exposure_pct AS exposure_pct,
-                       long_exposure_pct, short_exposure_pct,
-                       exposure_tier, is_entry_allowed, regime, distribution_days, factors, halt_reasons
+                SELECT date, exposure_pct, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -970,13 +967,14 @@ def _get_markets(cur) -> Dict:
 
             active_tier = {}
             if current:
-                tier_key = str(current.get('exposure_tier') or current.get('regime') or '').lower()
+                tier_key = str(current.get('regime') or '').lower()
                 tier_conf = _TIER_CONFIG.get(tier_key, {})
                 active_tier = {'name': tier_key, **tier_conf}
-                active_tier['halt'] = not bool(current.get('is_entry_allowed', True)) or tier_conf.get('halt', False)
+                halt_from_reasons = bool(current.get('halt_reasons'))
+                active_tier['halt'] = halt_from_reasons or tier_conf.get('halt', False)
 
             cur.execute("""
-                SELECT date, market_exposure_pct AS exposure_pct, exposure_tier
+                SELECT date, exposure_pct, regime
                 FROM market_exposure_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY date ASC
@@ -1099,20 +1097,24 @@ def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
             cur.execute("""
-                SELECT date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
+                SELECT date, exposure_pct, regime, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
             """)
             row = cur.fetchone()
             if not row:
-                return json_response(200, {'current_exposure': None, 'exposure_tier': None})
+                return json_response(200, {'current_exposure_pct': None, 'active_tier': None, 'all_tiers': list(_TIER_CONFIG.keys())})
+            tier_key = str(row.get('regime') or '').lower()
+            tier_conf = _TIER_CONFIG.get(tier_key, {})
+            active_tier = {'name': tier_key, **tier_conf}
+            active_tier['halt'] = bool(row.get('halt_reasons')) or tier_conf.get('halt', False)
             return json_response(200, {
-                'current_exposure': float(row['market_exposure_pct'] or 0),
-                'long_exposure': float(row['long_exposure_pct'] or 0),
-                'short_exposure': float(row['short_exposure_pct'] or 0),
-                'exposure_tier': row.get('exposure_tier', 'unknown'),
-                'is_entry_allowed': row.get('is_entry_allowed', False),
+                'current_exposure_pct': float(row['exposure_pct'] or 0),
+                'exposure_tier': tier_key,
+                'is_entry_allowed': not active_tier['halt'],
+                'active_tier': active_tier,
+                'all_tiers': [{'name': k, **v} for k, v in _TIER_CONFIG.items()],
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except psycopg2.errors.UndefinedTable as e:
