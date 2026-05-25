@@ -499,7 +499,7 @@ resource "aws_lambda_function" "algo" {
       DB_PORT                = "5432"
       DB_NAME                = var.rds_database_name
       DB_USER                = var.rds_username
-      DB_SSL                 = "prefer"
+      DB_SSL                 = "require"
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE         = var.execution_mode
       ORCHESTRATOR_DRY_RUN      = tostring(var.orchestrator_dry_run)
