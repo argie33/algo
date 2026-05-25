@@ -120,7 +120,7 @@ const Footer = () => {
           }}
         >
           <Typography variant="body2">
-            Â© {currentYear} Bullseye Financial. All rights reserved.
+            © {currentYear} Bullseye Financial. All rights reserved.
           </Typography>
           <Box sx={{ display: 'flex', gap: 3 }}>
             <Link

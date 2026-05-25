@@ -708,7 +708,7 @@ describe("Performance Monitoring Tests", () => {
                 data-testid={`warning-${index}`}
                 className="warning"
               >
-                âš ï¸ {warning}
+                ⚠ï¸ {warning}
               </div>
             ))}
           </div>
@@ -721,7 +721,7 @@ describe("Performance Monitoring Tests", () => {
         expect(screen.getByTestId("warning-0")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("âš ï¸ vendor.js is 600KB")).toBeInTheDocument();
+      expect(screen.getByText("⚠ï¸ vendor.js is 600KB")).toBeInTheDocument();
     });
   });
 
@@ -753,7 +753,7 @@ describe("Performance Monitoring Tests", () => {
             </div>
             {violations.map((violation, index) => (
               <div key={index} data-testid={`violation-${index}`}>
-                âŒ {violation}
+                ❌ {violation}
               </div>
             ))}
           </div>
@@ -770,10 +770,10 @@ describe("Performance Monitoring Tests", () => {
 
       expect(screen.getByText("Budget violations: 2")).toBeInTheDocument();
       expect(
-        screen.getByText("âŒ Load time exceeds budget")
+        screen.getByText("❌ Load time exceeds budget")
       ).toBeInTheDocument();
       expect(
-        screen.getByText("âŒ Bundle size exceeds budget")
+        screen.getByText("❌ Bundle size exceeds budget")
       ).toBeInTheDocument();
     });
   });

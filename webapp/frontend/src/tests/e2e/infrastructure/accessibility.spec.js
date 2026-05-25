@@ -79,7 +79,7 @@ test.describe("Financial Platform - Accessibility", () => {
         } else {
         }
       } catch (error) {
-        console.log(`âŒ ${name}: ${error.message.slice(0, 50)}`);
+        console.log(`❌ ${name}: ${error.message.slice(0, 50)}`);
         // Continue testing other pages even if one fails
       }
     }
@@ -133,7 +133,7 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         // Continue testing even if individual focus operations fail
-        console.log(`âš ï¸ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠ï¸ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -216,7 +216,7 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`âš ï¸ ARIA check failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠ï¸ ARIA check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -278,7 +278,7 @@ test.describe("Financial Platform - Accessibility", () => {
           );
         } else if (pageAccessibilityScore > 0) {
           console.log(
-            `âš ï¸ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
+            `⚠ï¸ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
           );
         } else {
           console.log(
@@ -286,7 +286,7 @@ test.describe("Financial Platform - Accessibility", () => {
           );
         }
       } catch (error) {
-        console.log(`âŒ ${pagePath}: ${error.message.slice(0, 50)}`);
+        console.log(`❌ ${pagePath}: ${error.message.slice(0, 50)}`);
         // Continue to next page even if current page fails
       }
     }
@@ -363,7 +363,7 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`âš ï¸ Contrast check failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠ï¸ Contrast check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -416,7 +416,7 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         console.log(
-          `âš ï¸ Screen reader check failed: ${error.message.slice(0, 30)}`
+          `⚠ï¸ Screen reader check failed: ${error.message.slice(0, 30)}`
         );
       }
     }

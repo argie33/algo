@@ -1,5 +1,5 @@
 ﻿/**
- * DataStateManager â€” reusable wrapper for loading/error/empty states
+ * DataStateManager — reusable wrapper for loading/error/empty states
  *
  * Usage:
  *   <DataStateManager loading={isLoading} error={error} data={data}>

@@ -21,7 +21,7 @@ test('Portfolio Dashboard - Verify data rendering and charts', async ({ page }) 
   if (errorAlerts.length === 0 && errorDivs.length === 0) {
     console.log('âœ… No error messages detected');
   } else {
-    console.log(`âš ï¸  Found ${errorAlerts.length + errorDivs.length} error elements`);
+    console.log(`⚠ï¸  Found ${errorAlerts.length + errorDivs.length} error elements`);
     for (const error of [...errorAlerts, ...errorDivs]) {
       const text = await error.textContent();
       if (text?.trim()) {

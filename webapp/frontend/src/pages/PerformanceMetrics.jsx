@@ -7,7 +7,7 @@ const MetricCard = ({ label, value, unit = "", color = "var(--text)" }) => (
   <div style={{ padding: "16px", background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
     <div style={{ fontSize: "var(--t-xs)", color: "var(--text-2)", marginBottom: "8px" }}>{label}</div>
     <div style={{ fontSize: "var(--t-xl)", fontWeight: "var(--w-bold)", color }}>
-      {value == null || isNaN(Number(value)) ? "â€”" : Number(value).toFixed(2)}{unit}
+      {value == null || isNaN(Number(value)) ? "—" : Number(value).toFixed(2)}{unit}
     </div>
   </div>
 );
@@ -19,7 +19,7 @@ export default function PerformanceMetrics() {
     { staleTime: 60000 }
   );
 
-  if (loading) return <div className="main-content"><div className="muted t-sm" style={{ padding: "40px" }}>Loadingâ€¦</div></div>;
+  if (loading) return <div className="main-content"><div className="muted t-sm" style={{ padding: "40px" }}>Loading…</div></div>;
   if (error) return <div className="main-content"><div className="alert alert-danger" style={{ margin: "20px" }}>Error: {error}</div></div>;
 
   return (

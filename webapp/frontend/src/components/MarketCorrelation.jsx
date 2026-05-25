@@ -130,10 +130,10 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                               }}
                             >
                               {corrValue === null || corrValue === undefined
-                                ? "â€”"
+                                ? "—"
                                 : (() => {
                                     const num = typeof corrValue === 'number' ? corrValue : parseFloat(corrValue) || 0;
-                                    return isNaN(num) ? "â€”" : num.toFixed(2);
+                                    return isNaN(num) ? "—" : num.toFixed(2);
                                   })()}
                             </td>
                           ))}

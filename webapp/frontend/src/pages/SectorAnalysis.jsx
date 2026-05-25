@@ -1,5 +1,5 @@
 ﻿/**
- * Sector Analysis â€” sector + industry rankings, daily strength, ranking trend.
+ * Sector Analysis — sector + industry rankings, daily strength, ranking trend.
  * Plus deeper analytics: Mansfield RS rotation, momentum spider, sector breadth,
  * stage-2 leaders, sector-vs-SPY relative line, defensive/cyclical signal.
  *
@@ -55,7 +55,7 @@ const FALLBACK_PALETTE = [
 const colorFor = (name, idx) =>
   SECTOR_COLORS[name] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
 
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
 const fmtPct = (v) => formatPercentageChange(v);
 const pctClass = (v) => {
   const n = Number(v);
@@ -133,7 +133,7 @@ const momentumBadge = (m) => {
   return '';
 };
 
-// â”€â”€â”€ Mansfield RS rotation chart (4-quadrant scatter) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Mansfield RS rotation chart (4-quadrant scatter) ──────────────────────
 function MansfieldRotation({ sectors }) {
   const data = useMemo(() => {
     if (!sectors || sectors.length === 0) return [];
@@ -171,7 +171,7 @@ function MansfieldRotation({ sectors }) {
                  label={{ value: 'RS Rank Percentile (higher = stronger)',
                           position: 'insideBottom', offset: -16,
                           fill: 'var(--text-3)', fontSize: 11 }} />
-          <YAxis type="number" dataKey="momentum" name="1W Rank Î”"
+          <YAxis type="number" dataKey="momentum" name="1W Rank Δ"
                  stroke="var(--text-3)" fontSize={11} width={48}
                  label={{ value: '1W rank change (+ = improving)',
                           angle: -90, position: 'insideLeft',
@@ -182,7 +182,7 @@ function MansfieldRotation({ sectors }) {
           <Tooltip contentStyle={TT_STYLE}
             formatter={(v, n) => {
               if (n === 'RS Rank %ile') return [`${v}%`, n];
-              if (n === '1W Rank Î”') return [v > 0 ? `+${v}` : v, n];
+              if (n === '1W Rank Δ') return [v > 0 ? `+${v}` : v, n];
               return [v, n];
             }}
             labelFormatter={() => ''}
@@ -227,7 +227,7 @@ function QuadrantLabel({ pos, color, label }) {
   );
 }
 
-// â”€â”€â”€ Sector momentum spider chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sector momentum spider chart ──────────────────────────────────────────
 function MomentumSpider({ sectors }) {
   // Pick top-6 by current rank for legibility
   const data = useMemo(() => {
@@ -284,8 +284,8 @@ function MomentumSpider({ sectors }) {
   );
 }
 
-// â”€â”€â”€ Sector vs SPY relative line chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Single batched fetch â€” fixed slot count so we never violate rules-of-hooks.
+// ─── Sector vs SPY relative line chart ─────────────────────────────────────
+// Single batched fetch — fixed slot count so we never violate rules-of-hooks.
 function SectorRelativeChart({ sectors }) {
   const top = useMemo(() => {
     if (!sectors) return [];
@@ -323,7 +323,7 @@ function SectorRelativeChart({ sectors }) {
     { enabled: top.length > 0, staleTime: 1000 * 60 * 10, refetchInterval: 60000 }
   );
 
-  if (isLoading) return <Empty title="Loadingâ€¦" />;
+  if (isLoading) return <Empty title="Loading…" />;
   if (!merged || merged.length < 2) {
     return <Empty title="No relative-performance data" />;
   }
@@ -354,7 +354,7 @@ function SectorRelativeChart({ sectors }) {
   );
 }
 
-// â”€â”€â”€ Sector breadth (% above 50d / 200d MA) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sector breadth (% above 50d / 200d MA) ────────────────────────────────
 function SectorBreadthChart() {
   const { data, loading: isLoading } = useApiQuery(
     ['sector-breadth'],
@@ -362,7 +362,7 @@ function SectorBreadthChart() {
     { refetchInterval: 60000 }
   );
 
-  if (isLoading) return <Empty title="Loading breadthâ€¦" />;
+  if (isLoading) return <Empty title="Loading breadth…" />;
   const breadthData = (Array.isArray(data) ? data : data?.items) || [];
   if (!breadthData || breadthData.length === 0) return <Empty title="No breadth data" />;
 
@@ -390,7 +390,7 @@ function SectorBreadthChart() {
   );
 }
 
-// â”€â”€â”€ Stage-2 leaders per sector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stage-2 leaders per sector ────────────────────────────────────────────
 function Stage2LeadersChart() {
   const { data, loading: isLoading } = useApiQuery(
     ['sector-stage2'],
@@ -398,7 +398,7 @@ function Stage2LeadersChart() {
     { refetchInterval: 60000 }
   );
 
-  if (isLoading) return <Empty title="Loadingâ€¦" />;
+  if (isLoading) return <Empty title="Loading…" />;
   const dataItems = Array.isArray(data) ? data : (data?.items || []);
   if (!dataItems || dataItems.length === 0) {
     return <Empty title="No stage data" desc="Requires trend_template_data coverage." />;
@@ -429,7 +429,7 @@ function Stage2LeadersChart() {
   );
 }
 
-// â”€â”€â”€ Defensive vs Cyclical signal timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Defensive vs Cyclical signal timeline ─────────────────────────────────
 function DefensiveCyclicalChart() {
   const { data, loading: isLoading } = useApiQuery(
     ['sector-rotation'],
@@ -438,7 +438,7 @@ function DefensiveCyclicalChart() {
   );
 
   const rotationData = (Array.isArray(data) ? data : data?.items) || [];
-  if (isLoading) return <Empty title="Loadingâ€¦" />;
+  if (isLoading) return <Empty title="Loading…" />;
   if (!rotationData || rotationData.length === 0) {
     return <Empty title="Sector rotation signal not yet computed"
                   desc="Run algo_sector_rotation.py to populate." />;
@@ -458,7 +458,7 @@ function DefensiveCyclicalChart() {
       <div className="grid grid-3" style={{ marginBottom: 'var(--space-3)' }}>
         <div className="stile">
           <div className="stile-label">Current Signal</div>
-          <div className="stile-value">{last.signal || 'â€”'}</div>
+          <div className="stile-value">{last.signal || '—'}</div>
         </div>
         <div className="stile">
           <div className="stile-label">Defensive Lead</div>
@@ -467,7 +467,7 @@ function DefensiveCyclicalChart() {
         <div className="stile">
           <div className="stile-label">Persistent</div>
           <div className="stile-value">
-            {last.weeks_persistent != null ? `${last.weeks_persistent}w` : 'â€”'}
+            {last.weeks_persistent != null ? `${last.weeks_persistent}w` : '—'}
           </div>
         </div>
       </div>
@@ -492,7 +492,7 @@ function DefensiveCyclicalChart() {
   );
 }
 
-// â”€â”€â”€ Daily Strength Chart with MA10 + MA20 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Daily Strength Chart with MA10 + MA20 ─────────────────────────────────
 function DailyStrengthChart({ name, type, range }) {
   const endpoint = type === 'sector'
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
@@ -504,7 +504,7 @@ function DailyStrengthChart({ name, type, range }) {
     { enabled: !!name, staleTime: 1000 * 60 * 10 }
   );
 
-  if (isLoading) return <Empty title="Loadingâ€¦" />;
+  if (isLoading) return <Empty title="Loading…" />;
 
   const trendArr = resp?.trendData || [];
   const firstAvgPrice = trendArr[0]?.avgPrice || null;
@@ -562,7 +562,7 @@ function DailyStrengthChart({ name, type, range }) {
   );
 }
 
-// â”€â”€â”€ Ranking Trend Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Ranking Trend Chart ───────────────────────────────────────────────────
 function RankingTrendChart({ name, type, range }) {
   const endpoint = type === 'sector'
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
@@ -576,7 +576,7 @@ function RankingTrendChart({ name, type, range }) {
     retry: false,
   });
 
-  if (isLoading) return <Empty title="Loadingâ€¦" />;
+  if (isLoading) return <Empty title="Loading…" />;
 
   let history = (resp?.trendData || []).map(r => ({
     date: r.date,
@@ -604,15 +604,15 @@ function RankingTrendChart({ name, type, range }) {
       <div className="grid grid-3">
         <div className="stile">
           <div className="stile-label">Current</div>
-          <div className="stile-value">#{cur ?? 'â€”'}</div>
+          <div className="stile-value">#{cur ?? '—'}</div>
         </div>
         <div className="stile">
           <div className="stile-label">Best</div>
-          <div className="stile-value up">#{minR ?? 'â€”'}</div>
+          <div className="stile-value up">#{minR ?? '—'}</div>
         </div>
         <div className="stile">
           <div className="stile-label">Worst</div>
-          <div className="stile-value down">#{maxR ?? 'â€”'}</div>
+          <div className="stile-value down">#{maxR ?? '—'}</div>
         </div>
       </div>
 
@@ -661,7 +661,7 @@ function RankingTrendChart({ name, type, range }) {
   );
 }
 
-// â”€â”€â”€ Mini sparkline for table row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Mini sparkline for table row ──────────────────────────────────────────
 function SparklineTrend({ name, type }) {
   const endpoint = type === 'sector'
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=90`
@@ -674,7 +674,7 @@ function SparklineTrend({ name, type }) {
   );
 
   const rows = (resp?.trendData || []).filter(r => r.dailyStrengthScore != null);
-  if (rows.length < 2) return <span className="t-xs muted">â€”</span>;
+  if (rows.length < 2) return <span className="t-xs muted">—</span>;
 
   const data = rows.map(r => ({ date: r.date, score: r.dailyStrengthScore }));
   return (
@@ -690,7 +690,7 @@ function SparklineTrend({ name, type }) {
   );
 }
 
-// â”€â”€â”€ Top Companies for an industry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Top Companies for an industry ─────────────────────────────────────────
 function TopCompanies({ industry }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -725,7 +725,7 @@ function TopCompanies({ industry }) {
       {open && (
         <div style={{ marginTop: 'var(--space-3)' }}>
           {isLoading ? (
-            <Empty title="Loading companiesâ€¦" />
+            <Empty title="Loading companies…" />
           ) : filtered.length === 0 ? (
             <Empty title="No companies found" />
           ) : (
@@ -765,7 +765,7 @@ function TopCompanies({ industry }) {
   );
 }
 
-// â”€â”€â”€ Sector drill-down detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sector drill-down detail panel ────────────────────────────────────────
 function SectorDetail({ sector, industries }) {
   const [range, setRange] = useState('3m');
   const name = sector.sector_name || sector.sector;
@@ -784,19 +784,19 @@ function SectorDetail({ sector, industries }) {
       borderTop: '1px solid var(--border)',
     }}>
       <div className="grid grid-4">
-        <Stile label="Rank" value={`#${sector.current_rank || sector.overall_rank || 'â€”'}`} />
-        <Stile label="Momentum" value={sector.current_momentum || sector.momentum || 'â€”'} />
-        <Stile label="Trend" value={sector.current_trend || sector.trend || 'â€”'} />
+        <Stile label="Rank" value={`#${sector.current_rank || sector.overall_rank || '—'}`} />
+        <Stile label="Momentum" value={sector.current_momentum || sector.momentum || '—'} />
+        <Stile label="Trend" value={sector.current_trend || sector.trend || '—'} />
         <Stile
           label="Trailing P/E"
-          value={sector.pe?.trailing != null ? sector.pe.trailing.toFixed(2) : 'â€”'}
+          value={sector.pe?.trailing != null ? sector.pe.trailing.toFixed(2) : '—'}
         />
       </div>
 
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-        <Stile label="1W Ago" value={sector.rank_1w_ago != null ? `#${sector.rank_1w_ago}` : 'â€”'} />
-        <Stile label="4W Ago" value={sector.rank_4w_ago != null ? `#${sector.rank_4w_ago}` : 'â€”'} />
-        <Stile label="12W Ago" value={sector.rank_12w_ago != null ? `#${sector.rank_12w_ago}` : 'â€”'} />
+        <Stile label="1W Ago" value={sector.rank_1w_ago != null ? `#${sector.rank_1w_ago}` : '—'} />
+        <Stile label="4W Ago" value={sector.rank_4w_ago != null ? `#${sector.rank_4w_ago}` : '—'} />
+        <Stile label="12W Ago" value={sector.rank_12w_ago != null ? `#${sector.rank_12w_ago}` : '—'} />
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -828,7 +828,7 @@ function SectorDetail({ sector, industries }) {
         <div className="card-head">
           <div>
             <div className="card-title">Top 10 Industries within {name}</div>
-            <div className="card-sub">Sorted by RS rank Â· {matched.length} total</div>
+            <div className="card-sub">Sorted by RS rank · {matched.length} total</div>
           </div>
         </div>
         <div className="card-body">
@@ -851,7 +851,7 @@ function SectorDetail({ sector, industries }) {
                   <tr key={ind.industry}>
                     <td className="num">
                       <span className="badge badge-brand mono tnum">
-                        #{ind.current_rank ?? 'â€”'}
+                        #{ind.current_rank ?? '—'}
                       </span>
                     </td>
                     <td>
@@ -886,7 +886,7 @@ function SectorDetail({ sector, industries }) {
   );
 }
 
-// â”€â”€â”€ Industry drill-down detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Industry drill-down detail panel ──────────────────────────────────────
 function IndustryDetail({ industry }) {
   const [range, setRange] = useState('3m');
   return (
@@ -895,16 +895,16 @@ function IndustryDetail({ industry }) {
       borderTop: '1px solid var(--border)',
     }}>
       <div className="grid grid-4">
-        <Stile label="Sector" value={industry.sector || 'â€”'} />
+        <Stile label="Sector" value={industry.sector || '—'} />
         <Stile label="Stocks" value={industry.stock_count || 0} />
-        <Stile label="Momentum" value={industry.current_momentum || 'â€”'} />
-        <Stile label="Trend" value={industry.current_trend || 'â€”'} />
+        <Stile label="Momentum" value={industry.current_momentum || '—'} />
+        <Stile label="Trend" value={industry.current_trend || '—'} />
       </div>
 
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-        <Stile label="1W Ago" value={industry.rank_1w_ago != null ? `#${industry.rank_1w_ago}` : 'â€”'} />
-        <Stile label="4W Ago" value={industry.rank_4w_ago != null ? `#${industry.rank_4w_ago}` : 'â€”'} />
-        <Stile label="12W Ago" value={industry.rank_12w_ago != null ? `#${industry.rank_12w_ago}` : 'â€”'} />
+        <Stile label="1W Ago" value={industry.rank_1w_ago != null ? `#${industry.rank_1w_ago}` : '—'} />
+        <Stile label="4W Ago" value={industry.rank_4w_ago != null ? `#${industry.rank_4w_ago}` : '—'} />
+        <Stile label="12W Ago" value={industry.rank_12w_ago != null ? `#${industry.rank_12w_ago}` : '—'} />
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -947,7 +947,7 @@ function IndustryDetail({ industry }) {
   );
 }
 
-// â”€â”€â”€ Sectors view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sectors view ──────────────────────────────────────────────────────────
 function SectorsView({ sectors, industries, isLoading, error }) {
   const [perfRange, setPerfRange] = useState('1d');
   const [expanded, setExpanded] = useState(null);
@@ -971,7 +971,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
       .map((s, i) => {
         const name = s.sector_name || s.sector;
         return {
-          name: name.length > 16 ? `${name.slice(0, 16)}â€¦` : name,
+          name: name.length > 16 ? `${name.slice(0, 16)}…` : name,
           fullName: name,
           performance: Number(Number(performanceVal(s, perfRange)).toFixed(2)),
           color: colorFor(name, i),
@@ -998,7 +998,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           <div className="card-head">
             <div>
               <div className="card-title">Relative Strength Rotation</div>
-              <div className="card-sub">Quadrant scatter Â· x: RS-rank %ile Â· y: 1-week rank Î” Â· size: stocks</div>
+              <div className="card-sub">Quadrant scatter · x: RS-rank %ile · y: 1-week rank Δ · size: stocks</div>
             </div>
           </div>
           <div className="card-body">
@@ -1009,7 +1009,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           <div className="card-head">
             <div>
               <div className="card-title">Top-6 Sector Momentum</div>
-              <div className="card-sub">Spider radar Â· 1D / 5D / 20D returns per top-ranked sector</div>
+              <div className="card-sub">Spider radar · 1D / 5D / 20D returns per top-ranked sector</div>
             </div>
           </div>
           <div className="card-body">
@@ -1023,7 +1023,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">Sector Relative Performance (90D)</div>
-            <div className="card-sub">All series indexed to 100 at start Â· top-8 ranked sectors</div>
+            <div className="card-sub">All series indexed to 100 at start · top-8 ranked sectors</div>
           </div>
         </div>
         <div className="card-body">
@@ -1062,7 +1062,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">Defensive vs Cyclical Leadership</div>
-            <div className="card-sub">Sector rotation signal Â· risk-off when defensive lead persists</div>
+            <div className="card-sub">Sector rotation signal · risk-off when defensive lead persists</div>
           </div>
         </div>
         <div className="card-body">
@@ -1137,7 +1137,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
               <AlertCircle size={16} /><div>Sector data not available.</div>
             </div>
           ) : isLoading ? (
-            <Empty title="Loading sectorsâ€¦" />
+            <Empty title="Loading sectors…" />
           ) : sortedSectors.length === 0 ? (
             <Empty title="No sector data available" />
           ) : (
@@ -1176,21 +1176,21 @@ function SectorsView({ sectors, industries, isLoading, error }) {
                           <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{name}</span></td>
                           <td className="num">
                             <span className="badge badge-brand mono tnum">
-                              #{s.current_rank ?? s.overall_rank ?? 'â€”'}
+                              #{s.current_rank ?? s.overall_rank ?? '—'}
                             </span>
                           </td>
                           <td className="num mono tnum muted">
-                            {s.rank_1w_ago != null ? s.rank_1w_ago : 'â€”'}
+                            {s.rank_1w_ago != null ? s.rank_1w_ago : '—'}
                           </td>
                           <td className="num mono tnum muted">
-                            {s.rank_4w_ago != null ? s.rank_4w_ago : 'â€”'}
+                            {s.rank_4w_ago != null ? s.rank_4w_ago : '—'}
                           </td>
                           <td className="num mono tnum muted">
-                            {s.rank_12w_ago != null ? s.rank_12w_ago : 'â€”'}
+                            {s.rank_12w_ago != null ? s.rank_12w_ago : '—'}
                           </td>
                           <td>
                             <span className={`badge ${momentumBadge(s.current_momentum || s.momentum)}`}>
-                              {s.current_momentum || s.momentum || 'â€”'}
+                              {s.current_momentum || s.momentum || '—'}
                             </span>
                           </td>
                           <td><TrendIcon trend={s.current_trend || s.trend} /></td>
@@ -1225,7 +1225,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
   );
 }
 
-// â”€â”€â”€ Industries view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Industries view ───────────────────────────────────────────────────────
 function IndustriesView({ industries, isLoading, error }) {
   const [expanded, setExpanded] = useState(null);
   const [search, setSearch] = useState('');
@@ -1261,7 +1261,7 @@ function IndustriesView({ industries, isLoading, error }) {
             <div>Industry performance data is currently loading or unavailable.</div>
           </div>
         ) : isLoading ? (
-          <Empty title="Loading industriesâ€¦" />
+          <Empty title="Loading industries…" />
         ) : sorted.length === 0 ? (
           <Empty title="No industry data available" />
         ) : (
@@ -1297,23 +1297,23 @@ function IndustriesView({ industries, isLoading, error }) {
                         </td>
                         <td className="num">
                           <span className="badge badge-brand mono tnum">
-                            #{ind.current_rank ?? 'â€”'}
+                            #{ind.current_rank ?? '—'}
                           </span>
                         </td>
                         <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{ind.industry}</span></td>
-                        <td className="t-xs muted">{ind.sector || 'â€”'}</td>
+                        <td className="t-xs muted">{ind.sector || '—'}</td>
                         <td className="num mono tnum muted">
-                          {ind.rank_1w_ago != null ? ind.rank_1w_ago : 'â€”'}
+                          {ind.rank_1w_ago != null ? ind.rank_1w_ago : '—'}
                         </td>
                         <td className="num mono tnum muted">
-                          {ind.rank_4w_ago != null ? ind.rank_4w_ago : 'â€”'}
+                          {ind.rank_4w_ago != null ? ind.rank_4w_ago : '—'}
                         </td>
                         <td className="num mono tnum muted">
-                          {ind.rank_12w_ago != null ? ind.rank_12w_ago : 'â€”'}
+                          {ind.rank_12w_ago != null ? ind.rank_12w_ago : '—'}
                         </td>
                         <td>
                           <span className={`badge ${momentumBadge(ind.current_momentum)}`}>
-                            {ind.current_momentum || 'â€”'}
+                            {ind.current_momentum || '—'}
                           </span>
                         </td>
                         <td><TrendIcon trend={ind.current_trend} /></td>
@@ -1354,7 +1354,7 @@ function IndustriesView({ industries, isLoading, error }) {
   );
 }
 
-// â”€â”€â”€ Page root â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page root ─────────────────────────────────────────────────────────────
 export default function SectorAnalysis() {
   const [tab, setTab] = useState('sectors');
 
@@ -1382,7 +1382,7 @@ export default function SectorAnalysis() {
         <div>
           <div className="page-head-title">Sector Analysis</div>
           <div className="page-head-sub">
-            Sector + industry rankings Â· RS rotation Â· breadth Â· stage-2 leaders
+            Sector + industry rankings · RS rotation · breadth · stage-2 leaders
           </div>
         </div>
         <div className="page-head-actions">
@@ -1424,7 +1424,7 @@ export default function SectorAnalysis() {
   );
 }
 
-// â”€â”€â”€ Tabs / Stile / Empty primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tabs / Stile / Empty primitives ───────────────────────────────────────
 function Tabs({ tabs, value, onChange }) {
   return (
     <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>

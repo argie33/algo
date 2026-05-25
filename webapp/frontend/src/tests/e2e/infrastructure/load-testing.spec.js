@@ -405,7 +405,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         }
       } catch (error) {
         console.log(
-          `âš ï¸ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
+          `⚠ï¸ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
         );
         interactionTimes.push(1000); // Penalty for failed interaction
       }
@@ -482,7 +482,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         loadResults.push({ route, success: false, time: loadTime });
 
         console.log(
-          `âŒ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
+          `❌ ${route}: Failed after ${loadTime}ms - ${error.message.slice(0, 50)}`
         );
       }
     }

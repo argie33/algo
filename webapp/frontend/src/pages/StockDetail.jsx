@@ -1,7 +1,7 @@
 ﻿/**
- * Stock Detail â€” institutional-grade per-symbol research view (/app/stock/:symbol).
+ * Stock Detail — institutional-grade per-symbol research view (/app/stock/:symbol).
  *
- * Tabs: Chart Â· Statistics Â· Algo Â· Financials Â· Analysts Â· Signals
+ * Tabs: Chart · Statistics · Algo · Financials · Analysts · Signals
  *
  * All real data; sections are dropped (not mocked) when an endpoint is missing.
  *
@@ -20,12 +20,12 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
 
-// â”€â”€â”€ format helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null || isNaN(Number(v)) ? 'â€”' : `$${Number(v).toFixed(2)}`;
-const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : `${Number(v).toFixed(dp)}%`;
+// ─── format helpers ─────────────────────────────────────────────────────────
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const fmtMoney = (v) => v == null || isNaN(Number(v)) ? '—' : `$${Number(v).toFixed(2)}`;
+const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
 const fmtBig = (v) => {
-  if (v == null || isNaN(Number(v))) return 'â€”';
+  if (v == null || isNaN(Number(v))) return '—';
   const n = Number(v);
   if (Math.abs(n) >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
   if (Math.abs(n) >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`;
@@ -34,7 +34,7 @@ const fmtBig = (v) => {
   return `$${n.toFixed(2)}`;
 };
 const fmtVol = (v) => {
-  if (v == null || isNaN(Number(v))) return 'â€”';
+  if (v == null || isNaN(Number(v))) return '—';
   const n = Math.abs(Number(v));
   if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
@@ -86,7 +86,7 @@ function computeRSI(series, period = 14) {
   return out;
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ────────────────────────────────────────────────────────────────────
 export default function StockDetail() {
   const { symbol } = useParams();
   const navigate = useNavigate();
@@ -97,7 +97,7 @@ export default function StockDetail() {
   // History limit by timeframe
   const histLimit = { '1M': 30, '3M': 65, '6M': 130, '1Y': 260, '5Y': 1260, 'All': 5200 }[tf] || 130;
 
-  // â”€â”€ Queries â”€â”€
+  // ── Queries ──
   const { data: priceData, loading: priceLoading, error: priceError, refetch: refetchPrice } = useApiQuery(
     ['stock-price', symbol, histLimit],
     () => api.get(`/api/prices/history/${symbol}?days=${Math.ceil(histLimit / 5)}&limit=${histLimit}`),
@@ -172,7 +172,7 @@ export default function StockDetail() {
     { enabled: !!symbol }
   );
 
-  // â”€â”€ Derived chart series â”€â”€
+  // ── Derived chart series ──
   const priceSeries = useMemo(() => {
     const priceItems = Array.isArray(priceData) ? priceData : (priceData?.items || []);
     if (!priceItems?.length) return [];
@@ -214,7 +214,7 @@ export default function StockDetail() {
     });
   }, [priceData, signalsData]);
 
-  // â”€â”€ Hero KPIs â”€â”€
+  // ── Hero KPIs ──
   const last = priceSeries[priceSeries.length - 1];
   const prev = priceSeries[priceSeries.length - 2];
   const yearAgo = priceSeries[Math.max(0, priceSeries.length - 252)];
@@ -322,7 +322,7 @@ export default function StockDetail() {
             dayChg != null ? <span className={`mono tnum ${sigClass(dayChg)}`}>{dayChg >= 0 ? '+' : ''}{num(dayChg, 2)}%</span> : null
           } />
           <HeroStat label="1y Return" value={
-            <span className={`mono tnum ${sigClass(yearChg)}`}>{yearChg != null ? (yearChg >= 0 ? '+' : '') + num(yearChg, 1) + '%' : 'â€”'}</span>
+            <span className={`mono tnum ${sigClass(yearChg)}`}>{yearChg != null ? (yearChg >= 0 ? '+' : '') + num(yearChg, 1) + '%' : '—'}</span>
           } />
           <HeroStat label="Market Cap" value={fmtBig(marketCap)} />
           <HeroStat label="52w High" value={fmtMoney(high52)} sub={
@@ -331,7 +331,7 @@ export default function StockDetail() {
           <HeroStat label="Composite" value={
             scoreRow?.composite_score != null ? (
               <span className="mono tnum">{Number(scoreRow.composite_score).toFixed(1)}</span>
-            ) : 'â€”'
+            ) : '—'
           } sub={<span className="muted t-xs">/ 100</span>} />
         </div>
       </div>
@@ -389,7 +389,7 @@ export default function StockDetail() {
   );
 }
 
-// â”€â”€â”€ Hero stat tile (compact) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Hero stat tile (compact) ──────────────────────────────────────────────
 function HeroStat({ label, value, sub }) {
   return (
     <div>
@@ -402,15 +402,15 @@ function HeroStat({ label, value, sub }) {
   );
 }
 
-// â”€â”€â”€ Chart tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Chart tab ──────────────────────────────────────────────────────────────
 function ChartTab({ series, loading, tf, setTf, smaToggles, setSmaToggles, refetch }) {
   const TFs = ['1M', '3M', '6M', '1Y', '5Y', 'All'];
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Price Â· {tf}</div>
-          <div className="card-sub">SMA overlays Â· volume Â· RSI Â· BUY/SELL signal markers</div>
+          <div className="card-title">Price · {tf}</div>
+          <div className="card-sub">SMA overlays · volume · RSI · BUY/SELL signal markers</div>
         </div>
         <div className="card-actions" style={{ flexWrap: 'wrap', gap: 'var(--space-2)' }}>
           <div className="flex gap-1" style={{ background: 'var(--bg-2)', padding: 2, borderRadius: 'var(--r-sm)' }}>
@@ -443,7 +443,7 @@ function ChartTab({ series, loading, tf, setTf, smaToggles, setSmaToggles, refet
         </div>
       </div>
       <div className="card-body" style={{ padding: 'var(--space-4)' }}>
-        {loading ? <Empty title="Loadingâ€¦" /> : !series.length ? (
+        {loading ? <Empty title="Loading…" /> : !series.length ? (
           <Empty title="No price data" desc="No history available for this symbol." />
         ) : (
           <>
@@ -520,7 +520,7 @@ function Triangle({ cx, cy, fill, dir }) {
   return <path d={path} fill={fill} stroke={fill} strokeWidth={1} opacity={0.95} />;
 }
 
-// â”€â”€â”€ Statistics tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Statistics tab ────────────────────────────────────────────────────────
 function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
   const v = scoreRow?.value_inputs || {};
   const q = scoreRow?.quality_inputs || {};
@@ -540,26 +540,26 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
     ['EV / EBITDA', num(v.stock_ev_ebitda ?? v.ev_to_ebitda, 2)],
     ['EV / Revenue', num(v.stock_ev_revenue ?? v.ev_to_revenue, 2)],
     ['PEG', num(v.peg_ratio, 2)],
-    ['Dividend Yield', v.stock_dividend_yield != null ? fmtPct(Number(v.stock_dividend_yield) * 100, 2) : (v.dividend_yield != null ? fmtPct(Number(v.dividend_yield) * 100, 2) : 'â€”')],
-    ['Payout Ratio', q.payout_ratio != null ? fmtPct(Number(q.payout_ratio) * 100, 1) : 'â€”'],
-    ['ROE', q.return_on_equity_pct != null ? fmtPct(q.return_on_equity_pct, 1) : 'â€”'],
-    ['ROA', q.return_on_assets_pct != null ? fmtPct(q.return_on_assets_pct, 1) : 'â€”'],
-    ['Gross Margin', q.gross_margin_pct != null ? fmtPct(q.gross_margin_pct, 1) : 'â€”'],
-    ['Op Margin', q.operating_margin_pct != null ? fmtPct(q.operating_margin_pct, 1) : 'â€”'],
-    ['Net Margin', q.profit_margin_pct != null ? fmtPct(q.profit_margin_pct, 1) : 'â€”'],
+    ['Dividend Yield', v.stock_dividend_yield != null ? fmtPct(Number(v.stock_dividend_yield) * 100, 2) : (v.dividend_yield != null ? fmtPct(Number(v.dividend_yield) * 100, 2) : '—')],
+    ['Payout Ratio', q.payout_ratio != null ? fmtPct(Number(q.payout_ratio) * 100, 1) : '—'],
+    ['ROE', q.return_on_equity_pct != null ? fmtPct(q.return_on_equity_pct, 1) : '—'],
+    ['ROA', q.return_on_assets_pct != null ? fmtPct(q.return_on_assets_pct, 1) : '—'],
+    ['Gross Margin', q.gross_margin_pct != null ? fmtPct(q.gross_margin_pct, 1) : '—'],
+    ['Op Margin', q.operating_margin_pct != null ? fmtPct(q.operating_margin_pct, 1) : '—'],
+    ['Net Margin', q.profit_margin_pct != null ? fmtPct(q.profit_margin_pct, 1) : '—'],
     ['Debt / Equity', num(q.debt_to_equity, 2)],
     ['Current Ratio', num(q.current_ratio, 2)],
     ['Beta (12m)', num(s.beta, 2)],
-    ['Volatility (12m)', s.volatility_12m != null ? fmtPct(s.volatility_12m, 1) : 'â€”'],
-    ['Max DD (52w)', s.max_drawdown_52w != null ? fmtPct(s.max_drawdown_52w, 1) : 'â€”'],
+    ['Volatility (12m)', s.volatility_12m != null ? fmtPct(s.volatility_12m, 1) : '—'],
+    ['Max DD (52w)', s.max_drawdown_52w != null ? fmtPct(s.max_drawdown_52w, 1) : '—'],
     ['RSI (14)', num(scoreRow?.rsi ?? m.rsi, 1)],
     ['52w High', fmtMoney(high52)],
     ['52w Low', fmtMoney(low52)],
-    ['Dist from High', distHigh != null ? fmtPct(distHigh, 1) : 'â€”'],
-    ['Dist from Low',  distLow  != null ? fmtPct(distLow,  1) : 'â€”'],
-    ['Inst Ownership', p.institutional_ownership_pct != null ? fmtPct(p.institutional_ownership_pct, 1) : (km?.held_percent_institutions != null ? fmtPct(Number(km.held_percent_institutions) * 100, 1) : 'â€”')],
-    ['Insider Ownership', p.insider_ownership_pct != null ? fmtPct(p.insider_ownership_pct, 1) : (km?.held_percent_insiders != null ? fmtPct(Number(km.held_percent_insiders) * 100, 1) : 'â€”')],
-    ['Short Float', p.short_percent_of_float != null ? fmtPct(p.short_percent_of_float, 1) : 'â€”'],
+    ['Dist from High', distHigh != null ? fmtPct(distHigh, 1) : '—'],
+    ['Dist from Low',  distLow  != null ? fmtPct(distLow,  1) : '—'],
+    ['Inst Ownership', p.institutional_ownership_pct != null ? fmtPct(p.institutional_ownership_pct, 1) : (km?.held_percent_institutions != null ? fmtPct(Number(km.held_percent_institutions) * 100, 1) : '—')],
+    ['Insider Ownership', p.insider_ownership_pct != null ? fmtPct(p.insider_ownership_pct, 1) : (km?.held_percent_insiders != null ? fmtPct(Number(km.held_percent_insiders) * 100, 1) : '—')],
+    ['Short Float', p.short_percent_of_float != null ? fmtPct(p.short_percent_of_float, 1) : '—'],
     ['Short Ratio (DTC)', num(p.short_ratio, 2)],
   ];
 
@@ -611,7 +611,7 @@ function ScoreBars({ scores }) {
           <div key={label}>
             <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
               <span className="eyebrow">{label}</span>
-              <span className="mono tnum t-sm strong">{v == null ? 'â€”' : v.toFixed(1)}</span>
+              <span className="mono tnum t-sm strong">{v == null ? '—' : v.toFixed(1)}</span>
             </div>
             <div className="bar"><div className={`bar-fill ${fillClass}`} style={{ width: `${pct}%` }} /></div>
           </div>
@@ -621,7 +621,7 @@ function ScoreBars({ scores }) {
   );
 }
 
-// â”€â”€â”€ Algo tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Algo tab ──────────────────────────────────────────────────────────────
 function AlgoTab({ swing, scoreRow }) {
   if (!swing) {
     return <Empty wrap title="No algo evaluation" desc="Stock not in latest swing-trader scoring run." />;
@@ -644,8 +644,8 @@ function AlgoTab({ swing, scoreRow }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">Swing Score Â· {num(swing.swing_score, 1)} / 100</div>
-            <div className="card-sub">Eval {String(swing.eval_date).slice(0,10)} Â· Grade {swing.grade}</div>
+            <div className="card-title">Swing Score · {num(swing.swing_score, 1)} / 100</div>
+            <div className="card-sub">Eval {String(swing.eval_date).slice(0,10)} · Grade {swing.grade}</div>
           </div>
           <div className="card-actions">
             <span className={`badge badge-lg ${swing.pass_gates ? 'badge-success' : 'badge-danger'}`}>
@@ -667,7 +667,7 @@ function AlgoTab({ swing, scoreRow }) {
                 <div key={label}>
                   <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
                     <span className="eyebrow">{label}</span>
-                    <span className="mono tnum t-sm strong">{v == null ? 'â€”' : v.toFixed(1)} / {max}</span>
+                    <span className="mono tnum t-sm strong">{v == null ? '—' : v.toFixed(1)} / {max}</span>
                   </div>
                   <div className="bar"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
                 </div>
@@ -681,19 +681,19 @@ function AlgoTab({ swing, scoreRow }) {
         <div className="card-head">
           <div>
             <div className="card-title">Algo Snapshot</div>
-            <div className="card-sub">Trend template Â· stage Â· RS Â· momentum context</div>
+            <div className="card-sub">Trend template · stage · RS · momentum context</div>
           </div>
         </div>
         <div className="card-body">
           <div className="grid grid-2">
-            <Stile label="Trend Template" value={d.trend_template_score != null ? `${num(d.trend_template_score, 0)} / 8` : 'â€”'}
+            <Stile label="Trend Template" value={d.trend_template_score != null ? `${num(d.trend_template_score, 0)} / 8` : '—'}
               sub={d.trend_template_status || ''} />
-            <Stile label="Market Stage" value={d.weinstein_stage ?? d.stage ?? 'â€”'}
+            <Stile label="Market Stage" value={d.weinstein_stage ?? d.stage ?? '—'}
               sub={d.stage_substage || ''} />
             <Stile label="Relative Strength" value={num(d.mansfield_rs, 2)} sub="vs market" />
-            <Stile label="RS Rating" value={d.rs_rating != null ? `${d.rs_rating}` : 'â€”'} sub="0-99 percentile" />
-            <Stile label="Industry Rank" value={swing.industry || 'â€”'} sub={swing.sector || ''} />
-            <Stile label="Composite Score" value={scoreRow?.composite_score != null ? num(scoreRow.composite_score, 1) : 'â€”'} sub="research-weighted" />
+            <Stile label="RS Rating" value={d.rs_rating != null ? `${d.rs_rating}` : '—'} sub="0-99 percentile" />
+            <Stile label="Industry Rank" value={swing.industry || '—'} sub={swing.sector || ''} />
+            <Stile label="Composite Score" value={scoreRow?.composite_score != null ? num(scoreRow.composite_score, 1) : '—'} sub="research-weighted" />
           </div>
           {d.notes && (
             <div className="alert alert-info" style={{ marginTop: 'var(--space-4)' }}>
@@ -706,7 +706,7 @@ function AlgoTab({ swing, scoreRow }) {
   );
 }
 
-// â”€â”€â”€ Financials tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Financials tab ────────────────────────────────────────────────────────
 function FinancialsTab({ income, balance, cashflow }) {
   const incItems = Array.isArray(income) ? income : (income?.financialData || income?.items || []);
   const bsItems = Array.isArray(balance) ? balance : (balance?.financialData || balance?.items || []);
@@ -761,7 +761,7 @@ function FinancialsTab({ income, balance, cashflow }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">Revenue Â· Quarterly</div>
+            <div className="card-title">Revenue · Quarterly</div>
             <div className="card-sub">{series.length} periods</div>
           </div>
         </div>
@@ -783,7 +783,7 @@ function FinancialsTab({ income, balance, cashflow }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">Margins Â· Quarterly</div>
+            <div className="card-title">Margins · Quarterly</div>
             <div className="card-sub">Gross / Operating / Net / FCF</div>
           </div>
         </div>
@@ -833,11 +833,11 @@ function FinancialsTab({ income, balance, cashflow }) {
                   <td><span className="strong">{s.period}</span></td>
                   <td className="num mono tnum">{fmtBig(s.revenue)}</td>
                   <td className="num"><span className={`mono tnum ${sigClass(s.net_income)}`}>{fmtBig(s.net_income)}</span></td>
-                  <td className="num mono tnum">{s.gross_margin != null ? fmtPct(s.gross_margin, 1) : 'â€”'}</td>
-                  <td className="num mono tnum">{s.op_margin != null ? fmtPct(s.op_margin, 1) : 'â€”'}</td>
-                  <td className="num mono tnum">{s.net_margin != null ? fmtPct(s.net_margin, 1) : 'â€”'}</td>
+                  <td className="num mono tnum">{s.gross_margin != null ? fmtPct(s.gross_margin, 1) : '—'}</td>
+                  <td className="num mono tnum">{s.op_margin != null ? fmtPct(s.op_margin, 1) : '—'}</td>
+                  <td className="num mono tnum">{s.net_margin != null ? fmtPct(s.net_margin, 1) : '—'}</td>
                   <td className="num mono tnum">{fmtBig(s.fcf)}</td>
-                  <td className="num mono tnum">{s.fcf_margin != null ? fmtPct(s.fcf_margin, 1) : 'â€”'}</td>
+                  <td className="num mono tnum">{s.fcf_margin != null ? fmtPct(s.fcf_margin, 1) : '—'}</td>
                   <td className="num mono tnum">{num(s.de_ratio, 2)}</td>
                 </tr>
               ))}
@@ -855,9 +855,9 @@ function num1(v) {
   return isNaN(n) ? null : n;
 }
 
-// â”€â”€â”€ Analysts tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Analysts tab ──────────────────────────────────────────────────────────
 function AnalystsTab({ data, last }) {
-  // data is {items: [{date, analyst_count, bullish_count, ...}]} â€” use most recent row
+  // data is {items: [{date, analyst_count, bullish_count, ...}]} — use most recent row
   const rows = Array.isArray(data) ? data : (data?.items || []);
   const metrics = rows[0] || data?.metrics || null;
 
@@ -884,7 +884,7 @@ function AnalystsTab({ data, last }) {
         <div className="card-head">
           <div>
             <div className="card-title">Analyst Coverage</div>
-            <div className="card-sub">Consensus Â· {totalAnalysts} analysts</div>
+            <div className="card-sub">Consensus · {totalAnalysts} analysts</div>
           </div>
           <div className="card-actions">
             <span className={`badge badge-lg ${
@@ -932,7 +932,7 @@ function AnalystsTab({ data, last }) {
             <Stile label="Current" value={fmtMoney(last)} />
             <Stile label="Avg Target" value={fmtMoney(target)} />
             <Stile label="Upside / Downside" value={
-              <span className={`mono tnum ${sigClass(upside)}`}>{upside != null ? `${upside >= 0 ? '+' : ''}${num(upside, 1)}%` : 'â€”'}</span>
+              <span className={`mono tnum ${sigClass(upside)}`}>{upside != null ? `${upside >= 0 ? '+' : ''}${num(upside, 1)}%` : '—'}</span>
             } sub="vs current price" />
             <Stile label="Coverage" value={`${totalAnalysts} analysts`} sub={metrics?.date ? `as of ${String(metrics.date).slice(0,10)}` : ''} />
           </div>
@@ -957,7 +957,7 @@ function AnalystsTab({ data, last }) {
   );
 }
 
-// â”€â”€â”€ Signals tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Signals tab ───────────────────────────────────────────────────────────
 function SignalsTab({ signals }) {
   const items = Array.isArray(signals) ? signals : (signals?.items || []);
   if (!items.length) return <Empty wrap title="No signals" desc="No buy/sell signals in the last 60 sessions" />;
@@ -965,7 +965,7 @@ function SignalsTab({ signals }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Recent Signals Â· {items.length}</div>
+          <div className="card-title">Recent Signals · {items.length}</div>
           <div className="card-sub">Pine Script BUY/SELL events with full context</div>
         </div>
       </div>
@@ -993,12 +993,12 @@ function SignalsTab({ signals }) {
                   <span className={`badge ${s.signal === 'BUY' ? 'badge-success' : 'badge-danger'}`}>{s.signal}</span>
                 </td>
                 <td className="num mono tnum">{fmtMoney(s.close)}</td>
-                <td className="num mono tnum">{s.buylevel ? fmtMoney(s.buylevel) : 'â€”'}</td>
-                <td className="num mono tnum">{s.stoplevel ? fmtMoney(s.stoplevel) : 'â€”'}</td>
-                <td>{s.market_stage ? <span className="badge">{s.market_stage}</span> : <span className="muted t-xs">â€”</span>}</td>
-                <td><span className="t-xs muted">{s.base_type || 'â€”'}</span></td>
-                <td className="num mono tnum">{s.rs_rating ?? 'â€”'}</td>
-                <td className="num mono tnum">{s.risk_reward_ratio ? Number(s.risk_reward_ratio).toFixed(2) : 'â€”'}</td>
+                <td className="num mono tnum">{s.buylevel ? fmtMoney(s.buylevel) : '—'}</td>
+                <td className="num mono tnum">{s.stoplevel ? fmtMoney(s.stoplevel) : '—'}</td>
+                <td>{s.market_stage ? <span className="badge">{s.market_stage}</span> : <span className="muted t-xs">—</span>}</td>
+                <td><span className="t-xs muted">{s.base_type || '—'}</span></td>
+                <td className="num mono tnum">{s.rs_rating ?? '—'}</td>
+                <td className="num mono tnum">{s.risk_reward_ratio ? Number(s.risk_reward_ratio).toFixed(2) : '—'}</td>
                 <td className="num mono tnum">{num(s.rsi, 1)}</td>
               </tr>
             ))}
@@ -1009,7 +1009,7 @@ function SignalsTab({ signals }) {
   );
 }
 
-// â”€â”€â”€ shared little components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── shared little components ──────────────────────────────────────────────
 function Stile({ label, value, sub }) {
   return (
     <div className="stile">

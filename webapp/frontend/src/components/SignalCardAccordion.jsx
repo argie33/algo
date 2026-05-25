@@ -49,7 +49,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
   };
 
   const DataField = ({ label, value, format = 'text', color = null, unit = '' }) => {
-    // Skip rendering if value is null/undefined/empty (don't show "â€”" for missing data)
+    // Skip rendering if value is null/undefined/empty (don't show "—" for missing data)
     if (value === null || value === undefined || value === '') {
       return null;
     }
@@ -172,7 +172,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           RS
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.rs_rating ? signal.rs_rating.toFixed(0) : 'â€”'}
+                          {signal.rs_rating ? signal.rs_rating.toFixed(0) : '—'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -194,7 +194,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                                    'text.primary'
                           }}
                         >
-                          {signal.stage_number ? `S${signal.stage_number}` : 'â€”'}
+                          {signal.stage_number ? `S${signal.stage_number}` : '—'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -206,7 +206,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           ATR
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.atr ? signal.atr.toFixed(2) : 'â€”'}
+                          {signal.atr ? signal.atr.toFixed(2) : '—'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -249,7 +249,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
                           {signal.signal_triggered_date
                             ? new Date(signal.signal_triggered_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : 'â€”'}
+                            : '—'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -377,7 +377,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       Signal Type
                     </Typography>
                     <Chip
-                      label={signal.signal_type || 'â€”'}
+                      label={signal.signal_type || '—'}
                       size="small"
                       color={signal.signal_type?.includes('BUY') ? 'success' : signal.signal_type?.includes('SELL') ? 'error' : 'default'}
                       variant="outlined"

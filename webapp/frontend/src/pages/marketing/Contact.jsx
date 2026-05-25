@@ -233,7 +233,7 @@ const Contact = () => {
 
                       return result;
                     } catch (error) {
-                      console.error('âŒ Form submission error:', error);
+                      console.error('❌ Form submission error:', error);
                       throw error;
                     }
                   }}

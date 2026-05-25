@@ -46,9 +46,9 @@ export default function PETrendChart({ sectorName, industryName }) {
               contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
               labelStyle={{ color: "#fff" }}
               formatter={(value) => {
-                if (value === null || value === undefined) return "â€”";
+                if (value === null || value === undefined) return "—";
                 const num = parseFloat(value);
-                return isNaN(num) ? "â€”" : `$${num.toFixed(2)}`;
+                return isNaN(num) ? "—" : `$${num.toFixed(2)}`;
               }}
               labelFormatter={(label) => label}
             />

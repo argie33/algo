@@ -361,7 +361,7 @@ describe("Amplify Configuration", () => {
       configureAmplify();
 
       expect(consoleMock.warn).toHaveBeenCalledWith(
-        "âš ï¸  Cognito not configured - using dummy values for development"
+        "⚠ï¸  Cognito not configured - using dummy values for development"
       );
       expect(consoleMock.log).toHaveBeenCalledWith(
         "Environment variables needed:"
@@ -389,7 +389,7 @@ describe("Amplify Configuration", () => {
       configureAmplify();
 
       expect(consoleMock.log).toHaveBeenCalledWith(
-        "ðŸ”§ [AMPLIFY CONFIG] Configuration details:",
+        "🔧 [AMPLIFY CONFIG] Configuration details:",
         expect.objectContaining({
           userPoolId: "us-east-1_TestPool",
           clientId: "test-client",
@@ -411,7 +411,7 @@ describe("Amplify Configuration", () => {
       expect(() => configureAmplify()).not.toThrow();
 
       expect(consoleMock.error).toHaveBeenCalledWith(
-        "âŒ Failed to configure Amplify:",
+        "❌ Failed to configure Amplify:",
         expect.any(Error)
       );
     });
@@ -425,7 +425,7 @@ describe("Amplify Configuration", () => {
       configureAmplify();
 
       expect(consoleMock.log).toHaveBeenCalledWith(
-        "ðŸ”§ [AMPLIFY CONFIG] Configuration details:",
+        "🔧 [AMPLIFY CONFIG] Configuration details:",
         expect.objectContaining({
           runtimeConfigAvailable: false,
         })

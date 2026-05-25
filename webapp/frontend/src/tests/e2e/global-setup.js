@@ -80,14 +80,14 @@ async function globalSetup() {
 
       await browser.close();
     } catch (setupError) {
-      console.error("âŒ Test setup failed:", setupError);
+      console.error("❌ Test setup failed:", setupError);
       if (browser) {
         await browser.close();
       }
       throw setupError;
     }
   } catch (browserError) {
-    console.error("âŒ Browser launch failed:", browserError);
+    console.error("❌ Browser launch failed:", browserError);
     throw browserError;
   }
 }

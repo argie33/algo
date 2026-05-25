@@ -311,10 +311,10 @@ const MarketInternals = ({ data, isLoading, error }) => {
                         <TableCell align="right">{row.data.count || 0}</TableCell>
                         <TableCell align="right">{row.data.total || 0}</TableCell>
                         <TableCell align="right">
-                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "â€”"}
+                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "—"}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "â€”"}
+                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "—"}
                         </TableCell>
                       </TableRow>
                     ))}

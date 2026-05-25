@@ -1,5 +1,5 @@
 ﻿/**
- * Swing Candidates â€” full-universe analytical workbench.
+ * Swing Candidates — full-universe analytical workbench.
  *
  * Sections:
  *   - KPI strip
@@ -28,7 +28,7 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
@@ -174,8 +174,8 @@ export default function SwingCandidates() {
         <div>
           <div className="page-head-title">Swing Candidates</div>
           <div className="page-head-sub">
-            Full-universe research-weighted scoring Â· setup Â· trend Â· momentum Â· volume Â· fundamentals Â· sector Â· multi-TF
-            {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>Â· {itemsList.length} candidates</span>}
+            Full-universe research-weighted scoring · setup · trend · momentum · volume · fundamentals · sector · multi-TF
+            {!isLoading && itemsList.length > 0 && <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>· {itemsList.length} candidates</span>}
           </div>
         </div>
         <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
@@ -228,13 +228,13 @@ export default function SwingCandidates() {
         </div>
       )}
 
-      {/* Charts row 1 â€” radar + sector treemap */}
+      {/* Charts row 1 — radar + sector treemap */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ComponentRadar items={items} selected={selected} />
         <SectorTreemap items={items} onSectorClick={(s) => setSector(s)} />
       </div>
 
-      {/* Charts row 2 â€” funnel + correlation */}
+      {/* Charts row 2 — funnel + correlation */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <GradeFunnel items={items} />
         <ComponentCorrelation items={items} />
@@ -283,7 +283,7 @@ export default function SwingCandidates() {
               <Search size={14} className="muted" />
               <input
                 className="input"
-                placeholder="Search symbolâ€¦"
+                placeholder="Search symbol…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ flex: 1 }}
@@ -325,7 +325,7 @@ export default function SwingCandidates() {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-body" style={{ padding: 0 }}>
           {isLoading ? (
-            <Empty title="Loading universeâ€¦" />
+            <Empty title="Loading universe…" />
           ) : filtered.length === 0 ? (
             <Empty title="No candidates match filters"
                    desc="Loosen filters or wait for the next eval cycle." />
@@ -367,7 +367,7 @@ export default function SwingCandidates() {
           {filtered.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', borderTop: '1px solid var(--border)', marginTop: 'var(--space-3)', background: 'var(--bg-2)' }}>
               <div style={{ fontSize: 'var(--t-xs)', color: 'var(--text-2)' }}>
-                Showing {filtered.length === 0 ? 0 : pageStart + 1}â€“{Math.min(pageEnd, filtered.length)} of {filtered.length} results
+                Showing {filtered.length === 0 ? 0 : pageStart + 1}–{Math.min(pageEnd, filtered.length)} of {filtered.length} results
               </div>
               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                 <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="input" style={{ padding: '6px 8px', fontSize: 'var(--t-xs)' }}>
@@ -389,7 +389,7 @@ export default function SwingCandidates() {
         <div className="card-head">
           <div>
             <div className="card-title">Score Components</div>
-            <div className="card-sub">Click a row to update the radar Â· double-click to open detail</div>
+            <div className="card-sub">Click a row to update the radar · double-click to open detail</div>
           </div>
         </div>
         <div className="card-body">
@@ -409,7 +409,7 @@ export default function SwingCandidates() {
   );
 }
 
-// â”€â”€â”€ top A+ card with sparkline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── top A+ card with sparkline ────────────────────────────────────────────
 function TopCard({ c, onClick }) {
   const { data } = useApiQuery(
     ['spark', c.symbol],
@@ -438,7 +438,7 @@ function TopCard({ c, onClick }) {
         <span className="badge badge-success">{c.grade}</span>
       </div>
       <div className="t-2xs muted" style={{ marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {c.sector || 'â€”'}
+        {c.sector || '—'}
       </div>
       <div style={{ height: 44, marginBottom: 6 }}>
         {series.length >= 2 ? (
@@ -466,7 +466,7 @@ function TopCard({ c, onClick }) {
   );
 }
 
-// â”€â”€â”€ component radar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── component radar ───────────────────────────────────────────────────────
 function ComponentRadar({ items: itemsProp, selected }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -535,7 +535,7 @@ function ComponentRadar({ items: itemsProp, selected }) {
   );
 }
 
-// â”€â”€â”€ sector treemap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── sector treemap ────────────────────────────────────────────────────────
 function SectorTreemap({ items: itemsProp, onSectorClick }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -559,7 +559,7 @@ function SectorTreemap({ items: itemsProp, onSectorClick }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Concentration</div>
-          <div className="card-sub">Top-50 candidates by sector Â· click to filter</div>
+          <div className="card-sub">Top-50 candidates by sector · click to filter</div>
         </div>
       </div>
       <div className="card-body">
@@ -592,7 +592,7 @@ function TreemapCell({ x, y, width, height, name, size, colors, onClick, index }
         <>
           <text x={x + 6} y={y + 16} fill="var(--text)" fontSize={11}
             fontWeight="600" style={{ pointerEvents: 'none' }}>
-            {name && name.length > 18 ? name.slice(0, 16) + 'â€¦' : name}
+            {name && name.length > 18 ? name.slice(0, 16) + '…' : name}
           </text>
           <text x={x + 6} y={y + 32} fill="var(--text-2)" fontSize={10}
             style={{ pointerEvents: 'none' }}>
@@ -604,7 +604,7 @@ function TreemapCell({ x, y, width, height, name, size, colors, onClick, index }
   );
 }
 
-// â”€â”€â”€ grade distribution + funnel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── grade distribution + funnel ───────────────────────────────────────────
 function GradeFunnel({ items: itemsProp }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -685,7 +685,7 @@ function GradeFunnel({ items: itemsProp }) {
   );
 }
 
-// â”€â”€â”€ component correlation matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── component correlation matrix ──────────────────────────────────────────
 function ComponentCorrelation({ items: itemsProp }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const matrix = useMemo(() => {
@@ -765,7 +765,7 @@ function ComponentCorrelation({ items: itemsProp }) {
                   const cell = matrix.find(m => m.rowIdx === rIdx && m.colIdx === cIdx);
                   const r = cell?.r ?? 0;
                   return (
-                    <td key={lb} title={`${la} Ã— ${lb} = ${r.toFixed(2)}`}
+                    <td key={lb} title={`${la} × ${lb} = ${r.toFixed(2)}`}
                       style={{
                         padding: '8px 4px',
                         textAlign: 'center',
@@ -788,7 +788,7 @@ function ComponentCorrelation({ items: itemsProp }) {
   );
 }
 
-// â”€â”€â”€ row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── row ───────────────────────────────────────────────────────────────────
 function Row({ c, rank, active, onClick, _onNavigate }) {
   const cmp = c.components || {};
   return (
@@ -802,10 +802,10 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
         <span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{c.symbol}</span>
       </td>
       <td className="t-xs muted" style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {c.sector || 'â€”'}
+        {c.sector || '—'}
       </td>
       <td>
-        <span className={`badge ${GRADE_CLASS[c.grade] || 'badge'}`}>{c.grade || 'â€”'}</span>
+        <span className={`badge ${GRADE_CLASS[c.grade] || 'badge'}`}>{c.grade || '—'}</span>
       </td>
       <td className="num mono tnum" style={{ fontWeight: 'var(--w-semibold)' }}>
         {num(c.swing_score, 1)}
@@ -832,7 +832,7 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
   );
 }
 
-// â”€â”€â”€ small â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── small ─────────────────────────────────────────────────────────────────
 function Kpi({ label, value, sub, tone }) {
   return (
     <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>

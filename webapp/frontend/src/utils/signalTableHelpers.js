@@ -10,7 +10,7 @@ import { formatCurrency } from './formatters';
  */
 export const formatCellValue = (value, key) => {
   if (value === null || value === undefined || value === "" || value === "None") {
-    return "â€”";
+    return "—";
   }
 
   // Format currency fields (prices, levels, targets, moving averages)

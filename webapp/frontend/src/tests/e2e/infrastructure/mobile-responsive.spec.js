@@ -242,7 +242,7 @@ test.describe("Mobile-Specific Testing", () => {
         }
       } catch (e) {
         console.log(
-          `âŒ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
+          `❌ Mobile navigation to ${route} failed: ${e.message.slice(0, 50)}`
         );
       }
     }

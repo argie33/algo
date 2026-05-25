@@ -348,7 +348,7 @@ export function AuthProvider({ children }) {
           },
           onRefreshError: (error, attempts) => {
             console.error(
-              `âŒ Token refresh failed (attempt ${attempts}):`,
+              `❌ Token refresh failed (attempt ${attempts}):`,
               error
             );
           },
@@ -361,7 +361,7 @@ export function AuthProvider({ children }) {
           sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
         }
       } catch (error) {
-        console.error("âŒ Failed to initialize session manager:", error);
+        console.error("❌ Failed to initialize session manager:", error);
         // Don't throw error to prevent app crash
       }
     } else if (!state.isAuthenticated) {
@@ -447,8 +447,16 @@ export function AuthProvider({ children }) {
             };
           }
         } catch (cognitoError) {
-          console.warn("âš ï¸ Cognito authentication failed, trying dev auth fallback:", cognitoError);
-          // Don't return here - fall through to dev auth
+          // Auth failures (wrong credentials, unconfirmed account) are user errors — return immediately
+          const authFailures = ['NotAuthorizedException', 'UserNotFoundException',
+                                'UserNotConfirmedException', 'PasswordResetRequiredException'];
+          if (authFailures.includes(cognitoError.name)) {
+            const errorMessage = getErrorMessage(cognitoError);
+            dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
+            return { success: false, error: errorMessage };
+          }
+          // Service errors — fall through to dev auth fallback if available
+          console.warn("⚠️ Cognito service error, trying dev auth fallback:", cognitoError);
         }
       }
 
@@ -463,8 +471,8 @@ export function AuthProvider({ children }) {
       if (shouldUseDevAuth) {
         console.log(
           forceDevAuth
-            ? "ðŸ”§ DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
-            : "ðŸ”§ DEVELOPMENT LOGIN - Using dev auth fallback"
+            ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
+            : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
         );
 
         try {

@@ -132,7 +132,7 @@ describe("Main Entry Point", () => {
       const validateRootElement = (elementId) => {
         const element = document.getElementById(elementId);
         if (!element) {
-          console.error(`âŒ ${elementId} element not found!`);
+          console.error(`❌ ${elementId} element not found!`);
           return false;
         }
         return true;
@@ -144,7 +144,7 @@ describe("Main Entry Point", () => {
       const result = validateRootElement("root");
 
       expect(result).toBe(false);
-      expect(console.error).toHaveBeenCalledWith("âŒ root element not found!");
+      expect(console.error).toHaveBeenCalledWith("❌ root element not found!");
     });
 
     it("should handle config loading validation", async () => {
@@ -152,7 +152,7 @@ describe("Main Entry Point", () => {
         if (window.__CONFIG__) {
           return true;
         } else {
-          console.warn("âš ï¸ Config not loaded yet, check index.html script tag");
+          console.warn("⚠ï¸ Config not loaded yet, check index.html script tag");
           return false;
         }
       };
@@ -165,7 +165,7 @@ describe("Main Entry Point", () => {
 
       expect(result).toBe(false);
       expect(console.warn).toHaveBeenCalledWith(
-        "âš ï¸ Config not loaded yet, check index.html script tag"
+        "⚠ï¸ Config not loaded yet, check index.html script tag"
       );
 
       // Restore config

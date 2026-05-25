@@ -66,7 +66,7 @@ export const logApiError = (component, operation, error, context = {}) => {
 
   // Log structured error information (using console.log to avoid recursion)
   if (import.meta.env && import.meta.env.DEV) {
-    console.group(`âŒ ${component} - ${operation} failed`);
+    console.group(`❌ ${component} - ${operation} failed`);
     console.log(`ðŸ’¥ Error: ${errorMessage}`);
 
     // Log additional context if provided (with safe stringification)

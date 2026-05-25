@@ -67,7 +67,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error") {
         _errorCount++;
-        console.log(`âŒ Console error: ${msg.text().slice(0, 100)}`);
+        console.log(`❌ Console error: ${msg.text().slice(0, 100)}`);
       }
     });
 
@@ -128,7 +128,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
         });
 
         console.log(
-          `âŒ ${testPage}: Failed to load - ${error.message.slice(0, 50)}`
+          `❌ ${testPage}: Failed to load - ${error.message.slice(0, 50)}`
         );
       }
     }
@@ -368,7 +368,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
           loaded: false,
           error: error.message,
         });
-        console.log(`âŒ ${testPage}: Failed - ${error.message.slice(0, 50)}`);
+        console.log(`❌ ${testPage}: Failed - ${error.message.slice(0, 50)}`);
       }
     }
 

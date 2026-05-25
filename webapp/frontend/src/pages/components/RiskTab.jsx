@@ -40,13 +40,13 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
     <div style={{ padding: 'var(--space-4)' }}>
       {anyTriggered && (
         <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
-          <strong>{!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length} circuit breaker{(!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length) !== 1 ? 's' : ''} triggered</strong> â€” new entries halted
+          <strong>{!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length} circuit breaker{(!Array.isArray(circuitBreakers) ? circuitBreakers.triggered_count : breakers.filter(b => b.triggered).length) !== 1 ? 's' : ''} triggered</strong> — new entries halted
         </div>
       )}
 
       <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
         <div className="card-head">
-          <div className="card-title">Circuit Breakers â€” Kill-Switch Status</div>
+          <div className="card-title">Circuit Breakers — Kill-Switch Status</div>
         </div>
         <div className="card-body">
           <div className="grid grid-3" style={{ gap: 'var(--space-4)' }}>
@@ -149,10 +149,10 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
                         <td className="strong mono">{p.symbol}</td>
                         <td className="num mono tnum">${Math.round(p.position_value || 0).toLocaleString()}</td>
                         <td className={`num mono tnum ${p.distance_to_stop_pct < 3 ? 'down' : p.distance_to_stop_pct < 5 ? 'muted' : ''}`}>
-                          {p.distance_to_stop_pct != null ? `${p.distance_to_stop_pct.toFixed(1)}%` : 'â€”'}
+                          {p.distance_to_stop_pct != null ? `${p.distance_to_stop_pct.toFixed(1)}%` : '—'}
                         </td>
                         <td className="num mono tnum down">${Math.round(p.open_risk_dollars || 0).toLocaleString()}</td>
-                        <td className="t-xs muted">{p.sector || 'â€”'}</td>
+                        <td className="t-xs muted">{p.sector || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

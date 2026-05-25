@@ -1,12 +1,12 @@
 ﻿/**
- * AppLayout â€” Bullseye Trading platform shell
+ * AppLayout — Bullseye Trading platform shell
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind.
  * Dark theme is default (sleek look). Light is opt-in via the user-menu
  * toggle (persisted to localStorage as theme=light).
  * All visual tokens live in src/styles/tokens.css.
  *
- * Layout: 260px left sidebar (brand Â· nav Â· user) + main content + footer.
+ * Layout: 260px left sidebar (brand · nav · user) + main content + footer.
  * Mobile: drawer slides over.
  */
 
@@ -193,7 +193,7 @@ export default function AppLayout({ children }) {
               <div className="sidebar-user-avatar">{userInitial}</div>
               <div className="sidebar-user-info">
                 <div className="sidebar-user-name">{userLabel}</div>
-                <div className="sidebar-user-meta">Signed in Â· click for menu</div>
+                <div className="sidebar-user-meta">Signed in · click for menu</div>
               </div>
               <Settings size={14} className="shrink-0" style={{ color: 'var(--text-faint)' }} />
             </>
@@ -282,11 +282,11 @@ export default function AppLayout({ children }) {
         {/* Footer */}
         <footer className="app-footer">
           <div>BULLSEYE</div>
-          <div>Yahoo Finance Â· Alpaca Â· Computed</div>
+          <div>Yahoo Finance · Alpaca · Computed</div>
         </footer>
       </div>
 
-      {/* Mobile drawer toggle visibility â€” inline media query rule */}
+      {/* Mobile drawer toggle visibility — inline media query rule */}
       <style>{`
         @media (max-width: 900px) {
           [data-mobile-only="true"] { display: inline-flex !important; }
@@ -313,7 +313,7 @@ function ExposurePill({ exposure }) {
   if (!exposure) return null;
   const regime = (exposure.regime || '').replace(/uptrend_under_pressure/, 'pressure');
   const variant = REGIME_VARIANT[regime] || '';
-  const pct = exposure.exposure_pct ?? 'â€”';
+  const pct = exposure.exposure_pct ?? '—';
   return (
     <span className={`badge ${variant} mono tnum`}>
       EXP {pct}%

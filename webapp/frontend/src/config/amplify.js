@@ -74,7 +74,7 @@ export function configureAmplify() {
 
     Amplify.configure(config);
   } catch (error) {
-    console.error("âŒ Failed to configure Amplify:", error);
+    console.error("❌ Failed to configure Amplify:", error);
   }
 }
 

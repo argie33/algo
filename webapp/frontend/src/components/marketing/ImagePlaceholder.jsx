@@ -19,7 +19,7 @@ const ImagePlaceholder = ({
   const [imageLoaded, setImageLoaded] = useState(!isPlaceholder);
 
   const handleImageError = (e) => {
-    console.warn(`âš ï¸ Image failed to load: ${src}`);
+    console.warn(`⚠ï¸ Image failed to load: ${src}`);
     setImageLoaded(false);
     if (onError) {
       onError(e);

@@ -85,9 +85,9 @@ const DeepValueStocks = () => {
     setPage(0);
   };
 
-  const fmt = (v, dec = 2) => v != null ? parseFloat(v).toFixed(dec) : "â€”";
-  const fmtPct = (v, dec = 1) => v != null ? `${parseFloat(v).toFixed(dec)}%` : "â€”";
-  const fmtDiscount = (v) => v != null ? `${parseFloat(v).toFixed(1)}%` : "â€”";
+  const fmt = (v, dec = 2) => v != null ? parseFloat(v).toFixed(dec) : "—";
+  const fmtPct = (v, dec = 1) => v != null ? `${parseFloat(v).toFixed(dec)}%` : "—";
+  const fmtDiscount = (v) => v != null ? `${parseFloat(v).toFixed(1)}%` : "—";
 
   const avg = (arr, key) => {
     const vals = arr.map(s => s[key]).filter(v => v != null && !isNaN(v));
@@ -161,7 +161,7 @@ const DeepValueStocks = () => {
               <h2 style={{ margin: 0, fontSize: 'var(--t-lg)', fontWeight: 'var(--w-bold)', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {stock.symbol}
               </h2>
-              {stock.company_name && <p style={{ margin: 0, fontSize: 'var(--t-sm)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>â€” {stock.company_name}</p>}
+              {stock.company_name && <p style={{ margin: 0, fontSize: 'var(--t-sm)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>— {stock.company_name}</p>}
               {(stock.quality_rank === "tier1" || stock.quality_rank === "tier2") && (
                 <VerifiedIcon size={18} color={tier.color} style={{ flexShrink: 0 }} />
               )}
@@ -218,18 +218,18 @@ const DeepValueStocks = () => {
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#6366f1' }}>ðŸ“Š DCF / Intrinsic Value</h3>
               <MetricGrid items={[
-                ["Current Price", stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "â€”"],
-                ["Intrinsic Value", stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "â€”"],
-                ["Margin of Safety", stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "â€”", stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444"],
+                ["Current Price", stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"],
+                ["Intrinsic Value", stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"],
+                ["Margin of Safety", stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—", stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444"],
               ]} />
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#ef4444' }}>ðŸ”¥ Price Action / Fire Sale</h3>
               <MetricGrid items={[
-                ["52w High", stock.high_52w != null ? `$${stock.high_52w.toFixed(2)}` : "â€”"],
-                ["3y High", stock.high_3y != null ? `$${stock.high_3y.toFixed(2)}` : "â€”"],
-                ["52w Low", stock.low_52w != null ? `$${stock.low_52w.toFixed(2)}` : "â€”"],
+                ["52w High", stock.high_52w != null ? `$${stock.high_52w.toFixed(2)}` : "—"],
+                ["3y High", stock.high_3y != null ? `$${stock.high_3y.toFixed(2)}` : "—"],
+                ["52w Low", stock.low_52w != null ? `$${stock.low_52w.toFixed(2)}` : "—"],
                 ["â†“52w", fmtPct(stock.drop_from_52w_high_pct), stock.drop_from_52w_high_pct >= 30 ? "#ef4444" : "inherit"],
                 ["â†“3y", fmtPct(stock.drop_from_3y_high_pct), stock.drop_from_3y_high_pct >= 40 ? "#ef4444" : "inherit"],
                 ["Disc/Sector", fmtDiscount(stock.discount_vs_sector_pe_pct)],
@@ -263,14 +263,14 @@ const DeepValueStocks = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#f97316' }}>âš ï¸ Trap Detection (YoY Trends)</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#f97316' }}>⚠ï¸ Trap Detection (YoY Trends)</h3>
               <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)' }}>
                 Are quality metrics improving âœ“ or declining âœ—? Negative = potential value trap.
               </p>
               <MetricGrid items={[
-                ["Op M Trend", stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "â€”", stock.op_margin_trend_pp >= 0 ? "#22c55e" : stock.op_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
-                ["GM Trend", stock.gross_margin_trend_pp != null ? `${stock.gross_margin_trend_pp >= 0 ? "+" : ""}${stock.gross_margin_trend_pp.toFixed(2)}pp` : "â€”", stock.gross_margin_trend_pp >= 0 ? "#22c55e" : stock.gross_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
-                ["ROE Trend", stock.roe_trend_pp != null ? `${stock.roe_trend_pp >= 0 ? "+" : ""}${stock.roe_trend_pp.toFixed(2)}pp` : "â€”", stock.roe_trend_pp >= 0 ? "#22c55e" : stock.roe_trend_pp > -10 ? "#f97316" : "#ef4444"],
+                ["Op M Trend", stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "—", stock.op_margin_trend_pp >= 0 ? "#22c55e" : stock.op_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
+                ["GM Trend", stock.gross_margin_trend_pp != null ? `${stock.gross_margin_trend_pp >= 0 ? "+" : ""}${stock.gross_margin_trend_pp.toFixed(2)}pp` : "—", stock.gross_margin_trend_pp >= 0 ? "#22c55e" : stock.gross_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
+                ["ROE Trend", stock.roe_trend_pp != null ? `${stock.roe_trend_pp >= 0 ? "+" : ""}${stock.roe_trend_pp.toFixed(2)}pp` : "—", stock.roe_trend_pp >= 0 ? "#22c55e" : stock.roe_trend_pp > -10 ? "#f97316" : "#ef4444"],
               ]} />
             </div>
           </div>
@@ -359,7 +359,7 @@ const DeepValueStocks = () => {
 
             <div style={{ padding: 'var(--space-3)', backgroundColor: "rgba(245, 158, 11, 0.16)", borderRadius: 'var(--r-md)', borderLeft: '3px solid #f59e0b' }}>
               <p style={{ margin: 0, fontWeight: 'var(--w-semibold)', color: '#f59e0b' }}>
-                ðŸŽ¯ EXCEPTIONAL QUALITY meets ANOMALY PRICING. Rare â€” perhaps 5-30 stocks at any moment. Where generational wealth compounds.
+                ðŸŽ¯ EXCEPTIONAL QUALITY meets ANOMALY PRICING. Rare — perhaps 5-30 stocks at any moment. Where generational wealth compounds.
               </p>
             </div>
           </div>
@@ -414,17 +414,17 @@ const DeepValueStocks = () => {
         </div>
         <div className="kpi" style={{ backgroundColor: "rgba(99, 102, 241, 0.12)" }}>
           <div className="kpi-label">Avg Margin of Safety</div>
-          <div className="kpi-value" style={{ color: "#818cf8" }}>{avgMoS != null ? avgMoS.toFixed(0) + "%" : "â€”"}</div>
+          <div className="kpi-value" style={{ color: "#818cf8" }}>{avgMoS != null ? avgMoS.toFixed(0) + "%" : "—"}</div>
           <div className="kpi-sub">DCF intrinsic value vs price</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Avg Drop from High</div>
-          <div className="kpi-value" style={{ color: "#ef4444" }}>{avgDrop != null ? avgDrop.toFixed(0) + "%" : "â€”"}</div>
+          <div className="kpi-value" style={{ color: "#ef4444" }}>{avgDrop != null ? avgDrop.toFixed(0) + "%" : "—"}</div>
           <div className="kpi-sub">Fire sale magnitude (3y)</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Avg ROE</div>
-          <div className="kpi-value" style={{ color: "#22c55e" }}>{avgROE != null ? avgROE.toFixed(1) + "%" : "â€”"}</div>
+          <div className="kpi-value" style={{ color: "#22c55e" }}>{avgROE != null ? avgROE.toFixed(1) + "%" : "—"}</div>
           <div className="kpi-sub">Elite quality metric</div>
         </div>
       </div>
@@ -500,7 +500,7 @@ const DeepValueStocks = () => {
       ) : (
         <>
           <div style={{ marginBottom: 'var(--space-3)', display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 'var(--t-sm)', color: 'var(--text-muted)' }}>
-            <span>Showing {page * rowsPerPage + 1}â€“{Math.min((page + 1) * rowsPerPage, sorted.length)} of {sorted.length} opportunities</span>
+            <span>Showing {page * rowsPerPage + 1}–{Math.min((page + 1) * rowsPerPage, sorted.length)} of {sorted.length} opportunities</span>
             <div style={{ display: "flex", gap: 'var(--space-2)' }}>
               <button className="btn btn-sm btn-outline" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
               <button className="btn btn-sm btn-outline" disabled={(page + 1) * rowsPerPage >= sorted.length} onClick={() => setPage(p => p + 1)}>Next</button>
@@ -549,8 +549,8 @@ const DeepValueStocks = () => {
                         {globalIdx === 0 && <TrendingUp size={14} color="#22c55e" />}
                         {stock.symbol}
                       </td>
-                      <td style={{ fontSize: 'var(--t-sm)', fontWeight: 500 }}>{stock.company_name || "â€”"}</td>
-                      <td style={{ fontSize: 'var(--t-2xs)', color: 'var(--text-2)' }}>{stock.sector || "â€”"}</td>
+                      <td style={{ fontSize: 'var(--t-sm)', fontWeight: 500 }}>{stock.company_name || "—"}</td>
+                      <td style={{ fontSize: 'var(--t-2xs)', color: 'var(--text-2)' }}>{stock.sector || "—"}</td>
                       <td style={{ fontSize: 'var(--t-2xs)' }}>
                         <span style={{
                           display: 'inline-flex',
@@ -564,7 +564,7 @@ const DeepValueStocks = () => {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', fontWeight: 600 }}>
-                        {stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "â€”"}
+                        {stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)' }}>{fmt(stock.trailing_pe)}</td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', color: stock.roe_pct != null && stock.roe_pct > 25 ? "#22c55e" : "inherit", fontWeight: stock.roe_pct > 25 ? 700 : 400 }}>
@@ -580,16 +580,16 @@ const DeepValueStocks = () => {
                         {fmtDiscount(stock.drop_from_3y_high_pct)}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: "#818cf8" }}>
-                        {stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "â€”"}
+                        {stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444" }}>
-                        {stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "â€”"}
+                        {stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—"}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', color: stock.revenue_growth_yoy_pct >= 0 ? "#1b5e20" : "#c62828", fontWeight: 600 }}>
                         {fmtPct(stock.revenue_growth_yoy_pct)}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', color: stock.op_margin_trend_pp >= 0 ? "#1b5e20" : stock.op_margin_trend_pp > -3 ? "#f57c00" : "#c62828" }}>
-                        {stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "â€”"}
+                        {stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "—"}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', color: stock.debt_to_equity > 2 ? "#c62828" : stock.debt_to_equity < 0.5 ? "#1b5e20" : "inherit" }}>
                         {fmt(stock.debt_to_equity)}

@@ -21,9 +21,11 @@
   /* ── Text ──────────────────────────────────────────────────────────────── */
   --text:         #e8eaf4;   /* primary, headlines */
   --text-2:       #b8c0d9;   /* body */
+  --text-3:       var(--text-faint);   /* chart axis / tertiary */
   --text-muted:   #8891b0;   /* labels */
   --text-faint:   #6b7a99;   /* captions / disabled */
   --text-on-brand: #ffffff;
+  --text-on-light: #0a0c12;  /* text on light backgrounds (amber, cyan buttons) */
 
   /* ── Brand — indigo ────────────────────────────────────────────────────── */
   --brand:        #6366f1;   /* primary action */
@@ -116,6 +118,19 @@
   /* ── Focus ring (WCAG keyboard) ───────────────────────────────────────── */
   --ring:        0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
   --ring-danger: 0 0 0 2px var(--bg), 0 0 0 4px var(--danger);
+
+  /* ── Compatibility aliases (keep old names working) ───────────────────── */
+  --text-1:        var(--text);
+  --text-secondary: var(--text-muted);
+  --accent-color:  var(--brand);
+  --bg-primary:    var(--bg);
+  --bg-secondary:  var(--bg-2);
+  --bg-tertiary:   var(--surface);
+  --border-color:  var(--border);
+  --error:         var(--danger);
+  --surface-danger: var(--danger-soft);
+  --shadow-xl:     var(--shadow-lg);
+  --red-400:       #f87171;
 }
 
 /* ── Light theme override (opt-in via .light on <html> or <body>) ────────── */

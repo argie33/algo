@@ -1,5 +1,5 @@
 ﻿/**
- * DataSection â€” Reusable data display wrapper with error handling
+ * DataSection — Reusable data display wrapper with error handling
  *
  * Provides consistent handling of:
  * - Loading states
@@ -50,7 +50,7 @@ export function DataSection({
         {isLoading && !error ? (
           <div className="empty">
             <Inbox size={32} className="muted" />
-            <div className="empty-title">Loadingâ€¦</div>
+            <div className="empty-title">Loading…</div>
           </div>
         ) : error ? (
           <div className="empty">
@@ -72,7 +72,7 @@ export function DataSection({
 }
 
 /**
- * TruncatedList â€” Display a list with "X of Y" indicator and expand option
+ * TruncatedList — Display a list with "X of Y" indicator and expand option
  */
 export function TruncatedList({
   items,

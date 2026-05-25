@@ -1,5 +1,5 @@
 ﻿/**
- * Shared UI primitives â€” built on the unified design system.
+ * Shared UI primitives — built on the unified design system.
  * Every page imports from here for consistency.
  */
 
@@ -13,7 +13,7 @@ import { TrendingUp, TrendingDown } from '@mui/icons-material';
 import { C, F, comp, gradeColor, severityColor, pnlColor, fmt$, fmtPct } from '../../theme/algoTheme';
 
 // ============================================================================
-// SECTION CARD â€” primary container for grouped data
+// SECTION CARD — primary container for grouped data
 // ============================================================================
 export const SectionCard = ({ title, action, subtitle, children, sx = {}, noPadding = false }) => (
   <Card sx={{ ...comp.card, ...sx }}>
@@ -37,7 +37,7 @@ export const SectionCard = ({ title, action, subtitle, children, sx = {}, noPadd
 );
 
 // ============================================================================
-// STAT â€” labelled numeric value block
+// STAT — labelled numeric value block
 // ============================================================================
 export const Stat = ({ label, value, sub, color, mono = true, large = false }) => (
   <Box>
@@ -64,7 +64,7 @@ export const Stat = ({ label, value, sub, color, mono = true, large = false }) =
 );
 
 // ============================================================================
-// KPI CARD â€” bordered stat with semantic accent
+// KPI CARD — bordered stat with semantic accent
 // ============================================================================
 export const KpiCard = ({ label, value, sub, color, hint, accent = C.blue }) => (
   <Box sx={{
@@ -91,7 +91,7 @@ export const KpiCard = ({ label, value, sub, color, hint, accent = C.blue }) => 
 );
 
 // ============================================================================
-// PNL CELL â€” automatic color + arrow
+// PNL CELL — automatic color + arrow
 // ============================================================================
 export const PnlCell = ({ value, format = 'number', decimals = 2, sx = {} }) => {
   if (value === null || value === undefined || isNaN(value)) {
@@ -123,7 +123,7 @@ export const SeverityChip = ({ severity, label }) => (
 );
 
 // ============================================================================
-// GRADE CHIP â€” A+/A/B/C/D/F
+// GRADE CHIP — A+/A/B/C/D/F
 // ============================================================================
 export const GradeChip = ({ grade }) => (
   <Chip
@@ -137,14 +137,14 @@ export const GradeChip = ({ grade }) => (
 // TREND ARROW
 // ============================================================================
 export const TrendArrow = ({ value, threshold = 0 }) => {
-  if (value === null || value === undefined) return <Box component="span" sx={{ color: C.textDim }}>Â·</Box>;
+  if (value === null || value === undefined) return <Box component="span" sx={{ color: C.textDim }}>·</Box>;
   if (value > threshold) return <TrendingUp sx={{ color: C.bull, fontSize: 16, verticalAlign: 'middle' }} />;
   if (value < -threshold) return <TrendingDown sx={{ color: C.bear, fontSize: 16, verticalAlign: 'middle' }} />;
-  return <Box component="span" sx={{ color: C.textDim }}>Â·</Box>;
+  return <Box component="span" sx={{ color: C.textDim }}>·</Box>;
 };
 
 // ============================================================================
-// PROGRESS BAR â€” colored by fill ratio
+// PROGRESS BAR — colored by fill ratio
 // ============================================================================
 export const ProgressBar = ({ value, max, height = 6 }) => {
   const pct = max > 0 ? (value / max) * 100 : 0;
@@ -160,7 +160,7 @@ export const ProgressBar = ({ value, max, height = 6 }) => {
 };
 
 // ============================================================================
-// FACTOR BAR â€” labelled progress bar with score
+// FACTOR BAR — labelled progress bar with score
 // ============================================================================
 export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
   <Box sx={{ mb: 1.5 }}>
@@ -192,7 +192,7 @@ export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
 );
 
 // ============================================================================
-// DATA TABLE â€” pre-styled table for data rows
+// DATA TABLE — pre-styled table for data rows
 // ============================================================================
 export const DataTable = ({ columns, rows, emptyMessage, maxHeight }) => (
   <TableContainer sx={maxHeight ? { maxHeight } : {}}>
@@ -240,7 +240,7 @@ export const DataTable = ({ columns, rows, emptyMessage, maxHeight }) => (
 );
 
 // ============================================================================
-// STATUS DOT â€” small colored circle for status indicators
+// STATUS DOT — small colored circle for status indicators
 // ============================================================================
 export const StatusDot = ({ severity, size = 8 }) => (
   <Box sx={{
@@ -250,7 +250,7 @@ export const StatusDot = ({ severity, size = 8 }) => (
 );
 
 // ============================================================================
-// PAGE HEADER â€” title + breadcrumb + actions
+// PAGE HEADER — title + breadcrumb + actions
 // ============================================================================
 export const PageHeader = ({ title, subtitle, actions }) => (
   <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

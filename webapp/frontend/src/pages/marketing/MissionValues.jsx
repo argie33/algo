@@ -53,7 +53,7 @@ const MissionValues = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Our platform analyzes 5,300+ equities across six integrated research dimensionsâ€”valuation, earnings fundamentals, technical analysis, market sentiment, sector dynamics, and quantitative factors. By integrating over a decade of historical market data with real-time feeds from market data providers, we deliver the systematic, evidence-based research framework that professional investors require for informed capital allocation decisions.
+                Our platform analyzes 5,300+ equities across six integrated research dimensions—valuation, earnings fundamentals, technical analysis, market sentiment, sector dynamics, and quantitative factors. By integrating over a decade of historical market data with real-time feeds from market data providers, we deliver the systematic, evidence-based research framework that professional investors require for informed capital allocation decisions.
               </Typography>
             </Grid>
 

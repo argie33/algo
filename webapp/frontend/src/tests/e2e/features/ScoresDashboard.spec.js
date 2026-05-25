@@ -53,7 +53,7 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       );
 
       if (criticalErrors.length > 0) {
-        console.log("âŒ Critical errors on Bullseye Stock Screener:");
+        console.log("❌ Critical errors on Bullseye Stock Screener:");
         criticalErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
@@ -72,7 +72,7 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       expect(hasScoresContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("âš ï¸ Bullseye Stock Screener failed to load:", error.message);
+      console.log("⚠ï¸ Bullseye Stock Screener failed to load:", error.message);
       await page.screenshot({ path: 'debug-scores-dashboard.png' });
       throw error;
     }

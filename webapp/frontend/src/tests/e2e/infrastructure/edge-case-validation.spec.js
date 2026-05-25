@@ -230,9 +230,9 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
               "ãƒ†ã‚¹ãƒˆæ ªå¼", // Japanese
               "Ù…Ø®Ø²ÙˆÙ† Ø§Ø®ØªØ¨Ø§Ø±", // Arabic
               "Â¡AcciÃ³nÂ¿", // Spanish with special punctuation
-              "Stockâ„¢Â®Â©", // Trademark symbols
+              "Stockâ„¢®©", // Trademark symbols
               "TEST-STOCK_123", // Special characters
-              "Ã©mojiðŸš€ðŸ“ˆðŸ’°", // Emoji symbols
+              "émojiðŸš€ðŸ“ˆðŸ’°", // Emoji symbols
               "NULL",
               "undefined",
               "DROP TABLE;", // Potential injection
@@ -241,7 +241,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
             names: [
               "Companyâ„¢ Inc.",
               "FÃ¶retag AB",
-              "SociÃ©tÃ© Anonyme",
+              "Société Anonyme",
               "ÐšÐ¾Ð¼Ð¿Ð°Ð½Ð¸Ñ ÐžÐžÐž",
               "æ ªå¼ä¼šç¤¾ãƒ†ã‚¹ãƒˆ",
               "Ø´Ø±ÙƒØ© Ø§Ø®ØªØ¨Ø§Ø±",
@@ -265,7 +265,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(
         pageContent
       );
-    const hasSpecialSymbols = /[â„¢Â®Â©]/.test(pageContent);
+    const hasSpecialSymbols = /[â„¢®©]/.test(pageContent);
     const hasInjectionAttempts =
       pageContent.includes("DROP TABLE") || pageContent.includes("<script>");
 
@@ -307,7 +307,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         "../../etc/passwd", // Path traversal
         Array.from({ length: 1000 }, (_, i) => i).join(","), // Large comma list
         "ðŸš€ðŸ“ˆðŸ’°ðŸ¦ðŸ’¸ðŸ“ŠðŸ”¥âš¡ðŸŒŸðŸ’Ž", // Many emojis
-        "Ã Ã¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§Ã¨Ã©ÃªÃ«Ã¬Ã­Ã®Ã¯Ã±Ã²Ã³Ã´ÃµÃ¶Ã¸Ã¹ÃºÃ»Ã¼Ã½", // Accented characters
+        "Ã Ã¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§èéÃªÃ«Ã¬Ã­Ã®Ã¯Ã±Ã²Ã³Ã´ÃµÃ¶Ã¸Ã¹ÃºÃ»Ã¼Ã½", // Accented characters
         "\\x00\\x01\\x02\\xFF", // Binary data
       ];
 
@@ -345,7 +345,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
                 success: false,
               });
               console.log(
-                `âŒ Input test failed: ${error.message.slice(0, 30)}`
+                `❌ Input test failed: ${error.message.slice(0, 30)}`
               );
             }
           }
@@ -499,7 +499,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
 
     browserTests.forEach((test) => {
       console.log(
-        `   ${test.test}: ${test.success ? "âœ…" : "âŒ"} ${test.error ? test.error.slice(0, 30) : ""}`
+        `   ${test.test}: ${test.success ? "âœ…" : "❌"} ${test.error ? test.error.slice(0, 30) : ""}`
       );
     });
 

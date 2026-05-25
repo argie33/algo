@@ -3,7 +3,7 @@ import "./index.css"; // Tailwind base + design system tokens
 import { theme } from "./services/theme";
 
 // Apply theme class before first paint (avoid flash of wrong theme).
-// Dark is default â€” sleek is the look we want. User can opt into light via
+// Dark is default — sleek is the look we want. User can opt into light via
 // the toggle in the user menu (persisted to localStorage as theme=light).
 theme.initialize();
 import { BrowserRouter } from "react-router-dom";
@@ -149,7 +149,7 @@ if (window.__CONFIG__) {
       // Config loaded after waiting
     } else {
       if (import.meta.env && import.meta.env.DEV) {
-        console.warn("âš ï¸ Config not loaded yet, check index.html script tag");
+        console.warn("⚠ï¸ Config not loaded yet, check index.html script tag");
       }
     }
   }, 1000);
@@ -177,7 +177,7 @@ const queryClient = new QueryClient({
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
-  console.error("âŒ Root element not found!");
+  console.error("❌ Root element not found!");
   alert("Root element not found!");
 } else {
   // Root element found
@@ -206,7 +206,7 @@ try {
       >
         <QueryClientProvider client={queryClient}>
           {/* MUI ThemeProvider stays for legacy MUI components on other pages.
-              CssBaseline removed â€” our theme.css owns the global reset/base. */}
+              CssBaseline removed — our theme.css owns the global reset/base. */}
           <ThemeProvider theme={modernTheme}>
             <AuthProvider>
               <App />

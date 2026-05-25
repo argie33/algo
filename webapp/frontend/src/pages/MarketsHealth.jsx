@@ -1,5 +1,5 @@
 ﻿/**
- * Market Health â€” flagship dashboard.
+ * Market Health — flagship dashboard.
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind. Dark theme.
  * All tokens from src/styles/tokens.css.
@@ -74,12 +74,12 @@ const REGIME_COLOR = {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // HELPERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null ? 'â€”' : `$${Number(v).toFixed(2)}`;
-const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”'
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
+const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—'
   : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(dp)}%`;
 const fmtDate = (d) => {
-  if (!d) return 'â€”';
+  if (!d) return '—';
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return String(d).slice(0, 10);
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -94,7 +94,7 @@ const TOOLTIP_STYLE = {
   boxShadow: 'var(--shadow-md)',
 };
 const fmtAgo = (ts) => {
-  if (!ts) return 'â€”';
+  if (!ts) return '—';
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
   if (s < 60) return `${Math.floor(s)}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -155,7 +155,7 @@ export default function MarketsHealth() {
   if (marketsLoading && !m) {
     return (
       <div className="main-content">
-        <div className="empty"><Inbox /><div className="empty-title">Loading market dataâ€¦</div></div>
+        <div className="empty"><Inbox /><div className="empty-title">Loading market data…</div></div>
       </div>
     );
   }
@@ -166,12 +166,12 @@ export default function MarketsHealth() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Market Health</div>
-          <div className="page-head-sub">Data updated {fmtAgo(ts)} Â· Auto-refresh every 30s</div>
+          <div className="page-head-sub">Data updated {fmtAgo(ts)} · Auto-refresh every 30s</div>
         </div>
         <div className="page-head-actions">
           {[mkError,sentError,movError,techError,seasError].some(Boolean) && (
             <span className="badge badge-danger" title="One or more data sources failed">
-              âš  {[mkError,sentError,movError,techError,seasError].filter(Boolean).length} error(s)
+              ⚠ {[mkError,sentError,movError,techError,seasError].filter(Boolean).length} error(s)
             </span>
           )}
           <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={marketsLoading}>
@@ -214,38 +214,38 @@ export default function MarketsHealth() {
         <SeasonalityCard data={seasonalityData} />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 13. Sector Heat Map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 13. Sector Heat Map ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <SectorHeatMap onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 14. Sector Rotation Map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 14. Sector Rotation Map ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <SectorRotationMap markets={m} onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 14b. Sector Rotation Signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 14b. Sector Rotation Signal ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <SectorRotationSignalCard />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 15-16. Yield Curve + VIX Term Structure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 15-16. Yield Curve + VIX Term Structure ──────────── */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <YieldCurveCard />
         <VolTermStructureCard />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 17. Distribution Days Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 17. Distribution Days Timeline ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <DistributionDaysTimeline />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 18. Sentiment Composite (Fear & Greed + AAII spread) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 18. Sentiment Composite (Fear & Greed + AAII spread) ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <SentimentCompositeCard markets={m} sentiment={sentimentData} />
       </div>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ 19. Economic Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ──────────── 19. Economic Calendar ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <EconomicCalendarCard />
       </div>
@@ -304,16 +304,16 @@ function RegimeBanner({ markets }) {
         </div>
 
         <div>
-          <div className="eyebrow">Risk Ã—</div>
+          <div className="eyebrow">Risk ×</div>
           <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier.risk_mult ?? 'â€”'}
+            {tier.risk_mult ?? '—'}
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Max New</div>
           <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier.max_new ?? 'â€”'}
+            {tier.max_new ?? '—'}
           </div>
         </div>
 
@@ -352,7 +352,7 @@ function IndicesStrip() {
     <div className="card card-pad" style={{ marginTop: 'var(--space-4)' }}>
       <div className="sect-head">
         <div className="sect-title">Major Indices</div>
-        <div className="sect-sub">Last close Â· Daily change Â· 30-day trend</div>
+        <div className="sect-sub">Last close · Daily change · 30-day trend</div>
       </div>
       <div className="grid grid-4">
         {seeds.map(idx => <IndexCell key={idx.symbol} idx={idx} />)}
@@ -398,7 +398,7 @@ function IndexCell({ idx }) {
           : <TrendingDown size={16} color={C.danger} />)}
       </div>
       <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-semibold)', color: 'var(--text)' }}>
-        {last != null ? fmtMoney(last) : 'â€”'}
+        {last != null ? fmtMoney(last) : '—'}
       </div>
       {chgPct != null && (
         <div className={`mono tnum ${positive ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)' }}>
@@ -473,7 +473,7 @@ function ExposureFactors({ markets }) {
           if (f.bull_bear_spread != null) sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
           if (f.new_highs != null) sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
           if (f.distribution_days_25d != null) sub.push(`${f.distribution_days_25d} dist days`);
-          if (f.widening_rapidly) sub.push('âš  rapidly widening');
+          if (f.widening_rapidly) sub.push('⚠ rapidly widening');
           if (f.hy_20d_ago != null) sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
           return (
             <div key={key} style={{ marginBottom: 'var(--space-3)' }}>
@@ -485,7 +485,7 @@ function ExposureFactors({ markets }) {
                 <div className={`bar-fill ${fillClass}`} style={{ width: `${pct}%` }} />
               </div>
               {sub.length > 0 && (
-                <div className="t-2xs muted" style={{ marginTop: 4 }}>{sub.join(' Â· ')}</div>
+                <div className="t-2xs muted" style={{ marginTop: 4 }}>{sub.join(' · ')}</div>
               )}
             </div>
           );
@@ -504,7 +504,7 @@ function ExposureFactors({ markets }) {
               <span className="eyebrow" style={{ color: macroColor }}>MACRO REGIME OVERLAY</span>
               <span className="mono tnum t-xs" style={{ color: macroColor }}>
                 {macroPenalty > 0 ? `âˆ’${macroPenalty} pts` : macroPenalty < 0 ? `+${Math.abs(macroPenalty)} pts (favourable)` : 'neutral'}
-                {eco.cap && eco.cap < 100 ? ` Â· cap ${eco.cap}%` : ''}
+                {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ''}
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -513,15 +513,15 @@ function ExposureFactors({ markets }) {
                   <div className="bar-fill" style={{ width: `${macroStress}%`, background: macroColor }} />
                 </div>
               </div>
-              <span className="mono tnum t-xs muted">{macroStress != null ? `${macroStress}/100` : 'â€”'}</span>
+              <span className="mono tnum t-xs muted">{macroStress != null ? `${macroStress}/100` : '—'}</span>
             </div>
             {macroSignals.length > 0 && (
               <div className="t-2xs muted" style={{ marginTop: 6 }}>
-                {macroSignals.join(' Â· ')}
+                {macroSignals.join(' · ')}
               </div>
             )}
             <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Yield curve Â· HY credit trend Â· jobless claims â€” post-score macro adjustment
+              Yield curve · HY credit trend · jobless claims — post-score macro adjustment
             </div>
           </div>
         )}
@@ -539,7 +539,7 @@ function MarketPulse({ markets }) {
   if (!cur) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
   const dd = cur.distribution_days || 0;
   const ftd = cur.factors?.ibd_state?.follow_through_day;
-  const state = cur.factors?.ibd_state?.state || 'â€”';
+  const state = cur.factors?.ibd_state?.state || '—';
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
 
   return (
@@ -599,7 +599,7 @@ function ExposureHistory({ markets }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Exposure History â€” last {data.length} sessions</div>
+          <div className="card-title">Exposure History — last {data.length} sessions</div>
           <div className="card-sub">How the algo's risk allocation moved with the market regime</div>
         </div>
       </div>
@@ -757,7 +757,7 @@ function SentimentCard({ markets, sentiment }) {
       <div className="card-head">
         <div>
           <div className="card-title">Investor Sentiment</div>
-          <div className="card-sub">AAII bull/bear Â· contrarian signal at extremes</div>
+          <div className="card-sub">AAII bull/bear · contrarian signal at extremes</div>
         </div>
       </div>
       <div className="card-body">
@@ -785,7 +785,7 @@ function SentimentCard({ markets, sentiment }) {
           </div>
           <div className="stile">
             <div className="stile-label">{naaim != null ? 'NAAIM' : 'Fear/Greed'}</div>
-            <div className="stile-value">{naaim != null ? `${num(naaim, 0)}%` : (fearGreed != null ? num(fearGreed, 0) : 'â€”')}</div>
+            <div className="stile-value">{naaim != null ? `${num(naaim, 0)}%` : (fearGreed != null ? num(fearGreed, 0) : '—')}</div>
             <div className="stile-sub">{naaim != null ? 'manager exposure' : (fearGreed > 50 ? 'greed' : 'fear')}</div>
           </div>
         </div>
@@ -820,7 +820,7 @@ function VixCard({ markets }) {
       <div className="card-head">
         <div>
           <div className="card-title">Volatility Regime (VIX)</div>
-          <div className="card-sub">Implied volatility â€” proxy for market fear</div>
+          <div className="card-sub">Implied volatility — proxy for market fear</div>
         </div>
       </div>
       <div className="card-body" style={{ textAlign: 'center', padding: 'var(--space-7)' }}>
@@ -836,10 +836,10 @@ function VixCard({ markets }) {
             <div className="stile-label">&lt; 15</div><div className="stile-sub up">Calm</div>
           </div>
           <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">15â€“20</div><div className="stile-sub" style={{ color: C.brand2 }}>Normal</div>
+            <div className="stile-label">15–20</div><div className="stile-sub" style={{ color: C.brand2 }}>Normal</div>
           </div>
           <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">20â€“28</div><div className="stile-sub" style={{ color: C.amber }}>Elevated</div>
+            <div className="stile-label">20–28</div><div className="stile-sub" style={{ color: C.amber }}>Elevated</div>
           </div>
           <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
             <div className="stile-label">28+</div><div className="stile-sub down">High</div>
@@ -872,7 +872,7 @@ function InternalsCard({ data }) {
       <div className="card-head">
         <div>
           <div className="card-title">Market Internals</div>
-          <div className="card-sub">Today's breadth Â· 30-day A/D line</div>
+          <div className="card-sub">Today's breadth · 30-day A/D line</div>
         </div>
       </div>
       <div className="card-body">
@@ -927,14 +927,14 @@ function TopMoversCard({ data }) {
           Gainers
           {(data.gainers || []).length > 6 && <span className="t-xs muted"> ({gainers.length} of {(data.gainers || []).length})</span>}
         </div>
-        {gainers.length === 0 ? <div className="muted t-xs">â€”</div> : gainers.map((g, i) => (
+        {gainers.length === 0 ? <div className="muted t-xs">—</div> : gainers.map((g, i) => (
           <Mover key={i} symbol={g.symbol} chg={g.change_pct || g.changePercent} dir="up" />
         ))}
         <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>
           Losers
           {(data.losers || []).length > 6 && <span className="t-xs muted"> ({losers.length} of {(data.losers || []).length})</span>}
         </div>
-        {losers.length === 0 ? <div className="muted t-xs">â€”</div> : losers.map((l, i) => (
+        {losers.length === 0 ? <div className="muted t-xs">—</div> : losers.map((l, i) => (
           <Mover key={i} symbol={l.symbol} chg={l.change_pct || l.changePercent} dir="down" />
         ))}
       </div>
@@ -972,12 +972,12 @@ function SeasonalityCard({ data }) {
       <div className="card-body">
         <div className="grid grid-4">
           <div className="stile">
-            <div className="stile-label">{data.currentYear || 'â€”'} YTD</div>
+            <div className="stile-label">{data.currentYear || '—'} YTD</div>
             <div className={`stile-value ${ytd >= 0 ? 'up' : 'down'}`}>{ytd >= 0 ? '+' : ''}{num(ytd, 2)}%</div>
           </div>
-          <div className="stile"><div className="stile-label">Cycle</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.presidentialCycle || 'â€”'}</div></div>
-          <div className="stile"><div className="stile-label">Monthly Avg</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.monthlyTrend || 'â€”'}</div></div>
-          <div className="stile"><div className="stile-label">Quarterly</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.quarterlyTrend || 'â€”'}</div></div>
+          <div className="stile"><div className="stile-label">Cycle</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.presidentialCycle || '—'}</div></div>
+          <div className="stile"><div className="stile-label">Monthly Avg</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.monthlyTrend || '—'}</div></div>
+          <div className="stile"><div className="stile-label">Quarterly</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.quarterlyTrend || '—'}</div></div>
         </div>
         {periods.length > 0 && (
           <div className="flex gap-2" style={{ marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
@@ -987,7 +987,7 @@ function SeasonalityCard({ data }) {
         {cur.nextMajorEvent?.month && (
           <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
             <span className="strong">Next major event:</span>{' '}
-            {cur.nextMajorEvent.month} â€” {cur.nextMajorEvent.description || cur.nextMajorEvent.name || ''}
+            {cur.nextMajorEvent.month} — {cur.nextMajorEvent.description || cur.nextMajorEvent.name || ''}
           </div>
         )}
       </div>
@@ -1079,7 +1079,7 @@ function SectorTile({ etf, name, weight, onSelect }) {
         fontWeight: 'var(--w-bold)',
         color: chgPct == null ? 'var(--text-faint)' : (chgPct >= 0 ? 'var(--success)' : 'var(--danger)'),
       }}>
-        {chgPct == null ? 'â€”' : fmtPct(chgPct)}
+        {chgPct == null ? '—' : fmtPct(chgPct)}
       </div>
     </button>
   );
@@ -1091,7 +1091,7 @@ function SectorHeatMap({ onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Heat Map</div>
-          <div className="card-sub">11 SPDR sector ETFs Â· tile size = approx S&P weight Â· color = today's % change Â· click to drill</div>
+          <div className="card-sub">11 SPDR sector ETFs · tile size = approx S&P weight · color = today's % change · click to drill</div>
         </div>
       </div>
       <div className="card-body">
@@ -1162,7 +1162,7 @@ function SectorRotationMap({ markets, onSelect }) {
       <div style={TOOLTIP_STYLE}>
         <div style={{ fontWeight: 'var(--w-bold)', marginBottom: 4 }}>{p.name}</div>
         <div className="mono tnum">RS-Rank: {p.rsRank.toFixed(1)}</div>
-        <div className="mono tnum">4w Î”rank: {p.rsMomentum >= 0 ? '+' : ''}{p.rsMomentum}</div>
+        <div className="mono tnum">4w Δrank: {p.rsMomentum >= 0 ? '+' : ''}{p.rsMomentum}</div>
         <div className="mono tnum">Quadrant: {quadrant(p)}</div>
       </div>
     );
@@ -1173,7 +1173,7 @@ function SectorRotationMap({ markets, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Rotation Map</div>
-          <div className="card-sub">RS-Rank vs 4-week momentum Â· leading / improving / weakening / lagging</div>
+          <div className="card-sub">RS-Rank vs 4-week momentum · leading / improving / weakening / lagging</div>
         </div>
       </div>
       <div className="card-body">
@@ -1186,7 +1186,7 @@ function SectorRotationMap({ markets, onSelect }) {
                 label={{ value: 'RS-Rank â†’', position: 'insideBottom', offset: -8, fill: C.textFaint, fontSize: 11 }} />
               <YAxis type="number" dataKey="rsMomentum" domain={[-momRange, momRange]}
                 tick={{ fill: C.textFaint, fontSize: 11 }}
-                label={{ value: '4-week Î” rank', angle: -90, position: 'insideLeft', fill: C.textFaint, fontSize: 11 }} />
+                label={{ value: '4-week Δ rank', angle: -90, position: 'insideLeft', fill: C.textFaint, fontSize: 11 }} />
               <ZAxis range={[80, 80]} />
               <ReferenceLine x={50} stroke={C.border2} strokeDasharray="3 3" />
               <ReferenceLine y={0}  stroke={C.border2} strokeDasharray="3 3" />
@@ -1212,10 +1212,10 @@ function SectorRotationMap({ markets, onSelect }) {
         </div>
         <div className="grid grid-4" style={{ marginTop: 'var(--space-3)' }}>
           {[
-            ['Leading',   'leading',   'High RS Â· + mom'],
-            ['Improving', 'improving', 'Low RS Â· + mom'],
-            ['Weakening', 'weakening', 'High RS Â· - mom'],
-            ['Lagging',   'lagging',   'Low RS Â· - mom'],
+            ['Leading',   'leading',   'High RS · + mom'],
+            ['Improving', 'improving', 'Low RS · + mom'],
+            ['Weakening', 'weakening', 'High RS · - mom'],
+            ['Lagging',   'lagging',   'Low RS · - mom'],
           ].map(([label, key, sub]) => (
             <div key={key} className="stile" style={{ borderLeft: `3px solid ${QUAD_COLOR[key]}` }}>
               <div className="stile-label" style={{ color: QUAD_COLOR[key] }}>{label}</div>
@@ -1244,7 +1244,7 @@ function SectorRotationSignalCard() {
 
   const items = Array.isArray(data) ? data : (data?.items || []);
 
-  if (loading && !items.length) return <Empty title="Sector Rotation Signal" desc="Loadingâ€¦" wrap />;
+  if (loading && !items.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
   if (error || !items.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
   const latest = items[items.length - 1];
   const _prior = items[items.length - 2] || latest;
@@ -1256,7 +1256,7 @@ function SectorRotationSignalCard() {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Rotation Signal</div>
-          <div className="card-sub">Defensive vs Cyclical leadership Â· {latest?.weeks_persistent || 0} weeks persistent</div>
+          <div className="card-sub">Defensive vs Cyclical leadership · {latest?.weeks_persistent || 0} weeks persistent</div>
         </div>
         <span className="badge" style={{ background: signalColor, color: 'white' }}>
           {String(latest?.signal || 'neutral').replace(/_/g, ' ').toUpperCase()}
@@ -1331,7 +1331,7 @@ function YieldCurveCard() {
     { refetchInterval: 1000 * 60 * 30 }
   );
 
-  if (loading && !data) return <Empty title="Yield Curve" desc="Loadingâ€¦" wrap />;
+  if (loading && !data) return <Empty title="Yield Curve" desc="Loading…" wrap />;
   if (error || !data?.currentCurve) return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
 
   const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
@@ -1351,8 +1351,8 @@ function YieldCurveCard() {
         <div>
           <div className="card-title">Treasury Yield Curve</div>
           <div className="card-sub">
-            Current curve Â· 2s10s {spread2y10y != null ? `${num(spread2y10y, 2)}%` : 'â€”'}
-            {' Â· '}3m10y {spread3m10y != null ? `${num(spread3m10y, 2)}%` : 'â€”'}
+            Current curve · 2s10s {spread2y10y != null ? `${num(spread2y10y, 2)}%` : '—'}
+            {' · '}3m10y {spread3m10y != null ? `${num(spread3m10y, 2)}%` : '—'}
           </div>
         </div>
         {isInverted && (
@@ -1394,15 +1394,15 @@ function YieldCurveCard() {
         <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
           <div className="stile">
             <div className="stile-label">3M</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '3M')?.yield.toFixed(2) || 'â€”'}%</div>
+            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '3M')?.yield.toFixed(2) || '—'}%</div>
           </div>
           <div className="stile">
             <div className="stile-label">10Y</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '10Y')?.yield.toFixed(2) || 'â€”'}%</div>
+            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '10Y')?.yield.toFixed(2) || '—'}%</div>
           </div>
           <div className="stile">
             <div className="stile-label">30Y</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '30Y')?.yield.toFixed(2) || 'â€”'}%</div>
+            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '30Y')?.yield.toFixed(2) || '—'}%</div>
           </div>
         </div>
       </div>
@@ -1467,8 +1467,8 @@ function VolTermStructureCard() {
           <div className="card-title">Volatility Term Structure</div>
           <div className="card-sub">
             {isBackwardation
-              ? 'BACKWARDATION â€” short-term stress, near-term IV elevated'
-              : 'CONTANGO â€” normal regime, vol curve upward-sloping'}
+              ? 'BACKWARDATION — short-term stress, near-term IV elevated'
+              : 'CONTANGO — normal regime, vol curve upward-sloping'}
           </div>
         </div>
         <span className={`badge ${isBackwardation ? 'badge-danger' : 'badge-success'}`}>
@@ -1500,7 +1500,7 @@ function VolTermStructureCard() {
           ))}
         </div>
         <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          Front/back ratio {num(ratio, 2)} Â· {ratio < 1 ? 'inverted' : 'upward'}.
+          Front/back ratio {num(ratio, 2)} · {ratio < 1 ? 'inverted' : 'upward'}.
           Backwardation often coincides with market stress and short-term tops in vol.
         </div>
       </div>
@@ -1519,7 +1519,7 @@ function DistributionDaysTimeline() {
     { refetchInterval: 1000 * 60 * 5 }
   );
 
-  if (loading && !data) return <Empty title="Distribution Days" desc="Loadingâ€¦" wrap />;
+  if (loading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
   if (error || !data) return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
 
   const indices = ['^GSPC', '^IXIC', '^DJI'].filter(k => data[k]);
@@ -1529,9 +1529,9 @@ function DistributionDaysTimeline() {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Distribution Days Â· last 25 sessions</div>
+          <div className="card-title">Distribution Days · last 25 sessions</div>
           <div className="card-sub">
-            Red = institutional selling (down day on heavier volume) Â· Gray = normal
+            Red = institutional selling (down day on heavier volume) · Gray = normal
           </div>
         </div>
       </div>
@@ -1573,7 +1573,7 @@ function DistributionDaysTimeline() {
                     <div
                       key={i}
                       title={d
-                        ? `${d.date} Â· ${num(chg, 2)}% Â· vol ${num(volRatio, 2)}Ã—`
+                        ? `${d.date} · ${num(chg, 2)}% · vol ${num(volRatio, 2)}×`
                         : 'normal session'}
                       style={{
                         flex: 1,
@@ -1639,7 +1639,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sentiment Composite</div>
-          <div className="card-sub">CNN Fear &amp; Greed Â· AAII bull-bear spread Â· contrarian indicators</div>
+          <div className="card-sub">CNN Fear &amp; Greed · AAII bull-bear spread · contrarian indicators</div>
         </div>
       </div>
       <div className="card-body">
@@ -1786,7 +1786,7 @@ function EconomicCalendarCard() {
     { refetchInterval: 1000 * 60 * 30 }
   );
 
-  if (loading && !data) return <Empty title="Economic Calendar" desc="Loadingâ€¦" wrap />;
+  if (loading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
   const allEvents = Array.isArray(data) ? data : (data?.items || []);
   const events = allEvents;
 
@@ -1795,9 +1795,9 @@ function EconomicCalendarCard() {
       <div className="card-head">
         <div>
           <div className="card-title">
-            Economic Calendar Â· next 7 days
+            Economic Calendar · next 7 days
           </div>
-          <div className="card-sub">FOMC Â· CPI Â· NFP Â· GDP Â· expected vs prior</div>
+          <div className="card-sub">FOMC · CPI · NFP · GDP · expected vs prior</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
@@ -1829,14 +1829,14 @@ function EconomicCalendarCard() {
                         )}
                       </td>
                       <td style={{ padding: 'var(--space-2) var(--space-3)' }}>
-                        <div style={{ fontWeight: 'var(--w-semibold)' }}>{ev.event_name || ev.event || ev.name || 'â€”'}</div>
+                        <div style={{ fontWeight: 'var(--w-semibold)' }}>{ev.event_name || ev.event || ev.name || '—'}</div>
                         {ev.country && <div className="t-2xs faint">{ev.country}</div>}
                       </td>
                       <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right' }}>
-                        {ev.forecast ?? ev.expected ?? 'â€”'}
+                        {ev.forecast ?? ev.expected ?? '—'}
                       </td>
                       <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: 'var(--text-muted)' }}>
-                        {ev.previous ?? ev.prior ?? 'â€”'}
+                        {ev.previous ?? ev.prior ?? '—'}
                       </td>
                       <td style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'center' }}>
                         <span style={{
@@ -1844,7 +1844,7 @@ function EconomicCalendarCard() {
                           background: impactColor,
                         }} />
                         <span className="t-2xs" style={{ marginLeft: 4, color: impactColor, textTransform: 'uppercase' }}>
-                          {importance || 'â€”'}
+                          {importance || '—'}
                         </span>
                       </td>
                     </tr>

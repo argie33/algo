@@ -27,16 +27,20 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/economic/yield-curve-full':
                 return _get_yield_curve_full(cur)
             elif path == '/api/economic/calendar':
-                cur.execute("""
-                    SELECT event_date AS date, event_name, country, importance,
-                           category, event_time,
-                           forecast_value, actual_value, previous_value
-                    FROM economic_calendar
-                    ORDER BY event_date DESC
-                    LIMIT 100
-                """)
-                events = cur.fetchall()
-                return list_response([dict(e) for e in events] if events else [])
+                try:
+                    cur.execute("""
+                        SELECT event_date AS date, event_name, country, importance,
+                               category, event_time,
+                               forecast_value, actual_value, previous_value
+                        FROM economic_calendar
+                        ORDER BY event_date DESC
+                        LIMIT 100
+                    """)
+                    events = cur.fetchall()
+                    return list_response([dict(e) for e in events] if events else [])
+                except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
+                    cur.connection.rollback()
+                    return list_response([])
             elif path == '/api/economic':
                 # Combine all economic data
                 return _get_leading_indicators(cur)

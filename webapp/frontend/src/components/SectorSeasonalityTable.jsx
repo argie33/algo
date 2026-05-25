@@ -95,7 +95,7 @@ const SectorSeasonalityTable = ({ data }) => {
   };
 
   const formatReturn = (value) => {
-    if (value === undefined || value === null) return "â€”";
+    if (value === undefined || value === null) return "—";
     const sign = value > 0 ? "+" : "";
     return `${sign}${value.toFixed(1)}%`;
   };

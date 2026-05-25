@@ -53,7 +53,7 @@ test.describe("Market Overview Page E2E Tests", () => {
       );
 
       if (muiTabsErrors.length > 0) {
-        console.log("âŒ MUI Tabs errors on Market Overview:");
+        console.log("❌ MUI Tabs errors on Market Overview:");
         muiTabsErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
@@ -72,7 +72,7 @@ test.describe("Market Overview Page E2E Tests", () => {
       expect(hasMarketContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("âš ï¸ Market Overview failed to load:", error.message);
+      console.log("⚠ï¸ Market Overview failed to load:", error.message);
       await page.screenshot({ path: 'debug-market-overview.png' });
       throw error;
     }

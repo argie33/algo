@@ -112,7 +112,7 @@ export function LivePriceTicker({ symbol, currentPrice, entryPrice }) {
       </div>
       {!connected && (
         <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '6px' }}>
-          âš  Live prices unavailable (using cached)
+          ⚠ Live prices unavailable (using cached)
         </div>
       )}
     </div>

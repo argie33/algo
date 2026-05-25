@@ -138,7 +138,7 @@ const MarketIndices = ({ data, isLoading, error }) => {
                         Price
                       </Typography>
                       <Typography variant="h5" sx={{ fontWeight: 600, color: "text.primary" }}>
-                        â€”
+                        —
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
                         Real-time data coming soon

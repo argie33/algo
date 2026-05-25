@@ -42,7 +42,7 @@ test.describe("Settings Page Debug Analysis", () => {
     page.on("response", (response) => {
       if (!response.ok()) {
         console.log(
-          `âŒ Response Error: ${response.status()} ${response.url()}`
+          `❌ Response Error: ${response.status()} ${response.url()}`
         );
       }
     });
@@ -184,7 +184,7 @@ test.describe("Settings Page Debug Analysis", () => {
     const errorElements = await page
       .locator('.error, [data-testid*="error"], .alert-error')
       .count();
-    console.log(`âŒ Error elements found: ${errorElements}`);
+    console.log(`❌ Error elements found: ${errorElements}`);
 
     // Wait for any async operations to complete
     await page.waitForTimeout(5000);

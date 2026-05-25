@@ -17,10 +17,10 @@ const TT = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-const _num   = (v, dp = 2) => (v == null || isNaN(+v)) ? 'â€”' : (+v).toFixed(dp);
-const pct   = (v, dp = 2) => (v == null || isNaN(+v)) ? 'â€”' : `${(+v).toFixed(dp)}%`;
-const bps   = (v)         => (v == null || isNaN(+v)) ? 'â€”' : `${Math.round(+v * 100)} bps`;
-const fmtD  = (s)         => s ? new Date(s).toLocaleDateString() : 'â€”';
+const _num   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : (+v).toFixed(dp);
+const pct   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : `${(+v).toFixed(dp)}%`;
+const bps   = (v)         => (v == null || isNaN(+v)) ? '—' : `${Math.round(+v * 100)} bps`;
+const fmtD  = (s)         => s ? new Date(s).toLocaleDateString() : '—';
 const fmtM  = (s)         => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '';
 const up    = (v)         => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 
@@ -35,7 +35,7 @@ const TABS = [
   { id: 'calendar',  label: 'Calendar',       icon: <CalendarDays size={13} /> },
 ];
 
-// â”€â”€ Regime computation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Regime computation ───────────────────────────────────────────────────────
 function deriveRegime(indicators, yieldData, recessionProb) {
   const gdp    = indicators.find(i => i.name === 'GDP Growth');
   const unrate = indicators.find(i => i.name === 'Unemployment Rate');
@@ -47,14 +47,14 @@ function deriveRegime(indicators, yieldData, recessionProb) {
   const indproTrend = indpro?.trend;
 
   if (recessionProb != null && recessionProb >= 60)
-    return { label: 'Contraction Risk', color: 'var(--danger)', desc: 'Multiple recession signals active â€” risk-off positioning warranted.' };
+    return { label: 'Contraction Risk', color: 'var(--danger)', desc: 'Multiple recession signals active — risk-off positioning warranted.' };
   if (recessionProb != null && recessionProb >= 35)
     return { label: 'Late Cycle', color: 'var(--amber)', desc: 'Growth slowing, credit tightening. Monitor leading indicators closely.' };
   if (spread != null && spread < 0 && (unrateVal ?? 5) < 5)
-    return { label: 'Late Cycle', color: 'var(--amber)', desc: 'Curve inverted but labor still resilient. Historically within 6â€“18 months of peak.' };
+    return { label: 'Late Cycle', color: 'var(--amber)', desc: 'Curve inverted but labor still resilient. Historically within 6–18 months of peak.' };
   if (gdpVal != null && gdpVal > 0 && indproTrend !== 'down')
     return { label: 'Expansion', color: 'var(--success)', desc: 'Broad-based growth with improving fundamentals. Risk appetite supported.' };
-  return { label: 'Uncertain', color: 'var(--text-muted)', desc: 'Mixed signals â€” maintain balanced positioning.' };
+  return { label: 'Uncertain', color: 'var(--text-muted)', desc: 'Mixed signals — maintain balanced positioning.' };
 }
 
 export default function EconomicDashboard() {
@@ -85,7 +85,7 @@ export default function EconomicDashboard() {
   // helper to find indicator by partial name
   const ind = (name) => indicators.find(i => (i.name || '').toLowerCase().includes(name.toLowerCase()));
 
-  // â”€â”€ Recession nowcasting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Recession nowcasting ──────────────────────────────────────────────────
   const recession = useMemo(() => {
     const tiles = [];
     const unrate = ind('Unemployment Rate');
@@ -120,7 +120,7 @@ export default function EconomicDashboard() {
     if (hyVal != null) {
       tiles.push({
         label: 'HY Credit Spread', value: `${(+hyVal).toFixed(2)}%`,
-        threshold: '> 5% elevated', desc: 'ICE BofA US High Yield OAS â€” default risk barometer',
+        threshold: '> 5% elevated', desc: 'ICE BofA US High Yield OAS — default risk barometer',
         status: +hyVal > 8 ? 'red' : +hyVal > 5 ? 'amber' : 'green',
         weight: +hyVal > 8 ? 100 : +hyVal > 5 ? 60 : Math.max(0, +hyVal * 10),
       });
@@ -132,7 +132,7 @@ export default function EconomicDashboard() {
       if (!isNaN(cur) && past > 0) {
         const chg = ((cur - past) / past) * 100;
         tiles.push({
-          label: 'Jobless Claims 6m Î”', value: `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%`,
+          label: 'Jobless Claims 6m Δ', value: `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%`,
           threshold: '> +20% warning', desc: '6-month change in initial unemployment claims',
           status: chg > 30 ? 'red' : chg > 20 ? 'amber' : 'green',
           weight: chg > 30 ? 100 : chg > 20 ? 60 : Math.max(0, chg * 2),
@@ -144,7 +144,7 @@ export default function EconomicDashboard() {
     if (vixVal != null) {
       tiles.push({
         label: 'VIX Volatility', value: (+vixVal).toFixed(1),
-        threshold: '> 25 elevated', desc: 'CBOE Volatility Index â€” equity fear gauge',
+        threshold: '> 25 elevated', desc: 'CBOE Volatility Index — equity fear gauge',
         status: +vixVal > 35 ? 'red' : +vixVal > 25 ? 'amber' : 'green',
         weight: +vixVal > 35 ? 100 : +vixVal > 25 ? 60 : Math.max(0, +vixVal * 2),
       });
@@ -154,7 +154,7 @@ export default function EconomicDashboard() {
     if (igVal != null) {
       tiles.push({
         label: 'IG Credit Spread', value: `${(+igVal).toFixed(2)}%`,
-        threshold: '> 1.5% caution', desc: 'Investment grade OAS â€” financial stress indicator',
+        threshold: '> 1.5% caution', desc: 'Investment grade OAS — financial stress indicator',
         status: +igVal > 2.5 ? 'red' : +igVal > 1.5 ? 'amber' : 'green',
         weight: +igVal > 2.5 ? 100 : +igVal > 1.5 ? 50 : Math.max(0, +igVal * 20),
       });
@@ -164,7 +164,7 @@ export default function EconomicDashboard() {
     return { tiles, composite };
   }, [indicators, yieldData]);
 
-  // â”€â”€ Financial conditions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Financial conditions ──────────────────────────────────────────────────
   const fci = useMemo(() => {
     if (!yieldData?.credit?.history) return [];
     const vixSeries  = yieldData.credit.history['VIXCLS'] || [];
@@ -197,7 +197,7 @@ export default function EconomicDashboard() {
     }));
   }, [yieldData]);
 
-  // â”€â”€ Yield curve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Yield curve ───────────────────────────────────────────────────────────
   const yieldCurve = useMemo(() => {
     if (!yieldData?.currentCurve) return [];
     const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
@@ -213,12 +213,12 @@ export default function EconomicDashboard() {
     return [...src].sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [yieldData]);
 
-  // â”€â”€ Regime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Regime ────────────────────────────────────────────────────────────────
   const regime = useMemo(() =>
     deriveRegime(indicators, yieldData, recession?.composite),
   [indicators, yieldData, recession]);
 
-  // â”€â”€ Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Calendar ──────────────────────────────────────────────────────────────
   const calendar = useMemo(() => {
     if (!Array.isArray(calRaw)) return [];
     return calRaw.map(e => ({
@@ -248,7 +248,7 @@ export default function EconomicDashboard() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Economic Dashboard</div>
-          <div className="page-head-sub">Recession models Â· Credit conditions Â· Leading indicators Â· Fed policy</div>
+          <div className="page-head-sub">Recession models · Credit conditions · Leading indicators · Fed policy</div>
         </div>
         <div className="page-head-actions">
           <button className="btn btn-outline btn-sm" onClick={refetch} disabled={isLoading}>
@@ -278,14 +278,14 @@ export default function EconomicDashboard() {
             <div className="t-sm" style={{ color: 'var(--text-2)', maxWidth: 380 }}>{regime.desc}</div>
           </div>
           <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
-            <RegimeStat label="Recession Risk" value={recession?.composite != null ? `${recession.composite}%` : 'â€”'}
+            <RegimeStat label="Recession Risk" value={recession?.composite != null ? `${recession.composite}%` : '—'}
               color={recession?.composite >= 60 ? 'var(--danger)' : recession?.composite >= 35 ? 'var(--amber)' : 'var(--success)'} />
-            <RegimeStat label="Fed Funds Rate" value={fedRate?.value || 'â€”'} color="var(--brand)" />
+            <RegimeStat label="Fed Funds Rate" value={fedRate?.value || '—'} color="var(--brand)" />
             <RegimeStat label="10Yâˆ’2Y Spread"
-              value={yieldData?.spreads?.T10Y2Y != null ? bps(yieldData.spreads.T10Y2Y) : 'â€”'}
+              value={yieldData?.spreads?.T10Y2Y != null ? bps(yieldData.spreads.T10Y2Y) : '—'}
               color={yieldData?.isInverted ? 'var(--danger)' : 'var(--success)'} />
             <RegimeStat label="HY Spread"
-              value={(() => { const v = yieldData?.credit?.history?.['BAMLH0A0HYM2']?.at?.(-1)?.value; return v != null ? `${(+v).toFixed(2)}%` : 'â€”'; })()}
+              value={(() => { const v = yieldData?.credit?.history?.['BAMLH0A0HYM2']?.at?.(-1)?.value; return v != null ? `${(+v).toFixed(2)}%` : '—'; })()}
               color="var(--text)" />
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function EconomicDashboard() {
 
       <div style={{ marginTop: 'var(--space-5)' }}>
 
-        {/* â”€â”€ OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── OVERVIEW ─────────────────────────────────────────────────── */}
         {tab === 'overview' && (
           <>
             {/* Recession nowcasting */}
@@ -306,7 +306,7 @@ export default function EconomicDashboard() {
                   <div>
                     <div className="card-title">Recession Nowcasting Model</div>
                     <div className="card-sub">
-                      Composite probability across {recession.tiles.length} indicators â€” Sahm rule, yield curve, credit spreads, labor stress, vol regime
+                      Composite probability across {recession.tiles.length} indicators — Sahm rule, yield curve, credit spreads, labor stress, vol regime
                     </div>
                   </div>
                   <span className={`badge ${recession.composite >= 60 ? 'badge-danger' : recession.composite >= 35 ? 'badge-amber' : 'badge-success'}`}>
@@ -345,7 +345,7 @@ export default function EconomicDashboard() {
                   <div className="card-head">
                     <div>
                       <div className="card-title">Financial Conditions Index</div>
-                      <div className="card-sub">Z-score: VIX + HY spread + IG spread âˆ’ yield curve Â· higher = tighter</div>
+                      <div className="card-sub">Z-score: VIX + HY spread + IG spread âˆ’ yield curve · higher = tighter</div>
                     </div>
                   </div>
                   <div className="card-body" style={{ height: 260 }}>
@@ -379,7 +379,7 @@ export default function EconomicDashboard() {
                   <div className="card-head">
                     <div>
                       <div className="card-title">10Y âˆ’ 2Y Yield Spread</div>
-                      <div className="card-sub">Below zero = inverted Â· preceded last 8 recessions</div>
+                      <div className="card-sub">Below zero = inverted · preceded last 8 recessions</div>
                     </div>
                     <span className={`badge ${yieldData?.isInverted ? 'badge-danger' : 'badge-success'}`}>
                       {yieldData?.isInverted ? 'INVERTED' : 'NORMAL'}
@@ -416,7 +416,7 @@ export default function EconomicDashboard() {
           </>
         )}
 
-        {/* â”€â”€ RATES & FED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── RATES & FED ──────────────────────────────────────────────── */}
         {tab === 'rates' && (
           <>
             <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
@@ -425,7 +425,7 @@ export default function EconomicDashboard() {
                 <div key={k} className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
                   <div className="eyebrow">{k} Treasury</div>
                   <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
-                    {yieldData?.currentCurve?.[k] != null ? pct(yieldData.currentCurve[k]) : 'â€”'}
+                    {yieldData?.currentCurve?.[k] != null ? pct(yieldData.currentCurve[k]) : '—'}
                   </div>
                 </div>
               ))}
@@ -461,7 +461,7 @@ export default function EconomicDashboard() {
             {/* Fed Funds history */}
             {fedRate && (
               <IndHistory ind={fedRate} title="Federal Funds Rate History"
-                sub="Target rate set by FOMC â€” primary monetary policy tool" color="var(--cyan)" />
+                sub="Target rate set by FOMC — primary monetary policy tool" color="var(--cyan)" />
             )}
 
             {/* Spread history */}
@@ -497,7 +497,7 @@ export default function EconomicDashboard() {
           </>
         )}
 
-        {/* â”€â”€ LABOR MARKET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── LABOR MARKET ─────────────────────────────────────────────── */}
         {tab === 'labor' && (
           <>
             <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
@@ -512,7 +512,7 @@ export default function EconomicDashboard() {
                 <div className="card-head">
                   <div>
                     <div className="card-title">Sahm Rule Indicator</div>
-                    <div className="card-sub">Created by ex-Fed economist Claudia Sahm â€” triggers at +0.50pp rise in unemployment 3-mo MA vs prior year low</div>
+                    <div className="card-sub">Created by ex-Fed economist Claudia Sahm — triggers at +0.50pp rise in unemployment 3-mo MA vs prior year low</div>
                   </div>
                   <RecessionBadge status={recession.tiles.find(t => t.label === 'Sahm Rule').status} />
                 </div>
@@ -526,7 +526,7 @@ export default function EconomicDashboard() {
               </div>
             )}
 
-            {unrateInd && <IndHistory ind={unrateInd} title="Unemployment Rate" sub="Bureau of Labor Statistics â€” monthly" color="var(--amber)" />}
+            {unrateInd && <IndHistory ind={unrateInd} title="Unemployment Rate" sub="Bureau of Labor Statistics — monthly" color="var(--amber)" />}
             <div style={{ marginTop: 'var(--space-4)' }}>
               {claimsInd && <IndHistory ind={claimsInd} title="Initial Jobless Claims" sub="Weekly new unemployment insurance filings" color="var(--cyan)" />}
             </div>
@@ -534,7 +534,7 @@ export default function EconomicDashboard() {
           </>
         )}
 
-        {/* â”€â”€ INFLATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── INFLATION ─────────────────────────────────────────────────── */}
         {tab === 'inflation' && (
           <>
             {/* Calculate CPI YoY from history */}
@@ -553,7 +553,7 @@ export default function EconomicDashboard() {
                   <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
                     <div className="eyebrow">Real Rate (10Y âˆ’ CPI YoY)</div>
                     <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
-                      {realRate != null ? pct(realRate) : 'â€”'}
+                      {realRate != null ? pct(realRate) : '—'}
                     </div>
                     <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Positive = restrictive policy</div>
                   </div>
@@ -567,7 +567,7 @@ export default function EconomicDashboard() {
                 <div className="card-head">
                   <div>
                     <div className="card-title">CPI vs Federal Funds Rate</div>
-                    <div className="card-sub">Fed policy relative to inflation â€” gap signals real rate environment</div>
+                    <div className="card-sub">Fed policy relative to inflation — gap signals real rate environment</div>
                   </div>
                 </div>
                 <div className="card-body" style={{ height: 300 }}>
@@ -576,11 +576,11 @@ export default function EconomicDashboard() {
               </div>
             )}
 
-            {cpiInd && <IndHistory ind={cpiInd} title="CPI Inflation (YoY)" sub="Consumer Price Index â€” all items" color="var(--danger)" />}
+            {cpiInd && <IndHistory ind={cpiInd} title="CPI Inflation (YoY)" sub="Consumer Price Index — all items" color="var(--danger)" />}
           </>
         )}
 
-        {/* â”€â”€ BUSINESS CYCLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── BUSINESS CYCLE ────────────────────────────────────────────── */}
         {tab === 'cycle' && (
           <>
             <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
@@ -594,12 +594,12 @@ export default function EconomicDashboard() {
             {/* Growth-Labor Barometer */}
             <GrowthLaborBarometer indicators={indicators} />
 
-            {ind('ISM Manufacturing') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Manufacturing')} title="ISM Manufacturing PMI" sub="Institute for Supply Management â€” >50 = expansion, <50 = contraction" color="var(--brand)" /></div>}
-            {ind('ISM Services') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Services')} title="ISM Services PMI" sub="Non-manufacturing activity index â€” employment, new orders, prices" color="var(--cyan)" /></div>}
+            {ind('ISM Manufacturing') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Manufacturing')} title="ISM Manufacturing PMI" sub="Institute for Supply Management — >50 = expansion, <50 = contraction" color="var(--brand)" /></div>}
+            {ind('ISM Services') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Services')} title="ISM Services PMI" sub="Non-manufacturing activity index — employment, new orders, prices" color="var(--cyan)" /></div>}
           </>
         )}
 
-        {/* â”€â”€ GROWTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── GROWTH ─────────────────────────────────────────────────────── */}
         {tab === 'growth' && (
           <>
             <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
@@ -611,12 +611,12 @@ export default function EconomicDashboard() {
             {/* Leading Economic Index - 6-month forward signal */}
             <LEIPanel indicators={indicators} />
 
-            {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP â€” BEA" color="var(--success)" />}
+            {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP — BEA" color="var(--success)" />}
             {indproInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={indproInd} title="Industrial Production" sub="Federal Reserve industrial output index" color="var(--brand)" /></div>}
           </>
         )}
 
-        {/* â”€â”€ HOUSING & CONSUMER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── HOUSING & CONSUMER ───────────────────────────────────────── */}
         {tab === 'housing' && (
           <>
             <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
@@ -625,23 +625,23 @@ export default function EconomicDashboard() {
               <MacroKpi label="30Y Mortgage Rate" ind={mortgageInd} unit="%" />
             </div>
 
-            {housingInd && <IndHistory ind={housingInd} title="Housing Starts" sub="New residential construction â€” Census Bureau (thousands)" color="var(--cyan)" />}
-            {michInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={michInd} title="U. Michigan Consumer Sentiment" sub="Monthly consumer survey â€” leading indicator for spending" color="var(--amber)" /></div>}
+            {housingInd && <IndHistory ind={housingInd} title="Housing Starts" sub="New residential construction — Census Bureau (thousands)" color="var(--cyan)" />}
+            {michInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={michInd} title="U. Michigan Consumer Sentiment" sub="Monthly consumer survey — leading indicator for spending" color="var(--amber)" /></div>}
           </>
         )}
 
-        {/* â”€â”€ CALENDAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── CALENDAR ──────────────────────────────────────────────────── */}
         {tab === 'calendar' && (
           <div className="card">
             <div className="card-head">
               <div>
                 <div className="card-title">Economic Calendar</div>
-                <div className="card-sub">Upcoming releases &amp; key events â€” next 120 days</div>
+                <div className="card-sub">Upcoming releases &amp; key events — next 120 days</div>
               </div>
               <CalendarDays size={16} className="muted" />
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              {calQ.loading ? <Empty title="Loadingâ€¦" /> :
+              {calQ.loading ? <Empty title="Loading…" /> :
                calendar.length === 0 ? <Empty title="No upcoming events" desc="Run the economic calendar loader." /> : (
                 <div style={{ overflow: 'auto' }}>
                   <table className="data-table">
@@ -660,14 +660,14 @@ export default function EconomicDashboard() {
                         <tr key={i}>
                           <td className="t-xs muted">{fmtD(e.date)}</td>
                           <td><span className="strong">{e.event}</span></td>
-                          <td className="t-xs muted">{e.category || 'â€”'}</td>
+                          <td className="t-xs muted">{e.category || '—'}</td>
                           <td>
                             <span className={`badge ${e.importance?.toLowerCase() === 'high' ? 'badge-danger' : e.importance?.toLowerCase() === 'medium' ? 'badge-amber' : ''}`}>
-                              {e.importance || 'â€”'}
+                              {e.importance || '—'}
                             </span>
                           </td>
-                          <td className="num mono tnum">{e.forecast ?? 'â€”'}</td>
-                          <td className="num mono tnum muted">{e.previous ?? 'â€”'}</td>
+                          <td className="num mono tnum">{e.forecast ?? '—'}</td>
+                          <td className="num mono tnum muted">{e.previous ?? '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -683,7 +683,7 @@ export default function EconomicDashboard() {
   );
 }
 
-// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function TabBar({ tabs, value, onChange }) {
   return (
@@ -744,7 +744,7 @@ function MacroKpi({ label, ind, _unit, invertGood }) {
   if (!ind) return (
     <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
       <div className="eyebrow">{label}</div>
-      <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>â€”</div>
+      <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>—</div>
     </div>
   );
   const tone = invertGood ? (ind.trend === 'up' ? 'down' : ind.trend === 'down' ? 'up' : 'flat') : (ind.trend || 'flat');
@@ -753,7 +753,7 @@ function MacroKpi({ label, ind, _unit, invertGood }) {
       <div className="eyebrow">{label}</div>
       <div className={`mono ${tone}`}
         style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
-        {ind.value || 'â€”'}
+        {ind.value || '—'}
       </div>
       {ind.change != null && (
         <div className={`t-xs mono ${up(ind.change)}`} style={{ marginTop: 'var(--space-1)' }}>
@@ -800,7 +800,7 @@ function IndHistory({ ind, title, sub, color }) {
                 interval={Math.max(0, Math.floor(data.length / 6))} />
               <YAxis stroke="var(--text-3)" fontSize={10} width={50} />
               <Tooltip contentStyle={TT} labelFormatter={fmtD}
-                formatter={v => [v != null ? (+v).toFixed(2) : 'â€”', title]} />
+                formatter={v => [v != null ? (+v).toFixed(2) : '—', title]} />
               <Area type="monotone" dataKey="value" stroke={color || 'var(--brand)'}
                 strokeWidth={2} fill={`url(#grad-${title.replace(/\s+/g, '')})`} />
             </AreaChart>
@@ -828,7 +828,7 @@ function CreditSpreadsPanel({ yieldData }) {
       <div className="card-head">
         <div>
           <div className="card-title">Credit Spread Monitor</div>
-          <div className="card-sub">High yield OAS vs investment grade OAS â€” widening signals stress</div>
+          <div className="card-sub">High yield OAS vs investment grade OAS — widening signals stress</div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
           {hyHist.length > 0 && (
@@ -861,7 +861,7 @@ function CreditSpreadsPanel({ yieldData }) {
       </div>
       <div className="card-body" style={{ paddingTop: 0 }}>
         <div className="t-xs muted">
-          HY spread &gt;5%: stress zone Â· &gt;8%: systemic risk Â· IG spread &gt;1.5%: caution Â· widening divergence = credit deterioration
+          HY spread &gt;5%: stress zone · &gt;8%: systemic risk · IG spread &gt;1.5%: caution · widening divergence = credit deterioration
         </div>
       </div>
     </div>
@@ -904,7 +904,7 @@ function NaaimPanel({ naaim }) {
   // Zone classification: <30 very defensive, 30-50 defensive, 50-75 healthy, >75 extended
   const zone = val > 80 ? 'extended' : val >= 50 ? 'healthy' : val >= 30 ? 'defensive' : 'very_defensive';
   const zoneColor = zone === 'healthy' ? 'var(--success)' : zone === 'extended' ? 'var(--amber)' : 'var(--danger)';
-  const zoneLabel = zone === 'healthy' ? 'Healthy Risk Appetite' : zone === 'extended' ? 'Extended â€” Watch for Reversion' : zone === 'defensive' ? 'Defensive Positioning' : 'Very Defensive â€” Capitulation Risk';
+  const zoneLabel = zone === 'healthy' ? 'Healthy Risk Appetite' : zone === 'extended' ? 'Extended — Watch for Reversion' : zone === 'defensive' ? 'Defensive Positioning' : 'Very Defensive — Capitulation Risk';
 
   const history = naaim?.history || [];
   const chartData = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -914,7 +914,7 @@ function NaaimPanel({ naaim }) {
       <div className="card-head">
         <div>
           <div className="card-title">NAAIM Exposure Index</div>
-          <div className="card-sub">Professional active manager equity exposure Â· 0 = fully out, 100 = fully invested, 200 = leveraged long</div>
+          <div className="card-sub">Professional active manager equity exposure · 0 = fully out, 100 = fully invested, 200 = leveraged long</div>
         </div>
         <span className="badge" style={{ background: `${zoneColor}20`, color: zoneColor, border: `1px solid ${zoneColor}50` }}>
           {val.toFixed(1)}
@@ -931,12 +931,12 @@ function NaaimPanel({ naaim }) {
             <div className="stile-label">Interpretation</div>
             <div className="t-sm" style={{ marginTop: 4, maxWidth: 340, color: 'var(--text-2)' }}>
               {zone === 'extended'
-                ? 'Pros are heavily long. Mean-reversion risk elevated â€” high exposure often precedes choppiness.'
+                ? 'Pros are heavily long. Mean-reversion risk elevated — high exposure often precedes choppiness.'
                 : zone === 'healthy'
                 ? 'Professional managers have healthy exposure. Confirms market confidence without being over-leveraged.'
                 : zone === 'defensive'
                 ? 'Managers cutting equity. Watch for further selling or a contrarian buy signal if combined with fear extremes.'
-                : 'Extreme defensiveness â€” historically a contrarian bullish signal when other indicators confirm. Capitulation zone.'}
+                : 'Extreme defensiveness — historically a contrarian bullish signal when other indicators confirm. Capitulation zone.'}
             </div>
           </div>
         </div>
@@ -956,7 +956,7 @@ function NaaimPanel({ naaim }) {
                   interval={Math.max(0, Math.floor(chartData.length / 6))} />
                 <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 120]} />
                 <Tooltip contentStyle={TT} labelFormatter={fmtD}
-                  formatter={v => [v != null ? (+v).toFixed(1) : 'â€”', 'NAAIM Exposure']} />
+                  formatter={v => [v != null ? (+v).toFixed(1) : '—', 'NAAIM Exposure']} />
                 <ReferenceLine y={100} stroke="var(--border-2)" strokeDasharray="4 4" />
                 <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="2 6" />
                 <Area type="monotone" dataKey="naaim_number_mean" stroke={zoneColor}
@@ -967,7 +967,7 @@ function NaaimPanel({ naaim }) {
         )}
 
         <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          Source: National Association of Active Investment Managers Â· Weekly survey Â· Long-run avg ~65-70
+          Source: National Association of Active Investment Managers · Weekly survey · Long-run avg ~65-70
         </div>
       </div>
     </div>
@@ -1001,17 +1001,17 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
                      regime === 'Stagflation' ? 'var(--danger)' :
                      'var(--amber)';
 
-  const regimeDesc = regime === 'Goldilocks' ? 'Strong growth, moderate inflation â€” ideal policy conditions' :
-                    regime === 'Overheat' ? 'High growth + high inflation â€” Fed tightening, erosion risk' :
-                    regime === 'Stagflation' ? 'Weak growth + high inflation â€” no policy solution, defensive positioning' :
-                    'Weak growth, deflation pressure â€” easy policy, opportunity zone';
+  const regimeDesc = regime === 'Goldilocks' ? 'Strong growth, moderate inflation — ideal policy conditions' :
+                    regime === 'Overheat' ? 'High growth + high inflation — Fed tightening, erosion risk' :
+                    regime === 'Stagflation' ? 'Weak growth + high inflation — no policy solution, defensive positioning' :
+                    'Weak growth, deflation pressure — easy policy, opportunity zone';
 
   return (
     <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
       <div className="card-head">
         <div>
           <div className="card-title">Economic Regime Clock</div>
-          <div className="card-sub">Growth vs Inflation â€” positioning for current economic phase</div>
+          <div className="card-sub">Growth vs Inflation — positioning for current economic phase</div>
         </div>
         <span className="badge" style={{ background: `${regimeColor}20`, color: regimeColor, border: `1px solid ${regimeColor}50` }}>
           {regime}
@@ -1140,12 +1140,12 @@ function GrowthLaborBarometer({ indicators }) {
   const claimsTrend = claimsVal < claimsMA3 ? 'down' : claimsVal > claimsMA3 ? 'up' : 'flat';
 
   const interpretation = barometer > 65
-    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'Industrial activity robust, job market tight â€” rising barometer signals continued growth.' }
+    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'Industrial activity robust, job market tight — rising barometer signals continued growth.' }
     : barometer > 50
-    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed but leaning positive â€” growth present but not accelerating.' }
+    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed but leaning positive — growth present but not accelerating.' }
     : barometer > 35
-    ? { label: 'Contraction Risk', color: 'var(--amber)', desc: 'Weakening indicators â€” monitor for further deterioration.' }
-    : { label: 'Contraction Evident', color: 'var(--danger)', desc: 'Industrial slowdown + labor weakness â€” recession-like conditions.' };
+    ? { label: 'Contraction Risk', color: 'var(--amber)', desc: 'Weakening indicators — monitor for further deterioration.' }
+    : { label: 'Contraction Evident', color: 'var(--danger)', desc: 'Industrial slowdown + labor weakness — recession-like conditions.' };
 
   // Build chart data from claims history
   const chartData = claimsHist
@@ -1164,7 +1164,7 @@ function GrowthLaborBarometer({ indicators }) {
       <div className="card-head">
         <div>
           <div className="card-title">Growth-Labor Barometer</div>
-          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor stress) â€” expansion vs contraction signal</div>
+          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor stress) — expansion vs contraction signal</div>
         </div>
         <span className="badge" style={{ background: `${interpretation.color}20`, color: interpretation.color, border: `1px solid ${interpretation.color}50` }}>
           {barometer.toFixed(0)}
@@ -1201,7 +1201,7 @@ function GrowthLaborBarometer({ indicators }) {
                   interval={Math.max(0, Math.floor(chartData.length / 6))} />
                 <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 100]} />
                 <Tooltip contentStyle={TT} labelFormatter={fmtD}
-                  formatter={v => [v != null ? (+v).toFixed(0) : 'â€”', 'Barometer']} />
+                  formatter={v => [v != null ? (+v).toFixed(0) : '—', 'Barometer']} />
                 <ReferenceLine y={65} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Strong', fontSize: 10, fill: 'var(--text-3)' }} />
                 <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="4 4" />
                 <ReferenceLine y={35} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: 'Risk', fontSize: 10, fill: 'var(--text-3)' }} />
@@ -1286,19 +1286,19 @@ function LEIPanel({ indicators }) {
     : 'flat';
 
   const leiInterpretation = leiScore > 60
-    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'LEI pointing to continued growth â€” positive momentum across labor, housing, and equities' }
+    ? { label: 'Expansion Strong', color: 'var(--success)', desc: 'LEI pointing to continued growth — positive momentum across labor, housing, and equities' }
     : leiScore > 50
-    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed signals but growth-leaning â€” monitor for deterioration' }
+    ? { label: 'Expansion Moderate', color: 'var(--cyan)', desc: 'Mixed signals but growth-leaning — monitor for deterioration' }
     : leiScore > 40
-    ? { label: 'Growth Risk', color: 'var(--amber)', desc: 'Leading indicators softening â€” recession risk rising, watch labor market' }
-    : { label: 'Contraction Risk', color: 'var(--danger)', desc: 'LEI signaling recession â€” defensive positioning warranted' };
+    ? { label: 'Growth Risk', color: 'var(--amber)', desc: 'Leading indicators softening — recession risk rising, watch labor market' }
+    : { label: 'Contraction Risk', color: 'var(--danger)', desc: 'LEI signaling recession — defensive positioning warranted' };
 
   return (
     <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
       <div className="card-head">
         <div>
           <div className="card-title">Leading Economic Index (LEI)</div>
-          <div className="card-sub">Composite 6-month forward signal â€” unemployment, housing, claims, equities</div>
+          <div className="card-sub">Composite 6-month forward signal — unemployment, housing, claims, equities</div>
         </div>
         <span className="badge" style={{ background: `${leiInterpretation.color}20`, color: leiInterpretation.color, border: `1px solid ${leiInterpretation.color}50` }}>
           {leiScore.toFixed(0)}
@@ -1315,7 +1315,7 @@ function LEIPanel({ indicators }) {
             <div className="stile-label">6-Month Trend</div>
             <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
               <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? 'â†— Improving' : sixMonthTrend === 'down' ? 'â†˜ Deteriorating' : 'â†’ Flat'}</strong></div>
-              <div style={{ marginTop: 4 }}>Latest: <strong>{chartData.length > 0 ? chartData[chartData.length - 1].lei.toFixed(0) : 'â€”'}</strong></div>
+              <div style={{ marginTop: 4 }}>Latest: <strong>{chartData.length > 0 ? chartData[chartData.length - 1].lei.toFixed(0) : '—'}</strong></div>
             </div>
           </div>
         </div>
@@ -1335,7 +1335,7 @@ function LEIPanel({ indicators }) {
                   interval={Math.max(0, Math.floor(chartData.length / 6))} />
                 <YAxis stroke="var(--text-3)" fontSize={10} domain={[0, 100]} />
                 <Tooltip contentStyle={TT} labelFormatter={fmtD}
-                  formatter={v => [v != null ? (+v).toFixed(0) : 'â€”', 'LEI Score']} />
+                  formatter={v => [v != null ? (+v).toFixed(0) : '—', 'LEI Score']} />
                 <ReferenceLine y={sixMonthAvg} stroke="var(--border-2)" strokeDasharray="4 4" label={{ value: '6mo Avg', fontSize: 10, fill: 'var(--text-3)' }} />
                 <ReferenceLine y={60} stroke="var(--success)" strokeDasharray="2 6" opacity={0.3} />
                 <ReferenceLine y={40} stroke="var(--danger)" strokeDasharray="2 6" opacity={0.3} />

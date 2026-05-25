@@ -834,6 +834,15 @@ CREATE TABLE IF NOT EXISTS economic_calendar (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(event_id, event_date)
 );
+-- Migration: add event_date if table was created before this column existed
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'economic_calendar' AND column_name = 'event_date'
+    ) THEN
+        ALTER TABLE economic_calendar ADD COLUMN event_date DATE;
+    END IF;
+END $$;
 
 -- Economic data time series
 CREATE TABLE IF NOT EXISTS economic_data (

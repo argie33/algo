@@ -1,5 +1,5 @@
 ﻿/**
- * Portfolio Dashboard â€” algo-only.
+ * Portfolio Dashboard — algo-only.
  *
  * Surfaces every metric the algo tracks: open positions w/ R/stop/targets,
  * performance ratios (Sharpe / Sortino / Calmar / max DD), trade-level
@@ -25,19 +25,19 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 
 const fmtMoney = (v) =>
-  v == null || isNaN(Number(v)) ? 'â€”'
+  v == null || isNaN(Number(v)) ? '—'
   : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtMoneyShort = (v) => {
-  if (v == null || isNaN(Number(v))) return 'â€”';
+  if (v == null || isNaN(Number(v))) return '—';
   const n = Number(v);
   if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
   if (Math.abs(n) >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
   return `$${n.toFixed(0)}`;
 };
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : Number(v).toFixed(dp);
-const pct = (v, dp = 2) => v == null || isNaN(Number(v)) ? 'â€”' : `${Number(v).toFixed(dp)}%`;
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const pct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
 const Pnl = ({ value, suffix = '' }) => {
-  if (value == null || isNaN(Number(value))) return <span className="muted">â€”</span>;
+  if (value == null || isNaN(Number(value))) return <span className="muted">—</span>;
   const v = Number(value);
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
   const sign = v > 0 ? '+' : '';
@@ -107,9 +107,9 @@ export default function PortfolioDashboard() {
   const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
   const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
 
-  // status returns {run_id, last_run, current_phase, status, message} â€” no portfolio sub-object
+  // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
   const portfolio = status?.portfolio || {};
-  // markets returns {success, current: {...}, history: [...]} â€” no market_health sub-object
+  // markets returns {success, current: {...}, history: [...]} — no market_health sub-object
   const mh = markets?.current || markets?.market_health || {};
   const market = {
     trend: mh.market_trend || mh.trend,
@@ -122,7 +122,7 @@ export default function PortfolioDashboard() {
   const totalPositionValue = positionsList.reduce((s, p) => s + Number(p.position_value || 0), 0);
   const totalValue = parseFloat(portfolio.total_value || totalPositionValue || 0);
 
-  // Check for critical errors â€” circuit-breakers is supplemental, don't block whole page
+  // Check for critical errors — circuit-breakers is supplemental, don't block whole page
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
   const hasErrors = criticalErrors.some(err => err);
 
@@ -133,7 +133,7 @@ export default function PortfolioDashboard() {
           <div>
             <div className="page-head-title">Portfolio</div>
             <div className="page-head-sub">
-              Algo positions Â· Performance Â· Risk profile Â· Market context
+              Algo positions · Performance · Risk profile · Market context
             </div>
           </div>
         </div>
@@ -175,7 +175,7 @@ export default function PortfolioDashboard() {
         <div>
           <div className="page-head-title">Portfolio</div>
           <div className="page-head-sub">
-            Algo positions Â· Performance Â· Risk profile Â· Market context
+            Algo positions · Performance · Risk profile · Market context
           </div>
         </div>
         <div className="page-head-actions">
@@ -209,8 +209,8 @@ export default function PortfolioDashboard() {
         />
         <Kpi
           label="Market Regime"
-          value={<span className="mono">{(market.trend || 'â€”').toString().toUpperCase()}</span>}
-          sub={`Stage ${market.stage ?? 'â€”'} Â· DD ${market.distribution_days ?? 0}`}
+          value={<span className="mono">{(market.trend || '—').toString().toUpperCase()}</span>}
+          sub={`Stage ${market.stage ?? '—'} · DD ${market.distribution_days ?? 0}`}
           icon={Shield}
         />
       </div>
@@ -239,7 +239,7 @@ export default function PortfolioDashboard() {
         />
         <Kpi
           label="Profit Factor"
-          value={<span className="mono tnum">{perf?.profit_factor == null ? 'â€”' : num(perf.profit_factor)}</span>}
+          value={<span className="mono tnum">{perf?.profit_factor == null ? '—' : num(perf.profit_factor)}</span>}
           sub={`${perf?.win_rate_pct ?? 0}% win rate`}
           icon={Zap}
           tone={perf?.profit_factor > 1.5 ? 'up' : perf?.profit_factor < 1 ? 'down' : ''}
@@ -283,7 +283,7 @@ export default function PortfolioDashboard() {
           <div className="card-head">
             <div>
               <div className="card-title">Trade Metrics</div>
-              <div className="card-sub">Closed trades Â· win/loss profile Â· expectancy</div>
+              <div className="card-sub">Closed trades · win/loss profile · expectancy</div>
             </div>
           </div>
           <div className="card-body">
@@ -344,10 +344,10 @@ export default function PortfolioDashboard() {
                         <span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{t.symbol}</span>
                       </td>
                       <td className="num mono tnum">{fmtMoney(t.entry_price)}</td>
-                      <td className="num mono tnum">{t.exit_price ? fmtMoney(t.exit_price) : 'â€”'}</td>
+                      <td className="num mono tnum">{t.exit_price ? fmtMoney(t.exit_price) : '—'}</td>
                       <td className="num"><Pnl value={t.profit_loss_pct} suffix="%" /></td>
                       <td className="num"><Pnl value={t.exit_r_multiple} suffix="R" /></td>
-                      <td className="num mono tnum muted">{t.trade_duration_days ?? 'â€”'}</td>
+                      <td className="num mono tnum muted">{t.trade_duration_days ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -369,12 +369,12 @@ export default function PortfolioDashboard() {
           <div className="grid grid-4">
             <Stile
               label="Exposure Target"
-              value={<span className="mono tnum">{markets?.current?.exposure_pct ?? 'â€”'}%</span>}
+              value={<span className="mono tnum">{markets?.current?.exposure_pct ?? '—'}%</span>}
               sub={(markets?.current?.regime || '').toString().toUpperCase()}
             />
             <Stile
               label="9-Factor Score"
-              value={<span className="mono tnum">{markets?.current?.raw_score ?? 'â€”'}/100</span>}
+              value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
               sub="0-100 composite"
             />
             <Stile
@@ -396,7 +396,7 @@ export default function PortfolioDashboard() {
   );
 }
 
-// â”€â”€â”€ Circuit breaker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data }) {
   // API now returns raw array instead of {breakers: [...], active: ...}
   const breakers = Array.isArray(data) ? data : data?.breakers || [];
@@ -410,7 +410,7 @@ function CircuitBreakerPanel({ data }) {
           </div>
         </div>
         <div className="card-body">
-          <Empty title="Loading circuit breaker stateâ€¦" />
+          <Empty title="Loading circuit breaker state…" />
         </div>
       </div>
     );
@@ -423,8 +423,8 @@ function CircuitBreakerPanel({ data }) {
           <div className="card-title">Circuit Breakers</div>
           <div className="card-sub">
             {tripped === 0
-              ? 'All clear â€” no kill-switches triggered'
-              : `${tripped} of ${breakers.length} breakers triggered â€” new entries halted`}
+              ? 'All clear — no kill-switches triggered'
+              : `${tripped} of ${breakers.length} breakers triggered — new entries halted`}
           </div>
         </div>
         <span className={`badge ${tripped === 0 ? 'badge-success' : 'badge-danger'}`}>
@@ -474,7 +474,7 @@ function CircuitBreakerPanel({ data }) {
   );
 }
 
-// â”€â”€â”€ Equity curve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Equity curve ──────────────────────────────────────────────────────────
 function EquityCurve({ series }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
@@ -489,12 +489,12 @@ function EquityCurve({ series }) {
       <div className="card-head">
         <div>
           <div className="card-title">Equity Curve</div>
-          <div className="card-sub">Portfolio value Â· daily snapshots</div>
+          <div className="card-sub">Portfolio value · daily snapshots</div>
         </div>
       </div>
       <div className="card-body">
         {data.length < 2 ? (
-          <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} â€” need 2+ for a curve.`} />
+          <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} — need 2+ for a curve.`} />
         ) : (
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -521,7 +521,7 @@ function EquityCurve({ series }) {
   );
 }
 
-// â”€â”€â”€ Drawdown chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Drawdown chart ────────────────────────────────────────────────────────
 function DrawdownChart({ series }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
@@ -573,7 +573,7 @@ function DrawdownChart({ series }) {
   );
 }
 
-// â”€â”€â”€ Daily-return histogram (bell-curve overlay style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
 function DailyReturnHistogram({ series }) {
   const { buckets, stats } = useMemo(() => {
     if (!series || series.length === 0) return { buckets: [], stats: null };
@@ -610,7 +610,7 @@ function DailyReturnHistogram({ series }) {
           <div className="card-title">Daily Return Distribution</div>
           <div className="card-sub">
             {stats
-              ? `${stats.n} sessions Â· mean ${stats.mean.toFixed(2)}% Â· Ïƒ ${stats.std.toFixed(2)}%`
+              ? `${stats.n} sessions · mean ${stats.mean.toFixed(2)}% · Ïƒ ${stats.std.toFixed(2)}%`
               : 'Last 90 days'}
           </div>
         </div>
@@ -644,7 +644,7 @@ function DailyReturnHistogram({ series }) {
   );
 }
 
-// â”€â”€â”€ Trade outcome distribution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Trade outcome distribution ────────────────────────────────────────────
 function TradeDistribution({ trades }) {
   const buckets = useMemo(() => {
     if (!trades || trades.length === 0) return [];
@@ -700,7 +700,7 @@ function TradeDistribution({ trades }) {
   );
 }
 
-// â”€â”€â”€ Holding period histogram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Holding period histogram ──────────────────────────────────────────────
 function HoldingPeriodHistogram({ trades }) {
   const buckets = useMemo(() => {
     if (!trades || trades.length === 0) return [];
@@ -750,7 +750,7 @@ function HoldingPeriodHistogram({ trades }) {
   );
 }
 
-// â”€â”€â”€ R-multiple ladder per position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── R-multiple ladder per position ────────────────────────────────────────
 function RLadderPanel({ positions, loading, onSelect }) {
   const ladders = useMemo(() => {
     if (!positions) return [];
@@ -789,12 +789,12 @@ function RLadderPanel({ positions, loading, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">R-Multiple Ladder</div>
-          <div className="card-sub">Stop Â· entry Â· current Â· T1/T2/T3 per open position</div>
+          <div className="card-sub">Stop · entry · current · T1/T2/T3 per open position</div>
         </div>
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loadingâ€¦" />
+          <Empty title="Loading…" />
         ) : ladders.length === 0 ? (
           <Empty title="No open positions with stop/target levels"
                  desc="Stops & targets are populated by the orchestrator at entry time." />
@@ -812,7 +812,7 @@ function RLadderPanel({ positions, loading, onSelect }) {
                     <Pnl value={l.unrealized_pnl_pct} suffix="%" />
                   </div>
                   <div className="t-xs muted mono tnum">
-                    Stop {fmtMoney(l.stop)} Â· Entry {fmtMoney(l.entry)} Â· Now {fmtMoney(l.cur)}
+                    Stop {fmtMoney(l.stop)} · Entry {fmtMoney(l.entry)} · Now {fmtMoney(l.cur)}
                   </div>
                 </div>
                 <div style={{ position: 'relative', height: 28, background: 'var(--surface-2)',
@@ -867,7 +867,7 @@ function Marker({ pct, color, label, big = false }) {
 }
 
 function RChip({ r }) {
-  if (r == null) return <span className="badge" style={{ fontSize: 'var(--t-2xs)' }}>â€”</span>;
+  if (r == null) return <span className="badge" style={{ fontSize: 'var(--t-2xs)' }}>—</span>;
   const cls = r >= 1 ? 'badge-success' : r >= 0 ? 'badge-cyan' : r >= -0.5 ? 'badge-amber' : 'badge-danger';
   const sign = r > 0 ? '+' : '';
   return (
@@ -877,7 +877,7 @@ function RChip({ r }) {
   );
 }
 
-// â”€â”€â”€ Risk allocation pie â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Risk allocation pie ───────────────────────────────────────────────────
 function RiskAllocationPie({ positions, totalValue, onSelect }) {
   const data = useMemo(() => {
     if (!positions) return [];
@@ -899,7 +899,7 @@ function RiskAllocationPie({ positions, totalValue, onSelect }) {
           <div className="card-title">Open Risk Allocation</div>
           <div className="card-sub">
             {data.length === 0 ? 'No positions with stops'
-              : `${fmtMoneyShort(totalRisk)} at risk Â· ${riskPct.toFixed(2)}% of portfolio`}
+              : `${fmtMoneyShort(totalRisk)} at risk · ${riskPct.toFixed(2)}% of portfolio`}
           </div>
         </div>
       </div>
@@ -931,7 +931,7 @@ function RiskAllocationPie({ positions, totalValue, onSelect }) {
   );
 }
 
-// â”€â”€â”€ Sector concentration bar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sector concentration bar chart ────────────────────────────────────────
 function SectorConcentration({ positions, totalValue }) {
   const data = useMemo(() => {
     if (!positions || totalValue <= 0) return [];
@@ -986,7 +986,7 @@ function SectorConcentration({ positions, totalValue }) {
   );
 }
 
-// â”€â”€â”€ Stage phase donut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stage phase donut ─────────────────────────────────────────────────────
 function StagePhaseDonut({ positions }) {
   const data = useMemo(() => {
     if (!positions) return [];
@@ -1057,19 +1057,19 @@ function StagePhaseDonut({ positions }) {
   );
 }
 
-// â”€â”€â”€ Position health table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Position health table ─────────────────────────────────────────────────
 function PositionHealthTable({ positions, loading, onSelect }) {
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
       <div className="card-head">
         <div>
           <div className="card-title">Position Health ({positions?.length || 0})</div>
-          <div className="card-sub">Days held Â· R Â· stop/target distance Â· trend posture Â· sector</div>
+          <div className="card-sub">Days held · R · stop/target distance · trend posture · sector</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {loading ? (
-          <Empty title="Loadingâ€¦" />
+          <Empty title="Loading…" />
         ) : !positions || positions.length === 0 ? (
           <Empty title="No open positions" />
         ) : (
@@ -1098,32 +1098,32 @@ function PositionHealthTable({ positions, loading, onSelect }) {
                       onClick={() => onSelect(p.symbol)}
                       style={{ cursor: 'pointer' }}>
                     <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{p.symbol}</span></td>
-                    <td className="t-xs muted">{p.sector || 'â€”'}</td>
-                    <td className="num mono tnum muted">{p.days_since_entry ?? 'â€”'}</td>
+                    <td className="t-xs muted">{p.sector || '—'}</td>
+                    <td className="num mono tnum muted">{p.days_since_entry ?? '—'}</td>
                     <td className="num"><RChip r={p.r_multiple} /></td>
                     <td className="num"><Pnl value={p.unrealized_pnl_pct} suffix="%" /></td>
                     <td className="num mono tnum down">
-                      {p.distance_to_stop_pct != null ? `-${num(p.distance_to_stop_pct, 1)}%` : 'â€”'}
+                      {p.distance_to_stop_pct != null ? `-${num(p.distance_to_stop_pct, 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t1_pct != null ? `+${num(p.distance_to_t1_pct, 1)}%` : 'â€”'}
+                      {p.distance_to_t1_pct != null ? `+${num(p.distance_to_t1_pct, 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t2_pct != null ? `+${num(p.distance_to_t2_pct, 1)}%` : 'â€”'}
+                      {p.distance_to_t2_pct != null ? `+${num(p.distance_to_t2_pct, 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t3_pct != null ? `+${num(p.distance_to_t3_pct, 1)}%` : 'â€”'}
+                      {p.distance_to_t3_pct != null ? `+${num(p.distance_to_t3_pct, 1)}%` : '—'}
                     </td>
                     <td>
                       {p.weinstein_stage != null
                         ? <span className="badge mono">S{p.weinstein_stage}</span>
-                        : <span className="muted">â€”</span>}
+                        : <span className="muted">—</span>}
                     </td>
                     <td className="num mono tnum">
-                      {p.minervini_trend_score != null ? `${p.minervini_trend_score}/8` : 'â€”'}
+                      {p.minervini_trend_score != null ? `${p.minervini_trend_score}/8` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.pct_from_52w_low != null ? `+${num(p.pct_from_52w_low, 0)}%` : 'â€”'}
+                      {p.pct_from_52w_low != null ? `+${num(p.pct_from_52w_low, 0)}%` : '—'}
                     </td>
                     <td>
                       <span className="badge" style={{ textTransform: 'uppercase', fontSize: 'var(--t-2xs)' }}>
@@ -1141,7 +1141,7 @@ function PositionHealthTable({ positions, loading, onSelect }) {
   );
 }
 
-// â”€â”€â”€ shared little components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── shared little components ──────────────────────────────────────────────
 function Kpi({ label, value, sub, icon: Icon, tone }) {
   return (
     <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>

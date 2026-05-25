@@ -182,7 +182,7 @@ test.describe("Safari Routing Compatibility", () => {
       );
     } catch (error) {
       console.log(
-        `âš ï¸ Safari history navigation issue: ${error.message.slice(0, 60)}`
+        `⚠ï¸ Safari history navigation issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail the test entirely, as Safari history can be finicky
       expect(error).toBeDefined(); // At least the error is captured
@@ -220,7 +220,7 @@ test.describe("Safari Routing Compatibility", () => {
         } else {
         }
       } catch (error) {
-        console.log(`âŒ ${route}: Load timeout or error`);
+        console.log(`❌ ${route}: Load timeout or error`);
         loadTimes.push({ route, time: 30000 }); // Max timeout
       }
     }
@@ -279,7 +279,7 @@ test.describe("Safari Routing Compatibility", () => {
 
     } catch (error) {
       console.log(
-        `âš ï¸ Safari state persistence issue: ${error.message.slice(0, 60)}`
+        `⚠ï¸ Safari state persistence issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail entirely, as some state management can be browser-specific
       expect(error).toBeDefined();

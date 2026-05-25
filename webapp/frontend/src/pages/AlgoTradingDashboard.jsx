@@ -1,5 +1,5 @@
 ﻿/**
- * Swing Trading Algo Dashboard â€” Institutional Grade
+ * Swing Trading Algo Dashboard — Institutional Grade
  *
  * Full data density, dark professional palette, every detail visible.
  * Tabs: Markets / Setups / Positions / Trades / Workflow / Data / Config
@@ -104,7 +104,7 @@ function AlgoTradingDashboard() {
   const qOpts = { refetchInterval: autoRefresh ? 30000 : false };
   const adminOpts = { ...qOpts, retry: false }; // don't retry on 401/403
 
-  // One hook per endpoint â€” React Query deduplicates and caches
+  // One hook per endpoint — React Query deduplicates and caches
   const { data: status,      isLoading: loading, error: err0,  refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
   const { data: markets,     isLoading: mLoading, error: err1, refetch: r1  } = useApiQuery(['algo','markets'],       () => api.get('/api/algo/markets'), qOpts);
   const { items: scores,     isLoading: _sLoading, error: err2, refetch: r2  } = useApiPaginatedQuery(['algo','scores'],    () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
@@ -153,7 +153,7 @@ function AlgoTradingDashboard() {
   if (loading && !status) {
     return (
       <div className="main-content">
-        <div className="empty"><div className="empty-title">Loadingâ€¦</div></div>
+        <div className="empty"><div className="empty-title">Loading…</div></div>
       </div>
     );
   }
@@ -164,14 +164,14 @@ function AlgoTradingDashboard() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Swing Trading Algo</div>
-          <div className="page-head-sub">Pine signals Â· multi-factor scoring Â· composite exposure Â· hedge-fund discipline</div>
+          <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
         </div>
         <div className="page-head-actions">
           {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16].some(Boolean) && (
             <span className="badge badge-danger" title={`Failed: ${['status','markets','scores','positions','trades','config','data-status','policy','evaluate','patrol','notifications','circuit-breakers','data-quality','rejection-funnel','performance','equity-curve','audit-log']
               .filter((_, i) => [err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16][i])
               .join(', ')}`}>
-              âš  {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16].filter(Boolean).length} data source(s) failed
+              ⚠ {[err0,err1,err2,err3,err4,err5,err6,err7,err8,err9,err10,err11,err12,err13,err14,err15,err16].filter(Boolean).length} data source(s) failed
             </span>
           )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
@@ -187,7 +187,7 @@ function AlgoTradingDashboard() {
         </div>
       </div>
 
-      {/* TOP STRIP â€” 4 KPI CARDS */}
+      {/* TOP STRIP — 4 KPI CARDS */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
         <div className="card" style={{ background: tierColor(market?.active_tier?.name), color: 'white', border: 'none' }}>
           <div style={{ padding: 'var(--space-4)' }}>
@@ -310,7 +310,7 @@ function AlgoTradingDashboard() {
             { label: `POSITIONS (${data.positions?.length || 0})`, errors: [err3] },
             { label: `TRADES (${data.trades?.length || 0})`, errors: [err4] },
             { label: 'PERFORMANCE', errors: [] },
-            { label: `RISK${data.circuitBreakers?.any_triggered ? ' âš ' : ''}`, errors: [err11] },
+            { label: `RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`, errors: [err11] },
             { label: 'AUDIT', errors: [] },
             { label: 'PIPELINE', errors: [err7, err12, err13] },
             { label: 'DATA HEALTH', errors: [err6, err9] },
@@ -328,7 +328,7 @@ function AlgoTradingDashboard() {
               marginBottom: -1,
               opacity: tab_cfg.errors.some(Boolean) ? 0.8 : 1,
             }}>
-              {tab_cfg.label}{tab_cfg.errors.some(Boolean) ? ' âš ' : ''}
+              {tab_cfg.label}{tab_cfg.errors.some(Boolean) ? ' ⚠' : ''}
             </button>
           ))}
         </div>
@@ -373,7 +373,7 @@ function MarketsTab({ markets }) {
   if (!markets) {
     return (
       <div style={{ padding: 'var(--space-4)' }}>
-        <div className="alert alert-info">No markets data â€” run algo_market_exposure.py</div>
+        <div className="alert alert-info">No markets data — run algo_market_exposure.py</div>
       </div>
     );
   }
@@ -442,9 +442,9 @@ function MarketsTab({ markets }) {
                       <td className={`num mono tnum ${s.momentum >= 0 ? 'up' : 'down'}`}>
                         {(Number(s.momentum) || 0) >= 0 ? '+' : ''}{(Number(s.momentum) || 0).toFixed(2)}
                       </td>
-                      <td className="num mono tnum muted">{s.rank_1w_ago || 'â€”'}</td>
-                      <td className="num mono tnum muted">{s.rank_4w_ago || 'â€”'}</td>
-                      <td className="num mono tnum muted">{s.rank_12w_ago || 'â€”'}</td>
+                      <td className="num mono tnum muted">{s.rank_1w_ago || '—'}</td>
+                      <td className="num mono tnum muted">{s.rank_4w_ago || '—'}</td>
+                      <td className="num mono tnum muted">{s.rank_12w_ago || '—'}</td>
                       <td className="num">
                         {w4Delta > 1 ? <TrendingUp size={16} className="up" style={{ display: 'inline' }} /> :
                           w4Delta < -1 ? <TrendingDown size={16} className="down" style={{ display: 'inline' }} /> :
@@ -551,11 +551,11 @@ function SetupsTab({ scores, evaluated, error }) {
         <Stat label="Raw Buy Signals" value={evaluated?.total_buy_signals || 0} />
         <Stat label="Passing Score" value={passing.length} color="var(--success)" />
         <Stat label="Blocked" value={blocked.length} color="var(--amber)" />
-        <Stat label="Latest Date" value={scores?.[0]?.eval_date || 'â€”'} />
+        <Stat label="Latest Date" value={scores?.[0]?.eval_date || '—'} />
       </div>
 
       <div className="t-xs mono muted" style={{ marginBottom: 'var(--space-4)', display: 'block' }}>
-        Weights: 25% setup Â· 20% trend Â· 20% momentum Â· 12% volume Â· 10% fundamentals Â· 8% sector Â· 5% multi-tf
+        Weights: 25% setup · 20% trend · 20% momentum · 12% volume · 10% fundamentals · 8% sector · 5% multi-tf
       </div>
 
       <SectionCard title={`Top Setups (${passing.length})`}>
@@ -605,7 +605,7 @@ function SetupsTab({ scores, evaluated, error }) {
       </SectionCard>
 
       {blocked.length > 0 && (
-        <SectionCard title={`Blocked Candidates (${blocked.length}) â€” Failed Hard Gates`} style={{ marginTop: 'var(--space-4)' }}>
+        <SectionCard title={`Blocked Candidates (${blocked.length}) — Failed Hard Gates`} style={{ marginTop: 'var(--space-4)' }}>
           <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
@@ -651,7 +651,7 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
       {ent.map(([key, info]) => (
         <div key={key}>
           <div className="t-xs mono strong" style={{ color: 'var(--brand)' }}>
-            {key.toUpperCase()}: {info?.pts?.toFixed?.(1) ?? 'â€”'} / {info?.max ?? 'â€”'}
+            {key.toUpperCase()}: {info?.pts?.toFixed?.(1) ?? '—'} / {info?.max ?? '—'}
           </div>
           {info?.detail && (
             <div className="t-2xs muted mono" style={{ marginTop: 4 }}>
@@ -720,7 +720,7 @@ function PositionsTab({ positions }) {
                     <td className="num mono tnum" style={{ color: 'var(--brand)' }}>
                       {p.target_levels_hit || 0}/3
                     </td>
-                    <td className="t-xs muted">{p.stage_in_exit_plan || 'â€”'}</td>
+                    <td className="t-xs muted">{p.stage_in_exit_plan || '—'}</td>
                   </tr>
                 );
               })}
@@ -786,21 +786,21 @@ function TradesTab({ trades }) {
                     <td className="num mono tnum muted t-xs">{t.trade_date}</td>
                     <td className="num mono tnum">${t.entry_price?.toFixed(2)}</td>
                     <td className={`num mono tnum ${t.exit_price ? '' : 'muted'}`}>
-                      {t.exit_price ? `$${t.exit_price.toFixed(2)}` : 'â€”'}
+                      {t.exit_price ? `$${t.exit_price.toFixed(2)}` : '—'}
                     </td>
                     <td className={`num strong mono tnum ${pnlClass}`}>
-                      ${t.profit_loss_dollars?.toFixed(2) || 'â€”'}
+                      ${t.profit_loss_dollars?.toFixed(2) || '—'}
                     </td>
                     <td className={`num mono tnum ${pnlClass}`}>
                       {t.profit_loss_pct?.toFixed(2)}%
                     </td>
                     <td className={`num strong mono tnum ${t.exit_r_multiple > 0 ? 'up' : t.exit_r_multiple < 0 ? 'down' : ''}`}>
-                      {t.exit_r_multiple ? `${t.exit_r_multiple > 0 ? '+' : ''}${t.exit_r_multiple.toFixed(2)}R` : 'â€”'}
+                      {t.exit_r_multiple ? `${t.exit_r_multiple > 0 ? '+' : ''}${t.exit_r_multiple.toFixed(2)}R` : '—'}
                     </td>
                     <td className="num mono tnum">{t.trade_duration_days || 0}</td>
-                    <td className="t-xs" style={{ maxWidth: 200 }}>{t.exit_reason || 'â€”'}</td>
+                    <td className="t-xs" style={{ maxWidth: 200 }}>{t.exit_reason || '—'}</td>
                     <td className="t-2xs mono" style={{ maxWidth: 280, whiteSpace: 'pre-wrap', color: 'var(--purple)' }}>
-                      {t.partial_exits_log || 'â€”'}
+                      {t.partial_exits_log || '—'}
                     </td>
                     <td>
                       <span className={`badge ${t.status === 'closed' ? '' : 'badge-brand'}`} style={{ fontSize: 'var(--t-2xs)' }}>
@@ -819,7 +819,7 @@ function TradesTab({ trades }) {
 }
 
 // ============================================================================
-// PIPELINE TAB â€” live 7-phase orchestrator status + data loader health
+// PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
 function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBreakers }) {
   const loaders = dataQuality?.checks || [];
@@ -832,10 +832,10 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
       live: overallStatus === 'ok' ? 'ok' : overallStatus === 'warning' ? 'warn' : 'fail' },
     { n: '2', name: 'Circuit Breakers', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
       live: circuitBreakers?.any_triggered ? 'fail' : 'ok' },
-    { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings â€” flag for action', mode: 'fail-open', live: 'ok' },
+    { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
     { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
     { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
-    { n: '5', name: 'Signal Generation', desc: `Pine BUYs â†’ 6 tiers â†’ swing_score ranking${rejectionFunnel?.total_signals ? ` Â· ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
+    { n: '5', name: 'Signal Generation', desc: `Pine BUYs â†’ 6 tiers â†’ swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
     { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
     { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
   ];
@@ -846,7 +846,7 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
     <div style={{ padding: 'var(--space-4)' }}>
       <div className="grid grid-2" style={{ gap: 'var(--space-4)' }}>
         {/* Phase status */}
-        <SectionCard title="7-Phase Daily Workflow â€” Live Status">
+        <SectionCard title="7-Phase Daily Workflow — Live Status">
           {PHASES.map(ph => (
             <div key={ph.n} style={{
               padding: 'var(--space-3)',
@@ -865,7 +865,7 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
                 <div className="flex gap-2 items-center">
                   <span className={`badge ${ph.live === 'ok' ? 'badge-success' : ph.live === 'warn' ? 'badge-amber' : 'badge-danger'}`}
                     style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)' }}>
-                    {ph.live === 'ok' ? 'âœ“ OK' : ph.live === 'warn' ? 'âš  WARN' : 'âœ— FAIL'}
+                    {ph.live === 'ok' ? 'âœ“ OK' : ph.live === 'warn' ? '⚠ WARN' : 'âœ— FAIL'}
                   </span>
                   <span className={`badge ${ph.mode === 'fail-closed' ? 'badge-danger' : ''}`}
                     style={{ fontSize: 'var(--t-2xs)' }}>
@@ -928,9 +928,9 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
                         <tr key={i}>
                           <td className="mono t-xs">{l.loader}</td>
                           <td className="muted t-xs">{l.table}</td>
-                          <td className="mono t-xs">{l.latest_date || 'â€”'}</td>
+                          <td className="mono t-xs">{l.latest_date || '—'}</td>
                           <td className={`num mono tnum t-xs ${l.age_hours > (l.max_age_hours || 24) ? 'down' : ''}`}>
-                            {l.age_hours != null ? l.age_hours.toFixed(1) : 'â€”'}
+                            {l.age_hours != null ? l.age_hours.toFixed(1) : '—'}
                           </td>
                           <td><span className={`badge ${sc}`} style={{ fontSize: 'var(--t-2xs)' }}>{s}</span></td>
                         </tr>
@@ -945,7 +945,7 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
           {/* Exposure Policy Matrix */}
           <SectionCard title="Exposure Tier Policy Matrix" style={{ marginTop: 'var(--space-4)' }}>
             <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)' }}>
-              Current exposure: {policy?.current_exposure_pct ?? 'â€”'}% â†’ tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
+              Current exposure: {policy?.current_exposure_pct ?? '—'}% â†’ tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -1021,10 +1021,10 @@ function DataStatusTab({ dataStatus, patrolLog }) {
             <AlertTriangle size={28} style={{ color: 'var(--danger)' }} />}
           <div>
             <div style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)', fontSize: 'var(--t-lg)' }}>
-              {dataStatus.ready_to_trade ? 'READY TO TRADE' : 'DATA STALE â€” ALGO WILL FAIL-CLOSE'}
+              {dataStatus.ready_to_trade ? 'READY TO TRADE' : 'DATA STALE — ALGO WILL FAIL-CLOSE'}
             </div>
             <div className="mono t-xs muted" style={{ marginTop: 4 }}>
-              {dataStatus.summary.ok} ok Â· {dataStatus.summary.stale} stale Â· {dataStatus.summary.empty} empty Â· {dataStatus.summary.error} error
+              {dataStatus.summary.ok} ok · {dataStatus.summary.stale} stale · {dataStatus.summary.empty} empty · {dataStatus.summary.error} error
             </div>
             {!dataStatus.ready_to_trade && (
               <div className="mono t-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>
@@ -1125,7 +1125,7 @@ function ConfigTab({ config }) {
   return (
     <div style={{ padding: 'var(--space-3)' }}>
       <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)', display: 'block' }}>
-        {entries.length} configuration parameters Â· all hot-reload via /api/algo/config/:key
+        {entries.length} configuration parameters · all hot-reload via /api/algo/config/:key
       </div>
       <div className="grid grid-4" style={{ gap: 'var(--space-2)' }}>
         {entries.map(([key, val]) => (

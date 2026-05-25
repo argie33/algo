@@ -150,7 +150,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
           accessibleRoutes++;
         }
       } catch (error) {
-        console.log(`âš ï¸ ${route}: Error - ${error.message.slice(0, 50)}`);
+        console.log(`⚠ï¸ ${route}: Error - ${error.message.slice(0, 50)}`);
       }
     }
 

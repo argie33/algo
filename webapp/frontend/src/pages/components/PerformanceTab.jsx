@@ -67,7 +67,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
         <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="card-head">
             <div className="card-title">
-              Equity Curve {totalReturn != null && <span className="muted t-xs" style={{ fontWeight: 'normal', marginLeft: 8 }}>Â·  {totalReturn >= 0 ? '+' : ''}{totalReturn}% total return</span>}
+              Equity Curve {totalReturn != null && <span className="muted t-xs" style={{ fontWeight: 'normal', marginLeft: 8 }}>·  {totalReturn >= 0 ? '+' : ''}{totalReturn}% total return</span>}
             </div>
           </div>
           <div className="card-body">
@@ -154,7 +154,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
 
       {!performance && (
         <div className="alert alert-info" style={{ marginBottom: 'var(--space-4)' }}>
-          No performance data â€” needs closed trades + portfolio snapshots
+          No performance data — needs closed trades + portfolio snapshots
         </div>
       )}
 
