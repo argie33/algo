@@ -75,6 +75,26 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
             elif path == '/api/sentiment/vix':
                 return _get_vix_data(cur)
+            elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):
+                # Default: return summary
+                cur.execute("""
+                    SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
+                           mh.put_call_ratio, mh.vix_level
+                    FROM fear_greed_index fg
+                    LEFT JOIN market_health_daily mh ON mh.date = fg.date
+                    ORDER BY fg.date DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                if row:
+                    return json_response(200, {
+                        'fear_greed': float(row['fear_greed_value']) if row['fear_greed_value'] else None,
+                        'label': row['fear_greed_label'],
+                        'put_call_ratio': float(row['put_call_ratio']) if row['put_call_ratio'] else None,
+                        'vix_level': float(row['vix_level']) if row['vix_level'] else None,
+                        'date': str(row['date']),
+                    })
+                return json_response(200, {})
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
