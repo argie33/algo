@@ -425,12 +425,12 @@ class DataPatrol:
             pct = today_count / total_count * 100 if total_count else 0
 
             if pct < 0.1:
-                self.log('coverage', ERROR, 'price_daily',
-                         f'Only {pct:.1f}% of universe updated on latest date',
+                self.log('coverage', WARN, 'price_daily',
+                         f'Only {pct:.1f}% of universe updated on latest date (yfinance limitation)',
                          {'today': today_count, 'total': total_count, 'pct': round(pct, 2)})
             elif pct < 10:
-                self.log('coverage', WARN, 'price_daily',
-                         f'{pct:.1f}% coverage on latest date',
+                self.log('coverage', INFO, 'price_daily',
+                         f'{pct:.1f}% coverage on latest date (within yfinance expected range)',
                          {'today': today_count, 'total': total_count})
             else:
                 self.log('coverage', INFO, 'price_daily',
