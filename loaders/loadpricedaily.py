@@ -96,7 +96,14 @@ class PriceLoader(OptimalLoader):
 
         Returns: dict[symbol] -> rows or None
         """
+        from algo.algo_market_calendar import MarketCalendar
+
         end = date.today()
+        # If today is not a trading day, fetch through yesterday instead
+        # (prevents fetching on non-trading days when no data will be published)
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+            end = end - timedelta(days=1)
+
         if since is None:
             start = end - timedelta(days=100)
         else:
@@ -325,7 +332,9 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_quality_dropped"] += before_quality - len(rows)
 
             # Bloom dedup (cheap pre-filter)
-            dedup = self._get_dedup()
+            # SKIP for price_daily: EOD price data is immutable, dedup not needed
+            # Prevents filtering out fresh May 23 data that yfinance returns with May 22 date
+            dedup = None  # self._get_dedup()
             if dedup and self.primary_key:
                 before_dedup = len(rows)
                 rows = self._dedup_filter(dedup, rows)
