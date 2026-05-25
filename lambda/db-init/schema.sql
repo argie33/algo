@@ -1,4 +1,10 @@
 -- ════════════════════════════════════════════════════════════════════════════
+-- DROP TABLES TO FORCE RECREATION WITH CORRECTED SCHEMA
+-- ════════════════════════════════════════════════════════════════════════════
+-- Drop tables that were modified to fix column names/schemas
+DROP TABLE IF EXISTS data_loader_status CASCADE;
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- CORE TABLES - Required for all systems
 -- ════════════════════════════════════════════════════════════════════════════
 
