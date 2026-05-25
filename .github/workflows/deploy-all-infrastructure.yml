@@ -400,10 +400,9 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
 
-      # NOTE: RDS password is now managed cleanly by Terraform (local.rds_password in database module).
-      # Secrets Manager is created with the SAME password via aws_secretsmanager_secret_version.
-      # GitHub Secret RDS_PASSWORD must be updated manually when password changes
-      # (GitHub Actions does not support modifying secrets from workflows).
+      # NOTE: RDS credentials are fully managed by IaC (Terraform).
+      # random_password.rds_master generates once, stored in state, then synced to Secrets Manager.
+      # GitHub Actions uses OIDC to read from Secrets Manager (no GitHub Secrets needed for passwords).
 
       # NOTE: Database initialization is now handled by deploy-code.yml
       # (deploy-db-init-lambda job) which invokes algo-db-init-dev after

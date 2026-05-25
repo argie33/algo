@@ -489,7 +489,7 @@ jobs:
                 "APCA_API_BASE_URL": apca_base_url,
                 "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
                 "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
-                "ORCHESTRATOR_DRY_RUN": "false",
+                "ORCHESTRATOR_DRY_RUN": "true",
                 "EXECUTION_MODE": exec_mode
               }
             },
@@ -651,6 +651,9 @@ jobs:
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
 
+          # Get environment from terraform.tfvars
+          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+
           # Deploy function code (handler only, ~5KB)
           echo "Deploying API function code..."
           aws lambda update-function-code \
@@ -705,22 +708,94 @@ jobs:
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           DB_SECRET_ARN="arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:${SECRET_ID}"
 
+          # Get CloudFront domain for CORS whitelist
+          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
+          if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
+            CF_ID=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].Id' \
+              --output text 2>/dev/null || echo "")
+          fi
+          CLOUDFRONT_DOMAIN=""
+          if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
+            CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+              --id "$CF_ID" \
+              --region $AWS_REGION \
+              --query 'Distribution.DomainName' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          # Build ALLOWED_ORIGINS with localhost + CloudFront domain
+          ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
+          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
+            ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
+            echo "Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
+          fi
+
           echo "Updating API Lambda configuration..."
           echo "  DB_HOST: $DB_HOST"
           echo "  DB_PORT: $DB_PORT"
           echo "  DB_NAME: $DB_NAME"
           echo "  DB_USER: $DB_USER"
           echo "  DB_SECRET_ARN: $DB_SECRET_ARN"
+          echo "  ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
           echo "  Layer: $API_LAYER_ARN"
 
-          # Update function configuration with environment variables and layers
+          # Get Cognito credentials for JWT validation
+          COGNITO_POOL_ID=""
+          COGNITO_CLIENT_ID=""
+          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+          COGNITO_POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
+          COGNITO_CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value // empty' 2>/dev/null || echo "")
+
+          # Fall back to AWS API if not in Terraform output
+          if [ -z "$COGNITO_POOL_ID" ]; then
+            COGNITO_POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
+              --query "UserPools[?Name=='stocks-trading-pool-${ENV}'].Id | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$COGNITO_CLIENT_ID" ] && [ -n "$COGNITO_POOL_ID" ] && [ "$COGNITO_POOL_ID" != "None" ]; then
+            COGNITO_CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$COGNITO_POOL_ID" \
+              --region $AWS_REGION \
+              --query "UserPoolClients[?ClientName=='stocks-web-app-${ENV}'].ClientId | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          # Export variables for Python subprocess
+          export DB_SECRET_ARN DB_HOST DB_PORT DB_NAME DB_USER ALLOWED_ORIGINS
+          export COGNITO_POOL_ID COGNITO_CLIENT_ID FUNC API_LAYER_ARN
+
+          # Update function configuration with environment variables using AWS CLI
+          echo "Building environment variables JSON..."
+          cat > /tmp/api_env.json << ENVJSON
+{
+  "Variables": {
+    "DB_SECRET_ARN": "$DB_SECRET_ARN",
+    "DB_HOST": "$DB_HOST",
+    "DB_PORT": "$DB_PORT",
+    "DB_NAME": "$DB_NAME",
+    "DB_USER": "$DB_USER",
+    "DB_SSL": "prefer",
+    "ALLOWED_ORIGINS": "$ALLOWED_ORIGINS",
+    "COGNITO_REGION": "$AWS_REGION"
+    $(if [ -n "$COGNITO_POOL_ID" ] && [ "$COGNITO_POOL_ID" != "None" ]; then echo "    ,\"COGNITO_USER_POOL_ID\": \"$COGNITO_POOL_ID\""; fi)
+    $(if [ -n "$COGNITO_CLIENT_ID" ] && [ "$COGNITO_CLIENT_ID" != "None" ]; then echo "    ,\"COGNITO_CLIENT_ID\": \"$COGNITO_CLIENT_ID\""; fi)
+  }
+}
+ENVJSON
+
+          echo "Updating API Lambda configuration..."
+
+          # Update function code (API_LAYER_ARN should be set from earlier Publish API Lambda Layer step)
           aws lambda update-function-configuration \
             --function-name "$FUNC" \
-            --environment "Variables={DB_SECRET_ARN=$DB_SECRET_ARN,DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_SSL=prefer}" \
+            --environment "file:///tmp/api_env.json" \
             --layers "$API_LAYER_ARN" \
             --region $AWS_REGION || { echo "ERROR: Failed to update API Lambda configuration"; exit 1; }
 
-          echo "✅ API Lambda deployed with database configuration"
+          echo "✅ API Lambda environment and layers updated"
+
+          echo "✅ API Lambda deployed with database configuration and Cognito settings"
 
       - name: Verify API Lambda Environment Variables
         run: |
@@ -978,6 +1053,9 @@ jobs:
 
       - name: Generate Production Config
         run: |
+          # Get environment from terraform.tfvars
+          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+
           # Dynamically look up the API Gateway endpoint and append the stage name.
           # secrets.API_GATEWAY_URL is the base URL without stage (e.g. https://id.execute-api.region.amazonaws.com).
           # The frontend needs the full invoke URL including stage: BASE_URL/api
@@ -1000,11 +1078,64 @@ jobs:
             API_URL="${{ secrets.API_GATEWAY_URL }}/api"
           fi
 
-          mkdir -p webapp/frontend/dist
-          printf 'window.__CONFIG__ = {\n  "API_URL": "%s",\n  "ENVIRONMENT": "production"\n};\n' \
-            "$API_URL" > webapp/frontend/dist/config.js
+          # Get Cognito credentials from Terraform outputs or AWS
+          POOL_ID=""
+          CLIENT_ID=""
+          COGNITO_DOMAIN=""
 
-          echo "✅ Generated dist/config.js with API_URL=$API_URL"
+          # Try Terraform output first
+          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value // empty' 2>/dev/null || echo "")
+
+          # Fall back to AWS API if Terraform output empty
+          if [ -z "$POOL_ID" ]; then
+            POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
+              --query "UserPools[?Name=='stocks-trading-pool-${ENV}'].Id | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$CLIENT_ID" ] && [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
+              --region $AWS_REGION \
+              --query "UserPoolClients[?ClientName=='stocks-web-app-${ENV}'].ClientId | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          # Get Cognito domain
+          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            COGNITO_DOMAIN=$(aws cognito-idp describe-user-pool-domain \
+              --domain "stocks-trading-${ENV}" \
+              --region $AWS_REGION \
+              --query 'UserPoolDomain.Domain' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          mkdir -p webapp/frontend/dist
+
+          # Build config with Cognito settings
+          printf 'window.__CONFIG__ = {\n' > webapp/frontend/dist/config.js
+          printf '  "API_URL": "%s",\n' "$API_URL" >> webapp/frontend/dist/config.js
+          printf '  "ENVIRONMENT": "production",\n' >> webapp/frontend/dist/config.js
+          printf '  "AWS_REGION": "%s",\n' "$AWS_REGION" >> webapp/frontend/dist/config.js
+
+          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            printf '  "USER_POOL_ID": "%s",\n' "$POOL_ID" >> webapp/frontend/dist/config.js
+          fi
+
+          if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
+            printf '  "USER_POOL_CLIENT_ID": "%s",\n' "$CLIENT_ID" >> webapp/frontend/dist/config.js
+          fi
+
+          if [ -n "$COGNITO_DOMAIN" ] && [ "$COGNITO_DOMAIN" != "None" ]; then
+            printf '  "USER_POOL_DOMAIN": "%s"\n' "$COGNITO_DOMAIN" >> webapp/frontend/dist/config.js
+          else
+            printf '  "USER_POOL_DOMAIN": ""\n' >> webapp/frontend/dist/config.js
+          fi
+
+          printf '};\n' >> webapp/frontend/dist/config.js
+
+          echo "✅ Generated dist/config.js with API_URL=$API_URL and Cognito config"
           cat webapp/frontend/dist/config.js
 
       - name: Verify Frontend Build Output
