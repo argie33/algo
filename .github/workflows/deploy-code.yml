@@ -775,7 +775,16 @@ jobs:
           # Get project and environment from terraform.tfvars for secret ID
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
-          SECRET_ID="${PROJECT}-db-credentials-${ENV}"
+
+          # Try to get secret name from Terraform first (more reliable)
+          SECRET_ID="${{ needs.resolve-infra.outputs.rds_credentials_secret_name }}"
+          if [ -z "$SECRET_ID" ] || [ "$SECRET_ID" = "null" ] || [ "$SECRET_ID" = "***" ]; then
+            # Fall back to constructed secret name
+            SECRET_ID="${PROJECT}-db-credentials-${ENV}"
+            echo "⚠️ Using fallback secret ID: $SECRET_ID"
+          else
+            echo "✅ Using Terraform-resolved secret ID: $SECRET_ID"
+          fi
 
           # Retrieve database credentials from Secrets Manager
           echo "Retrieving database credentials: $SECRET_ID"
@@ -786,8 +795,16 @@ jobs:
             --output text 2>&1)
 
           if [ $? -ne 0 ]; then
-            echo "ERROR: Could not retrieve database secret"
-            echo "$DB_CREDS"
+            echo "ERROR: Could not retrieve database secret: $SECRET_ID"
+            echo "Response: $DB_CREDS"
+            echo "Attempting to list available secrets..."
+            aws secretsmanager list-secrets --region $AWS_REGION --query 'SecretList[].Name' --output text || echo "Could not list secrets"
+            exit 1
+          fi
+
+          # Verify credentials were retrieved
+          if [ -z "$DB_CREDS" ] || [ "$DB_CREDS" = "null" ]; then
+            echo "ERROR: Retrieved empty database credentials"
             exit 1
           fi
 
