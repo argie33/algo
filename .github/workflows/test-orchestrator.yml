@@ -42,8 +42,8 @@ jobs:
           echo "Invoking $FUNC with trading day date (May 22, 2026 - latest available data)..."
 
           # Create JSON payload with trading day date that has data available in database
-          # May 22, 2026 is Thursday - last trading day before loaders ran on May 25
-          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-22"}'
+          # May 20, 2026 is Tuesday - testing with earlier date for better symbol coverage
+          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-20"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
           # Synchronous invocation with RequestResponse
