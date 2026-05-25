@@ -770,54 +770,13 @@ jobs:
           # Update function configuration with environment variables
           echo "Updating API Lambda configuration..."
 
-          # Build environment string for --environment flag
-          ENV_VARS="DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION"
-
-          # Update function configuration using Python to properly JSON-escape special characters
-          python3 <<'PYTHON_CONFIG'
-import json
-import subprocess
-import os
-
-func = os.environ['FUNC']
-api_layer_arn = os.environ['API_LAYER_ARN']
-region = os.environ['AWS_REGION']
-db_host = os.environ['DB_HOST']
-db_port = os.environ['DB_PORT']
-db_name = os.environ['DB_NAME']
-db_user = os.environ['DB_USER']
-db_password = os.environ['DB_PASSWORD']
-allowed_origins = os.environ['ALLOWED_ORIGINS']
-
-config = {
-    "FunctionName": func,
-    "Environment": {
-        "Variables": {
-            "DB_HOST": db_host,
-            "DB_PORT": db_port,
-            "DB_NAME": db_name,
-            "DB_USER": db_user,
-            "DB_PASSWORD": db_password,
-            "DB_SSL": "prefer",
-            "ALLOWED_ORIGINS": allowed_origins,
-            "COGNITO_REGION": region
-        }
-    },
-    "Timeout": 300,
-    "Layers": [api_layer_arn]
-}
-
-config_json = json.dumps(config)
-print(f"Updating API Lambda configuration...")
-
-result = subprocess.run([
-    'aws', 'lambda', 'update-function-configuration',
-    '--cli-input-json', config_json,
-    '--region', region
-], check=True)
-
-print("✅ API Lambda environment and layers updated")
-PYTHON_CONFIG
+          # Build JSON config and update Lambda using AWS CLI directly
+          aws lambda update-function-configuration \
+            --function-name "$FUNC" \
+            --environment "Variables={DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION}" \
+            --timeout 300 \
+            --layers "$API_LAYER_ARN" \
+            --region $AWS_REGION
 
           if [ $? -ne 0 ]; then
             echo "ERROR updating Lambda config"
@@ -825,7 +784,6 @@ PYTHON_CONFIG
           fi
 
           echo "✅ API Lambda environment and layers updated"
-
           echo "✅ API Lambda deployed with database configuration and Cognito settings"
 
       - name: Verify API Lambda Environment Variables
