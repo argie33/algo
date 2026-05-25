@@ -654,8 +654,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Ensure response has proper format
         def _json_default(obj):
             import datetime
+            from decimal import Decimal
             if isinstance(obj, (datetime.date, datetime.datetime)):
                 return obj.isoformat()
+            if isinstance(obj, Decimal):
+                return float(obj)
             if hasattr(obj, '__float__'):
                 return float(obj)
             return str(obj)

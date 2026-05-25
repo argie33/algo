@@ -82,7 +82,12 @@ class TradeExecutor:
         from algo.algo_pretrade_checks import PreTradeChecks
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
-        execution_mode = config.get('execution_mode', 'paper').lower() if isinstance(config, dict) else 'paper'
+        # Get execution mode from config (supports both dict and AlgoConfig objects)
+        if isinstance(config, dict):
+            execution_mode = config.get('execution_mode', 'paper').lower()
+        else:
+            execution_mode = (config.execution_mode or 'paper').lower()
+
         live_ack = os.getenv('ALGO_LIVE_TRADING', '').strip()
         paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'false').strip().lower()
         url_says_paper = 'paper' in (self.alpaca_base_url or '').lower()
