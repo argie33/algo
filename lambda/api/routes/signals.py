@@ -32,7 +32,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 where_clause += " AND bsd.symbol = %s"
                 params.insert(0, symbol_filter.upper())
 
-            # Query with mansfield_rs (new column); if doesn't exist, falls back to returning empty list
+            # Query with mansfield_rs column
             cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
@@ -40,7 +40,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.entry_quality_score, bsd.signal_quality_score,
                     bsd.volume_surge_pct, bsd.risk_reward_ratio,
                     bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-                    bsd.atr, bsd.adx, COALESCE(bsd.mansfield_rs, bsd.macd, 0) as mansfield_rs,
+                    bsd.atr, bsd.adx, COALESCE(bsd.mansfield_rs, 0) as mansfield_rs,
                     bsd.stage_number, bsd.reason
                 FROM buy_sell_daily bsd
                 """ + where_clause + """
