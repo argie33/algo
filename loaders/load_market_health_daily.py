@@ -94,8 +94,10 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["up_day"] = (df["price_change"] > 0).astype(int)
 
         # Use shared indicator computation
+        df["prev_close"] = df["close"].shift(1)
         df["prev_volume"] = df["volume"].shift(1)
-        df["distribution_day"] = ((df["price_change"] < 0) & (df["volume"] > df["prev_volume"])).astype(int)
+        # Distribution day: close down >= 0.2% AND volume > previous day (IBD canonical definition)
+        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(int)
 
         # Calculate moving averages using shared function
         mas = compute_moving_averages(df["close"])

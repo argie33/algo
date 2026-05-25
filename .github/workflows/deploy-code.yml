@@ -36,11 +36,18 @@ jobs:
     name: Resolve Infrastructure Outputs
     runs-on: ubuntu-latest
     outputs:
-      api_lambda_name: ${{ steps.names.outputs.api_lambda_name }}
-      algo_lambda_name: ${{ steps.names.outputs.algo_lambda_name }}
-      frontend_bucket: ${{ steps.names.outputs.frontend_bucket }}
-      cloudfront_id: ${{ steps.names.outputs.cloudfront_id }}
-      api_gateway_endpoint: ${{ steps.names.outputs.api_gateway_endpoint }}
+      api_lambda_function_name: ${{ steps.tf_outputs.outputs.api_lambda_function_name }}
+      algo_lambda_function_name: ${{ steps.tf_outputs.outputs.algo_lambda_function_name }}
+      frontend_bucket_name: ${{ steps.tf_outputs.outputs.frontend_bucket_name }}
+      cloudfront_distribution_id: ${{ steps.tf_outputs.outputs.cloudfront_distribution_id }}
+      api_gateway_endpoint: ${{ steps.tf_outputs.outputs.api_gateway_endpoint }}
+      algo_orchestrator_layer_name: ${{ steps.tf_outputs.outputs.algo_orchestrator_layer_name }}
+      api_lambda_layer_name: ${{ steps.tf_outputs.outputs.api_lambda_layer_name }}
+      rds_credentials_secret_name: ${{ steps.tf_outputs.outputs.rds_credentials_secret_name }}
+      cognito_user_pool_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_id }}
+      cognito_client_id: ${{ steps.tf_outputs.outputs.cognito_client_id }}
+      terraform_backend_bucket: ${{ steps.tf_outputs.outputs.terraform_backend_bucket }}
+      terraform_backend_key: ${{ steps.tf_outputs.outputs.terraform_backend_key }}
 
     steps:
       - uses: actions/checkout@v4
@@ -59,49 +66,75 @@ jobs:
 
       - name: Terraform Init (read-only)
         working-directory: terraform
+        env:
+          # Use environment secrets or fallback to defaults
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
+          TF_BACKEND_KEY: ${{ secrets.TF_STATE_KEY || 'stocks/terraform.tfstate' }}
         run: |
           terraform init \
-            -backend-config="bucket=stocks-terraform-state" \
-            -backend-config="key=stocks/terraform.tfstate" \
-            -backend-config="region=us-east-1" \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$AWS_REGION" \
             -backend-config="encrypt=true" \
             -reconfigure
 
       - name: Read Terraform Outputs
-        id: names
+        id: tf_outputs
         working-directory: terraform
         run: |
-          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
+          TF_OUT=$(terraform output -json 2>/dev/null)
 
-          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // empty')
-          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // empty')
-          FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""')
-          CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""')
-          API_GATEWAY_ENDPOINT=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""')
-
-          # Fall back to listing if TF outputs are empty
-          if [ -z "$FRONTEND_BUCKET" ]; then
-            FRONTEND_BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
-              --output text 2>/dev/null || echo "")
-          fi
-          if [ -z "$CF_ID" ]; then
-            CF_ID=$(aws cloudfront list-distributions \
-              --query 'DistributionList.Items[0].Id' \
-              --output text 2>/dev/null || echo "")
+          # Validate outputs exist
+          if [ -z "$TF_OUT" ] || [ "$TF_OUT" = "{}" ]; then
+            echo "ERROR: Terraform outputs are empty. Infrastructure may not be deployed."
+            exit 1
           fi
 
-          echo "api_lambda_name=${API_LAMBDA}" >> $GITHUB_OUTPUT
-          echo "algo_lambda_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
-          echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
-          echo "cloudfront_id=${CF_ID}" >> $GITHUB_OUTPUT
-          echo "api_gateway_endpoint=${API_GATEWAY_ENDPOINT}" >> $GITHUB_OUTPUT
+          # Extract all needed outputs
+          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value')
+          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value')
+          FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value')
+          CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value')
+          API_GATEWAY=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value')
+          ALGO_LAYER=$(echo "$TF_OUT" | jq -r '.algo_orchestrator_layer_name.value')
+          API_LAYER=$(echo "$TF_OUT" | jq -r '.api_lambda_layer_name.value')
+          RDS_SECRET=$(echo "$TF_OUT" | jq -r '.rds_credentials_secret_name.value')
+          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value')
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value')
+          BACKEND_BUCKET=$(echo "$TF_OUT" | jq -r '.terraform_backend_bucket.value')
+          BACKEND_KEY=$(echo "$TF_OUT" | jq -r '.terraform_backend_key.value')
 
-          echo "API Lambda:  ${API_LAMBDA}"
-          echo "Algo Lambda: ${ALGO_LAMBDA}"
-          echo "Frontend S3: ${FRONTEND_BUCKET}"
-          echo "API Gateway: ${API_GATEWAY_ENDPOINT}"
-          echo "CloudFront:  ${CF_ID}"
+          # Validate critical outputs
+          if [ -z "$API_LAMBDA" ] || [ "$API_LAMBDA" = "null" ]; then
+            echo "ERROR: api_lambda_function_name output missing"
+            exit 1
+          fi
+          if [ -z "$ALGO_LAMBDA" ] || [ "$ALGO_LAMBDA" = "null" ]; then
+            echo "ERROR: algo_lambda_function_name output missing"
+            exit 1
+          fi
+
+          # Export outputs
+          echo "api_lambda_function_name=${API_LAMBDA}" >> $GITHUB_OUTPUT
+          echo "algo_lambda_function_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
+          echo "frontend_bucket_name=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
+          echo "cloudfront_distribution_id=${CF_ID}" >> $GITHUB_OUTPUT
+          echo "api_gateway_endpoint=${API_GATEWAY}" >> $GITHUB_OUTPUT
+          echo "algo_orchestrator_layer_name=${ALGO_LAYER}" >> $GITHUB_OUTPUT
+          echo "api_lambda_layer_name=${API_LAYER}" >> $GITHUB_OUTPUT
+          echo "rds_credentials_secret_name=${RDS_SECRET}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "terraform_backend_bucket=${BACKEND_BUCKET}" >> $GITHUB_OUTPUT
+          echo "terraform_backend_key=${BACKEND_KEY}" >> $GITHUB_OUTPUT
+
+          echo "✅ Infrastructure outputs resolved from Terraform"
+          echo "  API Lambda:  ${API_LAMBDA}"
+          echo "  Algo Lambda: ${ALGO_LAMBDA}"
+          echo "  Frontend S3: ${FRONTEND_BUCKET}"
+          echo "  CloudFront:  ${CF_ID}"
+          echo "  Algo Layer:  ${ALGO_LAYER}"
+          echo "  API Layer:   ${API_LAYER}"
 
   # ──────────────────────────────────────────────────────────────
   # Algo Lambda
@@ -914,14 +947,14 @@ jobs:
 
           # Dynamically look up the API Gateway endpoint
           # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
-          # Endpoints in api.js already include /api/... so DO NOT append it here
+          # Append /api since frontend endpoints don't include it (they're /health, /stocks, etc)
           API_BASE=$(aws apigatewayv2 get-apis \
             --region $AWS_REGION \
             --query 'Items[0].ApiEndpoint' \
             --output text 2>/dev/null || echo "")
 
           if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
-            API_URL="${API_BASE}"
+            API_URL="${API_BASE}/api"
             echo "Using dynamically resolved API_BASE: $API_URL"
           else
             echo "WARNING: Could not resolve API_BASE from AWS, skipping API_URL config"
