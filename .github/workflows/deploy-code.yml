@@ -912,20 +912,20 @@ jobs:
           # Get environment from terraform.tfvars
           ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
 
-          # Dynamically look up the API Gateway endpoint and append the stage name.
-          # secrets.API_GATEWAY_URL is the base URL without stage (e.g. https://id.execute-api.region.amazonaws.com).
-          # The frontend needs the full invoke URL including stage: BASE_URL/api
+          # Dynamically look up the API Gateway endpoint
+          # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
+          # Endpoints in api.js already include /api/... so DO NOT append it here
           API_BASE=$(aws apigatewayv2 get-apis \
             --region $AWS_REGION \
             --query 'Items[0].ApiEndpoint' \
             --output text 2>/dev/null || echo "")
 
           if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
-            # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
-            # Do NOT append /api here - endpoints in api.js already include /api/...
             API_URL="${API_BASE}"
+            echo "Using dynamically resolved API_BASE: $API_URL"
           else
-            API_URL="${{ secrets.API_GATEWAY_URL }}"
+            echo "WARNING: Could not resolve API_BASE from AWS, skipping API_URL config"
+            API_URL=""
           fi
 
           # Get Cognito credentials from Terraform outputs or AWS
