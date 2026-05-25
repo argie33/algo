@@ -7,19 +7,26 @@ Deployment: Fixed Secrets Manager secret name for password sync.
 import os
 import json
 import logging
+import sys
+import traceback
 from typing import Dict, Any, Optional
-import psycopg2
-import psycopg2.sql
-from psycopg2.extras import RealDictCursor
-from collections import defaultdict
-from time import time
-import base64
-from datetime import datetime
-from functools import lru_cache
-import jwt
-import requests
 
-import api_router
+IMPORT_ERROR = None
+
+try:
+    import psycopg2
+    import psycopg2.sql
+    from psycopg2.extras import RealDictCursor
+    from collections import defaultdict
+    from time import time
+    import base64
+    from datetime import datetime
+    from functools import lru_cache
+    import jwt
+    import requests
+    import api_router
+except Exception as e:
+    IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -413,6 +420,12 @@ def require_auth(event: Dict, path: str) -> tuple:
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
+    if IMPORT_ERROR:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
+        }
+
     logger.info(f'[HANDLER_INVOKED] Event received: {event.get("rawPath", "?")} {event.get("requestContext", {}).get("http", {}).get("method", "?")}')
     try:
         # API Gateway v2 (HTTP API) uses rawPath and requestContext.http.method
