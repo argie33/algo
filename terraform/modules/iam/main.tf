@@ -557,6 +557,24 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
   }
 
+  # CloudWatch Metrics (for custom metrics and monitoring)
+  statement {
+    sid    = "CloudWatchMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+  }
+
   # ECS (invoke data patrol task from /api/algo/patrol endpoint)
   statement {
     sid    = "InvokeDataPatrolTask"
