@@ -466,6 +466,24 @@ jobs:
           alpaca_api_key = alpaca_creds.get('api_key', '')
           alpaca_api_secret = alpaca_creds.get('api_secret', '')
 
+          # Retrieve alert configuration (optional - from Secrets Manager)
+          print("Checking for alert configuration...")
+          alert_webhook_url = ''
+          alert_email_to = ''
+          try:
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', 'algo/alerts', '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True)
+            if result.returncode == 0:
+              alert_creds = json.loads(result.stdout.strip())
+              alert_webhook_url = alert_creds.get('webhook_url', '')
+              alert_email_to = alert_creds.get('email_to', '')
+              if alert_webhook_url or alert_email_to:
+                print(f"  Alert config found: webhook={bool(alert_webhook_url)}, email={bool(alert_email_to)}")
+          except Exception as e:
+            print(f"  No alert config in Secrets Manager (this is OK - can be set manually)")
+
           # Get Terraform outputs
           try:
             result = subprocess.run(['terraform', 'output', '-raw', 'alpaca_paper_trading'],
@@ -524,7 +542,9 @@ jobs:
                 "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
                 "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
                 "ORCHESTRATOR_DRY_RUN": "true",
-                "EXECUTION_MODE": exec_mode
+                "EXECUTION_MODE": exec_mode,
+                "ALERT_WEBHOOK_URL": alert_webhook_url,
+                "ALERT_EMAIL_TO": alert_email_to
               }
             },
             "Layers": [layer_arn]
@@ -762,7 +782,12 @@ jobs:
           if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
             ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
             echo "Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
+          else
+            echo "WARNING: CloudFront domain not resolved dynamically"
           fi
+          # Add fallback known CloudFront domains (development/production)
+          ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://d2u93283nn45h2.cloudfront.net"
+          echo "CORS whitelist configured: $ALLOWED_ORIGINS"
 
           echo "Updating API Lambda configuration..."
           echo "  DB_HOST: $DB_HOST"
