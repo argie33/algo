@@ -17,9 +17,9 @@ locals {
 # Separate layers for API and Orchestrator Lambda functions
 # Published by GitHub Actions deploy workflow
 
-# API Layer - published as "algo-api-layer"
+# API Layer - published as per variable configuration
 data "aws_lambda_layer_version" "api_deps" {
-  layer_name = "algo-api-layer"
+  layer_name = var.api_lambda_layer_name
 }
 
 # Orchestrator Layer - published as "algo-orchestrator-layer"
