@@ -66,7 +66,7 @@ resource "aws_cognito_user_pool_client" "web_app" {
   allowed_oauth_flows  = ["code"]
   allowed_oauth_scopes = ["openid", "profile", "email"]
 
-  # Callback URLs
+  # Callback URLs - must match deployment domains
   callback_urls = concat(
     var.environment == "dev" ? [
       "http://localhost:5173/",
@@ -74,8 +74,8 @@ resource "aws_cognito_user_pool_client" "web_app" {
       "http://127.0.0.1:5173/"
     ] : [],
     var.environment == "prod" ? [
-      "https://app.${var.domain_name}/",
-      "https://app.${var.domain_name}/auth/callback"
+      "https://d2u93283nn45h2.cloudfront.net/",
+      "https://d2u93283nn45h2.cloudfront.net/auth/callback"
     ] : []
   )
 
@@ -87,8 +87,8 @@ resource "aws_cognito_user_pool_client" "web_app" {
       "http://127.0.0.1:5173/"
     ] : [],
     var.environment == "prod" ? [
-      "https://app.${var.domain_name}/",
-      "https://app.${var.domain_name}/login"
+      "https://d2u93283nn45h2.cloudfront.net/",
+      "https://d2u93283nn45h2.cloudfront.net/login"
     ] : []
   )
 
