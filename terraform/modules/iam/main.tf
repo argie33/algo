@@ -861,6 +861,52 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
+  # ECS task invocation (for running loaders and orchestrator)
+  statement {
+    sid    = "ECSRunTask"
+    effect = "Allow"
+
+    actions = [
+      "ecs:RunTask",
+      "ecs:DescribeTasks",
+      "ecs:ListTasks"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*",
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task/${var.project_name}-cluster/*"
+    ]
+  }
+
+  # ECS cluster access
+  statement {
+    sid    = "ECSClusterAccess"
+    effect = "Allow"
+
+    actions = [
+      "ecs:DescribeCluster",
+      "ecs:ListClusters"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*"
+    ]
+  }
+
+  # IAM pass role (needed to run ECS tasks)
+  statement {
+    sid    = "PassRole"
+    effect = "Allow"
+
+    actions = [
+      "iam:PassRole"
+    ]
+
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-svc-*"
+    ]
+  }
+
   # CloudWatch Logs (full write access for troubleshooting)
   statement {
     sid    = "CloudWatchLogsWrite"
