@@ -490,7 +490,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "TriggerOrchestrator"
       }
 
-      # ── Step 9: Fire the trading orchestrator (ECS Fargate) ──────────────
+      # ── Step 9: Validate pipeline completion (dry-run only) ──────────────
+      # The Lambda orchestrator (EventBridge at 9:30 AM ET) is the trading trigger.
+      # This ECS step runs dry_run=true: validates all data loaded, logs phase results,
+      # but does NOT place orders. Prevents double-execution vs. the 9:30 AM Lambda.
       TriggerOrchestrator = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
@@ -509,7 +512,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 },
                 {
                   Name  = "ORCHESTRATOR_DRY_RUN"
-                  Value = tostring(var.orchestrator_dry_run)
+                  Value = "true"
                 }
               ]
             }]

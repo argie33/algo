@@ -1,0 +1,79 @@
+name: Run FRED Economic Data Loader
+
+# Populates the economic_data table from FRED API.
+# Uses the econ_data ECS task definition with a command override.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  load-fred:
+    name: Load FRED Economic Data
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Get network config
+        id: network
+        run: |
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" \
+            --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*private*" \
+            --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
+            SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
+              --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          fi
+          SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
+            --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run FRED loader via econ_data task definition
+        id: run_task
+        run: |
+          # Use econ_data-loader task definition with command override to run FRED loader
+          TASK_DEF=$(aws ecs list-task-definitions --region us-east-1 \
+            --family-prefix "algo-econ_data" \
+            --sort DESC --query "taskDefinitionArns[0]" --output text)
+          echo "Using task definition: $TASK_DEF"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster algo-cluster \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"algo-econ_data","command":["python3","loaders/load_fred_economic_data.py"]}]}' \
+            --region us-east-1 \
+            --query "tasks[0].taskArn" --output text)
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Task launched: $TASK_ARN"
+
+      - name: Wait for completion
+        run: |
+          echo "Waiting for FRED loader to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster algo-cluster \
+            --tasks "${{ steps.run_task.outputs.task_arn }}" \
+            --region us-east-1
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster algo-cluster \
+            --tasks "${{ steps.run_task.outputs.task_arn }}" \
+            --region us-east-1 \
+            --query "tasks[0].containers[0].exitCode" --output text)
+
+          echo "Exit code: $EXIT_CODE"
+          [ "$EXIT_CODE" = "0" ] && echo "FRED loader succeeded!" || { echo "FRED loader failed"; exit 1; }

@@ -65,10 +65,13 @@ class TableHealth:
         buy_sell_daily and stock_scores are excluded — they are orchestrator OUTPUTS
         (written by Phase 5/6), not upstream inputs. Treating them as critical halts
         Phase 1 before Phase 5/6 can populate them (circular dependency).
+
+        economic_data is excluded — it stores FRED macro series with no pipeline loader;
+        algo_market_exposure.py handles missing rows with safe defaults.
         """
         critical_tables = {
             'stock_symbols', 'price_daily',
-            'market_health_daily', 'economic_data'
+            'market_health_daily',
         }
         return self.table_name in critical_tables
 

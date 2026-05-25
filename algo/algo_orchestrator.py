@@ -785,9 +785,9 @@ class Orchestrator:
 
         if not MarketCalendar.is_trading_day(self.run_date):
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
-            logger.info(f"\n⏸️  Market closed: {status['reason']}")
+            logger.info(f"\n Market closed: {status['reason']}")
             logger.info("Skipping all trading phases.\n")
-            return {'success': False, 'error': f"Market closed: {status['reason']}"}
+            return {'success': True, 'skipped': True, 'reason': f"Market closed: {status['reason']}"}
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
