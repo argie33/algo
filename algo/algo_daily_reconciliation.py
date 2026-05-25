@@ -41,7 +41,9 @@ class DailyReconciliation:
                 self.trading_client = REST(
                     key_id=creds["key"],
                     secret_key=creds["secret"],
-                    base_url=base_url
+                    base_url=base_url,
+                    api_version='v2',
+                    raw_data=False
                 )
         except Exception as e:
             logger.warning(f"Alpaca client initialization failed: {e}")
@@ -247,7 +249,33 @@ class DailyReconciliation:
         if not self.trading_client:
             return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca client'}
         try:
-            alpaca_positions = self.trading_client.list_positions()
+            import signal
+            import threading
+
+            alpaca_positions = None
+            error_msg = None
+
+            def fetch_positions():
+                nonlocal alpaca_positions, error_msg
+                try:
+                    alpaca_positions = self.trading_client.list_positions()
+                except Exception as e:
+                    error_msg = str(e)
+
+            # Run with 30-second timeout
+            thread = threading.Thread(target=fetch_positions, daemon=True)
+            thread.start()
+            thread.join(timeout=30)
+
+            if thread.is_alive():
+                return {'imported': 0, 'orphaned': 0, 'message': 'Alpaca list_positions timed out after 30s'}
+
+            if error_msg:
+                return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {error_msg}'}
+
+            if alpaca_positions is None:
+                return {'imported': 0, 'orphaned': 0, 'message': 'No positions returned from Alpaca'}
+
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
@@ -597,12 +625,40 @@ class DailyReconciliation:
             return {'updated': 0, 'reason': f'Error: {e}'}
 
     def _fetch_alpaca_account(self):
-        """Fetch account data from Alpaca using REST client."""
+        """Fetch account data from Alpaca using REST client with timeout."""
         try:
             if not self.trading_client:
                 return None
 
-            account = self.trading_client.get_account()
+            import threading
+
+            account = None
+            error_msg = None
+
+            def fetch_account():
+                nonlocal account, error_msg
+                try:
+                    account = self.trading_client.get_account()
+                except Exception as e:
+                    error_msg = str(e)
+
+            # Run with 30-second timeout
+            thread = threading.Thread(target=fetch_account, daemon=True)
+            thread.start()
+            thread.join(timeout=30)
+
+            if thread.is_alive():
+                logger.error("Alpaca get_account timed out after 30s")
+                return None
+
+            if error_msg:
+                logger.warning(f"Could not fetch Alpaca account: {error_msg}")
+                return None
+
+            if account is None:
+                logger.warning("No account data returned from Alpaca")
+                return None
+
             return {
                 'cash': float(account.cash),
                 'equity': float(account.equity),
