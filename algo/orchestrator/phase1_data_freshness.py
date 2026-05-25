@@ -119,7 +119,7 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             )
 
         # FAIL-CLOSED: critical findings always block
-        if critical_count and critical_count > 0:
+        if critical_count > 0:
             logger.info(f"[HALT] Data patrol found {critical_count} CRITICAL issues - BLOCKING ORCHESTRATOR")
             if verbose:
                 logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
@@ -128,7 +128,7 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             return False
 
         # FAIL-CLOSED: too many errors block in auto mode
-        if error_count and error_count > 2:
+        if error_count > 2:
             if verbose:
                 logger.error(f"  [HALT] Data patrol found {error_count} ERROR issues")
             log_phase_result_fn(1, 'data_patrol', 'halt',
@@ -312,16 +312,17 @@ def run(
             return PhaseResult(1, 'data_freshness', 'ok', {}, False, 'Could not query data freshness')
 
         spy_date, mh_date, tt_date, sqs_date, buys_date = row
-        # buy_sell_daily is written by the orchestrator's own Phase 5 — checking it here
-        # creates a deadlock where Phase 1 blocks because Phase 5 hasn't run yet.
-        # It is logged below for observability but not included in the halt decision.
+        # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
+        # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
+        # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
+        # They are logged for observability but excluded from the halt decision.
         halt_checks = {
             'SPY price data': spy_date,
             'Market health': mh_date,
             'Trend template': tt_date,
-            'Signal quality scores': sqs_date,
         }
         observe_checks = {
+            'Signal quality scores': sqs_date,
             'Buy/sell signals': buys_date,
         }
         checks = {**halt_checks, **observe_checks}
@@ -403,26 +404,20 @@ def run(
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
-        # Circuit-breaker: verify signal_quality_scores is populated (unless bootstrapping)
+        # Observability: log signal_quality_scores row count — not a halt condition.
+        # SQS is loaded by the Step Functions pipeline before the ECS orchestrator runs,
+        # but the Lambda orchestrator fires at 9:30 AM ET before that pipeline completes.
         try:
-            cur.execute("SELECT COUNT(*) FROM signal_quality_scores")
-            total_sqs = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
+            sqs_row = cur.fetchone()
+            total_sqs, latest_sqs_date = sqs_row if sqs_row else (0, None)
             if total_sqs == 0:
-                logger.warning("  [WARN] signal_quality_scores table is empty (first run?) - proceeding for bootstrap")
-                log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, allowing first run to populate')
-            else:
-                cur.execute("SELECT COUNT(*) FROM signal_quality_scores WHERE date = (SELECT MAX(date) FROM signal_quality_scores)")
-                sqs_count = cur.fetchone()[0]
-                if sqs_count == 0:
-                    logger.error("  [HALT] signal_quality_scores has stale data")
-                    log_phase_result_fn(1, 'signal_quality_scores', 'halt', 'No recent signals available')
-                    return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, 'No recent signals')
-                if verbose:
-                    logger.info(f"  [OK] signal_quality_scores: {sqs_count} entries on latest date")
+                logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
+                log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
+            elif verbose:
+                logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
         except Exception as e:
-            logger.error(f"  [HALT] signal_quality_scores check failed: {e}")
-            log_phase_result_fn(1, 'signal_quality_scores', 'error', str(e))
-            return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, str(e))
+            logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
 
         # Margin health check (Phase 1 - production safeguard)
         try:
