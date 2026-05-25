@@ -125,7 +125,7 @@ class TrendCriteriaLoader(OptimalLoader):
                 score += 1
             if high52 and c >= high52 * 0.75:
                 score += 1
-            if low52 and c >= low52 * 1.25:
+            if low52 and c >= low52 * 1.30:
                 score += 1
 
             # Weinstein stage (1=base, 2=advancing, 3=top, 4=declining)

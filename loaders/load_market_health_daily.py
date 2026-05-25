@@ -94,8 +94,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["up_day"] = (df["price_change"] > 0).astype(int)
 
         # Use shared indicator computation
-        volume_ma = compute_volume_ma(df["volume"], 50)
-        df["distribution_day"] = ((df["up_day"] == 0) & (df["volume"] > volume_ma)).astype(int)
+        df["prev_volume"] = df["volume"].shift(1)
+        df["distribution_day"] = ((df["price_change"] < 0) & (df["volume"] > df["prev_volume"])).astype(int)
 
         # Calculate moving averages using shared function
         mas = compute_moving_averages(df["close"])
@@ -134,16 +134,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                     market_trend = "consolidation"
                     market_stage = 1
 
-            # Count distribution days (last 4 weeks = ~20 trading days)
-            dist_days_4w = int(df["distribution_day"].iloc[max(0, idx-20):idx+1].sum()) if idx >= 0 else 0
-            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-20):idx+1].sum()) if idx >= 0 else 0
+            # Count distribution days (last 25 trading days per IBD)
+            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-25):idx+1].sum()) if idx >= 0 else 0
 
             results.append({
                 "date": row["date"].date().isoformat(),
                 "market_trend": market_trend,
                 "market_stage": market_stage,
-                "distribution_days_4w": dist_days_4w,
-                "distribution_days_20d": dist_days_20d,
+                "distribution_days_25d": dist_days_25d,
                 "up_volume_percent": float(df["up_day"].iloc[max(0, idx-10):idx+1].mean() * 100) if idx >= 0 else 50,
                 "advance_decline_ratio": 1.0,
                 "new_highs_count": 0,

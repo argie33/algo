@@ -319,13 +319,13 @@ class SignalMomentumMixin:
             except Exception:
                 pass
 
-    def distribution_days(self, symbol: str, eval_date, lookback: int = 20) -> Dict[str, Any]:
+    def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> Dict[str, Any]:
         """
         IBD-style distribution day count. A distribution day is when:
           - Close is down >= 0.2% from prior close
-          - Volume is higher than the 50-day average
+          - Volume is higher than the prior day's volume
 
-        Returns count over lookback window.
+        Returns count over lookback window (IBD standard: 25 trading days).
         """
         try:
             self.connect()
@@ -334,7 +334,7 @@ class SignalMomentumMixin:
                 WITH d AS (
                     SELECT date, close, volume,
                            LAG(close) OVER (ORDER BY date) AS prev_close,
-                           AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg_vol_50
+                           LAG(volume) OVER (ORDER BY date) AS prev_vol
                     FROM price_daily
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT %s
@@ -342,9 +342,9 @@ class SignalMomentumMixin:
                 SELECT COUNT(*) FROM d
                 WHERE prev_close IS NOT NULL
                   AND close < prev_close * 0.998
-                  AND volume > avg_vol_50
+                  AND volume > prev_vol
                 """,
-                (symbol, eval_date, lookback + 50),
+                (symbol, eval_date, lookback),
             )
             row = self.cur.fetchone()
             return int(row[0]) if row and row[0] else 0

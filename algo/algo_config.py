@@ -89,7 +89,7 @@ class AlgoConfig:
         'min_signal_quality_score': ('30', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
         'min_volume_ma_50d': ('300000', 'int', 'Minimum 50-day avg volume'),
         'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
-        'require_stock_stage_2': ('false', 'bool', 'Require Stage 2 trend template'),
+        'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
         'max_stop_distance_pct': ('12.0', 'float', 'Max stop distance % from entry'),
         'max_positions_per_sector': ('5', 'int', 'Max concurrent positions in one sector'),
         'max_positions_per_industry': ('3', 'int', 'Max concurrent positions in one industry'),
@@ -105,7 +105,7 @@ class AlgoConfig:
 
         # Entry Rules (Minervini)
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
-        'min_percent_from_52w_low': ('25.0', 'float', 'Min % from 52w low'),
+        'min_percent_from_52w_low': ('30.0', 'float', 'Min % from 52w low (Minervini standard)'),
         'max_percent_from_52w_high': ('25.0', 'float', 'Max % from 52w high'),
         'min_trend_template_score': ('6', 'int', 'Min Minervini score 0-8 (Minervini standard)'),
 

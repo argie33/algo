@@ -272,13 +272,13 @@ class MarketExposure:
     # ====== Factor implementations ======
 
     def _ibd_state(self, eval_date):
-        """Classify market state using DD count + FTD presence."""
+        """Classify market state using DD count + FTD presence per IBD thresholds."""
         dd_count = self._distribution_days(eval_date)
         ftd = self._has_follow_through_day(eval_date)
         if dd_count <= 3 and ftd:
             state = 'confirmed_uptrend'
             sf = 1.0
-        elif dd_count <= 4:
+        elif dd_count <= 5:
             state = 'uptrend_under_pressure'
             sf = 0.5
         else:
@@ -296,9 +296,8 @@ class MarketExposure:
 
         Canonical IBD definition: a session where close declines >= 0.2%
         AND volume is heavier than the prior day. Counted in a rolling
-        25-session window. (We previously also used > prev_vol; the IBD
-        canon specifically uses prior-day comparison, not 50d avg, so this
-        is correct as-is. Window size now strictly 25, not 30.)
+        25-session window. (LIMIT 26: first row lacks prev_close due to LAG,
+        so only 25 valid comparisons are made.)
         """
         self.cur.execute(
             """
@@ -308,7 +307,7 @@ class MarketExposure:
                        LAG(volume) OVER (ORDER BY date) AS prev_vol
                 FROM price_daily
                 WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC LIMIT 25
+                ORDER BY date DESC LIMIT 26
             )
             SELECT COUNT(*) FROM d
             WHERE prev_close IS NOT NULL
@@ -321,7 +320,7 @@ class MarketExposure:
         return int(row[0]) if row and row[0] else 0
 
     def _has_follow_through_day(self, eval_date):
-        """Detect FTD: index closes >= 1.25% on volume above prior in last 30 days."""
+        """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""
         self.cur.execute(
             """
             WITH d AS (
@@ -334,7 +333,7 @@ class MarketExposure:
             )
             SELECT 1 FROM d
             WHERE prev_close IS NOT NULL
-              AND close >= prev_close * 1.0125
+              AND close >= prev_close * 1.017
               AND volume > prev_vol
             LIMIT 1
             """,

@@ -259,11 +259,11 @@ class ExitEngine:
                 }
 
         # 4. TIME — but with O'Neil 8-week rule override for big winners
-        max_hold = int(self.config.get('max_hold_days', 15))
+        max_hold = int(self.config.get('max_hold_days', 20))
         if days_held >= max_hold:
             # 8-week rule: if stock gained >= 20% in first 3 weeks, hold for 8 weeks
             eight_wk_threshold = float(self.config.get('eight_week_rule_threshold_pct', 20.0))
-            eight_wk_window = int(self.config.get('eight_week_rule_window_days', 15))
+            eight_wk_window = int(self.config.get('eight_week_rule_window_days', 21))
             eight_wk_ext = self._eight_week_rule_active(
                 symbol, current_date, entry_price, days_held,
                 eight_wk_threshold, eight_wk_window,
@@ -376,14 +376,11 @@ class ExitEngine:
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
             max_dd = int(self.config.get('max_distribution_days', 4))
             if dist_days_today > max_dd:
-                # Only exit if position is losing or breakeven; don't exit profitable positions
-                pnl_pct = ((cur_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
-                if pnl_pct <= 0:  # Losing or breakeven only
-                    return {
-                        'stage': 'distribution',
-                        'fraction': 1.0,
-                        'reason': f'Market distribution: {dist_days_today} dist days > {max_dd} (losing position)',
-                    }
+                return {
+                    'stage': 'distribution',
+                    'fraction': 1.0,
+                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd}',
+                }
 
         return None
 
@@ -592,12 +589,12 @@ class ExitEngine:
             return {}
 
     def _is_minervini_break(self, symbol, current_date, cur_price) -> bool:
-        """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""
+        """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
         if self.cur is None:
             return False
         self.cur.execute(
             """
-            SELECT td.sma_50, td.ema_12,
+            SELECT td.sma_50, td.ema_21,
                    (SELECT volume FROM price_daily p WHERE p.symbol = td.symbol AND p.date = td.date) AS vol,
                    (SELECT AVG(volume) FROM price_daily p
                      WHERE p.symbol = td.symbol AND p.date <= td.date
@@ -611,17 +608,17 @@ class ExitEngine:
         row = self.cur.fetchone()
         if not row:
             return False
-        sma_50, ema_12, vol, avg_vol_50 = row
+        sma_50, ema_21, vol, avg_vol_50 = row
         sma_50 = float(sma_50) if sma_50 is not None else None
-        ema_12 = float(ema_12) if ema_12 is not None else None
+        ema_21 = float(ema_21) if ema_21 is not None else None
         vol = float(vol) if vol is not None else 0
         avg_vol_50 = float(avg_vol_50) if avg_vol_50 is not None else 0
 
         # Clean break of 50-DMA
         if sma_50 and cur_price < sma_50 * 0.99:
             return True
-        # Break of EMA(12) on rising volume (institutional selling)
-        if ema_12 and cur_price < ema_12 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
+        # Break of EMA(21) on rising volume (institutional selling)
+        if ema_21 and cur_price < ema_21 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
             return True
         return False
 

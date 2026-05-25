@@ -11,11 +11,13 @@ from typing import Tuple, Dict, Any
 
 
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
-    """Compute Relative Strength Index."""
+    """Compute Relative Strength Index using Wilder's EMA smoothing."""
     deltas = closes.diff()
-    gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
-    losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
-    rs = gains / losses.replace(0, np.nan)
+    gains = deltas.where(deltas > 0, 0)
+    losses = (-deltas.where(deltas < 0, 0))
+    avg_gain = gains.ewm(com=period - 1, min_periods=period).mean()
+    avg_loss = losses.ewm(com=period - 1, min_periods=period).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
