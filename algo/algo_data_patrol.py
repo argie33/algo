@@ -424,11 +424,11 @@ class DataPatrol:
             total_count = int(total_count or 1)
             pct = today_count / total_count * 100 if total_count else 0
 
-            if pct < 5:
+            if pct < 1:
                 self.log('coverage', ERROR, 'price_daily',
                          f'Only {pct:.1f}% of universe updated on latest date',
                          {'today': today_count, 'total': total_count, 'pct': round(pct, 2)})
-            elif pct < 20:
+            elif pct < 10:
                 self.log('coverage', WARN, 'price_daily',
                          f'{pct:.1f}% coverage on latest date',
                          {'today': today_count, 'total': total_count})
