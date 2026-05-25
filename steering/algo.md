@@ -35,12 +35,11 @@
 - OIDC exchanges GitHub token → AWS role → temporary credentials
 - **Never commit AWS keys to repo**
 
-**Database Lambdas must use psycopg2 Layer (built in CI on Linux):**
-- Layer: `terraform/modules/database/python-psycopg2-layer.zip` (built via `deploy-code.yml` step "Build psycopg2 Lambda Layer")
-- Attach via: `aws lambda update-function-configuration --layers <LAYER_ARN>` (in workflow before invoke)
-- Reason: ❌ Don't bundle psycopg[binary] in zip (platform mismatch; CI produces Linux binaries incompatible with local Windows dev)
-- Layer runtime: Python 3.11, 3.12 (set in `modules/database/main.tf`)
-- Lambdas using it: `algo-db-init-dev` (required)
+**Database Lambdas use psycopg2 Layer (built in Terraform):**
+- Layer: `algo-psycopg2-layer-{env}` (created by Terraform in `modules/database/main.tf`)
+- Reason: Platform isolation (Linux wheels built in CI, incompatible with local Windows dev)
+- Runtime: Python 3.12
+- Lambdas using it: `algo-db-init-dev`, `algo-api-dev`
 
 **Deployment triggers:**
 `git push main` → `deploy-code.yml` (auto: test, scan, code) OR `deploy-all-infrastructure.yml` (manual: terraform, Λ, ECS)
@@ -94,9 +93,10 @@ SEC_USER_AGENT: `algo-trading argeropolos@gmail.com` (EDGAR API)
 ## TROUBLESHOOTING
 | Issue | Fix |
 |-------|-----|
+| Phase 1 schema errors | Ensure DB tables exist: `data_patrol_log`, `data_loader_status`. Rebuild via `deploy-code.yml` if missing |
+| API returns 500 | Check RDS VPC SG, Lambda env vars, API CloudWatch logs |
 | DB connectivity | Check: RDS endpoint, Secrets Manager creds match password, Lambda env var DB_SECRET_ARN set, VPC SG allows 5432 |
-| Creds fail | PowerShell profile vars? Postgres running? AWS creds valid? |
-| API 401 | Token expired? Cognito env var set? |
+| Creds fail | ❌ Don't use local AWS credentials. Use GitHub Actions workflows (OIDC auto-authenticates) |
 | Loaders timeout | Rate limit? VPC internet access? RDS reachable? |
 | Signals missing | Data in `technical_data_daily`? Rules in code? |
 | Alpaca 401 | Set `ALPACA_PAPER_TRADING=false` for live, `true` for paper |
