@@ -156,18 +156,21 @@ after any multi-day weekend because the calendar gap exceeds the staleness thres
 
 ## DATA FRESHNESS POLICY
 
-Phase 1 and Phase 2 (circuit breaker) compare each table's latest date against the **previous trading day** (not a fixed calendar threshold). This handles multi-day holiday weekends correctly — e.g., after Memorial Day, the gap from Friday to Tuesday is 4 calendar days but the data is still from the most recent trading day.
+Phase 1 compares each table's latest date against the **previous trading day** (not a fixed calendar threshold). This handles multi-day holiday weekends correctly — e.g., after Memorial Day, the gap from Friday to Tuesday is 4 calendar days but the data is still from the most recent trading day.
 
-| Table | Expected | Consequence if stale |
-|-------|----------|----------------------|
-| `price_daily` (SPY) | Most recent trading day | Phase 1 halts (fail-closed) |
-| `market_health_daily` | Most recent trading day | Phase 1 halts (fail-closed) |
-| `trend_template_data` | Most recent trading day | Phase 1 halts (fail-closed) |
-| `signal_quality_scores` | Most recent trading day | Phase 1 halts (fail-closed) |
-| `buy_sell_daily` | Most recent trading day | Phase 1 halts (fail-closed) |
-| `company_profile`, `key_metrics` | Within 30 days | Warning logged (trading continues) |
+| Table | Halt policy | Reason |
+|-------|-------------|--------|
+| `price_daily` (SPY) | Phase 1 halts | Core price data — missing = can't trade |
+| `market_health_daily` | Phase 1 halts | Required for Tier 2 market gate |
+| `trend_template_data` | Phase 1 halts | Required for Minervini trend filter |
+| `signal_quality_scores` | Observe-only (logged, no halt) | Loaded by morning pipeline AFTER Lambda fires; halt would cause circular dependency |
+| `buy_sell_daily` | Observe-only (logged, no halt) | Same — loaded post-Lambda by pipeline |
+| `economic_data` | No halt | Stores FRED macro series (T10Y2Y, BAMLH0A0HYM2, ICSA etc). No pipeline loader — `algo_market_exposure.py` handles missing rows with 0.7 default factor. Run `run-fred-loader.yml` to populate. |
+| `company_profile`, `key_metrics` | Warning logged only | Background enrichment, 30-day SLA |
 
-**Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` and `algo/algo_circuit_breaker.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
+**Important:** `PipelineHealth.is_critical` only halts on `stock_symbols`, `price_daily`, and `market_health_daily`. All other tables generate warnings, not halts.
+
+**Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
 
 ## DEBUGGING & TROUBLESHOOTING
 
